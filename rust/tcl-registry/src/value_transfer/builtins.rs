@@ -360,9 +360,18 @@ impl CommandSemantics for ListLengthSemantics {
     fn transfer(
         &self,
         domain: FactDomain,
-        _input: &dyn AnalysisInputs,
+        input: &dyn AnalysisInputs,
         _budget: &mut Budget,
     ) -> TransferAnswer {
+        if domain == FactDomain::Range {
+            let first = input.invocation().argument_offset;
+            let fact = input.operand(OperandId(first), FactDomain::Type);
+            let bounds = super::partial::list_length_bounds(&fact);
+            return TransferAnswer::Range(super::RangeModel::Bounds {
+                lo: bounds.lo,
+                hi: bounds.hi,
+            });
+        }
         result_type_transfer(domain, TclType::Int)
     }
 

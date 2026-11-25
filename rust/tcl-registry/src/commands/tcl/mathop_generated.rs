@@ -44,7 +44,6 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
-use tcl_dialect::model::SpecSurface;
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorSpec};
 
 /// All `tcl::mathop` operator-command specs (every spelling).
@@ -100,7 +99,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             // like every other registry command (no `surface: None`); an
             // operator with its own tighter gate (a 9.0-only op → `TCL90_PLUS`)
             // keeps it.
-            surface: spec.surface.or(Some(SpecSurface::TCL85_PLUS)),
+            surface: tcl_dialect::release_facts::reference_command_surface(name),
             // Every operator command is a pure value computation: it reads
             // its operands and returns a result, touching no variable,
             // channel, or interpreter state. That holds for all 27 —
@@ -221,18 +220,14 @@ mod tests {
     /// `since_to_dialects`-style arm) could land here undetected.
     ///
     /// Guards against `lt`/`le`/`gt`/`ge`
-    /// (TIP 461, Tcl 9.0+) going missing: they must be present in all three spellings and gated
+    /// (TIP 461, Tcl 9.0+) going missing: they must be present in both qualified spellings and gated
     /// to `TCL90_PLUS`; `&&`/`||`/`@` (never real `tcl::mathop` commands in
     /// any released Tcl) must be absent in every spelling.
     #[test]
     fn tip461_present_and_gated_bogus_entries_absent() {
         let all = specs();
         for op in ["lt", "le", "gt", "ge"] {
-            for name in [
-                op.to_string(),
-                format!("tcl::mathop::{op}"),
-                format!("::tcl::mathop::{op}"),
-            ] {
+            for name in [format!("tcl::mathop::{op}"), format!("::tcl::mathop::{op}")] {
                 let spec = all
                     .iter()
                     .find(|s| s.name == name)
@@ -267,14 +262,14 @@ mod tests {
         }
     }
 
-    /// An ordinary arithmetic operator is present in all three spellings,
+    /// An ordinary arithmetic operator is present in both qualified spellings,
     /// carrying the `::tcl::mathop` command ensemble's 8.5+ floor (TIP 174):
     /// the operator *command* form does not exist before Tcl 8.5, even
     /// though the operator itself is valid in `expr` in every version.
     #[test]
-    fn ordinary_operator_present_in_all_three_spellings_gated_tcl85_plus() {
+    fn ordinary_operator_present_in_both_qualified_spellings_gated_tcl85_plus() {
         let all = specs();
-        for name in ["+", "tcl::mathop::+", "::tcl::mathop::+"] {
+        for name in ["tcl::mathop::+", "::tcl::mathop::+"] {
             let spec = all
                 .iter()
                 .find(|s| s.name == name)

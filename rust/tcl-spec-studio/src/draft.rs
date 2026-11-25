@@ -205,3 +205,17 @@ pub fn default_subcommand_draft() -> Draft {
 
 #[cfg(test)]
 mod tests;
+
+/// Profile selected by the legacy family word when authoring a definition block.
+#[must_use]
+pub fn legacy_definition_profile_name(family: &str) -> Option<&'static str> {
+    match family {
+        "TclOo" => Some("TCLOO_PROFILE"),
+        "Snit" => Some("SNIT_PROFILE"),
+        "Itcl" => Some("ITCL_PROFILE"),
+        "Clay" => Some("CLAY_PROFILE"),
+        "JimClass" => Some("JIM_PROFILE"),
+        "SpecTcl" | "SslicTcl" => Some("DECLARATION_PROFILE"),
+        _ => None,
+    }
+}

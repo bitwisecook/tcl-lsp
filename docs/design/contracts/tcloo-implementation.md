@@ -20,6 +20,25 @@ body / param / var layout (`MemberKind::Flat`), nested-member wrappers
 forms (`property` — `MemberKind::FlagKeyed`).  TclOO, snit, and [incr Tcl]
 are pure registry data; the shared walkers hold no member-keyword lists.
 
+`DefinitionBodyGrammar::profile` contains the independent object-system facts:
+source definition shape, callable storage, member-body namespace, receiver
+commands, default export rule, member naming purpose and provider installation
+layout. `DefinerFamily` records identity and grouping only. Changing that label
+does not change a grammar's namespace, dispatch or visibility semantics.
+The shipped TclOO, Clay, snit, itcl and Jim profiles select these mechanisms;
+SpecTcl and SslicTcl select declaration-only facts. Compiler and editor
+consumers read the selected grammar's profile, including the profile retained
+with a workspace class.
+
+Native definition-worker metadata remains separate from execution authority.
+A selected profile does not prove a live native handler, an unchanged method
+table, a constructor entry or normal completion. Those checks still require
+their independently retained native protocols and receipts. The legacy SpecTcl
+`family` word selects shipped profile defaults when loading a declaration.
+Studio preserves known profile constants in Rust output and reports an explicit
+`definition_body.profile` loss when an inline SpecTcl block cannot preserve
+independent custom facts.
+
 What each member *declares* is registry data as well: `MemberSpec::effect`,
 a family-neutral `MemberEffect` — `Callable` (receiver, `CallableRole`, and
 the name / parameter-list / body slots) for `method`, `classmethod`,

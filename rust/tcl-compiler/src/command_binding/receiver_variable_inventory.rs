@@ -19,7 +19,7 @@
 //! Own-provider original variable declarations, separate from lookup and storage.
 
 use crate::signature_scan::scope::SignatureSourceNameInput;
-use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, SlotOp, SlotSpec};
+use tcl_registry::definer::{DefinitionBodyGrammar, SlotOp, SlotSpec};
 use tcl_syntax::naming::{NamePolicyProtocol, NativeOoVariableSlotOperation};
 
 /// Counted declarations under one independently selected `TclOO` field recipe.
@@ -36,7 +36,7 @@ impl OriginalReceiverVariableInventory {
         grammar: &DefinitionBodyGrammar,
         policy: NamePolicyProtocol,
     ) -> Option<Self> {
-        if grammar.family != DefinerFamily::TclOo {
+        if !grammar.profile.has_native_definition_workers() {
             return None;
         }
         tcl_syntax::naming::validate_native_oo_variable(policy.recipe(), b"").ok()?;

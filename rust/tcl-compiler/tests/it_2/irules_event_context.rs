@@ -124,7 +124,10 @@ fn measured_server_ssl_event_spelling_matches_the_catalogue() {
         &invalid[diagnostic.span.as_range()],
         "SERVERSSL_CLIENTHELLO"
     );
-    assert!(codes("when SERVERSSL_CLIENTHELLO_SEND {}", "f5-irules").is_empty());
+    assert_eq!(
+        codes("when SERVERSSL_CLIENTHELLO_SEND {}", "f5-irules"),
+        [] as [String; 0]
+    );
 }
 
 #[test]

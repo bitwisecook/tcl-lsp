@@ -51,8 +51,9 @@ fn caught_under(script: &str, release: Option<tcl_dialect::TclVersion>) -> Strin
         None => tcl_vm::test_support::native_vm(),
     };
     let asm = if let Some(release) = release {
-        let profile = tcl_registry::model::ingress::resolve_environment(release.dialect_name())
-            .analyser_profile();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment(release.dialect_profile_name())
+                .analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
         let asm = service
             .compile_for_profile(&src, profile)

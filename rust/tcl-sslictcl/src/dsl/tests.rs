@@ -139,7 +139,7 @@ fn recovers_and_reports_every_independent_error() {
 #[test]
 fn newer_vocabulary_is_a_warning_not_an_error() {
     let loaded = load_with_diagnostics("sslictcl 2\n");
-    assert!(errors(&loaded).is_empty());
+    assert_eq!(errors(&loaded), [] as [&crate::dsl::DslDiagnostic; 0]);
     assert_eq!(loaded.diagnostics[0].code, DiagCode::Sslic1102);
     assert_eq!(loaded.diagnostics[0].severity, DslSeverity::Warning);
     assert_eq!(loaded.document.unwrap().model.vocabulary, 2);

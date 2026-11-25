@@ -89,7 +89,7 @@ impl OriginalJimStockMethod {
             .context()
             .resolve_spec(context.registry, &owner.factory.command)?
             .definition_body?;
-        if grammar.family != tcl_registry::definer::DefinerFamily::JimClass {
+        if !grammar.profile.members_are_two_word_commands() {
             return None;
         }
         let member = grammar.member(std::str::from_utf8(words.literal(1)?).ok()?)?;

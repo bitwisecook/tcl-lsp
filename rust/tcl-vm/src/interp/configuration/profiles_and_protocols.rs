@@ -47,7 +47,7 @@ impl InterpState {
         profile: &'static tcl_dialect::DialectProfile,
     ) -> &'static tcl_dialect::DialectProfile {
         if profile.is_fallback() {
-            crate::environment::profile_for_dialect(self.runtime_version.dialect_name())
+            crate::environment::profile_for_dialect(self.runtime_version.dialect_profile_name())
         } else {
             profile
         }

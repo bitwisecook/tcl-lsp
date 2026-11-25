@@ -109,7 +109,7 @@ impl OriginalAuthoredJimClass {
             .context()
             .resolve_spec(context.commands(), self.factory.command())?
             .definition_body?;
-        (grammar.family == tcl_registry::definer::DefinerFamily::JimClass).then_some(grammar)
+        (grammar.profile.members_are_two_word_commands()).then_some(grammar)
     }
     /// Genuine selected source schema and original complete vector, with all debts.
     #[must_use]

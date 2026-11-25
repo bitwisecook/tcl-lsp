@@ -26,10 +26,7 @@ use super::{
 };
 use crate::signature_scan::original_name::SourceOriginalNameOccurrence;
 use tcl_lexer::Token;
-use tcl_registry::{
-    ArgRole,
-    definer::{DefinerFamily, DefinitionBodyGrammar},
-};
+use tcl_registry::{ArgRole, definer::DefinitionBodyGrammar};
 
 struct InventoryDefinition {
     class: ClassDef,
@@ -99,7 +96,7 @@ impl Analyser {
             }
         }
         let grammar = descriptor.definition_body?;
-        if grammar.family != DefinerFamily::Clay {
+        if !grammar.profile.conditional_source_inventory() {
             return None;
         }
         let ordinal = |wanted| {

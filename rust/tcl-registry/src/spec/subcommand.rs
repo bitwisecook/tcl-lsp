@@ -135,6 +135,8 @@ pub struct SubCommand {
     /// Static command-prefix positions + appended arities (after the
     /// subcommand word), e.g. `trace add variable`'s callback.
     pub command_prefixes: &'static [(u8, crate::arg_role::AppendedArity)],
+    /// Fixed callback protocols in the same descriptor-local argument coordinates.
+    pub callback_protocols: &'static [(u8, crate::channel_protocols::ChannelCallbackProtocol)],
 
     /// Dynamic command-prefix resolver (after the subcommand word).
     pub command_prefix_resolver: Option<CommandPrefixResolver>,
@@ -146,6 +148,9 @@ pub struct SubCommand {
     /// Consumers must retain the operand producer and the actual entry table;
     /// the receiving command's head or helper namespace supplies neither.
     pub script_lookup_scope: Option<crate::ScriptLookupScope>,
+
+    /// Per-argument evaluation coordinates; omission inherits the command.
+    pub evaluation_contexts: Option<crate::evaluation_context::EvaluationContextSpec>,
 
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their index after the subcommand word.  Option values carry
@@ -741,7 +746,7 @@ impl SubCommand {
         }) = self.native_compilation.map(|spec| spec.grammar)
         {
             self.const_fold?;
-            return crate::const_fold::fold_dict_members(args, Some(dialect), member);
+            return crate::literal_folds::fold_dict_members(args, Some(dialect), member);
         }
         if let Some(
             contract @ crate::native_result::NativeResultContract::DictionaryArguments { .. },

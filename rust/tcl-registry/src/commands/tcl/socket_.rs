@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `socket` — open a TCP client or server socket channel.
+use crate::channel_protocols::ChannelCallbackProtocol;
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
@@ -54,7 +55,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-server",
         // Accept callback invoked as `command channel addr port` → 3 args.
-        value: OptionValue::deferred_command_prefix_n("command", AppendedArity::Exactly(3)),
+        value: ChannelCallbackProtocol::SocketServer.option("command"),
         detail: "Create a listening server socket instead of a client connection. command (a command prefix) is invoked as \"command channel clientAddr clientPort\" for each accepted connection.",
         surface: None,
         aliases: &[],
@@ -169,6 +170,9 @@ const INVOCATION_FORMS: &[CommandForm] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,

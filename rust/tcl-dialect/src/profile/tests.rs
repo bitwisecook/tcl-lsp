@@ -845,7 +845,7 @@ fn an_evaluation_point_is_the_runtime_base_and_a_release_claims_a_pinned_toolcha
                 "{}: no pinned patchlevel",
                 p.name
             );
-            assert_eq!(p.name, format!("tcl{}", base.version_string()));
+            assert_eq!(p.name, base.dialect_profile_name().to_owned());
         }
     }
     let releases = all_with_fallback().filter(|p| p.is_tcl_release()).count();
@@ -986,4 +986,21 @@ fn f5_profiles_do_not_inherit_the_tcl_8_4_character_model() {
             .character_model(),
         Some(StringCharacterModel::BmpCharsElseUtf8Bytes),
     );
+}
+
+#[test]
+fn namespace_variable_fallback_uses_the_release_owner() {
+    for profile in DialectProfile::all() {
+        assert_eq!(
+            profile.namespace_var_global_fallback(),
+            profile
+                .runtime_version()
+                .is_some_and(TclVersion::namespace_var_global_fallback),
+            "{}",
+            profile.name,
+        );
+    }
+    let unversioned = DialectProfile::plain_tcl();
+    assert_eq!(unversioned.runtime_version(), None);
+    assert!(!unversioned.namespace_var_global_fallback());
 }

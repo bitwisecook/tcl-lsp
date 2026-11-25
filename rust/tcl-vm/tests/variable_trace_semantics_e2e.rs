@@ -46,7 +46,7 @@ use tcl_dialect::TclVersion;
 use tcl_test_support::required_tclshs;
 
 fn vm_output(source: &str) -> String {
-    common::vm_output(source, TclVersion::V9_0.dialect_name())
+    common::vm_output(source, TclVersion::V9_0.dialect_profile_name())
 }
 
 fn tclsh_output(source: &str) -> String {
@@ -513,7 +513,7 @@ fn vm_matches_the_pinned_trace_vectors() {
             assert_eq!(
                 common::vm_output(
                     &outcome_source(vector.script, error),
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 ),
                 outcome_output(stdout, error),
                 "[{version:?}] {}",

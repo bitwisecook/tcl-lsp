@@ -186,6 +186,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upvar",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::VarCell],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::LevelSelected,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_result: Some(crate::native_result::NativeResultContract::EmptyString),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

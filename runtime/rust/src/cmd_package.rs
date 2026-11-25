@@ -1831,7 +1831,7 @@ mod tests {
                     jim
                 } else {
                     tcl_registry::model::ingress::resolve_environment(
-                        TclVersion::ALL[engine].dialect_name(),
+                        TclVersion::ALL[engine].dialect_profile_name(),
                     )
                     .unit_profile()
                 };

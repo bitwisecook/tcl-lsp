@@ -938,6 +938,7 @@ XTASK_GATES := \
 	'crate-layer' \
 	'memo-type' \
 	'release-table' \
+	'release-facts --check' \
 	'grammar-bypass' \
 	'plan-rows' \
 	'contract-evidence' \
@@ -946,6 +947,7 @@ XTASK_GATES := \
 	'semantics-matrix --check' \
 	'command-backing --check' \
 	'callback-inventory --check' \
+	'evaluation-contexts --check' \
 	'audit-option-dialects --check' \
 	'runtime-stdlib' \
 	'gen-editor-extensions --check' \

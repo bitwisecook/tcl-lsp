@@ -23,8 +23,8 @@ use tcl_runtime_api::native_oo::{
 };
 
 fn vm(version: tcl_dialect::TclVersion) -> Vm {
-    let profile =
-        tcl_registry::model::ingress::resolve_environment(version.dialect_name()).unit_profile();
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+        .unit_profile();
     crate::native_fixture::interpreter(profile)
 }
 

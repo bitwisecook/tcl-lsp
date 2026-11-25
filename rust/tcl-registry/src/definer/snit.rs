@@ -199,6 +199,7 @@ pub(super) fn snit_bare_word_construction_hint(word: &str) -> bool {
 /// consumer's name-suffix check.
 pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
+    profile: super::SNIT_PROFILE,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options"],
     implicit_receiver_vars: &["self"],
@@ -236,6 +237,7 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 /// component).
 pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
+    profile: super::SNIT_PROFILE,
     members: SNIT_MEMBERS,
     implicit_vars: &["self", "selfns", "type", "options", "win", "hull"],
     implicit_receiver_vars: &["self"],

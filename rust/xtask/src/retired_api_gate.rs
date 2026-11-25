@@ -94,6 +94,19 @@ struct RetiredPattern {
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
+    // Literal algorithms are owned by tcl-cmd-core; registry adapters project policy.
+    RetiredPattern {
+        needle: "crate::const_fold",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_registry::const_fold",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "mod const_fold;",
+        outside_registry_only: false,
+    },
     // Purity is derived from a call's complete effect domains
     // (`CommandSpec::is_pure_at`, `InvocationFacts::is_pure`), never authored
     // or read as a trait (#1712).
@@ -708,6 +721,25 @@ fn find_needle(line: &str, needle: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn literal_value_algorithms_cannot_return_to_registry() {
+        assert_ne!(
+            super::scan("pub mod const_fold;", true),
+            Vec::<(usize, &str)>::new()
+        );
+        assert_ne!(
+            super::scan("let value = crate::const_fold::fold_llength(args);", true),
+            Vec::<(usize, &str)>::new()
+        );
+        assert_eq!(
+            super::scan(
+                "spec.const_fold = Some(crate::literal_folds::fold_llength);",
+                true
+            ),
+            Vec::<(usize, &str)>::new()
+        );
+    }
+
     use super::*;
 
     /// The gate must fail on a seeded violation of every retired family.

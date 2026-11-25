@@ -155,14 +155,14 @@ fn original_opaque_procedure_completion_and_body_keep_distinct_allocations() {
             .unwrap_or_else(|| {
                 panic!(
                     "{}: opaque installed procedure and body",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 )
             });
         let procedures = world
             .declarations()
             .filter(|entry| entry.kind() == OriginalCommandPublicationKind::Procedure)
             .collect::<Vec<_>>();
-        assert_eq!(procedures.len(), 2, "{}", version.dialect_name());
+        assert_eq!(procedures.len(), 2, "{}", version.dialect_profile_name());
         assert_ne!(procedures[0].slot(), procedures[1].slot());
         let point = bindings.invocation_at_source(
             "",
@@ -170,7 +170,9 @@ fn original_opaque_procedure_completion_and_body_keep_distinct_allocations() {
         );
         let reference = point
             .original_evaluated_command_reference()
-            .unwrap_or_else(|| panic!("{}: opaque call allocation", version.dialect_name()));
+            .unwrap_or_else(|| {
+                panic!("{}: opaque call allocation", version.dialect_profile_name())
+            });
         assert_eq!(reference.original_slot(), Some(procedures[0].slot()));
         assert!(
             analyse(r"proc P\uD800 {{arg default extra}} {}", version)
@@ -277,7 +279,7 @@ fn original_completed_occupancy_keeps_baseline_source_and_unknown_holders_separa
         );
         let world = analyse(r"proc P\uD800 {} {}; rename P\uD800 Q\uD801", version)
             .original_completed_command_world()
-            .unwrap_or_else(|| panic!("{}: opaque procedure move", version.dialect_name()));
+            .unwrap_or_else(|| panic!("{}: opaque procedure move", version.dialect_profile_name()));
         assert_eq!(
             world.command_slot_occupied(&slot(&[], b"P\xed\xa0\x80"), policy),
             Some(false)
@@ -586,7 +588,8 @@ fn original_world_baseline_is_selected_before_branching() {
     // docs/design/analysis/name-resolution-proofs/original-world-baseline-bootstrap.md
     for version in tcl_dialect::TclVersion::ALL {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let state = ModuleCommandBindings::initial(registry);
         let policy = NamePolicyProtocol::authored_tcl(version);
         assert_eq!(state.original_command_world.policy, Some(policy));
@@ -748,7 +751,7 @@ fn original_qualified_forget_joins_current_origin_after_source_and_alias_moves()
         let bindings = analyse(source, version);
         let world = bindings
             .original_completed_command_world()
-            .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+            .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
         let policy = NamePolicyProtocol::authored_tcl(version);
         let retained = world
             .declaration_at(&slot(&[b"B"], b"alias\xed\xa0\x80"), policy)

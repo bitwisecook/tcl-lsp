@@ -307,7 +307,7 @@ fn vm_matches_the_pinned_step_trace_vectors() {
     for version in [TclVersion::V8_6, TclVersion::V9_0] {
         for vector in VECTORS {
             assert_eq!(
-                common::vm_output(vector.script, version.dialect_name()),
+                common::vm_output(vector.script, version.dialect_profile_name()),
                 vector.want,
                 "{version:?}: {}",
                 vector.name
@@ -347,7 +347,7 @@ fn step_trace_operand_substitution_matches_all_five_native_engines() {
             oracle.patchlevel
         );
         assert_eq!(
-            common::vm_output(SOURCE, oracle.version.dialect_name()),
+            common::vm_output(SOURCE, oracle.version.dialect_profile_name()),
             EXPECTED,
             "{:?}",
             oracle.version
@@ -363,7 +363,7 @@ fn older_step_trace_engines_do_not_supply_coroutine_tailcall_or_core_tcloo() {
     {
         assert_eq!(common::oracle_output(&oracle.path, source), "0 0 0");
         assert_eq!(
-            common::vm_output(source, oracle.version.dialect_name()),
+            common::vm_output(source, oracle.version.dialect_profile_name()),
             "0 0 0"
         );
     }

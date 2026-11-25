@@ -1679,8 +1679,9 @@ fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
         TclVersion::V9_1,
     ] {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
-        let native = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-            .unit_profile();
+        let native =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .unit_profile();
         let mut vm =
             tcl_vm::test_support::native_vm_for_profile(native, Box::new(std::io::stdout()));
         let key = tcl_vm::Value::new_native_string_bytes(b"-errorcode".as_slice());

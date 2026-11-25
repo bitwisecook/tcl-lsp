@@ -51,7 +51,8 @@ fn alias_selection_obeys_command_order_before_inspecting_aliases() {
         ["empty"]
     );
     for version in TclVersion::ALL {
-        let context = tcl_registry::model::ingress::static_context_for(version.dialect_name());
+        let context =
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
         let registry = context.commands();
         let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
         let mut cases = vec![(
@@ -124,7 +125,7 @@ namespace eval : {
     );
     assert_eq!(authored.path_constant(":::::selected"), None);
     for version in TclVersion::ALL {
-        let dialect = format!("tcl{}", version.version_string());
+        let dialect = version.dialect_profile_name().to_owned();
         let profile = resolve_environment(&dialect).analyser_profile();
         let writes = constant_path_assignments(source, profile);
         let constants = fold_constant_assignments(&writes, None);

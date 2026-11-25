@@ -3,7 +3,7 @@
 # The native `f5-irules` command surface (1062 commands) as SpecTcl, for
 # like-for-like comparison with the compiled-in specs. Not loaded by any
 # product; see docs/design/registry/spectcl-compiled-surface-plan.md.
-# Fields the renderer cannot carry: 1042.
+# Fields the renderer cannot carry: 1089.
 
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
@@ -25093,6 +25093,9 @@ command append {
     safe_on_uninit {all-tcl f5-irules}
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -25154,6 +25157,9 @@ command array {
     arity 1..
 
     inferred_storage_type Array
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -25436,6 +25442,9 @@ command binary {
     traits {CSE_CANDIDATE BYTE_COMPILED FRAME_HASH_BUILTIN}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -25687,6 +25696,9 @@ command case {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -25740,6 +25752,12 @@ command catch {
 
     return_type Int
     var_write_typing Destructured
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -25761,6 +25779,9 @@ command catch {
     lowering_hook -native Catch
     inline_codegen_hook -native Catch
     analyser_hook -native Catch
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -26586,6 +26607,9 @@ command encoding {
     traits {BYTE_COMPILED SAFE_INTERP_HIDDEN}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -26787,6 +26811,12 @@ command eval {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -26799,6 +26829,9 @@ command eval {
     arg 0 -role Body
 
     lowering_hook -native Eval
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown
     # TODO(spectcl): `frame_effect` is set on the source spec. The DSL spells it
@@ -26870,6 +26903,9 @@ command expr {
 
     return_type Numeric
     representation_effect {CoerceExpressionValues 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -26994,6 +27030,12 @@ command for {
     arity 4
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -27017,6 +27059,9 @@ command for {
     }
 
     lowering_hook -native For
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -27044,6 +27089,12 @@ command foreach {
     return_type String
     var_write_typing {ElementsOf 0}
     representation_effect {CoerceOrdinaryListPairs 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -27066,6 +27117,9 @@ command foreach {
     arg_role_resolver_roles Body
     lowering_hook -native Foreach
     analyser_hook -native Foreach
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -27206,6 +27260,9 @@ command global {
     arity 1.. -retired 8.6
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -27556,6 +27613,12 @@ command if {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -27581,6 +27644,9 @@ command if {
     # TODO(spectcl): `bpf_op` is set on the source spec. The DSL spells it
     #   `bpf_op -native ID`, but a draft records only that the field is set,
     #   never the expression that set it.
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -27659,6 +27725,9 @@ command incr {
     safe_on_uninit tcl8.5+
 
     return_type Int
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -27716,6 +27785,9 @@ command info {
     traits BYTE_COMPILED
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -28485,6 +28557,9 @@ command lappend {
     var_elements_effect {AppendsListElements 1}
     representation_effect {CopyOnWriteContainerMutation 0 2}
     inferred_storage_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -29182,6 +29257,9 @@ command lset {
     return_type List
     representation_effect {CopyOnWriteContainerMutation 0 3}
     inferred_storage_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -29252,6 +29330,9 @@ command lsort {
     return_type List
     inferred_storage_type List
     script_lookup_scope InvokingFrame
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -29892,6 +29973,9 @@ command regexp {
     # TODO(spectcl): `variable_write_min_args` is set on the source spec. The
     #   DSL spells it `variable_write_min_args N`, but the loader has no reader
     #   for that property word yet.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -29974,6 +30058,9 @@ command regsub {
     # TODO(spectcl): `variable_write_min_args` is set on the source spec. The
     #   DSL spells it `variable_write_min_args N`, but the loader has no reader
     #   for that property word yet.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -30280,6 +30367,9 @@ command scan {
 
     return_type Int
     var_write_typing Destructured
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -30467,6 +30557,9 @@ command set {
     arity 1..2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -30778,6 +30871,9 @@ command string {
     traits {CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -31944,6 +32040,12 @@ command switch {
     arity 3.. -step 2 -also 2 -positionals
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -31959,6 +32061,9 @@ command switch {
     arg_role_resolver_roles Body
     lowering_hook -native Switch
     analyser_hook -native Switch
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -32224,6 +32329,15 @@ command trace {
     arity 1..
 
     script_lookup_scope TriggerFrame
+    # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
+    #   it `body_execution -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `deferred_execution` is set on the source spec. The DSL
+    #   spells it `body_execution -entry-scope -trigger -family`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32557,6 +32671,9 @@ command unset {
     traits {DESTROYS_VARIABLE BYTE_COMPILED FRAMELESS_RUNTIME FIRST_ARG_VARNAME FIRE_AND_FORGET_TEARDOWN}
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32617,6 +32734,12 @@ command uplevel {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32626,6 +32749,9 @@ command uplevel {
     lowering_hook -native Uplevel
     codegen_hook -native Uplevel
     analyser_hook -native Uplevel
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown
     # TODO(spectcl): `frame_effect` is set on the source spec. The DSL spells it
@@ -32671,6 +32797,9 @@ command upvar {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32817,6 +32946,9 @@ command variable {
     arity 1.. -retired 8.6
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32985,6 +33117,12 @@ command while {
     arity 2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -33004,6 +33142,9 @@ command while {
     }
 
     lowering_hook -native While
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 

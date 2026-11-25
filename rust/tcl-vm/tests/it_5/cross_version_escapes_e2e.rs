@@ -71,7 +71,7 @@ impl std::io::Write for Capture {
 /// `subst`'s at run time, so pinning only one of the two leaves the other on
 /// the 9.0 default.
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir(

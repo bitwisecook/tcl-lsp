@@ -104,7 +104,7 @@ pub fn spec() -> CommandSpec {
         }),
         runtime_backing: RuntimeBacking::shipped("lrange"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        const_fold: Some(crate::const_fold::fold_lrange),
+        const_fold: Some(crate::literal_folds::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a
         // `HEAD NAME BRACED BRACED` shape once first/last happen to be
         // brace-quoted (e.g. `lrange {a b c} 0 {2}`) — it needs

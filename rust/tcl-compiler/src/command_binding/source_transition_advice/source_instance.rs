@@ -336,7 +336,7 @@ impl AdviceInvocationContext<'_> {
             if name.bytes().is_empty() || name.bytes().contains(&0) {
                 return None;
             }
-            let slot = if grammar.family == tcl_registry::definer::DefinerFamily::TclOo {
+            let slot = if grammar.profile.has_native_definition_workers() {
                 match self.policy {
                     AdviceNamingPolicy::Native(policy) => policy
                         .recipe()

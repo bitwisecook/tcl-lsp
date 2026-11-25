@@ -912,8 +912,8 @@ mod tests {
             ops.purposes,
             [(NativeBooleanTruthPurpose::LogicalOr, V::Num(17))]
         );
-        assert!(ops.final_operands.is_empty());
-        assert!(ops.commands.is_empty());
+        assert_eq!(ops.final_operands, [] as [(V, V, bool); 0]);
+        assert_eq!(ops.commands, [] as [String; 0]);
         ops.purposes.clear();
         assert_eq!(
             eval(&parse_expr("17 ? 31 : [unreached]", None), &mut ops),
@@ -923,7 +923,7 @@ mod tests {
             ops.purposes,
             [(NativeBooleanTruthPurpose::ConditionalJump, V::Num(17))]
         );
-        assert!(ops.commands.is_empty());
+        assert_eq!(ops.commands, [] as [String; 0]);
     }
 
     fn eval_str(src: &str) -> Result<V, String> {

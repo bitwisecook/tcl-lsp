@@ -1241,7 +1241,7 @@ speclib mylib 1 {
             (crate::golden::render(&pack), inputs, commands)
         };
         let first = load("/one/root.tclspec");
-        assert!(!cache.entries().is_empty());
+        assert_ne!(cache.entries(), [] as [std::path::PathBuf; 0]);
         let second_owner = load("/two/root.tclspec");
         assert_eq!(first.0, second_owner.0);
         assert_eq!(second_owner.1[0].0, PathBuf::from("/two/child"));
@@ -1323,9 +1323,9 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("clear");
         let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
-        assert!(!cache.entries().is_empty());
+        assert_ne!(cache.entries(), [] as [std::path::PathBuf; 0]);
         clear().expect("clear a populated cache");
-        assert!(cache.entries().is_empty());
+        assert_eq!(cache.entries(), [] as [std::path::PathBuf; 0]);
         clear().expect("clear an absent cache");
     }
     #[test]

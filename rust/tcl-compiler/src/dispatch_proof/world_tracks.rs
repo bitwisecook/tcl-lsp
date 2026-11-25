@@ -140,7 +140,9 @@ impl WorldTrack {
             WorldStateDomain::PackageState => Self::PackageState,
             WorldStateDomain::HostCapabilities => Self::HostCapabilities,
             WorldStateDomain::VariableStore => Self::VariableStore,
-            WorldStateDomain::LegacyExternal(_) => Self::ExternalState,
+            WorldStateDomain::ThreadSharedStore | WorldStateDomain::LegacyExternal(_) => {
+                Self::ExternalState
+            }
         }
     }
 

@@ -21,8 +21,7 @@ use crate::native_compiler_words::NativeCompilerWords;
 use crate::native_string_compilation::{NativeStringMatchOperation, NativeStringMatchScope};
 
 fn words(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
-    let profile =
-        tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(source),
         tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),

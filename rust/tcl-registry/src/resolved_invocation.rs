@@ -59,6 +59,7 @@ use tcl_dialect::model::{SpecSurface, SurfaceQuery};
 mod argument_count;
 mod argument_roles;
 mod case_clauses;
+mod channel_facts;
 mod effects_and_transitions;
 mod invocation_facts;
 mod invocation_options;

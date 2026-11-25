@@ -504,8 +504,7 @@ mod tests {
                 _ => panic!("native version"),
             };
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let image = tcl_lexer::SourceImage::native(unhex(fields[2]));
             let commands = tcl_lexer::native_script_words_in(
                 image.clone(),
@@ -554,8 +553,7 @@ mod tests {
                 _ => panic!("native version"),
             };
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let image = tcl_lexer::SourceImage::native(unhex(fields[2]));
             let commands = tcl_lexer::native_script_words_in(
                 image.clone(),

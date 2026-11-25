@@ -33,8 +33,8 @@ use tcl_registry::{InvocationWord, InvocationWords, StateTransition};
 pub(super) fn may_advertise(content: &str, version: tcl_dialect::TclVersion) -> bool {
     let dialect = tcl_registry::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
-    let profile =
-        tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+        .expect("C loader release");
     // Those directives modify the full analyser's supplied source context.
     // This narrower entry does not reconstruct that modified owner.
     let (commands, expressions) =
@@ -50,7 +50,7 @@ pub(super) fn may_advertise(content: &str, version: tcl_dialect::TclVersion) -> 
         return true;
     };
     let registry =
-        tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let generation = crate::context_for_dialect_profile(profile);
     let loader_context =
         Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));

@@ -1693,8 +1693,8 @@ mod tests {
                 expand_word: None,
                 tokens: None,
                 arg_kinds: &kinds,
-                dialect: tcl_dialect::DialectProfile::find(version.dialect_name()),
-                lexer_config: LexerConfig::for_dialect(version.dialect_name()),
+                dialect: tcl_dialect::DialectProfile::find(version.dialect_profile_name()),
+                lexer_config: LexerConfig::for_dialect(version.dialect_profile_name()),
             };
             let selected = lower_upvar(&cmd);
             assert_eq!(

@@ -115,7 +115,7 @@ fn clay_outline_admits_self_dispatch_but_not_rename() {
     );
     for (line, column) in [(0, 13), (1, 9), (2, 20)] {
         assert!(crate::rename::prepare_rename(source, line, column, &analysis).is_none());
-        assert!(
+        assert_eq!(
             crate::rename::rename(
                 source,
                 profile,
@@ -124,8 +124,8 @@ fn clay_outline_admits_self_dispatch_but_not_rename() {
                 "changed",
                 &analysis,
                 Some(registry.commands())
-            )
-            .is_empty()
+            ),
+            [] as [crate::rename::TextEdit; 0]
         );
     }
 }

@@ -8,60 +8,6 @@ use tcl_dialect::model::{Family, SpecSurface};
 pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
     (
         "tcl",
-        "!",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "!=",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "%",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "&",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "*",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "**",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "+",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "-",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "/",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
         "::tcl::dict::exists",
         "",
         &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
@@ -596,54 +542,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
     ),
     (
         "tcl",
-        "<",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "<<",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "<=",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "==",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        ">",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        ">=",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        ">>",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "^",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
         "concat",
         "",
         &[SpecSurface::core_in(Family::Tcl, &[("8.4", None)])],
@@ -728,12 +626,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
     ),
     (
         "tcl",
-        "eq",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
         "file",
         "extension",
         &[SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))])],
@@ -758,24 +650,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
     ),
     (
         "tcl",
-        "ge",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])],
-    ),
-    (
-        "tcl",
-        "gt",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])],
-    ),
-    (
-        "tcl",
-        "in",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
         "info",
         "complete",
         &[SpecSurface::core_in(Family::Tcl, &[("8.4", None)])],
@@ -791,12 +665,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
         "join",
         "",
         &[SpecSurface::core_in(Family::Tcl, &[("8.4", None)])],
-    ),
-    (
-        "tcl",
-        "le",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])],
     ),
     (
         "tcl",
@@ -854,12 +722,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
     ),
     (
         "tcl",
-        "lt",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])],
-    ),
-    (
-        "tcl",
         "modf",
         "",
         &[SpecSurface::core_in(Family::Tcl, &[("9.1", None)])],
@@ -875,18 +737,6 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
         "namespace",
         "tail",
         &[SpecSurface::core_in(Family::Tcl, &[("8.4", None)])],
-    ),
-    (
-        "tcl",
-        "ne",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "ni",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
     ),
     (
         "tcl",
@@ -1541,206 +1391,5 @@ pub(super) const CLOSED: &[(&str, &str, &str, &[SpecSurface])] = &[
         "zlib",
         "adler32",
         &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])],
-    ),
-    (
-        "tcl",
-        "|",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcl",
-        "~",
-        "",
-        &[SpecSurface::core_in(Family::Tcl, &[("8.5", None)])],
-    ),
-    (
-        "tcllib",
-        "csv::iscomplete",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("csv", &[("0.10", Some("0.10.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "csv::joinlist",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("csv", &[("0.10", Some("0.10.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "html::nl2br",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("html", &[("1.6", Some("1.6.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "html::quoteFormValue",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("html", &[("1.6", Some("1.6.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "json::list2json",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("json", &[("1.3.6", Some("1.3.6.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "json::string2json",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("json", &[("1.3.6", Some("1.3.6.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::cov",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::fibonacci",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::integrate",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::max",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::mean",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::min",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::product",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::sigma",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::statistics::print-2x2",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::statistics", &[("1.6.1", Some("1.6.1.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::statistics::test-2x2",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::statistics", &[("1.6.1", Some("1.6.1.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::stats",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "math::sum",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("math::calculus::symdiff", &[("1.0.2", Some("1.0.2.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "unicode::fromstring",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("unicode", &[("1.1.1", Some("1.1.1.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "unicode::tostring",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("unicode", &[("1.1.1", Some("1.1.1.1"))]),
-        ],
-    ),
-    (
-        "tcllib",
-        "uri::isrelative",
-        "",
-        &[
-            SpecSurface::core_in(Family::Tcl, &[("8.5", None)]),
-            SpecSurface::package_in("dns", &[("1.6.1", Some("1.6.1.1"))]),
-        ],
     ),
 ];

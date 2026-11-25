@@ -324,7 +324,10 @@ mod tests {
                 "{body}: {:?}",
                 set.notices
             );
-            assert!(set.packs[0].commands[0].hooks.is_empty());
+            assert_eq!(
+                set.packs[0].commands[0].hooks,
+                [] as [crate::loader::HookDecl; 0]
+            );
         }
     }
 
@@ -416,7 +419,7 @@ mod tests {
             "proc vendor::f {x} {expr {$x * 2}}",
         );
         let command = &set.packs[0].commands[0];
-        assert!(command.hooks.is_empty());
+        assert_eq!(command.hooks, [] as [crate::loader::HookDecl; 0]);
         assert!(says(&set, "subcommands or forms"), "{:?}", set.notices);
     }
 

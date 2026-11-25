@@ -194,7 +194,7 @@ fn build_vm(output: Box<dyn Write>, options: &Options) -> Vm {
                     .unit_profile()
                     .vm_runtime_version
             })
-            .dialect_name(),
+            .dialect_profile_name(),
     )
     .unit_profile();
     let vm = Vm::with_native_core(
@@ -247,7 +247,8 @@ fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
             .unit_profile()
             .vm_runtime_version
     });
-    let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
+    let profile =
+        tcl_registry::model::resolve_environment(release.dialect_profile_name()).unit_profile();
     vm.set_dialect_profile(profile);
     // Codegen targets the same release: the dialect is a *compile* target, not
     // an execution-time switch, so a numeric literal is resolved for 8.6 while

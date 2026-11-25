@@ -610,7 +610,7 @@ pub fn specs() -> Vec<CommandSpec> {
     let mut specs = rows("tar", TAR_CMDS);
     specs.extend(rows("pki", PKI_CMDS));
     specs.extend(rows("map::slippy", MAP_SLIPPY_CMDS));
-    specs.extend([
+    specs.extend(vec![
         object_creator(
             "struct::graph",
             &["struct::graph ?name? ?=|:=|as|deserialize source?"],

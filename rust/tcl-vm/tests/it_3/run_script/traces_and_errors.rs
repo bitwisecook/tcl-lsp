@@ -192,7 +192,7 @@ fn a_top_level_completion_settles_as_tclsh_reports_it() {
         (TclVersion::V8_6, "TCL UNEXPECTED_RESULT_CODE 3"),
         (TclVersion::V9_0, "TCL UNEXPECTED_RESULT_CODE 3"),
     ] {
-        let profile = tcl_vm::test_support::profile(version.dialect_name());
+        let profile = tcl_vm::test_support::profile(version.dialect_profile_name());
         let mut vm =
             tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::sink()));
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));

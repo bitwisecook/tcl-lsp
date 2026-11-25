@@ -65,6 +65,11 @@ const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::LOOP),
+        ),
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::WhileLoop,

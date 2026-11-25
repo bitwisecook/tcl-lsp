@@ -203,7 +203,8 @@ mod tests {
     ) -> super::super::SourceCommandBindings {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         super::super::SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
@@ -238,7 +239,8 @@ mod tests {
             tcl_dialect::TclVersion::V9_1,
         ] {
             let registry =
-                tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+                tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                    .commands();
             let source = "oo::class create C {method ping {} {return YES}}; C create object";
             let bindings = analyse(source, version);
             let tokens = original_tokens(&bindings, source);
@@ -300,7 +302,8 @@ mod tests {
             tcl_dialect::TclVersion::V9_1,
         ] {
             let registry =
-                tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+                tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                    .commands();
             for (source, marker, expected) in [
                 ("oo::class create C {}; C new", "C new", true),
                 ("oo::class create C {}; C new value", "C new", false),

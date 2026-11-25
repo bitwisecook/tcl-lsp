@@ -232,9 +232,11 @@ pub(super) fn definition_body_expr(value: &Value, indent: &str) -> Option<String
     let source_hint =
         bare_word_source_hint_expr(grammar.get("bare_word_construction_source_hint"))?;
     let family = grammar.get("family").and_then(Value::as_str)?;
+    let profile = definition_profile_name(grammar.get("profile"), family)?;
     Some(format!(
         "Some(&crate::definer::DefinitionBodyGrammar {{\n\
          {inner}family: crate::definer::DefinerFamily::{family},\n\
+         {inner}profile: crate::definer::{profile},\n\
          {inner}members: {members},\n\
          {inner}implicit_vars: {implicit_vars},\n\
          {inner}implicit_receiver_vars: {implicit_receiver_vars},\n\
@@ -270,6 +272,23 @@ pub(super) fn definition_body_expr(value: &Value, indent: &str) -> Option<String
         })?,
         accessors = strs("property_accessor_methods"),
     ))
+}
+
+fn definition_profile_name<'a>(profile: Option<&'a Value>, family: &str) -> Option<&'a str> {
+    let profile = match profile {
+        Some(value) => value.as_str()?,
+        None => crate::draft::legacy_definition_profile_name(family)?,
+    };
+    [
+        "TCLOO_PROFILE",
+        "SNIT_PROFILE",
+        "ITCL_PROFILE",
+        "CLAY_PROFILE",
+        "JIM_PROFILE",
+        "DECLARATION_PROFILE",
+    ]
+    .contains(&profile)
+    .then_some(profile)
 }
 
 fn bare_word_source_hint_expr(value: Option<&Value>) -> Option<String> {

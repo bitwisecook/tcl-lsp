@@ -36,6 +36,7 @@ pub mod sslictcl;
 pub mod stdlib;
 pub mod tcl;
 pub mod tcllib;
+pub mod thread;
 pub mod ticklecharts;
 pub mod tk;
 
@@ -85,6 +86,12 @@ pub struct SpecPack {
 /// provenance is `iapps`; a surface that wants the tmsh *surface* asks
 /// `SpecSurface`, which is the question it is actually asking.
 pub const SPEC_PACKS: &[SpecPack] = &[
+    SpecPack {
+        id: "thread",
+        label: "Thread",
+        blurb: "Thread script-entry and shared-store contracts.",
+        specs: thread::thread_command_specs,
+    },
     SpecPack {
         id: "tcl",
         label: "Tcl core",

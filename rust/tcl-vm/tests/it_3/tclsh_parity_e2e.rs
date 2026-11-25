@@ -111,7 +111,8 @@ fn expected(name: &str, release: TclVersion, entry: Entry) -> String {
 
 /// Run `src` on a VM configured as `tclvm --tcl-version` configures one.
 fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
-    let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
+    let profile =
+        tcl_registry::model::resolve_environment(release.dialect_profile_name()).unit_profile();
     let capture = Capture::default();
     // Work's entered source runs on a native-core interpreter (the genuine
     // compiler provider admits each compile); the profile is pinned at

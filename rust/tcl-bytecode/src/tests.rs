@@ -1019,7 +1019,10 @@ fn a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once() {
         procedures: HashMap::new(),
         ..module
     };
-    assert!(bare.claimed_packs().is_empty());
+    assert_eq!(
+        bare.claimed_packs(),
+        [] as [tcl_runtime_api::PackFactStamp; 0]
+    );
 }
 
 /// Tcl 9.1 deprecates every one-byte-operand opcode (tclCompile.h

@@ -396,7 +396,7 @@ mod tests {
         words: &[InvocationWord<'_>],
         check: impl FnOnce(&crate::ResolvedInvocation<'_, '_>),
     ) {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let context = crate::model::ingress::static_context_for_profile(profile);
         let resolution = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
             context.commands(),

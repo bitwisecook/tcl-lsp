@@ -31,9 +31,8 @@
 //! fact true for the whole `TCL90_PLUS` gate, not two facts that happen
 //! to agree.
 //!
-//! The public command is the bare `zipfs`; the ensemble also answers to
-//! its fully-qualified `::tcl::zipfs` name, so two forms are registered
-//! (the same pattern as `tcl::process` — see `tcl_process.rs`).
+//! The public command is global `zipfs` (also callable as `::zipfs`).
+//! `::tcl::zipfs` is an implementation namespace, not a command.
 //!
 //! Hidden wholesale in a safe interpreter on both 9.0 and 9.1 — unlike
 //! `tcl::process`, whose ensemble word always resolves and only its
@@ -61,7 +60,6 @@
 //! explicitly `interp expose`s `zipfs` into a still-safe interpreter.
 
 use crate::prelude::*;
-use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "zipfs subcommand ?arg ...?",
@@ -112,7 +110,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
         runtime_backing: RuntimeBacking::shipped(name),
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: tcl_dialect::release_facts::reference_command_surface("zipfs"),
         // `BYTE_COMPILED` follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not
         // literal bytecode compilation. Unlike `tcl::process`'s four
@@ -124,7 +122,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         //
         // `SAFE_INTERP_HIDDEN`: see the module doc comment above for the
         // full `unsafeEnsembleCommands`/`EnsembleImplMap` evidence — the
-        // whole `zipfs`/`::tcl::zipfs` command is `Tcl_HideCommand`-ed in
+        // whole `zipfs` command is `Tcl_HideCommand`-ed in
         // a safe interpreter on both Tcl 9.0 and 9.1, the same treatment
         // `file`/`encoding`/`cd`/`load`/`open` get.
         //
@@ -161,7 +159,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
                 "zipfs root",
                 "zipfs unmount mountpoint",
             ],
-            snippet: "Mounts the contents of a ZIP archive file as a Tcl virtual filesystem, so files inside it can be read (and, in memory only, written) through the ordinary file/open/source commands, and provides commands to build such archives — including self-contained executables — from a Tcl script. Supported ZIP features are deliberately minimal: only the STORE and DEFLATE storage methods, with an optional simple obfuscating encryption strong enough to deter casual inspection but not a determined attacker; multi-part archives, zip64, and other compression methods such as bzip2 are unsupported. New files or directories cannot be created inside a mount, and writes to existing files stay in memory only — nothing is ever persisted back to the archive on disk. Paths inside a mount are case-sensitive on every platform, even a case-insensitive host filesystem.\n\ncanonical maps filename to where it would sit inside a zipfs mount, without requiring it to actually exist there; mountpoint selects which mount (default: the zipfs root). exists tests literal membership, and also reports true for a directory implied by a mounted file's path. find recursively lists paths under directoryName — an ordinary directory works too, it need not be inside a mount — in sorted order, and silently returns an empty list rather than erroring if directoryName can't be read; it also backs mkzip/mkimg's own directory walk. info returns {archive uncompressedSize compressedSize offset} for one file, or errors if the path isn't found in any mounted volume, including a path that is only an ancestor of a mount point rather than the mount point itself; querying the mount point itself gives the start of the ZIP data as offset, handy for truncating the ZIP off an executable. list returns every path across all mounts, or only those matching pattern — glob syntax by default or with -glob, a regular expression with -regexp — in arbitrary order, treating path separators as ordinary characters.\n\nmount has three forms: with no arguments it returns a dict mapping every mount point to its archive's path; with one argument (mountpoint) it returns the archive path mounted there; with zipfile and mountpoint (and an optional password) it mounts zipfile there and returns the normalized mount point — an empty mountpoint defaults to the zipfs root, and it is an error for mountpoint to name a drive or UNC volume. mountdata is the same three-way command but reads the archive from an in-memory data string instead of a file. Because the current working directory is an OS-level, per-process concept, cd-ing into a mount only works within the current process, and even then not entirely consistently. root returns the platform's zipfs mount-point root (commonly //zipfs:/, though callers should not assume the exact string is the same on every platform). unmount reverses mount, and errors if any file inside the archive is still open.\n\nmkzip builds outfile from the regular files under indir, stripping the strip prefix from each stored name when given — typically indir itself or its parent, since whatever remains becomes the archive's root name — and encrypting with password when given; mkimg does the same but prepends the result to infile (default: the running tclsh/wish executable) to build a self-contained image, silently overwriting outfile and discarding any ZIP chunk already attached to infile — if the resulting archive's root has a main.tcl and the base image is a tclsh/wish, the image will source it after mounting and exit once it returns. lmkzip/lmkimg are the same pair but take inlist, a flat list of alternating source-file/archive-name pairs, instead of a directory. mkkey returns an obfuscated form of password in the format mkimg embeds — not real encryption, and the empty string maps to itself.\n\nThe whole zipfs command is hidden by default inside a safe interpreter on both Tcl 9.0 and 9.1 (calling it raises \"invalid command name\"), unlike tcl::process's ensemble word, which always resolves; mkzip/mkimg/lmkzip/lmkimg additionally refuse with \"operation not permitted in a safe interpreter\" even if the command is explicitly re-exposed. Both the zipfs and ::tcl::zipfs spellings resolve to this command. The multi-optional-argument subcommand syntax is explicitly documented as provisional, and may move to a uniform ?-option value? style in a future release.",
+            snippet: "Mounts the contents of a ZIP archive file as a Tcl virtual filesystem, so files inside it can be read (and, in memory only, written) through the ordinary file/open/source commands, and provides commands to build such archives — including self-contained executables — from a Tcl script. Supported ZIP features are deliberately minimal: only the STORE and DEFLATE storage methods, with an optional simple obfuscating encryption strong enough to deter casual inspection but not a determined attacker; multi-part archives, zip64, and other compression methods such as bzip2 are unsupported. New files or directories cannot be created inside a mount, and writes to existing files stay in memory only — nothing is ever persisted back to the archive on disk. Paths inside a mount are case-sensitive on every platform, even a case-insensitive host filesystem.\n\ncanonical maps filename to where it would sit inside a zipfs mount, without requiring it to actually exist there; mountpoint selects which mount (default: the zipfs root). exists tests literal membership, and also reports true for a directory implied by a mounted file's path. find recursively lists paths under directoryName — an ordinary directory works too, it need not be inside a mount — in sorted order, and silently returns an empty list rather than erroring if directoryName can't be read; it also backs mkzip/mkimg's own directory walk. info returns {archive uncompressedSize compressedSize offset} for one file, or errors if the path isn't found in any mounted volume, including a path that is only an ancestor of a mount point rather than the mount point itself; querying the mount point itself gives the start of the ZIP data as offset, handy for truncating the ZIP off an executable. list returns every path across all mounts, or only those matching pattern — glob syntax by default or with -glob, a regular expression with -regexp — in arbitrary order, treating path separators as ordinary characters.\n\nmount has three forms: with no arguments it returns a dict mapping every mount point to its archive's path; with one argument (mountpoint) it returns the archive path mounted there; with zipfile and mountpoint (and an optional password) it mounts zipfile there and returns the normalized mount point — an empty mountpoint defaults to the zipfs root, and it is an error for mountpoint to name a drive or UNC volume. mountdata is the same three-way command but reads the archive from an in-memory data string instead of a file. Because the current working directory is an OS-level, per-process concept, cd-ing into a mount only works within the current process, and even then not entirely consistently. root returns the platform's zipfs mount-point root (commonly //zipfs:/, though callers should not assume the exact string is the same on every platform). unmount reverses mount, and errors if any file inside the archive is still open.\n\nmkzip builds outfile from the regular files under indir, stripping the strip prefix from each stored name when given — typically indir itself or its parent, since whatever remains becomes the archive's root name — and encrypting with password when given; mkimg does the same but prepends the result to infile (default: the running tclsh/wish executable) to build a self-contained image, silently overwriting outfile and discarding any ZIP chunk already attached to infile — if the resulting archive's root has a main.tcl and the base image is a tclsh/wish, the image will source it after mounting and exit once it returns. lmkzip/lmkimg are the same pair but take inlist, a flat list of alternating source-file/archive-name pairs, instead of a directory. mkkey returns an obfuscated form of password in the format mkimg embeds — not real encryption, and the empty string maps to itself.\n\nThe whole zipfs command is hidden by default inside a safe interpreter on both Tcl 9.0 and 9.1 (calling it raises \"invalid command name\"), unlike tcl::process's ensemble word, which always resolves; mkzip/mkimg/lmkzip/lmkimg additionally refuse with \"operation not permitted in a safe interpreter\" even if the command is explicitly re-exposed. Both the zipfs and ::zipfs spellings resolve to this command. The multi-optional-argument subcommand syntax is explicitly documented as provisional, and may move to a uniform ?-option value? style in a future release.",
             source: "Tcl zipfs(n)",
             examples: "set base [file join [zipfs root] myApp]\nzipfs mount myApp.zip $base\nsource [file join $base main.tcl]\nzipfs unmount $base\n\nset srcDir [file normalize myApp]\nzipfs mkzip myApp.zip $srcDir $srcDir\nzipfs mkimg myApp.bin $srcDir $srcDir [zipfs mkkey hunter2]",
             return_value: "Depends on the subcommand: exists returns a boolean; find and list return a list of paths; info returns a 4-element list {archive uncompressedSize compressedSize offset}; mount with no arguments returns a dict mapping each mount point to its archive path, and otherwise a path string; canonical, mountdata, mkzip, mkimg, lmkzip, lmkimg, mkkey, root, and unmount all return a string (the empty string for unmount, an obfuscated password for mkkey, a path for the rest).",
@@ -369,7 +367,19 @@ pub fn spec() -> CommandSpec {
     make_spec("zipfs")
 }
 
-/// Command spec for the fully-qualified ensemble form `::tcl::zipfs`.
-pub fn spec_qualified() -> CommandSpec {
-    make_spec("::tcl::zipfs")
+#[cfg(test)]
+mod tests {
+    use tcl_dialect::TclVersion;
+
+    #[test]
+    fn implementation_namespace_is_not_a_command_alias() {
+        let registry = crate::CommandRegistry::build_default();
+        assert!(registry.get("zipfs").is_some());
+        assert!(registry.get("::tcl::zipfs").is_none());
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let commands = version.release_facts().commands;
+            assert!(commands.contains(&"::zipfs"));
+            assert!(!commands.contains(&"::tcl::zipfs"));
+        }
+    }
 }

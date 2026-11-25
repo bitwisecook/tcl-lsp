@@ -127,7 +127,7 @@ fn vars(entries: &[(&str, &str)]) -> Vars {
 
 /// A VM pinned to `version` whose host environment is `env`.
 fn vm_on(version: TclVersion, env: &Vars) -> Vm {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));

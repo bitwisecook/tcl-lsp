@@ -35,7 +35,10 @@ fn malformed_reserved_path_cannot_fall_through_as_workspace_metadata() {
         &malformed,
         &options.workspace_roots
     ));
-    assert!(discover_with_active_studio_in(&store, &options, &[]).is_empty());
+    assert_eq!(
+        discover_with_active_studio_in(&store, &options, &[]),
+        [] as [crate::discovery::PackFile; 0]
+    );
 }
 
 #[cfg(unix)]
@@ -61,7 +64,10 @@ fn native_symlink_workspace_quarantines_canonical_retired_studio_files() {
         bundled_dir: Some(root.join("no-bundled")),
         ..DiscoveryOptions::default()
     };
-    assert!(discover_with_active_studio_in(&NativeStore, &options, &[]).is_empty());
+    assert_eq!(
+        discover_with_active_studio_in(&NativeStore, &options, &[]),
+        [] as [crate::discovery::PackFile; 0]
+    );
     assert!(
         discover_in(&NativeStore, &options)
             .iter()

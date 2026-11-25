@@ -23,6 +23,7 @@ use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, ITCL_GRAMMAR};
 
 const OTHER_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
+    profile: tcl_registry::definer::SNIT_PROFILE,
     ..ITCL_GRAMMAR
 };
 
@@ -223,5 +224,23 @@ fn actual_itcl_reference_calls_keep_source_currency_and_the_selected_family() {
         )
         .iter()
         .all(|span| span.start() as usize != source.find("C::make").unwrap() + 3)
+    );
+}
+
+#[test]
+fn family_identity_does_not_change_qualified_member_dispatch() {
+    const RENAMED_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        family: DefinerFamily::Snit,
+        ..ITCL_GRAMMAR
+    };
+    let source = "source_class C {proc make {} {return OK}}\nC::make\n";
+    let analysis = analyse(source, Some(&RENAMED_FAMILY));
+    assert_eq!(
+        class_definer_family(&analysis, &analysis.all_classes["::C"]),
+        Some(DefinerFamily::Snit)
+    );
+    assert_eq!(
+        itcl_class_proc_at(&analysis, "::C::make"),
+        Some((&"::C".to_owned(), "make".to_owned()))
     );
 }

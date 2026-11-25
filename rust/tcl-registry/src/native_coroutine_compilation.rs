@@ -248,8 +248,7 @@ mod tests {
         version: TclVersion,
         frame: NativeCompilationFrame,
     ) -> Result<NativeCoroutineInstruction, NativeCoroutineCompilationUnavailable> {
-        let profile =
-            crate::native_test_provider::profile(&format!("tcl{}", version.version_string()));
+        let profile = crate::native_test_provider::profile(version.dialect_profile_name());
         let image = SourceImage::native(source);
         let script = tcl_lexer::native_script_words_in(
             image,

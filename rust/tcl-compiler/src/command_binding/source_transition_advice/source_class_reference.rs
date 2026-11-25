@@ -27,7 +27,7 @@ use crate::signature_scan::scope::SignatureSourceNameInput;
 use std::sync::Arc;
 use tcl_core_types::ByteNamespacePath;
 use tcl_lexer::{LexerConfig, SourceImage};
-use tcl_registry::{definer::DefinerFamily, model::ContextRegistry};
+use tcl_registry::model::ContextRegistry;
 
 /// Readonly original class-reference syntax, without a class object or relation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,7 +191,7 @@ impl AdviceInvocationContext<'_> {
             && let Some(class) = graph.source_reference_class(&input)
             && class
                 .grammar(self.context)
-                .is_some_and(|grammar| grammar.family == DefinerFamily::JimClass)
+                .is_some_and(|grammar| grammar.profile.members_are_two_word_commands())
         {
             let receipt = Self::source_class_reference(
                 graph,
@@ -303,7 +303,7 @@ impl AdviceInvocationContext<'_> {
         };
         if !class
             .grammar(self.context)
-            .is_some_and(|grammar| grammar.family == DefinerFamily::JimClass)
+            .is_some_and(|grammar| grammar.profile.members_are_two_word_commands())
         {
             return;
         }

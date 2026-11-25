@@ -228,7 +228,10 @@ fn an_unknown_environment_row_rejects_the_block() {
         "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
              no_such_row yes\n }\n command demo { arity 1 }\n}",
     );
-    assert!(pack.environments.is_empty());
+    assert_eq!(
+        pack.environments,
+        [] as [crate::loader::environment_block::PackEnvironment; 0]
+    );
     assert!(pack.command("demo").is_some(), "the rest still loads");
     assert!(
         pack.notices.iter().any(|n| {
@@ -267,7 +270,10 @@ fn an_environment_extend_block_is_additive() {
         "speclib probe 2.0 {\n environment synopsys-eda-tcl -extend {\n \
              core tcl 8.6\n }\n command demo { arity 1 }\n}",
     );
-    assert!(rejected.environments.is_empty());
+    assert_eq!(
+        rejected.environments,
+        [] as [crate::loader::environment_block::PackEnvironment; 0]
+    );
     assert!(
         rejected
             .notices

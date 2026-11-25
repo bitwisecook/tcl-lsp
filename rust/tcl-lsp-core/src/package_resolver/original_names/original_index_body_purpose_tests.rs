@@ -24,7 +24,7 @@ fn original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue(
     // docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md
     // Stored loader syntax and original name identity; no loader execution grant.
     let version = tcl_dialect::TclVersion::V9_1;
-    let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     let policy = NamePolicyProtocol::authored_tcl(version);
     for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
         let config = LexerConfig {

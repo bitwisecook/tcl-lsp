@@ -147,6 +147,7 @@ pub(super) const SSLICTCL_GRADE_MEMBERS: &[MemberSpec] = &[setting_word("minimum
 pub(super) const fn sslictcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGrammar {
     DefinitionBodyGrammar {
         family: DefinerFamily::SslicTcl,
+        profile: super::DECLARATION_PROFILE,
         members,
         implicit_vars: &[],
         implicit_receiver_vars: &[],

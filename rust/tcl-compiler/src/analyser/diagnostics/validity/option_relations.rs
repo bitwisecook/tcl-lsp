@@ -221,6 +221,10 @@ impl Analyser {
         let span = operand.span();
         let allowed = issue.allowed_values.join(", ");
         let (message, invalid_description) = match &issue.reason {
+            tcl_registry::LiteralArgumentIssueReason::InvalidValue(reason) => (
+                format!("Invalid {}: {reason}", issue.subject),
+                String::new(),
+            ),
             tcl_registry::LiteralArgumentIssueReason::Empty => (
                 format!(
                     "Empty {}; expected one or more of: {allowed}",

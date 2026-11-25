@@ -111,7 +111,7 @@ fn vm_for_profile(profile: &'static DialectProfile, out: Box<dyn std::io::Write>
 fn vm_output(src: &str, version: TclVersion) -> String {
     profile_output(
         src,
-        tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
             .analyser_profile(),
     )
 }

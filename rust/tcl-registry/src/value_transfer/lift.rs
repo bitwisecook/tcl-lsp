@@ -31,6 +31,8 @@
 //! evaluator itself only ever sees exact inputs: the driver pins the one
 //! finite value to each of its members in turn and joins the outcomes.
 
+use tcl_cmd_core::partial_value::{FiniteLimit, finite_input};
+
 use super::CommandSemantics;
 use super::answers::{EvalAnswer, ExactValue, InvocationOutcome};
 use super::context::{AnalysisContext, BindingIdentity, Budget};
@@ -196,19 +198,16 @@ pub fn evaluate_lifted(
     cap: usize,
 ) -> LiftedAnswer {
     let finite = finite_inputs(semantics, inputs);
-    match finite.as_slice() {
-        [] => match semantics.evaluate(inputs, budget) {
+    match finite_input(&finite, cap) {
+        Ok(None) => match semantics.evaluate(inputs, budget) {
             EvalAnswer::Pending => LiftedAnswer::Pending,
             EvalAnswer::Declined(reason) => LiftedAnswer::Declined(reason),
             EvalAnswer::Evaluated(outcome) => LiftedAnswer::Evaluated(vec![outcome]),
         },
-        [(Some(identity), members)] => {
-            if members.len() > cap {
-                return LiftedAnswer::Declined(DeclineReason::TooManyMembers);
-            }
+        Ok(Some((identity, members))) => {
             let mut outcomes = Vec::with_capacity(members.len());
             for member in members {
-                let pinned = PinnedInputs::new(inputs, *identity, member);
+                let pinned = PinnedInputs::new(inputs, identity, member);
                 match semantics.evaluate(&pinned, budget) {
                     EvalAnswer::Pending => return LiftedAnswer::Pending,
                     EvalAnswer::Declined(reason) => return LiftedAnswer::Declined(reason),
@@ -217,7 +216,10 @@ pub fn evaluate_lifted(
             }
             LiftedAnswer::Evaluated(outcomes)
         }
-        [(None, _)] => LiftedAnswer::Declined(DeclineReason::Unsupported),
-        _ => LiftedAnswer::Declined(DeclineReason::CorrelatedSets),
+        Err(FiniteLimit::TooManyMembers) => LiftedAnswer::Declined(DeclineReason::TooManyMembers),
+        Err(FiniteLimit::MissingIdentity) => LiftedAnswer::Declined(DeclineReason::Unsupported),
+        Err(FiniteLimit::IndependentInputs) => {
+            LiftedAnswer::Declined(DeclineReason::CorrelatedSets)
+        }
     }
 }

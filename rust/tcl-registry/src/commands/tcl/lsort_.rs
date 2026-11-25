@@ -186,6 +186,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsort",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         script_lookup_scope: Some(crate::ScriptLookupScope::InvokingFrame),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
@@ -194,7 +195,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         runtime_backing: RuntimeBacking::shipped("lsort"),
-        const_fold: Some(crate::const_fold::fold_lsort),
+        const_fold: Some(crate::literal_folds::fold_lsort),
         native_result: Some(crate::native_result::NativeResultContract::ListSort),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // Not pure and not `Traits::CSE_CANDIDATE`: unlike `lsearch`

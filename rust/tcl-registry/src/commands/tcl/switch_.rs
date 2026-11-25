@@ -248,6 +248,11 @@ static SEMANTICS: crate::value_transfer::selection::SwitchSemantics =
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::FORWARD),
+        ),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

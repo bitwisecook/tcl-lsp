@@ -216,7 +216,7 @@ fn original_interpreter_two_table_errors_match_all_native_15_windows() {
     let mut compared = 0;
     for (version, fixture) in tcl_dialect::TclVersion::ALL.into_iter().zip(FIXTURES) {
         let backend = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         for row in fixture.lines().filter(|row| {
             row.starts_with("root-s\t")

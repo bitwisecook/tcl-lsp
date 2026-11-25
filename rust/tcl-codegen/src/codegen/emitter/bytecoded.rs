@@ -1533,7 +1533,7 @@ pub(in crate::codegen) fn try_expanded_tailcall(
 
 /// `concat ?arg ...?` — const-fold when every argument is a plain literal
 /// (trim each, drop the empties, join with a single space — mirroring
-/// `tcl_registry::const_fold::fold_concat` and C Tcl's literal `concat`
+/// `tcl_registry::literal_folds::fold_concat` and C Tcl's literal `concat`
 /// folding); otherwise push each word and emit `concatStk N`. No arguments
 /// yields the empty result. Arguments carrying a substitution (`$`/`[`) or a
 /// backslash escape are not folded — they take the `concatStk` path, which

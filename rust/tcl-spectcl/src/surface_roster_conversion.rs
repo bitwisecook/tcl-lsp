@@ -121,6 +121,9 @@ mod tests {
     fn a_row_naming_an_unknown_family_is_dropped() {
         let mut unknown = row(&[("set", &[])]);
         unknown.target = "nonesuch".to_owned();
-        assert!(to_inherited_surfaces(&[unknown], Provenance::BuiltIn).is_empty());
+        assert_eq!(
+            to_inherited_surfaces(&[unknown], Provenance::BuiltIn),
+            [] as [tcl_dialect::model::InheritedSurface; 0]
+        );
     }
 }

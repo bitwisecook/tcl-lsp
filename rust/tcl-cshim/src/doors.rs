@@ -539,7 +539,7 @@ mod tests {
         ));
         assert_eq!(state.result().get().bytes(), b"BEFORE");
         drop(scope);
-        assert!(fake.log.is_empty());
+        assert_eq!(fake.log, [] as [String; 0]);
     }
 
     #[test]
@@ -757,7 +757,10 @@ mod tests {
             Some(EngineError::BudgetExceeded(BudgetKind::Commands))
         );
         assert_eq!(provide_package(&state, "pkgb", "1.0"), TCL_ERROR);
-        assert!(state.provided_packages().is_empty());
+        assert_eq!(
+            state.provided_packages(),
+            [] as [(tcl_core_types::NameBytes, Vec<u8>); 0]
+        );
     }
 
     #[test]
@@ -777,7 +780,10 @@ mod tests {
             ["eval loop"],
             "the package was not said to the engine"
         );
-        assert!(state.provided_packages().is_empty());
+        assert_eq!(
+            state.provided_packages(),
+            [] as [(tcl_core_types::NameBytes, Vec<u8>); 0]
+        );
     }
 
     #[test]

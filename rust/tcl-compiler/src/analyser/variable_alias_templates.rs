@@ -493,12 +493,12 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
         let source = "proc p {i} {upvar ::n::a($i) data; lappend data value; puts $data}; proc sibling {} {puts $data}";
         for version in tcl_dialect::TclVersion::ALL {
-            let analysis = Analyser::new().analyse(source, version.dialect_name());
+            let analysis = Analyser::new().analyse(source, version.dialect_profile_name());
             let config = analysis.body_lexer_config.unwrap();
             let image = SourceImage::document(source);
             let templates = analysis
                 .original_variable_alias_templates_in_source(&image, config)
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let expected = [
                 source.find(" data;").unwrap() + 1,
                 source.find("data value").unwrap(),
@@ -511,7 +511,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 expected,
                 "{}",
-                version.dialect_name()
+                version.dialect_profile_name()
             );
             for template in &templates {
                 assert_eq!(template.local_name().as_bytes(), b"data");
@@ -553,7 +553,7 @@ mod tests {
         );
         let mut analyses = tcl_dialect::TclVersion::ALL
             .into_iter()
-            .map(|version| Analyser::new().analyse(source, version.dialect_name()))
+            .map(|version| Analyser::new().analyse(source, version.dialect_profile_name()))
             .collect::<Vec<_>>();
         analyses.push(
             Analyser::new()
@@ -660,7 +660,7 @@ mod tests {
             let source = format!(
                 "proc p {{i target flag}} {{upvar ::n::a($i) data; {transition}; lappend data after}}"
             );
-            let analysis = Analyser::new().analyse(&source, version.dialect_name());
+            let analysis = Analyser::new().analyse(&source, version.dialect_profile_name());
             let templates = analysis
                 .original_variable_alias_templates_in_source(
                     &SourceImage::document(&source),
@@ -673,12 +673,12 @@ mod tests {
                     .iter()
                     .all(|template| template.span().start() != after),
                 "{}: {transition}",
-                version.dialect_name()
+                version.dialect_profile_name()
             );
         }
         let source =
             "proc p {i} {upvar ::n::a($i) data; upvar ::n::b($i) data; lappend data after}";
-        let analysis = Analyser::new().analyse(source, version.dialect_name());
+        let analysis = Analyser::new().analyse(source, version.dialect_profile_name());
         let templates = analysis
             .original_variable_alias_templates_in_source(
                 &SourceImage::document(source),

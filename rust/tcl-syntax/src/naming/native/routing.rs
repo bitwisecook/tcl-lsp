@@ -478,7 +478,7 @@ mod tests {
                 NativeCommandNamespaceRoute::Context
             );
             assert_eq!(rooted.namespace_route(), NativeCommandNamespaceRoute::Root);
-            assert!(current.qualifiers().is_empty());
+            assert_eq!(current.qualifiers(), [] as [NameBytes; 0]);
             assert_eq!(rooted.qualifiers(), path.as_segments());
             let published = recipe
                 .command_publication_projection(context, b"p")
@@ -517,7 +517,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(alias.namespace_route(), NativeCommandNamespaceRoute::Root);
                 assert_eq!(api.namespace_route(), NativeCommandNamespaceRoute::Root);
-                assert!(alias.qualifiers().is_empty());
+                assert_eq!(alias.qualifiers(), [] as [NameBytes; 0]);
                 assert_eq!(alias.slot(), api.slot());
                 assert_eq!(alias.slot().simple.as_bytes(), b"plain");
             }
@@ -534,7 +534,7 @@ mod tests {
             .alias_publication_projection(context, b"::::a\0z")
             .unwrap();
         assert_eq!(jim.namespace_route(), NativeCommandNamespaceRoute::Root);
-        assert!(jim.qualifiers().is_empty());
+        assert_eq!(jim.qualifiers(), [] as [NameBytes; 0]);
         assert_eq!(jim.slot().simple.as_bytes(), b"a\0z");
     }
 }

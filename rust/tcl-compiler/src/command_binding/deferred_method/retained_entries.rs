@@ -652,6 +652,7 @@ pub(super) fn deferred_method_body(
             .then_some(super::super::conditional_body::SourceReceiverNamespace {
                 path: grammar.member_body_namespace_path,
                 family: grammar.family,
+                commands: grammar.profile.receiver_namespace_commands,
             }),
         future_frame: None,
         parameters: formals,

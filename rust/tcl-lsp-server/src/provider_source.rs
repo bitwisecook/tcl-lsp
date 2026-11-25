@@ -83,7 +83,9 @@ impl ProviderDialectInputs {
                 .get(uri.as_str())
                 .map(String::as_str),
             &self.folders,
-            target.map_or(self.default.as_str(), |version| version.dialect_name()),
+            target.map_or(self.default.as_str(), |version| {
+                version.dialect_profile_name()
+            }),
         )
     }
 }
@@ -662,7 +664,7 @@ impl ProviderSourceAccess<'_> {
                 let target = target.ok_or(ProviderSourceUnavailable::MissingMapping)?;
                 let analysis = Analyser::new()
                     .structure_only()
-                    .analyse(&text, target.dialect_name());
+                    .analyse(&text, target.dialect_profile_name());
                 let input = analysis
                     .resolved_input
                     .clone()

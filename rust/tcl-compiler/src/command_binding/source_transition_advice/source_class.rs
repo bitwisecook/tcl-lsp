@@ -30,7 +30,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
 use tcl_registry::{
-    definer::{DefinerFamily, DefinitionBodyGrammar, ManufacturerMethod, MemberVisibility},
+    definer::{DefinitionBodyGrammar, ManufacturerMethod, MemberVisibility, ObjectSystemProfile},
     model::ContextRegistry,
 };
 
@@ -143,7 +143,7 @@ impl OriginalSourceClassDeclaration {
         let grammar = self.grammar(&context)?;
         let body_at = if let Some(installation) = grammar.command_installation() {
             usize::from(installation.body_at)
-        } else if grammar.family == DefinerFamily::TclOo {
+        } else if grammar.profile.has_native_definition_workers() {
             let selector =
                 std::str::from_utf8(self.factory.arguments.first()?.value.as_deref()?).ok()?;
             let spec = context
@@ -825,10 +825,10 @@ impl AdviceInvocationContext<'_> {
     fn source_class_slot(
         &self,
         graph: &AdviceGraph,
-        family: DefinerFamily,
+        profile: ObjectSystemProfile,
         name: &[u8],
     ) -> Option<ByteCommandSlot> {
-        let slot = if family == DefinerFamily::TclOo {
+        let slot = if profile.has_native_definition_workers() {
             match self.policy {
                 AdviceNamingPolicy::Native(policy) => {
                     // Source namespace geometry supplies no entered Native context.
@@ -854,8 +854,8 @@ impl AdviceInvocationContext<'_> {
         };
         // A `TclOO` object creates its missing qualifier namespaces; every
         // other definer publishes into an existing one.
-        let creates_namespace =
-            family == DefinerFamily::TclOo && matches!(self.policy, AdviceNamingPolicy::Native(_));
+        let creates_namespace = profile.has_native_definition_workers()
+            && matches!(self.policy, AdviceNamingPolicy::Native(_));
         if (!creates_namespace && !graph.namespaces.contains(&slot.namespace))
             || graph
                 .cells
@@ -885,7 +885,7 @@ impl AdviceInvocationContext<'_> {
         }
         let name_at = if let Some(installation) = grammar.command_installation() {
             usize::from(installation.name_at)
-        } else if grammar.family == DefinerFamily::TclOo {
+        } else if grammar.profile.has_native_definition_workers() {
             let selector =
                 std::str::from_utf8(invocation.arguments.first()?.value.as_deref()?).ok()?;
             let manufacturer = tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
@@ -945,7 +945,7 @@ impl AdviceInvocationContext<'_> {
             if name.bytes().is_empty() || name.bytes().contains(&0) {
                 return None;
             }
-            let slot = self.source_class_slot(graph, grammar.family, name.bytes())?;
+            let slot = self.source_class_slot(graph, grammar.profile, name.bytes())?;
             Some(Arc::new(OriginalSourceClassDeclaration {
                 factory: Arc::clone(&factory),
                 name,
@@ -1239,7 +1239,7 @@ impl AdviceInvocationContext<'_> {
         if !prefix.is_empty()
             || class
                 .grammar(self.context)
-                .is_none_or(|grammar| grammar.family != DefinerFamily::Itcl)
+                .is_none_or(|grammar| !grammar.profile.class_procedures_are_qualified())
         {
             return false;
         }
@@ -1286,7 +1286,9 @@ impl OriginalSourceClassDeclaration {
             // Itcl class-scoped procs dispatch only as `Class::proc`; the
             // two-word form constructs even when the word names one
             // (`DefinitionBodyGrammar::conditional_construction_name_at`).
-            if grammar.family != DefinerFamily::Itcl && class.class_methods.contains_key(word) {
+            if !grammar.profile.class_procedures_are_qualified()
+                && class.class_methods.contains_key(word)
+            {
                 return None;
             }
             if let Some(method) = grammar.manufacturer(word) {
@@ -1318,7 +1320,7 @@ impl OriginalSourceClassDeclaration {
             .iter()
             .map(|method| method.original_name_input().bytes())
             .collect::<Vec<_>>();
-        if grammar.family != DefinerFamily::Itcl && names.contains(&bytes) {
+        if !grammar.profile.class_procedures_are_qualified() && names.contains(&bytes) {
             return None;
         }
         if let Some(method) = grammar.manufacturer(word) {

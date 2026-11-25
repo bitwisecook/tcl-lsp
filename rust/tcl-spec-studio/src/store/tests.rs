@@ -363,7 +363,7 @@ fn removing_a_command_takes_its_statement_and_nothing_else() {
 fn an_empty_store_is_valid_dsl_that_loads_back_as_itself() {
     let store = PackStore::empty("mylib");
     assert_eq!(store.name(), "mylib");
-    assert!(store.commands().is_empty());
+    assert_eq!(store.commands(), []);
     assert!(store.source().contains(&format!(
         "speclib mylib {} {{",
         crate::render_spectcl::DSL_VERSION
@@ -531,8 +531,8 @@ fn validation_reports_what_the_loader_dropped() {
 #[test]
 fn a_document_that_is_not_a_pack_loads_as_an_empty_store_with_a_notice() {
     let store = PackStore::from_source("this is not a pack\n");
-    assert!(store.commands().is_empty());
-    assert!(!store.notices().is_empty());
+    assert_eq!(store.commands(), []);
+    assert_ne!(store.notices(), []);
     // And it can still be written to — the write-back falls through to the
     // re-render floor, which produces a real pack.
     let mut store = store;
@@ -643,7 +643,10 @@ fn a_canonical_document_is_not_programmed() {
     let store = PackStore::from_source(PACK);
     assert_eq!(store.programmed(), None);
     assert_eq!(store.patch_source(), None);
-    assert!(store.standing_overrides().is_empty());
+    assert_eq!(
+        store.standing_overrides(),
+        [] as [crate::store::patch_packs::StandingOverride; 0]
+    );
 }
 
 /// A pack whose declarations are all literal but which wraps them in a
@@ -779,7 +782,10 @@ fn removing_the_patch_restores_the_base() {
 
     assert!(store.remove_override("fleet::alpha"));
     assert_eq!(store.patch_source(), None);
-    assert!(store.standing_overrides().is_empty());
+    assert_eq!(
+        store.standing_overrides(),
+        [] as [crate::store::patch_packs::StandingOverride; 0]
+    );
     assert_eq!(store.pack_set().packs.len(), 1);
     assert_ne!(store.overlay_key(), key_with_patch);
     assert_eq!(
@@ -892,7 +898,7 @@ fn an_override_is_authorable_and_its_workspace_refusal_is_reported() {
     // The live Spec Studio override tier *is* untrusted, and refuses it,
     // which is what makes the report meaningful rather than theoretical.
     let override_tier = PackStore::from_source_at_tier(store.source(), Tier::StudioOverride);
-    assert!(override_tier.commands().is_empty());
+    assert_eq!(override_tier.commands(), []);
 }
 
 /// A codegen-axis stamp is authorable — the document and its draft keep
@@ -921,7 +927,7 @@ fn a_stamp_is_kept_in_the_document_and_dropped_from_the_installed_world() {
                 .to_owned()
         )]
     );
-    assert!(store.patch_stamp_refusals().is_empty());
+    assert_eq!(store.patch_stamp_refusals(), [] as [(u32, String); 0]);
 
     let registry =
         tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &store.pack_set());

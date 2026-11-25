@@ -78,7 +78,7 @@ pub(crate) fn original_source_definition_layout_from_selected_words(
         let (_, complete) = schema.authored_logical_source_argument_roles();
         if !complete
             || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-            || !grammar.family.manufactures_runtime_commands()
+            || !grammar.profile.manufactures_runtime_commands()
             || !schema.authored_source_script_arguments()?.contains(&body)
         {
             return None;

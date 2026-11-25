@@ -40,7 +40,7 @@ use tcl_registry::CommandRegistry;
 use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 
 fn vm_output(source: &str, version: TclVersion) -> String {
-    common::vm_output(source, version.dialect_name())
+    common::vm_output(source, version.dialect_profile_name())
 }
 
 /// Runs to completion on every release: each line is `catch`-wrapped so the
@@ -201,9 +201,10 @@ fn the_registry_owns_the_release_boundary() {
     let registry = CommandRegistry::build_default();
     let spec = registry.get("trace").expect("trace is registered");
     for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
-        let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-            .analyser_profile()
-            .surface_query();
+        let mask =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .analyser_profile()
+                .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
                 spec.resolve_subcommand_for_dialect(name, Some(mask))
@@ -213,9 +214,10 @@ fn the_registry_owns_the_release_boundary() {
         }
     }
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
-        let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-            .analyser_profile()
-            .surface_query();
+        let mask =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .analyser_profile()
+                .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
                 spec.resolve_subcommand_for_dialect(name, Some(mask))

@@ -485,9 +485,66 @@ pub const TCLTEST_STOCK_PROVIDER: StockBodyProvider = StockBodyProvider {
     ],
 };
 
+/// Event that can invoke a stored executable operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DeferredTrigger {
+    /// A timer becomes due.
+    Timer,
+    /// The event queue becomes idle.
+    Idle,
+    /// A channel becomes ready.
+    Channel,
+    /// A Tk event is dispatched.
+    TkEvent,
+    /// A traced operation fires.
+    Trace,
+    /// A background error is reported.
+    BackgroundError,
+    /// A package loader is selected.
+    PackageLoad,
+    /// An installed alias is invoked.
+    AliasCall,
+    /// A request is dispatched in another thread.
+    ThreadMessage,
+}
+
+/// One authored source for a deferred body's entry coordinates and trigger.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DeferredExecutionSpec {
+    /// Frame used when the stored operand is eventually invoked.
+    pub entry_scope: crate::ScriptLookupScope,
+    /// Event that permits entry; registration itself never enters the body.
+    pub trigger: DeferredTrigger,
+    /// Execution family whose native frame contract was measured.
+    pub family: Option<tcl_dialect::model::Family>,
+}
+
+impl DeferredExecutionSpec {
+    /// Global callback entry retaining the existing native Tcl/Jim family admission.
+    #[must_use]
+    pub const fn native_global(trigger: DeferredTrigger) -> Self {
+        Self {
+            family: None,
+            ..Self::global(trigger)
+        }
+    }
+
+    /// A global callback contract for the measured C Tcl implementation.
+    #[must_use]
+    pub const fn global(trigger: DeferredTrigger) -> Self {
+        Self {
+            entry_scope: crate::ScriptLookupScope::GlobalFrame,
+            trigger,
+            family: Some(tcl_dialect::model::Family::Tcl),
+        }
+    }
+}
+
 /// A descriptor selected only after proving the live command implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BodyExecutionSpec {
+    /// Store executable operands for a trigger-selected later entry.
+    Deferred(DeferredExecutionSpec),
     /// Each selected Body-role operand executes once in the caller's frame.
     CallerFrameSequence,
     /// C Tcl 9 array lookup and sequential key/value stores precede each caller-frame body.
@@ -817,6 +874,15 @@ impl CapturedLifecycleSpec {
 }
 
 impl BodyExecutionSpec {
+    /// Fully authored trigger/frame contract; legacy frame-only rows return none.
+    #[must_use]
+    pub const fn deferred_contract(self) -> Option<DeferredExecutionSpec> {
+        match self {
+            Self::Deferred(spec) => Some(spec),
+            _ => None,
+        }
+    }
+
     /// Actual native scheduling frame, separate from body roles and timing.
     /// Unknown embeddings cannot inherit a native frame from catalogue ancestry.
     #[must_use]
@@ -826,6 +892,12 @@ impl BodyExecutionSpec {
     ) -> Option<DeferredBodyFrame> {
         use tcl_dialect::model::{Family, Release};
         let family = match self {
+            Self::Deferred(spec) => {
+                if spec.entry_scope != crate::ScriptLookupScope::GlobalFrame {
+                    return None;
+                }
+                spec.family
+            }
             Self::DeferredGlobalScript => None,
             Self::DeferredGlobalScriptForFamily(family) => Some(family),
             Self::DeferredNamespaceScript => {
@@ -851,7 +923,8 @@ impl BodyExecutionSpec {
     pub fn select(self, arguments: InvocationArguments<'_>) -> BodyExecutionSelection {
         match self {
             Self::CapturedLifecycle(spec) => spec.select(arguments),
-            Self::CallerFrameSequence
+            Self::Deferred(_)
+            | Self::CallerFrameSequence
             | Self::ArrayIteration
             | Self::DictionaryScope(_)
             | Self::SourceFile
@@ -900,38 +973,15 @@ mod tests {
     #[test]
     fn deferred_global_entry_requires_actual_native_scheduling_policy() {
         use tcl_dialect::model::{DialectPoint, Release};
-        let descriptor = BodyExecutionSpec::DeferredGlobalScript;
-        for release in [
-            Release::TCL_8_4,
-            Release::TCL_8_5,
-            Release::TCL_8_6,
-            Release::TCL_9_0,
-            Release::TCL_9_1,
-            Release::JIM_0_84,
-        ] {
-            let dialect = crate::InvocationDialect::of_point(DialectPoint::canonical(release));
-            assert_eq!(
-                descriptor.deferred_entry_frame(dialect),
-                Some(DeferredBodyFrame::Global)
-            );
-        }
-        let host = crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("f5-irules").expect("host profile"),
-        );
-        assert_eq!(descriptor.deferred_entry_frame(host), None);
-        let unknown = crate::InvocationDialect {
-            native_family: None,
-            core_point: None,
-            tcl_version: None,
-            ..host
-        };
-        assert_eq!(descriptor.deferred_entry_frame(unknown), None);
-        let mut conflict = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        conflict.core_point = Some(DialectPoint::canonical(Release::TCL_9_1));
-        assert_eq!(descriptor.deferred_entry_frame(conflict), None);
+        let timer = BodyExecutionSpec::Deferred(DeferredExecutionSpec::native_global(
+            DeferredTrigger::Timer,
+        ));
+        let idle = BodyExecutionSpec::Deferred(DeferredExecutionSpec::native_global(
+            DeferredTrigger::Idle,
+        ));
         let registry = CommandRegistry::build_default();
         let after = registry.get("after").expect("authored after");
-        assert_eq!(after.body_execution, Some(descriptor));
+        assert_eq!(after.body_execution, Some(timer));
         assert_eq!(
             after
                 .subcommands
@@ -939,8 +989,38 @@ mod tests {
                 .find(|sub| sub.name == "idle")
                 .unwrap()
                 .body_execution,
-            Some(descriptor)
+            Some(idle)
         );
+        for descriptor in [BodyExecutionSpec::DeferredGlobalScript, timer, idle] {
+            for release in [
+                Release::TCL_8_4,
+                Release::TCL_8_5,
+                Release::TCL_8_6,
+                Release::TCL_9_0,
+                Release::TCL_9_1,
+                Release::JIM_0_84,
+            ] {
+                let dialect = crate::InvocationDialect::of_point(DialectPoint::canonical(release));
+                assert_eq!(
+                    descriptor.deferred_entry_frame(dialect),
+                    Some(DeferredBodyFrame::Global)
+                );
+            }
+            let host = crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find("f5-irules").expect("host profile"),
+            );
+            assert_eq!(descriptor.deferred_entry_frame(host), None);
+            let unknown = crate::InvocationDialect {
+                native_family: None,
+                core_point: None,
+                tcl_version: None,
+                ..host
+            };
+            assert_eq!(descriptor.deferred_entry_frame(unknown), None);
+            let mut conflict = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+            conflict.core_point = Some(DialectPoint::canonical(Release::TCL_9_1));
+            assert_eq!(descriptor.deferred_entry_frame(conflict), None);
+        }
     }
 
     fn contract() -> CapturedLifecycleSpec {

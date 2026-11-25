@@ -39,6 +39,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "apply",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                0,
+                crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::LambdaArgument(0),
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,

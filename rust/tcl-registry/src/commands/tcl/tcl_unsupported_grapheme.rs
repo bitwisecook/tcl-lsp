@@ -137,6 +137,7 @@ static SUBCOMMANDS: [SubCommand; 8] = [
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,

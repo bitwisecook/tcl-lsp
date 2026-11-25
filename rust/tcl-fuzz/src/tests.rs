@@ -561,7 +561,7 @@ fn a_fixed_release_engine_refuses_when_its_selected_binary_cannot_honour_the_pin
     let mut pair = test_pair(Engine::Tclsh, Engine::Tclvm);
     pair.apply_tcl_version(TclVersion::V8_6);
     assert_eq!(pair.tcl_version, Some(TclVersion::V8_6));
-    assert!(pair.reference_args.is_empty());
+    assert_eq!(pair.reference_args, [] as [String; 0]);
     assert_eq!(
         pair.subject_args,
         vec!["--tcl-version".to_owned(), "8.6".to_owned()]
@@ -617,9 +617,9 @@ fn characterise_resolution_keeps_each_backend_invocation_together() {
     ]);
     let resolved = CharacteriseInvocations::resolve(&cli).expect("explicit paths resolve");
     assert_eq!(resolved.oracle.binary, PathBuf::from("/opt/tclsh9.0"));
-    assert!(resolved.oracle.args.is_empty());
+    assert_eq!(resolved.oracle.args, [] as [String; 0]);
     assert_eq!(resolved.tclvm.binary, PathBuf::from("/opt/tclvm"));
-    assert!(resolved.tclvm.args.is_empty());
+    assert_eq!(resolved.tclvm.args, [] as [String; 0]);
     assert_eq!(resolved.runtime.binary, PathBuf::from("/opt/run_script"));
     assert_eq!(resolved.runtime.args, vec!["--quiet".to_string()]);
 }

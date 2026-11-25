@@ -229,7 +229,8 @@ mod tests {
             .into_iter()
             .filter(|version| *version >= TclVersion::V8_5)
         {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let config = LexerConfig::from_grammar(profile.grammar);
             for channel in [
                 tcl_lexer::SourceChannel::Document,

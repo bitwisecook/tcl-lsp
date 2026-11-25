@@ -269,7 +269,7 @@ fn abs_of_the_most_negative_wide_declines_without_a_bignum_rung() {
 #[test]
 fn a_backend_without_a_bignum_rung_never_panics() {
     let operands = edge_operands::<NoBig>();
-    for &name in ALL_NAMES {
+    for &name in tcl_dialect::TclVersion::V9_1.release_facts().math_functions {
         for width in WIDTHS {
             for a in &operands {
                 let _ = try_dispatch_with_backend_int_width(name, &[*a], width);
@@ -306,7 +306,7 @@ fn a_backend_without_a_bignum_rung_agrees_wherever_it_answers() {
             (want, got) => panic!("{name}{n:?} {width:?}: {want:?} vs {got:?}"),
         }
     };
-    for &name in ALL_NAMES {
+    for &name in tcl_dialect::TclVersion::V9_1.release_facts().math_functions {
         for width in WIDTHS {
             for (i, a) in narrow.iter().enumerate() {
                 agree(name, width, &[*a], &[wide[i].clone()]);
@@ -455,74 +455,10 @@ fn unknown_and_arity() {
 /// would also satisfy.
 #[test]
 fn added_in_and_dispatch_agree() {
-    const ALL_NAMES: &[&str] = &[
-        "abs",
-        "acos",
-        "acosh",
-        "asin",
-        "asinh",
-        "atan",
-        "atan2",
-        "atanh",
-        "bool",
-        "cbrt",
-        "ceil",
-        "copysign",
-        "cos",
-        "cosh",
-        "dim",
-        "double",
-        "entier",
-        "erf",
-        "erfc",
-        "exp",
-        "exp2",
-        "expm1",
-        "floor",
-        "fma",
-        "fmod",
-        "gamma",
-        "hypot",
-        "int",
-        "isfinite",
-        "isinf",
-        "isnan",
-        "isnormal",
-        "isqrt",
-        "issubnormal",
-        "isunordered",
-        "ldexp",
-        "lgamma",
-        "log",
-        "log10",
-        "log1p",
-        "log2",
-        "logb",
-        "max",
-        "min",
-        "nextafter",
-        "pow",
-        "rand",
-        "remainder",
-        "round",
-        "signbit",
-        "sin",
-        "sinh",
-        "sqrt",
-        "srand",
-        "tan",
-        "tanh",
-        "trunc",
-        "wide",
-    ];
-    for &name in ALL_NAMES {
+    for &name in tcl_dialect::TclVersion::V9_1.release_facts().math_functions {
         if name == "rand" || name == "srand" {
             continue;
         }
-        assert!(
-            added_in(name).is_some(),
-            "{name}: missing from added_in() — test's own name list is stale"
-        );
         let in_domain_args = in_domain_args_for(name);
         assert!(
             dispatch(name, &in_domain_args).is_some(),
@@ -645,7 +581,7 @@ fn tip745_c99_batch() {
 
 #[test]
 fn spec_agrees_with_added_in_for_every_name() {
-    for &name in ALL_NAMES {
+    for &name in tcl_dialect::TclVersion::V9_1.release_facts().math_functions {
         let s = spec(name).unwrap_or_else(|| panic!("spec({name}) is None"));
         assert_eq!(s.name, name);
         assert_eq!(
@@ -655,7 +591,13 @@ fn spec_agrees_with_added_in_for_every_name() {
         );
     }
     assert_eq!(spec("not_a_real_function"), None);
-    assert_eq!(all().len(), ALL_NAMES.len());
+    assert_eq!(
+        all().len(),
+        tcl_dialect::TclVersion::V9_1
+            .release_facts()
+            .math_functions
+            .len()
+    );
 }
 
 #[test]
@@ -674,7 +616,7 @@ fn spec_arity_matches_dispatch_shape() {
 
 #[test]
 fn spec_accepts_boolean_operand_matches_the_standalone_query() {
-    for &name in ALL_NAMES {
+    for &name in tcl_dialect::TclVersion::V9_1.release_facts().math_functions {
         assert_eq!(
             spec(name).unwrap().accepts_boolean_operand,
             accepts_boolean_operand(name),

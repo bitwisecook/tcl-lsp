@@ -32,7 +32,7 @@ fn vm() -> Vm {
 
 fn release(version: TclVersion) -> Vm {
     crate::native_fixture::interpreter(crate::environment::profile_for_dialect(
-        version.dialect_name(),
+        version.dialect_profile_name(),
     ))
 }
 
@@ -127,7 +127,7 @@ fn actual_package_protocol_is_independent_of_logical_release() {
     ] {
         let mut vm = Vm::new();
         assert!(vm.set_native_engine_profile(
-            tcl_dialect::DialectProfile::find(native.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(native.dialect_profile_name()).unwrap(),
         ));
         vm.set_runtime_version(logical);
         let result = super::cmd_package(
@@ -707,7 +707,7 @@ fn provided_version_headers_match_all_native_30_windows() {
     let mut compared = 0;
     for (version, fixture) in TclVersion::ALL.into_iter().zip(FIXTURES) {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         assert_eq!(package(&mut vm, &["provide", "probe", "12"]).code, Code::Ok);
         let mut latest = package(&mut vm, &["provide", "probe"]);
@@ -765,7 +765,7 @@ fn package_files_headers_match_all_native_10_windows_and_scope_lifetimes() {
         .zip(FIXTURES)
     {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         vm.begin_package_loading(b"probe", b"1");
         vm.record_package_source_file(b"leaf.tcl").unwrap();
@@ -841,7 +841,7 @@ fn package_files_headers_match_all_native_10_windows_and_scope_lifetimes() {
 fn shared_package_files_append_is_an_outer_native_fatal_condition() {
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         vm.begin_package_loading(b"probe", b"1");
         vm.record_package_source_file(b"leaf.tcl").unwrap();
@@ -994,7 +994,8 @@ fn package_completion_matches_all_six_native_84_controls() {
             let profile = if engine == 5 {
                 jim
             } else {
-                tcl_dialect::DialectProfile::find(TclVersion::ALL[engine].dialect_name()).unwrap()
+                tcl_dialect::DialectProfile::find(TclVersion::ALL[engine].dialect_profile_name())
+                    .unwrap()
             };
             let mut vm = crate::native_fixture::interpreter(profile);
             let host = tcl_test_support::fixed_sources::FixedSourceHost::new(vm.host_rc(), FILES);

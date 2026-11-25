@@ -57,6 +57,9 @@ const EVENT_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileevent",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
@@ -96,6 +99,11 @@ pub fn spec() -> CommandSpec {
         // script as sharing the caller's frame — the same reasoning
         // `after`'s deferred-script forms use (`after_.rs`).
         body_kind: BodyKind::Structural,
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::Channel,
+            ),
+        )),
         return_type: Some(TclType::String),
         arg_values: &[(1, EVENT_VALUES)],
         closed_value_args: &[1],

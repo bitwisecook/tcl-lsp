@@ -21,7 +21,7 @@
 use super::{Analyser, types::AnalysisResult};
 use crate::command_binding::OriginalSourceClassDeclaration;
 use tcl_lexer::{SourceMap, Token};
-use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar};
+use tcl_registry::definer::{DefinitionBodyGrammar, DefinitionDispatcher, DefinitionShape};
 
 pub(super) struct OriginalClassDefinerSource {
     declaration: OriginalSourceClassDeclaration,
@@ -47,7 +47,7 @@ impl OriginalClassDefinerSource {
     ) -> Option<Self> {
         let context = analysis.resolved_input.as_ref()?.context_registry();
         let grammar = declaration.grammar(&context)?;
-        if grammar.family == DefinerFamily::TclOo
+        if grammar.profile.has_native_definition_workers()
             && !context
                 .context()
                 .resolve_spec(context.commands(), declaration.factory().command())?
@@ -189,7 +189,11 @@ impl OriginalClassConfigurationSource {
             declaration.source_class(analysis)?;
         }
         let context = analysis.resolved_input.as_ref()?.context_registry();
-        (declaration.grammar(&context)?.family == DefinerFamily::TclOo).then_some(())?;
+        (declaration
+            .grammar(&context)?
+            .profile
+            .has_native_definition_workers())
+        .then_some(())?;
         let mut arguments = Vec::new();
         let mut tokens = Vec::new();
         let mut single = Vec::new();
@@ -328,7 +332,7 @@ fn capture_counted_class_declaration(
 > {
     let context = analyser.resolved_analysis_input().context_registry();
     let grammar = declaration.grammar(&context)?;
-    (grammar.family == tcl_registry::definer::DefinerFamily::TclOo).then_some(())?;
+    (grammar.profile.has_native_definition_workers()).then_some(())?;
     let factory = declaration.factory();
     let descriptor = context
         .context()
@@ -439,13 +443,17 @@ impl Analyser {
             cmd_tok: Some(token),
             original: Some(&original),
         };
-        Some(match original.grammar.family {
-            DefinerFamily::TclOo => self.handle_oo_class_source(call),
-            DefinerFamily::Snit => self.handle_snit_type_source(call),
-            DefinerFamily::Itcl => self.handle_itcl_class_source(call),
-            DefinerFamily::Clay => self.handle_source_inventory_definer(call),
-            DefinerFamily::JimClass => self.handle_jim_class_source(call),
-            DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => return None,
+        Some(match original.grammar.profile.definition_shape {
+            DefinitionShape::MetaclassScript => self.handle_oo_class_source(call),
+            DefinitionShape::NamedScript => {
+                match original.grammar.command_installation()?.dispatcher {
+                    DefinitionDispatcher::SnitType => self.handle_snit_type_source(call),
+                    DefinitionDispatcher::ItclClass => self.handle_itcl_class_source(call),
+                }
+            }
+            DefinitionShape::ConditionalScript => self.handle_source_inventory_definer(call),
+            DefinitionShape::VariableDictionary => self.handle_jim_class_source(call),
+            DefinitionShape::Declaration => return None,
         })
     }
 }

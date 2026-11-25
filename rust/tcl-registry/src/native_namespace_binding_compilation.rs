@@ -453,8 +453,7 @@ mod tests {
             ),
         ] {
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let mut count = 0;
             for line in fixture.lines().skip(1) {
                 let columns: Vec<_> = line.split('\t').collect();
@@ -550,8 +549,7 @@ mod tests {
             TclVersion::V9_1,
         ] {
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (source, expected) in controls {
                 let image = SourceImage::native(source);
                 let original = native_script_words_in(

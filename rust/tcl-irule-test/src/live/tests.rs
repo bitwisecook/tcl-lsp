@@ -479,7 +479,10 @@ fn itest_loader_event_registration_matches_rust_when_blocks() {
     // boundary owners therefore abstain rather than inventing a complete
     // handler from invalid source.
     let quoted_close = "when RULE_INIT { log local0. \"quoted }\" }";
-    assert!(tcl_irules::when_blocks(quoted_close).is_empty());
+    assert_eq!(
+        tcl_irules::when_blocks(quoted_close),
+        [] as [tcl_syntax::event_handler::EventHandler; 0]
+    );
     assert!(
         session.load_irule(quoted_close).is_err(),
         "pinned loader carve-out"

@@ -45,7 +45,7 @@ fn actual_authored_sets_select_custom_hints_and_preserve_exact_snittype_recipe()
     assert!(callback("%AUTO%"));
     assert!(callback(".widget"));
     assert!(!callback("spawn"));
-    assert!(log.notices.is_empty());
+    assert_eq!(log.notices, [] as [crate::loader::notices::Notice; 0]);
 }
 
 #[test]

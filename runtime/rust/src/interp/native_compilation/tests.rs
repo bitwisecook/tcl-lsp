@@ -116,8 +116,7 @@ fn variable_output_addresses_follow_the_selected_native_write_order() {
             .unwrap();
             assert!(oracle.success(), "{source}");
             assert!(oracle.stderr.is_empty(), "{source}: {:?}", oracle.stderr);
-            let mut interpreter =
-                interpreter(&format!("tcl{}", reference.version.version_string()));
+            let mut interpreter = interpreter(reference.version.dialect_profile_name());
             assert_eq!(
                 interpreter.eval_str(source.as_bytes()),
                 Code::Ok,

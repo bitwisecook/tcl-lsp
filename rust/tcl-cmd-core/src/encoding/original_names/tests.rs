@@ -290,7 +290,7 @@ fn original_filename_external_zero_has_separate_backend_and_report_extents() {
     )
     .unwrap();
     assert_eq!(raw_zero.backend, b"/source.tcl");
-    assert!(stages.events.is_empty());
+    assert_eq!(stages.events, [] as [&str; 0]);
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn original_filename_other_codec_requires_actual_filesystem_conversion() {
     .err()
     .unwrap();
     assert!(error.native_execution_refusal().is_some());
-    assert!(stages.events.is_empty());
+    assert_eq!(stages.events, [] as [&str; 0]);
 }
 
 struct ChangingEncoding {
@@ -430,7 +430,7 @@ fn original_filename_iso88591_and_identity_select_actual_external_bytes() {
         .unwrap();
         assert_eq!(file.backend, original);
     }
-    assert!(stages.events.is_empty());
+    assert_eq!(stages.events, [] as [&str; 0]);
 }
 
 #[test]
@@ -518,5 +518,5 @@ fn original_filename_utf8_surrogates_keep_selected_conversion_and_error_owner() 
             }
         }
     }
-    assert!(stages.events.is_empty());
+    assert_eq!(stages.events, [] as [&str; 0]);
 }

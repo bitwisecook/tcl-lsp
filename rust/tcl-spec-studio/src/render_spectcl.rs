@@ -644,6 +644,9 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "irules_source_flow");
     gap_todo(out, ctx, draft, "body_interpreter");
     gap_todo(out, ctx, draft, "body_execution");
+    gap_todo(out, ctx, draft, "evaluation_contexts");
+    gap_todo(out, ctx, draft, "completion_body_boundary");
+    gap_todo(out, ctx, draft, "deferred_execution");
     gap_todo(out, ctx, draft, "procedure_definition");
     gap_todo(out, ctx, draft, "native_compilation");
     gap_todo(out, ctx, draft, "successful_handler");

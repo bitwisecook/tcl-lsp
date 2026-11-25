@@ -182,9 +182,21 @@ const OO_OBJDEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
 use super::oo_define::oo_define_layout_roles;
 use tcl_dialect::model::SpecSurface;
 
+fn oo_objdefine_evaluation_context(
+    args: crate::InvocationArguments<'_>,
+    index: usize,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    super::oo_define::definition_body_evaluation_context(args, index, "::oo::objdefine")
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::objdefine",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            resolver: Some(oo_objdefine_evaluation_context),
+            resolver_roles: &[ArgRole::Body],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::objdefine"),
         traits: Traits::NOT_PROC_FACTORY

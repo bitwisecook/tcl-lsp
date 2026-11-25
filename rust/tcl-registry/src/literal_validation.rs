@@ -46,6 +46,8 @@ pub enum LiteralArgumentValidation {
 /// Why a literal-argument validator deliberately produced no finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LiteralValidationDecline {
+    /// No selected receiver grammar proves how this value is parsed.
+    UnselectedGrammar,
     /// Expansion or a missing word makes the invocation's argv shape unknown.
     IncompleteInvocation,
     /// A required argument is substituted, expanded, or otherwise not a
@@ -80,6 +82,8 @@ pub struct LiteralArgumentIssue {
 /// The shape of a registry-declared literal-argument violation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiteralArgumentIssueReason {
+    /// A scalar or structured value fails its declared grammar.
+    InvalidValue(&'static str),
     /// A required collection/string contains no member.
     Empty,
     /// These exact members are outside the selected legal set.

@@ -18,8 +18,8 @@
 
 //! The object methods a family provides without a declaration and who can reach them.
 
+use super::DefinitionBodyGrammar;
 use super::member_effect::MemberVisibility;
-use super::{DefinerFamily, DefinitionBodyGrammar};
 use tcl_dialect::TclVersion;
 
 /// One method every instance of a class system's objects has without the
@@ -153,7 +153,7 @@ impl DefinitionBodyGrammar {
         reach: MethodReach,
         dialect: crate::InvocationDialect,
     ) -> Option<BuiltinObjectMethodOperation> {
-        if self.family != DefinerFamily::TclOo
+        if !self.profile.has_native_definition_workers()
             || reach != MethodReach::SelfDispatch
             || dialect
                 .tcl_version

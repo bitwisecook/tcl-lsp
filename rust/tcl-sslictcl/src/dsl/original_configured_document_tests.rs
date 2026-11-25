@@ -29,7 +29,7 @@ fn original_sslictcl_document_segment_keeps_body_config_and_crlf_channel() {
     };
     let mut sink = Sink::default();
     assert!(Document::segment(source, 19, config, &mut sink).is_some());
-    assert!(sink.items.is_empty());
+    assert_eq!(sink.items, [] as [crate::dsl::DslDiagnostic; 0]);
     let mut sink = Sink::default();
     assert!(Document::segment(source, 19, file_config().nested(), &mut sink).is_none());
     assert_eq!(sink.items[0].range.start(), 19);

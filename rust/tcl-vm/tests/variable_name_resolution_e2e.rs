@@ -62,7 +62,7 @@ use tcl_dialect::TclVersion;
 use tcl_test_support::required_tclshs;
 
 fn vm_output(source: &str, version: TclVersion) -> String {
-    common::vm_output(source, version.dialect_name())
+    common::vm_output(source, version.dialect_profile_name())
 }
 
 /// One behaviour vector: the script prints its observations; `want_8x` and

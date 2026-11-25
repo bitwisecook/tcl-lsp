@@ -32,7 +32,7 @@ use crate::{
 use std::{cell::RefCell, sync::Arc};
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::NativeWord;
-use tcl_registry::{definer::DefinerFamily, model::ContextRegistry};
+use tcl_registry::model::ContextRegistry;
 use tcl_syntax::naming::NativeNameProtocol;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,7 +180,7 @@ fn is_registry_class_root(descriptor: &tcl_registry::CommandSpec) -> bool {
         .contains(tcl_registry::Traits::IS_OO_METACLASS)
         && descriptor
             .definition_body
-            .is_some_and(|grammar| grammar.family == DefinerFamily::TclOo)
+            .is_some_and(|grammar| grammar.profile.has_native_definition_workers())
 }
 
 /// A class query has either not visited its parent, refused that visit, or

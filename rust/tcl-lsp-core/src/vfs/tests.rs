@@ -105,7 +105,10 @@ fn explicit_empty_directories_do_not_supply_files_or_census_authority() {
     store.create_dir_all(root).unwrap();
     assert!(store.is_dir(root));
     assert!(!store.is_file(root));
-    assert!(store.read_dir(root).unwrap().is_empty());
+    assert_eq!(
+        store.read_dir(root).unwrap(),
+        [] as [crate::vfs::DirEntry; 0]
+    );
     assert_eq!(store.len(), 0);
     assert!(matches!(
         store.workspace_source_inventory(root),
@@ -127,11 +130,9 @@ fn explicit_empty_directories_do_not_supply_files_or_census_authority() {
         store.workspace_source_inventory(root),
         WorkspaceSourceInventoryObservation::Stale { .. }
     ));
-    assert!(
-        store
-            .read_dir(Path::new("/empty/nested"))
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        store.read_dir(Path::new("/empty/nested")).unwrap(),
+        [] as [crate::vfs::DirEntry; 0]
     );
 }
 

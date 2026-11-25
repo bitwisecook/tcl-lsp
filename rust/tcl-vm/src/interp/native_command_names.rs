@@ -1256,7 +1256,7 @@ mod tests {
                 ("command-absolute", true, false),
             ] {
                 let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(
-                    version.dialect_name(),
+                    version.dialect_profile_name(),
                 ));
                 command(&mut vm, b"head");
                 let head: &[u8] = if absolute { b"::head" } else { b"head" };
@@ -1329,7 +1329,7 @@ mod tests {
     fn original_lookup_refreshes_replaced_nodes_and_keeps_release_specific_misses() {
         for version in TclVersion::ALL {
             let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(
-                version.dialect_name(),
+                version.dialect_profile_name(),
             ));
             command(&mut vm, b"head");
             let original = Value::new_native_string_bytes(b"head".as_slice());

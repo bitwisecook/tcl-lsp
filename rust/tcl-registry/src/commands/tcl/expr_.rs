@@ -36,6 +36,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expr",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::ExpressionArguments,
         ),

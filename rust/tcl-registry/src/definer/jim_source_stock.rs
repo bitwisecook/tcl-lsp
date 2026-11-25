@@ -106,7 +106,7 @@ impl SourceJimStockClassRecipe {
     ) -> Option<Self> {
         use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
         let policy = layout.policy?;
-        (layout.grammar.family == super::DefinerFamily::JimClass
+        (layout.grammar.profile.members_are_two_word_commands()
             && policy.authority() == NamePolicyAuthority::AuthoredSimulation
             && policy.recipe() == NativeNameProtocol::Jim084)
             .then_some(Self)

@@ -1465,7 +1465,10 @@ mod tests {
             commands: Vec::new(),
             packages: Vec::new(),
         };
-        assert!(empty.declared_surface().is_empty());
+        assert_eq!(
+            empty.declared_surface(),
+            [] as [tcl_registry::model::DeclaredCommand; 0]
+        );
     }
 
     #[test]
@@ -1510,7 +1513,7 @@ mod tests {
                 message: b"no licence".to_vec(),
             }
         );
-        assert!(interp.commands().is_empty());
+        assert_eq!(interp.commands(), [] as [tcl_core_types::NameBytes; 0]);
     }
 
     #[test]

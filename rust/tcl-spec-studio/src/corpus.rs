@@ -768,7 +768,7 @@ mod tests {
         ";
         let shape = scan(body, &[param("args")], "tcl9.0");
         assert!(shape.option_terminator);
-        assert!(shape.options.is_empty());
+        assert_eq!(shape.options, [] as [crate::corpus::OptionShape; 0]);
         assert!(shape.evidence.iter().any(|e| e.contains("-x")));
     }
 
@@ -874,7 +874,7 @@ mod tests {
             "tcl9.0",
         );
         assert!(shape.is_empty(), "{shape:?}");
-        assert!(shape.evidence.is_empty());
+        assert_eq!(shape.evidence, [] as [String; 0]);
     }
 
     #[test]
@@ -901,12 +901,12 @@ mod tests {
         let mut notes = Vec::new();
         shape.apply(&mut d, &mut notes);
         let options = d["options"].as_array().expect("option rows");
-        assert!(options.is_empty());
+        assert_eq!(options.as_slice(), [] as [serde_json::Value; 0]);
         assert!(notes.iter().any(|e| e.contains("-loud")));
         assert!(notes.iter().any(|e| e.contains("-times")));
         assert_eq!(d["command_prefixes"][0]["index"], json!(1));
         assert_eq!(d["command_prefixes"][0]["arity"]["kind"], json!("Exactly"));
-        assert!(!notes.is_empty());
+        assert_ne!(notes, [] as [String; 0]);
     }
 
     #[test]
@@ -998,10 +998,9 @@ mod tests {
             );
             assert!(shape.arg_values.is_none(), "{word}");
         }
-        assert!(
-            scan("$café payload", &[param("café")], "tcl9.0")
-                .callbacks
-                .is_empty()
+        assert_eq!(
+            scan("$café payload", &[param("café")], "tcl9.0").callbacks,
+            [] as [crate::corpus::Callback; 0]
         );
         assert_eq!(
             scan("$café payload", &[param("café")], "jim").callbacks,

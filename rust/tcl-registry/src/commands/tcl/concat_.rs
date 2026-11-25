@@ -50,7 +50,7 @@ pub fn spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::shipped("concat"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        const_fold: Some(|args| Some(crate::const_fold::fold_concat(args))),
+        const_fold: Some(|args| Some(crate::literal_folds::fold_concat(args))),
         codegen_hook: Some(CodegenHookId::Concat),
         traits: Traits::FRAMELESS_RUNTIME | Traits::EXPANSION_ESCAPE_SAFE | Traits::BYTE_COMPILED,
         arity: Arity::any(),

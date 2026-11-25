@@ -85,6 +85,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "idle",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         arity: Arity::at_least(1),
         // Same concatenation shape as the default `after ms script` form
         // (`after_count_roles`) — mark the sole script word only when it is
@@ -99,7 +102,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // there reads 0. SSA must not treat it as sharing the caller's
         // frame.
         body_kind: BodyKind::Structural,
-        body_execution: Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::native_global(
+                crate::body_execution::DeferredTrigger::Idle,
+            ),
+        )),
         detail: "Concatenate the script arguments (as concat would) and arrange for the result to run exactly once, the next time the event loop is entered with no other events pending. Runs at global level, outside the context of any Tcl procedure.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
@@ -126,6 +133,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         script_lookup_scope: Some(crate::ScriptLookupScope::GlobalFrame),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
@@ -166,7 +176,11 @@ pub fn spec() -> CommandSpec {
         // comment and `uplevel`'s). Neither SSA dataflow nor `my`/`next`/
         // `$obj method` dispatch scanning must treat it as same-frame.
         body_kind: BodyKind::Structural,
-        body_execution: Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::native_global(
+                crate::body_execution::DeferredTrigger::Timer,
+            ),
+        )),
         subcommands: SUBCOMMANDS,
         // `after 200 …` — an integer first word selects the default
         // delayed-execution form rather than dispatching on a subcommand.

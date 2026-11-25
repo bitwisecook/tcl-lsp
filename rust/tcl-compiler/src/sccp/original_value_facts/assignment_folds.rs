@@ -315,11 +315,8 @@ pub(super) fn resolve_const_string<'a, S1: std::hash::BuildHasher, S2: std::hash
     None
 }
 
-// The per-command fold arms below (`list` / `format` / `llength` / `string
-// length` / `expr`) are name-keyed on purpose: each arm IS that command's
-// fold semantics (what a constant call evaluates to), not a membership
-// test a registry trait could answer — the same irreducible-fold rationale
-// as `chain_fold`'s per-command arms.
+// Exact command values use registry declarations; expression substitution
+// policy below remains tied to the legacy tokenless source view.
 pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
@@ -353,6 +350,38 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
         })
     };
 
+    if let Some(folds) = folds {
+        let direct_trust = |name: &str| {
+            use tcl_registry::value_transfer::{EvalRoute, EvaluatorOwner, resolve_semantics};
+            trusted(name)
+                && (folds.registry_engine
+                    || folds.registry.get_for_surface(name, folds.registry.own_surface_query()).is_some_and(|spec| {
+                        matches!(resolve_semantics(spec, None, None).route(), Some(EvalRoute::Direct { id }) if id.owner() == EvaluatorOwner::Registry)
+                    }))
+        };
+        let lookup = |name: &str| lattice_const_text(name, uses, values, ssa, policy);
+        let context = crate::const_subst::ConstSubstCtx {
+            registry: folds.registry,
+            resolution_namespace: "::",
+            namespace_context: None,
+            version: folds
+                .dialect
+                .and_then(tcl_dialect::DialectProfile::const_fold_version),
+            defining_class: folds.defining_class,
+            trusts: &direct_trust,
+            lookup_var: &lookup,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
+        };
+        let inner = value.strip_prefix('[')?.strip_suffix(']')?;
+        let folded = policy.invocation_dialect.map_or_else(
+            || context.fold_cmd_subst(inner),
+            |dialect| context.fold_cmd_subst_in(inner, dialect),
+        );
+        if let Some(value) = folded {
+            return Some(LatticeValue::Const(parse_literal_value(&value)));
+        }
+    }
+
     // Registry dispatch below owns a literal list's native result spelling.
     // `[format "..." args…]` with literal args.
     // The document's escape grammar, from the same resolved profile the rest
@@ -377,40 +406,11 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
         return None;
     }
 
-    // `[llength LIST]` with a literal or lattice-resolvable list.
-    // value-transfer-ok: irreducible — tokenless legacy fold; a retained
-    // invocation folds through the registry's const_fold instead.
-    // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
-    if cmd == "llength" {
-        let arg = rest?.trim();
-        // Unlike `foreach`'s `list_arg` (already delimiter-stripped by the
-        // segmenter), `arg` here is raw source text straight out of the
-        // `[...]` command substitution, so it still carries its own
-        // `{…}`/`"…"` wrapping that `extract_foreach_elements` does not
-        // strip — peel exactly one level before splitting.
-        if let Some(elements) = extract_foreach_elements(strip_one_level(arg), policy.word_rules) {
-            let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
-            return Some(LatticeValue::Const(ConstValue::Int(n)));
-        }
-        if let Some(items) = resolve_foreach_list_via_lattice(
-            arg,
-            uses,
-            values,
-            ssa,
-            policy.word_rules,
-            reference_config,
-        ) {
-            let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
-            return Some(LatticeValue::Const(ConstValue::Int(n)));
-        }
-        return None;
-    }
-
     // `[string length OPERAND]` where OPERAND resolves to a constant
     // string — a literal word, or a `$var` whose lattice value is known.
     // (Counting the chars of the *unresolved* operand text would mis-fold
     // `string length $s` to the length of "$s".)
-    // value-transfer-ok: irreducible — tokenless legacy fold, as for llength.
+    // value-transfer-ok: irreducible — tokenless legacy expression policy.
     // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
     if cmd == "string" {
         if let Some(after_cmd) = rest {
@@ -442,7 +442,7 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
     }
 
     // `[expr {EXPR}]` — parse + fold under the current lattice.
-    // value-transfer-ok: irreducible — tokenless legacy fold, as for llength.
+    // value-transfer-ok: irreducible — tokenless legacy expression policy.
     // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
     if cmd == "expr" {
         let arg = rest?.trim();

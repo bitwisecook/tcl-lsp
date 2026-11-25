@@ -126,8 +126,8 @@ mod tests {
 
     #[test]
     fn tclvm_and_tclsh_carry_no_extra_args() {
-        assert!(Engine::Tclvm.args().is_empty());
-        assert!(Engine::Tclsh.args().is_empty());
+        assert_eq!(Engine::Tclvm.args(), [] as [String; 0]);
+        assert_eq!(Engine::Tclsh.args(), [] as [String; 0]);
     }
 
     #[test]
@@ -141,10 +141,9 @@ mod tests {
             Engine::RuntimeRust.tcl_version_args(tcl_dialect::TclVersion::V8_6),
             expected,
         );
-        assert!(
-            Engine::Tclsh
-                .tcl_version_args(tcl_dialect::TclVersion::V8_6)
-                .is_empty()
+        assert_eq!(
+            Engine::Tclsh.tcl_version_args(tcl_dialect::TclVersion::V8_6),
+            [] as [String; 0]
         );
     }
 

@@ -219,8 +219,8 @@ impl Backend {
             .iter()
             .chain(inheritors.iter().filter(|_| inheritable))
             .filter(|wc| {
-                wc.definer_family()
-                    .is_some_and(|family| family != tcl_registry::definer::DefinerFamily::Itcl)
+                wc.definer_profile()
+                    .is_some_and(|profile| !profile.class_procedures_are_qualified())
             })
             .map(|wc| wc.qualified_name.clone())
             .collect()

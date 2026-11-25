@@ -356,7 +356,7 @@ fn consumer_answers(
 }
 
 fn run_lane(oracle: &Tclsh, paths: &[PathBuf], archive: &str) -> Result<bool, Box<dyn Error>> {
-    let dialect = oracle.version.dialect_name();
+    let dialect = oracle.version.dialect_profile_name();
     let environment = tcl_registry::model::ingress::resolve_environment(dialect);
     let context = environment.default_context_registry();
     let registry = context.commands().as_ref();

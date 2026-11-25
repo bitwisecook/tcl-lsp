@@ -69,6 +69,7 @@ pub(crate) fn definition_body(grammar: Option<&'static DefinitionBodyGrammar>) -
 pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
     let DefinitionBodyGrammar {
         family,
+        profile,
         members,
         implicit_vars,
         implicit_receiver_vars,
@@ -87,6 +88,7 @@ pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
     } = grammar;
     json!({
         "family": catalogue::variant_name(family),
+        "profile": profile.shipped_constant_name().map_or_else(|| json!({"unrecovered": format!("{profile:?}")}), |name| json!(name)),
         "members": Value::Array(members.iter().map(member_spec).collect()),
         "implicit_vars": str_list(implicit_vars),
         "implicit_receiver_vars": str_list(implicit_receiver_vars),

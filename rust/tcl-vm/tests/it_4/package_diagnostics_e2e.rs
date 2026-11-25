@@ -27,7 +27,7 @@ use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 fn run_for_version(src: &str, version: TclVersion) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));

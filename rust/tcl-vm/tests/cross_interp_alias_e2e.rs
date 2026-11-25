@@ -177,7 +177,7 @@ fn vm_matches_the_pinned_cross_interp_alias_vectors() {
     for version in TclVersion::ALL {
         for vector in VECTORS {
             assert_eq!(
-                common::vm_output(vector.script, version.dialect_name()),
+                common::vm_output(vector.script, version.dialect_profile_name()),
                 expected(vector, version),
                 "{version:?}: {}",
                 vector.name

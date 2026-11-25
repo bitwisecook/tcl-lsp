@@ -452,8 +452,11 @@ fn bounded_entry(
         .borrowed_context_registry()
         .context()
         .resolve_spec(context.registry, &native.target.command)?;
-    (selected.definition_body?.family == tcl_registry::definer::DefinerFamily::JimClass)
-        .then_some(())
+    (selected
+        .definition_body?
+        .profile
+        .members_are_two_word_commands())
+    .then_some(())
 }
 
 impl PlannedJimSourceHelper {

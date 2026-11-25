@@ -14,8 +14,8 @@ Rows are commands and subcommands. Each domain is counted as unknown / partial /
 | iapps | 49 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 0 / 0 / 0 / 0 / 0 |
 | irules | 1286 | 11 / 1275 / 0 | 1282 / 4 / 0 | 1286 / 0 / 0 | 1286 / 0 / 0 | 1285 / 1 / 0 | 1282 / 4 / 0 | 1078 / 208 / 0 | 0 / 0 / 0 / 0 / 0 |
 | stdlib | 262 | 239 / 23 / 0 | 260 / 2 / 0 | 262 / 0 / 0 | 262 / 0 / 0 | 261 / 1 / 0 | 260 / 2 / 0 | 261 / 1 / 0 | 0 / 0 / 0 / 0 / 0 |
-| tcl | 669 | 94 / 344 / 231 | 377 / 61 / 231 | 407 / 31 / 231 | 427 / 11 / 231 | 390 / 87 / 192 | 377 / 61 / 231 | 608 / 61 / 0 | 35 / 156 / 161 / 180 / 228 |
-| tcllib | 1770 | 1593 / 156 / 21 | 1749 / 0 / 21 | 1748 / 1 / 21 | 1749 / 0 / 21 | 1749 / 0 / 21 | 1749 / 0 / 21 | 1770 / 0 / 0 | 0 / 21 / 21 / 21 / 21 |
+| tcl | 654 | 98 / 329 / 227 | 366 / 61 / 227 | 386 / 41 / 227 | 416 / 11 / 227 | 379 / 87 / 188 | 366 / 61 / 227 | 608 / 46 / 0 | 35 / 152 / 157 / 176 / 224 |
+| tcllib | 1770 | 1614 / 156 / 0 | 1770 / 0 / 0 | 1769 / 1 / 0 | 1770 / 0 / 0 | 1770 / 0 / 0 | 1770 / 0 / 0 | 1770 / 0 / 0 | 0 / 0 / 0 / 0 / 0 |
 | tk | 771 | 0 / 771 / 0 | 771 / 0 / 0 | 771 / 0 / 0 | 771 / 0 / 0 | 208 / 563 / 0 | 771 / 0 / 0 | 548 / 223 / 0 | 0 / 0 / 0 / 0 / 0 |
 
 ## Pure rows
@@ -86,10 +86,6 @@ Every row pure at some Tcl release, with the windows its four domains are comple
 | tcl | `tcl::unsupported::grapheme split` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::unsupported::grapheme split` | 9.1 | `{9.1 9.1}` |
 | tcl | `zlib adler32` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `*` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `+` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `-` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `/` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::+` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::+` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::-` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
@@ -148,38 +144,88 @@ Every row pure at some Tcl release, with the windows its four domains are comple
 | tcl | `tcl::mathfunc::abs` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::acos` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::acos` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::acosh` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::acosh` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::asin` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::asin` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::asinh` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::asinh` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::atan` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::atan` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::atan2` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::atan2` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::atanh` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::atanh` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::bool` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::bool` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::cbrt` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::cbrt` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::ceil` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::ceil` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::copysign` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::copysign` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::cos` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::cos` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::cosh` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::cosh` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::dim` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::dim` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::double` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::double` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::entier` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::entier` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::erf` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::erf` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::erfc` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::erfc` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::exp` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::exp` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::exp2` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::exp2` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::expm1` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::expm1` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::floor` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::floor` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::fma` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::fma` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::fmod` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::fmod` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::gamma` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::gamma` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::hypot` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::hypot` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::int` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::int` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::isqrt` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::isqrt` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::ldexp` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::ldexp` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::lgamma` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::lgamma` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::log` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::log` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::log10` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::log10` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::log1p` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::log1p` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::log2` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::log2` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::logb` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::logb` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::max` | 9.0 9.1 | `{9.0 9.1}` |
+| tcl | `tcl::mathfunc::max` | 9.0 9.1 | `{9.0 9.1}` |
+| tcl | `tcl::mathfunc::min` | 9.0 9.1 | `{9.0 9.1}` |
+| tcl | `tcl::mathfunc::min` | 9.0 9.1 | `{9.0 9.1}` |
+| tcl | `tcl::mathfunc::nextafter` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::nextafter` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::pow` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::pow` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::remainder` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::remainder` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::round` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::round` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::signbit` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::signbit` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::sin` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::sin` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::sinh` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
@@ -190,60 +236,10 @@ Every row pure at some Tcl release, with the windows its four domains are comple
 | tcl | `tcl::mathfunc::tan` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::tanh` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::tanh` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::wide` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::wide` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::bool` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::bool` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::entier` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::entier` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::isqrt` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::isqrt` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `tcl::mathfunc::max` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `tcl::mathfunc::max` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `tcl::mathfunc::min` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `tcl::mathfunc::min` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `tcl::mathfunc::acosh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::acosh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::asinh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::asinh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::atanh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::atanh` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::cbrt` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::cbrt` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::copysign` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::copysign` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::dim` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::dim` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::erf` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::erf` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::erfc` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::erfc` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::exp2` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::exp2` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::expm1` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::expm1` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::fma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::fma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::gamma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::gamma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::ldexp` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::ldexp` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::lgamma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::lgamma` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::log1p` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::log1p` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::log2` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::log2` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::logb` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::logb` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::nextafter` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::nextafter` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::remainder` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::remainder` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::signbit` | 9.1 | `{9.1 9.1}` |
-| tcl | `tcl::mathfunc::signbit` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::trunc` | 9.1 | `{9.1 9.1}` |
 | tcl | `tcl::mathfunc::trunc` | 9.1 | `{9.1 9.1}` |
+| tcl | `tcl::mathfunc::wide` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
+| tcl | `tcl::mathfunc::wide` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::dict::exists` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::dict::get` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::dict::keys` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
@@ -255,27 +251,6 @@ Every row pure at some Tcl release, with the windows its four domains are comple
 | tcl | `tcl::dict::info` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::dict::getdef` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::dict::getwithdefault` | 9.0 9.1 | `{9.0 9.1}` |
-| tcllib | `csv::iscomplete` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package csv 0.10 0.10.1}` |
-| tcllib | `csv::joinlist` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package csv 0.10 0.10.1}` |
-| tcllib | `json::list2json` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package json 1.3.6 1.3.6.1}` |
-| tcllib | `json::string2json` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package json 1.3.6 1.3.6.1}` |
-| tcllib | `math::statistics::print-2x2` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::statistics 1.6.1 1.6.1.1}` |
-| tcllib | `math::statistics::test-2x2` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::statistics 1.6.1 1.6.1.1}` |
-| tcllib | `uri::isrelative` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package dns 1.6.1 1.6.1.1}` |
-| tcllib | `unicode::fromstring` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package unicode 1.1.1 1.1.1.1}` |
-| tcllib | `unicode::tostring` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package unicode 1.1.1 1.1.1.1}` |
-| tcllib | `math::cov` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::integrate` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::fibonacci` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::max` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::mean` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::min` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::product` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::sigma` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::stats` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `math::sum` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package math::calculus::symdiff 1.0.2 1.0.2.1}` |
-| tcllib | `html::nl2br` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package html 1.6 1.6.1}` |
-| tcllib | `html::quoteFormValue` | 8.5 8.6 9.0 9.1 | `{8.5 9.1} {package html 1.6 1.6.1}` |
 
 ## Formerly pure, not evidenced
 
@@ -471,11 +446,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | stdlib | `tcl_startOfPreviousWord` | no source evidence for `stdlib` |
 | stdlib | `tcl_wordBreakAfter` | no source evidence for `stdlib` |
 | stdlib | `tcl_wordBreakBefore` | no source evidence for `stdlib` |
-| tcl | `!` | no C entry |
-| tcl | `!=` | no C entry |
-| tcl | `%` | no C entry |
-| tcl | `&` | no C entry |
-| tcl | `**` | no C entry |
 | tcl | `tcl::dict::create` | no C entry |
 | tcl | `tcl::idna decode` | no C entry |
 | tcl | `tcl::idna encode` | no C entry |
@@ -494,14 +464,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `tcl::unsupported::grapheme offset` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
 | tcl | `tcl::unsupported::grapheme range` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
 | tcl | `tcl::unsupported::grapheme reverse` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
-| tcl | `<` | no C entry |
-| tcl | `<<` | no C entry |
-| tcl | `<=` | no C entry |
-| tcl | `==` | no C entry |
-| tcl | `>` | no C entry |
-| tcl | `>=` | no C entry |
-| tcl | `>>` | no C entry |
-| tcl | `^` | no C entry |
 | tcl | `after info` | open: `channels:Tcl_Flush` |
 | tcl | `auto_qualify` | no C entry |
 | tcl | `binary decode` | no C entry |
@@ -524,7 +486,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `dict getd` | no C entry |
 | tcl | `encoding names` | open: `encodings:Tcl_GetEncodingNames` |
 | tcl | `encoding user` | open: `encodings:Tcl_GetEncoding` |
-| tcl | `eq` | no C entry |
 | tcl | `file dirname` | open: `filesystem:Tcl_FSGetPathType` |
 | tcl | `file join` | open: `filesystem:TclGetPathType` |
 | tcl | `file nativename` | open: `filesystem:Tcl_FSGetTranslatedPath` |
@@ -533,9 +494,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `file split` | open: `filesystem:Tcl_FSSplitPath` |
 | tcl | `file tail` | open: `filesystem:Tcl_FSGetPathType` |
 | tcl | `fpclassify` | open: `unresolved:ClassifyDouble:fpclassify` |
-| tcl | `ge` | no C entry |
-| tcl | `gt` | no C entry |
-| tcl | `in` | no C entry |
 | tcl | `info args` | open: `commands:TclFindProc` |
 | tcl | `info body` | open: `commands:TclFindProc` |
 | tcl | `info class` | no C entry |
@@ -571,10 +529,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `interp issafe` | no C entry |
 | tcl | `interp slaves` | no C entry |
 | tcl | `interp target` | no C entry |
-| tcl | `le` | no C entry |
 | tcl | `lsearch` | open: `unresolved:RegExpExecUniChar:TclReExec` |
 | tcl | `lseq` | open: `unresolved:TclMSB:_BitScanReverse64` |
-| tcl | `lt` | no C entry |
 | tcl | `memory info` | no C entry |
 | tcl | `namespace children` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
 | tcl | `namespace code` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
@@ -583,8 +539,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `namespace origin` | open: `commands:TclGetOriginalCommand` |
 | tcl | `namespace parent` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
 | tcl | `namespace which` | open: `commands:Tcl_GetCommandFromObj` |
-| tcl | `ne` | no C entry |
-| tcl | `ni` | no C entry |
 | tcl | `oo::Helpers::self` | no C entry |
 | tcl | `package files` | no C entry |
 | tcl | `package list` | no C entry |
@@ -611,8 +565,6 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `zlib deflate` | open: `channels:fprintf` |
 | tcl | `zlib gzip` | open: `channels:fprintf` |
 | tcl | `zlib inflate` | open: `channels:fprintf` |
-| tcl | `|` | no C entry |
-| tcl | `~` | no C entry |
 | tcllib | `ascii85::decode` | no source evidence for `tcllib` |
 | tcllib | `ascii85::encode` | no source evidence for `tcllib` |
 | tcllib | `base32::decode` | no source evidence for `tcllib` |
@@ -648,6 +600,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `crc::unknown3` | no source evidence for `tcllib` |
 | tcllib | `crc::unknown4` | no source evidence for `tcllib` |
 | tcllib | `crc::xmodem` | no source evidence for `tcllib` |
+| tcllib | `csv::iscomplete` | no source evidence for `tcllib` |
+| tcllib | `csv::joinlist` | no source evidence for `tcllib` |
 | tcllib | `fileutil::jail` | no source evidence for `tcllib` |
 | tcllib | `fileutil::lexnormalize` | no source evidence for `tcllib` |
 | tcllib | `fileutil::relative` | no source evidence for `tcllib` |
@@ -657,6 +611,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `html::doctype` | no source evidence for `tcllib` |
 | tcllib | `html::html_entities` | no source evidence for `tcllib` |
 | tcllib | `html::mailto` | no source evidence for `tcllib` |
+| tcllib | `html::nl2br` | no source evidence for `tcllib` |
+| tcllib | `html::quoteFormValue` | no source evidence for `tcllib` |
 | tcllib | `html::tagstrip` | no source evidence for `tcllib` |
 | tcllib | `html::urlParent` | no source evidence for `tcllib` |
 | tcllib | `ini::commentchar` | no source evidence for `tcllib` |
@@ -676,9 +632,13 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `ip::subtract` | no source evidence for `tcllib` |
 | tcllib | `ip::type` | no source evidence for `tcllib` |
 | tcllib | `ip::version` | no source evidence for `tcllib` |
+| tcllib | `json::list2json` | no source evidence for `tcllib` |
 | tcllib | `json::many-json2dict` | no source evidence for `tcllib` |
+| tcllib | `json::string2json` | no source evidence for `tcllib` |
 | tcllib | `json::validate` | no source evidence for `tcllib` |
 | tcllib | `logger::levels` | no source evidence for `tcllib` |
+| tcllib | `math::cov` | no source evidence for `tcllib` |
+| tcllib | `math::fibonacci` | no source evidence for `tcllib` |
 | tcllib | `math::fuzzy::tceil` | no source evidence for `tcllib` |
 | tcllib | `math::fuzzy::teq` | no source evidence for `tcllib` |
 | tcllib | `math::fuzzy::tfloor` | no source evidence for `tcllib` |
@@ -689,10 +649,16 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `math::fuzzy::tne` | no source evidence for `tcllib` |
 | tcllib | `math::fuzzy::tround` | no source evidence for `tcllib` |
 | tcllib | `math::fuzzy::troundn` | no source evidence for `tcllib` |
+| tcllib | `math::integrate` | no source evidence for `tcllib` |
+| tcllib | `math::max` | no source evidence for `tcllib` |
+| tcllib | `math::mean` | no source evidence for `tcllib` |
+| tcllib | `math::min` | no source evidence for `tcllib` |
+| tcllib | `math::product` | no source evidence for `tcllib` |
 | tcllib | `math::roman::expr` | no source evidence for `tcllib` |
 | tcllib | `math::roman::sort` | no source evidence for `tcllib` |
 | tcllib | `math::roman::tointeger` | no source evidence for `tcllib` |
 | tcllib | `math::roman::toroman` | no source evidence for `tcllib` |
+| tcllib | `math::sigma` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::analyse-Kruskal-Wallis` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::autocorr` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::basic-stats` | no source evidence for `tcllib` |
@@ -716,6 +682,7 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `math::statistics::min` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::minmax-histogram-limits` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::number` | no source evidence for `tcllib` |
+| tcllib | `math::statistics::print-2x2` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::pstdev` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::pvar` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::quantiles` | no source evidence for `tcllib` |
@@ -724,6 +691,7 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `math::statistics::spearman-rank-extended` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::stdev` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::t-test-mean` | no source evidence for `tcllib` |
+| tcllib | `math::statistics::test-2x2` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::test-Duckworth` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::test-Dunnett` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::test-Kruskal-Wallis` | no source evidence for `tcllib` |
@@ -734,6 +702,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `math::statistics::test-normal` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::test-xbar` | no source evidence for `tcllib` |
 | tcllib | `math::statistics::var` | no source evidence for `tcllib` |
+| tcllib | `math::stats` | no source evidence for `tcllib` |
+| tcllib | `math::sum` | no source evidence for `tcllib` |
 | tcllib | `md4::hmac` | no source evidence for `tcllib` |
 | tcllib | `md4::md4` | no source evidence for `tcllib` |
 | tcllib | `md5::md5` | no source evidence for `tcllib` |
@@ -811,11 +781,14 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcllib | `textutil::uncap` | no source evidence for `tcllib` |
 | tcllib | `textutil::untabify` | no source evidence for `tcllib` |
 | tcllib | `textutil::untabify2` | no source evidence for `tcllib` |
+| tcllib | `unicode::fromstring` | no source evidence for `tcllib` |
 | tcllib | `unicode::normalize` | no source evidence for `tcllib` |
 | tcllib | `unicode::normalizeS` | no source evidence for `tcllib` |
+| tcllib | `unicode::tostring` | no source evidence for `tcllib` |
 | tcllib | `units::convert` | no source evidence for `tcllib` |
 | tcllib | `units::reduce` | no source evidence for `tcllib` |
 | tcllib | `uri::canonicalize` | no source evidence for `tcllib` |
+| tcllib | `uri::isrelative` | no source evidence for `tcllib` |
 | tcllib | `uuencode::decode` | no source evidence for `tcllib` |
 | tcllib | `uuencode::encode` | no source evidence for `tcllib` |
 | tcllib | `yaml::list2yaml` | no source evidence for `tcllib` |
@@ -983,7 +956,7 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 
 ## Pure under Tcl 8.4, not evidenced for F5
 
-An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not close them. These 36 rows were authored pure and are pure at Tcl 8.4, and are not pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 33 is the device test that would evidence them. A further 902 rows authored pure under `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.
+An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not close them. These 36 rows were authored pure and are pure at Tcl 8.4, and are not pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 33 is the device test that would evidence them. A further 898 rows authored pure under `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.
 
 `concat`, `file extension`, `file rootname`, `format`, `info complete`, `info sharedlibextension`, `join`, `lindex`, `linsert`, `list`, `llength`, `lrange`, `lreplace`, `namespace qualifiers`, `namespace tail`, `split`, `string bytelength`, `string compare`, `string equal`, `string first`, `string index`, `string last`, `string length`, `string map`, `string match`, `string range`, `string repeat`, `string replace`, `string tolower`, `string totitle`, `string toupper`, `string trim`, `string trimleft`, `string trimright`, `string wordend`, `string wordstart`
 

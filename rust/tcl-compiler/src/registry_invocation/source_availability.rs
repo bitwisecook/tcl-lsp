@@ -39,14 +39,14 @@ pub enum CommandSourceAvailabilityDomain {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AvailabilityOrigin {
     Native {
-        lookup: OriginalCommandLookup,
+        lookup: Box<OriginalCommandLookup>,
         obligations: Vec<OriginalCatalogueSourceObligation>,
     },
     Logical {
         paths: Vec<Vec<tcl_core_types::NameBytes>>,
     },
     Hosted {
-        occurrence: VendorSourceNameOccurrence,
+        occurrence: Box<VendorSourceNameOccurrence>,
         paths: Vec<Vec<tcl_core_types::NameBytes>>,
         barriers: Box<super::VendorSourceCatalogueBarriers>,
     },
@@ -128,9 +128,9 @@ impl OriginalSourceCommandAvailability {
     }
     /// Genuine counted Native lookup geometry, if that independent owner exists.
     #[must_use]
-    pub const fn native_lookup(&self) -> Option<&OriginalCommandLookup> {
+    pub fn native_lookup(&self) -> Option<&OriginalCommandLookup> {
         match &self.origin {
-            AvailabilityOrigin::Native { lookup, .. } => Some(lookup),
+            AvailabilityOrigin::Native { lookup, .. } => Some(lookup.as_ref()),
             _ => None,
         }
     }
@@ -346,7 +346,7 @@ pub fn original_source_command_availability(
         (
             selected.descriptor,
             AvailabilityOrigin::Native {
-                lookup: selected.lookup,
+                lookup: Box::new(selected.lookup),
                 obligations: selected.obligations,
             },
         )
@@ -462,7 +462,7 @@ fn hosted_unavailability(
     Some((
         descriptor,
         AvailabilityOrigin::Hosted {
-            occurrence: occurrence.clone(),
+            occurrence: Box::new(occurrence.clone()),
             paths,
             barriers: Box::new(barriers),
         },

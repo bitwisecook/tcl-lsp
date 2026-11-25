@@ -134,6 +134,21 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "my",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[
+                    ArgRole::Body,
+                    ArgRole::VarWrite,
+                    ArgRole::VarRead,
+                    ArgRole::VarCell,
+                ],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::ObjectReceiver,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         runtime_backing: RuntimeBacking::shipped("my"),
         traits: Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_SELF_DISPATCH

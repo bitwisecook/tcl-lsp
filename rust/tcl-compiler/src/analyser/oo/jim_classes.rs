@@ -332,7 +332,7 @@ impl Analyser {
             .context()
             .resolve_spec(context.commands(), call.class().factory().command())?
             .definition_body?;
-        (grammar.family == tcl_registry::definer::DefinerFamily::JimClass
+        (grammar.profile.members_are_two_word_commands()
             && std::str::from_utf8(member)
                 .ok()
                 .and_then(|member| grammar.manufacturer(member))
@@ -389,7 +389,7 @@ impl Analyser {
             else {
                 return false;
             };
-            if grammar.family != tcl_registry::definer::DefinerFamily::JimClass {
+            if !grammar.profile.members_are_two_word_commands() {
                 return false;
             }
             if crate::registry_invocation::source_structure::trace_jim_source_option(
@@ -438,7 +438,7 @@ impl Analyser {
             };
             (args, arg_tokens, class, grammar)
         };
-        if grammar.family != tcl_registry::definer::DefinerFamily::JimClass {
+        if !grammar.profile.members_are_two_word_commands() {
             return false;
         }
         if !self.analyse_jim_inline_member(grammar, args, arg_tokens, &mut class_def, scope_path) {
@@ -512,7 +512,7 @@ impl Analyser {
     /// Record a `proc` whose name is the two-element list `{CLASS member}` as a
     /// method of `CLASS` when `CLASS` is a class of a family that stores its
     /// members as two-word commands
-    /// ([`tcl_registry::definer::DefinerFamily::members_are_two_word_commands`]).
+    /// ([`tcl_registry::definer::ObjectSystemProfile::members_are_two_word_commands`]).
     ///
     /// The procedure is itself the two-word command `{CLASS member}` — every
     /// dialect defines that — so this only adds the class-side fact. The
@@ -670,7 +670,7 @@ impl Analyser {
         let context = self.analysis_context();
         if !declaration
             .grammar(&context)
-            .is_some_and(|grammar| grammar.family.members_are_two_word_commands())
+            .is_some_and(|grammar| grammar.profile.members_are_two_word_commands())
         {
             return;
         }
@@ -700,7 +700,7 @@ impl Analyser {
     ) {
         if !self
             .class_definer_grammar(class_q)
-            .is_some_and(|grammar| grammar.family.members_are_two_word_commands())
+            .is_some_and(|grammar| grammar.profile.members_are_two_word_commands())
         {
             return;
         }

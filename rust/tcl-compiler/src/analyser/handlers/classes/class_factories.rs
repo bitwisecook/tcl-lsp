@@ -599,9 +599,9 @@ impl Analyser {
             (descriptor
                 .traits
                 .contains(tcl_registry::Traits::IS_OO_METACLASS)
-                && descriptor.definition_body.is_some_and(|grammar| {
-                    grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                }))
+                && descriptor
+                    .definition_body
+                    .is_some_and(|grammar| grammar.profile.has_native_definition_workers()))
             .then_some(())?;
             Some(descriptor)
         } else {

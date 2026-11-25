@@ -1110,7 +1110,7 @@
     ],
     "lifecycle": "all known owning-package versions",
     "timing": "deferred",
-    "appended_arity": "at least 1",
+    "appended_arity": "one of [1, 2]",
     "callback_taint_inputs": [],
     "forms": [
       "chan copy inputChan outputChan ?-size size? ?-command callback?"
@@ -1144,7 +1144,7 @@
     ],
     "lifecycle": "all known owning-package versions",
     "timing": "same-invocation",
-    "appended_arity": "at least 2",
+    "appended_arity": "one of [2, 3]",
     "callback_taint_inputs": [],
     "forms": [
       "chan create mode cmdPrefix"
@@ -1208,7 +1208,7 @@
     ],
     "lifecycle": "all known owning-package versions",
     "timing": "same-invocation",
-    "appended_arity": "at least 2",
+    "appended_arity": "one of [2, 3]",
     "callback_taint_inputs": [],
     "forms": [
       "chan push channelId cmdPrefix"
@@ -3023,7 +3023,7 @@
     ],
     "lifecycle": "all known owning-package versions",
     "timing": "deferred",
-    "appended_arity": "at least 1",
+    "appended_arity": "one of [1, 2]",
     "callback_taint_inputs": [],
     "forms": [
       "fcopy inputChan outputChan ?-size size? ?-command callback? [all known owning-package versions]"

@@ -45,6 +45,15 @@ C-extension contracts, none of which this one depends on.
 > and 8.4.20; a line names releases only where they differ, or where one of
 > them lacks the feature.
 
+
+## Shared partial-value operations
+
+Transfers project canonical `FactView` values into the
+[partial-value kernels](value-evaluation.md#partial-values-and-literal-kernels).
+Integer bounds, partial list lengths and finite-input admission share those
+operations with compiler interval analysis; exact values and completion evidence
+keep their existing owners.
+
 ## Rulings
 
 These are the owner's decisions, and every section below fits inside them.

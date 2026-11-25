@@ -1029,7 +1029,10 @@ mod native_byte_tests {
         let d = Lexer::with_source_image(&document, config)
             .tokenise_all()
             .unwrap();
-        assert!(group_commands_bytes(&n, bytes, config).is_empty());
+        assert_eq!(
+            group_commands_bytes(&n, bytes, config),
+            [] as [crate::script::CommandSpan; 0]
+        );
         let commands = group_commands_bytes(&d, bytes, config);
         assert_eq!(commands.len(), 2);
         assert_eq!(commands[0].span.start(), 4);

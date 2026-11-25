@@ -187,15 +187,6 @@ stdlib	tcl_startOfNextWord
 stdlib	tcl_startOfPreviousWord	
 stdlib	tcl_wordBreakAfter	
 stdlib	tcl_wordBreakBefore	
-tcl	!	
-tcl	!=	
-tcl	%	
-tcl	&	
-tcl	*	
-tcl	**	
-tcl	+	
-tcl	-	
-tcl	/	
 tcl	::tcl::dict::create	
 tcl	::tcl::dict::exists	
 tcl	::tcl::dict::get	
@@ -303,14 +294,6 @@ tcl	::tcl::unsupported::grapheme	offset
 tcl	::tcl::unsupported::grapheme	range
 tcl	::tcl::unsupported::grapheme	reverse
 tcl	::tcl::unsupported::grapheme	split
-tcl	<	
-tcl	<<	
-tcl	<=	
-tcl	==	
-tcl	>	
-tcl	>=	
-tcl	>>	
-tcl	^	
 tcl	after	info
 tcl	auto_qualify	
 tcl	binary	decode
@@ -347,7 +330,6 @@ tcl	divmod
 tcl	encoding	names
 tcl	encoding	profiles
 tcl	encoding	user
-tcl	eq	
 tcl	file	dirname
 tcl	file	extension
 tcl	file	join
@@ -360,9 +342,6 @@ tcl	file	tail
 tcl	format	
 tcl	fpclassify	
 tcl	frexp	
-tcl	ge	
-tcl	gt	
-tcl	in	
 tcl	info	args
 tcl	info	body
 tcl	info	class
@@ -400,7 +379,6 @@ tcl	interp	issafe
 tcl	interp	slaves
 tcl	interp	target
 tcl	join	
-tcl	le	
 tcl	lindex	
 tcl	linsert	
 tcl	list	
@@ -412,7 +390,6 @@ tcl	lreplace
 tcl	lreverse	
 tcl	lsearch	
 tcl	lseq	
-tcl	lt	
 tcl	memory	info
 tcl	modf	
 tcl	namespace	children
@@ -424,8 +401,6 @@ tcl	namespace	parent
 tcl	namespace	qualifiers
 tcl	namespace	tail
 tcl	namespace	which
-tcl	ne	
-tcl	ni	
 tcl	oo::Helpers::self	
 tcl	package	files
 tcl	package	list
@@ -575,8 +550,6 @@ tcl	zlib	decompress
 tcl	zlib	deflate
 tcl	zlib	gzip
 tcl	zlib	inflate
-tcl	|	
-tcl	~	
 tcllib	ascii85::decode	
 tcllib	ascii85::encode	
 tcllib	base32::decode	

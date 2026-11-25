@@ -395,7 +395,8 @@ mod tests {
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -421,7 +422,7 @@ mod tests {
             let bindings = analyse(source, version);
             let completed = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let entries = completed.declarations().collect::<Vec<_>>();
             let [entry] = entries.as_slice() else {
                 panic!("one moved source publication")
@@ -441,7 +442,7 @@ mod tests {
             let bindings = analyse(source, version);
             let completed = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let entries = completed.declarations().collect::<Vec<_>>();
             let [entry] = entries.as_slice() else {
                 panic!("one moved opaque publication")
@@ -462,7 +463,7 @@ mod tests {
             let bindings = analyse(source, version);
             let completed = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let publications = completed.declarations().collect::<Vec<_>>();
             let imports = publications
                 .iter()
@@ -515,7 +516,7 @@ mod tests {
                         .original_completed_command_world()
                         .is_none(),
                     "{}: {body}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
             }
         }
@@ -529,12 +530,12 @@ mod tests {
             let bindings = analyse("proc P {} {}; proc Q {} {}; rename P {}", version);
             let completed = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let names = completed
                 .declarations()
                 .map(|entry| entry.slot().simple.as_bytes().to_vec())
                 .collect::<Vec<_>>();
-            assert_eq!(names, [b"Q".to_vec()], "{}", version.dialect_name());
+            assert_eq!(names, [b"Q".to_vec()], "{}", version.dialect_profile_name());
         }
     }
 
@@ -554,7 +555,7 @@ mod tests {
                 assert!(
                     bindings.original_completed_command_world().is_none(),
                     "{}: {source}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
             }
         }
@@ -572,7 +573,7 @@ mod tests {
                 bindings.diagnostic_slot_presence_at(at),
                 super::super::SourceCommandSlotPresence::Absent,
                 "{}",
-                version.dialect_name()
+                version.dialect_profile_name()
             );
             assert!(bindings.original_completed_command_world().is_none());
         }

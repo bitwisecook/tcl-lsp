@@ -29,7 +29,7 @@ use tcl_test_support::{oracle_row_progress, required_tclshs, run_script};
 fn current_path_root_resolution_matches_real_oracle_vectors() {
     let oracles = required_tclshs(&TclVersion::ALL).expect("all five original C Tcl releases");
     for oracle in oracles {
-        let environment = format!("tcl{}", oracle.version.version_string());
+        let environment = oracle.version.dialect_profile_name().to_owned();
         for vector in vectors().into_iter().filter(|vector| {
             matches!(
                 vector.call.as_str(),

@@ -26,7 +26,7 @@ use crate::registry_invocation::{
 use std::sync::Arc;
 use tcl_lexer::NativeWord;
 use tcl_registry::definer::{
-    DefinerFamily, DefinitionSpecialMemberKind, MemberConstructionEffect, MemberKind,
+    DefinitionSpecialMemberKind, MemberConstructionEffect, MemberKind,
     NativeLifecycleBodyDisposition, SourceFormalValidationApplicability,
 };
 
@@ -252,7 +252,7 @@ pub(super) fn capture(
         class.source_class(analysis)?.metadata()
     };
     let grammar = class.grammar(&context)?;
-    (grammar.family == DefinerFamily::TclOo).then_some(())?;
+    (grammar.profile.has_native_definition_workers()).then_some(())?;
     let source = std::str::from_utf8(image.bytes()).ok()?;
     let factory = crate::registry_invocation::source_structure::source_registry_words_at(
         source,

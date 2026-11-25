@@ -1437,7 +1437,10 @@ speclib probe 2.2 {
             implementation.capability.identity.content_hash,
             tcl_registry::implementation_hash::content_hash(&(&"pkga.wasm", &"Pkga"))
         );
-        assert!(evaluate_hooks(&pack, "pkga_calc").is_empty());
+        assert_eq!(
+            evaluate_hooks(&pack, "pkga_calc"),
+            [] as [(&crate::loader::HookOwner, &crate::loader::HookSource); 0]
+        );
         for dropped in ["pkga_none", "pkga_path"] {
             let semantics = pack.command(dropped).unwrap().spec.semantics;
             assert!(

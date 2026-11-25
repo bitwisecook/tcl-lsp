@@ -38,6 +38,7 @@ audits and inventory-writing modes do not satisfy that route.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Checked entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
+| Partial value operations and literal command kernels | `rust/tcl-cmd-core/src/partial_value.rs`; `rust/tcl-cmd-core/src/literal_value.rs`; `rust/tcl-registry/src/value_transfer/partial.rs`; `rust/tcl-registry/src/literal_folds.rs` | `Interval`; `finite_input`; `LiteralContext`; `integer_bounds`; `list_length_bounds` | pending versus unknown, conditional integer bounds, one correlated finite identity, explicitly selected operand grammar and native result serialization; registry evidence remains separate from value algorithms | `xtask-owner-resolution` |
 | BIG-IP route-domain suffixes and iRules address operands | `rust/tcl-syntax/src/irules_address.rs` | `split_route_domain`; `prefix_from_mask`; `AddressOperand` | numeric suffix bounds and contiguous mask parsing for BIG-IP configuration and TMM comparisons; component-specific syntax and route-domain references belong to the configuration reader | `xtask-owner-resolution` |
 | Original native procedure compilation custody | `rust/tcl-runtime-api/src/native_procedure_roles.rs`; `rust/tcl-runtime-api/src/native_procedure_compilation.rs`; `rust/tcl-runtime-api/src/native_compiler_pass.rs`; `rust/tcl-vm/src/interp.rs`; `rust/tcl-codegen/src/compile_service.rs`; `rust/tcl-codegen/src/compile_service/native_procedure_source.rs`; `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/lowering/mod.rs`; `rust/tcl-compiler/src/var_resolve.rs`; `rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs`; `rust/tcl-compiler/src/command_binding/native_compiler_formals.rs` | `OriginalProcedureCompileRequest`; `NativeProcedureRoleLedger::compilation_request`; `NativeCompiledProcedure::original_compiled_body` | the actual declaration ledger and private compiler-pass owner issue immutable original body/formals/namespace custody; weak native-role and source-context currentness cannot retain or revive a retired allocation; compiler bodies use their own Module issuer and source owner, with no authored publication, physical slot, frame-elision or relocation permission; the ordinary Tcl declaration compiler issues ordered local primaries under the exact root source allocation, namespace, nominal compiler frame and configuration, with immutable declaration equality and independent weak currentness; authored header topology, inherited source-point input, caller physical slots, handler effects and Normal completion remain separate | `xtask-owner-resolution` |
 | Logical C8.4 Eval source words over a physical C9 core | `rust/tcl-registry/src/native_eval_object.rs`; `rust/tcl-registry/src/invocation_words.rs`; `rust/tcl-registry/src/native_compiled_variables.rs`; `rust/tcl-vm/src/interp.rs`; `rust/tcl-vm/src/interp/logical_eval_source.rs`; `rust/tcl-vm/src/literal_pool.rs`; `rust/tcl-vm/src/compiled.rs` | `InvocationDialect::eval_object_protocol`; `InvocationDialect::logical_source_string_protocol`; `InvocationDialect::authored_logical_compiled_variable_protocol` | the actual logical Eval selection, independently installed matching eval/source-word/name/compiled-variable providers and current physical C9 core issue only fresh logical source words; native Direct, other purposes and existing uplevel keep their own admission; the plain plan has no private constants, native pool/cache or compiled-local layout; immutable current policy and original unit generations guard execution, with no Native class, value or body-purpose grant | `xtask-owner-resolution` |
@@ -3337,11 +3338,10 @@ Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical
 helper without reading the rationale:
 
-- `rust/tcl-registry/src/const_fold.rs::split_list` — a conservative
-  *fold-safety* splitter that bails on any backslash or bare
-  `{`/`}`/`"`, so the optimiser only folds provably-simple lists. Using
-  the canonical `tcl_syntax::list::split_list` would fold **more**
-  (changing optimiser output); the policy is local on purpose.
+- `rust/tcl-cmd-core/src/literal_value.rs::split_list` — the conservative
+  release-independent literal reader declines backslashes and any list whose
+  C Tcl and Jim parses disagree. It delegates both parses to `tcl-syntax`.
+  Selected contexts use the actual list and escape grammars instead.
 - Compiler variable operands use `tcl_lexer::word_parts::whole_var_ref`
   with the actual ingress `LexerConfig`. It recognises only an entire original
   reference; malformed syntax retains the native scanner error and compound

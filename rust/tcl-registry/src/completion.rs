@@ -277,6 +277,82 @@ impl crate::knowledge::Knowledge<CompletionDescriptor> {
     }
 }
 
+/// A completion conversion performed at an evaluated region's boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionConversion {
+    /// Catch captures every Tcl code as a normal integer result; process exit escapes.
+    CaptureAsResult,
+    /// A loop consumes break as normal termination and continue as its next iteration.
+    LoopControl,
+    /// Selected on/trap handlers may replace a captured code; finally preserves or replaces it.
+    SelectedHandlers,
+    /// A return level is decremented; at level one the configured code becomes visible.
+    ProcedureReturn,
+    /// Direct break and continue from a procedure body become errors before return handling.
+    /// Codes exposed by `ProcedureReturn` are forwarded to the caller instead.
+    EscapingLoopControlIsError,
+}
+
+/// Where a command's declared completion boundary applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionBoundarySite {
+    /// Bodies evaluated by this invocation.
+    EvaluatedBodies,
+    /// A callable defined here, when that callable is subsequently invoked.
+    DefinedCallable,
+}
+
+/// Interception and conversion of nested completion codes, independent of CFG shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompletionBoundary {
+    /// Region whose completion crosses this boundary.
+    pub site: CompletionBoundarySite,
+    /// Codes intercepted rather than propagated unchanged.
+    pub intercepts: CompletionCodeDomain,
+    /// Ordered semantic conversions; none means unchanged propagation.
+    pub conversions: &'static [CompletionConversion],
+}
+
+impl CompletionBoundary {
+    /// A script evaluator forwards every nested code unchanged.
+    pub const FORWARD: Self = Self {
+        site: CompletionBoundarySite::EvaluatedBodies,
+        intercepts: CompletionCodeDomain::Exact(&[]),
+        conversions: &[],
+    };
+    /// Catch converts every nested Tcl completion into a normal integer result.
+    pub const CATCH: Self = Self {
+        intercepts: CompletionCodeDomain::Any,
+        conversions: &[CompletionConversion::CaptureAsResult],
+        ..Self::FORWARD
+    };
+    /// A loop intercepts break and continue, retaining every other completion.
+    pub const LOOP: Self = Self {
+        intercepts: CompletionCodeDomain::Exact(&[CompletionCode::Break, CompletionCode::Continue]),
+        conversions: &[CompletionConversion::LoopControl],
+        ..Self::FORWARD
+    };
+    /// Try selectors and handlers determine the intercepted subset at invocation resolution.
+    pub const TRY: Self = Self {
+        intercepts: CompletionCodeDomain::Any,
+        conversions: &[CompletionConversion::SelectedHandlers],
+        ..Self::FORWARD
+    };
+    /// An invoked procedure rejects direct loop codes, then consumes return levels.
+    pub const PROCEDURE: Self = Self {
+        site: CompletionBoundarySite::DefinedCallable,
+        intercepts: CompletionCodeDomain::Exact(&[
+            CompletionCode::Return,
+            CompletionCode::Break,
+            CompletionCode::Continue,
+        ]),
+        conversions: &[
+            CompletionConversion::EscapingLoopControlIsError,
+            CompletionConversion::ProcedureReturn,
+        ],
+    };
+}
+
 /// Target-neutral completion contract for a command, subcommand, or form.
 ///
 /// A form descriptor overrides a resolved subcommand descriptor, which in
@@ -291,6 +367,8 @@ pub struct CompletionDescriptor {
     pub payloads: CompletionPayloadObligations,
     /// Value-sensitive completion parser, when this command declares one.
     pub value_semantics: CompletionValueSemantics,
+    /// Nested-region boundary; absent means no declared interception contract.
+    pub body_boundary: Option<CompletionBoundary>,
 }
 
 impl CompletionDescriptor {
@@ -299,7 +377,15 @@ impl CompletionDescriptor {
         codes: CompletionCodeDomain::Any,
         payloads: CompletionPayloadObligations::UNKNOWN,
         value_semantics: CompletionValueSemantics::None,
+        body_boundary: None,
     };
+
+    /// Attach nested completion semantics without changing the invocation's own code domain.
+    #[must_use]
+    pub const fn with_body_boundary(mut self, boundary: CompletionBoundary) -> Self {
+        self.body_boundary = Some(boundary);
+        self
+    }
 
     /// Build an exact completion descriptor with produced result/options.
     #[must_use]
@@ -308,6 +394,7 @@ impl CompletionDescriptor {
             codes: CompletionCodeDomain::Exact(codes),
             payloads: CompletionPayloadObligations::PRODUCED,
             value_semantics: CompletionValueSemantics::None,
+            body_boundary: None,
         }
     }
 
@@ -318,6 +405,7 @@ impl CompletionDescriptor {
             codes: CompletionCodeDomain::Any,
             payloads: CompletionPayloadObligations::UNKNOWN,
             value_semantics: CompletionValueSemantics::Tailcall,
+            body_boundary: None,
         }
     }
 
@@ -330,6 +418,7 @@ impl CompletionDescriptor {
             codes: CompletionCodeDomain::Exact(&[]),
             payloads: CompletionPayloadObligations::PRODUCED,
             value_semantics: CompletionValueSemantics::ProcessExitStatus,
+            body_boundary: None,
         }
     }
 }

@@ -314,7 +314,7 @@ fn authored_immediate_bodies_keep_mutation_and_callback_obligations_separate() {
     // Implementation contract: naming.source.original-immediate-body-mutation-advice
     // docs/design/analysis/name-resolution-proofs/original-immediate-body-mutation-advice.md
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let prefix = "set ::auto_index(opaque) {source lib.tcl}; opaque; interp alias {} first {} switch; interp alias {} second {} switch; ";
         let source = format!(
@@ -404,7 +404,7 @@ fn authored_dynamic_operands_keep_source_advice_before_the_future_barrier() {
     // Implementation contract: naming.source.original-immediate-body-mutation-advice
     // docs/design/analysis/name-resolution-proofs/original-immediate-body-mutation-advice.md
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         let source = "opaque; interp alias {} pick {} switch; pick $value {default {puts body}}; pick subject {default {puts after}}";
         let analysis = Analyser::new().analyse(source, dialect);
         let config = analysis.body_lexer_config.unwrap();

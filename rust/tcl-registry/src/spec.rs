@@ -456,6 +456,8 @@ pub struct CommandSpec {
     /// `arg_indices_for_role(CommandPrefix)` reports exactly these indices
     /// (unioned with option/resolver prefixes) so highlighting stays in sync.
     pub command_prefixes: &'static [(u8, crate::arg_role::AppendedArity)],
+    /// Fixed callback protocols in the same descriptor-local argument coordinates.
+    pub callback_protocols: &'static [(u8, crate::channel_protocols::ChannelCallbackProtocol)],
 
     /// Dynamic command-prefix resolver for variable-layout callbacks
     /// (`trace add …`, `interp alias`, `selection handle`).
@@ -470,6 +472,9 @@ pub struct CommandSpec {
     /// Consumers must retain the operand producer and the actual entry table;
     /// the receiving command's head or helper namespace supplies neither.
     pub script_lookup_scope: Option<crate::ScriptLookupScope>,
+
+    /// Per-argument evaluation coordinates; omission retains unknown context.
+    pub evaluation_contexts: Option<crate::evaluation_context::EvaluationContextSpec>,
 
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
@@ -1505,13 +1510,13 @@ impl CommandSpec {
                         .ok();
                 }
                 Some(NativeResultContract::ListReverse { list_at: 0 }) => {
-                    return crate::const_fold::fold_lreverse_in(args, Some(dialect));
+                    return crate::literal_folds::fold_lreverse_in(args, Some(dialect));
                 }
                 Some(NativeResultContract::ListSort) => {
-                    return crate::const_fold::fold_lsort_in(args, Some(dialect));
+                    return crate::literal_folds::fold_lsort_in(args, Some(dialect));
                 }
                 Some(NativeResultContract::ListRepeat { count_at: 0 }) => {
-                    return crate::const_fold::fold_lrepeat_in(args, dialect);
+                    return crate::literal_folds::fold_lrepeat_in(args, dialect);
                 }
                 _ => {}
             }

@@ -93,7 +93,7 @@ fn profile_less_engine() -> &'static DialectProfile {
     tcl_registry::model::ingress::resolve_environment(
         DialectProfile::plain_tcl()
             .vm_runtime_version
-            .dialect_name(),
+            .dialect_profile_name(),
     )
     .unit_profile()
 }

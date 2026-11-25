@@ -8,10 +8,6 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 
 | Command | Scope | Dialects | Semantics | Route | Owner | Enabled | Targets | Gap | Classified |
 |---|---|---|---|---|---|---|---|---|---|
-| `*` | command | tk | none | — | — | no | — | pure, no route | — |
-| `+` | command | tk | none | — | — | no | — | pure, no route | — |
-| `-` | command | tk | none | — | — | no | — | pure, no route | — |
-| `/` | command | tk | none | — | — | no | — | pure, no route | — |
 | `::tcl::dict::append` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `keyed-update:append` | direct `dict-append` | registry | yes | `VarWrite@0` | — | — |
 | `::tcl::dict::create` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) · callback fold | — | no | — | — | — |
 | `::tcl::dict::exists` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) · callback fold | — | no | — | — | — |
@@ -1130,7 +1126,7 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2511 |
+| bpf | 2496 |
 | cadence-eda-tcl | 1119 |
 | expect | 2441 |
 | f5-bigip | 1 |
@@ -1140,15 +1136,15 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 | intel-quartus-eda-tcl | 2492 |
 | mentor-eda-tcl | 2738 |
 | microchip-libero-eda-tcl | 2673 |
-| spectcl | 2609 |
-| sslictcl | 2549 |
+| spectcl | 2594 |
+| sslictcl | 2534 |
 | synopsys-eda-tcl | 2643 |
 | tcl8.4 | 896 |
 | tcl8.5 | 2267 |
 | tcl8.6 | 2427 |
-| tcl9.0 | 2487 |
-| tcl9.1 | 2498 |
-| tk | 2652 |
+| tcl9.0 | 2472 |
+| tcl9.1 | 2483 |
+| tk | 2641 |
 | xilinx-eda-tcl | 3205 |
 
 ## Hand-written command knowledge outside the registry
@@ -1161,10 +1157,9 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs:294` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs:304` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/optimiser/propagation/command_substitution_folds.rs:292` | site | names the reported |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:384` | site | tokenless legacy fold; a retained |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:415` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:415` | site | tokenless legacy expression policy. |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:420` | site | tokenless legacy fold, as above. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:447` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:447` | site | tokenless legacy expression policy. |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs:489` | site | the tokenless legacy caller has |
 
 ## The ratchet

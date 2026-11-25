@@ -896,7 +896,7 @@ mod tests {
             Some(vec![ExtensionSource::CScan, ExtensionSource::Probe])
         );
         assert_eq!(sources("x_only_seen"), Some(vec![ExtensionSource::Probe]));
-        assert!(import.warnings.is_empty());
+        assert_eq!(import.warnings, [] as [String; 0]);
         let only = import
             .commands
             .iter()
@@ -1295,7 +1295,7 @@ int Init(Tcl_Interp *i) {
             .iter()
             .find(|row| row.name == "p")
             .expect("root operand");
-        assert!(observed.c_registration_operands.is_empty());
+        assert_eq!(observed.c_registration_operands, [] as [String; 0]);
         assert_eq!(observed.sources, [ExtensionSource::Probe]);
         let json = import.to_json();
         assert_eq!(json["commands"][0]["c_publication_context"], "unresolved");

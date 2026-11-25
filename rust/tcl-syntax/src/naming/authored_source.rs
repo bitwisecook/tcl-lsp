@@ -165,7 +165,7 @@ mod tests {
         assert_eq!(slot.namespace.as_segments()[1].as_bytes(), b"child");
         assert_eq!(slot.simple.as_bytes(), b"command");
         let empty = authored_source_command_slot(&current, b"child::").unwrap();
-        assert!(empty.simple.as_bytes().is_empty());
+        assert_eq!(empty.simple.as_bytes(), []);
         assert_eq!(empty.namespace, slot.namespace);
         let root = authored_source_command_slot(&current, b"::command").unwrap();
         assert!(root.namespace.is_root());
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(slot.simple.as_bytes(), "\u{feff}puts".as_bytes());
         let empty = authored_source_command_slot(&current, "café::".as_bytes()).unwrap();
         assert_eq!(empty.namespace, slot.namespace);
-        assert!(empty.simple.as_bytes().is_empty());
+        assert_eq!(empty.simple.as_bytes(), []);
         let namespace = authored_source_namespace_path(&current, "café".as_bytes()).unwrap();
         assert_eq!(namespace, slot.namespace);
         let root =

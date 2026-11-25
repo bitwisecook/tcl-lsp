@@ -34,7 +34,7 @@ const RELEASES: [TclVersion; 5] = [
 fn completion_transport_borrows_the_original_result_role() {
     for release in RELEASES {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap(),
         );
         let original = Value::new_native_string_bytes(b"original\xff\0tail".as_slice());
         let identity = original.native_object_identity();
@@ -66,7 +66,7 @@ fn completion_transport_borrows_the_original_result_role() {
 fn reset_reuses_only_the_unshared_original_result_header() {
     for release in RELEASES {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap(),
         );
         let completion = vm
             .publish_native_interp_completion(ok(Value::int(42)))
@@ -95,7 +95,7 @@ fn reset_reuses_only_the_unshared_original_result_header() {
 fn trace_chain_saves_the_selected_native_result_reference() {
     for release in RELEASES {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap(),
         );
         let before = vm
             .publish_native_interp_completion(ok(Value::string("BEFORE")))
@@ -138,7 +138,7 @@ fn trace_chain_saves_the_selected_native_result_reference() {
 fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() {
     for release in RELEASES.into_iter().skip(1) {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap(),
         );
         vm.set_native_c_return_state(7, 3);
         let info = Value::string("ORIGINAL INFO");
@@ -260,7 +260,7 @@ fn command_trace_state_requires_known_policy_and_original_owner() {
 
     for release in RELEASES {
         let mut vm = crate::native_fixture::core(
-            tcl_dialect::DialectProfile::find(release.dialect_name()).unwrap(),
+            tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap(),
         );
         let saved = vm.save_native_command_trace_result().unwrap();
         assert_eq!(saved.is_some(), release != TclVersion::V8_4);
@@ -279,7 +279,7 @@ fn command_trace_state_requires_known_policy_and_original_owner() {
     assert_eq!(vm.execution_refusal, Some(refusal));
 
     let mut vm = crate::native_fixture::core(
-        tcl_dialect::DialectProfile::find(TclVersion::V9_0.dialect_name()).unwrap(),
+        tcl_dialect::DialectProfile::find(TclVersion::V9_0.dialect_profile_name()).unwrap(),
     );
     let original = vm
         .publish_native_interp_completion(ok(Value::string("PARENT")))

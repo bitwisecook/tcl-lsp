@@ -239,6 +239,11 @@ static BPF_CONDITIONAL: crate::bpf_op::BpfOpSpec =
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::FORWARD),
+        ),
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         bpf_op: Some(&BPF_CONDITIONAL),
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

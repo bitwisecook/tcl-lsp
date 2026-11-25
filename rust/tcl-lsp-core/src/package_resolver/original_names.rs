@@ -540,7 +540,7 @@ impl PackageResolver {
     ) {
         self.invalidate();
         let requests = tcl_dialect::TclVersion::ALL.map(|version| {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name())
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
                 .expect("C release profile");
             let config = LexerConfig::from_grammar(
                 tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
@@ -878,9 +878,9 @@ fn original_package_entries_full(
         .authored_name_policy()
         .expect("C loader naming recipe");
     let registry =
-        tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
-    let profile =
-        tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
+        tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+        .expect("C loader release");
     let analysis = analyse_package_index(content, profile, registry, config, index, None);
     let Some(bindings) = analysis.retained_command_realm() else {
         return Vec::new();
@@ -1290,8 +1290,8 @@ fn survey_index_entries_using(
     let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
         return Some(entries);
     };
-    let profile =
-        tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+        .expect("C loader release");
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let captured = capture(profile, registry, plan.commands.len())?;
     let fresh = matches!(captured, IndexSurveyContext::Source(_));

@@ -558,7 +558,7 @@ fn original_literal_bracing_normality_and_source_reflection_are_independent() {
 fn authored_braced_argument_roundtrip_keeps_input_channels_and_escape_boundaries_separate() {
     for version in tcl_dialect::TclVersion::ALL {
         let policy = NamePolicyProtocol::authored_tcl(version);
-        let config = LexerConfig::for_dialect(version.dialect_name());
+        let config = LexerConfig::for_dialect(version.dialect_profile_name());
         for image in [
             SourceImage::document(""),
             SourceImage::native(b"".as_slice()),

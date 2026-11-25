@@ -191,6 +191,17 @@ pub(super) fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft)
         });
         return;
     }
+    if value.get("profile").is_some_and(|profile| {
+        profile.as_str() != crate::draft::legacy_definition_profile_name(str_of(&value["family"]))
+    }) {
+        out.comment("TODO(spectcl): `definition_body.profile` requires object_system profile authoring; this custom block is omitted.");
+        out.losses.push(Loss {
+            key: "definition_body.profile".to_owned(),
+            reason: "the legacy family word cannot preserve independent custom profile facts"
+                .to_owned(),
+        });
+        return;
+    }
     let mut body = Out::at(out.indent + 1);
     let mut lost = false;
     body.line(&format!("family {}", str_of(&value["family"])));

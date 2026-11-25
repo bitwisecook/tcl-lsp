@@ -3,7 +3,7 @@
 # The native `tcl8.6` command surface (2139 commands) as SpecTcl, for
 # like-for-like comparison with the compiled-in specs. Not loaded by any
 # product; see docs/design/registry/spectcl-compiled-surface-plan.md.
-# Fields the renderer cannot carry: 1772.
+# Fields the renderer cannot carry: 1776.
 
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
@@ -88,51 +88,39 @@ values button-justify {
     value center -detail {Center lines.}
 }
 
+values chan-buffering {
+    value full -detail {Fully buffered.}
+    value line -detail {Line buffered.}
+    value none -detail {Unbuffered.}
+}
+
+values chan-profile {
+    value strict -detail {Report encoding errors.}
+    value tcl8 -detail {Tcl 8 compatible conversion.}
+    value replace -detail {Replace invalid input.}
+}
+
+values chan-translation {
+    value platform -detail {Platform newline handling.}
+    value auto -detail {Platform/default newline handling.}
+    value lf -detail {Linefeed newline handling.}
+    value cr -detail {Carriage-return newline handling.}
+    value crlf -detail {Carriage-return/linefeed handling.}
+    value binary -detail {No translation; also sets binary encoding and EOF mode.}
+}
+
+values chan-inputmode {
+    value normal -detail {Normal terminal input.}
+    value password -detail {Input without echo.}
+    value raw -detail {Unprocessed input.}
+    value reset -detail {Restore original input mode (set only).}
+}
+
 values chan-close-arg1 {
-    value read -min-tcl tcl8.6 \
-        -detail {Half-close only the read side of a bidirectional channel.}
-    value write -min-tcl tcl8.6 \
-        -detail {Half-close only the write side of a bidirectional channel.}
-}
-
-values chan-configure-buffering {
-    value full \
-        -detail {Buffer until the internal buffer fills or chan flush is invoked. Default for non-terminal channels.}
-    value line \
-        -detail {Flush automatically whenever a newline is written. Default for terminal-like channels, and for stdin/stdout.}
-    value none -detail {Flush automatically after every write. Default for stderr.}
-}
-
-values chan-configure-translation {
-    value auto \
-        -detail {Default. On input, lf/cr/crlf are all accepted and mapped to \n. On output, the platform's native end-of-line sequence is used.}
-    value lf \
-        -detail {Unix-style: a bare linefeed marks end of line, on both input and output.}
-    value cr -detail {A bare carriage return marks end of line, on both input and output.}
-    value crlf \
-        -detail {Windows/network-style: carriage-return-linefeed marks end of line, on both input and output.}
-    value binary \
-        -detail {No end-of-line translation. Also clears -eofchar and sets -encoding to iso8859-1 (Tcl 8.6+; Tcl 8.5 instead set -encoding to the pseudo-encoding "binary"), fully configuring the channel for byte-transparent I/O.}
-}
-
-values chan-configure-profile {
-    value strict -min-tcl tcl9.0 \
-        -detail {Default. Any conversion error raises an exception (Unicode-conformant behaviour).}
-    value tcl8 -min-tcl tcl9.0 \
-        -detail {Lenient, Tcl 8.6-compatible byte mapping: invalid bytes are mapped to their numerically equivalent code points instead of erroring.}
-    value replace -min-tcl tcl9.0 \
-        -detail {Invalid bytes/characters are substituted with a replacement character instead of erroring.}
-}
-
-values chan-configure-inputmode {
-    value normal -min-tcl tcl9.0 \
-        -detail {Line-oriented input with standard terminal editing enabled.}
-    value password -min-tcl tcl9.0 \
-        -detail {Non-echoing input (terminal editing still enabled); typed characters are not written to the terminal except newlines.}
-    value raw -min-tcl tcl9.0 \
-        -detail {All keyboard input is handed to Tcl with no terminal processing or echo at all.}
-    value reset -min-tcl tcl9.0 \
-        -detail {Set-only: restores the terminal to the state it was in when the channel was opened.}
+    value read -introduced 8.6 \
+        -detail {Half-close only the read side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to "r" is also accepted.}
+    value write -introduced 8.6 \
+        -detail {Half-close only the write side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to "w" is also accepted.}
 }
 
 values chan-create-arg0 {
@@ -179,13 +167,6 @@ values clock-add-arg2 {
         -detail {Calendar years (clamped to the last day of a shorter target month, e.g. leap-day arithmetic).}
 }
 
-values close-arg1 {
-    value read -min-tcl tcl8.6 -introduced 8.6 \
-        -detail {Half-close only the read side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to "r" is also accepted.}
-    value write -min-tcl tcl8.6 -introduced 8.6 \
-        -detail {Half-close only the write side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to "w" is also accepted.}
-}
-
 values control-do-arg1 {
     value while -detail {Repeat while test is true.}
     value until -detail {Repeat until test becomes true.}
@@ -198,38 +179,6 @@ values encoding-convertfrom-profile {
         -detail {Lenient, Tcl 8.6-compatible behaviour: convertfrom maps invalid bytes to their numerically equivalent code points; convertto replaces an unrepresentable character with an encoding-dependent fallback, usually '?'.}
     value replace -min-tcl tcl9.0 \
         -detail {Continues processing, substituting invalid/unrepresentable data with a fallback: U+FFFD on convertfrom; on convertto, U+FFFD for UTF targets or an encoding-specific fallback (usually '?') otherwise.}
-}
-
-values fconfigure-buffering {
-    value full \
-        -detail {Buffer output until the internal buffer fills or flush is invoked. Default for non-terminal channels.}
-    value line \
-        -detail {Flush automatically whenever a newline is written. Default for terminal-like channels, and for stdin/stdout.}
-    value none -detail {Flush automatically after every write. Default for stderr.}
-}
-
-values fconfigure-translation {
-    value auto \
-        -detail {Default. On input, lf/cr/crlf are all accepted and mapped to \n. On output, the platform's native end-of-line sequence is used (crlf for sockets on every platform and for Windows files, lf for Unix files).}
-    value lf \
-        -detail {Unix-style: a bare linefeed marks end of line, on both input and output. No translation occurs.}
-    value cr \
-        -detail {Macintosh-style: a bare carriage return marks end of line, on both input and output.}
-    value crlf \
-        -detail {Windows/network-style: carriage-return-linefeed marks end of line, on both input and output.}
-    value binary \
-        -detail {No end-of-line translation is performed (internally identical to lf, and reported as lf when queried). Also clears -eofchar and sets -encoding — documented as the binary pseudo-encoding on fconfigure.n through Tcl 8.6, and as iso8859-1 (a byte-for-byte passthrough, same effect) on chan.n's chan configure from Tcl 8.6 on and on every 9.0/9.1 source, fully configuring the channel for binary I/O.}
-}
-
-values fconfigure-inputmode {
-    value normal -min-tcl tcl9.0 \
-        -detail {Line-oriented input with standard terminal/console editing enabled.}
-    value password -min-tcl tcl9.0 \
-        -detail {Non-echoing input (terminal/console editing still enabled); typed characters are not written to the terminal except newlines.}
-    value raw -min-tcl tcl9.0 \
-        -detail {All keyboard input is handed to Tcl with no terminal/console processing or echo at all.}
-    value reset -min-tcl tcl9.0 \
-        -detail {Set-only: restores the terminal/console to the state it was in when the channel was opened.}
 }
 
 values glob-types {
@@ -661,6 +610,9 @@ command ::tcl::dict::append {
 
     return_type Dict
     var_elements_effect {ExtendsDictValuesByName 2}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -682,6 +634,9 @@ command ::tcl::dict::create {
 
     return_type Dict
     return_elements {DictOfPairs 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -709,6 +664,9 @@ command ::tcl::dict::exists {
     implementation_namespace ::tcl::dict
 
     return_type Boolean
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -753,6 +711,9 @@ command ::tcl::dict::filter {
     arg_values_accept_prefix
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -778,6 +739,9 @@ command ::tcl::dict::for {
     implementation_namespace ::tcl::dict
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -807,6 +771,9 @@ command ::tcl::dict::get {
 
     return_type String
     return_elements {ElementOf 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -852,6 +819,9 @@ command ::tcl::dict::incr {
     safe_on_uninit all-tcl
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -872,6 +842,9 @@ command ::tcl::dict::info {
     implementation_namespace ::tcl::dict
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -914,6 +887,9 @@ command ::tcl::dict::keys {
     implementation_namespace ::tcl::dict
 
     return_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -960,6 +936,9 @@ command ::tcl::dict::lappend {
 
     return_type Dict
     var_elements_effect ListifiesDictValue
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -981,6 +960,9 @@ command ::tcl::dict::map {
     implementation_namespace ::tcl::dict
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1008,6 +990,9 @@ command ::tcl::dict::merge {
     implementation_namespace ::tcl::dict
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1051,6 +1036,9 @@ command ::tcl::dict::remove {
     implementation_namespace ::tcl::dict
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1093,6 +1081,9 @@ command ::tcl::dict::replace {
     implementation_namespace ::tcl::dict
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1138,6 +1129,9 @@ command ::tcl::dict::set {
 
     return_type Dict
     var_elements_effect SetsDictValue
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1158,6 +1152,9 @@ command ::tcl::dict::size {
     implementation_namespace ::tcl::dict
 
     return_type Int
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1203,6 +1200,9 @@ command ::tcl::dict::unset {
     safe_on_uninit all-tcl
 
     return_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1226,6 +1226,9 @@ command ::tcl::dict::update {
     # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
     #   it `body_execution -native CONTRACT`, but a draft records only that the
     #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1263,6 +1266,9 @@ command ::tcl::dict::values {
     implementation_namespace ::tcl::dict
 
     return_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -1309,6 +1315,9 @@ command ::tcl::dict::with {
     # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
     #   it `body_execution -native CONTRACT`, but a draft records only that the
     #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -4004,6 +4013,12 @@ command after {
     # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
     #   it `body_execution -native CONTRACT`, but a draft records only that the
     #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `deferred_execution` is set on the source spec. The DSL
+    #   spells it `body_execution -entry-scope -trigger -family`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -4077,6 +4092,9 @@ command append {
     safe_on_uninit {all-tcl f5-irules}
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -4138,6 +4156,9 @@ command apply {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -4216,6 +4237,9 @@ command array {
     arity 1..
 
     inferred_storage_type Array
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -5835,6 +5859,9 @@ command binary {
     traits {CSE_CANDIDATE BYTE_COMPILED FRAME_HASH_BUILTIN}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -5987,6 +6014,15 @@ command bind {
     warn_missing_import no
 
     body_kind Structural
+    # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
+    #   it `body_execution -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `deferred_execution` is set on the source spec. The DSL
+    #   spells it `body_execution -entry-scope -trigger -family`, but the loader
+    #   has no reader for that property word yet.
     arg 2 -role Body
     callback_taint_inputs {{2 %A}}
 
@@ -6836,6 +6872,9 @@ command case {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -6902,6 +6941,12 @@ command catch {
 
     return_type Int
     var_write_typing Destructured
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -6924,6 +6969,9 @@ command catch {
     lowering_hook -native Catch
     inline_codegen_hook -native Catch
     analyser_hook -native Catch
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -6995,14 +7043,46 @@ command chan {
 
     runtime_backing shipped-builtin chan
 
-    option -blocking -takes boolean -role Boolean -detail {Set blocking mode.}
-    option -buffering -takes mode -detail {Set buffering mode (full, line, none).}
-    option -buffersize -takes size -detail {Set buffer size in bytes.}
-    option -encoding -takes encoding -detail {Set character encoding.}
-    option -eofchar -takes chars -detail {Set end-of-file character(s).}
-    option -profile -takes profile -available {tcl 9.0-} \
-        -detail {Set encoding profile (strict, tcl8, replace).}
-    option -translation -takes mode -detail {Set line-ending translation mode.}
+    option -blocking -takes boolean -role Boolean -detail {Whether I/O blocks.}
+    option -buffering -takes value -values-from chan-buffering \
+        -detail {full, line or none; unique prefixes are accepted.}
+    option -buffersize -takes value \
+        -detail {Integer buffer size, clamped to 1 through 1048576 bytes.}
+    option -encoding -takes value -detail {Channel character encoding.}
+    option -eofchar -takes value \
+        -detail {EOF character; an input/output pair is supported through Tcl 8.6.}
+    option -profile -takes value -values-from chan-profile -available {tcl 9.0-} \
+        -detail {Encoding conversion profile (Tcl 9.0+).}
+    option -translation -takes value -values-from chan-translation -aliases -t \
+        -detail {Newline handling, as one word or an input/output pair.}
+    option -stat -takes value -available {tcl 9.0-} \
+        -detail {File metadata dictionary (Tcl 9.0+).}
+    option -error -takes value -detail {Pending socket error.}
+    option -sockname -takes value -detail {Local socket address and port.}
+    option -peername -takes value -detail {Remote socket address and port.}
+    option -connecting -takes boolean -role Boolean -available {tcl 8.6-} \
+        -detail {Whether asynchronous socket connection is pending.}
+    option -keepalive -takes boolean -role Boolean -available {tcl 9.0-} \
+        -detail {Socket keepalive (Tcl 9.0+).}
+    option -nodelay -takes boolean -role Boolean -available {tcl 9.0-} \
+        -detail {Disable Nagle's algorithm (Tcl 9.0+).}
+    option -mode -takes value -detail {Serial baud, parity, data and stop bits.}
+    option -handshake -takes value \
+        -detail {Serial handshaking; supported modes depend on the platform.}
+    option -queue -takes value -detail {Serial input and output queue sizes.}
+    option -timeout -takes value -detail {Serial read timeout in milliseconds.}
+    option -ttycontrol -takes value -detail {Serial signal/boolean pairs.}
+    option -ttystatus -takes value -detail {Serial signal status.}
+    option -xchar -takes value -detail {XON and XOFF characters.}
+    option -closemode -takes value -available {tcl 9.0-} \
+        -detail {Windows serial close policy (Tcl 9.0+).}
+    option -pollinterval -takes value -detail {Windows serial polling interval.}
+    option -sysbuffer -takes value -detail {Windows serial input/output buffer sizes.}
+    option -lasterror -takes value -detail {Windows serial error details.}
+    option -inputmode -takes value -values-from chan-inputmode -available {tcl 9.0-} \
+        -detail {Console or terminal input mode (Tcl 9.0+).}
+    option -winsize -takes value -available {tcl 9.0-} \
+        -detail {Console or terminal window dimensions.}
 
     form Default {chan subcommand ?arg ...?}
 
@@ -7049,29 +7129,50 @@ chan close $sock}
         return_type String
         option_prefix_words 1
         arg 0 -role Channel
+        literal_argument_validator -native chan::configure::literal_argument_validator
         side_effect FileIo -reads -writes
         channel_configuration EncodingTranslation
 
-        option -blocking -takes boolean -role Boolean \
-            -detail {Whether I/O on the channel may block the process indefinitely. Channels are blocking by default; nonblocking mode affects chan gets/read/puts/flush/close and requires the event loop (vwait/update) to drive it.}
-        option -buffering -takes mode -values-from chan-configure-buffering -closed \
-            -detail {full, line, or none — see the value list for the per-mode default.}
-        option -buffersize -takes size \
-            -detail {Buffer size in bytes for buffers subsequently allocated for this channel; capped at 1,000,000.}
-        option -encoding -takes encoding \
-            -detail {Character encoding used to convert the channel's bytes to/from Tcl's internal string representation; defaults to the platform/locale system encoding (encoding system). Use iso8859-1 for byte-transparent binary data (Tcl 8.5 instead used the pseudo-encoding "binary" for this; removed in Tcl 9.0).}
-        option -eofchar -takes char \
-            -detail {A single character (\x01-\x7f) that signals end-of-file on input; the empty string (the default) disables it. Tcl 8.5/8.6 additionally accepted a {inChar outChar} two-element list for a read-write channel and defaulted to Control-Z on Windows file reads; Tcl 9.0+ takes a single value only and always defaults to the empty string.}
-        option -translation -takes mode -values-from chan-configure-translation \
-            -detail {End-of-line translation mode; also accepts a {inTranslation outTranslation} list to set input/output independently. See the value list for per-mode behaviour and defaults.}
-        option -profile -takes profile -values-from chan-configure-profile -closed -available {tcl 9.0-} \
-            -detail {Encoding profile controlling how conversion errors on this channel are handled (see PROFILES in encoding(n)).}
-        option -nodelay -takes boolean -role Boolean -available {tcl 9.0-} \
-            -detail {TCP_NODELAY on a socket channel: disables Nagle's algorithm so small writes are sent immediately (Tcl 9.0+, TIP 344). Documented on socket(n).}
+        option -blocking -takes boolean -role Boolean -detail {Whether I/O blocks.}
+        option -buffering -takes value -values-from chan-buffering \
+            -detail {full, line or none; unique prefixes are accepted.}
+        option -buffersize -takes value \
+            -detail {Integer buffer size, clamped to 1 through 1048576 bytes.}
+        option -encoding -takes value -detail {Channel character encoding.}
+        option -eofchar -takes value \
+            -detail {EOF character; an input/output pair is supported through Tcl 8.6.}
+        option -profile -takes value -values-from chan-profile -available {tcl 9.0-} \
+            -detail {Encoding conversion profile (Tcl 9.0+).}
+        option -translation -takes value -values-from chan-translation -aliases -t \
+            -detail {Newline handling, as one word or an input/output pair.}
+        option -stat -takes value -available {tcl 9.0-} \
+            -detail {File metadata dictionary (Tcl 9.0+).}
+        option -error -takes value -detail {Pending socket error.}
+        option -sockname -takes value -detail {Local socket address and port.}
+        option -peername -takes value -detail {Remote socket address and port.}
+        option -connecting -takes boolean -role Boolean -available {tcl 8.6-} \
+            -detail {Whether asynchronous socket connection is pending.}
         option -keepalive -takes boolean -role Boolean -available {tcl 9.0-} \
-            -detail {SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344). Documented on socket(n).}
-        option -inputmode -takes mode -values-from chan-configure-inputmode -closed -available {tcl 9.0-} \
-            -detail {Terminal input mode on a serial/console channel (Tcl 9.0+, TIP 160); Unix-only (Windows exposes the equivalent on console channels). Documented on open(n).}
+            -detail {Socket keepalive (Tcl 9.0+).}
+        option -nodelay -takes boolean -role Boolean -available {tcl 9.0-} \
+            -detail {Disable Nagle's algorithm (Tcl 9.0+).}
+        option -mode -takes value -detail {Serial baud, parity, data and stop bits.}
+        option -handshake -takes value \
+            -detail {Serial handshaking; supported modes depend on the platform.}
+        option -queue -takes value -detail {Serial input and output queue sizes.}
+        option -timeout -takes value -detail {Serial read timeout in milliseconds.}
+        option -ttycontrol -takes value -detail {Serial signal/boolean pairs.}
+        option -ttystatus -takes value -detail {Serial signal status.}
+        option -xchar -takes value -detail {XON and XOFF characters.}
+        option -closemode -takes value -available {tcl 9.0-} \
+            -detail {Windows serial close policy (Tcl 9.0+).}
+        option -pollinterval -takes value -detail {Windows serial polling interval.}
+        option -sysbuffer -takes value -detail {Windows serial input/output buffer sizes.}
+        option -lasterror -takes value -detail {Windows serial error details.}
+        option -inputmode -takes value -values-from chan-inputmode -available {tcl 9.0-} \
+            -detail {Console or terminal input mode (Tcl 9.0+).}
+        option -winsize -takes value -available {tcl 9.0-} \
+            -detail {Console or terminal window dimensions.}
     }
 
     subcommand copy {
@@ -7086,7 +7187,7 @@ chan close $sock}
 
         option -size -takes size \
             -detail {Maximum number of bytes (or characters, if the channels' encodings differ) to copy before stopping. Without it, chan copy reads until end of file.}
-        option -command -takes callback -role CommandPrefix -script-timing Deferred -appends {AtLeast 1} \
+        option -command -takes callback -role CommandPrefix -script-timing Deferred \
             -detail {Run the copy in the background and return immediately; callback is invoked on completion with the byte/character count appended, plus an error-message argument if the copy failed. inputChan/outputChan are switched to non-blocking automatically; an active event loop (vwait or Tk) is required to drive it.}
     }
 
@@ -7096,7 +7197,8 @@ chan close $sock}
         synopsis {chan create mode cmdPrefix}
         return_type Channel
         arg 0 -values-from chan-create-arg0
-        arg 1 -appends {AtLeast 2}
+        arg 1 -appends Unknown
+        literal_argument_validator -native chan::create::literal_argument_validator
         side_effect InterpState -writes
     }
 
@@ -7116,6 +7218,9 @@ chan close $sock}
         traits DEFERS_BODY
         return_type String
         body_kind Structural
+        # TODO(spectcl): `body_execution` is set on the source spec. The DSL
+        #   spells it `body_execution -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         arg 0 -role Channel
         arg 2 -role Body
         arg 1 -values-from chan-event-arg1 -closed
@@ -7192,7 +7297,7 @@ chan close $sock}
         return_type Channel
         mutator
         arg 0 -role Channel
-        arg 1 -appends {AtLeast 2}
+        arg 1 -appends Unknown
         side_effect FileIo -writes
     }
 
@@ -7269,6 +7374,7 @@ chan close $sock}
         return_type String
         arg 0 -role Channel
         arg 1 -values-from chan-postevent-arg1
+        literal_argument_validator -native chan::postevent::literal_argument_validator
         side_effect FileIo -writes
     }
 }
@@ -7532,6 +7638,9 @@ command classvariable {
     tcllib_package oo::util
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     repeat VarWrite
 
     side_effect Variable -writes
@@ -7866,13 +7975,14 @@ command close {
     traits {BYTE_COMPILED FIRE_AND_FORGET_TEARDOWN}
     arity 1..2
     arity 1 -retired 8.6
+    arg_values_accept_prefix
 
     return_type String
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
     arg 0 -role Channel
-    arg 1 -values-from close-arg1
+    arg 1 -values-from chan-close-arg1 -closed
 
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
     #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
@@ -8462,6 +8572,9 @@ command coroutine {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -9333,28 +9446,6 @@ command csv::iscomplete {
     required_package csv
     tcllib_package csv
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package csv 0.10 0.10.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     form Default {csv::iscomplete data}
 
     hover {
@@ -9386,28 +9477,6 @@ command csv::joinlist {
     arity 1..4
     required_package csv
     tcllib_package csv
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package csv 0.10 0.10.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     form Default {csv::joinlist values ?sepChar? ?quoteChar? ?quoteStyle?}
 
@@ -9752,6 +9821,9 @@ command dict {
     implementation_namespace ::tcl::dict
 
     inferred_storage_type Dict
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -10927,6 +10999,9 @@ command encoding {
     traits {BYTE_COMPILED SAFE_INTERP_HIDDEN}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -11539,6 +11614,12 @@ command eval {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -11551,6 +11632,9 @@ command eval {
     arg 0 -role Body
 
     lowering_hook -native Eval
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown
     # TODO(spectcl): `frame_effect` is set on the source spec. The DSL spells it
@@ -11795,6 +11879,9 @@ command expr {
 
     return_type Numeric
     representation_effect {CoerceExpressionValues 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -11885,32 +11972,54 @@ command fconfigure {
     arg 0 -role Channel
     option_prefix_words 1
 
+    literal_argument_validator -native fconfigure::literal_argument_validator
+
     side_effect FileIo -reads -writes
 
     channel_configuration EncodingTranslation
 
     runtime_backing shipped-builtin fconfigure
 
-    option -blocking -takes boolean -role Boolean \
-        -detail {Whether I/O on the channel may block the process indefinitely. Must be a proper boolean; channels are blocking by default. Placing a channel in nonblocking mode affects gets, read, puts, flush, and close, and requires an active Tcl event loop (vwait, or Tcl_DoOneEvent) to drive it.}
-    option -buffering -takes mode -values-from fconfigure-buffering -closed \
-        -detail {full, line, or none — see the value list for the per-mode default.}
-    option -buffersize -takes size \
-        -detail {Integer buffer size in bytes for buffers subsequently allocated for this channel. Tcl 8.4 and 8.5 require a value between 10 and 1,000,000; Tcl 8.6 lowers the minimum to 1; the Tcl 9.0/9.1 documentation states only the 1,000,000-byte ceiling, without restating a minimum.}
-    option -encoding -takes encoding \
-        -detail {Character encoding used to convert the channel's bytes to/from Tcl's internal string representation for reading and writing, e.g. shiftjis for a Japanese file. Defaults to the platform- and locale-dependent system encoding (see encoding system). Tcl 8.5/8.6's chan.n documents binary itself as a legal special encoding-name value for pure-binary data (matching fconfigure.n's own recommendation in every 8.4-8.6 source); Tcl 9.0's chan.n drops binary from its -encoding description (listing only "the named encodings returned by encoding names") and recommends iso8859-1 for binary data instead — see the binary -translation value below for the same shift.}
-    option -eofchar -takes char \
-        -detail {A character that signals end-of-file when encountered on input. Tcl 8.5 onward documents an acceptable range of \x01–\x7f (setting a value outside it is an error); Tcl 8.4's documentation states no such range restriction. Tcl 8.4 through 8.6 document that the character is also written on output when the channel closes, and that the default is the empty string everywhere except Windows file reads, where it defaults to Control-Z (\x1a); Tcl 9.0/9.1's chan.n (fconfigure.n itself is a stub for those two versions) narrows the description to input-signalling only, stating simply that the default is 'no special end of file character marker' without restating the output-write behaviour or the Windows exception. Tcl 8.4 through 8.6 additionally accept a {inChar outChar} two-element list to set independent input/output eofchars on a read-write channel, returned as a two-element list when queried; Tcl 9.0 removed the two-element form — only a single value is accepted and it applies to both directions.}
-    option -profile -takes profile -values-from chan-configure-profile -closed -available {tcl 9.0-} \
-        -detail {Encoding profile controlling how conversion errors on this channel's -encoding are handled (see PROFILES in encoding(n)). Defaults to strict.}
-    option -translation -takes mode -values-from fconfigure-translation \
-        -detail {End-of-line translation mode; also accepts a {inTranslation outTranslation} two-element list to set input and output translation independently on a read-write channel (returned as a two-element list when queried). See the value list for per-mode behaviour and defaults.}
-    option -nodelay -takes boolean -role Boolean -available {tcl 9.0-} \
-        -detail {TCP_NODELAY on a socket channel (Tcl 9.0+, TIP 344): disables Nagle's algorithm so small writes are sent immediately instead of being coalesced and delayed. Boolean value. Documented on socket(n).}
+    option -blocking -takes boolean -role Boolean -detail {Whether I/O blocks.}
+    option -buffering -takes value -values-from chan-buffering \
+        -detail {full, line or none; unique prefixes are accepted.}
+    option -buffersize -takes value \
+        -detail {Integer buffer size, clamped to 1 through 1048576 bytes.}
+    option -encoding -takes value -detail {Channel character encoding.}
+    option -eofchar -takes value \
+        -detail {EOF character; an input/output pair is supported through Tcl 8.6.}
+    option -profile -takes value -values-from chan-profile -available {tcl 9.0-} \
+        -detail {Encoding conversion profile (Tcl 9.0+).}
+    option -translation -takes value -values-from chan-translation -aliases -t \
+        -detail {Newline handling, as one word or an input/output pair.}
+    option -stat -takes value -available {tcl 9.0-} \
+        -detail {File metadata dictionary (Tcl 9.0+).}
+    option -error -takes value -detail {Pending socket error.}
+    option -sockname -takes value -detail {Local socket address and port.}
+    option -peername -takes value -detail {Remote socket address and port.}
+    option -connecting -takes boolean -role Boolean -available {tcl 8.6-} \
+        -detail {Whether asynchronous socket connection is pending.}
     option -keepalive -takes boolean -role Boolean -available {tcl 9.0-} \
-        -detail {SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344): enables periodic keepalive probes on an otherwise idle connection. Boolean value. Documented on socket(n).}
-    option -inputmode -takes mode -values-from fconfigure-inputmode -closed -available {tcl 9.0-} \
-        -detail {Interactive input mode of a serial channel (Unix) or a console channel (Windows stdin/stdout) — Tcl 9.0+. Setting it to anything other than normal arranges for the terminal/console to be automatically reset when the channel is closed. Documented on open(n).}
+        -detail {Socket keepalive (Tcl 9.0+).}
+    option -nodelay -takes boolean -role Boolean -available {tcl 9.0-} \
+        -detail {Disable Nagle's algorithm (Tcl 9.0+).}
+    option -mode -takes value -detail {Serial baud, parity, data and stop bits.}
+    option -handshake -takes value \
+        -detail {Serial handshaking; supported modes depend on the platform.}
+    option -queue -takes value -detail {Serial input and output queue sizes.}
+    option -timeout -takes value -detail {Serial read timeout in milliseconds.}
+    option -ttycontrol -takes value -detail {Serial signal/boolean pairs.}
+    option -ttystatus -takes value -detail {Serial signal status.}
+    option -xchar -takes value -detail {XON and XOFF characters.}
+    option -closemode -takes value -available {tcl 9.0-} \
+        -detail {Windows serial close policy (Tcl 9.0+).}
+    option -pollinterval -takes value -detail {Windows serial polling interval.}
+    option -sysbuffer -takes value -detail {Windows serial input/output buffer sizes.}
+    option -lasterror -takes value -detail {Windows serial error details.}
+    option -inputmode -takes value -values-from chan-inputmode -available {tcl 9.0-} \
+        -detail {Console or terminal input mode (Tcl 9.0+).}
+    option -winsize -takes value -available {tcl 9.0-} \
+        -detail {Console or terminal window dimensions.}
 
     form Default {fconfigure channelId ?optionName? ?value ...?}
 
@@ -11935,17 +12044,21 @@ command fcopy {
     arity 2..6 -step 2
 
     return_type Int
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
     arg 0 -role Channel
     arg 1 -role Channel
+    option_prefix_words 2
 
     side_effect FileIo -reads -writes
 
     option -size -takes size \
         -detail {Maximum amount of data to transfer before stopping; without it, fcopy copies until end of file. Counted in bytes when the input channel is in binary mode, in characters otherwise (Tcl 9.0+); Tcl 8.6 counted bytes only when both channels shared an encoding, and Tcl 8.4/8.5 counted bytes unconditionally.}
-    option -command -takes callback -role CommandPrefix -script-timing Deferred -appends {AtLeast 1} \
+    option -command -takes callback -role CommandPrefix -script-timing Deferred \
         -detail {Run the copy in the background and return immediately; callback is invoked when the copy completes or fails, with the byte/character count appended and an error-message argument on failure. inputChan/outputChan are switched to non-blocking mode automatically; an active event loop (vwait or Tk) is required to drive the copy.}
 
     form Default {fcopy inputChan outputChan ?-size size? ?-command callback?}
@@ -11967,6 +12080,9 @@ command file {
     traits {RETURNS_PATH BYTE_COMPILED SAFE_INTERP_HIDDEN}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -12545,6 +12661,15 @@ command fileevent {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
+    #   it `body_execution -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `deferred_execution` is set on the source spec. The DSL
+    #   spells it `body_execution -entry-scope -trigger -family`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -13471,6 +13596,12 @@ command for {
     arity 4
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -13494,6 +13625,9 @@ command for {
     }
 
     lowering_hook -native For
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -13521,6 +13655,12 @@ command foreach {
     return_type String
     var_write_typing {ElementsOf 0}
     representation_effect {CoerceOrdinaryListPairs 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -13543,6 +13683,9 @@ command foreach {
     arg_role_resolver_roles Body
     lowering_hook -native Foreach
     analyser_hook -native Foreach
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -14234,6 +14377,9 @@ command gets {
 
     return_type String
     var_write_typing {Fixed String}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -14331,6 +14477,9 @@ command global {
     arity 1.. -retired 8.6
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -16039,28 +16188,6 @@ command html::nl2br {
 
     return_type String
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package html 1.6 1.6.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Replace all line-endings in the string with a <br> tag and return the modified text.}
         synopsis {html::nl2br string}
@@ -16135,28 +16262,6 @@ command html::quoteFormValue {
     tcllib_package html
 
     return_type String
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package html 1.6 1.6.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Quote special characters in value by replacing them with HTML entities for quotes, ampersand, and angle brackets.}
@@ -17007,6 +17112,12 @@ command if {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -17032,6 +17143,9 @@ command if {
     # TODO(spectcl): `bpf_op` is set on the source spec. The DSL spells it
     #   `bpf_op -native ID`, but a draft records only that the field is set,
     #   never the expression that set it.
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -17452,6 +17566,9 @@ command incr {
     safe_on_uninit tcl8.5+
 
     return_type Int
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -17509,6 +17626,9 @@ command info {
     traits BYTE_COMPILED
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -18515,8 +18635,9 @@ interp delete $child}
         traits {EVALUATES_CODE SCRIPT_CONCATENATES_ARGS}
         return_type String
         # TODO(spectcl): `body_interpreter` is set on the source spec. The DSL
-        #   spells it `body_interpreter Current|{Argument INDEX}`, but the
-        #   loader has no reader for that property word yet.
+        #   spells it `body_interpreter Current|{Argument INDEX}|{ThreadArgument
+        #   INDEX}|ProcessShared|Unknown`, but the loader has no reader for that
+        #   property word yet.
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
@@ -18624,6 +18745,7 @@ interp delete $child}
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         arg_values_accept_prefix
+        option_prefix_words 2
         arg 1 -values-from interp-limit-arg1 -closed
 
         option -command -takes {} -role Body -body-kind Structural -script-timing Deferred \
@@ -19628,28 +19750,6 @@ command json::list2json {
     required_package json
     tcllib_package json
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package json 1.3.6 1.3.6.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     form Default {json::list2json list}
 
     hover {
@@ -19681,28 +19781,6 @@ command json::string2json {
     arity 1
     required_package json
     tcllib_package json
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package json 1.3.6 1.3.6.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     form Default {json::string2json string}
 
@@ -19979,6 +20057,9 @@ command lappend {
     var_elements_effect {AppendsListElements 1}
     representation_effect {CopyOnWriteContainerMutation 0 2}
     inferred_storage_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -20040,6 +20121,9 @@ command lassign {
     return_type List
     var_write_typing {ElementsOf 0}
     return_elements {SubListOf 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -21084,6 +21168,12 @@ command lmap {
 
     return_type List
     var_write_typing {ElementsOf 0}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -21098,6 +21188,9 @@ command lmap {
 
     arg_role_resolver_roles Body
     lowering_hook -native Lmap
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -22010,6 +22103,9 @@ command lset {
     return_type List
     representation_effect {CopyOnWriteContainerMutation 0 3}
     inferred_storage_type List
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -22080,6 +22176,9 @@ command lsort {
     return_type List
     inferred_storage_type List
     script_lookup_scope InvokingFrame
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -23915,28 +24014,6 @@ command math::cov {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Compute the coefficient of variation of a set of values.}
         synopsis {math::cov value value ?{value ...}?}
@@ -24339,28 +24416,6 @@ command math::fibonacci {
     arity 1
     required_package math
     tcllib_package math
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Return the n-th Fibonacci number.}
@@ -25896,28 +25951,6 @@ command math::integrate {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Integrate a tabulated function given as x/y value pairs.}
         synopsis {math::integrate {list of xy value pairs}}
@@ -26750,28 +26783,6 @@ command math::max {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Return the maximum of a set of values.}
         synopsis {math::max value ?{value ...}?}
@@ -26785,28 +26796,6 @@ command math::mean {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Return the arithmetic mean of a set of values.}
         synopsis {math::mean value ?{value ...}?}
@@ -26819,28 +26808,6 @@ command math::min {
     arity 1..
     required_package math
     tcllib_package math
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Return the minimum of a set of values.}
@@ -27155,28 +27122,6 @@ command math::product {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Return the product of a set of values.}
         synopsis {math::product value ?{value ...}?}
@@ -27385,28 +27330,6 @@ command math::sigma {
     arity 2..
     required_package math
     tcllib_package math
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Return the standard deviation of a set of values.}
@@ -28243,28 +28166,6 @@ command math::statistics::print-2x2 {
     required_package math::statistics
     tcllib_package math::statistics
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::statistics 1.6.1 1.6.1.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     form Default {math::statistics::print-2x2 a b c d}
 
     hover {
@@ -28417,28 +28318,6 @@ command math::statistics::test-2x2 {
     arity 4
     required_package math::statistics
     tcllib_package math::statistics
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::statistics 1.6.1 1.6.1.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     form Default {math::statistics::test-2x2 a b c d}
 
@@ -28619,28 +28498,6 @@ command math::stats {
     required_package math
     tcllib_package math
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Return mean, standard deviation, and range of a set of values.}
         synopsis {math::stats value value ?{value ...}?}
@@ -28653,28 +28510,6 @@ command math::sum {
     arity 1..
     required_package math
     tcllib_package math
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package math::calculus::symdiff 1.0.2 1.0.2.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Return the sum of a set of values.}
@@ -30384,6 +30219,9 @@ command my {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     allow_unknown_subcommands
 
     side_effect Unknown -reads -writes
@@ -30664,6 +30502,9 @@ namespace eval ::client {
         synopsis {namespace code script}
         traits {WRAPS_COMMAND_PREFIX DEFERS_BODY}
         return_type String
+        # TODO(spectcl): `body_execution` is set on the source spec. The DSL
+        #   spells it `body_execution -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
@@ -31664,6 +31505,9 @@ command nextto {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -31899,6 +31743,9 @@ command oo::Helpers::classvariable {
     implementation_namespace ::oo::Helpers
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     repeat VarWrite
 
     side_effect Variable -writes
@@ -32030,6 +31877,9 @@ command oo::Helpers::nextto {
     implementation_namespace ::oo::Helpers
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32105,6 +31955,9 @@ command oo::class {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32238,6 +32091,9 @@ command oo::define {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32295,6 +32151,9 @@ command oo::objdefine {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -32690,6 +32549,9 @@ command package {
     traits {LANGUAGE_KEYWORD BYTE_COMPILED NOT_PROC_FACTORY}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -33681,6 +33543,9 @@ command parray {
     arity 1..2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     pattern_type Glob
     arg 0 -role VarRead
     arg 1 -role Pattern
@@ -34413,6 +34278,12 @@ command proc {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `procedure_definition` is set on the source spec. The DSL
     #   spells it `procedure_definition -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -35248,6 +35119,9 @@ command regexp {
     # TODO(spectcl): `variable_write_min_args` is set on the source spec. The
     #   DSL spells it `variable_write_min_args N`, but the loader has no reader
     #   for that property word yet.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -35330,6 +35204,9 @@ command regsub {
     # TODO(spectcl): `variable_write_min_args` is set on the source spec. The
     #   DSL spells it `variable_write_min_args N`, but the loader has no reader
     #   for that property word yet.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -35401,6 +35278,9 @@ command rename {
     arity 2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -36532,6 +36412,9 @@ command scan {
 
     return_type Int
     var_write_typing Destructured
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -36918,6 +36801,9 @@ command set {
     arity 1..2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -37828,6 +37714,9 @@ command socket {
     arity 2..
 
     return_type Channel
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -38638,6 +38527,9 @@ command string {
     traits {CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
     arity 1..
 
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -40282,6 +40174,12 @@ command switch {
     arity 3.. -step 2 -also 2 -positionals
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -40297,6 +40195,9 @@ command switch {
     arg_role_resolver_roles Body
     lowering_hook -native Switch
     analyser_hook -native Switch
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -43700,6 +43601,9 @@ command tcl_findLibrary {
 
     return_type String
     var_write_typing {Fixed String}
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     arg 5 -role VarWrite
     assigns_variable_at 5
 
@@ -49263,6 +49167,9 @@ command time {
     arity 1..2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -49432,6 +49339,9 @@ command timerate {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -55076,6 +54986,15 @@ command trace {
     arity 1..
 
     script_lookup_scope TriggerFrame
+    # TODO(spectcl): `body_execution` is set on the source spec. The DSL spells
+    #   it `body_execution -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `deferred_execution` is set on the source spec. The DSL
+    #   spells it `body_execution -entry-scope -trigger -family`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -55300,6 +55219,12 @@ command try {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -55316,6 +55241,9 @@ command try {
     arg_role_resolver_roles {Body Keyword}
     lowering_hook -native Try
     inline_codegen_hook -native Try
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -62363,28 +62291,6 @@ command unicode::fromstring {
     required_package unicode
     tcllib_package unicode
 
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package unicode 1.1.1 1.1.1.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-
     hover {
         summary {Convert a Tcl string to a list of Unicode code points.}
         synopsis {unicode::fromstring string}
@@ -62430,28 +62336,6 @@ command unicode::tostring {
     arity 1
     required_package unicode
     tcllib_package unicode
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package unicode 1.1.1 1.1.1.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     hover {
         summary {Convert a list of Unicode code points to a Tcl string.}
@@ -62595,6 +62479,9 @@ command unset {
     traits {DESTROYS_VARIABLE BYTE_COMPILED FRAMELESS_RUNTIME FIRST_ARG_VARNAME FIRE_AND_FORGET_TEARDOWN}
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -62692,6 +62579,12 @@ command uplevel {
 
     return_type String
     body_kind Structural
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -62701,6 +62594,9 @@ command uplevel {
     lowering_hook -native Uplevel
     codegen_hook -native Uplevel
     analyser_hook -native Uplevel
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown
     # TODO(spectcl): `frame_effect` is set on the source spec. The DSL spells it
@@ -62746,6 +62642,9 @@ command upvar {
     arity 2..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -62850,28 +62749,6 @@ command uri::isrelative {
     tcllib_package uri
 
     return_type Boolean
-
-    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
-    # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
-    #   pack may not author this field.
-    # TODO(spectcl): `result_stability` is set on the source spec. The DSL
-    #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
-    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
-    #   field is set, never the expression that set it.
-
-    effects -complete {8.5 9.1} -complete {package dns 1.6.1 1.6.1.1}
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
-    #   but a draft records only that the field is set, never the expression
-    #   that set it.
-    # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
-    #   spells it `state_transitions NAME|{ composition … argument_shape …
-    #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
-    #   records only that the field is set, never the expression that set it.
 
     form Default {uri::isrelative uri}
 
@@ -63071,6 +62948,9 @@ command variable {
     arity 1.. -retired 8.6
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -63140,6 +63020,9 @@ command vwait {
 
     return_type String
     var_write_typing Destructured
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -63365,6 +63248,12 @@ command while {
     arity 2
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
+    # TODO(spectcl): `completion_body_boundary` is set on the source spec. The
+    #   DSL spells it `completion -body-boundary`, but the loader has no reader
+    #   for that property word yet.
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -63384,6 +63273,9 @@ command while {
     }
 
     lowering_hook -native While
+    # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Unknown -reads -writes
 
@@ -64190,6 +64082,9 @@ command zlib {
     arity 1..
 
     return_type String
+    # TODO(spectcl): `evaluation_contexts` is set on the source spec. The DSL
+    #   spells it `evaluation_context (command/subcommand/form)`, but the loader
+    #   has no reader for that property word yet.
 
     side_effect Unknown -reads -writes
 

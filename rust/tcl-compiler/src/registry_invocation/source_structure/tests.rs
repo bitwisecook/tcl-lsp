@@ -1202,8 +1202,9 @@ fn original_standalone_source_context_keeps_conditional_bodies_and_alias_order()
     for version in tcl_dialect::TclVersion::ALL {
         // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let source = "set ::auto_index(pick) {source lib.tcl}; pick subject {default {puts before}}; interp alias {} pick {} switch; pick subject {default {puts after}}; interp alias {} pick {}; pick subject {default {puts deleted}}";
-        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-            .analyser_profile();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .analyser_profile();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let input =
@@ -1237,8 +1238,9 @@ fn original_standalone_selected_alias_roles_keep_source_purpose() {
     // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
     for version in tcl_dialect::TclVersion::ALL {
         let source = "namespace eval ::A {}; interp alias {} ::pick {} ::switch; interp alias {} ::A::pick {} switch; ::pick subject {default {puts first}}; ::A::pick subject {default {puts second}}";
-        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-            .analyser_profile();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                .analyser_profile();
         let context = tcl_registry::model::ingress::context_for_profile(profile);
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let input =
@@ -1334,7 +1336,8 @@ fn original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinc
     // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
     let source = "package ifneeded P 1.0 {source actual.tcl}";
     for version in tcl_dialect::TclVersion::ALL {
-        let analysis = crate::analyser::Analyser::new().analyse(source, version.dialect_name());
+        let analysis =
+            crate::analyser::Analyser::new().analyse(source, version.dialect_profile_name());
         let config = analysis.body_lexer_config.unwrap();
         let offset = u32::try_from(source.find("source actual.tcl").unwrap()).unwrap();
         let command = crate::segmenter::segment_commands_with_offset_and_config(
@@ -1346,7 +1349,7 @@ fn original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinc
         let registry = analysis.resolved_registry().unwrap();
         assert!(selected_registry_words(source, &analysis, &command, registry).is_none());
         let words = source_registry_words(source, &analysis, &command)
-            .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+            .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
         let OriginalRegistrySource::Conditional(metadata) = words.source() else {
             panic!("future syntax cannot become selected document lookup");
         };

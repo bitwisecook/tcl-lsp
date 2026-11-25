@@ -1041,7 +1041,7 @@ mod tests {
         assert_eq!(scan.packages.len(), 1);
         assert_eq!(scan.packages[0].name, CName::Literal("pkga".to_owned()));
         assert_eq!(scan.packages[0].version, CName::Literal("1.0".to_owned()));
-        assert!(scan.blind.is_empty());
+        assert_eq!(scan.blind, [] as [crate::infer::c_scan::CBlindSpot; 0]);
 
         let usage = |command: &CDeclaredCommand| -> Vec<(usize, String)> {
             command
@@ -1421,7 +1421,10 @@ mod tests {
             "int Init(Tcl_Interp *i) { Tcl_CreateObjCommand(i, \"x\", Defined_Elsewhere, 0, 0); return 0; }",
         );
         assert_eq!(scan.commands[0].procedure, None);
-        assert!(scan.commands[0].usage.is_empty());
+        assert_eq!(
+            scan.commands[0].usage,
+            [] as [crate::infer::c_scan::CUsage; 0]
+        );
     }
 
     #[test]

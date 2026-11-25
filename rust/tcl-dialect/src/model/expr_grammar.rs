@@ -345,40 +345,13 @@ const JIM_WORDS_0_80: &[WordOperator] = &[
     word("ge", Release::JIM_0_80),
 ];
 
-// Binding powers for the Tcl family, transcribed from `binary_bp` in
-// `rust/tcl-expr/src/expr/parser.rs` so the parser can later source
-// them from here. C Tcl merges the comparisons into two levels
-// (`tclCompExpr.c`): `== != eq ne in ni` at one, the relationals at the
-// other. `**` is right-associative (right == left).
-const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
-    ("||", 4, 5),
-    ("&&", 6, 7),
-    ("|", 8, 9),
-    ("^", 10, 11),
-    ("&", 12, 13),
-    ("==", 14, 15),
-    ("!=", 14, 15),
-    ("eq", 14, 15),
-    ("ne", 14, 15),
-    ("in", 14, 15),
-    ("ni", 14, 15),
-    ("<", 16, 17),
-    (">", 16, 17),
-    ("<=", 16, 17),
-    (">=", 16, 17),
-    ("lt", 16, 17),
-    ("le", 16, 17),
-    ("gt", 16, 17),
-    ("ge", 16, 17),
-    ("<<", 18, 19),
-    (">>", 18, 19),
-    ("+", 20, 21),
-    ("-", 20, 21),
-    ("*", 22, 23),
-    ("/", 22, 23),
-    ("%", 22, 23),
-    ("**", 23, 23),
-];
+#[path = "generated_precedence.rs"]
+mod generated_precedence;
+use generated_precedence::{
+    JIM_PRECEDENCE_ROWS_0_76, JIM_PRECEDENCE_ROWS_0_77, JIM_PRECEDENCE_ROWS_0_80,
+    JIM_PRECEDENCE_ROWS_0_84, TCL_PRECEDENCE_ROWS_8_4, TCL_PRECEDENCE_ROWS_8_5,
+    TCL_PRECEDENCE_ROWS_8_6, TCL_PRECEDENCE_ROWS_9_0, TCL_PRECEDENCE_ROWS_9_1,
+};
 
 // The F5 trunk: the Tcl rows plus the word forms `binary_bp` binds —
 // `or` with `||`, `and` with `&&`, and the seven binary comparison
@@ -421,164 +394,8 @@ const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("**", 23, 23),
 ];
 
-// Jim's binary binding powers, transcribed from `Jim_ExprOperators`'
-// `OPRINIT` rows at the upstream tags 0.76 … 0.84. Jim's own scale runs
-// `||` 9 … `**` 120 (250 at 0.76); each row is encoded as `(2p, 2p + 1)`
-// for a left-associative operator and `(2p, 2p)` for a right-associative
-// one (`**` carries `OP_RIGHT_ASSOC`), the same convention the Tcl table
-// above uses, so Jim's ordering is preserved exactly and every number
-// here is twice a number in the C source.
-//
-// The unary rows (`!`, `~`, and the unary `+`/`-` spelled `" +"`/`" -"`,
-// all at 150) and the ternary `?`/`:` (5) are deliberately absent: this
-// is a binary infix table, exactly as `not` is absent from the F5 one.
-//
-// The comparison block is §3.1's motivating divergence, and the sources
-// bear the design's numbers out: `in ni` 55, `eq ne` 60, `== !=` 70,
-// `lt gt le ge` 75, `< > <= >=` 80. Where C Tcl merges the comparisons
-// into two levels, Jim splits them into five.
-
-/// Jim 0.76. `**` sits at **250** here — above the unary operators — and
-/// is **left**-associative (`OPRINIT("**", 250, 2, JimExprOpBin)`, no
-/// `OP_RIGHT_ASSOC`). 0.77 lowered it to 120 *and* made it
-/// right-associative, with the comment "Precedence is higher than * and
-/// / but lower than ! and ~". Both halves are measurable on a built
-/// `jimsh`, and both were measured: `expr {-2 ** 2}` is **-4** at
-/// 0.76 and **4** at 0.79 (the unary minus overtakes `**`), and
-/// `expr {2 ** 3 ** 2}` is **64** at 0.76 and **512** at 0.79. This is
-/// the one row Jim ever moved, and it is why the table is release-keyed
-/// rather than the per-family constant the design sketched.
-const JIM_PRECEDENCE_ROWS_0_76: &[(&str, u16, u16)] = &[
-    ("||", 18, 19),
-    ("&&", 20, 21),
-    ("|", 96, 97),
-    ("^", 98, 99),
-    ("&", 100, 101),
-    ("in", 110, 111),
-    ("ni", 110, 111),
-    ("eq", 120, 121),
-    ("ne", 120, 121),
-    ("==", 140, 141),
-    ("!=", 140, 141),
-    ("<", 160, 161),
-    (">", 160, 161),
-    ("<=", 160, 161),
-    (">=", 160, 161),
-    ("<<", 180, 181),
-    (">>", 180, 181),
-    ("<<<", 180, 181),
-    (">>>", 180, 181),
-    ("+", 200, 201),
-    ("-", 200, 201),
-    ("*", 220, 221),
-    ("/", 220, 221),
-    ("%", 220, 221),
-    ("**", 500, 501),
-];
-
-/// Jim 0.77 through 0.79: identical but for `**`, now 120 and
-/// right-associative.
-const JIM_PRECEDENCE_ROWS_0_77: &[(&str, u16, u16)] = &[
-    ("||", 18, 19),
-    ("&&", 20, 21),
-    ("|", 96, 97),
-    ("^", 98, 99),
-    ("&", 100, 101),
-    ("in", 110, 111),
-    ("ni", 110, 111),
-    ("eq", 120, 121),
-    ("ne", 120, 121),
-    ("==", 140, 141),
-    ("!=", 140, 141),
-    ("<", 160, 161),
-    (">", 160, 161),
-    ("<=", 160, 161),
-    (">=", 160, 161),
-    ("<<", 180, 181),
-    (">>", 180, 181),
-    ("<<<", 180, 181),
-    (">>>", 180, 181),
-    ("+", 200, 201),
-    ("-", 200, 201),
-    ("*", 220, 221),
-    ("/", 220, 221),
-    ("%", 220, 221),
-    ("**", 240, 240),
-];
-
-/// Jim 0.80 through 0.83: the four string relationals arrive at 75 —
-/// "higher than ==, !=, eq, ne but lower than <, >, <=, >=".
-const JIM_PRECEDENCE_ROWS_0_80: &[(&str, u16, u16)] = &[
-    ("||", 18, 19),
-    ("&&", 20, 21),
-    ("|", 96, 97),
-    ("^", 98, 99),
-    ("&", 100, 101),
-    ("in", 110, 111),
-    ("ni", 110, 111),
-    ("eq", 120, 121),
-    ("ne", 120, 121),
-    ("==", 140, 141),
-    ("!=", 140, 141),
-    ("lt", 150, 151),
-    ("gt", 150, 151),
-    ("le", 150, 151),
-    ("ge", 150, 151),
-    ("<", 160, 161),
-    (">", 160, 161),
-    ("<=", 160, 161),
-    (">=", 160, 161),
-    ("<<", 180, 181),
-    (">>", 180, 181),
-    ("<<<", 180, 181),
-    (">>>", 180, 181),
-    ("+", 200, 201),
-    ("-", 200, 201),
-    ("*", 220, 221),
-    ("/", 220, 221),
-    ("%", 220, 221),
-    ("**", 240, 240),
-];
-
-/// Jim 0.84: `=*` and `=~` join `eq`/`ne` at 60 — the same semantic
-/// operation iRules spells `matches_glob`/`matches_regex`, at Jim's
-/// spelling and Jim's level.
-const JIM_PRECEDENCE_ROWS_0_84: &[(&str, u16, u16)] = &[
-    ("||", 18, 19),
-    ("&&", 20, 21),
-    ("|", 96, 97),
-    ("^", 98, 99),
-    ("&", 100, 101),
-    ("in", 110, 111),
-    ("ni", 110, 111),
-    ("eq", 120, 121),
-    ("ne", 120, 121),
-    ("=*", 120, 121),
-    ("=~", 120, 121),
-    ("==", 140, 141),
-    ("!=", 140, 141),
-    ("lt", 150, 151),
-    ("gt", 150, 151),
-    ("le", 150, 151),
-    ("ge", 150, 151),
-    ("<", 160, 161),
-    (">", 160, 161),
-    ("<=", 160, 161),
-    (">=", 160, 161),
-    ("<<", 180, 181),
-    (">>", 180, 181),
-    ("<<<", 180, 181),
-    (">>>", 180, 181),
-    ("+", 200, 201),
-    ("-", 200, 201),
-    ("*", 220, 221),
-    ("/", 220, 221),
-    ("%", 220, 221),
-    ("**", 240, 240),
-];
-
 const TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
-    rows: TCL_PRECEDENCE_ROWS,
+    rows: TCL_PRECEDENCE_ROWS_9_1,
 };
 
 const F5_TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
@@ -611,72 +428,7 @@ const JIM_SYMBOLIC: &[(&str, Release)] = &[
     ("=~", Release::JIM_0_84),
 ];
 
-// The Tcl mathfunc rows, transcribed from `added_in` in
-// `rust/tcl-syntax/src/expr/mathfunc.rs` (the single source there for
-// which names are expr functions and when each appeared): the 8.4 fixed C
-// table, TIP 232's 8.5 additions, TIP 521's 9.0 classifications, and TIP
-// 745's 9.1 C99 batch. `tcl-syntax` sits above this crate, so equality is
-// checked by the count and spot tests here.
-const TCL_MATHFUNCS: &[MathFunc] = &[
-    func("abs", Release::TCL_8_4),
-    func("acos", Release::TCL_8_4),
-    func("asin", Release::TCL_8_4),
-    func("atan", Release::TCL_8_4),
-    func("atan2", Release::TCL_8_4),
-    func("ceil", Release::TCL_8_4),
-    func("cos", Release::TCL_8_4),
-    func("cosh", Release::TCL_8_4),
-    func("double", Release::TCL_8_4),
-    func("exp", Release::TCL_8_4),
-    func("floor", Release::TCL_8_4),
-    func("fmod", Release::TCL_8_4),
-    func("hypot", Release::TCL_8_4),
-    func("int", Release::TCL_8_4),
-    func("log", Release::TCL_8_4),
-    func("log10", Release::TCL_8_4),
-    func("pow", Release::TCL_8_4),
-    func("rand", Release::TCL_8_4),
-    func("round", Release::TCL_8_4),
-    func("sin", Release::TCL_8_4),
-    func("sinh", Release::TCL_8_4),
-    func("sqrt", Release::TCL_8_4),
-    func("srand", Release::TCL_8_4),
-    func("tan", Release::TCL_8_4),
-    func("tanh", Release::TCL_8_4),
-    func("wide", Release::TCL_8_4),
-    func("bool", Release::TCL_8_5),
-    func("entier", Release::TCL_8_5),
-    func("isqrt", Release::TCL_8_5),
-    func("max", Release::TCL_8_5),
-    func("min", Release::TCL_8_5),
-    func("isfinite", Release::TCL_9_0),
-    func("isinf", Release::TCL_9_0),
-    func("isnan", Release::TCL_9_0),
-    func("isnormal", Release::TCL_9_0),
-    func("issubnormal", Release::TCL_9_0),
-    func("isunordered", Release::TCL_9_0),
-    func("acosh", Release::TCL_9_1),
-    func("asinh", Release::TCL_9_1),
-    func("atanh", Release::TCL_9_1),
-    func("cbrt", Release::TCL_9_1),
-    func("copysign", Release::TCL_9_1),
-    func("dim", Release::TCL_9_1),
-    func("erf", Release::TCL_9_1),
-    func("erfc", Release::TCL_9_1),
-    func("exp2", Release::TCL_9_1),
-    func("expm1", Release::TCL_9_1),
-    func("fma", Release::TCL_9_1),
-    func("gamma", Release::TCL_9_1),
-    func("ldexp", Release::TCL_9_1),
-    func("lgamma", Release::TCL_9_1),
-    func("log1p", Release::TCL_9_1),
-    func("log2", Release::TCL_9_1),
-    func("logb", Release::TCL_9_1),
-    func("nextafter", Release::TCL_9_1),
-    func("remainder", Release::TCL_9_1),
-    func("signbit", Release::TCL_9_1),
-    func("trunc", Release::TCL_9_1),
-];
+use crate::release_facts::TCL_MATHFUNCS;
 
 /// Jim's mathfunc rows, read out of `Jim_ExprOperators`' `OP_FUNC` block
 /// at the upstream tags — no longer the empty placeholder the design
@@ -749,7 +501,9 @@ const EXPR_TCL84: ExprGrammar = ExprGrammar {
     numbers: NumberSyntax::Tcl84,
     comments: ExprCommentStyle::None,
     word_operators: TCL_WORDS_84,
-    precedence: TCL_PRECEDENCE,
+    precedence: PrecedenceTable {
+        rows: TCL_PRECEDENCE_ROWS_8_4,
+    },
     symbolic_operators: &[],
     mathfuncs: tcl_set(Release::TCL_8_4),
     arity: ExprArity::Concatenating,
@@ -757,6 +511,9 @@ const EXPR_TCL84: ExprGrammar = ExprGrammar {
 };
 
 const EXPR_TCL85: ExprGrammar = ExprGrammar {
+    precedence: PrecedenceTable {
+        rows: TCL_PRECEDENCE_ROWS_8_5,
+    },
     numbers: NumberSyntax::Tcl85,
     word_operators: TCL_WORDS_85,
     mathfuncs: tcl_set(Release::TCL_8_5),
@@ -764,11 +521,17 @@ const EXPR_TCL85: ExprGrammar = ExprGrammar {
 };
 
 const EXPR_TCL86: ExprGrammar = ExprGrammar {
+    precedence: PrecedenceTable {
+        rows: TCL_PRECEDENCE_ROWS_8_6,
+    },
     mathfuncs: tcl_set(Release::TCL_8_6),
     ..EXPR_TCL85
 };
 
 const EXPR_TCL90: ExprGrammar = ExprGrammar {
+    precedence: PrecedenceTable {
+        rows: TCL_PRECEDENCE_ROWS_9_0,
+    },
     numbers: NumberSyntax::Tcl90,
     comments: ExprCommentStyle::Hash,
     word_operators: TCL_WORDS_90,
@@ -777,6 +540,7 @@ const EXPR_TCL90: ExprGrammar = ExprGrammar {
 };
 
 const EXPR_TCL91: ExprGrammar = ExprGrammar {
+    precedence: TCL_PRECEDENCE,
     mathfuncs: tcl_set(Release::TCL_9_1),
     ..EXPR_TCL90
 };
@@ -956,7 +720,7 @@ mod tests {
         // The shared C-Tcl rows are unchanged — except the TIP 201/461
         // word operators, which the fork point's 8.4.6 core never binds
         // and the family table therefore never lists.
-        for &(op, l, r) in TCL_PRECEDENCE_ROWS {
+        for &(op, l, r) in TCL_PRECEDENCE_ROWS_9_1 {
             if matches!(op, "in" | "ni" | "lt" | "le" | "gt" | "ge") {
                 assert_eq!(i.lookup(op), None, "{op} is not an F5 operator");
                 continue;

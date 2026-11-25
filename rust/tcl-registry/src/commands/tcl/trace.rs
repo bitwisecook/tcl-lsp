@@ -73,7 +73,7 @@ fn validate_modern_trace_operations(
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
     };
     let elements = arguments.dialect().map_or_else(
-        || crate::const_fold::split_list(op_list),
+        || crate::literal_folds::split_list(op_list),
         |dialect| {
             dialect
                 .read_list(op_list)
@@ -921,7 +921,7 @@ fn trace_type_command_prefix(
             return vec![(3, AppendedArity::Unknown)];
         };
         let operations = args.words().dialect().map_or_else(
-            || crate::const_fold::split_list(operation_list),
+            || crate::literal_folds::split_list(operation_list),
             |dialect| {
                 dialect
                     .read_list(operation_list)
@@ -1413,6 +1413,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec {
+                entry_scope: crate::ScriptLookupScope::TriggerFrame,
+                trigger: crate::body_execution::DeferredTrigger::Trace,
+                family: None,
+            },
+        )),
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::Trigger,
+                    timing: crate::hover::ScriptTiming::Deferred,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         script_lookup_scope: Some(crate::ScriptLookupScope::TriggerFrame),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

@@ -440,7 +440,7 @@ mod tests {
     const TWO_ROWS: &str = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
 
     fn context(source: &str, version: tcl_dialect::TclVersion) -> OriginalSourceRegistryContext {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let generation = tcl_registry::model::ingress::static_context_for_profile(profile);
         let input = ResolvedAnalysisInput::new(

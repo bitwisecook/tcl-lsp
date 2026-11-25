@@ -89,9 +89,9 @@ pub(super) const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     array_index: crate::ArrayIndexSyntax::Tcl8,
     script_skips_leading_bom: false,
-    expr_comments: ExprCommentStyle::None,
-    numbers: NumberSyntax::Tcl84,
-    escapes: EscapeSyntax::Tcl84,
+    expr_comments: TclVersion::V8_4.release_policy().expr_comments,
+    numbers: TclVersion::V8_4.number_syntax(),
+    escapes: TclVersion::V8_4.release_policy().escapes,
     word_separators: WordSeparators::Tcl,
     brace_backslash_newline: BraceBackslashNewline::Folds,
     quote_termination: QuoteTermination::Strict,
@@ -110,9 +110,9 @@ pub(super) const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     array_index: crate::ArrayIndexSyntax::Tcl8,
     script_skips_leading_bom: false,
-    expr_comments: ExprCommentStyle::None,
-    numbers: NumberSyntax::Tcl85,
-    escapes: EscapeSyntax::Tcl84,
+    expr_comments: TclVersion::V8_5.release_policy().expr_comments,
+    numbers: TclVersion::V8_5.number_syntax(),
+    escapes: TclVersion::V8_5.release_policy().escapes,
     word_separators: WordSeparators::Tcl,
     brace_backslash_newline: BraceBackslashNewline::Folds,
     quote_termination: QuoteTermination::Strict,
@@ -125,7 +125,9 @@ pub(super) const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
 /// 8.5's, except that TIP 388 caps `\x` at two digits and adds `\U` — the one
 /// axis on which 8.5 and 8.6 differ.
 pub(super) const GRAMMAR_TCL86: LexerGrammar = LexerGrammar {
-    escapes: EscapeSyntax::Tcl86,
+    expr_comments: TclVersion::V8_6.release_policy().expr_comments,
+    numbers: TclVersion::V8_6.number_syntax(),
+    escapes: TclVersion::V8_6.release_policy().escapes,
     ..GRAMMAR_TCL85
 };
 
@@ -138,9 +140,9 @@ pub(super) const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::Tcl9Nesting,
     array_index: crate::ArrayIndexSyntax::Tcl9,
     script_skips_leading_bom: true,
-    expr_comments: ExprCommentStyle::Hash,
-    numbers: NumberSyntax::Tcl90,
-    escapes: EscapeSyntax::Tcl90,
+    expr_comments: TclVersion::V9_0.release_policy().expr_comments,
+    numbers: TclVersion::V9_0.number_syntax(),
+    escapes: TclVersion::V9_0.release_policy().escapes,
     word_separators: WordSeparators::Tcl,
     brace_backslash_newline: BraceBackslashNewline::Folds,
     quote_termination: QuoteTermination::Strict,

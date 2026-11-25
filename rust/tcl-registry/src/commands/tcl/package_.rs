@@ -425,6 +425,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "ifneeded",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body],
+                context: crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL,
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
             ifneeded_transitions,
         )),
@@ -443,9 +450,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // script.
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Value), (2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
-        body_execution: Some(
-            crate::body_execution::BodyExecutionSpec::DeferredGlobalScriptForFamily(Family::Tcl),
-        ),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::PackageLoad,
+            ),
+        )),
         // `DEFERS_BODY` — "stored and run later" said in data, and scoped to
         // this subcommand rather than to `package` as a whole, since it is the
         // only `package` form with a body. tclsh 8.6.16 and 9.0.4,
@@ -576,6 +585,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
             unknown_transitions,
         )),
@@ -739,6 +751,7 @@ const JIM_SUBCOMMANDS: &[SubCommand] = &[
 pub fn jim_spec() -> CommandSpec {
     CommandSpec {
         name: "package",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // Jim's package handler always uses direct command dispatch.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
@@ -759,6 +772,7 @@ pub fn jim_spec() -> CommandSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // Every pinned C Tcl registration has a NULL compileProc. Package
         // loading protocols retain their independent execution contracts.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

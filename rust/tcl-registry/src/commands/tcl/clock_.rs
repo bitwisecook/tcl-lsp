@@ -799,10 +799,10 @@ mod tests {
                 selected.then_some(Some(false))
             );
         }
-        assert!(
+        assert_eq!(
             crate::purity::PurityDomains::of_command(&super::get_date_fields_spec())
-                .pure_releases(tcl_dialect::model::Family::Tcl)
-                .is_empty()
+                .pure_releases(tcl_dialect::model::Family::Tcl),
+            [] as [&str; 0]
         );
         assert_eq!(
             super::get_date_fields_spec().return_type,
@@ -826,10 +826,10 @@ mod tests {
                 assert_eq!(compiler.compiler_hook_presence(dialect), Some(false));
             }
         }
-        assert!(
+        assert_eq!(
             crate::purity::PurityDomains::of_command(&super::getenv_spec())
-                .pure_releases(tcl_dialect::model::Family::Tcl)
-                .is_empty()
+                .pure_releases(tcl_dialect::model::Family::Tcl),
+            [] as [&str; 0]
         );
     }
     #[test]
@@ -847,10 +847,10 @@ mod tests {
             }
         }
         let spec = super::parse_format_args_spec();
-        assert!(
+        assert_eq!(
             crate::purity::PurityDomains::of_command(&spec)
-                .pure_releases(tcl_dialect::model::Family::Tcl)
-                .is_empty()
+                .pure_releases(tcl_dialect::model::Family::Tcl),
+            [] as [&str; 0]
         );
     }
 

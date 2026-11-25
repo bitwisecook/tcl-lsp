@@ -502,8 +502,8 @@ fn checked_member_source_schema(
         || !body.matches_context(&context)
         || !body
             .receiver_grammar(&context)?
-            .family
-            .members_are_tcloo_methods()
+            .profile
+            .members_use_receiver_methods()
         || !matches!(
             body.member_row()?.effect,
             MemberEffect::Callable {

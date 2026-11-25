@@ -619,7 +619,7 @@ mod tests {
             error.script_code_bytes(),
             Some(b"TCL PACKAGE VERSIONCONFLICT".as_slice())
         );
-        assert!(door.libraries.is_empty());
+        assert_eq!(door.libraries, [] as [(String, String); 0]);
         door.refuses_package = None;
         load(&extensions, &mut door, &["", "Demo"])
             .expect("a later load runs the entry point again");

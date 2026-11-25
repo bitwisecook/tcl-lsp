@@ -315,6 +315,8 @@ feeds, and the `f5` CLI.
 
 ## registry/
 
+- [channel-facts.md](registry/channel-facts.md) — shared channel option grammars, driver facts and fixed callback protocols.
+
 The dialect, package, and environment model, and the authoring surface its
 declarations are written in.
 

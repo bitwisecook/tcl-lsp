@@ -18,7 +18,7 @@
 
 //! Source property declarations and the accessor methods a family generates for them.
 
-use super::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
+use super::{DefinitionBodyGrammar, MemberKind};
 use crate::arg_role::ArgRole;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
@@ -207,7 +207,7 @@ impl DefinitionBodyGrammar {
         };
         let dialect = if source_layout { None } else { Some(dialect?) };
         let member = self.member("property")?;
-        if self.family != DefinerFamily::TclOo
+        if !self.profile.has_native_definition_workers()
             || member.kind != MemberKind::FlagKeyed
             || (!source_layout
                 && member
@@ -259,7 +259,7 @@ impl DefinitionBodyGrammar {
         SourcePropertyAccessorAdvice {
             methods: self.property_accessor_methods,
             recipe,
-            configurable: self.family == DefinerFamily::TclOo
+            configurable: self.profile.has_native_definition_workers()
                 && recipe.oo_property_option_name(b"").is_ok(),
         }
     }

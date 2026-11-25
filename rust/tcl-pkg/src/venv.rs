@@ -537,8 +537,11 @@ mod tests {
                 Path::new("/tmp/escaped space")
             ]
         );
-        assert!(tcllibpath_directories(Some(OsStr::new("{/unclosed path"))).is_empty());
-        assert!(tcllibpath_directories(None).is_empty());
+        assert_eq!(
+            tcllibpath_directories(Some(OsStr::new("{/unclosed path"))),
+            [] as [PathBuf; 0]
+        );
+        assert_eq!(tcllibpath_directories(None), [] as [PathBuf; 0]);
     }
 
     #[test]

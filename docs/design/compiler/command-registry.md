@@ -2164,3 +2164,119 @@ The public callback inventory follows the metaclasses’ exported methods.
 `oo::class new` and `createWithNamespace` on the four metaclasses are
 reachable only through object-local dispatch, so they are absent from the
 public callback baseline.
+
+
+## Argument evaluation coordinates and nested completion boundaries
+
+`CommandSpec`, `SubCommand` and `CommandForm` can state an
+`evaluation_contexts: EvaluationContextSpec`. The selected form overrides the
+subcommand, which overrides the command. An instance method does not inherit
+its constructor's context. Argument ordinals inside a descriptor exclude its
+selected subcommand word; the resolved query adds that offset once.
+
+A context states the interpreter selector, the activation used for lookup
+and the timing of interpretation. Activations include the invoking, global,
+triggering, named-namespace, lambda, level-selected, object-receiver and future
+procedure frames. A context describes a coordinate; it proves neither entry
+into that frame nor installation of a native command. Namespace and lambda
+selectors retain their original operand provenance in the resolved answer.
+Dynamic interpreter selectors resolve to `InterpreterScope::Any`; a missing
+context remains `None`. Neither case becomes the current interpreter.
+
+`ResolvedInvocation::argument_evaluation_contexts` reports contexts alongside
+selected script, lambda, expression and identity roles. The singular
+`argument_evaluation_context` also reads explicitly described positions that
+do not assign a new argument role. This permits an interpreter selector to be
+retained without turning a hidden command slot into an ordinary command call.
+A conditional resolver owns only the roles in `resolver_roles`; its refusal
+for one of those roles cannot fall through to a static caller-frame rule.
+Other roles retain their static context rows or remain unknown.
+
+The core declarations cover ordinary caller-frame control constructs,
+`uplevel`, `upvar`, namespace evaluation, `apply`, procedure definitions,
+callbacks, and the interpreter operations' source and target coordinates.
+`interp limit -command` uses the installing interpreter's global frame,
+independently of the interpreter being limited
+([execution evidence](../../../evidence/tcl/interp-limit-callback-installing-world.md)).
+`interp invokehidden` retains `-global` precedence over `-namespace`; a
+computed option cannot establish either activation.
+
+`BodyExecutionSpec::Deferred` states a `DeferredExecutionSpec`: entry scope,
+trigger and optional native family restriction. Timer and idle entry retain
+the previous native Tcl/Jim admission. Channel and Tk entry select their
+C Tcl contract. The selected semantic view derives deferred traits,
+structural body classification, script timing and body flow from that fact.
+A trace's triggering frame is retained as such; the older future-body walker
+cannot use that descriptor as a global-frame body. Frame-only declarations
+without a trigger remain explicit inventory gaps.
+A structural deferred registration can retain its source-operation continuation
+only with its selected authored deferred contract; this grants no callback entry.
+
+`CompletionDescriptor::body_boundary` states intercepted completion codes
+and conversions without changing the command's own result domain. Catch,
+try, loops and forwarding evaluators declare evaluated-body boundaries.
+`proc` instead declares a `DefinedCallable` boundary: its return-level and
+escaping-loop rules apply when the created procedure is called, rather than
+when the definition is registered. These declarations do not replace the CFG
+completion lattice or special-case consumers by themselves.
+The procedure boundary rejects direct body `break`/`continue` codes before
+decrementing a return level. A code exposed by `return -code break` or
+`return -code continue` therefore reaches the caller's loop unchanged
+([execution evidence](../../../evidence/tcl/procedure-loop-completion-order.md)).
+
+`cargo xtask evaluation-contexts --check` scans the native authoring packs and
+required bundled loadables. Its exact gap inventory includes missing role
+contexts, dynamic resolver capabilities and missing deferred triggers.
+New unknown declarations fail the gate; removing a gap also requires removing
+its stale inventory row. An authored resolver counts only for its declared
+role capabilities, and an authored dynamic answer can still be unknown.
+The inventory measures declaration coverage, not execution or complete binding
+migration. The remaining rows are held in
+[`evaluation-context-gaps.txt`](../../references/command-spec/evaluation-context-gaps.txt).
+
+
+The `thread` authoring pack supplies script-entry and shared-store contracts
+for `thread::send`, `thread::create`, `tpool::create`, `tpool::post` and the
+basic `tsv` operations. It is catalogue data; loading a package/profile and
+installing runtime handlers remain separate. The declarations were checked
+against Thread 3.0.4 sources. `ThreadArgument` preserves a thread selector
+without pretending its identifier is a child-interpreter path. `ProcessShared`
+marks names in `WorldStateDomain::ThreadSharedStore`, outside interpreter Tcl
+cells. Both selectors conservatively project to `InterpreterScope::Any` for
+consumers that only understand interpreter paths.
+
+A synchronous `thread::send` body enters the target thread's main interpreter,
+while its optional result variable belongs to the initiating activation.
+An asynchronous reply writes in the initiating interpreter's global frame;
+its target body still belongs to the other thread. Pool hooks/jobs retain an
+unknown worker identity. These contexts do not grant a native implementation
+proof or fold permission. The source-built package observations are retained
+as [execution evidence](../../../evidence/tcl/thread-script-and-reply-worlds.md).
+The compiler currently widens shared-store accesses onto its existing external
+state track; a dedicated binding/shared-place model is not implied.
+
+
+The `thread::send` layout retains Thread 3.0.4's measured two-to-five
+post-head-word bound. Flags are exact-match words; `-command` is a flag and
+uses the first word after the script as a callback prefix, appending one
+result. The same implementation ignores surplus words after a synchronous
+result-variable name within that bound
+([execution evidence](../../../evidence/tcl/thread-send-flags-and-surplus-words.md)).
+The descriptor does not reclassify those surplus data words as scripts or names.
+
+
+Standard TclOO definition scripts retain their profile's fixed definition
+namespace as `EvaluationFrame::NamedNamespace`, separately from deferred
+`ObjectReceiver` method bodies. `oo::define` and `oo::objdefine` use the existing
+member grammar's `MemberEffect` and actual body ordinals to select timing;
+wrapped definition blocks and unsupported accessor layouts remain unknown.
+These are default standard-profile coordinates, not proof of a custom target's
+live definition workers. The standard class and object entry observations are
+retained as [class evidence](../../../evidence/tcl/tcloo-definition-and-method-activations.md)
+and [object evidence](../../../evidence/tcl/tcloo-object-definition-activation.md).
+
+Global and namespace-variable names project their coordinates from the existing
+variable-alias target transitions. A missing target supplies no caller-frame
+fallback. Option-valued variables retain the `OptionArg::variable_scope` owner:
+a global scope refines any broader caller-frame context, so an authored option
+never acquires a contradictory frame from a role default.

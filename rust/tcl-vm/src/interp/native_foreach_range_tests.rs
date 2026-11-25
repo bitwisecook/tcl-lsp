@@ -39,7 +39,7 @@ fn compiled_with(
     body: &str,
 ) -> (Vec<String>, Option<LoopTargets>) {
     let mut vm = crate::native_fixture::interpreter(
-        tcl_dialect::DialectProfile::find(release.dialect_name()).expect("release profile"),
+        tcl_dialect::DialectProfile::find(release.dialect_profile_name()).expect("release profile"),
     );
     let words = ["p", params, body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
     let head = Value::new_native_string_bytes(b"proc".as_slice());
@@ -175,7 +175,7 @@ fn a_bare_primary_condition_converts_before_its_jump_as_tclsh_does() {
 /// A top-level script's instructions as this VM compiles it for evaluation.
 fn script_compiled(release: tcl_dialect::TclVersion, script: &str) -> Vec<String> {
     let mut vm = crate::native_fixture::interpreter(
-        tcl_dialect::DialectProfile::find(release.dialect_name()).expect("release profile"),
+        tcl_dialect::DialectProfile::find(release.dialect_profile_name()).expect("release profile"),
     );
     let unit = vm
         .compile_script_cached(script)

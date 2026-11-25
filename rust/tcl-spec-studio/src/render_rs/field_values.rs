@@ -59,6 +59,12 @@ pub(super) fn enum_slice(ty: &str, values: &[Value]) -> String {
 pub(super) fn body_interpreter_expr(value: &Value) -> Option<String> {
     match value.get("kind")?.as_str()? {
         "Current" => Some("BodyInterpreter::Current".to_owned()),
+        "ProcessShared" => Some("BodyInterpreter::ProcessShared".to_owned()),
+        "Unknown" => Some("BodyInterpreter::Unknown".to_owned()),
+        "ThreadArgument" => Some(format!(
+            "BodyInterpreter::ThreadArgument({})",
+            value.get("index")?.as_u64()?
+        )),
         "Argument" => Some(format!(
             "BodyInterpreter::Argument({})",
             value.get("index")?.as_u64()?

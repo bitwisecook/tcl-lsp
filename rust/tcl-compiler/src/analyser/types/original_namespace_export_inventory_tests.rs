@@ -24,7 +24,7 @@ fn original_namespace_export_inventory_keeps_opaque_patterns_clear_and_prefix_ab
     // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
     for version in tcl_dialect::TclVersion::ALL {
         let source = r"namespace export {p\uD800}; namespace export -clear p\uD801; namespace export -clear -clear; namespace export first ::invalid never";
-        let mut result = Analyser::new().analyse(source, version.dialect_name());
+        let mut result = Analyser::new().analyse(source, version.dialect_profile_name());
         let events = result
             .original_namespace_exports()
             .cloned()

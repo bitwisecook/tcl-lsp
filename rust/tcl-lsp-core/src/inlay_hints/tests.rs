@@ -775,7 +775,7 @@ fn format_sprintf_specifier_hints() {
 
 #[test]
 fn scan_hints_follow_the_scan_direction() {
-    assert!(type_labels("scan 1 {%#d}").is_empty());
+    assert_eq!(type_labels("scan 1 {%#d}"), [] as [(u32, String); 0]);
     let source = "scan ab {%n%[a-z]}";
     assert_eq!(
         type_labels(source),

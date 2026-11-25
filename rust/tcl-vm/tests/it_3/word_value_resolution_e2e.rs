@@ -99,7 +99,8 @@ fn compile_exact_profile(
 }
 
 fn profile_of(version: TclVersion) -> &'static DialectProfile {
-    tcl_registry::model::ingress::resolve_environment(version.dialect_name()).analyser_profile()
+    tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+        .analyser_profile()
 }
 
 #[derive(Clone, Default)]

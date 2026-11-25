@@ -36,6 +36,11 @@
 //! [`CommandSpec`]: crate::CommandSpec
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
+mod object_system_profile;
+pub use object_system_profile::{
+    CLAY_PROFILE, DECLARATION_PROFILE, DefinitionShape, ITCL_PROFILE, JIM_PROFILE,
+    MemberExportRule, MemberStorage, ObjectSystemProfile, SNIT_PROFILE, TCLOO_PROFILE,
+};
 mod clay;
 mod jim_source_stock;
 pub use clay::CLAY_GRAMMAR;
@@ -757,12 +762,8 @@ impl MemberSpec {
     }
 }
 
-/// Which class-system a definer belongs to.  Distinguishes definers that share
-/// the `definition_body` marker but need a different analyser body-parser /
-/// instance-creation shape (`TclOO`'s `metaclass create Name { … }` vs snit's
-/// `snit::type Name { … }`).  Consumers that only walk members (folding,
-/// semantic tokens) never read this; the analyser dispatches on it instead of
-/// hardcoding definer names.
+/// Display and grouping identity of an authored definition grammar.
+/// Semantic consumers read [`DefinitionBodyGrammar::profile`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefinerFamily {
     /// `TclOO` metaclasses and the `oo::define` / `oo::objdefine` script form.
@@ -785,7 +786,7 @@ pub enum DefinerFamily {
     /// command that dispatches to whichever `{NAME word}` exists — so the
     /// member set is open at run time ([`DefinitionBodyGrammar::dynamic_method_dispatch`]).
     /// The grammar's `members` name the class-command calls that declare one
-    /// ([`Self::members_are_two_word_commands`]).
+    /// ([`ObjectSystemProfile::members_are_two_word_commands`]).
     JimClass,
     /// `SpecTcl` — the `.tclspec` spec-pack DSL's own declaration bodies
     /// (`speclib … { … }`, `command … { … }`, `hover { … }`, …).
@@ -851,69 +852,6 @@ impl DefinitionMemberNamePurpose {
     }
 }
 
-impl DefinerFamily {
-    /// Whether this grammar defines commands/objects that can be invoked by
-    /// the Tcl runtime after the declaration completes.
-    ///
-    /// `SpecTcl` and `SslicTcl` reuse the definition-body grammar for structured
-    /// declaration documents; their named blocks are data, not runtime class
-    /// or command manufacturers. Compiler consumers use this owner-level
-    /// predicate instead of maintaining their own family lists.
-    #[must_use]
-    pub const fn manufactures_runtime_commands(self) -> bool {
-        matches!(
-            self,
-            Self::TclOo | Self::Snit | Self::Itcl | Self::Clay | Self::JimClass
-        )
-    }
-
-    /// Whether this family's instance methods are `TclOO` methods, so `my`
-    /// inside a method body dispatches through the object's `TclOO` order.
-    /// Clay builds every class with `oo::class` and declares methods through
-    /// `oo::define` (tcllib clay 0.8.8, `::clay::dialect::Define`).
-    #[must_use]
-    pub const fn members_are_tcloo_methods(self) -> bool {
-        matches!(self, Self::TclOo | Self::Clay)
-    }
-
-    /// Whether a class of this family stores each member as the two-word
-    /// command `{CLASS member}`, so that a `proc` named by that two-element
-    /// list is also a member of the class. Jim's `oo.tcl` builds every method,
-    /// and every built-in the class command answers to, this way.
-    #[must_use]
-    pub const fn members_are_two_word_commands(self) -> bool {
-        matches!(self, Self::JimClass)
-    }
-
-    /// Registry-owned current-namespace policy for executable member bodies.
-    ///
-    /// `JimClass` keeps [`MemberCurrentNamespace::DefinedEntity`] for declaration
-    /// attribution. Its wrapper is an ordinary procedure: Jim derives its stored
-    /// namespace from the complete published command key. Neither the class's
-    /// reporting name nor the caller namespace supplies that body-entry owner.
-    #[must_use]
-    pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
-        match self {
-            Self::TclOo | Self::Clay => MemberCurrentNamespace::RuntimeReceiver,
-            Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => {
-                MemberCurrentNamespace::DefinedEntity
-            }
-        }
-    }
-
-    /// Commands Tcl itself places in a fresh receiver's private namespace,
-    /// searched before [`DefinitionBodyGrammar::member_body_namespace_path`]
-    /// by an unqualified command word in a member body. Empty for families
-    /// whose member bodies run in the defined entity's namespace.
-    #[must_use]
-    pub const fn receiver_namespace_commands(self) -> &'static [&'static str] {
-        match self {
-            Self::TclOo | Self::Clay => TCLOO_RECEIVER_NAMESPACE_COMMANDS,
-            Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => &[],
-        }
-    }
-}
-
 /// The grammar of a definer command's definition body: its recognised member
 /// sub-keywords plus the variables implicitly in scope inside every member
 /// body.
@@ -921,6 +859,8 @@ impl DefinerFamily {
 pub struct DefinitionBodyGrammar {
     /// The class-system this definer belongs to.
     pub family: DefinerFamily,
+    /// Independent semantic facts selected by this authored grammar.
+    pub profile: ObjectSystemProfile,
     /// Recognised member sub-keywords.
     pub members: &'static [MemberSpec],
     /// Variables implicitly available in every member body (snit's `self` /
@@ -1107,8 +1047,8 @@ impl DefinitionBodyGrammar {
     /// This source layout grants no class existence, dispatch or inheritance.
     #[must_use]
     pub const fn source_base_class_list_argument(&self, argument_count: usize) -> Option<usize> {
-        match (self.family, argument_count) {
-            (DefinerFamily::JimClass, 3) => Some(1),
+        match self.profile.source_base_class_list {
+            Some((count, index)) if argument_count == count => Some(index),
             _ => None,
         }
     }
@@ -1120,7 +1060,7 @@ impl DefinitionBodyGrammar {
     pub const fn two_word_procedure_member_name_purpose(
         &self,
     ) -> Option<DefinitionMemberNamePurpose> {
-        if self.family.members_are_two_word_commands() {
+        if self.profile.members_are_two_word_commands() {
             Some(DefinitionMemberNamePurpose::SourceValue)
         } else {
             None
@@ -1172,21 +1112,17 @@ impl DefinitionBodyGrammar {
         {
             return None;
         }
-        Some(match self.family {
-            DefinerFamily::TclOo => DefinitionMemberNamePurpose::TclOoMethod,
-            // Clay's `DefineThunk` hands a member that keeps its own header and
-            // body to `oo::define` unchanged, which creates a TclOO method.
-            DefinerFamily::Clay if member.effect != MemberEffect::Configuration => {
-                DefinitionMemberNamePurpose::TclOoMethod
-            }
-            _ => DefinitionMemberNamePurpose::SourceValue,
+        Some(if member.effect == MemberEffect::Configuration {
+            self.profile.configuration_name_purpose
+        } else {
+            self.profile.member_name_purpose
         })
     }
 
     /// Current-namespace policy for executable members of this grammar.
     #[must_use]
     pub const fn member_current_namespace(&self) -> MemberCurrentNamespace {
-        self.family.member_current_namespace()
+        self.profile.current_namespace
     }
 
     /// Root object dispatch dependencies of an audited default constructor.
@@ -1195,9 +1131,10 @@ impl DefinitionBodyGrammar {
     pub const fn default_construction_lookup_dependencies(
         &self,
     ) -> Option<&'static [&'static str]> {
-        match self.family {
-            DefinerFamily::TclOo => Some(&["::oo::class", "::oo::object"]),
-            _ => None,
+        if self.profile.default_construction_dependencies.is_empty() {
+            None
+        } else {
+            Some(self.profile.default_construction_dependencies)
         }
     }
 
@@ -1242,20 +1179,9 @@ impl DefinitionBodyGrammar {
     /// This is a visibility rule, separate from member publication/lookup.
     #[must_use]
     pub fn member_default_exported_bytes(&self, name: &[u8]) -> bool {
-        match self.family {
-            DefinerFamily::TclOo | DefinerFamily::Clay => {
-                name.first().is_some_and(u8::is_ascii_lowercase)
-            }
-            // SpecTcl and SslicTcl declare no members that are ever
-            // *dispatched*, so the question is vacuous for them; answering
-            // `true` keeps the visible
-            // set equal to the declared set, which is the only reading of
-            // "exported" a declaration-only family has.
-            DefinerFamily::Snit
-            | DefinerFamily::Itcl
-            | DefinerFamily::JimClass
-            | DefinerFamily::SpecTcl
-            | DefinerFamily::SslicTcl => true,
+        match self.profile.export_rule {
+            MemberExportRule::AsciiLowercase => name.first().is_some_and(u8::is_ascii_lowercase),
+            MemberExportRule::All => true,
         }
     }
 }

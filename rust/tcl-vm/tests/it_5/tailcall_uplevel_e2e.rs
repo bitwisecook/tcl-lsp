@@ -30,7 +30,7 @@ const FROM_8_6: [TclVersion; 3] = [TclVersion::V8_6, TclVersion::V9_0, TclVersio
 
 /// The result of `src` under the `version` pin; panics if it errors.
 fn result_for(version: TclVersion, src: &str) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));

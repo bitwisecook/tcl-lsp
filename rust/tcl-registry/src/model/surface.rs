@@ -234,7 +234,7 @@ fn row_dialect_names(row: &SpecSurface) -> Vec<String> {
                     Some(&SurfaceQuery::core(Family::Tcl, release.version_string())),
                 )
             })
-            .map(|release| format!("tcl{}", release.version_string()))
+            .map(|release| release.dialect_profile_name().to_owned())
             .collect(),
         SpecProvider::Core(Family::F5Irules) => vec!["f5-irules".to_owned()],
         SpecProvider::Core(Family::F5Tcl) => vec!["f5-tcl".to_owned()],

@@ -291,6 +291,7 @@ pub(super) const TCLOO_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
 /// `oo::define` / `oo::objdefine` script form.
 pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::TclOo,
+    profile: super::TCLOO_PROFILE,
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
     implicit_receiver_vars: &[],
@@ -310,7 +311,7 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // (`next` / `self` / `link` / `classvariable`) are real global commands in
     // `::oo::Helpers` with their own specs, reached through
     // `member_body_namespace_path` above; `my` lives in the receiver's own
-    // namespace (`DefinerFamily::receiver_namespace_commands`).
+    // namespace (`ObjectSystemProfile::receiver_namespace_commands`).
     member_body_commands: &[],
     // `Foo $win.a` is not a construction in TclOO: a class command only
     // constructs through `create` / `new` (tclsh 9.0.4: `::C x` →

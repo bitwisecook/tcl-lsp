@@ -779,7 +779,7 @@ mod tests {
     #[test]
     fn each_field_that_disagrees_is_named_and_none_other() {
         let held = manifest();
-        assert!(manifest().disagreements(&held).is_empty());
+        assert_eq!(manifest().disagreements(&held), [] as [ManifestField; 0]);
         let cases: [(ManifestField, Edit); 8] = [
             (ManifestField::AbiVersion, |m| m.abi_version += 1),
             (ManifestField::Environment, |m| {
@@ -808,7 +808,7 @@ mod tests {
     #[test]
     fn a_runtime_may_hold_more_packs_than_the_artefact_rests_on() {
         let held = context().identity(&[stamp("a", 1), stamp("b", 2), stamp("c", 3)], [7; 32]);
-        assert!(manifest().disagreements(&held).is_empty());
+        assert_eq!(manifest().disagreements(&held), [] as [ManifestField; 0]);
         let fewer = context().identity(&[stamp("a", 1)], [7; 32]);
         assert_eq!(manifest().disagreements(&fewer), vec![ManifestField::Packs]);
         let changed = context().identity(&[stamp("a", 1), stamp("b", 99)], [7; 32]);

@@ -83,6 +83,8 @@ pub enum WorldStateDomain {
     /// a future memory-SSA concern; this domain deliberately establishes the
     /// conservative common baseline first.
     VariableStore,
+    /// The Thread package's process-wide shared variable store, outside Tcl cells.
+    ThreadSharedStore,
     /// An established external side-effect target that does not yet have a
     /// dedicated world-state domain.
     LegacyExternal(SideEffectTarget),

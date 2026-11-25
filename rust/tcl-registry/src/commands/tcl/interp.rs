@@ -507,6 +507,65 @@ const LIMIT_TYPE_VALUES: &[ArgValue] = &[
 // TclInterpInit registers the public dispatcher directly with no compileProc
 // in every pinned C release. Selected members share that absence; body entry
 // remains an independent runtime script-object boundary.
+fn interp_hidden_evaluation_context(
+    arguments: InvocationArguments<'_>,
+    index: usize,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    use crate::evaluation_context::{EvaluationContext, EvaluationFrame};
+    let count = arguments.exact_argv_len()?;
+    if index == 0 || index >= count {
+        return None;
+    }
+    let mut current = 1;
+    let mut frame = EvaluationFrame::Invoking;
+    let mut namespace = None;
+    let mut global = false;
+    while current < count {
+        match arguments.literal_at(current) {
+            Some("-global") => {
+                global = true;
+                current += 1;
+            }
+            Some("-namespace") => {
+                namespace = u8::try_from(current + 1).ok();
+                current += 2;
+            }
+            Some("--") => {
+                current += 1;
+                break;
+            }
+            Some(word) if word.starts_with('-') => return None,
+            Some(_) => break,
+            None => {
+                return Some(EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: EvaluationFrame::Unknown,
+                    ..EvaluationContext::INVOKING
+                });
+            }
+        }
+    }
+    if namespace.is_some_and(|at| usize::from(at) == index) {
+        return Some(EvaluationContext {
+            interpreter: BodyInterpreter::Argument(0),
+            ..EvaluationContext::REFERENCE
+        });
+    }
+    if index < current {
+        return None;
+    }
+    if global {
+        frame = EvaluationFrame::Global;
+    } else if let Some(at) = namespace {
+        frame = EvaluationFrame::NamespaceArgument(at);
+    }
+    Some(EvaluationContext {
+        interpreter: BodyInterpreter::Argument(0),
+        frame,
+        ..EvaluationContext::INVOKING
+    })
+}
+
 const NATIVE_INTERP: crate::native_compilation::NativeCompilationSpec =
     crate::native_compilation::NativeCompilationSpec {
         grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
@@ -518,6 +577,33 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "alias",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(2),
+                    ..crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL
+                },
+            }],
+            arguments: &[
+                (
+                    1,
+                    crate::evaluation_context::EvaluationContext {
+                        interpreter: BodyInterpreter::Argument(0),
+                        frame: crate::evaluation_context::EvaluationFrame::Global,
+                        ..crate::evaluation_context::EvaluationContext::REFERENCE
+                    },
+                ),
+                (
+                    3,
+                    crate::evaluation_context::EvaluationContext {
+                        interpreter: BodyInterpreter::Argument(2),
+                        ..crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL
+                    },
+                ),
+            ],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // Alias installation records a deferred command prefix. The handler
         // does not evaluate that prefix; command-table transitions retain its
         // actual interpreter/slot/prefix obligations independently of compilation.
@@ -551,6 +637,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "bgerror",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    ..crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL
+                },
+            }],
+            arguments: &[(
+                1,
+                crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    ..crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // Added in Tcl 8.5 (TIP 221).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::new(1, 2),
@@ -707,6 +810,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "eval",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body],
+                context: crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         arity: Arity::at_least(2),
         detail: "Evaluate script in another interpreter.",
         synopsis: "interp eval path arg ?arg ...?",
@@ -742,6 +856,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "expose",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                1,
+                crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         arity: Arity::new(2, 3),
         detail: "Expose a hidden command.",
         synopsis: "interp expose path hiddenCmdName ?exposedCmdName?",
@@ -766,6 +891,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "hide",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                1,
+                crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         arity: Arity::new(2, 3),
         detail: "Hide a command.",
         synopsis: "interp hide path exposedCmdName ?hiddenCmdName?",
@@ -778,6 +914,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "invokehidden",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            resolver: Some(interp_hidden_evaluation_context),
+            resolver_roles: &[
+                ArgRole::Value,
+                ArgRole::Name,
+                ArgRole::CommandName,
+                ArgRole::CommandPrefix,
+                ArgRole::Body,
+            ],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // C Tcl's InterpObjCmd scans from objv[3], after the path at objv[2]:
         // retained tclInterp.c 8.6.18, case OPT_INVOKEHID.
         // The prefix is data even when its value is computed or dash-leading.
@@ -848,6 +995,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "limit",
+        option_prefix_words: 2,
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body, ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Current,
+                    ..crate::evaluation_context::EvaluationContext::DEFERRED_GLOBAL
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // Added in Tcl 8.5 (TIP 143).
         surface: Some(SpecSurface::TCL85_PLUS),
         // Positional words after `path limitType` come in `-option value`
@@ -948,6 +1106,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "set",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                1,
+                crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // Brand new in Tcl 9.1: absent from the 9.0.4 SYNOPSIS and body,
         // present in the 9.1b0 SYNOPSIS and body as `interp set path
         // varName ?value?` / `child set varName ?value?`. Also confirmed
@@ -982,6 +1151,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "target",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                1,
+                crate::evaluation_context::EvaluationContext {
+                    interpreter: BodyInterpreter::Argument(0),
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         arity: Arity::exact(2),
         detail: "Get alias target.",
         synopsis: "interp target path alias",
@@ -1492,7 +1672,8 @@ mod tests {
         // Implementation contract: naming.alias.original-fresh-creation-transfer
         // docs/design/analysis/name-resolution-proofs/original-fresh-alias-creation-transfer.md
         for version in tcl_dialect::TclVersion::ALL {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
             let dialect = crate::InvocationDialect::of_profile(profile);
             for (arguments, mutation) in [

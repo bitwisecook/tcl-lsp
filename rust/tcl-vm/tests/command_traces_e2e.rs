@@ -904,7 +904,7 @@ fn vm_matches_the_pinned_trace_vectors() {
     for version in [TclVersion::V8_6, TclVersion::V9_0] {
         for vector in VECTORS {
             assert_eq!(
-                common::vm_output(vector.script, version.dialect_name()),
+                common::vm_output(vector.script, version.dialect_profile_name()),
                 vector.want,
                 "{version:?}: {}",
                 vector.name
@@ -1017,7 +1017,7 @@ fn command_trace_rename_and_retirement_match_all_five_native_engines() {
             oracle.patchlevel
         );
         assert_eq!(
-            common::vm_output(SOURCE, oracle.version.dialect_name()),
+            common::vm_output(SOURCE, oracle.version.dialect_profile_name()),
             EXPECTED,
             "{:?}",
             oracle.version

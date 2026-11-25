@@ -151,7 +151,10 @@ fn associative_and_explicit_groupings_are_not_hazards() {
         let found = tcl(source).precedence_hazards();
         assert!(found.is_empty(), "{source}: {found:?}");
     }
-    assert!(misreadings("!$x == !$y").is_empty());
+    assert_eq!(
+        misreadings("!$x == !$y"),
+        [] as [crate::expr::precedence::PrecedenceHazard; 0]
+    );
     let inside_call = tcl("max($a + $b * $c, 1)").precedence_hazards();
     assert_eq!(inside_call[0].as_parsed, "$a + ($b * $c)");
 }
@@ -206,10 +209,9 @@ fn f5_word_operators_take_part() {
     assert_eq!(not[0].likely_intended, "not ($a equals \"x\")");
     let mixed = hazards_in("f5-irules", "$a or $b and $c", HazardTier::Misreading);
     assert_eq!(mixed[0].as_parsed, "$a or ($b and $c)");
-    assert!(
-        capture("f5-irules", "$a and $b && $c")
-            .precedence_hazards()
-            .is_empty()
+    assert_eq!(
+        capture("f5-irules", "$a and $b && $c").precedence_hazards(),
+        [] as [crate::expr::precedence::PrecedenceHazard; 0]
     );
     let grouped = capture("f5-irules", "$a starts_with \"/x\" and $b or $c");
     assert_eq!(

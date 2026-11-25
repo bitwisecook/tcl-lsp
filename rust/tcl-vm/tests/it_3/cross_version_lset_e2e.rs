@@ -46,7 +46,7 @@ impl std::io::Write for Capture {
 }
 
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let cap = Capture::default();
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));

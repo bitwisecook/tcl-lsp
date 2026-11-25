@@ -49,7 +49,7 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
 
     let buf = Rc::new(RefCell::new(Vec::new()));

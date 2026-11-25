@@ -515,7 +515,7 @@ mod tests {
     fn words(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
         // Keep original source words, not a generated argv spelling.
         // This source-geometry fixture grants no live registration authority.
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let mut parsed = native_script_words_in(
             SourceImage::native(source),
             Span::new(0, u32::try_from(source.len()).unwrap()),

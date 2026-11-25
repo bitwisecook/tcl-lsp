@@ -61,24 +61,12 @@ impl std::error::Error for NativeScalarCarrierError {}
 /// Decode an independently retained C release, without guessing an execution profile.
 #[must_use]
 pub const fn import_version(version: NativeCVersion) -> TclVersion {
-    match version {
-        NativeCVersion::V8_4 => TclVersion::V8_4,
-        NativeCVersion::V8_5 => TclVersion::V8_5,
-        NativeCVersion::V8_6 => TclVersion::V8_6,
-        NativeCVersion::V9_0 => TclVersion::V9_0,
-        NativeCVersion::V9_1 => TclVersion::V9_1,
-    }
+    TclVersion::ALL[version as usize]
 }
-/// Encode the actual recorded descriptor release.
+/// Encode the actual recorded descriptor release from the release catalogue.
 #[must_use]
 pub const fn export_version(version: TclVersion) -> NativeCVersion {
-    match version {
-        TclVersion::V8_4 => NativeCVersion::V8_4,
-        TclVersion::V8_5 => NativeCVersion::V8_5,
-        TclVersion::V8_6 => NativeCVersion::V8_6,
-        TclVersion::V9_0 => NativeCVersion::V9_0,
-        TclVersion::V9_1 => NativeCVersion::V9_1,
-    }
+    version.release_facts().native_c_version
 }
 /// Decode recorded allocation identity without inferring it from byte length.
 #[must_use]

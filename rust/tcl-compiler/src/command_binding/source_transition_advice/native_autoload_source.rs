@@ -842,7 +842,7 @@ mod tests {
     fn deferred_autoload_source_keeps_real_declaring_namespace_and_release_policy() {
         let source = "source lib/helpers.tcl; proc ::ns::run {} {puts [mypkg_autoloaded]}";
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = version.dialect_name();
+            let dialect = version.dialect_profile_name();
             let analysis = suffix(source, "namespace eval ::ns {}", dialect);
             let advice = source_native_deferred_autoload_advice_at(
                 source,

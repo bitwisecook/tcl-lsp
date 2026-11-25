@@ -1025,7 +1025,7 @@ mod abstention_tests {
         source: &str,
         version: tcl_dialect::TclVersion,
     ) -> OriginalSourceRegistryContext {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let generation = crate::context_for_dialect_profile(profile);
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
@@ -1212,7 +1212,8 @@ mod abstention_tests {
     fn source_filename_abstention_keeps_exact_query_and_directory() {
         let source = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
         for version in tcl_dialect::TclVersion::ALL {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
             let generation = crate::context_for_dialect_profile(profile);
             let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(

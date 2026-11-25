@@ -77,6 +77,7 @@ const MEMBERS: &[MemberSpec] = &[
 /// configuration, generated methods and actual receiver entry remain unknown.
 pub const CLAY_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Clay,
+    profile: super::CLAY_PROFILE,
     members: MEMBERS,
     implicit_vars: &[],
     implicit_receiver_vars: &[],
@@ -121,7 +122,7 @@ mod tests {
         ] {
             let member = grammar.member(name).unwrap();
             assert_eq!(member.effect, MemberEffect::Configuration);
-            assert!(member.arg_roles.is_empty());
+            assert_eq!(member.arg_roles, []);
             assert!(grammar.source_special_member_kind(member).is_none());
             assert!(grammar.member_name_purpose(member).is_none());
         }

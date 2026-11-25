@@ -231,7 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Create.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_create),
+        const_fold: Some(crate::literal_folds::fold_dict_create),
         // `?key value ...?` — an even count, 0 or more (confirmed against
         // tclsh 8.6.14: `dict create a` fails "wrong # args").
         arity: Arity::stepped(0, Arity::UNLIMITED, 2),
@@ -255,7 +255,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Exists.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_exists),
+        const_fold: Some(crate::literal_folds::fold_dict_exists),
         arity: Arity::at_least(2),
         detail: "Test whether a key exists in a dictionary.",
         synopsis: "dict exists dictionaryValue key ?key ...?",
@@ -344,7 +344,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         ),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet)),
-        const_fold: Some(crate::const_fold::fold_dict_get),
+        const_fold: Some(crate::literal_folds::fold_dict_get),
         inline_codegen_hook: Some(InlineCodegenHookId::DictGet),
         arity: Arity::at_least(1),
         detail: "Get a value from a dictionary.",
@@ -404,7 +404,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Keys.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_keys),
+        const_fold: Some(crate::literal_folds::fold_dict_keys),
         arity: Arity::new(1, 2),
         detail: "Return the keys of a dictionary.",
         synopsis: "dict keys dictionaryValue ?globPattern?",
@@ -490,8 +490,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Merge.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_merge),
-        const_fold_versioned: Some(crate::const_fold::fold_dict_merge_versioned),
+        const_fold: Some(crate::literal_folds::fold_dict_merge),
+        const_fold_versioned: Some(crate::literal_folds::fold_dict_merge_versioned),
         arity: Arity::any(),
         detail: "Merge one or more dictionaries.",
         synopsis: "dict merge ?dictionaryValue ...?",
@@ -586,7 +586,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Size.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_size),
+        const_fold: Some(crate::literal_folds::fold_dict_size),
         arity: Arity::exact(1),
         detail: "Return the number of key/value pairs.",
         synopsis: "dict size dictionaryValue",
@@ -705,7 +705,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Values.spec(true),
         ),
-        const_fold: Some(crate::const_fold::fold_dict_values),
+        const_fold: Some(crate::literal_folds::fold_dict_values),
         arity: Arity::new(1, 2),
         detail: "Return the values of a dictionary.",
         synopsis: "dict values dictionaryValue ?globPattern?",
@@ -865,6 +865,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dict",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
             operation: crate::SemanticOperationId::Invoke,
@@ -1079,6 +1080,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             let &(_, summary, synopsis) = QUALIFIED_HOVER.iter().find(|&&(n, _, _)| n == bare)?;
             Some(CommandSpec {
                 name: qualified,
+                evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
                 runtime_backing: RuntimeBacking::shipped(qualified),
                 traits: sub.semantic_traits(),
                 surface: sub.surface.or(parent_surface),

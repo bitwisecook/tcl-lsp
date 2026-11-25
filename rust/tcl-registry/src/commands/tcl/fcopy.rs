@@ -18,6 +18,7 @@
 
 //! `fcopy` — copy data from one channel to another.
 
+use crate::channel_protocols::ChannelCallbackProtocol;
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
@@ -47,7 +48,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::deferred_command_prefix_n("callback", AppendedArity::AtLeast(1)),
+        value: ChannelCallbackProtocol::Copy.option("callback"),
         detail: "Run the copy in the background and return immediately; callback is invoked when the copy completes or fails, with the byte/character count appended and an error-message argument on failure. inputChan/outputChan are switched to non-blocking mode automatically; an active event loop (vwait or Tk) is required to drive the copy.",
         ..OptionSpec::DEFAULT
     },
@@ -57,6 +58,9 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
@@ -84,6 +88,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         options: OPTIONS,
+        option_prefix_words: 2,
         ..CommandSpec::DEFAULT
     }
 }

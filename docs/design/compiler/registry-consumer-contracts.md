@@ -865,8 +865,12 @@ states for layouts.
 `MemberEffect` is on `MemberSpec` beside `kind`. `MemberKind` stays the
 *layout* fact — `Flat`, `Wrapper`, `FlagKeyed` — and `MemberEffect` is
 what the member declares. The vocabulary is closed and family-neutral: no
-variant names TclOO, snit, or itcl, and `DefinerFamily` stays the only
-place a family is named. It lives in `rust/tcl-registry/src/definer.rs`.
+variant names TclOO, snit, or itcl. It lives in
+`rust/tcl-registry/src/definer.rs`. `DefinitionBodyGrammar::profile` owns
+independent definition shape, member storage, namespace, export and installation
+facts; `DefinerFamily` is the identity label. Consumers select semantics from
+the profile and route members by their effect. Native worker metadata never
+substitutes for an actual native handler or execution proof.
 What a wrapper does to the member it wraps is `MemberSpec::wrapper_shift`
 (a `WrapperShift` of an optional receiver and an optional
 `DeclaredMemberVisibility` — `self` moves the member to the type object,

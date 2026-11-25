@@ -23,6 +23,8 @@
 //! the standalone `close`/`eof`/`fconfigure`/`fcopy`/`fileevent`/`flush`/
 //! `gets`/`open`/`puts`/`read`/`seek`/`tell` commands it later wraps), so
 //! the command-level `dialects` gate below is `TCL85_PLUS`, not `None`.
+use crate::channel_options::CONFIGURE_OPTIONS;
+use crate::channel_protocols::ChannelCallbackProtocol;
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
@@ -38,250 +40,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// `-translation`'s flat mode values — completion/hover data only
-/// (`closed: false` on the option): the option also accepts a
-/// `{inTranslation outTranslation}` two-element list for a read-write
-/// channel, which a flat per-word enum can't validate without misreporting
-/// the list as an invalid value (the same list pitfall `open`'s
-/// `ACCESS_VALUES` documents).
-const TRANSLATION_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "auto",
-        detail: "Default. On input, lf/cr/crlf are all accepted and mapped to \\n. On output, the platform's native end-of-line sequence is used.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "lf",
-        detail: "Unix-style: a bare linefeed marks end of line, on both input and output.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "cr",
-        detail: "A bare carriage return marks end of line, on both input and output.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "crlf",
-        detail: "Windows/network-style: carriage-return-linefeed marks end of line, on both input and output.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "binary",
-        detail: "No end-of-line translation. Also clears -eofchar and sets -encoding to iso8859-1 (Tcl 8.6+; Tcl 8.5 instead set -encoding to the pseudo-encoding \"binary\"), fully configuring the channel for byte-transparent I/O.",
-        ..ArgValue::DEFAULT
-    },
-];
-
-/// `-buffering`'s values — always a single flat word in every fetched
-/// version (no list form), so this is safe to mark `closed: true`.
-const BUFFERING_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "full",
-        detail: "Buffer until the internal buffer fills or chan flush is invoked. Default for non-terminal channels.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "line",
-        detail: "Flush automatically whenever a newline is written. Default for terminal-like channels, and for stdin/stdout.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "none",
-        detail: "Flush automatically after every write. Default for stderr.",
-        ..ArgValue::DEFAULT
-    },
-];
-
-/// `-profile`'s values (`encoding(n)` PROFILES section) — Tcl 9.0+ only
-/// (absent from every 8.5/8.6 chan.n fetch; present, with these exact three
-/// members, in both 9.0.4 and 9.1b0). `strict` is the default when
-/// `-profile` is not set.
-const PROFILE_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "strict",
-        detail: "Default. Any conversion error raises an exception (Unicode-conformant behaviour).",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "tcl8",
-        detail: "Lenient, Tcl 8.6-compatible byte mapping: invalid bytes are mapped to their numerically equivalent code points instead of erroring.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "replace",
-        detail: "Invalid bytes/characters are substituted with a replacement character instead of erroring.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-];
-
-/// `-inputmode`'s values (TIP 160, `open(n)`) — Tcl 9.0+ only (absent from
-/// every 8.5/8.6/9.0-less fetch of both chan.n and open.n; landed with the
-/// rest of the "8.7" feature set folded into 9.0 since 8.7 itself was never
-/// released).
-const INPUTMODE_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "normal",
-        detail: "Line-oriented input with standard terminal editing enabled.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "password",
-        detail: "Non-echoing input (terminal editing still enabled); typed characters are not written to the terminal except newlines.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "raw",
-        detail: "All keyboard input is handed to Tcl with no terminal processing or echo at all.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "reset",
-        detail: "Set-only: restores the terminal to the state it was in when the channel was opened.",
-        min_tcl: Some(TclVersion::V9_0),
-        ..ArgValue::DEFAULT
-    },
-];
-
-/// Shared option table for `chan configure` — same shape as `fconfigure`
-/// options. `-blocking`/`-buffering`/`-buffersize`/`-encoding`/`-eofchar`/
-/// `-translation` are documented on chan.n itself and present in every
-/// fetched version (8.5 through 9.1); `-profile` (TIP 656) and the
-/// socket/terminal options `-nodelay`/`-keepalive` (TIP 344, documented on
-/// socket.n) and `-inputmode` (TIP 160, documented on open.n) are Tcl 9.0+
-/// — confirmed absent from the 8.5/8.6 chan.n and socket.n/open.n pages and
-/// present, unchanged, in both 9.0.4 and 9.1b0.
-static CONFIGURE_OPTIONS: &[OptionSpec] = &[
-    OptionSpec {
-        name: "-blocking",
-        value: OptionValue::boolean(),
-        detail: "Whether I/O on the channel may block the process indefinitely. Channels are blocking by default; nonblocking mode affects chan gets/read/puts/flush/close and requires the event loop (vwait/update) to drive it.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-buffering",
-        value: OptionValue::Takes(OptionArg {
-            values: BUFFERING_VALUES,
-            closed: true,
-            hint: "mode",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "full, line, or none — see the value list for the per-mode default.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-buffersize",
-        value: OptionValue::value("size"),
-        detail: "Buffer size in bytes for buffers subsequently allocated for this channel; capped at 1,000,000.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-encoding",
-        value: OptionValue::value("encoding"),
-        detail: "Character encoding used to convert the channel's bytes to/from Tcl's internal string representation; defaults to the platform/locale system encoding (encoding system). Use iso8859-1 for byte-transparent binary data (Tcl 8.5 instead used the pseudo-encoding \"binary\" for this; removed in Tcl 9.0).",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-eofchar",
-        value: OptionValue::value("char"),
-        detail: "A single character (\\x01-\\x7f) that signals end-of-file on input; the empty string (the default) disables it. Tcl 8.5/8.6 additionally accepted a {inChar outChar} two-element list for a read-write channel and defaulted to Control-Z on Windows file reads; Tcl 9.0+ takes a single value only and always defaults to the empty string.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-translation",
-        value: OptionValue::Takes(OptionArg {
-            values: TRANSLATION_VALUES,
-            hint: "mode",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} list to set input/output independently. See the value list for per-mode behaviour and defaults.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-profile",
-        value: OptionValue::Takes(OptionArg {
-            values: PROFILE_VALUES,
-            closed: true,
-            hint: "profile",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "Encoding profile controlling how conversion errors on this channel are handled (see PROFILES in encoding(n)).",
-        surface: Some(SpecSurface::TCL90_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    // Socket / terminal channel-type options, all Tcl 9.0+ (TIPs 344 and
-    // 160). Settable only on the matching channel type; documented on
-    // socket.n / open.n rather than chan.n, since they belong to that
-    // channel driver, not to chan configure's own generic option set.
-    OptionSpec {
-        name: "-nodelay",
-        value: OptionValue::boolean(),
-        detail: "TCP_NODELAY on a socket channel: disables Nagle's algorithm so small writes are sent immediately (Tcl 9.0+, TIP 344). Documented on socket(n).",
-        surface: Some(SpecSurface::TCL90_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-keepalive",
-        value: OptionValue::boolean(),
-        detail: "SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344). Documented on socket(n).",
-        surface: Some(SpecSurface::TCL90_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-inputmode",
-        value: OptionValue::Takes(OptionArg {
-            values: INPUTMODE_VALUES,
-            closed: true,
-            hint: "mode",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "Terminal input mode on a serial/console channel (Tcl 9.0+, TIP 160); Unix-only (Windows exposes the equivalent on console channels). Documented on open(n).",
-        surface: Some(SpecSurface::TCL90_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-];
-
 /// `chan copy`'s options.
 const COPY_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
@@ -296,7 +54,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::deferred_command_prefix_n("callback", AppendedArity::AtLeast(1)),
+        value: ChannelCallbackProtocol::Copy.option("callback"),
         detail: "Run the copy in the background and return immediately; callback is invoked on completion with the byte/character count appended, plus an error-message argument if the copy failed. inputChan/outputChan are switched to non-blocking automatically; an active event loop (vwait or Tk) is required to drive it.",
         surface: None,
         aliases: &[],
@@ -329,26 +87,6 @@ const READ_OPTIONS: &[OptionSpec] = &[OptionSpec {
     min_abbrev: None,
     effect: None,
 }];
-
-/// `chan close`'s `direction` positional argument (index 1) — Tcl 8.6+
-/// only (absent from the 8.5 chan.n synopsis and body text; present from
-/// 8.6 on). Real tclsh accepts any unique abbreviation of `read`/`write`
-/// for this argument, so it's declared with `arg_values_accept_prefix`
-/// rather than an exact-match `closed_value_args`.
-const CLOSE_DIRECTION_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "read",
-        detail: "Half-close only the read side of a bidirectional channel.",
-        min_tcl: Some(TclVersion::V8_6),
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "write",
-        detail: "Half-close only the write side of a bidirectional channel.",
-        min_tcl: Some(TclVersion::V8_6),
-        ..ArgValue::DEFAULT
-    },
-];
 
 /// `chan pending`'s `mode` positional argument (index 0). Real tclsh
 /// requires an exact match — the manual page says "mode is input or
@@ -476,7 +214,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // keys off.
         destructive: true,
         arg_roles: &[(0, ArgRole::Channel)],
-        arg_values: &[(1, CLOSE_DIRECTION_VALUES)],
+        arg_values: &[(1, super::close_::DIRECTION_VALUES)],
         closed_value_args: &[1],
         arg_values_accept_prefix: true,
         return_type: Some(TclType::String),
@@ -495,6 +233,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Channel)],
         options: CONFIGURE_OPTIONS,
         channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
+        literal_argument_validator: Some(crate::channel_options::validate_chan_configuration),
         option_prefix_words: 1,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
@@ -507,6 +246,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "copy",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         arity: Arity::stepped(2, 6, 2),
         detail: "Copy data between channels, blocking until complete unless -command is given.",
         synopsis: "chan copy inputChan outputChan ?-size size? ?-command callback?",
@@ -529,10 +271,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan create mode cmdPrefix",
         arg_values: &[(0, CREATE_MODE_VALUES)],
         return_type: Some(TclType::Channel),
-        // `cmdPrefix` (index 1) is the reflected-channel handler, invoked as
-        // `cmdPrefix subcommand channelId ?args...?` — every method appends at
-        // least the subcommand and channel id ⇒ AtLeast(2).
-        command_prefixes: &[(1, AppendedArity::AtLeast(2))],
+        command_prefixes: &[(1, ChannelCallbackProtocol::Reflected.appended_arity())],
+        callback_protocols: &[(1, ChannelCallbackProtocol::Reflected)],
+        literal_argument_validator: Some(crate::channel_options::validate_create_modes),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
@@ -558,6 +299,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "event",
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::Channel,
+            ),
+        )),
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         surface: None,
         arity: Arity::new(2, 3),
         detail: "Set up a channel event handler for \"readable\" or \"writable\".",
@@ -566,22 +315,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         arg_values: &[(1, EVENT_VALUES)],
         closed_value_args: &[1],
-        // The script fires later, when the channel event occurs — a
-        // different call frame than the one that registered it (same
-        // reasoning as `after`'s `body_kind`, which see).
+        // Compatibility fields agree with the deferred entry contract.
         body_kind: BodyKind::Structural,
-        // …and *because* it fires later, `chan event` stores its script
-        // rather than running it, exactly as its legacy spelling
-        // `fileevent` declares (`fileevent.rs`). Measured with the shape
-        // that sweep uses, `proc p {ch} { chan event $ch readable {error
-        // stop}; set ::reached 1 }`: `::reached` is set on tclsh 8.5.19,
-        // 8.6.16, 9.0.4 and 9.1b0 alike, so the body cannot stop control
-        // reaching the next statement. Without this the analyser reads the
-        // absent trait as "runs now" and the callback inventory reports the
-        // script as same-invocation while `fileevent`'s is deferred — a
-        // disagreement a coverage audit surfaced. The registry's
-        // own `BODY_RUNS_NOW` sweep missed it because its probe leads never
-        // select an ensemble's `event` subcommand.
         traits: Traits::DEFERS_BODY,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
@@ -707,10 +442,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Channel),
-        // `cmdPrefix` (index 1) is the transform handler, invoked as
-        // `cmdPrefix subcommand handle ?args...?` (a reflected-transform
-        // dispatch) — minimum appended is subcommand + handle ⇒ AtLeast(2).
-        command_prefixes: &[(1, AppendedArity::AtLeast(2))],
+        command_prefixes: &[(1, ChannelCallbackProtocol::Transform.appended_arity())],
+        callback_protocols: &[(1, ChannelCallbackProtocol::Transform)],
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
@@ -819,6 +552,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "postevent",
+        literal_argument_validator: Some(crate::channel_options::validate_postevent_modes),
         arity: Arity::exact(2),
         detail: "Post an event to a reflected channel created with chan create.",
         synopsis: "chan postevent channelId eventSpec",
@@ -831,81 +565,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ..SideEffect::DEFAULT
         }]),
         ..SubCommand::DEFAULT
-    },
-];
-
-/// Command-level `chan configure` options (the `chan configure`
-/// form options) — surfaced at the command level for completion consistency.
-const CMD_OPTIONS: &[OptionSpec] = &[
-    OptionSpec {
-        name: "-blocking",
-        value: OptionValue::boolean(),
-        detail: "Set blocking mode.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-buffering",
-        value: OptionValue::value("mode"),
-        detail: "Set buffering mode (full, line, none).",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-buffersize",
-        value: OptionValue::value("size"),
-        detail: "Set buffer size in bytes.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-encoding",
-        value: OptionValue::value("encoding"),
-        detail: "Set character encoding.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-eofchar",
-        value: OptionValue::value("chars"),
-        detail: "Set end-of-file character(s).",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-profile",
-        value: OptionValue::value("profile"),
-        detail: "Set encoding profile (strict, tcl8, replace).",
-        surface: Some(SpecSurface::TCL90_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-translation",
-        value: OptionValue::value("mode"),
-        detail: "Set line-ending translation mode.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
     },
 ];
 
@@ -933,7 +592,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        options: CMD_OPTIONS,
+        options: CONFIGURE_OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Read, write and manipulate channels.",
             synopsis: &["chan subcommand ?arg ...?"],

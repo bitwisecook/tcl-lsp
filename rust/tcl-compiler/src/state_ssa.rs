@@ -786,6 +786,9 @@ pub mod adapters {
                 tcl_registry::WorldStateDomain::PackageState => Self::PackageState,
                 tcl_registry::WorldStateDomain::HostCapabilities => Self::HostCapabilities,
                 tcl_registry::WorldStateDomain::VariableStore => Self::VariableStore,
+                tcl_registry::WorldStateDomain::ThreadSharedStore => {
+                    Self::ExternalResource(tcl_registry::side_effects::SideEffectTarget::Unknown)
+                }
                 tcl_registry::WorldStateDomain::LegacyExternal(target) => {
                     Self::ExternalResource(target)
                 }

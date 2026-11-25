@@ -127,6 +127,14 @@ static SLEEP_VALUES: [(u8, &[ArgValue]); 2] = [(0, &SLEEP_MODE), (2, &UNITS)];
 static SUBCOMMANDS: [SubCommand; 6] = [
     SubCommand {
         name: "in",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::Timer,
+            ),
+        )),
         arity: Arity::new(3, 3),
         detail: "Schedule script to run once, after a monotonic delay of delay time units, as a global-level event handler; returns a timer id. A delay of 0 or less queues the event immediately, ahead of other pending events.",
         synopsis: "timer in delay unit script",
@@ -144,6 +152,14 @@ static SUBCOMMANDS: [SubCommand; 6] = [
     },
     SubCommand {
         name: "at",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::Timer,
+            ),
+        )),
         arity: Arity::new(3, 3),
         detail: "Schedule script to run once, at the wall-clock timepoint expressed in time units, as a global-level event handler; returns a timer id. Serviced after any monotonic-clock event due at the same instant.",
         synopsis: "timer at timepoint unit script",
@@ -195,6 +211,14 @@ static SUBCOMMANDS: [SubCommand; 6] = [
     },
     SubCommand {
         name: "idle",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::Idle,
+            ),
+        )),
         arity: Arity::new(1, 1),
         detail: "Schedule script to run once, the next time the event loop is entered with no other events pending; returns a timer id.",
         synopsis: "timer idle script",

@@ -8,10 +8,10 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 | Axis | Waived sites |
 |---|---|
-| command | 7 |
+| command | 6 |
 | subcommands | 12 |
 | clause_grammar | 2 |
-| definition_body | 15 |
+| definition_body | 11 |
 | options | 19 |
 | special_vars | 2 |
 | irreducible | 49 |
@@ -22,7 +22,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | clause_grammar | the clause plan names the trap handler | `rust/tcl-compiler/src/lowering/structured.rs` | 1 | site | try's trap clause |
 | command | the definition-body query identifies a procedure definition | `rust/tcl-codegen/src/codegen/wasm/native_add/retained_publication.rs` | 1 | site | the WASM publisher admits only a procedure definition |
 | command | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions/context_diagnostics.rs` | 1 | site | the hardening edit rewrites subst's own option word |
-| command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs` | 4 | site | tokenless legacy fold; the tokened path asks the registry |
+| command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs` | 3 | site | tokenless legacy fold; the tokened path asks the registry |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs` | 1 | site | tokenless legacy fold; the tokened path asks the registry |
 | definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/method_symbol.rs` | 1 | site | an Itcl class-body proc member's recorded kind |
 | definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/original_member_rename.rs` | 1 | site | a native classmethod row's recorded kind |
@@ -30,8 +30,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | member metadata carries a typed visibility | `rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs` | 1 | site | TclOO member visibility as the declaration records it |
 | definition_body | the definition-body grammar exposes lifecycle members | `rust/tcl-lsp-core/src/hover/original_registry.rs` | 2 | site | TclOO lifecycle member keywords |
 | definition_body | the definition-body grammar exposes property accessors | `rust/tcl-compiler/src/analyser/oo/member_effects.rs` | 3 | site | property accessor keywords of the class body |
-| definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/oo/retained_member_source.rs` | 2 | site | class-definition relation keywords |
-| definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs` | 2 | site | class-definition relation keywords |
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs` | 1 | site | snit member keywords that define a callable |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs` | 1 | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
 | irreducible | never | `rust/tcl-bigip/src/validator.rs` | 1 | site | the literal sentinel admitted by BigipPropertySpec::allow_none |
@@ -156,7 +154,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 1 |
 | `rust/tcl-diagram/src/attach.rs` | 2 |
 | `rust/tcl-diagram/src/data.rs` | 4 |
-| `rust/tcl-expr/src/expr/mathfunc.rs` | 6 |
+| `rust/tcl-expr/src/expr/mathfunc.rs` | 4 |
 | `rust/tcl-expr/src/expr/parser.rs` | 15 |
 | `rust/tcl-irules/src/ilx.rs` | 2 |
 | `rust/tcl-irules/src/lib.rs` | 26 |
