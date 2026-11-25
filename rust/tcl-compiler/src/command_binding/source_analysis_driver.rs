@@ -86,6 +86,31 @@ struct SourceInterpretationEntry<'a> {
     native_formals: Option<&'a Arc<OriginalNativeCompilerFormals>>,
 }
 
+fn source_entry_frame_and_options<'a>(
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    image: &tcl_lexer::SourceImage,
+    options: SourceAnalysisOptions<'a>,
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+) -> (
+    &'a crate::var_resolve::VariableExecutionFrame,
+    SourceAnalysisOptions<'a>,
+) {
+    let frame = options
+        .source_point_entry
+        .map_or(frame, |entry| entry.frame());
+    let options = SourceAnalysisOptions {
+        stock_tclsh_stdout: options.stock_tclsh_stdout.filter(|_| {
+            matches!(
+                frame.layout(),
+                crate::var_resolve::VariableExecutionFrame::Global
+            ) && purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
+                && image.channel() == tcl_lexer::SourceChannel::Document
+        }),
+        ..options
+    };
+    (frame, options)
+}
+
 fn initial_source_interpretation_state(
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
@@ -637,19 +662,7 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         let tracing = SourceAnalysisTrace::start();
         let config = options.native_lexer_config(config);
-        let frame = options
-            .source_point_entry
-            .map_or(frame, |entry| entry.frame());
-        let options = SourceAnalysisOptions {
-            stock_tclsh_stdout: options.stock_tclsh_stdout.filter(|_| {
-                matches!(
-                    frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::Global
-                ) && purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
-                    && image.channel() == tcl_lexer::SourceChannel::Document
-            }),
-            ..options
-        };
+        let (frame, options) = source_entry_frame_and_options(frame, image, options, purpose);
         // The survey-scoped interpretation is never shared through the memo.
         let memo_key = if logical_conditional_source_control || native_formals.is_some() {
             None

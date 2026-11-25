@@ -126,6 +126,37 @@ impl Analyser {
 
         let oracle = self.command_existence_oracle(registry);
         self.emit_w123_for_invocations(&oracle, emit_w123, registry);
+        if emit_w123 {
+            self.emit_materialised_script_absences();
+        }
+    }
+
+    fn emit_materialised_script_absences(&mut self) {
+        for (span, name, namespace) in self
+            .head_identities
+            .source_bindings_ref()
+            .materialised_command_absences()
+        {
+            if self.extra_commands.contains(&name)
+                || self
+                    .result
+                    .stub_commands
+                    .iter()
+                    .any(|stub| stub.name == name)
+                || self.is_workspace_declared(&name)
+                || self.is_workspace_autoloaded(&name)
+            {
+                continue;
+            }
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W123,
+                    span,
+                    format!("Unresolved command '{name}' in namespace '{namespace}'"),
+                    Severity::Hint,
+                ));
+        }
     }
 
     /// Build suggestions only; presence comes from the shared positioned owner.

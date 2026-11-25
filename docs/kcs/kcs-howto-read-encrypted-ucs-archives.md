@@ -100,8 +100,8 @@ AES-256.
 
 ### No GnuPG needed
 
-The decryptor is built into the tool and has no external dependency, so
-a UCS opens on a host with no GnuPG installed. Supply the passphrase in
+The tool ships with its OpenPGP reader and checks the archive's integrity
+before extracting its contents. Supply the passphrase in
 the `F5_UCS_PASSPHRASE` environment variable to avoid putting it on the
 command line:
 

@@ -20,6 +20,59 @@
 
 use super::*;
 
+#[test]
+fn w123_anchors_a_missing_materialised_command_to_the_written_operand() {
+    let source = "set script {missing_materialised 1}; eval $script";
+    let mut analyser = crate::analyser::Analyser::new();
+    let result = analyser.analyse(source, "tcl9.0");
+    let reports = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .collect::<Vec<_>>();
+    let [reported] = reports.as_slice() else {
+        panic!("expected one materialised W123: {reports:?}");
+    };
+    assert_eq!(&source[reported.span.as_range()], "$script");
+    assert_eq!(
+        reported.message,
+        "Unresolved command 'missing_materialised' in namespace '::'"
+    );
+    assert!(reported.fixes.is_empty());
+    assert!(
+        result
+            .command_invocations
+            .iter()
+            .all(|call| call.name != "missing_materialised")
+    );
+}
+
+#[test]
+fn w123_checks_a_captured_namespace_at_its_evaluation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e23-ns-code.tcl"
+    ));
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut analyser = crate::analyser::Analyser::new();
+        let result = analyser.analyse(source, dialect);
+        let reports = result
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code, DiagCode::W123 | DiagCode::W307))
+            .collect::<Vec<_>>();
+        let [reported] = reports.as_slice() else {
+            panic!("{dialect}: expected one captured-name report: {reports:?}");
+        };
+        assert_eq!(reported.code, DiagCode::W123, "{dialect}");
+        assert_eq!(&source[reported.span.as_range()], "$bad", "{dialect}");
+        assert_eq!(
+            reported.message, "Unresolved command 'helper' in namespace '::'",
+            "{dialect}"
+        );
+    }
+}
+
 /// A `W123` whose call the flow graph widens — it marks the call as one to
 /// code the module cannot see — ends with the sentence that says so and names
 /// the stub that keeps the variables: at the top level, in a `namespace eval`

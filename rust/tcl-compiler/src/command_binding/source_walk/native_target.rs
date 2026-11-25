@@ -90,16 +90,57 @@ pub(super) fn is_implicit_stock_stdout_write(
         && native.invocation.arguments().exact_argv_len() == Some(1)
 }
 
+/// The stock expression handler delegates any Tcl re-entry to its walked operands.
+fn delegates_to_stock_expression_walk(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+) -> bool {
+    use tcl_registry::script_body_flow::{ScriptBodyFlow, script_body_flow};
+    native.target.registry_backed
+        && native.target.kind == super::super::BindingKind::Builtin
+        && native.target.implementation_generation == 0
+        && native.target.prepended.is_empty()
+        && facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Expr,
+            )
+        && matches!(
+            script_body_flow(facts),
+            ScriptBodyFlow::Expressions(_) | ScriptBodyFlow::ConcatenatedExpression { .. }
+        )
+}
+
+/// The selected body walker accounts for callbacks in these script operands.
+pub(super) fn delegates_stock_script_effects(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    delegates_to_stock_expression_walk(native, facts)
+        || original_namespace_body::has_original_namespace_body_delegation(
+            native, facts, state, context,
+        )
+        || original_delegated_script::has_delegated_literal_script(native, facts, state, context)
+}
+
 fn unmodelled_native_reentry(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
     state: &ModuleCommandBindings,
+    incoming: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
 ) -> bool {
     use tcl_registry::resolved_invocation::SourceCallbackRetention;
     use tcl_registry::side_effects::SideEffectTarget;
     use tcl_registry::world_effect::WorldStateDomain;
     if is_implicit_stock_stdout_write(native, facts) {
         return !state.stock_tclsh_stdout;
+    }
+    if state.stock_tclsh_stdout && delegates_stock_script_effects(native, facts, incoming, context)
+    {
+        // This fallback did not walk the script's potential callbacks.
+        return true;
     }
     if native
         .invocation
@@ -272,11 +313,11 @@ fn select_native_frame(
     } = native;
     let namespace = context.namespace;
     let mut namespace_key = context.namespace_identity();
-    if facts.operation
+    let ensures_namespace = facts.operation
         == tcl_registry::SemanticOperationId::StructuredLowering(
             tcl_registry::hooks::LoweringHookId::NamespaceEval,
-        )
-    {
+        );
+    if ensures_namespace {
         let Some(target) = facts.state_transitions.declared().and_then(|transitions| {
             let mut targets =
                 transitions
@@ -317,14 +358,19 @@ fn select_native_frame(
             return Err(route);
         };
         namespace_key = selected;
+    } else if facts.existing_namespace_script.is_some() {
+        let Some(selected) =
+            original_delegated_script::existing_namespace(native, facts, state, context)
+        else {
+            state.mark_opaque_binding_mutation();
+            return Err(tcl_registry::completion_route::InvocationCompletionRoute::Unknown);
+        };
+        namespace_key = selected;
     }
     let body_namespace = namespace_key
         .display()
         .unwrap_or_else(|| namespace.to_owned());
-    let namespace_activation = facts.operation
-        == tcl_registry::SemanticOperationId::StructuredLowering(
-            tcl_registry::hooks::LoweringHookId::NamespaceEval,
-        );
+    let namespace_activation = ensures_namespace || facts.existing_namespace_script.is_some();
     let frame = if namespace_activation {
         crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
             namespace: body_namespace.clone(),
@@ -689,7 +735,7 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let prepared = match prepare_selected_native_body(native, state, context, facts, route) {
             Ok(prepared) => prepared,
-            Err(route) if unmodelled_native_reentry(native, facts, state) => {
+            Err(route) if unmodelled_native_reentry(native, facts, state, incoming, *context) => {
                 // Channel observers, notifier callbacks, and selected callback
                 // operands can re-enter Tcl before any returned completion.
                 state.mark_opaque_binding_mutation();
@@ -707,7 +753,13 @@ impl SourceCommandBindings {
         // Receipt capture and settlement run in non-inlined leaf helpers, so
         // this recursive frame keeps only the boxed state crossing the walk.
         let receipts = self.enter_selected_native_body(native, facts, state, context, &prepared);
-        let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
+        let mut outcomes = self.walk_body_flow(
+            &prepared.flow,
+            native,
+            state,
+            &body_context,
+            facts.existing_namespace_script.is_some(),
+        );
         self.leave_selected_native_body(
             &mut outcomes,
             native,

@@ -827,42 +827,44 @@ fn selected_scoped_prefix_result(
     script.namespace_prefix_result(exact_value(0)?, [head, selector, &namespace])
 }
 
-/// The selected literal constructor uses the current namespace and the
-/// original script to build a result. Its deferred body remains data.
-pub(super) fn inline_scoped_prefix_preserves_world(
+/// The selected stock prefix constructor captures script data for later use.
+pub(super) fn stock_scoped_prefix_operand(
+    native: super::SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+) -> Option<usize> {
+    if !native.target.registry_backed
+        || native.target.kind != super::BindingKind::Builtin
+        || native.target.implementation_generation != 0
+        || native.target.runtime_implementation_generation.is_some()
+        || !native.target.prepended.is_empty()
+        || facts.body_execution
+            != Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredNamespaceScript)
+        || facts.effects.requires_world_barrier()
+    {
+        return None;
+    }
+    facts
+        .native_result?
+        .normal_scoped_prefix_operand(native.invocation.arguments(), facts.argument_offset)
+}
+
+/// Both native compiler routes retain the exact original prefix result.
+pub(super) fn scoped_prefix_preserves_world(
     native: super::SourceNativeInvocation<'_>,
     facts: &tcl_registry::InvocationFacts,
     before: &ModuleCommandBindings,
     outcomes: &SourceOutcomes,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    if !matches!(
-        native.compilation_selection,
-        tcl_registry::native_compilation::NativeCompilationSelection::Inline {
-            operation: tcl_registry::SemanticOperationId::Intrinsic(
-                tcl_registry::IntrinsicId::NamespaceCode
-            ),
-            ..
-        }
-    ) || !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
-        || facts.body_execution
-            != Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredNamespaceScript)
-        || facts.effects.requires_world_barrier()
-        || !outcomes.abrupt.is_empty()
-    {
-        return false;
-    }
-    let Some(argument) = facts.native_result.and_then(|contract| {
-        contract.normal_scoped_prefix_operand(native.invocation.arguments(), facts.argument_offset)
-    }) else {
+    let Some(argument) = stock_scoped_prefix_operand(native, facts) else {
         return false;
     };
-    outcomes.normal.as_ref().is_some_and(|normal| {
-        !normal.has_opaque_domain()
-            && selected_scoped_prefix_result(argument, before, normal, native.target, context)
-                .is_some()
-    })
+    outcomes.abrupt.is_empty()
+        && outcomes.normal.as_ref().is_some_and(|normal| {
+            !normal.has_opaque_domain()
+                && selected_scoped_prefix_result(argument, before, normal, native.target, context)
+                    .is_some()
+        })
 }
 
 /// Independent byte correspondence for selected original result operations.

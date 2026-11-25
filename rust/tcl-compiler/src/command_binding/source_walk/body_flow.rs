@@ -203,6 +203,7 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
+        list_tail: bool,
     ) -> SourceOutcomes {
         use tcl_registry::script_body_flow::ScriptBodyFlow;
         let outcomes = match flow {
@@ -225,7 +226,7 @@ impl SourceCommandBindings {
                 state,
                 context,
             ),
-            other => self.walk_non_loop_body_flow(other, native, state, context),
+            other => self.walk_non_loop_body_flow(other, native, state, context, list_tail),
         };
         outcomes.publish(state);
         outcomes
@@ -278,6 +279,7 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
+        list_tail: bool,
     ) -> SourceOutcomes {
         use tcl_registry::script_body_flow::ScriptBodyFlow;
         match flow {
@@ -288,7 +290,7 @@ impl SourceCommandBindings {
                 self.walk_body_sequence(indices, native.script_operands(), state, context)
             }
             ScriptBodyFlow::ConcatenatedScript { argument_offset } => {
-                self.walk_concatenated_script(*argument_offset, native, state, context)
+                self.walk_concatenated_script(*argument_offset, native, state, context, list_tail)
             }
             other => self.walk_other_body_flow(other, native, state, context),
         }
@@ -446,6 +448,7 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
+        list_tail: bool,
     ) -> SourceOutcomes {
         if let Some(count) = native.invocation.arguments().exact_argv_len()
             && argument_offset.checked_add(1) == Some(count)
@@ -457,7 +460,13 @@ impl SourceCommandBindings {
                 context,
             );
         }
-        self.walk_materialised_concatenated_script(argument_offset, native, state, context)
+        self.walk_materialised_concatenated_script(
+            argument_offset,
+            native,
+            state,
+            context,
+            list_tail,
+        )
     }
 
     /// Materialisation temporaries are absent from an original single-body descent.
@@ -468,12 +477,19 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
+        list_tail: bool,
     ) -> SourceOutcomes {
         let Some(values) = frozen_script_operands(native.invocation.arguments(), argument_offset)
         else {
             return opaque_source_invocation(state);
         };
-        let script = if values.len() == 1 {
+        let script = if list_tail {
+            let Some(script) = super::super::original_delegated_script::append_list_tail(&values)
+            else {
+                return opaque_source_invocation(state);
+            };
+            script
+        } else if values.len() == 1 {
             values[0].to_owned()
         } else if native
             .invocation
@@ -495,12 +511,31 @@ impl SourceCommandBindings {
             native.script_operands(),
             *context,
         );
-        let context = compiled_invocation::body_context(
+        let mut context = compiled_invocation::body_context(
             argument_offset,
             native.script_operands(),
             state,
             *context,
         );
+        if list_tail
+            && native
+                .invocation
+                .arguments()
+                .dialect()
+                .and_then(tcl_registry::InvocationDialect::native_eval_object_protocol)
+                .is_some_and(|protocol| {
+                    !protocol.compiles_source(
+                        tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
+                    )
+                })
+        {
+            context.control = context.control.with_compilation(
+                tcl_registry::native_compilation::NativeCompilationContext {
+                    mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                    ..context.compilation()
+                },
+            );
+        }
         self.walk_materialised_source(
             &script,
             argument_offset..argument_offset + values.len(),

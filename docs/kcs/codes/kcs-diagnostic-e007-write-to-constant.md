@@ -25,6 +25,9 @@ to it.
 
 The editor marks the target with `E007` and the message “Cannot write to
 a constant variable”.
+The report requires the analyser to identify the same constant at the write.
+A callback that can change the selected command or variable may make that
+identification uncertain.
 
 ## Example that triggers it
 

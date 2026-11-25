@@ -953,6 +953,92 @@ impl SourceCommandBindings {
             .then_some(first)
     }
 
+    /// Diagnose a selected materialised body's own missing slots at the
+    /// actual written body word. Its inner offsets have no document geometry.
+    pub(crate) fn materialised_command_absences(&self) -> Vec<(tcl_lexer::Span, String, String)> {
+        let Some(root) = &self.root_origin else {
+            return Vec::new();
+        };
+        let mut missing = Vec::new();
+        for (origin, (start, end), element) in self.entered_words.keys() {
+            if origin != root || element.is_some() {
+                continue;
+            }
+            let span = tcl_lexer::Span::new(*start, *end);
+            let Some(script) = self.executed_script_for_word(span) else {
+                continue;
+            };
+            let super::SourceOriginKind::Derived {
+                parent,
+                arguments,
+                kind: super::MaterialisedSourceKind::Script,
+                ..
+            } = script.origin.kind()
+            else {
+                continue;
+            };
+            let [argument] = arguments.as_slice() else {
+                continue;
+            };
+            if &parent.source != root || parent.offset >= span.start() {
+                continue;
+            }
+            let binding = self.invocation_at_origin(root, parent.offset);
+            let native_c = binding.lookup_state.as_ref().is_some_and(|snapshot| {
+                matches!(
+                    snapshot
+                        .state
+                        .baseline
+                        .dialect
+                        .and_then(tcl_registry::InvocationDialect::native_string_protocol),
+                    Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+                )
+            });
+            if !native_c
+                || binding.runtime_reachability() != super::SourceRuntimeReachability::Reached
+                || binding
+                    .proved_execution_target()
+                    .is_none_or(|target| !target.prepended.is_empty())
+                || binding
+                    .evaluated_argument_words
+                    .get(*argument)
+                    .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+                    != Some(script.text.bytes())
+            {
+                continue;
+            }
+            let mut dispatch = std::collections::BTreeMap::<_, Vec<_>>::new();
+            for point in self.origin_points.get(&script.origin).into_iter().flatten() {
+                if point.dispatch {
+                    dispatch.entry(point.offset).or_default().push(point);
+                }
+            }
+            for points in dispatch.into_values() {
+                let binding = Self::query_dispatch_points(points.into_iter());
+                if binding.runtime_reachability() != super::SourceRuntimeReachability::Reached
+                    || binding.selected_slot_diagnostic_presence().knowledge
+                        != tcl_core_types::Knowledge::Absent
+                {
+                    continue;
+                }
+                let Some(head) = binding.original_recorded_head_name_input() else {
+                    continue;
+                };
+                if let (Ok(name), Some(namespace)) = (
+                    std::str::from_utf8(head.bytes()),
+                    binding.lookup_namespace_key.display(),
+                ) {
+                    missing.push((span, name.to_owned(), namespace));
+                }
+            }
+        }
+        missing.sort_unstable_by(|(a, name_a, ns_a), (b, name_b, ns_b)| {
+            (a.start(), a.end(), name_a, ns_a).cmp(&(b.start(), b.end(), name_b, ns_b))
+        });
+        missing.dedup();
+        missing
+    }
+
     pub(super) fn restored_script_source(
         &self,
         script: &super::Script,
@@ -1589,6 +1675,33 @@ mod tests {
                 .is_some()
         );
         assert_ne!(script.origin, parent.source);
+    }
+
+    #[test]
+    fn frozen_eval_script_keeps_its_own_selected_command() {
+        let source = "set script {list retained}; eval $script";
+        let config = tcl_lexer::LexerConfig::default();
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let analysis = SourceCommandBindings::analyse(source, config, &registry);
+        let parent = CommandAllocationSite {
+            source: Arc::clone(analysis.source_origin().unwrap()),
+            offset: u32::try_from(source.find("eval").unwrap()).unwrap(),
+        };
+        let script = analysis.executed_script_at(&parent, 0).unwrap();
+        assert_eq!(script.text.bytes(), b"list retained");
+        assert_ne!(script.origin, parent.source);
+        assert!(
+            analysis
+                .invocation_at_origin(&script.origin, script.base())
+                .proved_execution_target()
+                .is_some_and(|target| target.command == "::list")
+        );
+        assert!(
+            analysis
+                .invocation_at_source("", 0)
+                .proved_execution_target()
+                .is_some_and(|target| target.command == "::set")
+        );
     }
 }
 

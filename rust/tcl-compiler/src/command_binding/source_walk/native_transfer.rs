@@ -183,6 +183,10 @@ fn transfer_native_namespace_writes(
             segment.span.start(),
             order.as_deref(),
         )
+        .with_callback_accounted(
+            state.stock_tclsh_stdout
+                && super::native_target::is_implicit_stock_stdout_write(native, facts),
+        )
         .with_original_operands(native.original_variable_operands)
         .with_namespace_operations(namespace_operations),
     );

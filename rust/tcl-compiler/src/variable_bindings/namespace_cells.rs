@@ -173,6 +173,7 @@ pub fn transfer_source_namespace_cells_with_output_order(
 #[derive(Clone, Copy)]
 pub(crate) struct SourceNamespaceTransfer<'a> {
     script_interpreted: bool,
+    callback_accounted: bool,
     source_offset: u32,
     output_order: Option<&'a [usize]>,
     original_locals: &'a [Option<
@@ -191,12 +192,19 @@ impl<'a> SourceNamespaceTransfer<'a> {
     ) -> Self {
         Self {
             script_interpreted,
+            callback_accounted: false,
             source_offset,
             output_order,
             original_locals: &[],
             operands: None,
             namespace_operations: crate::command_binding::original_namespace_ensure::OriginalNamespaceCellOperations::default(),
         }
+    }
+
+    /// The selected handler's independently proved callback boundary.
+    pub(crate) fn with_callback_accounted(mut self, callback_accounted: bool) -> Self {
+        self.callback_accounted = callback_accounted;
+        self
     }
 
     pub(crate) fn with_original_operands(
@@ -227,6 +235,7 @@ pub(crate) fn transfer_source_namespace_cells_with_input(
     use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
     let SourceNamespaceTransfer {
         script_interpreted,
+        callback_accounted,
         source_offset,
         output_order,
         operands,
@@ -294,6 +303,7 @@ pub(crate) fn transfer_source_namespace_cells_with_input(
     }
     let trace_only = facts.effects.callback().kinds == CallbackKinds::TRACE;
     if facts.effects.requires_world_barrier()
+        && !callback_accounted
         && !script_interpreted
         && (!trace_only || trace_callback)
     {

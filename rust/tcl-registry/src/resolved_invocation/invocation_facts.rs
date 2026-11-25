@@ -187,6 +187,9 @@ pub struct InvocationFacts {
     pub body_kind: BodyKind,
     /// Registry-authored immediate script execution grammar.
     pub body_execution: Option<crate::body_execution::BodyExecutionSpec>,
+    /// Selected argument indices for immediate evaluation in an existing namespace.
+    /// The tuple gives the namespace and the first script operand, in effective argv.
+    pub existing_namespace_script: Option<(usize, usize)>,
     /// Which interpreter owns evaluated body arguments.
     pub body_interpreter: BodyInterpreter,
     /// Frame-crossing argument grammar, when declared.
@@ -815,6 +818,35 @@ impl ResolvedInvocation<'_, '_> {
         }
     }
 
+    fn existing_namespace_script(&self, roles: &[(u8, ArgRole)]) -> Option<(usize, usize)> {
+        use crate::evaluation_context::{EvaluationContext, EvaluationFrame};
+        if !self
+            .semantics
+            .traits
+            .contains(Traits::SCRIPT_APPENDS_LIST_ARGS)
+        {
+            return None;
+        }
+        let offset = self.semantics.argument_offset;
+        let mut bodies = roles.iter().filter(|(_, role)| *role == ArgRole::Body);
+        let body = offset.checked_add(usize::from(bodies.next()?.0))?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let EvaluationContext {
+            interpreter: BodyInterpreter::Current,
+            frame: EvaluationFrame::NamespaceArgument(namespace),
+            timing: crate::hover::ScriptTiming::SameInvocation,
+        } = self.argument_evaluation_context(body)?
+        else {
+            return None;
+        };
+        roles
+            .contains(&(namespace, ArgRole::NamespaceName))
+            .then_some(())?;
+        Some((offset.checked_add(usize::from(namespace))?, body))
+    }
+
     fn facts_on_edge(&self, successful: bool) -> InvocationFacts {
         let (transitions, transition_effect_coverage) = if successful {
             self.semantics
@@ -884,6 +916,9 @@ impl ResolvedInvocation<'_, '_> {
             arity_argument_count: self.argument_count_for_arity(),
             frozen_argument_count: self.words.arguments().exact_argv_len(),
             argument_offset: self.semantics.argument_offset,
+            existing_namespace_script: arg_roles_complete
+                .then(|| self.existing_namespace_script(&arg_roles))
+                .flatten(),
             arg_roles,
             repeated_args: self.semantics.repeated_args.to_vec(),
             arg_roles_complete,

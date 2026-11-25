@@ -74,7 +74,7 @@ const CONSTANT_AFTER_STDOUT: &str = include_str!(concat!(
 
 #[test]
 fn stock_process_stdout_preserves_original_variable_diagnostics() {
-    for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut analyser = crate::analyser::Analyser::new();
         let result = analyser.analyse(GLOBAL_AFTER_STDOUT, profile);
         let reads = result

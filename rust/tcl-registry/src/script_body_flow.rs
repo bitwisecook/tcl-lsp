@@ -116,6 +116,9 @@ pub fn script_body_flow(facts: &InvocationFacts) -> ScriptBodyFlow {
         )
         | None => {}
     }
+    if let Some((_, argument_offset)) = facts.existing_namespace_script {
+        return ScriptBodyFlow::ConcatenatedScript { argument_offset };
+    }
     if facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Apply) {
         return ScriptBodyFlow::Lambda(
             crate::lambda_invocation::LambdaInvocationSelection::Unknown,

@@ -31,7 +31,7 @@ use super::completion_receipts::{
     CapturedNativeCompletionReceipts, command_world_closed_on_normal_return,
     creates_literal_ensemble, requires_reentry_guard,
 };
-use super::native_target::is_implicit_stock_stdout_write;
+use super::native_target::{delegates_stock_script_effects, is_implicit_stock_stdout_write};
 use super::native_transfer::select_contents_write_source;
 use super::outcomes::boxed_source_branch;
 use std::sync::OnceLock;
@@ -421,27 +421,38 @@ fn source_target_arguments_invalid(
             })
 }
 
-fn may_change_stock_stdout(facts: &InvocationFacts) -> bool {
+fn may_change_stock_stdout(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
     use tcl_registry::side_effects::SideEffectTarget;
     use tcl_registry::world_effect::WorldStateDomain;
-    requires_reentry_guard(facts)
+    (requires_reentry_guard(facts)
+        && native_result::stock_scoped_prefix_operand(native, facts).is_none())
         || facts.effects.accesses().iter().any(|access| {
+            matches!(
+                access.domain,
+                WorldStateDomain::LegacyExternal(
+                    SideEffectTarget::FileIo
+                        | SideEffectTarget::ChannelIo
+                        | SideEffectTarget::NetworkIo
+                        | SideEffectTarget::LogIo
+                        | SideEffectTarget::InterpState
+                        | SideEffectTarget::Process
+                )
+            )
+        })
+        || (facts.effects.accesses().iter().any(|access| {
             matches!(
                 access.domain,
                 WorldStateDomain::InterpreterTopology
                     | WorldStateDomain::InterpreterPolicy
-                    | WorldStateDomain::HostCapabilities
                     | WorldStateDomain::PackageState
-                    | WorldStateDomain::LegacyExternal(
-                        SideEffectTarget::FileIo
-                            | SideEffectTarget::ChannelIo
-                            | SideEffectTarget::NetworkIo
-                            | SideEffectTarget::LogIo
-                            | SideEffectTarget::InterpState
-                            | SideEffectTarget::Process
-                    )
+                    | WorldStateDomain::HostCapabilities
             )
-        })
+        }) && !delegates_stock_script_effects(native, facts, state, context))
 }
 
 impl SourceCommandBindings {
@@ -638,7 +649,7 @@ impl SourceCommandBindings {
         let facts = prepared.facts.as_ref();
         if state.stock_tclsh_stdout
             && !is_implicit_stock_stdout_write(native, facts)
-            && may_change_stock_stdout(facts)
+            && may_change_stock_stdout(native, facts, state, *context)
         {
             state.stock_tclsh_stdout = false;
         }
@@ -748,7 +759,7 @@ impl SourceCommandBindings {
                 .filter(|_| write_complete),
         );
         let reentry = requires_reentry_guard(facts);
-        if !native_result::inline_scoped_prefix_preserves_world(
+        if !native_result::scoped_prefix_preserves_world(
             native, facts, incoming, outcomes, *context,
         ) && (reentry
             || (outcomes.normal_completion.is_none()
