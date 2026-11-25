@@ -213,7 +213,7 @@ e01-bool-return.tcl	tcl8.6	folded	same
 e01-bool-return.tcl	tcl9.0	analyser	
 e01-bool-return.tcl	tcl9.0	folder	O103
 e01-bool-return.tcl	tcl9.0	folded	same
-e02-if08.tcl	tcl8.6	analyser	W148@1 W148@1
+e02-if08.tcl	tcl8.6	analyser	W148@1
 e02-if08.tcl	tcl8.6	folder	
 e02-if08.tcl	tcl9.0	analyser	
 e02-if08.tcl	tcl9.0	folder	
@@ -221,7 +221,7 @@ e03-ifnan.tcl	tcl8.6	analyser
 e03-ifnan.tcl	tcl8.6	folder	
 e03-ifnan.tcl	tcl9.0	analyser	
 e03-ifnan.tcl	tcl9.0	folder	
-e04-top08.tcl	tcl8.6	analyser	W148@1 W148@1
+e04-top08.tcl	tcl8.6	analyser	W148@1
 e04-top08.tcl	tcl8.6	folder	
 e04-top08.tcl	tcl9.0	analyser	I230@1
 e04-top08.tcl	tcl9.0	folder	O112

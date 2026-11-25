@@ -31,9 +31,9 @@ e08-quoting.tcl	tcl8.6	analyser
 e08-quoting.tcl	tcl8.6	folder	
 e08-quoting.tcl	tcl9.0	analyser	
 e08-quoting.tcl	tcl9.0	folder	
-e09-auto-execok.tcl	tcl8.6	analyser	
+e09-auto-execok.tcl	tcl8.6	analyser	W123@5 W123@6
 e09-auto-execok.tcl	tcl8.6	folder	
-e09-auto-execok.tcl	tcl9.0	analyser	
+e09-auto-execok.tcl	tcl9.0	analyser	W123@5 W123@6
 e09-auto-execok.tcl	tcl9.0	folder	
 e10-chan-pipe.tcl	tcl8.6	analyser	
 e10-chan-pipe.tcl	tcl8.6	folder	

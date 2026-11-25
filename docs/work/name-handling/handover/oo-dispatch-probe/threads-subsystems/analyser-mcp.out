@@ -15,8 +15,8 @@ t07-unsupported.tcl	tcl8.6	W123@6 W123@7	review
 t07-unsupported.tcl	tcl9.0	W123@6 W123@7	review
 t08-timerate.tcl	tcl8.6	W307@4	review
 t08-timerate.tcl	tcl9.0	W307@4	review
-t09-thread-without-require.tcl	tcl8.6	-	review
-t09-thread-without-require.tcl	tcl9.0	-	review
+t09-thread-without-require.tcl	tcl8.6	W120@4	review
+t09-thread-without-require.tcl	tcl9.0	W120@4	review
 t10-thread-builtin.tcl	tcl8.6	-	review
 t10-thread-builtin.tcl	tcl9.0	-	review
 t11-thread-stale-error.tcl	tcl8.6	-	review

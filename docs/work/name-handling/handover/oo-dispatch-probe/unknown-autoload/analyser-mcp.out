@@ -11,8 +11,8 @@ u05-tclindex-mkindex.tcl	tcl8.6	-	review
 u05-tclindex-mkindex.tcl	tcl9.0	-	review
 u06-auto-execok.tcl	tcl8.6	W155@2	review
 u06-auto-execok.tcl	tcl9.0	W155@2	review
-u07-interactive-exec.tcl	tcl8.6	-	review
-u07-interactive-exec.tcl	tcl9.0	-	review
+u07-interactive-exec.tcl	tcl8.6	W123@4 W123@5	review
+u07-interactive-exec.tcl	tcl9.0	W123@4 W123@5	review
 u08-tclpkgsetup-lazy.tcl	tcl8.6	-	review
 u08-tclpkgsetup-lazy.tcl	tcl9.0	-	review
 u09-ensemble-unknown.tcl	tcl8.6	W214@4	review
@@ -27,7 +27,7 @@ u13-unknown-errorcode.tcl	tcl8.6	W123@2	review
 u13-unknown-errorcode.tcl	tcl9.0	W123@2	review
 u14-auto-reset.tcl	tcl8.6	W123@3	review
 u14-auto-reset.tcl	tcl9.0	W123@3	review
-u15-unknown-recursion.tcl	tcl8.6	-	review
-u15-unknown-recursion.tcl	tcl9.0	-	review
+u15-unknown-recursion.tcl	tcl8.6	W123@3	review
+u15-unknown-recursion.tcl	tcl9.0	W123@3	review
 u16-namespace-unknown-errors.tcl	tcl8.6	-	review
 u16-namespace-unknown-errors.tcl	tcl9.0	-	review

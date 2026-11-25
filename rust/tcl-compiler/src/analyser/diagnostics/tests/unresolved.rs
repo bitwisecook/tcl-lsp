@@ -1454,3 +1454,20 @@ fn a_body_inside_a_quoted_substitution_is_analysed() {
         assert_eq!(codes, [DiagCode::W120], "{source:?}");
     }
 }
+#[test]
+fn an_option_the_release_lacks_is_reported_once() {
+    // Item 188, `encodings-channels/e04`: on 8.6 `-profile` and `-failindex`
+    // are W004, and their words are not also counted as surplus (E003).
+    for source in [
+        "set rc [catch {encoding convertfrom -profile strict utf-8 abc} r]\n",
+        "set r [encoding convertfrom -failindex fi utf-8 abcd]; puts $r\n",
+    ] {
+        let codes: Vec<_> = Analyser::new()
+            .analyse(source, "tcl8.6")
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect();
+        assert_eq!(codes, [DiagCode::W004], "{source:?}");
+    }
+}

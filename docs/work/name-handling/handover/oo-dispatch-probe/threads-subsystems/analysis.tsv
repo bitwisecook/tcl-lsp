@@ -31,9 +31,9 @@ t08-timerate.tcl	tcl8.6	analyser	W307@4
 t08-timerate.tcl	tcl8.6	folder	
 t08-timerate.tcl	tcl9.0	analyser	W307@4
 t08-timerate.tcl	tcl9.0	folder	
-t09-thread-without-require.tcl	tcl8.6	analyser	
+t09-thread-without-require.tcl	tcl8.6	analyser	W120@4
 t09-thread-without-require.tcl	tcl8.6	folder	
-t09-thread-without-require.tcl	tcl9.0	analyser	
+t09-thread-without-require.tcl	tcl9.0	analyser	W120@4
 t09-thread-without-require.tcl	tcl9.0	folder	
 t10-thread-builtin.tcl	tcl8.6	analyser	
 t10-thread-builtin.tcl	tcl8.6	folder	

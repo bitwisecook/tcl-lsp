@@ -23,9 +23,9 @@ u06-auto-execok.tcl	tcl8.6	analyser	W155@2
 u06-auto-execok.tcl	tcl8.6	folder	
 u06-auto-execok.tcl	tcl9.0	analyser	W155@2
 u06-auto-execok.tcl	tcl9.0	folder	
-u07-interactive-exec.tcl	tcl8.6	analyser	
+u07-interactive-exec.tcl	tcl8.6	analyser	W123@4 W123@5
 u07-interactive-exec.tcl	tcl8.6	folder	
-u07-interactive-exec.tcl	tcl9.0	analyser	
+u07-interactive-exec.tcl	tcl9.0	analyser	W123@4 W123@5
 u07-interactive-exec.tcl	tcl9.0	folder	
 u08-tclpkgsetup-lazy.tcl	tcl8.6	analyser	
 u08-tclpkgsetup-lazy.tcl	tcl8.6	folder	
@@ -55,9 +55,9 @@ u14-auto-reset.tcl	tcl8.6	analyser	W123@3
 u14-auto-reset.tcl	tcl8.6	folder	
 u14-auto-reset.tcl	tcl9.0	analyser	W123@3
 u14-auto-reset.tcl	tcl9.0	folder	
-u15-unknown-recursion.tcl	tcl8.6	analyser	
+u15-unknown-recursion.tcl	tcl8.6	analyser	W123@3
 u15-unknown-recursion.tcl	tcl8.6	folder	
-u15-unknown-recursion.tcl	tcl9.0	analyser	
+u15-unknown-recursion.tcl	tcl9.0	analyser	W123@3
 u15-unknown-recursion.tcl	tcl9.0	folder	
 u16-namespace-unknown-errors.tcl	tcl8.6	analyser	
 u16-namespace-unknown-errors.tcl	tcl8.6	folder	

@@ -357,6 +357,16 @@ impl Analyser {
             || display_name.to_owned(),
             |sub| format!("{display_name} {}", sub.name),
         );
+        // An option the release lacks (`encoding convertfrom -profile` on
+        // 8.6) is counted as a positional word; W004 already reports the
+        // call, so its count is not a second finding.
+        if original
+            .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
+            .flatten()
+            .is_some_and(|scan| scan.options.iter().any(|selected| !selected.available))
+        {
+            return;
+        }
         if !shape.windows.is_empty() {
             self.pending_gated_arity
                 .push(super::super::version_gate::GatedArityCall {
