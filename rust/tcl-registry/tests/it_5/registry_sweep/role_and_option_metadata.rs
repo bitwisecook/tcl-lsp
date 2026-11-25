@@ -583,3 +583,78 @@ fn a_family_base_mentions_only_axes_its_options_mention() {
         "the sweep must reach an `Only` base (`lsearch`'s glob, `switch`'s exact)"
     );
 }
+
+/// Item 169: `DEFERS_BODY` is to become a projection of a deferred
+/// body-execution descriptor. Today it also marks bodies run on a later call
+/// (`proc`, `lambda`, `snit::method`) and trace callbacks, so these specs carry
+/// the trait without the descriptor. The list only shrinks.
+const DEFERS_BODY_WITHOUT_DESCRIPTOR: &[&str] = &[
+    "after",
+    "canvas bind",
+    "defer::autowith",
+    "defer::defer",
+    "defer::with",
+    "lambda",
+    "lambda@",
+    "proc",
+    "processman::onexit",
+    "report::defstyle",
+    "snit::macro",
+    "snit::method",
+    "snit::typemethod",
+    "tcl::OptProc",
+    "tcltest::loadScript",
+    "text sync",
+    "text tag",
+    "timer",
+    "tk::canvas bind",
+    "tk::text sync",
+    "tk::text tag",
+    "trace add",
+    "trace variable",
+    "ttk::treeview heading",
+    "ttk::treeview tag",
+    "when",
+];
+
+#[test]
+fn every_deferring_spec_states_a_deferred_body_execution() {
+    use tcl_registry::body_execution::BodyExecutionSpec;
+    let deferred = |spec: Option<BodyExecutionSpec>| {
+        matches!(
+            spec,
+            Some(
+                BodyExecutionSpec::Deferred(_)
+                    | BodyExecutionSpec::DeferredGlobalScript
+                    | BodyExecutionSpec::DeferredGlobalScriptForFamily(_)
+                    | BodyExecutionSpec::DeferredNamespaceScript
+            )
+        )
+    };
+    let mut missing = Vec::new();
+    for dialect in LOADABLE_DIALECTS {
+        let registry = registry_for_dialect(dialect);
+        let names: Vec<String> = registry.command_names().map(str::to_owned).collect();
+        for name in names {
+            let Some(spec) = registry.get(&name) else {
+                continue;
+            };
+            if spec.traits.contains(Traits::DEFERS_BODY) && !deferred(spec.body_execution) {
+                missing.push(spec.name.to_owned());
+            }
+            for sub in spec.subcommands {
+                if sub.traits.contains(Traits::DEFERS_BODY) && !deferred(sub.body_execution) {
+                    missing.push(format!("{} {}", spec.name, sub.name));
+                }
+            }
+        }
+    }
+    missing.sort();
+    missing.dedup();
+    let mut allowed: Vec<&str> = DEFERS_BODY_WITHOUT_DESCRIPTOR.to_vec();
+    allowed.sort_unstable();
+    assert_eq!(
+        missing, allowed,
+        "remove fixed specs from the list; add none"
+    );
+}

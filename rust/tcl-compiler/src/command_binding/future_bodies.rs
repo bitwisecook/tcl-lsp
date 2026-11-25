@@ -424,4 +424,43 @@ mod tests {
                     }))
         }));
     }
+
+    #[test]
+    fn channel_and_tk_event_scripts_are_future_global_bodies() {
+        // Item 169: `fileevent`, `chan event` and Tk `bind` scripts run later
+        // in the global frame, like `after`. A variable trace callback is not
+        // one: tclsh 8.6 runs it at the accessor's level plus one (item 159).
+        for (source, expected) in [
+            ("fileevent stdin readable {set ::got [gets stdin]}", 1),
+            ("chan event stdin readable {set ::got [gets stdin]}", 1),
+            ("package require Tk\nbind . <Key> {set ::got %K}", 1),
+            ("after 0 {set ::got 1}", 1),
+            ("proc cb args {}; trace add variable ::v write cb", 0),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                &registry,
+                super::super::SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            let future = bindings.future_body_inventories();
+            assert_eq!(future.len(), expected, "{source:?}");
+            assert!(
+                future
+                    .iter()
+                    .all(|body| body.frame() == &VariableExecutionFrame::Global),
+                "{source:?}"
+            );
+        }
+    }
 }
