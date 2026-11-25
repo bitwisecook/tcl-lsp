@@ -24,6 +24,8 @@ python3 scripts/dev/extract-tcl-evidence.py evidence/tcl/<file>.md -o script.tcl
 
 [Procedure call elimination and command counts](constant-call-command-count.md) records equal output and distinct command counts when a caller sources the original and rewritten forms on C Tcl 8.6, 9.0 and 9.1.
 
+[Constant write callback order](constant-write-observer-order.md) records which operations reach variable callbacks before rejecting a write on C Tcl 9.0 and 9.1.
+
 [Thread send flag layouts](thread-send-flags-and-surplus-words.md) records combined flags, callback-prefix interpretation and ignored surplus result words in Thread 3.0.4.
 
 [TclOO definition and method activations](tcloo-definition-and-method-activations.md) distinguishes immediate definition namespace entry from a later receiver method.
