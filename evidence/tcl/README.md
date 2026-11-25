@@ -20,6 +20,8 @@ python3 scripts/dev/extract-tcl-evidence.py evidence/tcl/<file>.md -o script.tcl
 
 [Inherited stdout transforms](item-14-stdout-observer-entry.md) record how a parent's channel callback can change later lookups in a fresh child on pinned Tcl 8.6, 9.0 and 9.1.
 
+[Procedure body reflection through stdout](optimizer-c14-stdout-reflection.md) records equal numeric output and distinct reflected bodies for a power-to-shift rewrite on C Tcl 8.6, 9.0 and 9.1.
+
 [Thread send flag layouts](thread-send-flags-and-surplus-words.md) records combined flags, callback-prefix interpretation and ignored surplus result words in Thread 3.0.4.
 
 [TclOO definition and method activations](tcloo-definition-and-method-activations.md) distinguishes immediate definition namespace entry from a later receiver method.
