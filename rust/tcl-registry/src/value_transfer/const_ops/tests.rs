@@ -594,7 +594,10 @@ fn lists_split_and_render_through_the_owner() {
     );
     let rendered = ops.new_list(items);
     assert_eq!(rendered.as_utf8(), Some("a {b c} d"));
-    assert_eq!(rendered.repr, Representation::List);
+    assert_eq!(
+        rendered.0.representation,
+        RepresentationEvidence::Constructed(TclType::List)
+    );
     let bad = ops
         .list_elements(&ConstValue::text("{"))
         .expect_err("not a list");
@@ -618,8 +621,11 @@ fn logical_append_retains_counted_contents_and_refuses_unprojected_binary() {
     let value = ops
         .logical_append(Some(ConstValue::text("a\0")), &[ConstValue::text("é")])
         .expect("decoded logical contents");
-    assert_eq!(&*value.bytes, "a\0é".as_bytes());
-    assert_eq!(value.repr, Representation::String);
+    assert_eq!(&*value.0.bytes, "a\0é".as_bytes());
+    assert_eq!(
+        value.0.representation,
+        RepresentationEvidence::Constructed(TclType::String)
+    );
     assert!(ops.take(value).is_ok());
 
     let mut budget = Budget::evaluation();

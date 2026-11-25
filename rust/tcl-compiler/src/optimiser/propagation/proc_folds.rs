@@ -280,26 +280,10 @@ pub(super) fn try_fold_static_proc_call(
     let Some(cr) = &summary.constant_return else {
         return;
     };
-    let replacement = match cr {
-        ConstantReturn::Int(i) => i.to_string(),
-        ConstantReturn::Float(f) => {
-            let Some(text) = crate::tcl_expr_eval::format_tcl_value_with_policy(
-                &crate::tcl_expr_eval::TclValue::Float(*f),
-                ctx.fold_policy(),
-            ) else {
-                return;
-            };
-            text
-        }
-        ConstantReturn::Bool(true) => "1".to_owned(),
-        ConstantReturn::Bool(false) => "0".to_owned(),
-        ConstantReturn::Str(s) => {
-            if is_value_safe_bare_word(s) {
-                s.clone()
-            } else {
-                return;
-            }
-        }
+    let Some(replacement) =
+        exact_proc_return_text(ctx, cr).filter(|text| is_value_safe_bare_word(text))
+    else {
+        return;
     };
     // The span here covers the whole Statement::Call — applying
     // the literal replacement would turn `::answer` into a
@@ -316,7 +300,7 @@ pub(super) fn try_fold_static_proc_call(
             summary.qualified_name
         ),
         span,
-        replacement,
+        replacement.to_owned(),
     );
     opt.hint_only = true;
     ctx.report(opt);
@@ -498,20 +482,27 @@ pub(super) fn try_o103_proc_fold(
     Some((summary.qualified_name.clone(), replacement))
 }
 
-fn render_proc_constant_return(
+fn render_proc_constant_return(ctx: &PassContext<'_>, constant: &ConstantReturn) -> Option<String> {
+    render_propagation_word(exact_proc_return_text(ctx, constant)?, ctx.lexer_config())
+}
+
+fn exact_proc_return_text<'a>(
     ctx: &PassContext<'_>,
-    constant: &crate::interprocedural::ConstantReturn,
-) -> Option<String> {
-    Some(match constant {
-        ConstantReturn::Int(value) => value.to_string(),
-        ConstantReturn::Float(value) => crate::tcl_expr_eval::format_tcl_value_with_policy(
-            &crate::tcl_expr_eval::TclValue::Float(*value),
+    constant: &'a ConstantReturn,
+) -> Option<&'a str> {
+    let exact = constant.exact();
+    let text = exact.bytes.as_str();
+    if let Some(tcl_registry::value_transfer::NumericValue::Float(value)) = exact.numeric
+        && crate::tcl_expr_eval::format_tcl_value_with_policy(
+            &crate::tcl_expr_eval::TclValue::Float(value),
             ctx.fold_policy(),
-        )?,
-        ConstantReturn::Bool(true) => "1".to_owned(),
-        ConstantReturn::Bool(false) => "0".to_owned(),
-        ConstantReturn::Str(value) => render_propagation_word(value, ctx.lexer_config())?,
-    })
+        )
+        .as_deref()
+            != Some(text)
+    {
+        return None;
+    }
+    Some(text)
 }
 
 /// Whether a procedure's argument-independent constant return answers a

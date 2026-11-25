@@ -190,13 +190,12 @@ pub fn summarise_for_statement(
     }
     let mut env = initial_constants.clone();
     for (name, slot) in run.state {
-        match slot {
-            Slot::Value(value) => {
-                env.insert(name, exact_to_const(&value));
-            }
-            Slot::Scalar | Slot::Unbound => {
-                env.remove(&name);
-            }
+        if let Slot::Value(value) = slot
+            && let Some(value) = exact_to_const(&value)
+        {
+            env.insert(name, value);
+        } else {
+            env.remove(&name);
         }
     }
     Some(env)

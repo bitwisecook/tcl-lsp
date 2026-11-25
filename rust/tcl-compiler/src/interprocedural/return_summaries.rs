@@ -346,7 +346,7 @@ pub(super) fn summarise_returns(
             _ => None,
         },
     };
-    if let Some(constant) = constant.and_then(constant_return_of) {
+    if let Some(constant) = constant.and_then(ConstantReturn::from_exact) {
         return (true, Some(constant), None, Vec::new());
     }
     // Passthrough: every return is Passthrough of the same param.
@@ -370,28 +370,4 @@ pub(super) fn summarise_returns(
     depends.sort();
     depends.dedup();
     (false, None, None, depends)
-}
-
-/// The typed form of an exact return value, chosen so that
-/// [`ConstantReturn::text`] spells it back byte for byte: an integer only
-/// for its canonical decimal, a double only for the spelling Tcl prints it
-/// with, a boolean only for `true` or `false` as written, and the text
-/// otherwise — `007`, `1.00`, `1e3`, `TRUE` and ` 5` are text. `None` for
-/// bytes that are not text.
-fn constant_return_of(value: &ExactValue) -> Option<ConstantReturn> {
-    let text = value.as_str().ok()?;
-    if let Some(int) = ExactValue::from_literal(text).as_int() {
-        return Some(ConstantReturn::Int(int));
-    }
-    if let Ok(double) = text.parse::<f64>()
-        && double.is_finite()
-        && tcl_syntax::number::format_double(double) == text
-    {
-        return Some(ConstantReturn::Float(double));
-    }
-    // Rust's boolean grammar is exactly `true` and `false`.
-    Some(text.parse::<bool>().map_or_else(
-        |_| ConstantReturn::Str(text.to_owned()),
-        ConstantReturn::Bool,
-    ))
 }

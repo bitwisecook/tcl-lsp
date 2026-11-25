@@ -659,10 +659,10 @@ enum StoreOutcome {
 /// A Tcl string preserved byte for byte, with its representation
 /// evidence carried separately. Produced by the routes' value ingress;
 /// consumed by every value consumer.
-struct ExactValue {
-    bytes: Vec<u8>,
+struct ExactValue<Bytes = Vec<u8>> {
+    bytes: Bytes,
     /// Numeric classification as an additional fact, never a respelling.
-    numeric: Option<ConstValue>,
+    numeric: Option<NumericValue>,
     representation: RepresentationEvidence,
 }
 

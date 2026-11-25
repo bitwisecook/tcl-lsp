@@ -26,7 +26,7 @@
 use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
-use tcl_registry::value_transfer::ExactValue;
+use tcl_registry::value_transfer::{ExactValue, NumericValue, RepresentationEvidence};
 
 use crate::ir::ProcedureId;
 use crate::side_effects::EffectRegion;
@@ -174,30 +174,76 @@ impl ProcArgTrait {
     }
 }
 
-/// A proven-constant return value.
+/// A procedure's byte-exact return text and its reporting classification.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConstantReturn {
-    /// Integer.
-    Int(i64),
-    /// Float.
-    Float(f64),
-    /// Boolean (rendered as `"true"` / `"false"`).
-    Bool(bool),
-    /// String.
-    Str(String),
-}
+pub struct ConstantReturn(ExactValue<String>);
 
 impl ConstantReturn {
+    /// Classify only spellings that this summary can reproduce byte for byte.
+    pub(crate) fn from_exact(value: &ExactValue) -> Option<Self> {
+        let text = value.as_str().ok()?;
+        let numeric = ExactValue::from_literal(text)
+            .numeric
+            .or_else(|| {
+                let value = text.parse::<f64>().ok().filter(|value| value.is_finite())?;
+                (ExactValue::shortest_double(value).bytes == text.as_bytes())
+                    .then_some(NumericValue::Float(value))
+            })
+            .or_else(|| text.parse::<bool>().ok().map(NumericValue::Bool));
+        Some(Self::with_reading(text.to_owned(), numeric))
+    }
+
+    fn with_reading(text: String, numeric: Option<NumericValue>) -> Self {
+        Self(ExactValue {
+            bytes: text,
+            numeric,
+            representation: RepresentationEvidence::Unknown,
+        })
+    }
+
+    /// An integer with its canonical decimal spelling.
+    #[must_use]
+    pub fn int(value: i64) -> Self {
+        Self::with_reading(value.to_string(), Some(NumericValue::Int(value)))
+    }
+
+    /// A double in the shortest spelling used by the summary wire format.
+    #[must_use]
+    pub fn float(value: f64) -> Self {
+        Self::with_reading(
+            tcl_syntax::number::format_double(value),
+            Some(NumericValue::Float(value)),
+        )
+    }
+
+    /// A boolean spelled `true` or `false` in the returned text.
+    #[must_use]
+    pub fn boolean(value: bool) -> Self {
+        Self::with_reading(value.to_string(), Some(NumericValue::Bool(value)))
+    }
+
+    /// Text without a numeric reading.
+    #[must_use]
+    pub fn string(value: String) -> Self {
+        Self::with_reading(value, None)
+    }
+
+    /// The stored return text and its numeric reading.
+    #[must_use]
+    pub const fn exact(&self) -> &ExactValue<String> {
+        &self.0
+    }
+
     /// Lower into the canonical `(kind, text)` wire form. `kind`
     /// is one of `"int"`, `"float"`, `"bool"`, `"str"`; `text` is
     /// [`Self::text`], the value as the procedure returns it.
     #[must_use]
     pub fn as_kind_text(&self) -> (&'static str, String) {
-        let kind = match self {
-            Self::Int(_) => "int",
-            Self::Float(_) => "float",
-            Self::Bool(_) => "bool",
-            Self::Str(_) => "str",
+        let kind = match self.0.numeric {
+            Some(NumericValue::Int(_)) => "int",
+            Some(NumericValue::Float(_)) => "float",
+            Some(NumericValue::Bool(_)) => "bool",
+            None => "str",
         };
         (kind, self.text())
     }
@@ -207,12 +253,7 @@ impl ConstantReturn {
     /// for byte, so a fold spells the value exactly.
     #[must_use]
     pub fn text(&self) -> String {
-        match self {
-            Self::Int(i) => i.to_string(),
-            Self::Float(f) => tcl_syntax::number::format_double(*f),
-            Self::Bool(b) => b.to_string(),
-            Self::Str(s) => s.clone(),
-        }
+        self.0.bytes.clone()
     }
 }
 

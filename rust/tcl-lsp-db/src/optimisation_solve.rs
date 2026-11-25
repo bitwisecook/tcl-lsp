@@ -76,7 +76,7 @@ pub struct OptCalleeSummary {
 
 #[cfg(test)]
 pub(super) fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
-    use tcl_compiler::interprocedural::ConstantReturn;
+    use tcl_registry::value_transfer::NumericValue;
     let mut param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)> = s
         .param_traits
         .iter()
@@ -98,12 +98,15 @@ pub(super) fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         params: s.params.clone(),
         can_fold_static_calls: s.can_fold_static_calls,
         returns_constant: s.returns_constant,
-        constant_return: s.constant_return.as_ref().map(|cr| match cr {
-            ConstantReturn::Int(i) => ConstReturnKey::Int(*i),
-            ConstantReturn::Float(f) => ConstReturnKey::FloatBits(f.to_bits()),
-            ConstantReturn::Bool(b) => ConstReturnKey::Bool(*b),
-            ConstantReturn::Str(t) => ConstReturnKey::Str(t.clone()),
-        }),
+        constant_return: s
+            .constant_return
+            .as_ref()
+            .map(|cr| match cr.exact().numeric {
+                Some(NumericValue::Int(value)) => ConstReturnKey::Int(value),
+                Some(NumericValue::Float(value)) => ConstReturnKey::FloatBits(value.to_bits()),
+                Some(NumericValue::Bool(value)) => ConstReturnKey::Bool(value),
+                None => ConstReturnKey::Str(cr.text()),
+            }),
         pure: s.pure,
         writes_global: s.writes_global,
         has_barrier: s.has_barrier,
@@ -125,10 +128,10 @@ pub(super) fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
     s.can_fold_static_calls = o.can_fold_static_calls;
     s.returns_constant = o.returns_constant;
     s.constant_return = o.constant_return.as_ref().map(|cr| match cr {
-        ConstReturnKey::Int(i) => ConstantReturn::Int(*i),
-        ConstReturnKey::FloatBits(b) => ConstantReturn::Float(f64::from_bits(*b)),
-        ConstReturnKey::Bool(b) => ConstantReturn::Bool(*b),
-        ConstReturnKey::Str(t) => ConstantReturn::Str(t.clone()),
+        ConstReturnKey::Int(i) => ConstantReturn::int(*i),
+        ConstReturnKey::FloatBits(b) => ConstantReturn::float(f64::from_bits(*b)),
+        ConstReturnKey::Bool(b) => ConstantReturn::boolean(*b),
+        ConstReturnKey::Str(t) => ConstantReturn::string(t.clone()),
     });
     s.pure = o.pure;
     s.writes_global = o.writes_global;

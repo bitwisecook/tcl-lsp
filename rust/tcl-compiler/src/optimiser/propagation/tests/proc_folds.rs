@@ -172,23 +172,25 @@ fn o103_cmd_subst_fires_applicable_rewrite() {
     use tcl_registry::CommandRegistry;
     let registry = CommandRegistry::build_default()
         .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
-    let source = "proc ::answer {} { return 42 }\nputs [::answer]";
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
-    ctx.registry = Some(&registry);
-    run(&mut ctx, &cu);
-    let o103s: Vec<_> = ctx
-        .optimisations
-        .iter()
-        .filter(|o| o.code == DiagCode::O103)
-        .collect();
-    assert!(
-        o103s.iter().any(|o| !o.hint_only
-            && o.replacement == "42"
-            && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
-        "expected applicable O103 spanning `[::answer]`, got {o103s:?}",
-    );
+    for text in ["42", "true", "false"] {
+        let source = format!("proc ::answer {{}} {{ return {text} }}\nputs [::answer]");
+        let cu = CompilationUnit::build_for(&source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        ctx.registry = Some(&registry);
+        run(&mut ctx, &cu);
+        let o103s: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|o| o.code == DiagCode::O103)
+            .collect();
+        assert!(
+            o103s.iter().any(|o| !o.hint_only
+                && o.replacement == text
+                && &source[o.span.start() as usize..o.span.end() as usize] == "[::answer]"),
+            "expected applicable O103 spelling {text}, got {o103s:?}",
+        );
+    }
 }
 
 #[test]

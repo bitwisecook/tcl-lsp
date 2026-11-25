@@ -153,10 +153,7 @@ fn redefined_method_joins_over_every_retained_body() {
     assert_eq!(methods.len(), 2);
     for m in methods {
         assert!(m.base.pure);
-        assert!(matches!(
-            m.base.constant_return,
-            Some(ConstantReturn::Int(7))
-        ));
+        assert_eq!(m.base.constant_return, Some(ConstantReturn::int(7)));
     }
 }
 

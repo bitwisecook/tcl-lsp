@@ -58,16 +58,8 @@ pub(crate) fn const_to_exact(c: &ConstValue) -> ExactValue {
 pub(crate) fn const_into_exact(c: ConstValue) -> ExactValue {
     match c {
         ConstValue::Int(i) => ExactValue::int(i),
-        ConstValue::Float(f) => ExactValue {
-            bytes: tcl_syntax::number::format_double(f).into_bytes(),
-            numeric: Some(NumericValue::Float(f)),
-            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
-        },
-        ConstValue::Bool(b) => ExactValue {
-            bytes: (if b { "1" } else { "0" }).as_bytes().to_vec(),
-            numeric: Some(NumericValue::Bool(b)),
-            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
-        },
+        ConstValue::Float(f) => ExactValue::shortest_double(f),
+        ConstValue::Bool(b) => ExactValue::boolean(b),
         ConstValue::String(s) => ExactValue::text(s),
     }
 }
@@ -87,34 +79,20 @@ pub fn format_constant_with_policy(c: &ConstValue, policy: FoldPolicy) -> Option
     const_text(c)
 }
 
-/// An exact value as a lattice constant: the classification when it has
-/// one, else the exact text. A double is kept as one only where its text is
-/// [`tcl_syntax::number::format_double`]'s, which is what
-/// [`const_to_exact`] spells it back as; a release that spells it otherwise
-/// (`1e-05` under 8.4 and Jim) keeps the text, which reads back as the same
-/// double.
-pub(crate) fn exact_to_const(value: &ExactValue) -> ConstValue {
-    match value.numeric {
+/// The lattice's textual projection of an exact value. Numeric alternatives
+/// retain their classification only when their spelling survives projection.
+pub(crate) fn exact_to_const(value: &ExactValue) -> Option<ConstValue> {
+    Some(match value.canonical_numeric() {
         Some(NumericValue::Int(i)) => ConstValue::Int(i),
-        Some(NumericValue::Float(f))
-            if value.bytes == tcl_syntax::number::format_double(f).as_bytes() =>
-        {
-            ConstValue::Float(f)
-        }
-        Some(NumericValue::Float(_)) => {
-            ConstValue::String(String::from_utf8_lossy(&value.bytes).into_owned())
-        }
+        Some(NumericValue::Float(f)) => ConstValue::Float(f),
         Some(NumericValue::Bool(b)) => ConstValue::Bool(b),
-        None => ConstValue::String(String::from_utf8_lossy(&value.bytes).into_owned()),
-    }
+        None => ConstValue::String(value.as_str().ok()?.to_owned()),
+    })
 }
 
 /// An exact value's lattice projection; bytes that are not text decline.
 pub(crate) fn exact_to_lattice(value: &ExactValue) -> LatticeValue {
-    if value.numeric.is_none() && std::str::from_utf8(&value.bytes).is_err() {
-        return LatticeValue::Overdefined;
-    }
-    LatticeValue::Const(exact_to_const(value))
+    exact_to_const(value).map_or(LatticeValue::Overdefined, LatticeValue::Const)
 }
 
 /// The SSA identity of a value key, packed.

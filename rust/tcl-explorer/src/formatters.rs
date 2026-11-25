@@ -282,9 +282,11 @@ pub(crate) fn py_repr_str(s: &str) -> String {
 /// A constant return as the fold spells it ([`ConstantReturn::text`]), text
 /// quoted `repr()`-style.
 fn constant_return_text(c: &ConstantReturn) -> String {
-    match c {
-        ConstantReturn::Str(s) => py_repr_str(s),
-        _ => c.text(),
+    let (kind, text) = c.as_kind_text();
+    if kind == "str" {
+        py_repr_str(&text)
+    } else {
+        text
     }
 }
 
@@ -374,7 +376,7 @@ fn const_value_repr(c: &ConstValue) -> String {
         // No release is selected here, so the fold has no proved spelling for
         // a double; the view shows the one a constant return shows.
         ConstValue::Float(value) => {
-            format_constant(c).unwrap_or_else(|| ConstantReturn::Float(*value).text())
+            format_constant(c).unwrap_or_else(|| ConstantReturn::float(*value).text())
         }
         _ => format_constant(c).unwrap_or_default(),
     }
@@ -496,11 +498,11 @@ mod tests {
     #[test]
     fn a_constant_return_is_spelled_as_the_fold_spells_it() {
         for (constant, shape) in [
-            (ConstantReturn::Int(7), "const(7)"),
-            (ConstantReturn::Float(1.0), "const(1.0)"),
-            (ConstantReturn::Float(1e301), "const(1e+301)"),
-            (ConstantReturn::Bool(true), "const(true)"),
-            (ConstantReturn::Str("a b".to_owned()), "const('a b')"),
+            (ConstantReturn::int(7), "const(7)"),
+            (ConstantReturn::float(1.0), "const(1.0)"),
+            (ConstantReturn::float(1e301), "const(1e+301)"),
+            (ConstantReturn::boolean(true), "const(true)"),
+            (ConstantReturn::string("a b".to_owned()), "const('a b')"),
         ] {
             let summary = ProcSummary {
                 returns_constant: true,

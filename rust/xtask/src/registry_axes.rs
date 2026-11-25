@@ -251,6 +251,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     for problem in ratchet_verdicts(&lint, RATCHET, CLEAN_FILES)
         .into_iter()
         .chain(lint.problems.iter().cloned())
+        .chain(constant_owner_verdicts(&root)?)
     {
         failed = true;
         eprintln!("registry-axes: {problem}");
@@ -279,6 +280,58 @@ pub fn run(check: bool) -> Result<ExitCode> {
         lint.ratchet_hits.len(),
     );
     Ok(ExitCode::SUCCESS)
+}
+
+fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
+    const COMPILER: &str = "rust/tcl-compiler/src";
+    let mut problems = Vec::new();
+    for (file, name) in [
+        (
+            "rust/tcl-registry/src/value_transfer/const_ops.rs",
+            "ConstValue",
+        ),
+        ("rust/tcl-compiler/src/interprocedural.rs", "ConstantReturn"),
+    ] {
+        let source =
+            fs::read_to_string(root.join(file)).with_context(|| format!("reading {file}"))?;
+        if !has_exact_value_view(&source, name) {
+            problems.push(format!("{file}: {name} must retain one ExactValue payload"));
+        }
+    }
+
+    let mut files = Vec::new();
+    collect_rs_files(&root.join(COMPILER), &mut files);
+    let mut parsers = Vec::new();
+    for file in files {
+        let source =
+            fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
+        for pair in tokens(&source).windows(2) {
+            if ident(&source, &pair[0]) == Some("fn")
+                && ident(&source, &pair[1]) == Some("parse_literal_value")
+            {
+                parsers.push(file.strip_prefix(root)?.display().to_string());
+            }
+        }
+    }
+    if parsers.as_slice() != ["rust/tcl-compiler/src/sccp/evaluation.rs"] {
+        problems.push(format!(
+            "parse_literal_value belongs to SCCP, found {parsers:?}"
+        ));
+    }
+    Ok(problems)
+}
+
+fn has_exact_value_view(source: &str, name: &str) -> bool {
+    syn::parse_file(source).is_ok_and(|file| {
+        file.items.iter().any(|item| {
+            let syn::Item::Struct(item) = item else { return false };
+            let syn::Fields::Unnamed(fields) = &item.fields else { return false };
+            item.ident == name && fields.unnamed.len() == 1 && matches!(
+                &fields.unnamed[0].ty,
+                syn::Type::Path(field) if field.path.segments.last().is_some_and(|segment| segment.ident == "ExactValue")
+            )
+        })
+    })
 }
 
 // The vocabulary
@@ -1123,6 +1176,19 @@ fn render_ratchet(out: &mut String, lint: &Lint) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn constant_views_require_one_exact_value_payload() {
+        assert!(has_exact_value_view(
+            "struct View(ExactValue<String>);",
+            "View"
+        ));
+        assert!(!has_exact_value_view(
+            "struct View(String, ExactValue);",
+            "View"
+        ));
+        assert!(!has_exact_value_view("enum View { Text(String) }", "View"));
+    }
 
     fn vocabulary_of(words: &[(&str, &'static str)]) -> Vocabulary {
         let mut vocabulary = Vocabulary::default();

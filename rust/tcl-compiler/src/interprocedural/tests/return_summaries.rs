@@ -25,7 +25,7 @@ fn constant_return_inferred_for_literal_proc() {
     let ia = build("proc ::f {} { return 1 }");
     let s = fixture_proc(&ia, "::f").unwrap();
     assert!(s.returns_constant);
-    assert_eq!(s.constant_return, Some(ConstantReturn::Int(1)));
+    assert_eq!(s.constant_return, Some(ConstantReturn::int(1)));
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn conditional_return_is_constant_when_all_paths_return() {
     let ia = build("proc ::f {x} { if {$x > 0} { return 7 } else { return 7 } }");
     let s = fixture_proc(&ia, "::f").unwrap();
     assert!(s.returns_constant);
-    assert_eq!(s.constant_return, Some(ConstantReturn::Int(7)));
+    assert_eq!(s.constant_return, Some(ConstantReturn::int(7)));
 }
 
 #[test]

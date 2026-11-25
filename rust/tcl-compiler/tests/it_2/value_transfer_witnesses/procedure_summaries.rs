@@ -169,7 +169,7 @@ fn o103_summary_path_folds_a_computed_return() {
         assert!(summary.can_fold_static_calls, "{dialect}: {summary:?}");
         assert_eq!(
             summary.constant_return,
-            Some(ConstantReturn::Str("foo".to_owned())),
+            Some(ConstantReturn::string("foo".to_owned())),
             "{dialect}"
         );
 
@@ -228,12 +228,16 @@ fn o103_summary_path_folds_a_computed_return() {
 #[test]
 fn the_summary_returns_the_value_exactly() {
     let literals = [
-        ("1.0", Some(ConstantReturn::Float(1.0)), "1.0"),
-        ("1.00", Some(ConstantReturn::Str("1.00".to_owned())), "1.00"),
-        ("1e3", Some(ConstantReturn::Str("1e3".to_owned())), "1e3"),
-        ("007", Some(ConstantReturn::Str("007".to_owned())), "007"),
-        ("true", Some(ConstantReturn::Bool(true)), "true"),
-        ("{$a}", Some(ConstantReturn::Str("$a".to_owned())), "$a"),
+        ("1.0", Some(ConstantReturn::float(1.0)), "1.0"),
+        (
+            "1.00",
+            Some(ConstantReturn::string("1.00".to_owned())),
+            "1.00",
+        ),
+        ("1e3", Some(ConstantReturn::string("1e3".to_owned())), "1e3"),
+        ("007", Some(ConstantReturn::string("007".to_owned())), "007"),
+        ("true", Some(ConstantReturn::boolean(true)), "true"),
+        ("{$a}", Some(ConstantReturn::string("$a".to_owned())), "$a"),
     ];
     for (word, constant, printed) in literals {
         let source = format!("proc p {{a}} {{return {word}}}\nputs [p 1]\n");
@@ -355,7 +359,7 @@ fn bump_decides_through_both_o103_paths() {
         );
         let p = summary_of(source, dialect, "::p");
         assert!(p.pure && p.can_fold_static_calls, "{dialect}: {p:?}");
-        assert_eq!(p.constant_return, Some(ConstantReturn::Int(2)), "{dialect}");
+        assert_eq!(p.constant_return, Some(ConstantReturn::int(2)), "{dialect}");
         let q = summary_of(source, dialect, "::q");
         assert!(q.pure && q.constant_return.is_none(), "{dialect}: {q:?}");
         let (rewritten, _) = optimised(source, dialect);

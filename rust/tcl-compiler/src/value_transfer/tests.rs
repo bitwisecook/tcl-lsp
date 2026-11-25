@@ -406,7 +406,7 @@ fn a_loop_header_binds_each_binder_its_elements() {
         LatticeValue::constset(
             texts
                 .iter()
-                .map(|text| exact_to_const(&ExactValue::from_literal(text)))
+                .map(|text| crate::sccp::parse_literal_value(text))
                 .collect(),
         )
     };
@@ -1627,8 +1627,22 @@ fn lattice_constants_round_trip_through_exact_values() {
         ConstValue::String("a\\b".into()),
         ConstValue::String("08".into()),
     ] {
-        assert_eq!(exact_to_const(&const_to_exact(&c)), c, "{c:?}");
+        assert_eq!(exact_to_const(&const_to_exact(&c)), Some(c));
     }
+}
+
+#[test]
+fn lattice_projection_keeps_noncanonical_numeric_bytes_and_declines_nontext() {
+    use tcl_registry::value_transfer::NumericValue;
+
+    let mut value = ExactValue::text("010");
+    value.numeric = Some(NumericValue::Int(10));
+    assert_eq!(
+        exact_to_const(&value),
+        Some(ConstValue::String("010".to_owned()))
+    );
+    value.bytes = vec![0xff];
+    assert_eq!(exact_to_lattice(&value), LatticeValue::Overdefined);
 }
 
 #[test]
