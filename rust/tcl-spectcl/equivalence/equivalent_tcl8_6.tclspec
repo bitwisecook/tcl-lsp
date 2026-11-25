@@ -11046,6 +11046,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         is_unescape
+        literal_argument_validator -native encoding::convertfrom::literal_argument_validator
         side_effect Variable -writes -available {tcl 9.0-}
 
         option -profile -takes profile -values-from encoding-convertfrom-profile -closed -available {tcl 9.0-} \
@@ -11065,6 +11066,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         byte_array_effect Encodes
+        literal_argument_validator -native encoding::convertto::literal_argument_validator
 
         refine value {
             arity 1..2
@@ -11111,6 +11113,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
+        literal_argument_validator -native encoding::system::literal_argument_validator
         side_effect InterpState -reads -writes
     }
 
@@ -12074,6 +12077,8 @@ command file {
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
 
+    literal_argument_validator -native file::literal_argument_validator
+
     side_effect FileIo -reads -writes
 
     runtime_backing shipped-builtin file
@@ -12083,7 +12088,7 @@ command file {
     hover {
         summary {Manipulate file names and attributes}
         synopsis {file option name ?arg arg ...?}
-        description {Dispatches on option to one of many operations on a file's name (dirname/tail/extension/join/split/normalize, all pure string or path-table operations) or its on-disk attributes (exists/isdirectory/isfile/readable/writable/executable/owned, atime/mtime/size/type/stat, copy/rename/delete/mkdir, link/readlink, attributes). name undergoes tilde substitution if it starts with ~. Any unique abbreviation of option is accepted, matching Tcl's ensemble-style dispatch.}
+        description {Dispatches on option to one of many operations on a file's name (dirname/tail/extension/join/split/normalize, all pure string or path-table operations) or its on-disk attributes (exists/isdirectory/isfile/readable/writable/executable/owned, atime/mtime/size/type/stat, copy/rename/delete/mkdir, link/readlink, attributes). Any unique abbreviation of option is accepted, matching Tcl's ensemble-style dispatch.}
         source {Tcl file(n)}
         example {file exists $path
 file mkdir [file dirname $path]

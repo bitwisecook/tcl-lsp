@@ -26655,6 +26655,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         is_unescape
+        literal_argument_validator -native encoding::convertfrom::literal_argument_validator
         side_effect Variable -writes -available {tcl 9.0-}
 
         option -profile -takes profile -values-from encoding-convertfrom-profile -closed -available {tcl 9.0-} \
@@ -26674,6 +26675,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         byte_array_effect Encodes
+        literal_argument_validator -native encoding::convertto::literal_argument_validator
 
         refine value {
             arity 1..2
@@ -26720,6 +26722,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
+        literal_argument_validator -native encoding::system::literal_argument_validator
         side_effect InterpState -reads -writes
     }
 
