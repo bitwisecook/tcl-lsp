@@ -36,7 +36,6 @@ use tcl_registry::value_transfer::{
     LoopStep, PlaceKind, PlaceRef, StoreOutcome,
 };
 
-use crate::analyses::ConstValue;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 #[cfg(test)]
@@ -62,41 +61,8 @@ pub(crate) use original_simulation::{
 /// return `None` rather than simulate any further.
 pub const DEFAULT_MAX_STATIC_LOOP_ITERS: u64 = 4096;
 
-/// A constant a `for`-loop summary reports: integer, float, boolean, or
-/// string.
-#[derive(Debug, Clone, PartialEq)]
-pub enum StaticValue {
-    /// Integer.
-    Int(i64),
-    /// Floating-point.
-    Float(f64),
-    /// Boolean (maps to integer 0/1 on numeric contexts).
-    Bool(bool),
-    /// String.
-    Str(String),
-}
-
-impl From<ConstValue> for StaticValue {
-    fn from(value: ConstValue) -> Self {
-        match value {
-            ConstValue::Int(i) => Self::Int(i),
-            ConstValue::Float(f) => Self::Float(f),
-            ConstValue::Bool(b) => Self::Bool(b),
-            ConstValue::String(s) => Self::Str(s),
-        }
-    }
-}
-
-impl From<StaticValue> for ConstValue {
-    fn from(value: StaticValue) -> Self {
-        match value {
-            StaticValue::Int(i) => Self::Int(i),
-            StaticValue::Float(f) => Self::Float(f),
-            StaticValue::Bool(b) => Self::Bool(b),
-            StaticValue::Str(s) => Self::String(s),
-        }
-    }
-}
+/// The lattice constant projection used by static loop summaries.
+pub use crate::analyses::ConstValue as StaticValue;
 
 /// The constants a `for`-loop summary starts from and reports — variable
 /// name → current constant value.
@@ -215,10 +181,7 @@ pub fn summarise_for_statement(
         state.set(name, Slot::Scalar);
     }
     for (name, value) in initial_constants {
-        state.set(
-            name.clone(),
-            Slot::Value(const_into_exact(value.clone().into())),
-        );
+        state.set(name.clone(), Slot::Value(const_into_exact(value.clone())));
     }
     let driver = LatticeDriver::over_registry(semantics.registry, semantics.policy);
     let run = enumerate_loop(&driver, &stmt, state, (false, max_iterations), &|_| false).ok()?;
@@ -229,7 +192,7 @@ pub fn summarise_for_statement(
     for (name, slot) in run.state {
         match slot {
             Slot::Value(value) => {
-                env.insert(name, exact_to_const(&value).into());
+                env.insert(name, exact_to_const(&value));
             }
             Slot::Scalar | Slot::Unbound => {
                 env.remove(&name);

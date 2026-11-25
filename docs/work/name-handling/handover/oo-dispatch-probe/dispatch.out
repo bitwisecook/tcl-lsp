@@ -42,8 +42,8 @@ PROBE c11-command-prefix.tcl tcl8.6:
 PROBE c11-command-prefix.tcl tcl9.0: 
 PROBE c12-coroutine.tcl tcl8.6: [W241 L1 "1" while is provably infinite: condition is constant true and the body ne]
 PROBE c12-coroutine.tcl tcl9.0: [W241 L1 "1" while is provably infinite: condition is constant true and the body ne]
-PROBE c13-namespace-code.tcl tcl8.6: [W307 L3 "$c" Non-literal command name — cannot statically analyse]
-PROBE c13-namespace-code.tcl tcl9.0: [W307 L3 "$c" Non-literal command name — cannot statically analyse]
+PROBE c13-namespace-code.tcl tcl8.6: 
+PROBE c13-namespace-code.tcl tcl9.0: 
 PROBE c14-trace-exec.tcl tcl8.6: 
 PROBE c14-trace-exec.tcl tcl9.0: 
 PROBE c15-interp-slave.tcl tcl8.6: 

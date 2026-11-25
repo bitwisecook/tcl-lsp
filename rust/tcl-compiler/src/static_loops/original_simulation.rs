@@ -26,27 +26,16 @@
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
+use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, const_to_env_value};
+use crate::value_transfer::format_constant_with_policy;
 
 #[cfg(test)]
 use super::simple_var_ref;
 use super::{StaticEnv, StaticValue};
 
-impl StaticValue {
-    /// Project mathematical contents, without proving a fresh native object.
-    pub(crate) fn to_env_value(&self) -> EnvValue {
-        match self {
-            Self::Int(i) => EnvValue::Int(*i),
-            Self::Float(f) => EnvValue::Float(*f),
-            Self::Bool(b) => EnvValue::Int(i64::from(*b)),
-            Self::Str(s) => EnvValue::Str(s.clone()),
-        }
-    }
-}
-
 fn env_as_tcl_env(env: &StaticEnv) -> Env {
     env.iter()
-        .map(|(k, v)| (k.clone(), v.to_env_value()))
+        .map(|(k, v)| (k.clone(), const_to_env_value(v)))
         .collect()
 }
 
@@ -127,7 +116,7 @@ fn resolve_switch_subject(text: &str, env: &StaticEnv, policy: FoldPolicy) -> Op
         let config =
             tcl_lexer::LexerConfig::from_grammar(policy.preparation_context()?.lexer_grammar);
         let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config)?;
-        return static_string_contents(env.get(name)?, policy);
+        return format_constant_with_policy(env.get(name)?, policy);
     }
     Some(strip_word_delimiters(stripped))
 }
@@ -396,7 +385,7 @@ fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
     match value {
         StaticValue::Int(value) => Some(*value),
         StaticValue::Bool(value) => Some(i64::from(*value)),
-        StaticValue::Str(value) => {
+        StaticValue::String(value) => {
             let parse = |syntax| {
                 tcl_syntax::number::parse_whole_with(
                     value,
@@ -432,14 +421,14 @@ fn static_expression_contents(
 ) -> Option<StaticValue> {
     use crate::tcl_expr_eval::NativeExpressionResultDependency as Dependency;
     match &evaluation.result_dependency {
-        Some(Dependency::StringResult { bytes }) => Some(StaticValue::Str(bytes.clone())),
+        Some(Dependency::StringResult { bytes }) => Some(StaticValue::String(bytes.clone())),
         Some(Dependency::SelectedOperand {
             reference,
             existing_bytes,
             ..
         }) => {
             if let Some(bytes) = existing_bytes {
-                return Some(StaticValue::Str(bytes.clone()));
+                return Some(StaticValue::String(bytes.clone()));
             }
             let name =
                 tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config?)?;
@@ -466,7 +455,7 @@ fn exec_statement(
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } => {
-            env.insert(name.clone(), StaticValue::Str(value.clone()));
+            env.insert(name.clone(), StaticValue::String(value.clone()));
             true
         }
         Statement::AssignExpr {
@@ -493,7 +482,7 @@ fn exec_statement(
             };
             let value = argument
                 .literal_data()
-                .map(StaticValue::Str)
+                .map(StaticValue::String)
                 .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
             let Some(value) = value else {
                 return false;
@@ -559,7 +548,7 @@ fn exec_increment(
         None => 1,
         Some(text) => {
             let operand = if amount_braced {
-                StaticValue::Str(text.to_owned())
+                StaticValue::String(text.to_owned())
             } else if let Some(argument) =
                 crate::registry_invocation::original_source_argument_for_script(
                     source, stmt, 1, text,
@@ -567,14 +556,14 @@ fn exec_increment(
             {
                 let value = argument
                     .literal_data()
-                    .map(StaticValue::Str)
+                    .map(StaticValue::String)
                     .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
                 let Some(value) = value else {
                     return false;
                 };
                 value
             } else {
-                StaticValue::Str(text.to_owned())
+                StaticValue::String(text.to_owned())
             };
             let Some(amount) = static_integer(&operand, simulation.policy) else {
                 return false;
@@ -687,7 +676,7 @@ fn exec_original_switch(
     }
     let subject = case.subject_data().map(str::to_owned).or_else(|| {
         let value = environment.get(case.scalar_subject_name()?)?;
-        static_string_contents(value, simulation.policy)
+        format_constant_with_policy(value, simulation.policy)
     });
     let Some(subject) = subject.filter(|value| !value.contains('\0')) else {
         return false;
@@ -705,17 +694,6 @@ fn exec_original_switch(
     default_body
         .as_ref()
         .is_none_or(|body| exec_script(body, environment, simulation))
-}
-
-fn static_string_contents(value: &StaticValue, policy: FoldPolicy) -> Option<String> {
-    Some(match value {
-        StaticValue::Int(value) => value.to_string(),
-        StaticValue::Float(value) => {
-            crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*value), policy)?
-        }
-        StaticValue::Bool(value) => (if *value { "1" } else { "0" }).to_owned(),
-        StaticValue::Str(value) => value.clone(),
-    })
 }
 
 fn exec_switch(

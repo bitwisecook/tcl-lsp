@@ -93,9 +93,9 @@ c12-coroutine.tcl	tcl8.6	folded	same
 c12-coroutine.tcl	tcl9.0	analyser	W241@1
 c12-coroutine.tcl	tcl9.0	folder	O101
 c12-coroutine.tcl	tcl9.0	folded	same
-c13-namespace-code.tcl	tcl8.6	analyser	W307@3
+c13-namespace-code.tcl	tcl8.6	analyser	
 c13-namespace-code.tcl	tcl8.6	folder	
-c13-namespace-code.tcl	tcl9.0	analyser	W307@3
+c13-namespace-code.tcl	tcl9.0	analyser	
 c13-namespace-code.tcl	tcl9.0	folder	
 c14-trace-exec.tcl	tcl8.6	analyser	
 c14-trace-exec.tcl	tcl8.6	folder	

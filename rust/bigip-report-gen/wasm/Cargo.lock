@@ -1543,6 +1543,8 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "sha2",
  "smallvec",
  "tcl-cmd-core",

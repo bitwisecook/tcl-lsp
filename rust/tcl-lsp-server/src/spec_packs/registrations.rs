@@ -354,6 +354,40 @@ fn external_pack_file_watcher(base: &Path, pattern: &str) -> Option<FileSystemWa
     })
 }
 
+#[cfg(test)]
+#[test]
+fn windows_pack_uri_spelling_matches_did_open_document_key() {
+    use crate::uri_norm::{canonical_uri_string, normalise_uris_in_params};
+    use tcl_lsp_core::file_uri::vscode_document_spelling;
+    use tower_lsp_server::ls_types::Uri;
+
+    for (base, editor_uri) in [
+        (
+            r"C:\workspace\private pack",
+            "file:///c%3A/workspace/private%20pack",
+        ),
+        (
+            r"\\?\C:\workspace\private pack",
+            "file:///C%3a/workspace/private%20pack",
+        ),
+        (
+            r"\\?\UNC\server\share\private pack",
+            "file://server/share/private%20pack",
+        ),
+    ] {
+        let projected = vscode_document_spelling(base, true).unwrap();
+        let pack_uri: Uri = canonical_uri_string(&projected).parse().unwrap();
+        let mut opened = serde_json::json!({ "textDocument": { "uri": editor_uri } });
+        normalise_uris_in_params(&mut opened);
+        let document_uri: Uri = opened["textDocument"]["uri"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(pack_uri, document_uri, "{base}");
+    }
+}
+
 #[cfg(all(test, windows))]
 #[test]
 fn pack_watch_and_open_document_use_the_same_windows_uri() {

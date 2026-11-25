@@ -51,9 +51,13 @@ pub use original_value_facts::{
 #[cfg(test)]
 use original_value_facts::{evaluate_fixture_def, evaluate_fixture_def_with_folds};
 
+mod block_sweep;
 mod evaluation;
 mod solver;
+mod statement_transfer;
 
+#[cfg(test)]
+use block_sweep::sccp_process_phis;
 #[cfg(test)]
 use evaluation::resolve_simple_var_ref;
 pub(crate) use evaluation::{DefValues, RaisedDefs, with_whole_variable_operands};
@@ -64,7 +68,7 @@ pub use evaluation::{
 use solver::{Round, Solved, drive, typed_element_write_base};
 pub(crate) use solver::{SolveInputs, place_base, prior_version};
 #[cfg(test)]
-use solver::{StatementInputs, branch_deferrable, sccp_process_phis, sccp_process_statements};
+use solver::{StatementInputs, branch_deferrable, sccp_process_statements};
 use solver::{callback_writes_any, drive_escaping};
 
 // Public aliases
@@ -90,28 +94,6 @@ pub fn cfg_order(cfg: &CfgFunction) -> Vec<BlockId> {
         }
     }
     order
-}
-
-/// Sweep to the optimistic fixpoint, then reopen any branch still waiting
-/// on an unknown value and settle again with that conservative reachability.
-fn settle_reachability(mut sweep: impl FnMut(bool) -> bool) {
-    for finalizing in [false, true] {
-        while sweep(finalizing) {}
-    }
-}
-
-fn incoming_executable_predecessors(
-    block: BlockId,
-    predecessors: &HashMap<BlockId, HashSet<BlockId>>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
-) -> Vec<BlockId> {
-    predecessors
-        .get(&block)
-        .into_iter()
-        .flatten()
-        .copied()
-        .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
-        .collect()
 }
 
 enum BranchSelection {
@@ -1058,16 +1040,6 @@ pub fn sccp_with_extra_escaping(
         trace,
         None,
     )
-}
-
-/// The blocks executable before the sweep starts: the entry, when the
-/// function has one.
-fn entry_block_set(cfg: &CfgFunction) -> HashSet<BlockId> {
-    cfg.blocks
-        .contains_key(&cfg.entry)
-        .then_some(cfg.entry)
-        .into_iter()
-        .collect()
 }
 
 /// Like [`sccp_with_extra_escaping`] but with the whole-module command-trust

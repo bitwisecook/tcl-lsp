@@ -16,74 +16,71 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The optimistic fixpoint over the blocks in reverse post-order: seeds, φ joins and the per-block step.
+//! Optimiser-specific work at each reachable block of the shared SCCP sweep.
 
-use super::super::{incoming_executable_predecessors, join, set_value, settle_reachability};
+use super::super::block_sweep::{BlockSweepState, ExecutableBlock};
 use super::branches::sccp_process_terminator;
 use super::refinements::{narrow_values, restore_values};
 use super::statements::{clobber_at_unseen_call, sccp_process_statements};
-use super::{BlockExit, CatchBodies, StatementInputs, SweepContext, SweepState, TerminatorInputs};
+use super::{
+    BlockExit, CatchBodies, StatementInputs, SweepContext, SweepLifecycle, TerminatorInputs,
+};
 use crate::analyses::LatticeValue;
-use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::ssa::{SsaFunction, Symbol, ValueKey};
+use crate::cfg::BlockId;
+use crate::ssa::ValueKey;
 use crate::value_transfer::LatticeDriver;
-use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 
 impl SweepContext<'_> {
     /// Settle the optimiser's block transfers over the shared reachability sweep.
-    pub(super) fn settle(&self, order: &[BlockId], state: &mut SweepState) {
-        settle_reachability(|finalizing| {
-            // Every sweep re-evaluates each statement. Only the settled
-            // sweep's route entries belong in the reported tally.
-            self.driver.reset_tally_for_sweep();
-            self.driver.reset_undecided_for_sweep();
-            self.driver.open_iteration();
-            let mut changed = false;
-            for bn in order {
-                if state.executable_blocks.contains(bn) {
-                    changed |= self.block(*bn, state, finalizing);
-                }
-            }
-            changed
-        });
+    pub(super) fn settle(
+        &self,
+        order: &[BlockId],
+        state: &mut BlockSweepState,
+        lifecycle: &mut SweepLifecycle,
+    ) {
+        state.settle(
+            (self.cfg, self.ssa, self.preds),
+            order,
+            || {
+                // Every sweep re-evaluates each statement. Only the settled
+                // sweep's route entries belong in the reported tally.
+                self.driver.reset_tally_for_sweep();
+                self.driver.reset_undecided_for_sweep();
+                self.driver.open_iteration();
+            },
+            |block, state| self.block(block, state, lifecycle),
+        );
     }
 
-    /// One executable block of a sweep: its φs, its statements, the
-    /// existence rung through them, and its terminator's edges; whether
-    /// anything moved.
-    pub(in super::super) fn block(
+    fn block(
         &self,
-        bn: BlockId,
-        state: &mut SweepState,
-        finalizing: bool,
+        ExecutableBlock {
+            id: bn,
+            ssa: ssa_block,
+            incoming,
+            finalizing,
+        }: ExecutableBlock<'_>,
+        state: &mut BlockSweepState,
+        lifecycle: &mut SweepLifecycle,
     ) -> bool {
-        let Some(ssa_block) = self.ssa.blocks.get(&bn) else {
-            return false;
-        };
         let mut changed = false;
-        let incoming_exec =
-            incoming_executable_predecessors(bn, self.preds, &state.executable_edges);
-
-        // Phi nodes (not at entry, only when some predecessor is
-        // executable).
         if bn != self.cfg.entry {
-            changed |= sccp_process_phis(&mut state.values, ssa_block, &incoming_exec);
-            record_phi_folded_types(&state.values, ssa_block, &incoming_exec, self.driver);
+            record_phi_folded_types(&state.values, ssa_block, incoming, self.driver);
         }
 
         // The refinements every executable edge into the block carries
         // narrow the versions they name for its statements and its
         // terminator; the φs above read each version's own value.
-        let narrowed = self.narrow(bn, state, &mut changed);
+        let narrowed = self.narrow(bn, state, &mut lifecycle.refined, &mut changed);
 
         // The existence rung enters the block with the join of its
         // executable edges, which is each φ's fact.
-        let mut at = state.existence.as_mut().map(|run| {
+        let mut at = lifecycle.existence.as_mut().map(|run| {
             run.enter(
                 self.cfg,
                 (bn, ssa_block),
-                &incoming_exec,
+                incoming,
                 self.driver,
                 &mut changed,
             )
@@ -164,13 +161,14 @@ impl SweepContext<'_> {
     /// version a value-domain refinement in force there names; what each
     /// narrowed version held before, for [`restore_values`]. `changed` is
     /// set when the refinements the edges into `bn` carry moved.
-    pub(super) fn narrow(
+    fn narrow(
         &self,
         bn: BlockId,
-        state: &mut SweepState,
+        state: &mut BlockSweepState,
+        refinement_flow: &mut Option<super::RefinementFlow>,
         changed: &mut bool,
     ) -> Vec<(ValueKey, Option<LatticeValue>)> {
-        let Some(flow) = state.refined.as_mut() else {
+        let Some(flow) = refinement_flow.as_mut() else {
             return Vec::new();
         };
         let (moved, in_force) = flow.enter(self.cfg, self.preds, bn, &state.executable_edges);
@@ -199,122 +197,6 @@ impl SweepContext<'_> {
         }
         changed
     }
-}
-
-/// The lattice's starting values: the interprocedural parameter seed. The
-/// seed keys on the parameter *name* (a stable, cache-safe identity); each
-/// resolves to this build's interned symbol. A parameter never read in the
-/// body isn't interned, and its seed slot would never be consulted, so
-/// dropping it is behaviour-neutral.
-pub(in super::super) fn seeded_values(
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    symbol_of: impl Fn(&str) -> Option<Symbol>,
-) -> HashMap<ValueKey, LatticeValue> {
-    let mut values = HashMap::new();
-    for ((name, version), value) in param_constants.into_iter().flatten() {
-        if let Some(sym) = symbol_of(name) {
-            values.insert((sym, *version), value.clone());
-        }
-    }
-    values
-}
-
-/// Seed live-in roots to `Overdefined`: a value *used* but never *defined*
-/// anywhere in this function (a proc parameter, a global / namespace read, an
-/// upvar target, or an undefined-variable read) holds a runtime-unknown value,
-/// so it is `Overdefined`, not the `Unknown` join-identity (which would
-/// silently vanish from any phi it feeds — folding `join(const, $runtime)` to
-/// the constant).
-pub(in super::super) fn seed_live_in_roots<S: std::hash::BuildHasher>(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    values: &mut HashMap<ValueKey, LatticeValue, S>,
-    grammar: tcl_dialect::LexerGrammar,
-    branch_symbol: impl Fn(BlockId, &str) -> Option<Symbol>,
-) {
-    let mut defined_keys: FxHashSet<ValueKey> = FxHashSet::default();
-    let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
-    for ssa_block in ssa.blocks.values() {
-        for phi in &ssa_block.phis {
-            defined_keys.insert((phi.name, phi.version));
-            for inc in phi.incoming.values() {
-                // Record every phi feed, including the version-0 (entry /
-                // live-in) incoming: it is never a def, so it drops through
-                // to the `used_keys.difference(&defined_keys)` seeding below
-                // and is pinned `Overdefined`. This is what lets the phi
-                // join at [`sccp_process_phis`] see the caller's value
-                // instead of silently dropping it and folding to the
-                // defined-arm constant.
-                used_keys.insert((phi.name, *inc));
-            }
-        }
-        for s in &ssa_block.statements {
-            for (&var, ver) in &s.defs {
-                defined_keys.insert((var, *ver));
-            }
-            for (&var, ver) in &s.uses {
-                used_keys.insert((var, *ver));
-            }
-        }
-    }
-    // Branch-condition reads, resolved at each block's exit versions.
-    for (bn, block) in &cfg.blocks {
-        if let Some(Terminator::Branch { condition, .. }) = &block.terminator
-            && let Some(sb) = ssa.blocks.get(bn)
-        {
-            for var in crate::var_refs::vars_in_expr(condition, grammar) {
-                let Some(sym) = branch_symbol(*bn, &var) else {
-                    continue;
-                };
-                let ver = sb.exit_versions.get(&sym).copied().unwrap_or(0);
-                used_keys.insert((sym, ver));
-            }
-        }
-    }
-    for key in used_keys.difference(&defined_keys) {
-        values.entry(*key).or_insert(LatticeValue::Overdefined);
-    }
-}
-
-/// Join phi values from edge-executable predecessors for one block. Returns
-/// `true` if any lattice value changed. Extracted from [`sccp`].
-pub(in super::super) fn sccp_process_phis(
-    values: &mut HashMap<ValueKey, LatticeValue>,
-    ssa_block: &crate::ssa::SsaBlock,
-    incoming_exec: &[BlockId],
-) -> bool {
-    if incoming_exec.is_empty() {
-        return false;
-    }
-    let mut changed = false;
-    for phi in &ssa_block.phis {
-        let mut phi_val = LatticeValue::Unknown;
-        for pred in incoming_exec {
-            let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-            // A version-0 incoming is the entry / live-in root (a proc
-            // parameter, global, or other caller-supplied value). Its
-            // runtime value is unknown at compile time, so it joins in as
-            // `Overdefined` — never skipped. Skipping it would let a phi
-            // that merges a live-in with a defined-arm constant fold to
-            // that constant, miscompiling any `if {$param} { set x k }`
-            // followed by a test on `x`. This mirrors the interval pass,
-            // which joins `TOP` for `inc == 0` (intervals.rs:570-574).
-            // `seed_live_in_roots` pins `(name, 0)` `Overdefined`; the
-            // explicit default keeps the join correct even if a feed was
-            // never seeded.
-            let key: ValueKey = (phi.name, incoming_ver);
-            let candidate = values.get(&key).cloned().unwrap_or(if incoming_ver == 0 {
-                LatticeValue::Overdefined
-            } else {
-                LatticeValue::Unknown
-            });
-            phi_val = join(&phi_val, &candidate);
-        }
-        if set_value(values, (phi.name, phi.version), &phi_val) {
-            changed = true;
-        }
-    }
-    changed
 }
 
 /// Each φ's folded type: what every executable incoming value states alike

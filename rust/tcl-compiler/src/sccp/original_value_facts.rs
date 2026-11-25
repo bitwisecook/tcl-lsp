@@ -515,12 +515,6 @@ struct SolvedValueFacts {
     loops: HashMap<ExpressionEvaluationPoint, crate::static_loops::StaticLoopAnalysis>,
 }
 
-struct SettledValueFactState {
-    values: HashMap<ValueKey, LatticeValue>,
-    executable_blocks: HashSet<BlockId>,
-    executable_edges: HashSet<(BlockId, BlockId)>,
-}
-
 #[derive(Clone, Copy)]
 struct StatementInputs<'a> {
     store: &'a StoreInputs<'a>,

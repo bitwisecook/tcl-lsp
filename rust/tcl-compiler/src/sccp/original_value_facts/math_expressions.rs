@@ -28,7 +28,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::BlockId;
 use crate::expr_ast::ExprNode;
 use crate::ssa::{SsaSourceView, Symbol, ValueKey};
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
+use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, const_to_env_value};
 use std::collections::{HashMap, HashSet};
 
 impl MathDependencies {
@@ -441,15 +441,6 @@ pub(super) fn env_from_uses_numeric<'a, S1: std::hash::BuildHasher, S2: std::has
         }
     }
     env
-}
-
-pub(super) fn const_to_env_value(c: &ConstValue) -> EnvValue {
-    match c {
-        ConstValue::Int(i) => EnvValue::Int(*i),
-        ConstValue::Float(f) => EnvValue::Float(*f),
-        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-        ConstValue::String(s) => EnvValue::Str(s.clone()),
-    }
 }
 
 pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {

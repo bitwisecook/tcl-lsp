@@ -812,15 +812,57 @@ fn selected_scoped_prefix_result(
     if before.source_variables.namespace_identity.as_ref() != Some(&namespace) {
         return None;
     }
-    let path = namespace.exact_native_path()?;
+    let crate::signature_scan::scope::SignatureNamespaceScope::C(path) =
+        before.original_namespace_geometry(&namespace, script.policy())?
+    else {
+        return None;
+    };
     let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
         fresh_string_literals: [head, selector],
     } = handler.construction()
     else {
         return None;
     };
-    let namespace = tcl_syntax::naming::native_namespace_full_name_bytes(path);
+    let namespace = tcl_syntax::naming::native_namespace_full_name_bytes(&path);
     script.namespace_prefix_result(exact_value(0)?, [head, selector, &namespace])
+}
+
+/// The selected literal constructor uses the current namespace and the
+/// original script to build a result. Its deferred body remains data.
+pub(super) fn inline_scoped_prefix_preserves_world(
+    native: super::SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    before: &ModuleCommandBindings,
+    outcomes: &SourceOutcomes,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    if !matches!(
+        native.compilation_selection,
+        tcl_registry::native_compilation::NativeCompilationSelection::Inline {
+            operation: tcl_registry::SemanticOperationId::Intrinsic(
+                tcl_registry::IntrinsicId::NamespaceCode
+            ),
+            ..
+        }
+    ) || !native.target.registry_backed
+        || native.target.kind != super::BindingKind::Builtin
+        || facts.body_execution
+            != Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredNamespaceScript)
+        || facts.effects.requires_world_barrier()
+        || !outcomes.abrupt.is_empty()
+    {
+        return false;
+    }
+    let Some(argument) = facts.native_result.and_then(|contract| {
+        contract.normal_scoped_prefix_operand(native.invocation.arguments(), facts.argument_offset)
+    }) else {
+        return false;
+    };
+    outcomes.normal.as_ref().is_some_and(|normal| {
+        !normal.has_opaque_domain()
+            && selected_scoped_prefix_result(argument, before, normal, native.target, context)
+                .is_some()
+    })
 }
 
 /// Independent byte correspondence for selected original result operations.

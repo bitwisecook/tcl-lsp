@@ -125,6 +125,57 @@ fn phi_join_defaults_missing_version_zero_feed_to_overdefined() {
 }
 
 #[test]
+fn block_sweep_joins_new_edges_before_transfer() {
+    use crate::sccp::block_sweep::BlockSweepState;
+    let mut cfg = Function::new("::top", "entry");
+    let entry = cfg.entry;
+    let late = block(&mut cfg, "late");
+    let merge = block(&mut cfg, "merge");
+    let mut ssa = make_ssa(&cfg, vec![]);
+    let x = ssa.intern_var("x");
+    ssa.blocks
+        .get_mut(&merge)
+        .unwrap()
+        .phis
+        .push(crate::ssa::Phi {
+            name: x,
+            version: 2,
+            incoming: HashMap::from([(entry, 1), (late, 0)]),
+        });
+    let predecessors = HashMap::from([(merge, HashSet::from([entry, late]))]);
+    let value = LatticeValue::Const(ConstValue::Int(5));
+    let mut state = BlockSweepState::new(&cfg, HashMap::from([((x, 1), value.clone())]));
+    let mut observed = Vec::new();
+    state.settle(
+        (&cfg, &ssa, &predecessors),
+        &[entry, late, merge],
+        || {},
+        |block, state| {
+            if block.id == merge {
+                observed.push((block.finalizing, state.values[&(x, 2)].clone()));
+                return false;
+            }
+            let target = if block.id == entry && block.finalizing {
+                late
+            } else {
+                merge
+            };
+            state.executable_edges.insert((block.id, target))
+                | state.executable_blocks.insert(target)
+        },
+    );
+    assert_eq!(
+        observed,
+        [
+            (false, value.clone()),
+            (false, value),
+            (true, LatticeValue::Overdefined),
+            (true, LatticeValue::Overdefined),
+        ]
+    );
+}
+
+#[test]
 fn sccp_marks_entry_executable_and_propagates_const() {
     // entry: set x 42
     let mut f = Function::new("::top", "entry");

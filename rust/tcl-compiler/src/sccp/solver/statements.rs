@@ -19,6 +19,10 @@
 //! Evaluating the statements of one block: definitions, barriers, calls to unseen code and statements that certainly raise.
 
 use super::super::evaluation::{DefValues, RaisedDefs, evaluate_defs_under};
+pub(super) use super::super::statement_transfer::held_value;
+use super::super::statement_transfer::{
+    BarrierHistory, FreshClobber, transfer_fresh_clobbers, widen_barrier_values, widen_held_values,
+};
 use super::super::{join, set_value};
 use super::loop_enumeration::catch_body_answer;
 use super::{BlockExit, ExistenceAt, StatementInputs, StatementsRun, is_externally_mutable};
@@ -88,10 +92,7 @@ fn widen_source_may_statement(
     if !ssa.source_may_clobber_is_current_at(block, index) {
         // A changed CFG cannot retain a partial source footprint as
         // permission to preserve the rest of the frame.
-        let keys: Vec<_> = values.keys().copied().collect();
-        for key in keys {
-            changed |= set_value(values, key, &LatticeValue::Overdefined);
-        }
+        changed |= widen_held_values(values, |_| true);
         driver.forget_folded();
         driver.existence_clobber(|_| Existence::MayBound);
     }
@@ -240,23 +241,17 @@ pub(super) fn clobber_at_unseen_call(
     (index, clobbers, completes): (usize, Option<&crate::ssa::BlockValueClobbers>, bool),
     (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
 ) -> bool {
-    let mut changed = false;
     let fresh_versions = clobbers.and_then(|markers| markers.get(&index));
-    for (&var, &(prior, fresh)) in fresh_versions.into_iter().flatten() {
-        let kept = !completes
-            || (driver.proven_pure_parameters()
-                && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_))));
-        let value = if kept {
-            held_value(values, (var, prior))
-        } else {
-            LatticeValue::Overdefined
-        };
-        driver.record_folded(
-            (var, fresh),
-            kept.then(|| driver.folded_of((var, prior))).flatten(),
-        );
-        changed |= set_value(values, (var, fresh), &value);
-    }
+    let policy = if completes {
+        FreshClobber::Reached {
+            protected_parameters: driver.proven_pure_parameters(),
+        }
+    } else {
+        FreshClobber::Unreached
+    };
+    let mut changed = transfer_fresh_clobbers(values, fresh_versions, policy, |key, kept| {
+        driver.record_folded(key, kept.and_then(|prior| driver.folded_of(prior)));
+    });
     if let Some(at) = existence {
         if completes {
             at.finish_statement(index, driver);
@@ -292,44 +287,10 @@ fn widen_at_barrier(
     if stmt_ssa.statement.is_return_barrier() {
         return changed;
     }
-    // Barriers widen all currently-tracked values — EXCEPT
-    // version-0 (parameter) seeds, which hold the caller's
-    // literal and are immutable across the barrier (a barrier
-    // that mutates the var produces a fresh version), so a
-    // callee `dict with $param` still sees the interproc
-    // literal.
-    //
-    // `UpFrame` (the CFG shape for a literal-body `uplevel`)
-    // shares this treatment: `uplevel 1 {…}` / `uplevel #0 {…}`
-    // evaluates its body in a DIFFERENT frame — the caller's, or
-    // the absolute global one — so it can reassign any name
-    // visible there, exactly like an opaque barrier. Reproduced
-    // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
-    // puts [expr {$n + 1}]` prints `100`; before this widening,
-    // the optimiser proposed folding to the stale `6`.
-    let keys: Vec<ValueKey> = values.keys().copied().collect();
-    for k in keys {
-        if k.1 == 0 {
-            continue;
-        }
-        if set_value(values, k, &LatticeValue::Overdefined) {
-            changed = true;
-        }
-    }
-    // A widened value states nothing of its type either.
+    // A widened value carries no folded type. `UpFrame` can reassign names
+    // in another frame visible to this procedure and widens in the same way.
+    changed |= widen_barrier_values(values, &stmt_ssa.defs, BarrierHistory::WidenNonEntry);
     driver.forget_folded();
-    // A barrier also *defines* variables of its own (e.g. `dict for {x
-    // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
-    // set them to anything — so set each to `Overdefined`. Without this
-    // the def key is never inserted (the widen loop above only touches
-    // keys already present), so it stays `Unknown` and vanishes from a
-    // downstream phi join, letting a phi that merges a barrier-def with
-    // a constant fold to that constant and miscompile a following test.
-    for (&var, ver) in &stmt_ssa.defs {
-        if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
-            changed = true;
-        }
-    }
     // Every place is may-bound after a barrier, as every value is
     // widened.
     if let Some(at) = existence {
@@ -483,19 +444,6 @@ fn n17_source_only_definition(value: bool, key: ValueKey) -> bool {
     #[cfg(not(debug_assertions))]
     let _ = key;
     value
-}
-
-/// The value `key` holds, as a φ reads it: a version no statement has defined
-/// yet is the `Unknown` identity, and the entry's own is `Overdefined`.
-pub(super) fn held_value<S: std::hash::BuildHasher>(
-    values: &HashMap<ValueKey, LatticeValue, S>,
-    key: ValueKey,
-) -> LatticeValue {
-    values.get(&key).cloned().unwrap_or(if key.1 == 0 {
-        LatticeValue::Overdefined
-    } else {
-        LatticeValue::Unknown
-    })
 }
 
 /// The definitions of the statement at `index` of a block that never runs

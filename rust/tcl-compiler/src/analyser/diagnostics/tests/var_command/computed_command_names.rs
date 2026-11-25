@@ -42,6 +42,39 @@ fn w307_selected_alias_slot_does_not_require_a_live_terminal_command() {
 }
 
 #[test]
+fn w307_expanded_prefix_uses_the_original_dispatch_point() {
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(
+            !has_code(
+                "set command {list first}\nputs [{*}$command second]",
+                dialect,
+                "W307",
+            ),
+            "{dialect}: expansion selects a present command slot"
+        );
+        assert!(
+            has_code(
+                "set command {phase1_missing_prefix call}\nputs [{*}$command second]",
+                dialect,
+                "W307",
+            ),
+            "{dialect}: expansion of a missing head still warns"
+        );
+    }
+}
+
+#[test]
+fn w307_stock_namespace_capture_keeps_the_proved_expanded_command() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/work/name-handling/handover/oo-dispatch-probe/dispatch/c13-namespace-code.tcl",
+    ));
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(!has_code(source, dialect, "W307"), "{dialect}");
+    }
+}
+
+#[test]
 fn w307_absence_advice_does_not_override_custom_fallback_uncertainty() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
         let dispatches = "set cmd definitely_missing; $cmd one; $cmd two";
