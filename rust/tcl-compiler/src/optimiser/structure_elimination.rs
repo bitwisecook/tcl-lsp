@@ -56,14 +56,15 @@
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 
-use crate::analyses::{ConstValue, LatticeValue};
+use crate::analyses::LatticeValue;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement, SwitchArm};
 use crate::sccp::BranchFactKind;
 use crate::ssa::SsaSourceView;
 use crate::tcl_expr_eval::{
-    Env, EnvValue, FoldPolicy, eval_tcl_expr_with_math_bindings, leading_zero_is_octal,
+    Env, EnvValue, FoldPolicy, const_to_env_value, eval_tcl_expr_with_math_bindings,
+    leading_zero_is_octal,
 };
 use tcl_registry::value_transfer::ExactValue;
 
@@ -140,13 +141,7 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
         if !cvs.iter().all(|cv| *cv == first) {
             continue;
         }
-        let entry = match first {
-            ConstValue::Int(i) => EnvValue::Int(*i),
-            ConstValue::Float(f) => EnvValue::Float(*f),
-            ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-            ConstValue::String(s) => EnvValue::Str(s.clone()),
-        };
-        env.insert(source_name.to_owned(), entry);
+        env.insert(source_name.to_owned(), const_to_env_value(first));
     }
     env
 }
@@ -161,12 +156,12 @@ fn decide(ctx: &PassContext<'_>, condition: &ExprNode, env: &Env) -> Option<bool
     let constants: HashMap<String, ExactValue> = env
         .iter()
         .map(|(name, value)| {
-            let value = match value {
-                EnvValue::Int(i) => ConstValue::Int(*i),
-                EnvValue::Float(f) => ConstValue::Float(*f),
-                EnvValue::Str(s) => ConstValue::String(s.clone()),
+            let exact = match value {
+                EnvValue::Int(i) => ExactValue::int(*i),
+                EnvValue::Float(f) => ExactValue::shortest_double(*f),
+                EnvValue::Str(value) => value.clone().into_byte_value(),
             };
-            (name.clone(), crate::value_transfer::const_to_exact(&value))
+            (name.clone(), exact)
         })
         .collect();
     crate::value_transfer::decide_condition_detached(
@@ -654,12 +649,13 @@ fn resolve_subject(
             &crate::tcl_expr_eval::TclValue::Float(*f),
             policy,
         ),
-        EnvValue::Str(s) => Some(s.clone()),
+        EnvValue::Str(value) => Some(value.bytes.clone()),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::analyses::ConstValue;
     use crate::interprocedural::test_body_identity::fixture_id;
 
     use super::*;
@@ -708,7 +704,7 @@ mod tests {
     #[test]
     fn resolve_subject_dollar_var_looks_up_env() {
         let mut env = Env::new();
-        env.insert("x".into(), EnvValue::Str("hi".into()));
+        env.insert("x".into(), EnvValue::text("hi"));
         assert_eq!(
             resolve_subject("$x", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
             Some("hi")

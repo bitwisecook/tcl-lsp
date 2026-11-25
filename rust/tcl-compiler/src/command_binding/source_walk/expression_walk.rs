@@ -749,10 +749,7 @@ fn source_expression_truth(
                 let value = state
                     .source_variables
                     .substitution_literal_value(text, registry)?;
-                env.insert(
-                    name.clone(),
-                    crate::tcl_expr_eval::EnvValue::Str(value.to_owned()),
-                );
+                env.insert(name.clone(), crate::tcl_expr_eval::EnvValue::text(value));
             }
             ExprNode::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
             ExprNode::Unary { operand, .. } => pending.push(operand),

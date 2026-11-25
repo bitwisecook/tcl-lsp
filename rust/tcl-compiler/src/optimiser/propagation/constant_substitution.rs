@@ -98,7 +98,7 @@ pub(super) fn try_substitute_assign_expr(
         .map(|(name, value)| {
             (
                 name.clone(),
-                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+                crate::tcl_expr_eval::EnvValue::text(value.as_str()),
             )
         })
         .collect::<Env>();

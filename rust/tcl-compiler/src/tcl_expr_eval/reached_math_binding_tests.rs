@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use tcl_registry::value_transfer::RepresentationEvidence;
+
 use super::*;
 
 #[test]
@@ -24,7 +26,9 @@ fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let policy = FoldPolicy::default().with_invocation_dialect(jim);
-    let env = Env::from([("x".into(), EnvValue::Str("003".into()))]);
+    let mut value = ExactValue::utf8("003");
+    value.representation = RepresentationEvidence::Constructed(tcl_registry::TclType::String);
+    let env = Env::from([("x".into(), EnvValue::Str(value.clone()))]);
     let original = crate::expr_parser::parse_expr("1?$x:0", None);
     let result =
         analyse_tcl_expr_with_resolved_math_bindings(&original, &env, policy, &|_, _| None, None)
@@ -39,8 +43,8 @@ fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
         Some(NativeExpressionResultDependency::SelectedOperand {
             reference: "$x".into(),
             start: Some(2),
-            existing_value: Some(tcl_registry::value_transfer::ExactValue::utf8("003")),
-        },)
+            existing_value: Some(value),
+        })
     );
     assert!(!result.native_value_effects_are_proved());
     assert_eq!(
@@ -109,7 +113,7 @@ fn known_string_bytes_do_not_erase_an_unproved_operand_materialisation() {
         tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let original = crate::expr_parser::parse_expr("$x eq \"hello\"", None);
-    let environment = Env::from([("x".into(), EnvValue::Str("hello".into()))]);
+    let environment = Env::from([("x".into(), EnvValue::text("hello"))]);
     let analysis = analyse_tcl_expr_with_resolved_math_bindings(
         &original,
         &environment,

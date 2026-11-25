@@ -119,7 +119,7 @@ fn folds_match_actual_current_jim() {
 fn membership_precedence_folds_match_c_tcl() {
     let env = Env::from([
         ("a".to_owned(), EnvValue::Int(2)),
-        ("l".to_owned(), EnvValue::Str("1".to_owned())),
+        ("l".to_owned(), EnvValue::text("1")),
     ]);
     for version in TclVersion::ALL {
         let profile = DialectProfile::find(version.dialect_profile_name()).unwrap();

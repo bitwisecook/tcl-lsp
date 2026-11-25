@@ -497,7 +497,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         let value = match self.env.get(name) {
             Some(EnvValue::Int(i)) => FoldValue::Int(*i),
             Some(EnvValue::Float(f)) => FoldValue::Float(*f),
-            Some(EnvValue::Str(s)) => FoldValue::text(s.as_str()),
+            Some(EnvValue::Str(value)) => FoldValue::Str(value.clone()),
             None => return Err(()), // unbound → can't fold
         };
         if self.intrinsic_math {

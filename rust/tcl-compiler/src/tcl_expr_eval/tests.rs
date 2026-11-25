@@ -168,8 +168,8 @@ fn evaluate_expr_fractional_float_none() {
 #[test]
 fn evaluate_expr_decodes_a_string_binding() {
     let mut env = Env::new();
-    env.insert("flag".into(), EnvValue::Str("true".into()));
-    env.insert("n".into(), EnvValue::Str("42".into()));
+    env.insert("flag".into(), EnvValue::text("true"));
+    env.insert("n".into(), EnvValue::text("42"));
     let value = |text: &str| value_86_env(text, &env);
     assert_eq!(value("$flag"), Some(TclValue::Int(1)));
     assert_eq!(value("$n + 1"), Some(TclValue::Int(43)));
@@ -905,7 +905,7 @@ fn nan_comparisons_follow_tcl_unordered_rule() {
     // tclsh: `set x NaN; expr {$x == 1}` → 0, `!=` → 1, every ordering
     // comparison → 0 — numeric-unordered, NOT a string comparison.
     let mut env = Env::new();
-    env.insert("x".to_owned(), EnvValue::Str("NaN".to_owned()));
+    env.insert("x".to_owned(), EnvValue::text("NaN"));
     assert_eq!(value_86_env("$x == 1", &env), Some(TclValue::Int(0)));
     assert_eq!(value_86_env("$x != 1", &env), Some(TclValue::Int(1)));
     assert_eq!(value_86_env("$x < 1", &env), Some(TclValue::Int(0)));
@@ -1248,7 +1248,7 @@ fn irules_str_equals() {
 #[test]
 fn irules_string_op_with_bound_variable() {
     let mut env = Env::new();
-    env.insert("name".into(), EnvValue::Str("production".into()));
+    env.insert("name".into(), EnvValue::text("production"));
     let profile = tcl_dialect::DialectProfile::irules();
     assert_eq!(
         value_over(

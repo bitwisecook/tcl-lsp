@@ -195,5 +195,5 @@ fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
     if let Ok(f) = text.parse::<f64>() {
         return EnvValue::Float(f);
     }
-    EnvValue::Str(text.to_owned())
+    EnvValue::text(text)
 }

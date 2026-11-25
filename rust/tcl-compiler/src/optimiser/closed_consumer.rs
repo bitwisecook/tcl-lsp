@@ -248,7 +248,7 @@ fn source_preparation_domain(
         match preparation_operation(registry, tokens.words(), dialect)? {
             SemanticOperationId::StructuredLowering(LoweringHookId::Set) => {
                 let (name, value) = assignment_words(tokens.words(), policy)?;
-                env.insert(name.to_owned(), EnvValue::Str(value.to_owned()));
+                env.insert(name.to_owned(), EnvValue::text(value));
             }
             SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite) => {
                 let [_, value] = tokens.words() else {
@@ -417,8 +417,7 @@ impl PlanBuilder<'_> {
         if !self.names.iter().any(|held| held == name) {
             self.names.push(name.to_owned());
         }
-        self.env
-            .insert(name.to_owned(), EnvValue::Str(value.to_owned()));
+        self.env.insert(name.to_owned(), EnvValue::text(value));
         Ok(())
     }
 
@@ -644,7 +643,7 @@ fn env_integer(env: &Env, name: &str, policy: FoldPolicy) -> Result<i64, ClosedS
     let Some(EnvValue::Str(value)) = env.get(name) else {
         return Err(ClosedSourceRefusal::Source);
     };
-    canonical_integer(value, policy)
+    canonical_integer(&value.bytes, policy)
 }
 
 fn bounded_arithmetic(

@@ -656,7 +656,7 @@ impl Builder<'_> {
                 .map(|(name, value)| {
                     (
                         name.clone(),
-                        crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+                        crate::tcl_expr_eval::EnvValue::text(value.as_str()),
                     )
                 })
                 .collect();

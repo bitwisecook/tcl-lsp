@@ -161,8 +161,16 @@ pub enum EnvValue {
     Int(i64),
     /// Float binding.
     Float(f64),
-    /// String binding — decoded as a literal on read.
-    Str(String),
+    /// Exact string binding, read under the selected numeral grammar.
+    Str(ExactValue<String>),
+}
+
+impl EnvValue {
+    /// A text binding without a numeric reading or representation evidence.
+    #[must_use]
+    pub fn text(text: impl Into<String>) -> Self {
+        Self::Str(ExactValue::utf8(text))
+    }
 }
 
 /// Project lattice contents into expression bindings without an object proof.
@@ -173,7 +181,7 @@ pub(crate) fn const_to_env_value(c: &crate::analyses::ConstValue) -> EnvValue {
         ConstValue::Int(i) => EnvValue::Int(*i),
         ConstValue::Float(f) => EnvValue::Float(*f),
         ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-        ConstValue::String(s) => EnvValue::Str(s.clone()),
+        ConstValue::String(s) => EnvValue::text(s.as_str()),
     }
 }
 

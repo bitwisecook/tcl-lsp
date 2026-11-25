@@ -23,6 +23,8 @@
 
 use std::sync::Arc;
 
+use tcl_registry::value_transfer::ExactValue;
+
 use crate::command_binding::SourceExpressionPreparation;
 use crate::tcl_expr_eval::TclValue;
 
@@ -1037,14 +1039,14 @@ pub(crate) fn source_read_operand(
 pub(crate) struct SourceIntegerContentsRead {
     dialect: tcl_registry::InvocationDialect,
     recipe: tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol,
-    contents: String,
+    contents: ExactValue<String>,
     number: TclValue,
     cells: Vec<crate::place::CellIdentity>,
 }
 
 impl SourceIntegerContentsRead {
     pub(crate) fn contents(&self) -> &str {
-        &self.contents
+        &self.contents.bytes
     }
     pub(crate) fn number(&self) -> &TclValue {
         &self.number
@@ -1061,7 +1063,7 @@ impl SourceIntegerContentsRead {
         contents: &str,
     ) -> bool {
         dialect == Some(self.dialect)
-            && contents == self.contents
+            && contents == self.contents.bytes
             && tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol::select(
                 self.dialect,
             ) == Some(self.recipe)
@@ -1138,7 +1140,7 @@ pub(crate) fn source_read_integer_contents(
     Some(SourceIntegerContentsRead {
         dialect,
         recipe,
-        contents,
+        contents: ExactValue::utf8(contents),
         number,
         cells,
     })
@@ -1234,7 +1236,7 @@ pub(crate) fn expression_operands_with_integer_contents(
                 let value = match &proof.value {
                     TclValue::Int(value) => EnvValue::Int(*value),
                     TclValue::Float(value) => EnvValue::Float(*value),
-                    TclValue::Big(value) => EnvValue::Str(value.to_string()),
+                    TclValue::Big(value) => EnvValue::text(value.to_string()),
                 };
                 environment.insert(name.clone(), value);
                 operands.insert(name, proof);
@@ -1256,7 +1258,7 @@ pub(crate) fn expression_operands_with_integer_contents(
                 {
                     return false;
                 }
-                environment.insert(name.clone(), EnvValue::Str(proof.contents().to_owned()));
+                environment.insert(name.clone(), EnvValue::Str(proof.contents.clone()));
                 integer_contents.insert(name, proof);
             }
             true

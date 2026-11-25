@@ -297,6 +297,11 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
             None,
         ),
         (
+            "rust/tcl-compiler/src/tcl_expr_eval.rs",
+            "EnvValue",
+            Some("Str"),
+        ),
+        (
             "rust/tcl-compiler/src/tcl_expr_eval/fold_ops.rs",
             "FoldValue",
             Some("Str"),

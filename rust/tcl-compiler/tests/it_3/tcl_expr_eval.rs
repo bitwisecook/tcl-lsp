@@ -154,7 +154,7 @@ fn float(f: f64) -> TclValue {
 /// the auto-coercion tests need).
 fn env_str(name: &str, value: &str) -> Env {
     let mut env = Env::new();
-    env.insert(name.to_owned(), EnvValue::Str(value.to_owned()));
+    env.insert(name.to_owned(), EnvValue::text(value));
     env
 }
 
@@ -1136,16 +1136,16 @@ fn irules_combined_string_ops_with_logical() {
 #[test]
 fn irules_combined_with_variables() {
     let mut env = Env::new();
-    env.insert("method".into(), EnvValue::Str("GET".into()));
-    env.insert("uri".into(), EnvValue::Str("/api/data".into()));
+    env.insert("method".into(), EnvValue::text("GET"));
+    env.insert("uri".into(), EnvValue::text("/api/data"));
     assert_eq!(
         eval_irules_env(r#"$method eq "GET" and $uri starts_with "/api""#, &env),
         Some(int(1))
     );
 
     let mut env2 = Env::new();
-    env2.insert("host".into(), EnvValue::Str("www.example.com".into()));
-    env2.insert("domain".into(), EnvValue::Str("example".into()));
+    env2.insert("host".into(), EnvValue::text("www.example.com"));
+    env2.insert("domain".into(), EnvValue::text("example"));
     assert_eq!(
         eval_irules_env("$host contains $domain", &env2),
         Some(int(1))
@@ -1153,7 +1153,7 @@ fn irules_combined_with_variables() {
 
     let mut env3 = Env::new();
     env3.insert("x".into(), EnvValue::Int(15));
-    env3.insert("uri".into(), EnvValue::Str("/admin/panel".into()));
+    env3.insert("uri".into(), EnvValue::text("/admin/panel"));
     assert_eq!(
         eval_irules_env(r#"($x > 10) and ($uri contains "/admin")"#, &env3),
         Some(int(1))

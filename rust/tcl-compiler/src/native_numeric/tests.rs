@@ -434,7 +434,7 @@ fn accepted_integer_contents_are_not_current_numeric_object_proofs() {
                 }
                 let wrong_env = crate::tcl_expr_eval::Env::from([(
                     "x".into(),
-                    crate::tcl_expr_eval::EnvValue::Str("6".into()),
+                    crate::tcl_expr_eval::EnvValue::text("6"),
                 )]);
                 assert!(
                     crate::tcl_expr_eval::analyse_tcl_expr_with_integer_contents(
