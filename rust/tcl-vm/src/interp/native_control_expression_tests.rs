@@ -435,13 +435,12 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                     "original Return has no Error annotation"
                 );
             }
-            let native = tcl_test_support::fixture::tsv_fields(
-                table
-                    .lines()
-                    .find(|line| line.starts_with(&format!("CASE\t{case}\t")))
-                    .unwrap(),
-            )
-            .collect::<Vec<_>>();
+            let case_marker = format!("CASE\t{case}\t");
+            let row = table
+                .lines()
+                .find(|line| line.starts_with(&case_marker))
+                .unwrap();
+            let native: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(
                 vm.with_native_interp_result(|result| storage(result, version))
                     .unwrap(),
