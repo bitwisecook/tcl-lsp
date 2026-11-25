@@ -4,11 +4,11 @@ c01-hash-mid-command.tcl	tcl8.6	folder
 c01-hash-mid-command.tcl	tcl9.0	analyser	E003@2
 c01-hash-mid-command.tcl	tcl9.0	folder	
 c02-semicolon-hash-forms.tcl	tcl8.6	analyser	
-c02-semicolon-hash-forms.tcl	tcl8.6	folder	O109,O119,O109,O119,O119,O109,O102,O102,O102,O100
-c02-semicolon-hash-forms.tcl	tcl8.6	folded	overlapping rewrites 0..7 and 0..8
+c02-semicolon-hash-forms.tcl	tcl8.6	folder	O109,hint:O119,O109,hint:O119,hint:O119,O109,hint:O102,hint:O102,hint:O102,O100
+c02-semicolon-hash-forms.tcl	tcl8.6	folded	same
 c02-semicolon-hash-forms.tcl	tcl9.0	analyser	
-c02-semicolon-hash-forms.tcl	tcl9.0	folder	O109,O109,O109,O102,O102,O102,O100
-c02-semicolon-hash-forms.tcl	tcl9.0	folded	overlapping rewrites 75..90 and 75..90
+c02-semicolon-hash-forms.tcl	tcl9.0	folder	O109,O109,O109,hint:O102,hint:O102,hint:O102,O100
+c02-semicolon-hash-forms.tcl	tcl9.0	folded	same
 c03-switch-body-comment-odd.tcl	tcl8.6	analyser	
 c03-switch-body-comment-odd.tcl	tcl8.6	folder	
 c03-switch-body-comment-odd.tcl	tcl9.0	analyser	

@@ -63,17 +63,17 @@
 16-self-constructor.tcl	tcl8.6	folder	
 16-self-constructor.tcl	tcl9.0	analyser	W154@7
 16-self-constructor.tcl	tcl9.0	folder	
-17-itcl-method.tcl	tcl8.6	analyser	W120@2 W154@7
+17-itcl-method.tcl	tcl8.6	analyser	W154@7
 17-itcl-method.tcl	tcl8.6	folder	
-17-itcl-method.tcl	tcl9.0	analyser	W120@2 W154@7
+17-itcl-method.tcl	tcl9.0	analyser	W154@7
 17-itcl-method.tcl	tcl9.0	folder	
-18-itcl-constructor.tcl	tcl8.6	analyser	W120@2 W154@7
+18-itcl-constructor.tcl	tcl8.6	analyser	W154@7
 18-itcl-constructor.tcl	tcl8.6	folder	
-18-itcl-constructor.tcl	tcl9.0	analyser	W120@2 W154@7
+18-itcl-constructor.tcl	tcl9.0	analyser	W154@7
 18-itcl-constructor.tcl	tcl9.0	folder	
-19-itcl-body.tcl	tcl8.6	analyser	W120@2 W120@5
+19-itcl-body.tcl	tcl8.6	analyser	
 19-itcl-body.tcl	tcl8.6	folder	
-19-itcl-body.tcl	tcl9.0	analyser	W120@2 W120@5
+19-itcl-body.tcl	tcl9.0	analyser	
 19-itcl-body.tcl	tcl9.0	folder	
 20-ns-proc.tcl	tcl8.6	analyser	W156@4 W154@6
 20-ns-proc.tcl	tcl8.6	folder	
@@ -83,11 +83,11 @@
 21-apply.tcl	tcl8.6	folder	
 21-apply.tcl	tcl9.0	analyser	W214@1 W156@3
 21-apply.tcl	tcl9.0	folder	
-22-singleton.tcl	tcl8.6	analyser	W002@1 W123@1
+22-singleton.tcl	tcl8.6	analyser	W002@1
 22-singleton.tcl	tcl8.6	folder	
 22-singleton.tcl	tcl9.0	analyser	W154@6
 22-singleton.tcl	tcl9.0	folder	
-23-abstract.tcl	tcl8.6	analyser	W002@1 W123@1
+23-abstract.tcl	tcl8.6	analyser	W002@1
 23-abstract.tcl	tcl8.6	folder	
 23-abstract.tcl	tcl9.0	analyser	W154@6
 23-abstract.tcl	tcl9.0	folder	
@@ -103,9 +103,9 @@
 26-objdefine-class.tcl	tcl8.6	folder	
 26-objdefine-class.tcl	tcl9.0	analyser	
 26-objdefine-class.tcl	tcl9.0	folder	
-27-itcl-proc.tcl	tcl8.6	analyser	W120@2 W154@7
+27-itcl-proc.tcl	tcl8.6	analyser	W154@7
 27-itcl-proc.tcl	tcl8.6	folder	
-27-itcl-proc.tcl	tcl9.0	analyser	W120@2 W154@7
+27-itcl-proc.tcl	tcl9.0	analyser	W154@7
 27-itcl-proc.tcl	tcl9.0	folder	
 28-snit-method.tcl	tcl8.6	analyser	W154@7
 28-snit-method.tcl	tcl8.6	folder	

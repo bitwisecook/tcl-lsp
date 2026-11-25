@@ -100,17 +100,17 @@ e24-uncaught-error-trace.tcl	tcl8.6	folder
 e24-uncaught-error-trace.tcl	tcl9.0	analyser	
 e24-uncaught-error-trace.tcl	tcl9.0	folder	
 e25-catch-for-loop-var.tcl	tcl8.6	analyser	W210@2 W210@2 W210@4 W302@4
-e25-catch-for-loop-var.tcl	tcl8.6	folder	O101,O102
-e25-catch-for-loop-var.tcl	tcl8.6	folded	differs: before [0] a::3 ¶ b:2 ¶ c:0 | after [1] a::3 ¶ b:2 ¶ can't read "z": no such variable ¶     while executing ¶ "return "c:$z" " ¶     (procedure "c" line 1) ¶     invoked from within ¶ "c" ¶     invoked from within ¶ "puts [c]" ¶     (file "e25-catch-for-loop-var.tcl" line 5)
+e25-catch-for-loop-var.tcl	tcl8.6	folder	O101,hint:O102
+e25-catch-for-loop-var.tcl	tcl8.6	folded	same
 e25-catch-for-loop-var.tcl	tcl9.0	analyser	W210@2 W210@2 W210@4 W302@4
-e25-catch-for-loop-var.tcl	tcl9.0	folder	O101,O102
-e25-catch-for-loop-var.tcl	tcl9.0	folded	differs: before [0] a::3 ¶ b:2 ¶ c:0 | after [1] a::3 ¶ b:2 ¶ can't read "z": no such variable ¶     while executing ¶ "return "c:$z" " ¶     (procedure "c" line 1) ¶     invoked from within ¶ "c" ¶     invoked from within ¶ "puts [c]" ¶     (file "e25-catch-for-loop-var.tcl" line 5)
-e26-for-break-step.tcl	tcl8.6	analyser	W220@2
-e26-for-break-step.tcl	tcl8.6	folder	O101,O102,O109,O102,O107
-e26-for-break-step.tcl	tcl8.6	folded	overlapping rewrites 142..150 and 142..151
-e26-for-break-step.tcl	tcl9.0	analyser	W220@2
-e26-for-break-step.tcl	tcl9.0	folder	O101,O102,O109,O102,O107
-e26-for-break-step.tcl	tcl9.0	folded	overlapping rewrites 142..150 and 142..151
+e25-catch-for-loop-var.tcl	tcl9.0	folder	O101,hint:O102
+e25-catch-for-loop-var.tcl	tcl9.0	folded	same
+e26-for-break-step.tcl	tcl8.6	analyser	
+e26-for-break-step.tcl	tcl8.6	folder	O101,hint:O102,hint:O102
+e26-for-break-step.tcl	tcl8.6	folded	same
+e26-for-break-step.tcl	tcl9.0	analyser	
+e26-for-break-step.tcl	tcl9.0	folder	O101,hint:O102,hint:O102
+e26-for-break-step.tcl	tcl9.0	folded	same
 e27-optimiser-try-finally.tcl	tcl8.6	analyser	
 e27-optimiser-try-finally.tcl	tcl8.6	folder	
 e27-optimiser-try-finally.tcl	tcl9.0	analyser	
@@ -129,9 +129,9 @@ e30-after-return-level0.tcl	tcl8.6	folded	same
 e30-after-return-level0.tcl	tcl9.0	analyser	
 e30-after-return-level0.tcl	tcl9.0	folder	O100
 e30-after-return-level0.tcl	tcl9.0	folded	same
-e31-missing-variable-errorcode.tcl	tcl8.6	analyser	W210@2 W210@2
+e31-missing-variable-errorcode.tcl	tcl8.6	analyser	W210@2 W210@2 W210@2
 e31-missing-variable-errorcode.tcl	tcl8.6	folder	
-e31-missing-variable-errorcode.tcl	tcl9.0	analyser	W210@2 W210@2
+e31-missing-variable-errorcode.tcl	tcl9.0	analyser	W210@2 W210@2 W210@2
 e31-missing-variable-errorcode.tcl	tcl9.0	folder	
 e32-posix-errorcode.tcl	tcl8.6	analyser	
 e32-posix-errorcode.tcl	tcl8.6	folder	

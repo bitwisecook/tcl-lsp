@@ -49,8 +49,8 @@ e24-uncaught-error-trace.tcl	tcl8.6	-	review
 e24-uncaught-error-trace.tcl	tcl9.0	-	review
 e25-catch-for-loop-var.tcl	tcl8.6	W210@2 W210@2 W210@4 W302@4	review
 e25-catch-for-loop-var.tcl	tcl9.0	W210@2 W210@2 W210@4 W302@4	review
-e26-for-break-step.tcl	tcl8.6	W220@2	review
-e26-for-break-step.tcl	tcl9.0	W220@2	review
+e26-for-break-step.tcl	tcl8.6	-	review
+e26-for-break-step.tcl	tcl9.0	-	review
 e27-optimiser-try-finally.tcl	tcl8.6	-	review
 e27-optimiser-try-finally.tcl	tcl9.0	-	review
 e28-optimiser-return-level0.tcl	tcl8.6	-	review
@@ -59,7 +59,7 @@ e29-finally-reads-body-var.tcl	tcl8.6	W210@2	review
 e29-finally-reads-body-var.tcl	tcl9.0	W210@2	review
 e30-after-return-level0.tcl	tcl8.6	-	review
 e30-after-return-level0.tcl	tcl9.0	-	review
-e31-missing-variable-errorcode.tcl	tcl8.6	W210@2 W210@2	review
-e31-missing-variable-errorcode.tcl	tcl9.0	W210@2 W210@2	review
+e31-missing-variable-errorcode.tcl	tcl8.6	W210@2 W210@2 W210@2	review
+e31-missing-variable-errorcode.tcl	tcl9.0	W210@2 W210@2 W210@2	review
 e32-posix-errorcode.tcl	tcl8.6	-	review
 e32-posix-errorcode.tcl	tcl9.0	-	review

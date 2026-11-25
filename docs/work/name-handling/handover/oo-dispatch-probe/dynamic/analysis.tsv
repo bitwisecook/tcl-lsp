@@ -57,13 +57,13 @@ e13-subst.tcl	tcl8.6	analyser	W210@1
 e13-subst.tcl	tcl8.6	folder	
 e13-subst.tcl	tcl9.0	analyser	W210@1
 e13-subst.tcl	tcl9.0	folder	
-e14-dict-with.tcl	tcl8.6	analyser	
+e14-dict-with.tcl	tcl8.6	analyser	W210@3
 e14-dict-with.tcl	tcl8.6	folder	
-e14-dict-with.tcl	tcl9.0	analyser	
+e14-dict-with.tcl	tcl9.0	analyser	W210@3
 e14-dict-with.tcl	tcl9.0	folder	
-e15-unset-read.tcl	tcl8.6	analyser	
+e15-unset-read.tcl	tcl8.6	analyser	W210@1
 e15-unset-read.tcl	tcl8.6	folder	
-e15-unset-read.tcl	tcl9.0	analyser	
+e15-unset-read.tcl	tcl9.0	analyser	W210@1
 e15-unset-read.tcl	tcl9.0	folder	
 e16-alias-chain.tcl	tcl8.6	analyser	E002@5
 e16-alias-chain.tcl	tcl8.6	folder	
@@ -83,7 +83,7 @@ e19-apply-namespace.tcl	tcl8.6	analyser	W123@3
 e19-apply-namespace.tcl	tcl8.6	folder	
 e19-apply-namespace.tcl	tcl9.0	analyser	W123@3
 e19-apply-namespace.tcl	tcl9.0	folder	
-e20-const-90.tcl	tcl8.6	analyser	W002@1 W123@1
+e20-const-90.tcl	tcl8.6	analyser	W002@1
 e20-const-90.tcl	tcl8.6	folder	
 e20-const-90.tcl	tcl9.0	analyser	
 e20-const-90.tcl	tcl9.0	folder	O100
@@ -128,7 +128,7 @@ e30-rename-builtin-proc-wrap.tcl	tcl8.6	analyser	W113@2
 e30-rename-builtin-proc-wrap.tcl	tcl8.6	folder	
 e30-rename-builtin-proc-wrap.tcl	tcl9.0	analyser	W113@2
 e30-rename-builtin-proc-wrap.tcl	tcl9.0	folder	
-e31-namespace-eval-read.tcl	tcl8.6	analyser	
+e31-namespace-eval-read.tcl	tcl8.6	analyser	W210@3
 e31-namespace-eval-read.tcl	tcl8.6	folder	
 e31-namespace-eval-read.tcl	tcl9.0	analyser	
 e31-namespace-eval-read.tcl	tcl9.0	folder	

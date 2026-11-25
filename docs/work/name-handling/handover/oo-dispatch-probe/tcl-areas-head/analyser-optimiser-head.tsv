@@ -4,9 +4,9 @@ O	comments-continuations	c01-hash-mid-command.tcl	tcl8.6
 D	comments-continuations	c01-hash-mid-command.tcl	tcl9.0	E003@2:Too many arguments for 'set': expected at most 2, got 6 — usage: set varName ?value?
 O	comments-continuations	c01-hash-mid-command.tcl	tcl9.0	
 D	comments-continuations	c02-semicolon-hash-forms.tcl	tcl8.6	
-O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl8.6	O109,O119,O109,O119,O119,O109,O102,O102,O102,O100
+O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl8.6	O109,hint:O119,O109,hint:O119,hint:O119,O109,hint:O102,hint:O102,hint:O102,O100
 D	comments-continuations	c02-semicolon-hash-forms.tcl	tcl9.0	
-O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl9.0	O109,O109,O109,O102,O102,O102,O100
+O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl9.0	O109,O109,O109,hint:O102,hint:O102,hint:O102,O100
 D	comments-continuations	c03-switch-body-comment-odd.tcl	tcl8.6	
 O	comments-continuations	c03-switch-body-comment-odd.tcl	tcl8.6	
 D	comments-continuations	c03-switch-body-comment-odd.tcl	tcl9.0	
@@ -316,13 +316,13 @@ O	errors-returns	e24-uncaught-error-trace.tcl	tcl8.6
 D	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
 O	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
 D	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the declared local frame | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
-O	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	O101,O102
+O	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	O101,hint:O102
 D	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the declared local frame | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
-O	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	O101,O102
-D	errors-returns	e26-for-break-step.tcl	tcl8.6	W220@2:Assignment to 'z' is never read
-O	errors-returns	e26-for-break-step.tcl	tcl8.6	O101,O102,O109,O102,O107
-D	errors-returns	e26-for-break-step.tcl	tcl9.0	W220@2:Assignment to 'z' is never read
-O	errors-returns	e26-for-break-step.tcl	tcl9.0	O101,O102,O109,O102,O107
+O	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	O101,hint:O102
+D	errors-returns	e26-for-break-step.tcl	tcl8.6	
+O	errors-returns	e26-for-break-step.tcl	tcl8.6	O101,hint:O102,hint:O102
+D	errors-returns	e26-for-break-step.tcl	tcl9.0	
+O	errors-returns	e26-for-break-step.tcl	tcl9.0	O101,hint:O102,hint:O102
 D	errors-returns	e27-optimiser-try-finally.tcl	tcl8.6	
 O	errors-returns	e27-optimiser-try-finally.tcl	tcl8.6	
 D	errors-returns	e27-optimiser-try-finally.tcl	tcl9.0	
@@ -339,9 +339,9 @@ D	errors-returns	e30-after-return-level0.tcl	tcl8.6
 O	errors-returns	e30-after-return-level0.tcl	tcl8.6	O100
 D	errors-returns	e30-after-return-level0.tcl	tcl9.0	
 O	errors-returns	e30-after-return-level0.tcl	tcl9.0	O100
-D	errors-returns	e31-missing-variable-errorcode.tcl	tcl8.6	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in the declared local frame
+D	errors-returns	e31-missing-variable-errorcode.tcl	tcl8.6	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in the declared local frame
 O	errors-returns	e31-missing-variable-errorcode.tcl	tcl8.6	
-D	errors-returns	e31-missing-variable-errorcode.tcl	tcl9.0	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in the declared local frame
+D	errors-returns	e31-missing-variable-errorcode.tcl	tcl9.0	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in the declared local frame
 O	errors-returns	e31-missing-variable-errorcode.tcl	tcl9.0	
 D	errors-returns	e32-posix-errorcode.tcl	tcl8.6	
 O	errors-returns	e32-posix-errorcode.tcl	tcl8.6	
@@ -376,9 +376,9 @@ O	event-loop	ev07-late-definition.tcl	tcl8.6
 D	event-loop	ev07-late-definition.tcl	tcl9.0	
 O	event-loop	ev07-late-definition.tcl	tcl9.0	
 D	event-loop	ev08-deferred-variable.tcl	tcl8.6	
-O	event-loop	ev08-deferred-variable.tcl	tcl8.6	O102,O116
+O	event-loop	ev08-deferred-variable.tcl	tcl8.6	hint:O102,O116
 D	event-loop	ev08-deferred-variable.tcl	tcl9.0	
-O	event-loop	ev08-deferred-variable.tcl	tcl9.0	O102,O116
+O	event-loop	ev08-deferred-variable.tcl	tcl9.0	hint:O102,O116
 D	event-loop	ev09-fileevent.tcl	tcl8.6	W103@2:open with a pipeline containing variable/command substitution risks command injection. Validate and sanitize the command before passing to open.
 O	event-loop	ev09-fileevent.tcl	tcl8.6	
 D	event-loop	ev09-fileevent.tcl	tcl9.0	W103@2:open with a pipeline containing variable/command substitution risks command injection. Validate and sanitize the command before passing to open.
@@ -528,13 +528,13 @@ O	regex-patterns	r02-regexp-options.tcl	tcl8.6
 D	regex-patterns	r02-regexp-options.tcl	tcl9.0	
 O	regex-patterns	r02-regexp-options.tcl	tcl9.0	
 D	regex-patterns	r03-match-vars.tcl	tcl8.6	W210@13:Variable 'hi' is read before it is set | W210@13:Variable 'lo' is read before it is set | W147@15:regexp match variables not allowed when using -inline
-O	regex-patterns	r03-match-vars.tcl	tcl8.6	O100,O100,O116
+O	regex-patterns	r03-match-vars.tcl	tcl8.6	hint:O100,hint:O100,O116
 D	regex-patterns	r03-match-vars.tcl	tcl9.0	W210@13:Variable 'hi' is read before it is set | W210@13:Variable 'lo' is read before it is set | W147@15:regexp match variables not allowed when using -inline
-O	regex-patterns	r03-match-vars.tcl	tcl9.0	O100,O100,O116
+O	regex-patterns	r03-match-vars.tcl	tcl9.0	hint:O100,hint:O100,O116
 D	regex-patterns	r04-regsub.tcl	tcl8.6	
-O	regex-patterns	r04-regsub.tcl	tcl8.6	O129,O129,O129,O129,O129,O129,O100,O129,O129,O129,O129,O129,O129
+O	regex-patterns	r04-regsub.tcl	tcl8.6	O129,O129,O129,O129,O129,O129,hint:O100,O129,O129,O129,O129,O129,O129
 D	regex-patterns	r04-regsub.tcl	tcl9.0	
-O	regex-patterns	r04-regsub.tcl	tcl9.0	O129,O129,O129,O129,O129,O129,O100,O129,O129,O129,O129,O129,O129
+O	regex-patterns	r04-regsub.tcl	tcl9.0	O129,O129,O129,O129,O129,O129,hint:O100,O129,O129,O129,O129,O129,O129
 D	regex-patterns	r05-regsub-command.tcl	tcl8.6	W004@3:Option '-command' on 'regsub' is not available in the active dialect (tcl8.6). | W004@4:Option '-command' on 'regsub' is not available in the active dialect (tcl8.6). | W004@5:Option '-command' on 'regsub' is not available in the active dialect (tcl8.6). | W004@6:Option '-command' on 'regsub' is not available in the active dialect (tcl8.6). | W004@7:Option '-command' on 'regsub' is not available in the active dialect (tcl8.6).
 O	regex-patterns	r05-regsub-command.tcl	tcl8.6	
 D	regex-patterns	r05-regsub-command.tcl	tcl9.0	
@@ -601,7 +601,7 @@ D	special-variables	sv04-platform-keys.tcl	tcl9.0
 O	special-variables	sv04-platform-keys.tcl	tcl9.0	
 D	special-variables	sv05-precision.tcl	tcl8.6	
 O	special-variables	sv05-precision.tcl	tcl8.6	
-D	special-variables	sv05-precision.tcl	tcl9.0	
+D	special-variables	sv05-precision.tcl	tcl9.0	W210@9:Variable 'tcl_precision' is read before it is set
 O	special-variables	sv05-precision.tcl	tcl9.0	
 D	special-variables	sv06-errorinfo.tcl	tcl8.6	W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W233@6:Division by a provably-zero divisor — raises 'divide by zero' at runtime. | W302@6:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@8:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@10:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@12:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	special-variables	sv06-errorinfo.tcl	tcl8.6	
@@ -615,9 +615,9 @@ D	special-variables	sv08-wordchars.tcl	tcl8.6
 O	special-variables	sv08-wordchars.tcl	tcl8.6	
 D	special-variables	sv08-wordchars.tcl	tcl9.0	
 O	special-variables	sv08-wordchars.tcl	tcl9.0	
-D	special-variables	sv09-proc-shadow.tcl	tcl8.6	
+D	special-variables	sv09-proc-shadow.tcl	tcl8.6	W210@2:Variable 'tcl_version' is read before it is set
 O	special-variables	sv09-proc-shadow.tcl	tcl8.6	
-D	special-variables	sv09-proc-shadow.tcl	tcl9.0	
+D	special-variables	sv09-proc-shadow.tcl	tcl9.0	W210@2:Variable 'tcl_version' is read before it is set
 O	special-variables	sv09-proc-shadow.tcl	tcl9.0	
 D	special-variables	sv10-namespace-eval-read.tcl	tcl8.6	
 O	special-variables	sv10-namespace-eval-read.tcl	tcl8.6	
@@ -632,9 +632,9 @@ O	special-variables	sv12-write-only.tcl	tcl8.6
 D	special-variables	sv12-write-only.tcl	tcl9.0	
 O	special-variables	sv12-write-only.tcl	tcl9.0	
 D	special-variables	sv13-argv-argc.tcl	tcl8.6	
-O	special-variables	sv13-argv-argc.tcl	tcl8.6	O102
+O	special-variables	sv13-argv-argc.tcl	tcl8.6	hint:O102
 D	special-variables	sv13-argv-argc.tcl	tcl9.0	
-O	special-variables	sv13-argv-argc.tcl	tcl9.0	O102
+O	special-variables	sv13-argv-argc.tcl	tcl9.0	hint:O102
 D	special-variables	sv14-errorinfo-write-before-error.tcl	tcl8.6	W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@6:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	special-variables	sv14-errorinfo-write-before-error.tcl	tcl8.6	
 D	special-variables	sv14-errorinfo-write-before-error.tcl	tcl9.0	W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@6:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
@@ -643,9 +643,9 @@ D	special-variables	sv15-tk-globals.tcl	tcl8.6
 O	special-variables	sv15-tk-globals.tcl	tcl8.6	
 D	special-variables	sv15-tk-globals.tcl	tcl9.0	
 O	special-variables	sv15-tk-globals.tcl	tcl9.0	
-D	special-variables	sv16-lookup-errorcode.tcl	tcl8.6	W210@2:Variable 'errorCode' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	special-variables	sv16-lookup-errorcode.tcl	tcl8.6	W210@2:Variable 'errorCode' is read before it is set | W210@2:Variable 'nosuch' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	special-variables	sv16-lookup-errorcode.tcl	tcl8.6	
-D	special-variables	sv16-lookup-errorcode.tcl	tcl9.0	W210@2:Variable 'errorCode' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	special-variables	sv16-lookup-errorcode.tcl	tcl9.0	W210@2:Variable 'errorCode' is read before it is set | W210@2:Variable 'nosuch' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@3:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	special-variables	sv16-lookup-errorcode.tcl	tcl9.0	
 D	special-variables	sv17-error-vars-across-catch.optimised.tcl	tcl8.6	W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@5:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	special-variables	sv17-error-vars-across-catch.optimised.tcl	tcl8.6	
@@ -660,7 +660,7 @@ O	special-variables	sv18-precision-write.optimised.tcl	tcl8.6
 D	special-variables	sv18-precision-write.optimised.tcl	tcl9.0	
 O	special-variables	sv18-precision-write.optimised.tcl	tcl9.0	
 D	special-variables	sv18-precision-write.tcl	tcl8.6	
-O	special-variables	sv18-precision-write.tcl	tcl8.6	O109,O100
+O	special-variables	sv18-precision-write.tcl	tcl8.6	O100
 D	special-variables	sv18-precision-write.tcl	tcl9.0	
 O	special-variables	sv18-precision-write.tcl	tcl9.0	O109,O101,O102
 D	special-variables	sv19-auto-path-write.optimised.tcl	tcl8.6	
@@ -672,9 +672,9 @@ O	special-variables	sv19-auto-path-write.tcl	tcl8.6
 D	special-variables	sv19-auto-path-write.tcl	tcl9.0	
 O	special-variables	sv19-auto-path-write.tcl	tcl9.0	
 D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar.
-O	tcl9-changes	t01-octal-literals.tcl	tcl8.6	O110,O129
+O	tcl9-changes	t01-octal-literals.tcl	tcl8.6	hint:O110,O129
 D	tcl9-changes	t01-octal-literals.tcl	tcl9.0	W230@4:Index '010' resolves to 10 (list has 10 elements); lindex silently returns empty string.
-O	tcl9-changes	t01-octal-literals.tcl	tcl9.0	O110,O129
+O	tcl9-changes	t01-octal-literals.tcl	tcl9.0	hint:O110,O129
 D	tcl9-changes	t02-number-underscores.tcl	tcl8.6	W148@3:Numeral '1_000' is not accepted by the resolved Tcl numeral grammar. | W148@4:Numeral '1_0' is not accepted by the resolved Tcl numeral grammar.
 O	tcl9-changes	t02-number-underscores.tcl	tcl8.6	
 D	tcl9-changes	t02-number-underscores.tcl	tcl9.0	
@@ -685,7 +685,7 @@ D	tcl9-changes	t03-tilde.tcl	tcl9.0
 O	tcl9-changes	t03-tilde.tcl	tcl9.0	
 D	tcl9-changes	t04-case-removed.tcl	tcl8.6	
 O	tcl9-changes	t04-case-removed.tcl	tcl8.6	
-D	tcl9-changes	t04-case-removed.tcl	tcl9.0	W002@2:'case' is disabled in the active dialect profile (available in: iRules, Tcl 8.4, Tcl 8.5, Tcl 8.6) | W123@2:Unresolved command 'case' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub case {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t04-case-removed.tcl	tcl9.0	W002@2:'case' is disabled in the active dialect profile (available in: iRules, Tcl 8.4, Tcl 8.5, Tcl 8.6)
 O	tcl9-changes	t04-case-removed.tcl	tcl9.0	
 D	tcl9-changes	t05-trace-variable.tcl	tcl8.6	W144@3:Subcommand 'variable' on 'trace' is deprecated as of Tcl 8.4; tcl8.6 targets Tcl 8.6. | W144@4:Subcommand 'vinfo' on 'trace' is deprecated as of Tcl 8.4; tcl8.6 targets Tcl 8.6.
 O	tcl9-changes	t05-trace-variable.tcl	tcl8.6	
@@ -719,11 +719,11 @@ D	tcl9-changes	t12-array-for.tcl	tcl8.6	W002@2:'array for' is disabled in the ac
 O	tcl9-changes	t12-array-for.tcl	tcl8.6	
 D	tcl9-changes	t12-array-for.tcl	tcl9.0	
 O	tcl9-changes	t12-array-for.tcl	tcl9.0	
-D	tcl9-changes	t13-const.tcl	tcl8.6	W002@2:'const' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'const' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub const {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t13-const.tcl	tcl8.6	W002@2:'const' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	tcl9-changes	t13-const.tcl	tcl8.6	
 D	tcl9-changes	t13-const.tcl	tcl9.0	
 O	tcl9-changes	t13-const.tcl	tcl9.0	
-D	tcl9-changes	t14-lseq.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'lseq' at this source point; did you mean 'lset'? The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lseq {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t14-lseq.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	tcl9-changes	t14-lseq.tcl	tcl8.6	
 D	tcl9-changes	t14-lseq.tcl	tcl9.0	
 O	tcl9-changes	t14-lseq.tcl	tcl9.0	
@@ -731,7 +731,7 @@ D	tcl9-changes	t15-string-insert.tcl	tcl8.6	W002@1:'string insert' is disabled i
 O	tcl9-changes	t15-string-insert.tcl	tcl8.6	
 D	tcl9-changes	t15-string-insert.tcl	tcl9.0	
 O	tcl9-changes	t15-string-insert.tcl	tcl9.0	
-D	tcl9-changes	t16-list-mutators.tcl	tcl8.6	W002@3:'lpop' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@3:Unresolved command 'lpop' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lpop {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t16-list-mutators.tcl	tcl8.6	W002@3:'lpop' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	tcl9-changes	t16-list-mutators.tcl	tcl8.6	
 D	tcl9-changes	t16-list-mutators.tcl	tcl9.0	
 O	tcl9-changes	t16-list-mutators.tcl	tcl9.0	
@@ -775,7 +775,7 @@ D	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl8.6	W004@1:Option '-stri
 O	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl8.6	
 D	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl9.0	
 O	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl9.0	
-D	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl8.6	W002@1:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@1:Unresolved command 'tcl::process' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub tcl::process {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set. | W155@1:'eq' binds tighter than '?:', so this parses as `($r eq "") ? "empty" : "list"`; if you meant `$r eq ("" ? "empty" : "list")`, add parentheses.
+D	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl8.6	W002@1:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W155@1:'eq' binds tighter than '?:', so this parses as `($r eq "") ? "empty" : "list"`; if you meant `$r eq ("" ? "empty" : "list")`, add parentheses.
 O	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl8.6	
 D	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl9.0	W155@1:'eq' binds tighter than '?:', so this parses as `($r eq "") ? "empty" : "list"`; if you meant `$r eq ("" ? "empty" : "list")`, add parentheses.
 O	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl9.0	
@@ -787,15 +787,15 @@ D	tcl9-changes	t29-91-switch-integer.tcl	tcl8.6	W004@2:Option '-integer' on 'swi
 O	tcl9-changes	t29-91-switch-integer.tcl	tcl8.6	
 D	tcl9-changes	t29-91-switch-integer.tcl	tcl9.0	W004@2:Option '-integer' on 'switch' is not available in the active dialect (tcl9.0).
 O	tcl9-changes	t29-91-switch-integer.tcl	tcl9.0	
-D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl8.6	W002@2:'lfilter' is disabled in the active dialect profile (available in: Tcl 9.1) | W123@2:Unresolved command 'lfilter' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lfilter {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl8.6	W002@2:'lfilter' is disabled in the active dialect profile (available in: Tcl 9.1)
 O	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl8.6	
-D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl9.0	W002@2:'lfilter' is disabled in the active dialect profile (available in: Tcl 9.1) | W123@2:Unresolved command 'lfilter' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lfilter {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl9.0	W002@2:'lfilter' is disabled in the active dialect profile (available in: Tcl 9.1)
 O	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl9.0	
 D	tcl9-changes	t31-91-regexp-z.tcl	tcl8.6	
 O	tcl9-changes	t31-91-regexp-z.tcl	tcl8.6	
 D	tcl9-changes	t31-91-regexp-z.tcl	tcl9.0	
 O	tcl9-changes	t31-91-regexp-z.tcl	tcl9.0	
-D	tcl9-changes	t32-91-lseq-expr.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'lseq' at this source point; did you mean 'lset'? The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lseq {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t32-91-lseq-expr.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	tcl9-changes	t32-91-lseq-expr.tcl	tcl8.6	
 D	tcl9-changes	t32-91-lseq-expr.tcl	tcl9.0	
 O	tcl9-changes	t32-91-lseq-expr.tcl	tcl9.0	
@@ -819,7 +819,7 @@ D	tcl9-changes	t37-cbrt-91.tcl	tcl8.6	W002@1:'::tcl::mathfunc::cbrt' is disabled
 O	tcl9-changes	t37-cbrt-91.tcl	tcl8.6	
 D	tcl9-changes	t37-cbrt-91.tcl	tcl9.0	W002@1:'::tcl::mathfunc::cbrt' is disabled in the active dialect profile ('tcl9.0') | W123@1:Unresolved command 'cbrt' at this source point
 O	tcl9-changes	t37-cbrt-91.tcl	tcl9.0	
-D	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'lseq' at this source point; did you mean 'lset'? The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lseq {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.
+D	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl8.6	
 D	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl9.0	
 O	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl9.0	
@@ -835,11 +835,11 @@ D	threads-subsystems	t03-tsv.tcl	tcl8.6
 O	threads-subsystems	t03-tsv.tcl	tcl8.6	
 D	threads-subsystems	t03-tsv.tcl	tcl9.0	
 O	threads-subsystems	t03-tsv.tcl	tcl9.0	
-D	threads-subsystems	t04-tcl-process.tcl	tcl8.6	W002@2:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'tcl::process' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub tcl::process {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set. | W002@3:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@4:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@8:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@10:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@13:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@14:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
+D	threads-subsystems	t04-tcl-process.tcl	tcl8.6	W002@2:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@3:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@4:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@8:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@10:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@13:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@14:'tcl::process' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	threads-subsystems	t04-tcl-process.tcl	tcl8.6	
 D	threads-subsystems	t04-tcl-process.tcl	tcl9.0	
 O	threads-subsystems	t04-tcl-process.tcl	tcl9.0	
-D	threads-subsystems	t05-zipfs.tcl	tcl8.6	W002@2:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W123@2:Unresolved command 'zipfs' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub zipfs {…} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set. | W002@6:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@7:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@10:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W103@11:open with a dynamic argument (variable or command substitution): if the value starts with "|", it will execute a command pipeline. Validate input or use explicit I/O commands. | W002@13:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@14:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@15:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
+D	threads-subsystems	t05-zipfs.tcl	tcl8.6	W002@2:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@6:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@7:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@10:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W103@11:open with a dynamic argument (variable or command substitution): if the value starts with "|", it will execute a command pipeline. Validate input or use explicit I/O commands. | W002@13:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@14:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1) | W002@15:'zipfs' is disabled in the active dialect profile (available in: Tcl 9.0, Tcl 9.1)
 O	threads-subsystems	t05-zipfs.tcl	tcl8.6	
 D	threads-subsystems	t05-zipfs.tcl	tcl9.0	W103@11:open with a dynamic argument (variable or command substitution): if the value starts with "|", it will execute a command pipeline. Validate input or use explicit I/O commands.
 O	threads-subsystems	t05-zipfs.tcl	tcl9.0	

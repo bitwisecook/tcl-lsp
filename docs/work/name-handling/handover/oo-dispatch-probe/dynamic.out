@@ -24,10 +24,10 @@ PROBE e12-namespace-eval-set.tcl tcl8.6:
 PROBE e12-namespace-eval-set.tcl tcl9.0: 
 PROBE e13-subst.tcl tcl8.6: [W210 L1 Variable 'w' may be read before it is set in the declared local frame]
 PROBE e13-subst.tcl tcl9.0: [W210 L1 Variable 'w' may be read before it is set in the declared local frame]
-PROBE e14-dict-with.tcl tcl8.6: 
-PROBE e14-dict-with.tcl tcl9.0: 
-PROBE e15-unset-read.tcl tcl8.6: 
-PROBE e15-unset-read.tcl tcl9.0: 
+PROBE e14-dict-with.tcl tcl8.6: [W210 L3 Variable 'b' is read before it is set]
+PROBE e14-dict-with.tcl tcl9.0: [W210 L3 Variable 'b' is read before it is set]
+PROBE e15-unset-read.tcl tcl8.6: [W210 L1 Variable 'v' is read before it is set]
+PROBE e15-unset-read.tcl tcl9.0: [W210 L1 Variable 'v' is read before it is set]
 PROBE e16-alias-chain.tcl tcl8.6: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
 PROBE e16-alias-chain.tcl tcl9.0: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
 PROBE e17-proc-inside-proc.tcl tcl8.6: 
@@ -36,7 +36,7 @@ PROBE e18-uplevel-proc-def.tcl tcl8.6:
 PROBE e18-uplevel-proc-def.tcl tcl9.0: 
 PROBE e19-apply-namespace.tcl tcl8.6: [W123 L3 Unresolved command 'helper' at this source point. The call widens the ]
 PROBE e19-apply-namespace.tcl tcl9.0: [W123 L3 Unresolved command 'helper' at this source point. The call widens the ]
-PROBE e20-const-90.tcl tcl8.6: [W002 L1 'const' is disabled in the active dialect profile (available in: Tcl 9] [W123 L1 Unresolved command 'const' at this source point. The call widens the v]
+PROBE e20-const-90.tcl tcl8.6: [W002 L1 'const' is disabled in the active dialect profile (available in: Tcl 9]
 PROBE e20-const-90.tcl tcl9.0: 
 PROBE e21-upvar-array-elem.tcl tcl8.6: 
 PROBE e21-upvar-array-elem.tcl tcl9.0: 
@@ -58,7 +58,7 @@ PROBE e29-namespace-eval-var-90.tcl tcl8.6:
 PROBE e29-namespace-eval-var-90.tcl tcl9.0: 
 PROBE e30-rename-builtin-proc-wrap.tcl tcl8.6: [W113 L2 Procedure 'puts' shadows built-in command (tcl8.6)]
 PROBE e30-rename-builtin-proc-wrap.tcl tcl9.0: [W113 L2 Procedure 'puts' shadows built-in command (tcl9.0)]
-PROBE e31-namespace-eval-read.tcl tcl8.6: 
+PROBE e31-namespace-eval-read.tcl tcl8.6: [W210 L3 Variable 'x' is read before it is set]
 PROBE e31-namespace-eval-read.tcl tcl9.0: 
 PROBE e32-interp-alias-arity-target-proc.tcl tcl8.6: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]
 PROBE e32-interp-alias-arity-target-proc.tcl tcl9.0: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]

@@ -5,9 +5,9 @@ t02-thread-isolation.tcl	tcl8.6	-	review
 t02-thread-isolation.tcl	tcl9.0	-	review
 t03-tsv.tcl	tcl8.6	-	review
 t03-tsv.tcl	tcl9.0	-	review
-t04-tcl-process.tcl	tcl8.6	W002@2 W123@2 W002@3 W002@4 W002@8 W002@10 W002@13 W002@14	review
+t04-tcl-process.tcl	tcl8.6	W002@2 W002@3 W002@4 W002@8 W002@10 W002@13 W002@14	review
 t04-tcl-process.tcl	tcl9.0	-	review
-t05-zipfs.tcl	tcl8.6	W002@2 W123@2 W002@6 W002@7 W002@10 W103@11 W002@13 W002@14 W002@15	review
+t05-zipfs.tcl	tcl8.6	W002@2 W002@6 W002@7 W002@10 W103@11 W002@13 W002@14 W002@15	review
 t05-zipfs.tcl	tcl9.0	W103@11	review
 t06-build-info.tcl	tcl8.6	W123@8	review
 t06-build-info.tcl	tcl9.0	-	review

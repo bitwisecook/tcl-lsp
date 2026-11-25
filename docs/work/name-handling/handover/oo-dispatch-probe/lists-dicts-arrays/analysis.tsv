@@ -8,11 +8,9 @@ l02-lrange-lreplace.tcl	tcl8.6	folder
 l02-lrange-lreplace.tcl	tcl9.0	analyser	W230@2 W230@2 W230@2
 l02-lrange-lreplace.tcl	tcl9.0	folder	
 l03-lset.tcl	tcl8.6	analyser	
-l03-lset.tcl	tcl8.6	folder	O100
-l03-lset.tcl	tcl8.6	folded	differs: before [0] {a {X c} Z} new 1 {list index out of range} | after [0] 
+l03-lset.tcl	tcl8.6	folder	hint:O100
 l03-lset.tcl	tcl9.0	analyser	
-l03-lset.tcl	tcl9.0	folder	O100
-l03-lset.tcl	tcl9.0	folded	differs: before [0] {a {X c} Z} new 1 {index "9" out of range} | after [0] 
+l03-lset.tcl	tcl9.0	folder	hint:O100
 l04-lsort.tcl	tcl8.6	analyser	
 l04-lsort.tcl	tcl8.6	folder	
 l04-lsort.tcl	tcl9.0	analyser	
@@ -29,7 +27,7 @@ l07-lassign-lmap-lrepeat.tcl	tcl8.6	analyser
 l07-lassign-lmap-lrepeat.tcl	tcl8.6	folder	
 l07-lassign-lmap-lrepeat.tcl	tcl9.0	analyser	
 l07-lassign-lmap-lrepeat.tcl	tcl9.0	folder	
-l08-90-list-cmds.tcl	tcl8.6	analyser	W002@3 W123@3 W002@4 W002@4 W002@4 W002@4 W002@4 W002@4
+l08-90-list-cmds.tcl	tcl8.6	analyser	W002@3 W002@4 W002@4 W002@4 W002@4 W002@4 W002@4
 l08-90-list-cmds.tcl	tcl8.6	folder	
 l08-90-list-cmds.tcl	tcl9.0	analyser	
 l08-90-list-cmds.tcl	tcl9.0	folder	

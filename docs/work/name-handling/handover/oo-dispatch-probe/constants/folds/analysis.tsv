@@ -58,8 +58,7 @@ c12-renamed-builtin.tcl	tcl9.0	analyser	W113@4
 c12-renamed-builtin.tcl	tcl9.0	folder	O129,O103
 c12-renamed-builtin.tcl	tcl9.0	folded	same
 c13-number-forms.tcl	tcl8.6	analyser	
-c13-number-forms.tcl	tcl8.6	folder	O119,O119,O119
-c13-number-forms.tcl	tcl8.6	folded	same
+c13-number-forms.tcl	tcl8.6	folder	hint:O119,hint:O119,hint:O119
 c13-number-forms.tcl	tcl9.0	analyser	
 c13-number-forms.tcl	tcl9.0	folder	
 c14-float-format.tcl	tcl8.6	analyser	
@@ -77,11 +76,9 @@ c16-constant-in-callback.tcl	tcl9.0	analyser	W307@1
 c16-constant-in-callback.tcl	tcl9.0	folder	O116
 c16-constant-in-callback.tcl	tcl9.0	folded	same
 c17-string-concat.tcl	tcl8.6	analyser	
-c17-string-concat.tcl	tcl8.6	folder	O102,O102
-c17-string-concat.tcl	tcl8.6	folded	overlapping rewrites 34..47 and 34..47
+c17-string-concat.tcl	tcl8.6	folder	hint:O102,hint:O102
 c17-string-concat.tcl	tcl9.0	analyser	
-c17-string-concat.tcl	tcl9.0	folder	O102,O102
-c17-string-concat.tcl	tcl9.0	folded	overlapping rewrites 34..47 and 34..47
+c17-string-concat.tcl	tcl9.0	folder	hint:O102,hint:O102
 c18-octal-release.tcl	tcl8.6	analyser	
 c18-octal-release.tcl	tcl8.6	folder	O101,O103
 c18-octal-release.tcl	tcl8.6	folded	same
@@ -147,23 +144,17 @@ d09-mathfunc-override.tcl	tcl8.6	folder
 d09-mathfunc-override.tcl	tcl9.0	analyser	W214@1
 d09-mathfunc-override.tcl	tcl9.0	folder	
 d10-copy-incr.tcl	tcl8.6	analyser	
-d10-copy-incr.tcl	tcl8.6	folder	O102
-d10-copy-incr.tcl	tcl8.6	folded	differs: before [0] 3 4 | after [0] 3 1
+d10-copy-incr.tcl	tcl8.6	folder	hint:O102
 d10-copy-incr.tcl	tcl9.0	analyser	
-d10-copy-incr.tcl	tcl9.0	folder	O102
-d10-copy-incr.tcl	tcl9.0	folded	differs: before [0] 3 4 | after [0] 3 1
+d10-copy-incr.tcl	tcl9.0	folder	hint:O102
 d11-append.tcl	tcl8.6	analyser	
-d11-append.tcl	tcl8.6	folder	O104,O104
-d11-append.tcl	tcl8.6	folded	same
+d11-append.tcl	tcl8.6	folder	hint:O104,hint:O104
 d11-append.tcl	tcl9.0	analyser	
-d11-append.tcl	tcl9.0	folder	O104,O104
-d11-append.tcl	tcl9.0	folded	same
+d11-append.tcl	tcl9.0	folder	hint:O104,hint:O104
 d12-lappend.tcl	tcl8.6	analyser	
-d12-lappend.tcl	tcl8.6	folder	O130,O130
-d12-lappend.tcl	tcl8.6	folded	same
+d12-lappend.tcl	tcl8.6	folder	hint:O130,hint:O130
 d12-lappend.tcl	tcl9.0	analyser	
-d12-lappend.tcl	tcl9.0	folder	O130,O130
-d12-lappend.tcl	tcl9.0	folded	same
+d12-lappend.tcl	tcl9.0	folder	hint:O130,hint:O130
 d13-const-proc-in-expr.tcl	tcl8.6	analyser	
 d13-const-proc-in-expr.tcl	tcl8.6	folder	
 d13-const-proc-in-expr.tcl	tcl9.0	analyser	

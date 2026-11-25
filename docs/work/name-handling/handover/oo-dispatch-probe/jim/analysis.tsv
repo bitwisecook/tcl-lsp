@@ -43,9 +43,9 @@ j07-lambda-statics.tcl	tcl9.0	analyser	W120@2 W123@2 W307@3
 j07-lambda-statics.tcl	tcl9.0	folder	
 j07-lambda-statics.tcl	jimtcl	analyser	W120@2 W307@3
 j07-lambda-statics.tcl	jimtcl	folder	
-j08-alias-curry.tcl	tcl8.6	analyser	W002@2 W123@2 W307@6
+j08-alias-curry.tcl	tcl8.6	analyser	W002@2 W307@6
 j08-alias-curry.tcl	tcl8.6	folder	
-j08-alias-curry.tcl	tcl9.0	analyser	W002@2 W123@2 W307@6
+j08-alias-curry.tcl	tcl9.0	analyser	W002@2 W307@6
 j08-alias-curry.tcl	tcl9.0	folder	
 j08-alias-curry.tcl	jimtcl	analyser	W307@6
 j08-alias-curry.tcl	jimtcl	folder	
@@ -61,9 +61,9 @@ j10-stackdump.tcl	tcl9.0	analyser	W123@7
 j10-stackdump.tcl	tcl9.0	folder	
 j10-stackdump.tcl	jimtcl	analyser	
 j10-stackdump.tcl	jimtcl	folder	
-j11-exists.tcl	tcl8.6	analyser	W002@4 W002@4 W002@4 W002@4 W002@4 W123@4
+j11-exists.tcl	tcl8.6	analyser	W002@4 W002@4 W002@4 W002@4 W002@4
 j11-exists.tcl	tcl8.6	folder	
-j11-exists.tcl	tcl9.0	analyser	W002@4 W002@4 W002@4 W002@4 W002@4 W123@4
+j11-exists.tcl	tcl9.0	analyser	W002@4 W002@4 W002@4 W002@4 W002@4
 j11-exists.tcl	tcl9.0	folder	
 j11-exists.tcl	jimtcl	analyser	
 j11-exists.tcl	jimtcl	folder	
@@ -107,9 +107,9 @@ j17-defer.tcl	tcl9.0	analyser	W123@2
 j17-defer.tcl	tcl9.0	folder	
 j17-defer.tcl	jimtcl	analyser	
 j17-defer.tcl	jimtcl	folder	
-j18-loop-range.tcl	tcl8.6	analyser	W002@1 W123@1
+j18-loop-range.tcl	tcl8.6	analyser	W002@1
 j18-loop-range.tcl	tcl8.6	folder	
-j18-loop-range.tcl	tcl9.0	analyser	W002@1 W123@1
+j18-loop-range.tcl	tcl9.0	analyser	W002@1
 j18-loop-range.tcl	tcl9.0	folder	
 j18-loop-range.tcl	jimtcl	analyser	
 j18-loop-range.tcl	jimtcl	folder	
@@ -122,11 +122,11 @@ j19-proc-statics.tcl	tcl9.0	folded	same
 j19-proc-statics.tcl	jimtcl	analyser	E003@2 W210@4
 j19-proc-statics.tcl	jimtcl	folder	
 j20-octal-and-expr.tcl	tcl8.6	analyser	W155@3
-j20-octal-and-expr.tcl	tcl8.6	folder	O101,O110,O101
-j20-octal-and-expr.tcl	tcl8.6	folded	overlapping rewrites 5..21 and 6..19
+j20-octal-and-expr.tcl	tcl8.6	folder	O101,hint:O110,O101
+j20-octal-and-expr.tcl	tcl8.6	folded	same
 j20-octal-and-expr.tcl	tcl9.0	analyser	W155@3
-j20-octal-and-expr.tcl	tcl9.0	folder	O101,O110,O101
-j20-octal-and-expr.tcl	tcl9.0	folded	overlapping rewrites 5..21 and 6..19
+j20-octal-and-expr.tcl	tcl9.0	folder	O101,hint:O110,O101
+j20-octal-and-expr.tcl	tcl9.0	folded	same
 j20-octal-and-expr.tcl	jimtcl	analyser	W155@3
 j20-octal-and-expr.tcl	jimtcl	folder	
 j21-upvar-global.tcl	tcl8.6	analyser	

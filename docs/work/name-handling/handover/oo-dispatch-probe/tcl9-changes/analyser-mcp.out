@@ -6,7 +6,7 @@ t02-number-underscores.tcl	tcl9.0	-	review
 t03-tilde.tcl	tcl8.6	W002@5	review
 t03-tilde.tcl	tcl9.0	-	review
 t04-case-removed.tcl	tcl8.6	-	review
-t04-case-removed.tcl	tcl9.0	W002@2 W123@2	review
+t04-case-removed.tcl	tcl9.0	W002@2	review
 t05-trace-variable.tcl	tcl8.6	W144@3 W144@4	review
 t05-trace-variable.tcl	tcl9.0	W002@3 W002@4	review
 t06-string-bytelength.tcl	tcl8.6	-	review
@@ -23,13 +23,13 @@ t11-array-default.tcl	tcl8.6	W002@2	review
 t11-array-default.tcl	tcl9.0	-	review
 t12-array-for.tcl	tcl8.6	W002@2	review
 t12-array-for.tcl	tcl9.0	-	review
-t13-const.tcl	tcl8.6	W002@2 W123@2	review
+t13-const.tcl	tcl8.6	W002@2	review
 t13-const.tcl	tcl9.0	-	review
-t14-lseq.tcl	tcl8.6	W002@2 W123@2	review
+t14-lseq.tcl	tcl8.6	W002@2	review
 t14-lseq.tcl	tcl9.0	-	review
 t15-string-insert.tcl	tcl8.6	W002@1	review
 t15-string-insert.tcl	tcl9.0	-	review
-t16-list-mutators.tcl	tcl8.6	W002@3 W123@3	review
+t16-list-mutators.tcl	tcl8.6	W002@3	review
 t16-list-mutators.tcl	tcl9.0	-	review
 t17-dict-getwithdefault.tcl	tcl8.6	W002@1	review
 t17-dict-getwithdefault.tcl	tcl9.0	-	review
@@ -51,17 +51,17 @@ t25-info-cmdtype.tcl	tcl8.6	W002@3	review
 t25-info-cmdtype.tcl	tcl9.0	-	review
 t26-lsearch-stride-regsub-command.tcl	tcl8.6	W004@1 W004@2	review
 t26-lsearch-stride-regsub-command.tcl	tcl9.0	-	review
-t27-tcl-process-zipfs.tcl	tcl8.6	W002@1 W123@1 W155@1	review
+t27-tcl-process-zipfs.tcl	tcl8.6	W002@1 W155@1	review
 t27-tcl-process-zipfs.tcl	tcl9.0	W155@1	review
 t28-91-subst-options.tcl	tcl8.6	W004@3	review
 t28-91-subst-options.tcl	tcl9.0	W004@3	review
 t29-91-switch-integer.tcl	tcl8.6	W004@2	review
 t29-91-switch-integer.tcl	tcl9.0	W004@2	review
-t30-91-lfilter-unicode.tcl	tcl8.6	W002@2 W123@2	review
-t30-91-lfilter-unicode.tcl	tcl9.0	W002@2 W123@2	review
+t30-91-lfilter-unicode.tcl	tcl8.6	W002@2	review
+t30-91-lfilter-unicode.tcl	tcl9.0	W002@2	review
 t31-91-regexp-z.tcl	tcl8.6	-	review
 t31-91-regexp-z.tcl	tcl9.0	-	review
-t32-91-lseq-expr.tcl	tcl8.6	W002@2 W123@2	review
+t32-91-lseq-expr.tcl	tcl8.6	W002@2	review
 t32-91-lseq-expr.tcl	tcl9.0	-	review
 t33-tcloo-9.tcl	tcl8.6	-	review
 t33-tcloo-9.tcl	tcl9.0	-	review
@@ -73,5 +73,5 @@ t36-chan-isbinary.tcl	tcl8.6	W002@1	review
 t36-chan-isbinary.tcl	tcl9.0	-	review
 t37-cbrt-91.tcl	tcl8.6	W002@1 W123@1	review
 t37-cbrt-91.tcl	tcl9.0	W002@1 W123@1	review
-t38-vm91-lseq-exit.tcl	tcl8.6	W002@2 W123@2	review
+t38-vm91-lseq-exit.tcl	tcl8.6	W002@2	review
 t38-vm91-lseq-exit.tcl	tcl9.0	-	review

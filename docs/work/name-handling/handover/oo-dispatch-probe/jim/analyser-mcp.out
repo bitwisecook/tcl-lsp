@@ -20,8 +20,8 @@ j06-dict-sugar.tcl	jimtcl	-	review
 j07-lambda-statics.tcl	tcl8.6	W120@2 W123@2 W307@3	review
 j07-lambda-statics.tcl	tcl9.0	W120@2 W123@2 W307@3	review
 j07-lambda-statics.tcl	jimtcl	W120@2 W307@3	review
-j08-alias-curry.tcl	tcl8.6	W002@2 W123@2 W307@6	review
-j08-alias-curry.tcl	tcl9.0	W002@2 W123@2 W307@6	review
+j08-alias-curry.tcl	tcl8.6	W002@2 W307@6	review
+j08-alias-curry.tcl	tcl9.0	W002@2 W307@6	review
 j08-alias-curry.tcl	jimtcl	W307@6	review
 j09-namespace.tcl	tcl8.6	-	review
 j09-namespace.tcl	tcl9.0	-	review
@@ -29,8 +29,8 @@ j09-namespace.tcl	jimtcl	-	review
 j10-stackdump.tcl	tcl8.6	W123@7	review
 j10-stackdump.tcl	tcl9.0	W123@7	review
 j10-stackdump.tcl	jimtcl	-	review
-j11-exists.tcl	tcl8.6	W002@4 W002@4 W002@4 W002@4 W002@4 W123@4	review
-j11-exists.tcl	tcl9.0	W002@4 W002@4 W002@4 W002@4 W002@4 W123@4	review
+j11-exists.tcl	tcl8.6	W002@4 W002@4 W002@4 W002@4 W002@4	review
+j11-exists.tcl	tcl9.0	W002@4 W002@4 W002@4 W002@4 W002@4	review
 j11-exists.tcl	jimtcl	-	review
 j12-lmap.tcl	tcl8.6	-	review
 j12-lmap.tcl	tcl9.0	-	review
@@ -50,8 +50,8 @@ j16-array-is-dict.tcl	jimtcl	-	review
 j17-defer.tcl	tcl8.6	W123@2	review
 j17-defer.tcl	tcl9.0	W123@2	review
 j17-defer.tcl	jimtcl	-	review
-j18-loop-range.tcl	tcl8.6	W002@1 W123@1	review
-j18-loop-range.tcl	tcl9.0	W002@1 W123@1	review
+j18-loop-range.tcl	tcl8.6	W002@1	review
+j18-loop-range.tcl	tcl9.0	W002@1	review
 j18-loop-range.tcl	jimtcl	-	review
 j19-proc-statics.tcl	tcl8.6	E003@2	review
 j19-proc-statics.tcl	tcl9.0	E003@2	review

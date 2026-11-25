@@ -8,15 +8,15 @@ sv03-values.tcl	tcl9.0	-	review
 sv04-platform-keys.tcl	tcl8.6	-	review
 sv04-platform-keys.tcl	tcl9.0	-	review
 sv05-precision.tcl	tcl8.6	-	correct
-sv05-precision.tcl	tcl9.0	-	review
+sv05-precision.tcl	tcl9.0	W210@9	review
 sv06-errorinfo.tcl	tcl8.6	W302@3 W233@6 W302@6 W302@8 W302@10 W302@12	review
 sv06-errorinfo.tcl	tcl9.0	W302@3 W233@6 W302@6 W302@8 W302@10 W302@12	review
 sv07-env.tcl	tcl8.6	W210@7	review
 sv07-env.tcl	tcl9.0	W210@7	review
 sv08-wordchars.tcl	tcl8.6	-	review
 sv08-wordchars.tcl	tcl9.0	-	review
-sv09-proc-shadow.tcl	tcl8.6	-	review
-sv09-proc-shadow.tcl	tcl9.0	-	review
+sv09-proc-shadow.tcl	tcl8.6	W210@2	review
+sv09-proc-shadow.tcl	tcl9.0	W210@2	review
 sv10-namespace-eval-read.tcl	tcl8.6	-	correct; but document symbols list a namespace variable ns::auto_path that tclsh never creates
 sv10-namespace-eval-read.tcl	tcl9.0	-	FALSE NEGATIVE: tclsh 9.0/9.1 fail "can't read tcl_version" inside namespace eval
 sv11-unset-special.tcl	tcl8.6	-	correct
@@ -29,8 +29,8 @@ sv14-errorinfo-write-before-error.tcl	tcl8.6	W302@3 W302@6	review
 sv14-errorinfo-write-before-error.tcl	tcl9.0	W302@3 W302@6	review
 sv15-tk-globals.tcl	tcl8.6	-	review
 sv15-tk-globals.tcl	tcl9.0	-	review
-sv16-lookup-errorcode.tcl	tcl8.6	W210@2 W302@2 W302@3	review
-sv16-lookup-errorcode.tcl	tcl9.0	W210@2 W302@2 W302@3	review
+sv16-lookup-errorcode.tcl	tcl8.6	W210@2 W210@2 W302@2 W302@3	review
+sv16-lookup-errorcode.tcl	tcl9.0	W210@2 W210@2 W302@2 W302@3	review
 sv17-error-vars-across-catch.optimised.tcl	tcl8.6	W302@2 W302@5	review
 sv17-error-vars-across-catch.optimised.tcl	tcl9.0	W302@2 W302@5	review
 sv17-error-vars-across-catch.tcl	tcl8.6	W302@3 W302@6	review

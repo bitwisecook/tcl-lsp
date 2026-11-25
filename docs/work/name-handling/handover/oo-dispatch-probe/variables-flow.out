@@ -4,7 +4,7 @@ PROBE w02-nseval-then-proc.tcl tcl8.6:
 PROBE w02-nseval-then-proc.tcl tcl9.0: 
 PROBE w03-branch-global-dead.tcl tcl8.6: 
 PROBE w03-branch-global-dead.tcl tcl9.0: 
-PROBE w04-nseval-unset.tcl tcl8.6: 
-PROBE w04-nseval-unset.tcl tcl9.0: 
+PROBE w04-nseval-unset.tcl tcl8.6: [W210 L1 Variable 'never' is read before it is set]
+PROBE w04-nseval-unset.tcl tcl9.0: [W210 L1 Variable 'never' is read before it is set]
 PROBE w05-uplevel-namespace.tcl tcl8.6: 
 PROBE w05-uplevel-namespace.tcl tcl9.0: 

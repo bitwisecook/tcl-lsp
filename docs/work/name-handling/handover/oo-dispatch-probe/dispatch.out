@@ -1,4 +1,4 @@
-PROBE b01-property-90.tcl tcl8.6: [W002 L1 "oo::configurab" 'oo::configurable' is disabled in the active dialect profile (availabl] [W123 L1 "oo::configurab" Unresolved command 'oo::configurable' at this source point. The call w]
+PROBE b01-property-90.tcl tcl8.6: [W002 L1 "oo::configurab" 'oo::configurable' is disabled in the active dialect profile (availabl]
 PROBE b01-property-90.tcl tcl9.0: 
 PROBE b02-slots.tcl tcl8.6: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse] [W307 L6 "[C new]" Non-literal command name — cannot statically analyse]
 PROBE b02-slots.tcl tcl9.0: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse] [W307 L6 "[C new]" Non-literal command name — cannot statically analyse]
@@ -56,11 +56,11 @@ PROBE c18-ensemble-on-class.tcl tcl8.6: [W307 L3 "[e mk]" Non-literal command na
 PROBE c18-ensemble-on-class.tcl tcl9.0: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
 PROBE c18b-ensemble-on-class-abs.tcl tcl8.6: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
 PROBE c18b-ensemble-on-class-abs.tcl tcl9.0: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
-PROBE d01-itcl-inherit.tcl tcl8.6: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
-PROBE d01-itcl-inherit.tcl tcl9.0: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+PROBE d01-itcl-inherit.tcl tcl8.6: 
+PROBE d01-itcl-inherit.tcl tcl9.0: 
 PROBE d02-snit-delegate.tcl tcl8.6: 
 PROBE d02-snit-delegate.tcl tcl9.0: 
 PROBE d03-critcl.tcl tcl8.6: 
 PROBE d03-critcl.tcl tcl9.0: 
-PROBE d04-itcl-public-var.tcl tcl8.6: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
-PROBE d04-itcl-public-var.tcl tcl9.0: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+PROBE d04-itcl-public-var.tcl tcl8.6: 
+PROBE d04-itcl-public-var.tcl tcl9.0: 

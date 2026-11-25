@@ -8,17 +8,17 @@ r02-regexp-options.tcl	tcl8.6	folder
 r02-regexp-options.tcl	tcl9.0	analyser	
 r02-regexp-options.tcl	tcl9.0	folder	
 r03-match-vars.tcl	tcl8.6	analyser	W210@13 W210@13 W147@15
-r03-match-vars.tcl	tcl8.6	folder	O100,O100,O116
-r03-match-vars.tcl	tcl8.6	folded	differs: before [0] 1 ac a {} c ¶ {0 1} {0 0} {-1 -1} {1 1} ¶ 0 0 ¶ m3 keep ¶ whole a ¶ 30 ¶ 1regexp match variables not allowed when using -inline ¶ 2:ab:a:b | after [0] {0 1} {0 0} {-1 -1} {1 1} ¶ m3 keep ¶ whole a ¶ 30 ¶ 1regexp match variables not allowed when using -inline ¶ 2:ab:a:b
+r03-match-vars.tcl	tcl8.6	folder	hint:O100,hint:O100,O116
+r03-match-vars.tcl	tcl8.6	folded	same
 r03-match-vars.tcl	tcl9.0	analyser	W210@13 W210@13 W147@15
-r03-match-vars.tcl	tcl9.0	folder	O100,O100,O116
-r03-match-vars.tcl	tcl9.0	folded	differs: before [0] 1 ac a {} c ¶ {0 1} {0 0} {-1 -1} {1 1} ¶ 0 0 ¶ m3 keep ¶ whole a ¶ 30 ¶ 1regexp match variables not allowed when using -inline ¶ 2:ab:a:b | after [0] {0 1} {0 0} {-1 -1} {1 1} ¶ m3 keep ¶ whole a ¶ 30 ¶ 1regexp match variables not allowed when using -inline ¶ 2:ab:a:b
+r03-match-vars.tcl	tcl9.0	folder	hint:O100,hint:O100,O116
+r03-match-vars.tcl	tcl9.0	folded	same
 r04-regsub.tcl	tcl8.6	analyser	
-r04-regsub.tcl	tcl8.6	folder	O129,O129,O129,O129,O129,O129,O100,O129,O129,O129,O129,O129,O129
-r04-regsub.tcl	tcl8.6	folded	differs: before [0] a[b]c ¶ b<a>n<a>n<a> ¶ b&n&n& ¶ b\an\an\a ¶ bnaanana ¶ -a-b-c- ¶ 3 bonono ¶ zzz ¶ banXnX ¶ b at a d at c ¶ a ¶ >a ¶ >b ¶ -a-b-c | after [0] a[b]c ¶ b<a>n<a>n<a> ¶ b&n&n& ¶ b\an\an\a ¶ bnaanana ¶ -a-b-c- ¶ zzz ¶ banXnX ¶ b at a d at c ¶ a ¶ >a ¶ >b ¶ -a-b-c
+r04-regsub.tcl	tcl8.6	folder	O129,O129,O129,O129,O129,O129,hint:O100,O129,O129,O129,O129,O129,O129
+r04-regsub.tcl	tcl8.6	folded	same
 r04-regsub.tcl	tcl9.0	analyser	
-r04-regsub.tcl	tcl9.0	folder	O129,O129,O129,O129,O129,O129,O100,O129,O129,O129,O129,O129,O129
-r04-regsub.tcl	tcl9.0	folded	differs: before [0] a[b]c ¶ b<a>n<a>n<a> ¶ b&n&n& ¶ b\an\an\a ¶ bnaanana ¶ -a-b-c- ¶ 3 bonono ¶ zzz ¶ banXnX ¶ b at a d at c ¶ a ¶ >a ¶ >b ¶ -a-b-c | after [0] a[b]c ¶ b<a>n<a>n<a> ¶ b&n&n& ¶ b\an\an\a ¶ bnaanana ¶ -a-b-c- ¶ zzz ¶ banXnX ¶ b at a d at c ¶ a ¶ >a ¶ >b ¶ -a-b-c
+r04-regsub.tcl	tcl9.0	folder	O129,O129,O129,O129,O129,O129,hint:O100,O129,O129,O129,O129,O129,O129
+r04-regsub.tcl	tcl9.0	folded	same
 r05-regsub-command.tcl	tcl8.6	analyser	W004@3 W004@4 W004@5 W004@6 W004@7
 r05-regsub-command.tcl	tcl8.6	folder	
 r05-regsub-command.tcl	tcl9.0	analyser	

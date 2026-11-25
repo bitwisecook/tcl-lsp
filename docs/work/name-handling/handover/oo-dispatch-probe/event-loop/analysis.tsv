@@ -28,11 +28,11 @@ ev07-late-definition.tcl	tcl8.6	folder
 ev07-late-definition.tcl	tcl9.0	analyser	
 ev07-late-definition.tcl	tcl9.0	folder	
 ev08-deferred-variable.tcl	tcl8.6	analyser	
-ev08-deferred-variable.tcl	tcl8.6	folder	O102,O116
-ev08-deferred-variable.tcl	tcl8.6	folded	overlapping rewrites 126..153 and 134..153
+ev08-deferred-variable.tcl	tcl8.6	folder	hint:O102,O116
+ev08-deferred-variable.tcl	tcl8.6	folded	same
 ev08-deferred-variable.tcl	tcl9.0	analyser	
-ev08-deferred-variable.tcl	tcl9.0	folder	O102,O116
-ev08-deferred-variable.tcl	tcl9.0	folded	overlapping rewrites 126..153 and 134..153
+ev08-deferred-variable.tcl	tcl9.0	folder	hint:O102,O116
+ev08-deferred-variable.tcl	tcl9.0	folded	same
 ev09-fileevent.tcl	tcl8.6	analyser	W103@2
 ev09-fileevent.tcl	tcl8.6	folder	
 ev09-fileevent.tcl	tcl9.0	analyser	W103@2

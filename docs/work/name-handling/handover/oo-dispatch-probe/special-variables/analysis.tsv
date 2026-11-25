@@ -17,7 +17,7 @@ sv04-platform-keys.tcl	tcl9.0	analyser
 sv04-platform-keys.tcl	tcl9.0	folder	
 sv05-precision.tcl	tcl8.6	analyser	
 sv05-precision.tcl	tcl8.6	folder	
-sv05-precision.tcl	tcl9.0	analyser	
+sv05-precision.tcl	tcl9.0	analyser	W210@9
 sv05-precision.tcl	tcl9.0	folder	
 sv06-errorinfo.tcl	tcl8.6	analyser	W302@3 W233@6 W302@6 W302@8 W302@10 W302@12
 sv06-errorinfo.tcl	tcl8.6	folder	
@@ -31,9 +31,9 @@ sv08-wordchars.tcl	tcl8.6	analyser
 sv08-wordchars.tcl	tcl8.6	folder	
 sv08-wordchars.tcl	tcl9.0	analyser	
 sv08-wordchars.tcl	tcl9.0	folder	
-sv09-proc-shadow.tcl	tcl8.6	analyser	
+sv09-proc-shadow.tcl	tcl8.6	analyser	W210@2
 sv09-proc-shadow.tcl	tcl8.6	folder	
-sv09-proc-shadow.tcl	tcl9.0	analyser	
+sv09-proc-shadow.tcl	tcl9.0	analyser	W210@2
 sv09-proc-shadow.tcl	tcl9.0	folder	
 sv10-namespace-eval-read.tcl	tcl8.6	analyser	
 sv10-namespace-eval-read.tcl	tcl8.6	folder	
@@ -48,11 +48,9 @@ sv12-write-only.tcl	tcl8.6	folder
 sv12-write-only.tcl	tcl9.0	analyser	
 sv12-write-only.tcl	tcl9.0	folder	
 sv13-argv-argc.tcl	tcl8.6	analyser	
-sv13-argv-argc.tcl	tcl8.6	folder	O102
-sv13-argv-argc.tcl	tcl8.6	folded	differs: before [0] argc=0 llength=3 ¶ argc=9 | after [0] argc=0 llength=3
+sv13-argv-argc.tcl	tcl8.6	folder	hint:O102
 sv13-argv-argc.tcl	tcl9.0	analyser	
-sv13-argv-argc.tcl	tcl9.0	folder	O102
-sv13-argv-argc.tcl	tcl9.0	folded	differs: before [0] argc=0 llength=3 ¶ argc=9 | after [0] argc=0 llength=3
+sv13-argv-argc.tcl	tcl9.0	folder	hint:O102
 sv14-errorinfo-write-before-error.tcl	tcl8.6	analyser	W302@3 W302@6
 sv14-errorinfo-write-before-error.tcl	tcl8.6	folder	
 sv14-errorinfo-write-before-error.tcl	tcl9.0	analyser	W302@3 W302@6
@@ -61,9 +59,9 @@ sv15-tk-globals.tcl	tcl8.6	analyser
 sv15-tk-globals.tcl	tcl8.6	folder	
 sv15-tk-globals.tcl	tcl9.0	analyser	
 sv15-tk-globals.tcl	tcl9.0	folder	
-sv16-lookup-errorcode.tcl	tcl8.6	analyser	W210@2 W302@2 W302@3
+sv16-lookup-errorcode.tcl	tcl8.6	analyser	W210@2 W210@2 W302@2 W302@3
 sv16-lookup-errorcode.tcl	tcl8.6	folder	
-sv16-lookup-errorcode.tcl	tcl9.0	analyser	W210@2 W302@2 W302@3
+sv16-lookup-errorcode.tcl	tcl9.0	analyser	W210@2 W210@2 W302@2 W302@3
 sv16-lookup-errorcode.tcl	tcl9.0	folder	
 sv17-error-vars-across-catch.optimised.tcl	tcl8.6	analyser	W302@2 W302@5
 sv17-error-vars-across-catch.optimised.tcl	tcl8.6	folder	
@@ -78,8 +76,8 @@ sv18-precision-write.optimised.tcl	tcl8.6	folder
 sv18-precision-write.optimised.tcl	tcl9.0	analyser	
 sv18-precision-write.optimised.tcl	tcl9.0	folder	
 sv18-precision-write.tcl	tcl8.6	analyser	
-sv18-precision-write.tcl	tcl8.6	folder	O109,O100
-sv18-precision-write.tcl	tcl8.6	folded	differs: before [0] 0.333 ¶ 3 | after [0] 0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	tcl8.6	folder	O100
+sv18-precision-write.tcl	tcl8.6	folded	same
 sv18-precision-write.tcl	tcl9.0	analyser	
 sv18-precision-write.tcl	tcl9.0	folder	O109,O101,O102
 sv18-precision-write.tcl	tcl9.0	folded	same

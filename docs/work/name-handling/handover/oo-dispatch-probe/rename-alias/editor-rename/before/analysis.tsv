@@ -36,21 +36,19 @@ e07-qualified-and-fallback.tcl	tcl9.0	analyser
 e07-qualified-and-fallback.tcl	tcl9.0	folder	O103
 e07-qualified-and-fallback.tcl	tcl9.0	folded	same
 e08-dynamic-name.tcl	tcl8.6	analyser	
-e08-dynamic-name.tcl	tcl8.6	folder	O102,O103
-e08-dynamic-name.tcl	tcl8.6	folded	overlapping rewrites 41..50 and 46..50
+e08-dynamic-name.tcl	tcl8.6	folder	hint:O102,O103
+e08-dynamic-name.tcl	tcl8.6	folded	same
 e08-dynamic-name.tcl	tcl9.0	analyser	
-e08-dynamic-name.tcl	tcl9.0	folder	O102,O103
-e08-dynamic-name.tcl	tcl9.0	folded	overlapping rewrites 41..50 and 46..50
+e08-dynamic-name.tcl	tcl9.0	folder	hint:O102,O103
+e08-dynamic-name.tcl	tcl9.0	folded	same
 e09-forward.tcl	tcl8.6	analyser	
 e09-forward.tcl	tcl8.6	folder	
 e09-forward.tcl	tcl9.0	analyser	
 e09-forward.tcl	tcl9.0	folder	
 e10-ns-proc.tcl	tcl8.6	analyser	
-e10-ns-proc.tcl	tcl8.6	folder	O103
-e10-ns-proc.tcl	tcl8.6	folded	differs: before [0] lh lh lh | after [1] invalid command name "lh" ¶     while executing ¶ "lh " ¶     (procedure "::lib::use" line 1) ¶     invoked from within ¶ "::lib::use" ¶     invoked from within ¶ "list [::lib::helper] [::lib::use] [namespace eval ::lib {helper}]" ¶     invoked from within ¶ "puts [list [::lib::helper] [::lib::use] [namespace eval ::lib {helper}]]" ¶     (file "e10-ns-proc.tcl" line 2)
+e10-ns-proc.tcl	tcl8.6	folder	hint:O103
 e10-ns-proc.tcl	tcl9.0	analyser	
-e10-ns-proc.tcl	tcl9.0	folder	O103
-e10-ns-proc.tcl	tcl9.0	folded	differs: before [0] lh lh lh | after [1] invalid command name "lh" ¶     while executing ¶ "lh " ¶     (procedure "::lib::use" line 1) ¶     invoked from within ¶ "::lib::use" ¶     invoked from within ¶ "list [::lib::helper] [::lib::use] [namespace eval ::lib {helper}]" ¶     invoked from within ¶ "puts [list [::lib::helper] [::lib::use] [namespace eval ::lib {helper}]]" ¶     (file "e10-ns-proc.tcl" line 2)
+e10-ns-proc.tcl	tcl9.0	folder	hint:O103
 e11-string-arg.tcl	tcl8.6	analyser	
 e11-string-arg.tcl	tcl8.6	folder	O129
 e11-string-arg.tcl	tcl8.6	folded	same
