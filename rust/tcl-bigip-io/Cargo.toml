@@ -37,19 +37,16 @@ thiserror = "2"
 
 # UCS container: gzip-compressed tar of /config.
 flate2 = "1"
+sha2 = "0.11"
 tar = "0.4"
 
 # Encrypted UCS = OpenPGP symmetric message (S2K + AES-CFB, F5 KB K5437).
-# RustCrypto supplies AES and the CFB mode. Packet framing, S2K, and
-# integrity checks stay in the symmetric OpenPGP reader.
-aes = "0.9"
 base64 = "0.23"
-cfb-mode = "0.9.1"
-digest = "0.11"
-md-5 = "0.11"
-sha1 = "0.11"
-sha2 = "0.11"
-ripemd = "0.2"
+glomar-pgp = "0.4"
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+# Enable getrandom's browser backend for glomar.
+glomar = { version = "0.4", features = ["wasm-js"] }
 
 [dev-dependencies]
 temp-env = "0.3"

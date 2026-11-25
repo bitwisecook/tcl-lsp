@@ -185,6 +185,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 
 [[package]]
+name = "bytes"
+version = "1.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
+
+[[package]]
+name = "bzip2-turbo-rs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae130bec94733820e7012793c98e029fbe606373c564704518a984f093b9c4f3"
+
+[[package]]
 name = "cc"
 version = "1.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -192,15 +204,6 @@ checksum = "02f0e023adb368345ce0ca6cdfc0f24a06554468d0e8503e14a0841de79bfa69"
 dependencies = [
  "find-msvc-tools",
  "shlex",
-]
-
-[[package]]
-name = "cfb-mode"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac64b0984be8510caae81455ea2c8c23e5af6be61c36129df62f3380d5d64e1f"
-dependencies = [
- "cipher",
 ]
 
 [[package]]
@@ -249,6 +252,12 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "cpu-dispatch"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cb1dfc8b2e54db7502c6eb8f43aeef784489402b081334a25cb0de668fdbc9a"
 
 [[package]]
 name = "cpubits"
@@ -327,6 +336,12 @@ name = "data-encoding"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
+
+[[package]]
+name = "deflate-turbo"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a65fb2a452584e481925ddcb2248aff7d0020da878c1274d8bc6e32d89f07a4e"
 
 [[package]]
 name = "der"
@@ -544,6 +559,30 @@ dependencies = [
  "r-efi",
  "rand_core 0.10.1",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "glomar"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a88a881d0216416f9278a83be4b204c34ec4e5fef9c60f43c40e0380cb3abd52"
+dependencies = [
+ "cpu-dispatch",
+ "getrandom 0.4.3",
+]
+
+[[package]]
+name = "glomar-pgp"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3576db3656266127c1b51ce63c50459435033e037362ad82719775a23f941779"
+dependencies = [
+ "bytes",
+ "bzip2-turbo-rs",
+ "deflate-turbo",
+ "glomar",
+ "rand_core 0.6.4",
+ "zeroize",
 ]
 
 [[package]]
@@ -964,6 +1003,12 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand_core"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+
+[[package]]
+name = "rand_core"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
@@ -1054,15 +1099,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "ripemd"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dd4211456b4172d7e44261920c25acf07367c4f04bb5f5d54fc21b090d9b159"
-dependencies = [
- "digest",
 ]
 
 [[package]]
@@ -1358,14 +1394,10 @@ dependencies = [
 name = "tcl-bigip-io"
 version = "0.1.0"
 dependencies = [
- "aes",
  "base64",
- "cfb-mode",
- "digest",
  "flate2",
- "md-5",
- "ripemd",
- "sha1",
+ "glomar",
+ "glomar-pgp",
  "sha2",
  "tar",
  "tcl-bigip",

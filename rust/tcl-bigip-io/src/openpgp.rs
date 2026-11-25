@@ -18,40 +18,35 @@
 
 //! `OpenPGP` symmetric (passphrase) decryption for UCS archives.
 //!
-//! The pure-Rust fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
-//! out to `gpg`. BIG-IP encrypts UCS files with `GnuPG` using a passphrase and a
-//! 128-bit AES symmetric cipher (F5 KB K5437), producing an ordinary `OpenPGP`
-//! message:
+//! BIG-IP encrypts UCS files with a passphrase and AES (F5 KB K5437).
+//! The session-key packet supplies an S2K-derived or wrapped key. The encrypted
+//! packet uses SEIPD v1 and protects the compressed or literal data with an MDC.
 //!
-//! ```text
-//! SKESK (tag 3)  → S2K-derived session key
-//! SEIPD (tag 18) → AES-CFB ciphertext + SHA-1 MDC
-//! (inner)        → optional Compressed Data (tag 8) wrapping
-//!                  Literal Data (tag 11) — the gzip tar.
-//! ```
-//!
-//! Only what that path needs is implemented:
-//!
-//! * AES-128/192/256 (via `RustCrypto`) — the only ciphers UCS uses.
-//! * S2K simple / salted / iterated-and-salted, any supported digest.
-//! * OpenPGP-CFB for SEIPD v1, with the quick-check and SHA-1 MDC verify.
-//! * ZIP / ZLIB inner compression (raw / zlib-wrapped DEFLATE via `flate2`).
-//! * Old- and new-format packet headers including partial body lengths.
-//!
-//! Out of scope (returns [`OpenPgpError`], pointing at gpg): public-key
-//! encryption, non-AES ciphers, AEAD / SEIPD v2, BZIP2
-//! inner compression, and the obsolete MDC-less SED packet (tag 9).
+//! `glomar-pgp` owns packet framing, S2K and authenticated decryption. This
+//! adapter retains the UCS reader's treatment of legacy partial chunks,
+//! noncanonical fields, encrypted-data errors and permissive ASCII armor.
 
-use std::io::Read;
+use std::io::{self, Read};
 
 use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use base64::{DecodeError, Engine as _, alphabet};
-use cfb_mode::cipher::KeyIvInit;
-use digest::Digest;
 use flate2::read::{DeflateDecoder, ZlibDecoder};
+use glomar_pgp::composed::RawSessionKey;
+use glomar_pgp::crypto::{hash::HashAlgorithm, sym::SymmetricKeyAlgorithm};
+use glomar_pgp::packet::{
+    LiteralDataHeader, PacketHeader, SymEncryptedProtectedData, SymKeyEncryptedSessionKey,
+};
+use glomar_pgp::types::{PacketLength, Seipdv1ReadMode, StringToKey, Tag};
 use tcl_core_types::RecursionLimit;
 
 const BLOCK: usize = 16;
+const IV: [u8; BLOCK] = [0; BLOCK];
+const MDC_LEN: usize = 22;
+const TRUNCATED: &str = "malformed or truncated OpenPGP message";
+const CHECK_FAILED: &str = "incorrect passphrase (quick-check failed)";
+const INTEGRITY_FAILED: &str = "integrity check failed (wrong passphrase or corrupt archive)";
+const MDC_MISSING: &str = "incorrect passphrase or corrupt archive (MDC packet missing)";
+const INVALID_KEYLEN: &str = "session key length does not match cipher";
 const ARMOR_BASE64: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,
     GeneralPurposeConfig::new()
@@ -59,19 +54,8 @@ const ARMOR_BASE64: GeneralPurpose = GeneralPurpose::new(
         .with_decode_allow_trailing_bits(true),
 );
 
-/// Maximum nesting depth of `OpenPGP` Compressed Data (tag 8) packets
-/// [`extract_literal`] will unwrap before giving up:
-/// `extract_literal` recurses natively once per nested Compressed Data
-/// packet, fully attacker/generator-controlled via a crafted `.ucs`/`.scf`
-/// archive, so it needs a depth cap. A legitimate BIG-IP UCS never
-/// nests Compressed Data more than one level deep (SEIPD → one Compressed
-/// Data → Literal Data); 16 is deliberately generous relative to that (a
-/// handful of levels of headroom for any oddly-repacked archive) while
-/// staying small enough to be cheap to check and to leave comfortable
-/// margin on the smallest stack this code runs on — the in-browser
-/// `bigip-report-gen/wasm` target, whose host-controlled stack budget this
-/// repo does not control (unlike the native `bigip-report-gen` CLI, which
-/// this repo's own entry point could give a generous stack, WASM cannot).
+// The existing zero-based limit permits wrappers at depths 0 through 16.
+// Keeping that bound also protects the browser's host-controlled native stack.
 const MAX_COMPRESSED_PACKET_DEPTH: RecursionLimit = RecursionLimit(16);
 
 /// The message could not be parsed or uses an unsupported feature, or
@@ -87,309 +71,172 @@ impl OpenPgpError {
     }
 }
 
-/// True if `cipher_id` is an AES variant we can key, returning its key length.
-fn cipher_keylen(cipher_id: u8) -> Option<usize> {
-    match cipher_id {
-        7 => Some(16),
-        8 => Some(24),
-        9 => Some(32),
-        _ => None,
-    }
+fn malformed() -> OpenPgpError {
+    OpenPgpError::new(TRUNCATED)
 }
 
-// Packet framing
-
-/// Read `n` big-endian bytes at `off`, erroring on truncation (a read past
-/// the end of `data` yields `OpenPgpError`).
-fn be(data: &[u8], off: usize, n: usize) -> Result<u32, OpenPgpError> {
-    if off + n > data.len() {
-        return Err(OpenPgpError::new("malformed or truncated OpenPGP message"));
-    }
-    let mut v = 0u32;
-    for &b in &data[off..off + n] {
-        v = (v << 8) | u32::from(b);
-    }
-    Ok(v)
+fn decrypt_cfb(
+    cipher: SymmetricKeyAlgorithm,
+    key: &[u8],
+    ciphertext: &mut [u8],
+) -> Result<(), OpenPgpError> {
+    cipher
+        .decrypt_with_iv_regular(key, &IV, ciphertext)
+        .map_err(|_| OpenPgpError::new(INVALID_KEYLEN))
 }
 
-fn at(data: &[u8], off: usize) -> Result<u8, OpenPgpError> {
-    data.get(off)
-        .copied()
-        .ok_or_else(|| OpenPgpError::new("malformed or truncated OpenPGP message"))
-}
-
-/// `(length, new_off, partial)` — new-format body length (RFC 4880 §4.2.2).
-fn read_new_length(data: &[u8], off: usize) -> Result<(usize, usize, bool), OpenPgpError> {
-    let o1 = at(data, off)?;
-    let off = off + 1;
-    if o1 < 192 {
-        Ok((o1 as usize, off, false))
-    } else if o1 < 224 {
-        let o2 = at(data, off)?;
-        Ok((
-            (((o1 as usize) - 192) << 8) + o2 as usize + 192,
-            off + 1,
-            false,
-        ))
-    } else if o1 < 255 {
-        Ok((1usize << (o1 & 0x1F), off, true)) // partial body length
-    } else {
-        Ok((be(data, off, 4)? as usize, off + 4, false))
-    }
-}
-
-/// `(length, new_off)` — old-format body length (RFC 4880 §4.2.1).
-fn read_old_length(data: &[u8], ctb: u8, off: usize) -> Result<(usize, usize), OpenPgpError> {
-    match ctb & 0x03 {
-        0 => Ok((at(data, off)? as usize, off + 1)),
-        1 => Ok((be(data, off, 2)? as usize, off + 2)),
-        2 => Ok((be(data, off, 4)? as usize, off + 4)),
-        _ => Ok((data.len() - off, off)), // indeterminate: to end of input
-    }
-}
-
-/// Saturating slice (lenient out-of-range indexing).
-fn slice_sat(data: &[u8], off: usize, len: usize) -> &[u8] {
-    let start = off.min(data.len());
-    let end = off.saturating_add(len).min(data.len());
-    &data[start..end]
-}
-
-/// Split an `OpenPGP` stream into `(tag, body)` pairs.
-fn parse_packets(data: &[u8]) -> Result<Vec<(u8, Vec<u8>)>, OpenPgpError> {
+// The packet library owns the binary header and length decoding. Read the segments with
+// the archive reader's legacy rules: a short initial partial chunk is accepted, and a
+// fixed body is bounded by the remaining bytes if its advertised length is larger.
+fn parse_packets(mut input: &[u8]) -> Result<Vec<(PacketHeader, Vec<u8>)>, OpenPgpError> {
     let mut packets = Vec::new();
-    let mut off = 0;
-    let n = data.len();
-    while off < n {
-        let ctb = data[off];
-        off += 1;
-        if ctb & 0x80 == 0 {
-            return Err(OpenPgpError::new(
-                "not an OpenPGP message (bad packet header)",
-            ));
-        }
-        if ctb & 0x40 != 0 {
-            // New format.
-            let tag = ctb & 0x3F;
-            let mut body = Vec::new();
-            loop {
-                let (length, new_off, partial) = read_new_length(data, off)?;
-                off = new_off;
-                body.extend_from_slice(slice_sat(data, off, length));
-                off += length;
-                if !partial {
-                    break;
-                }
+    while !input.is_empty() {
+        let header = PacketHeader::try_from_reader(&mut input).map_err(|err| {
+            if err.kind() == io::ErrorKind::InvalidData {
+                OpenPgpError::new("not an OpenPGP message (bad packet header)")
+            } else {
+                malformed()
             }
-            packets.push((tag, body));
-        } else {
-            // Old format.
-            let tag = (ctb >> 2) & 0x0F;
-            let (length, new_off) = read_old_length(data, ctb, off)?;
-            off = new_off;
-            packets.push((tag, slice_sat(data, off, length).to_vec()));
-            off += length;
+        })?;
+        let mut length = header.packet_length();
+        let mut body = Vec::new();
+        loop {
+            let size = length.maybe_len().map_or(input.len(), |len| {
+                usize::try_from(len).unwrap_or(usize::MAX)
+            });
+            let (chunk, remaining) = input.split_at(size.min(input.len()));
+            body.extend_from_slice(chunk);
+            input = remaining;
+            if !matches!(length, PacketLength::Partial(_)) {
+                break;
+            }
+            length = PacketLength::try_from_reader(&mut input).map_err(|_| malformed())?;
         }
+        packets.push((header, body));
     }
     Ok(packets)
 }
 
-// String-to-key
-
-struct S2k {
-    hash_id: u8,
-    salt: Vec<u8>,
-    count: usize,
-    next_off: usize,
-}
-
-/// Parse an S2K specifier (RFC 4880 §3.7.1). `count == 0` for non-iterated.
-fn parse_s2k(buf: &[u8], off: usize) -> Result<S2k, OpenPgpError> {
-    let s2k_type = at(buf, off)?;
-    let hash_id = at(buf, off + 1)?;
-    let mut off = off + 2;
-    if hash_name(hash_id).is_none() {
-        return Err(OpenPgpError::new(format!(
-            "unsupported S2K hash algorithm {hash_id}"
-        )));
-    }
-    let mut salt = Vec::new();
-    let mut count = 0usize;
-    if s2k_type == 1 || s2k_type == 3 {
-        salt = slice_sat(buf, off, 8).to_vec();
-        off += 8;
-    }
-    if s2k_type == 3 {
-        let c = at(buf, off)?;
-        off += 1;
-        count = (16 + (c as usize & 0x0F)) << ((c >> 4) as usize + 6);
-    } else if s2k_type != 0 && s2k_type != 1 {
-        return Err(OpenPgpError::new(format!(
-            "unsupported S2K type {s2k_type}"
-        )));
-    }
-    Ok(S2k {
-        hash_id,
-        salt,
-        count,
-        next_off: off,
-    })
-}
-
-/// Friendly name for a supported `OpenPGP` hash algorithm ID, else `None`.
-fn hash_name(hash_id: u8) -> Option<&'static str> {
-    match hash_id {
-        1 => Some("md5"),
-        2 => Some("sha1"),
-        3 => Some("ripemd160"),
-        8 => Some("sha256"),
-        9 => Some("sha384"),
-        10 => Some("sha512"),
-        11 => Some("sha224"),
-        _ => None,
+fn cipher(id: u8) -> Result<SymmetricKeyAlgorithm, OpenPgpError> {
+    match SymmetricKeyAlgorithm::from(id) {
+        cipher @ (SymmetricKeyAlgorithm::AES128
+        | SymmetricKeyAlgorithm::AES192
+        | SymmetricKeyAlgorithm::AES256) => Ok(cipher),
+        _ => Err(OpenPgpError::new(format!(
+            "unsupported symmetric cipher (algorithm {id}); the bundled decryptor only handles AES — install gpg/gpg2"
+        ))),
     }
 }
 
-/// Derive `keylen` key bytes from `passphrase` via `OpenPGP` S2K (the simple /
-/// salted / iterated digest-folding loop). Generic over the digest so the
-/// dispatch below stays a flat match.
-fn s2k_derive_with<D: Digest>(
+fn decode_skesk(
+    header: PacketHeader,
+    body: &[u8],
     passphrase: &[u8],
-    salt: &[u8],
-    count: usize,
-    keylen: usize,
-) -> Vec<u8> {
-    let mut base = Vec::with_capacity(salt.len() + passphrase.len());
-    base.extend_from_slice(salt);
-    base.extend_from_slice(passphrase);
-    let (full, rem) = if count != 0 && count > base.len() {
-        (count / base.len(), count % base.len())
-    } else {
-        (1usize, 0usize) // simple/salted (or count below one full pass)
-    };
-    let mut out: Vec<u8> = Vec::new();
-    let mut context = 0usize;
-    while out.len() < keylen {
-        let mut h = D::new();
-        if context > 0 {
-            h.update(vec![0u8; context]);
-        }
-        for _ in 0..full {
-            h.update(&base);
-        }
-        if rem > 0 {
-            h.update(&base[..rem]);
-        }
-        out.extend_from_slice(&h.finalize());
-        context += 1;
-    }
-    out.truncate(keylen);
-    out
-}
-
-fn s2k_derive(hash_id: u8, passphrase: &[u8], salt: &[u8], count: usize, keylen: usize) -> Vec<u8> {
-    match hash_id {
-        1 => s2k_derive_with::<md5::Md5>(passphrase, salt, count, keylen),
-        2 => s2k_derive_with::<sha1::Sha1>(passphrase, salt, count, keylen),
-        3 => s2k_derive_with::<ripemd::Ripemd160>(passphrase, salt, count, keylen),
-        8 => s2k_derive_with::<sha2::Sha256>(passphrase, salt, count, keylen),
-        9 => s2k_derive_with::<sha2::Sha384>(passphrase, salt, count, keylen),
-        10 => s2k_derive_with::<sha2::Sha512>(passphrase, salt, count, keylen),
-        11 => s2k_derive_with::<sha2::Sha224>(passphrase, salt, count, keylen),
-        // Validated already by parse_s2k; unreachable in practice.
-        _ => Vec::new(),
-    }
-}
-
-/// Decrypt the `OpenPGP` full-block CFB stream used by SKESK and SEIPD v1.
-fn decrypt_cfb(cipher_id: u8, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
-    const IV: [u8; BLOCK] = [0; BLOCK];
-    let keylen = cipher_keylen(cipher_id).ok_or_else(|| unsupported_cipher(cipher_id))?;
-    if key.len() != keylen {
-        return Err(OpenPgpError::new(
-            "session key length does not match cipher",
-        ));
-    }
-    let mut plaintext = ciphertext.to_vec();
-    match keylen {
-        16 => cfb_mode::Decryptor::<aes::Aes128>::new_from_slices(key, &IV)
-            .map(|cipher| cipher.decrypt(&mut plaintext)),
-        24 => cfb_mode::Decryptor::<aes::Aes192>::new_from_slices(key, &IV)
-            .map(|cipher| cipher.decrypt(&mut plaintext)),
-        32 => cfb_mode::Decryptor::<aes::Aes256>::new_from_slices(key, &IV)
-            .map(|cipher| cipher.decrypt(&mut plaintext)),
-        _ => unreachable!("AES key length was selected above"),
-    }
-    .map_err(|_| OpenPgpError::new("session key length does not match cipher"))?;
-    Ok(plaintext)
-}
-
-fn unsupported_cipher(cipher_id: u8) -> OpenPgpError {
-    OpenPgpError::new(format!(
-        "unsupported symmetric cipher (algorithm {cipher_id}); the bundled decryptor only handles AES — install gpg/gpg2"
-    ))
-}
-
-// Packet handlers
-
-/// Symmetric-Key Encrypted Session Key packet → `(cipher_id, session_key)`.
-fn decode_skesk(body: &[u8], passphrase: &[u8]) -> Result<(u8, Vec<u8>), OpenPgpError> {
-    let version = at(body, 0)?;
+) -> Result<(u8, RawSessionKey), OpenPgpError> {
+    let version = *body.first().ok_or_else(malformed)?;
     if !matches!(version, 4..=6) {
         return Err(OpenPgpError::new(format!(
             "unsupported SKESK version {version}"
         )));
     }
-    let cipher_id = at(body, 1)?;
-    let s2k = parse_s2k(body, 2)?;
-    let keylen = cipher_keylen(cipher_id).ok_or_else(|| unsupported_cipher(cipher_id))?;
-    let s2k_key = s2k_derive(s2k.hash_id, passphrase, &s2k.salt, s2k.count, keylen);
-    let encrypted_key = &body[s2k.next_off.min(body.len())..];
-    if encrypted_key.is_empty() {
-        // No wrapped key: the S2K output is the session key directly.
-        return Ok((cipher_id, s2k_key));
+    let [_, cipher_id, s2k_type, hash_id, contents @ ..] = body else {
+        return Err(malformed());
+    };
+    let (cipher_id, s2k_type, hash_id) = (*cipher_id, *s2k_type, *hash_id);
+    if !matches!(hash_id, 1..=3 | 8..=11) {
+        return Err(OpenPgpError::new(format!(
+            "unsupported S2K hash algorithm {hash_id}"
+        )));
     }
-    // Wrapped session key: CFB-decrypt with an all-zero IV; the first
-    // plaintext byte is the real cipher algorithm, the rest is the key.
-    let decrypted = decrypt_cfb(cipher_id, &s2k_key, encrypted_key)?;
-    let real_id = decrypted[0];
-    Ok((real_id, decrypted[1..].to_vec()))
+    if !matches!(s2k_type, 0 | 1 | 3) {
+        return Err(OpenPgpError::new(format!(
+            "unsupported S2K type {s2k_type}"
+        )));
+    }
+    if s2k_type == 3 && contents.len() < 9 {
+        return Err(malformed());
+    }
+    let cipher = cipher(cipher_id)?;
+
+    if s2k_type == 1 && contents.len() < 8 {
+        // Historically available salt bytes were all used, even for truncated salt.
+        let s2k = StringToKey::Simple {
+            hash_alg: HashAlgorithm::from(hash_id),
+        };
+        let key = s2k
+            .derive_key(&[contents, passphrase].concat(), cipher.key_size())
+            .map_err(|_| malformed())?;
+        return Ok((cipher_id, key));
+    }
+    // Older archive readers interpreted versions 4–6 with the v4 layout.
+    let as_v4 = [4u8].as_slice().chain(&body[1..]);
+    let packet =
+        SymKeyEncryptedSessionKey::try_from_reader(header, as_v4).map_err(|_| malformed())?;
+    let s2k = packet.s2k().ok_or_else(malformed)?;
+    let key = s2k
+        .derive_key(passphrase, cipher.key_size())
+        .map_err(|_| malformed())?;
+    let Some(encrypted_key) = packet.encrypted_key().filter(|key| !key.is_empty()) else {
+        return Ok((cipher_id, key));
+    };
+    // The archive reader has historically deferred the inner cipher and key-length
+    // check until the encrypted body is present. Use the same library primitive as
+    // `packet.decrypt()` and retain that validation order.
+    let mut plain = encrypted_key.to_vec();
+    decrypt_cfb(cipher, key.as_ref(), &mut plain)?;
+    let (&id, session_key) = plain.split_first().ok_or_else(malformed)?;
+    Ok((id, RawSessionKey::from(session_key)))
 }
 
-/// Decrypt a Sym. Encrypted & Integrity Protected Data packet (tag 18).
-fn decrypt_seipd(body: &[u8], cipher_id: u8, session_key: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
-    let version = at(body, 0)?;
+fn decrypt_seipd(
+    header: PacketHeader,
+    body: &[u8],
+    cipher_id: u8,
+    key: &RawSessionKey,
+) -> Result<Vec<u8>, OpenPgpError> {
+    let (&version, ciphertext) = body.split_first().ok_or_else(malformed)?;
     if version != 1 {
         return Err(OpenPgpError::new(
             "unsupported encrypted-data packet (AEAD/SEIPD v2); install gpg/gpg2",
         ));
     }
-    let plain = decrypt_cfb(cipher_id, session_key, &body[1..])?;
-    if plain.len() < BLOCK + 2 + 22 {
+    let cipher = cipher(cipher_id)?;
+    if key.len() != cipher.key_size() {
+        return Err(OpenPgpError::new(INVALID_KEYLEN));
+    }
+    let Some((prefix, _)) = ciphertext
+        .split_at_checked(BLOCK + 2)
+        .filter(|(_, rest)| rest.len() >= MDC_LEN)
+    else {
         return Err(OpenPgpError::new(
             "encrypted data too short (corrupt archive)",
         ));
+    };
+    // The backend always verifies the MDC and no longer uses the advisory prefix.
+    // Preserve the UCS reader's distinct failure and rejection for mismatched prefixes.
+    let mut prefix: [u8; BLOCK + 2] = prefix.try_into().map_err(|_| malformed())?;
+    decrypt_cfb(cipher, key.as_ref(), &mut prefix)?;
+    if prefix[BLOCK - 2..BLOCK] != prefix[BLOCK..] {
+        return Err(OpenPgpError::new(CHECK_FAILED));
     }
-    // Quick check: the two bytes after the random prefix repeat its tail.
-    if plain[BLOCK - 2..BLOCK] != plain[BLOCK..BLOCK + 2] {
-        return Err(OpenPgpError::new(
-            "incorrect passphrase (quick-check failed)",
-        ));
-    }
-    let mdc = &plain[plain.len() - 22..];
-    if mdc[0] != 0xD3 || mdc[1] != 0x14 {
-        return Err(OpenPgpError::new(
-            "incorrect passphrase or corrupt archive (MDC packet missing)",
-        ));
-    }
-    let mut h = sha1::Sha1::new();
-    h.update(&plain[..plain.len() - 20]);
-    if h.finalize().as_slice() != &plain[plain.len() - 20..] {
-        return Err(OpenPgpError::new(
-            "integrity check failed (wrong passphrase or corrupt archive)",
-        ));
-    }
-    Ok(plain[BLOCK + 2..plain.len() - 22].to_vec())
+    let packet =
+        SymEncryptedProtectedData::try_from_reader(header, body).map_err(|_| malformed())?;
+    // The library collects the entire stream and returns it only after verifying the MDC.
+    packet
+        .decrypt(key.as_ref(), Some(cipher), Seipdv1ReadMode::Streaming)
+        .map_err(|_| {
+            // Preserve the old distinction between a missing and a mismatched MDC, without
+            // duplicating successful packet decryption or returning unauthenticated bytes.
+            let mut plain = ciphertext.to_vec();
+            if decrypt_cfb(cipher, key.as_ref(), &mut plain).is_ok()
+                && !plain[plain.len() - MDC_LEN..]
+                    .starts_with(&[Tag::ModDetectionCode.encode(), 20])
+            {
+                OpenPgpError::new(MDC_MISSING)
+            } else {
+                OpenPgpError::new(INTEGRITY_FAILED)
+            }
+        })
 }
 
 fn decompress(algo: u8, data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
@@ -413,30 +260,28 @@ fn inflate<R: Read>(mut dec: R) -> Result<Vec<u8>, OpenPgpError> {
     Ok(out)
 }
 
-/// Unwrap Compressed (tag 8) / Literal (tag 11) packets to the payload.
-///
-/// `depth` is the nesting level of this call (0 at the top); past
-/// [`MAX_COMPRESSED_PACKET_DEPTH`] this returns [`OpenPgpError`] instead of
-/// unwrapping another Compressed Data packet, so pathologically deep
-/// Compressed Data nesting in a crafted archive fails cleanly rather than
-/// overflowing the native stack.
 fn extract_literal(data: &[u8], depth: u32) -> Result<Vec<u8>, OpenPgpError> {
-    for (tag, body) in parse_packets(data)? {
-        if tag == 8 {
-            if MAX_COMPRESSED_PACKET_DEPTH.exceeded(depth) {
-                return Err(OpenPgpError::new(
-                    "OpenPGP message nests Compressed Data packets too deeply (malformed or hostile archive)",
-                ));
+    for (header, body) in parse_packets(data)? {
+        match header.tag() {
+            Tag::CompressedData => {
+                if MAX_COMPRESSED_PACKET_DEPTH.exceeded(depth) {
+                    return Err(OpenPgpError::new(
+                        "OpenPGP message nests Compressed Data packets too deeply (malformed or hostile archive)",
+                    ));
+                }
+                let (&algorithm, compressed) = body.split_first().ok_or_else(malformed)?;
+                return extract_literal(&decompress(algorithm, compressed)?, depth + 1);
             }
-            // Compressed Data: [algo][compressed...]
-            let algo = at(&body, 0)?;
-            return extract_literal(&decompress(algo, &body[1..])?, depth + 1);
-        }
-        if tag == 11 {
-            // Literal Data: [format][namelen][name][mtime(4)][payload]
-            let namelen = at(&body, 1)? as usize;
-            let start = (2 + namelen + 4).min(body.len());
-            return Ok(body[start..].to_vec());
+            Tag::LiteralData => {
+                let mut input = body.as_slice();
+                return match LiteralDataHeader::try_from_reader(&mut input) {
+                    Ok(_) => Ok(input.to_vec()),
+                    // The archive reader accepts a truncated filename or timestamp as empty data.
+                    Err(_) if body.len() >= 2 => Ok(Vec::new()),
+                    Err(_) => Err(malformed()),
+                };
+            }
+            _ => {}
         }
     }
     Err(OpenPgpError::new(
@@ -512,48 +357,40 @@ fn maybe_dearmor(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
 /// Returns [`OpenPgpError`] for a wrong passphrase, malformed input, or an
 /// unsupported feature.
 pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
-    let packets = parse_packets(&maybe_dearmor(data)?)?;
-
-    let mut cipher_id: Option<u8> = None;
-    let mut session_key: Option<Vec<u8>> = None;
-    let mut enc_tag: Option<u8> = None;
-    let mut enc_body: Option<Vec<u8>> = None;
-    for (tag, body) in packets {
-        match tag {
-            3 => {
-                let (cid, key) = decode_skesk(&body, passphrase)?;
-                cipher_id = Some(cid);
-                session_key = Some(key);
+    let mut selected_key = None;
+    let mut selected_packet = None;
+    for (header, body) in parse_packets(&maybe_dearmor(data)?)? {
+        match header.tag() {
+            Tag::SymKeyEncryptedSessionKey => {
+                selected_key = Some(decode_skesk(header, &body, passphrase)?);
             }
-            1 => {
+            Tag::PublicKeyEncryptedSessionKey => {
                 return Err(OpenPgpError::new(
                     "public-key encrypted message — a passphrase cannot decrypt it",
                 ));
             }
-            9 | 18 => {
-                enc_tag = Some(tag);
-                enc_body = Some(body);
+            Tag::SymEncryptedData | Tag::SymEncryptedProtectedData => {
+                selected_packet = Some((header, body));
             }
             _ => {}
         }
     }
-
-    let (Some(cipher_id), Some(session_key)) = (cipher_id, session_key) else {
+    let Some((cipher, key)) = selected_key else {
         return Err(OpenPgpError::new(
             "no symmetric-key session packet — this is not a passphrase-encrypted UCS",
         ));
     };
-    let Some(enc_body) = enc_body else {
+    let Some((header, body)) = selected_packet else {
         return Err(OpenPgpError::new(
             "no encrypted-data packet found in message",
         ));
     };
-    if enc_tag == Some(9) {
+    if header.tag() == Tag::SymEncryptedData {
         return Err(OpenPgpError::new(
             "legacy SED packet (no MDC) is unsupported by the bundled decryptor — install gpg/gpg2 to decrypt this archive",
         ));
     }
-    extract_literal(&decrypt_seipd(&enc_body, cipher_id, &session_key)?, 0)
+    extract_literal(&decrypt_seipd(header, &body, cipher, &key)?, 0)
 }
 
 #[cfg(test)]
@@ -578,7 +415,7 @@ mod armor_tests {
 
 #[cfg(test)]
 mod cfb_tests {
-    use super::decrypt_cfb;
+    use super::{cipher, decrypt_cfb};
 
     #[test]
     fn decrypts_all_aes_widths_and_partial_final_blocks() {
@@ -610,9 +447,9 @@ mod cfb_tests {
                 ],
             ),
         ];
-        for (cipher_id, keylen, ciphertext) in vectors {
-            let plaintext = decrypt_cfb(cipher_id, &key[..keylen], &ciphertext).unwrap();
-            assert_eq!(plaintext, b"OpenPGP partial-block test");
+        for (cipher_id, keylen, mut ciphertext) in vectors {
+            decrypt_cfb(cipher(cipher_id).unwrap(), &key[..keylen], &mut ciphertext).unwrap();
+            assert_eq!(ciphertext.as_slice(), b"OpenPGP partial-block test");
         }
     }
 }
@@ -621,32 +458,33 @@ mod cfb_tests {
 mod recursion_tests {
     use super::*;
 
-    /// New-format packet body-length header (RFC 4880 §4.2.2), the encode
-    /// side of [`read_new_length`] — used only to build synthetic packets
-    /// for the tests below.
-    fn encode_new_length(len: usize) -> Vec<u8> {
-        if len < 192 {
-            vec![u8::try_from(len).expect("checked len < 192")]
-        } else if len < 8384 {
-            let l = len - 192;
-            vec![
-                u8::try_from(192 + (l >> 8)).expect("checked l < 8192, so 192 + (l>>8) < 224"),
-                u8::try_from(l & 0xFF).expect("masked to a byte"),
-            ]
-        } else {
-            let b = u32::try_from(len)
-                .expect("test lengths fit u32")
-                .to_be_bytes();
-            vec![255, b[0], b[1], b[2], b[3]]
-        }
-    }
+    use glomar_pgp::ser::Serialize;
 
-    /// A new-format `OpenPGP` packet with the given tag and body.
     fn new_format_packet(tag: u8, body: &[u8]) -> Vec<u8> {
-        let mut out = vec![0xC0 | tag];
-        out.extend(encode_new_length(body.len()));
+        let header = PacketHeader::new_fixed(Tag::from(tag), u32::try_from(body.len()).unwrap());
+        let mut out = Vec::new();
+        header.to_writer(&mut out).unwrap();
         out.extend_from_slice(body);
         out
+    }
+
+    #[test]
+    fn reads_short_initial_partial_length_and_bounds_maximum_fixed_length() {
+        let partial = [0xcb, 224, b'b', 6, 0, 0, 0, 0, 0, 42];
+        assert_eq!(extract_literal(&partial, 0).unwrap(), [42]);
+
+        let fixed = [0xcb, 255, 255, 255, 255, 255, b'b', 0, 0, 0, 0, 0, 42];
+        assert_eq!(extract_literal(&fixed, 0).unwrap(), [42]);
+    }
+
+    #[test]
+    fn preserves_the_compressed_packet_limit() {
+        let payload = b"payload";
+        assert_eq!(
+            extract_literal(&nested_compressed(17, payload), 0).unwrap(),
+            payload
+        );
+        assert!(extract_literal(&nested_compressed(18, payload), 0).is_err());
     }
 
     /// A minimal Literal Data packet (tag 11) wrapping `payload`.
