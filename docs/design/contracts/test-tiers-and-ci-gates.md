@@ -70,7 +70,16 @@ step-gated for docs-only and already-green merge revisions.
 
 Binary-level assignment preserves automatic coverage for new tests
 inside an existing harness; a new or renamed harness fails the metadata proof
-until the map assigns it.
+until the map assigns it. A per-binary `@dedicated` row instead assigns an
+integration harness to a workflow, bootstrap script and xtask command. The
+metadata proof requires exactly one shard or dedicated owner for every eligible
+binary. It verifies that CI calls the dedicated workflow, release requires its
+job, the workflow invokes the script in a job and step without conditions or
+tolerated failures, and the script's dispatched xtask command runs the declared
+Cargo test target and checks its result. Ordinary shard
+listings reject dedicated binaries in both light and heavy tiers. The probe
+`conformance` harness uses this ownership because its dedicated command builds
+and supplies the VM, runtime and pinned reference interpreters.
 
 Integration tests are linked per shard, not per file. In each crate, the
 `tests/*.rs` files assigned to shard `k` are modules of one harness,

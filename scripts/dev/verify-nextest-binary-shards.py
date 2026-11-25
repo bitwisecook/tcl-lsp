@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,10 +55,19 @@ class Target:
 
 
 @dataclass(frozen=True)
+class Dedicated:
+    target: Target
+    workflow: str
+    script: str
+    command: str
+
+
+@dataclass(frozen=True)
 class Manifest:
     partitions: int
     excluded: frozenset[str]
     assignments: dict[str, tuple[Target, int]]
+    dedicated: dict[str, Dedicated]
 
 
 def _read_json(path: Path) -> Any:
@@ -182,6 +193,7 @@ def _manifest(path: Path) -> Manifest:
     partitions: int | None = None
     excluded: set[str] = set()
     assignments: dict[str, tuple[Target, int]] = {}
+    dedicated: dict[str, Dedicated] = {}
     rows_started = False
     for line_number, raw_line in enumerate(lines, 1):
         line = raw_line.strip()
@@ -216,6 +228,34 @@ def _manifest(path: Path) -> Manifest:
                         f"{path}:{line_number}: duplicate exclusion {fields[1]!r}"
                     )
                 excluded.add(fields[1])
+            elif fields[0] == "@dedicated":
+                if (
+                    partitions is None
+                    or len(fields) != 8
+                    or any(not field for field in fields)
+                ):
+                    raise VerificationError(
+                        f"{path}:{line_number}: malformed @dedicated"
+                    )
+                _, binary_id, kind, package, target_name, workflow, script, command = (
+                    fields
+                )
+                if kind != "test" or binary_id != _binary_id(
+                    package, kind, target_name
+                ):
+                    raise VerificationError(
+                        f"{path}:{line_number}: invalid dedicated test target"
+                    )
+                if binary_id in dedicated:
+                    raise VerificationError(
+                        f"{path}:{line_number}: duplicate dedicated owner {binary_id!r}"
+                    )
+                dedicated[binary_id] = Dedicated(
+                    Target(binary_id, kind, package, target_name),
+                    workflow,
+                    script,
+                    command,
+                )
             else:
                 raise VerificationError(
                     f"{path}:{line_number}: unknown directive {fields[0]!r}"
@@ -258,7 +298,146 @@ def _manifest(path: Path) -> Manifest:
     empty = sorted(set(range(1, partitions + 1)) - populated)
     if empty:
         raise VerificationError(f"{path}: partitions contain no target rows: {empty}")
-    return Manifest(partitions, frozenset(excluded), assignments)
+    overlap = assignments.keys() & dedicated.keys()
+    if overlap:
+        raise VerificationError(
+            f"{path}: binaries have both shard and dedicated owners: {sorted(overlap)}"
+        )
+    return Manifest(partitions, frozenset(excluded), assignments, dedicated)
+
+
+def _verify_dedicated(manifest: Manifest, root: Path) -> None:
+    """Check the supported workflow -> shell script -> xtask -> cargo test chain."""
+    for binary_id, owner in manifest.dedicated.items():
+        label = f"dedicated owner of {binary_id!r}"
+        for name in (owner.workflow, owner.script):
+            relative = Path(name)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or not (root / relative).is_file()
+            ):
+                raise VerificationError(
+                    f"{label}: missing or invalid owner path {name!r}"
+                )
+        if not owner.workflow.startswith(
+            ".github/workflows/"
+        ) or not owner.script.startswith("scripts/"):
+            raise VerificationError(f"{label}: expected workflow and script paths")
+        workflow = (root / owner.workflow).read_text(encoding="utf-8")
+        ci_path = root / ".github/workflows/ci.yml"
+        if not ci_path.is_file():
+            raise VerificationError(f"{label}: CI workflow is missing")
+        ci = ci_path.read_text(encoding="utf-8")
+        calls = re.findall(
+            r"^  ([a-zA-Z0-9_-]+):\n((?: {4}[^\n]*\n|\n)*)", ci, re.MULTILINE
+        )
+        jobs = [
+            name
+            for name, body in calls
+            if re.search(
+                r"^    uses: \./" + re.escape(owner.workflow) + r"\s*$",
+                body,
+                re.MULTILINE,
+            )
+        ]
+        if len(jobs) != 1 or not re.search(
+            r"^  workflow_call:", workflow, re.MULTILINE
+        ):
+            raise VerificationError(
+                f"{label}: workflow is not called by exactly one CI job"
+            )
+        release = dict(calls).get("create-release", "")
+        needs = re.search(r"^    needs:\s*\[([^]]*)\]", release, re.MULTILINE)
+        if needs is None or jobs[0] not in [job.strip() for job in needs[1].split(",")]:
+            raise VerificationError(
+                f"{label}: dedicated CI job is not required by release"
+            )
+        # Check only the owning job and invocation step; upload steps may be conditional.
+        invocation = re.compile(
+            r"^(?:        )?run:\s+bash " + re.escape(owner.script) + r"[ \t]*$",
+            re.MULTILINE,
+        )
+        guarded_job = re.compile(
+            r"^    [\"']?(?:if|continue-on-error)[\"']?:", re.MULTILINE
+        )
+        guarded_step = re.compile(
+            r"^(?:        )?[\"']?(?:if|continue-on-error)[\"']?:", re.MULTILINE
+        )
+        invocations = []
+        for _, job_body in re.findall(
+            r"^  ([a-zA-Z0-9_-]+):\n((?: {4}[^\n]*\n|\n)*)",
+            workflow,
+            re.MULTILINE,
+        ):
+            for step in re.split(r"^      - ", job_body, flags=re.MULTILINE)[1:]:
+                if invocation.search(step):
+                    invocations.append((job_body, step))
+        if len(invocations) != 1:
+            raise VerificationError(
+                f"{label}: workflow does not invoke its script exactly once"
+            )
+        job_body, step = invocations[0]
+        if guarded_job.search(job_body):
+            raise VerificationError(
+                f"{label}: owning job must be unconditional and propagate failure"
+            )
+        if guarded_step.search(step):
+            raise VerificationError(
+                f"{label}: owning step must be unconditional and propagate failure"
+            )
+        script = (root / owner.script).read_text(encoding="utf-8")
+        try:
+            commands = [
+                shlex.split(line, comments=True) for line in script.splitlines()
+            ]
+        except ValueError as exc:
+            raise VerificationError(
+                f"{label}: cannot parse owner script: {exc}"
+            ) from exc
+        if ["cargo", "xtask", owner.command, "$@"] not in commands:
+            raise VerificationError(
+                f"{label}: script does not invoke its xtask command"
+            )
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", owner.command):
+            raise VerificationError(f"{label}: invalid xtask command")
+        source = (root / "rust/xtask/src/main.rs").read_text(encoding="utf-8")
+        function = owner.command.replace("-", "_")
+        body = re.search(
+            r"^fn " + re.escape(function) + r"\([^\n]*\n(.*?)(?=^fn |\Z)",
+            source,
+            re.MULTILINE | re.DOTALL,
+        )
+        if body is None:
+            raise VerificationError(f"{label}: xtask function is missing")
+        arrays = re.findall(r"\.args\(\[(.*?)\]\)", body[1], re.DOTALL)
+        expected = [
+            "test",
+            "--locked",
+            "-p",
+            owner.target.package,
+            "--test",
+            owner.target.target,
+            "--",
+        ]
+        if not any(re.findall(r'"([^"\n]*)"', array) == expected for array in arrays):
+            raise VerificationError(
+                f"{label}: xtask does not run the declared cargo test target"
+            )
+        variant = "".join(part.capitalize() for part in owner.command.split("-"))
+        if not re.search(
+            r"Command::"
+            + re.escape(variant)
+            + r"\s*\{[^}]*\}\s*=>\s*"
+            + re.escape(function)
+            + r"\(",
+            source,
+        ):
+            raise VerificationError(f"{label}: xtask function is not dispatched")
+        if "test.status()?.success()" not in body[1]:
+            raise VerificationError(
+                f"{label}: xtask does not check the test process result"
+            )
 
 
 def _suite_target(
@@ -342,6 +521,10 @@ def _verify_listing(
                 f"{path}: duplicate suite for binary {target.binary_id!r}"
             )
         seen_binary_ids.add(target.binary_id)
+        if target.binary_id in manifest.dedicated:
+            raise VerificationError(
+                f"{path}: dedicated binary appears in an ordinary shard: {target.binary_id}"
+            )
         assigned = manifest.assignments[target.binary_id][1]
         expected_here = assigned == shard
         for test_name, testcase in testcases.items():
@@ -422,6 +605,7 @@ def verify(
     heavy_list: Path | None = None,
 ) -> None:
     manifest = _manifest(manifest_path)
+    _verify_dedicated(manifest, Path(__file__).resolve().parents[2])
     if partition_count is not None:
         if partition_count < 1:
             raise VerificationError("--partition-count must be positive")
@@ -430,7 +614,7 @@ def verify(
                 f"--partition-count is {partition_count}, manifest declares {manifest.partitions}"
             )
     targets = _metadata_targets(metadata_path, manifest.excluded)
-    manifest_ids = set(manifest.assignments)
+    manifest_ids = set(manifest.assignments) | set(manifest.dedicated)
     metadata_ids = set(targets)
     missing = metadata_ids - manifest_ids
     unexpected = manifest_ids - metadata_ids
@@ -448,12 +632,18 @@ def verify(
                 f"{manifest_target} != {targets[binary_id]}"
             )
 
+    for binary_id, owner in manifest.dedicated.items():
+        if owner.target != targets[binary_id]:
+            raise VerificationError(
+                f"dedicated metadata for {binary_id!r} does not match cargo metadata"
+            )
+
     if metadata_only:
         if listing_paths:
             raise VerificationError("--metadata-only does not accept listing paths")
         print(
             f"nextest binary manifest proof: targets={len(targets)} "
-            f"partitions={manifest.partitions}"
+            f"partitions={manifest.partitions} dedicated={len(manifest.dedicated)}"
         )
         return
     if len(listing_paths) != manifest.partitions:
@@ -497,8 +687,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="verify a cargo metadata/TSV manifest and binary-aware nextest listings"
     )
-    parser.add_argument("metadata", type=Path, help="cargo metadata JSON")
-    parser.add_argument("manifest", type=Path, help="binary shard TSV manifest")
+    parser.add_argument("metadata", type=Path, nargs="?", help="cargo metadata JSON")
+    parser.add_argument(
+        "manifest", type=Path, nargs="?", help="binary shard TSV manifest"
+    )
+    parser.add_argument(
+        "--check-dedicated",
+        type=Path,
+        help="validate manifest ownership and dedicated invocation chains without Cargo",
+    )
     parser.add_argument("listings", type=Path, nargs="*", help="one listing per shard")
     parser.add_argument(
         "--partition-count",
@@ -517,6 +714,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        if args.check_dedicated is not None:
+            if (
+                args.metadata
+                or args.manifest
+                or args.listings
+                or args.metadata_only
+                or args.heavy_list
+                or args.partition_count
+            ):
+                raise VerificationError(
+                    "--check-dedicated accepts only a manifest path"
+                )
+            _verify_dedicated(
+                _manifest(args.check_dedicated), Path(__file__).resolve().parents[2]
+            )
+            return 0
+        if args.metadata is None or args.manifest is None:
+            raise VerificationError("metadata and manifest paths are required")
         verify(
             args.metadata,
             args.manifest,

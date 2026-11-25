@@ -1,7 +1,8 @@
 # tcl-lsp root-workspace nextest binary shards.
 #
 # Each eligible lib, bin, or integration-test harness belongs to exactly one
-# execution shard. All shards still select the whole workspace with
+# execution shard or verified @dedicated workflow/script/xtask owner. All
+# shards still select the whole workspace with
 # --all-features; the runner builds every lib/bin harness plus only its
 # assigned integration targets, preserving feature unification while avoiding
 # repeated links for hundreds of unrelated integration binaries.
@@ -20,6 +21,7 @@
 @exclude	tcl-lsp-server
 @exclude	tcl-fuzz
 @exclude	tcl-engine-wasm
+@dedicated	tcl-lsp-core::conformance	test	tcl-lsp-core	conformance	.github/workflows/command-definitions.yml	scripts/dev/run-conformance.sh	conformance
 1	tcl-compiler	lib	tcl-compiler	tcl_compiler
 2	bigip-report-gen-rust	lib	bigip-report-gen-rust	bigip_report_gen_rust
 2	bpf-tcl-codegen	lib	bpf-tcl-codegen	bpf_tcl_codegen

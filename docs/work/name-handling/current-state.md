@@ -2,7 +2,7 @@
 
 ## Registry facts verification
 
-Snapshot: 25 November 2026. The depth-one `work` checkout contains the
+Snapshot: 25 November 2026. The shallow `work` checkout contains the
 requested release-fact, descriptor, value-kernel, object-profile and channel
 fact foundations. Engine implementations and later binding/body-unit/editor
 migrations retain their existing owners.
@@ -30,8 +30,20 @@ Verified focused results:
 The initial registry run and a separate clean `work` checkout each passed
 2,057 tests and failed the same 12 tests. The final registry run, with required
 native Tcl witnesses, passed 2,099 tests and failed eight; all eight also fail
-on the clean branch. No new registry failures remain. `make rust-check` and
-`make prep-pr` remain pending; no push has been made.
+on the clean branch. The final rebuilt registry binary reproduced that result
+after the catalogue-alias and upstream-conformance integration. No new registry
+failures remain.
+
+`make rust-check` passed, including all 49 drift gates, and `make prep-pr`
+passed with 31 smoke tests across 16 targets. The final Tcl source checks,
+callback inventory, pack snapshots and command-backing reports agree; the
+backing report has zero disagreements for 353 core commands.
+
+The upstream conformance harness keeps its dedicated oracle workflow. The
+shard manifest now verifies its workflow, bootstrap script and test command;
+its selected job and step must run unconditionally and report failures. The
+plan-row gate verifies the existing conformance rows for all 25 active or
+implemented migration items.
 Local check output is under `/tmp/*-work.log`, not committed as evidence.
 Reproducible Tcl observations are indexed from
 [the evidence collection](../../../evidence/tcl/README.md).

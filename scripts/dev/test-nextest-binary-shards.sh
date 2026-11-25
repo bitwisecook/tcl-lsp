@@ -229,6 +229,139 @@ expect_failure --metadata-only "$tmp_dir/metadata-no-common.json" "$tmp_dir/mani
 run --metadata-only --partition-count 5 \
     "$tmp_dir/workspace-metadata.json" "$SCRIPT_DIR/rust-test-binary-shards.tsv" >/dev/null
 
+# Dedicated targets belong to one checked workflow, never an ordinary shard.
+python3 - "$VERIFIER" "$tmp_dir" "$REPO_ROOT" <<'PY_DEDICATED'
+import copy
+import importlib.util
+import json
+import pathlib
+import sys
+
+spec = importlib.util.spec_from_file_location("shard_verifier", sys.argv[1])
+verifier = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = verifier
+spec.loader.exec_module(verifier)
+root = pathlib.Path(sys.argv[2])
+repository = pathlib.Path(sys.argv[3])
+directive = "@dedicated\ttcl-lsp-core::conformance\ttest\ttcl-lsp-core\tconformance\t.github/workflows/command-definitions.yml\tscripts/dev/run-conformance.sh\tconformance\n"
+original = root.joinpath("manifest.tsv").read_text()
+runner_manifest = original.replace("@exclude\tskip\n", "@exclude\tskip\n" + directive)
+root.joinpath("manifest-dedicated-runner.tsv").write_text(runner_manifest)
+manifest = runner_manifest + "1\ttcl-lsp-core\tlib\ttcl-lsp-core\ttcl_lsp_core\n"
+manifest_path = root / "manifest-dedicated.tsv"
+manifest_path.write_text(manifest)
+metadata = json.loads(root.joinpath("metadata.json").read_text())
+metadata["packages"].append({
+    "id": "path+file:///tcl-lsp-core#0.1.0",
+    "name": "tcl-lsp-core",
+    "targets": [
+        {"name": "tcl_lsp_core", "kind": ["lib"], "test": True},
+        {"name": "conformance", "kind": ["test"], "test": True},
+    ],
+})
+metadata["workspace_members"].append("path+file:///tcl-lsp-core#0.1.0")
+metadata_path = root / "metadata-dedicated.json"
+metadata_path.write_text(json.dumps(metadata))
+listings = []
+for index, name in enumerate(["one.json", "two.json"], 1):
+    document = json.loads(root.joinpath(name).read_text())
+    suite = copy.deepcopy(document["rust-suites"]["core"])
+    suite.update({"package-name": "tcl-lsp-core", "binary-id": "tcl-lsp-core", "binary-name": "tcl_lsp_core"})
+    suite["testcases"]["unit_case"]["filter-match"]["status"] = "matches" if index == 1 else "mismatch"
+    document["rust-suites"]["tcl-lsp-core"] = suite
+    document["test-count"] += len(suite["testcases"])
+    path = root / f"dedicated-{index}.json"
+    path.write_text(json.dumps(document))
+    listings.append(path)
+verifier.verify(metadata_path, manifest_path, listings)
+
+def fails(action, reason):
+    try:
+        action()
+    except verifier.VerificationError as error:
+        assert reason in str(error), str(error)
+    else:
+        raise AssertionError(f"expected failure containing {reason!r}")
+
+# Ownership must be total and disjoint, and metadata remains authoritative.
+for text, reason in [
+    (manifest.replace(directive, ""), "missing (1)"),
+    (manifest + "2\ttcl-lsp-core::conformance\ttest\ttcl-lsp-core\tconformance\n", "both shard and dedicated"),
+    (manifest.replace(directive, directive + directive), "duplicate dedicated"),
+    (manifest.replace("@dedicated", "@unknown"), "unknown directive"),
+    (manifest.replace("\ttcl-lsp-core::conformance\ttest\ttcl-lsp-core\tconformance", "\ttcl-lsp-core::absent\ttest\ttcl-lsp-core\tabsent"), "declared cargo test target"),
+]:
+    bad = root / "bad-dedicated.tsv"
+    bad.write_text(text)
+    fails(lambda: verifier.verify(metadata_path, bad, listings), reason)
+
+# Even an unselected dedicated suite cannot hide inside an ordinary listing.
+document = json.loads(listings[1].read_text())
+suite = copy.deepcopy(document["rust-suites"]["tcl-lsp-core"])
+suite.update({"binary-id": "tcl-lsp-core::conformance", "binary-name": "conformance", "kind": "test"})
+document["rust-suites"]["tcl-lsp-core::conformance"] = suite
+document["test-count"] += len(suite["testcases"])
+bad_listing = root / "dedicated-selected.json"
+bad_listing.write_text(json.dumps(document))
+fails(lambda: verifier.verify(metadata_path, manifest_path, [listings[0], bad_listing]), "dedicated binary appears")
+
+# Verify each real invocation edge; comments and missing release dependencies fail.
+owner_root = root / "owner-source"
+paths = [".github/workflows/ci.yml", ".github/workflows/command-definitions.yml", "scripts/dev/run-conformance.sh", "rust/xtask/src/main.rs"]
+for relative in paths:
+    destination = owner_root / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text((repository / relative).read_text())
+parsed = verifier._manifest(manifest_path)
+verifier._verify_dedicated(parsed, owner_root)
+mutations = [
+    (paths[0], "uses: ./.github/workflows/command-definitions.yml", "uses: ./.github/workflows/absent.yml", "exactly one CI job"),
+    (paths[0], "python, web-frontends, command-definitions]", "python, web-frontends]", "required by release"),
+    (paths[1], "run: bash scripts/dev/run-conformance.sh", "# run: bash scripts/dev/run-conformance.sh", "does not invoke its script"),
+    (paths[2], 'cargo xtask conformance "$@"', '# cargo xtask conformance "$@"', "does not invoke its xtask"),
+    (paths[3], '            "conformance",', '            "absent",', "declared cargo test target"),
+    (paths[3], 'Command::Conformance { update, harness } => conformance(update, &harness)', 'Command::Conformance { update, harness } => absent(update, &harness)', "not dispatched"),
+]
+for relative, before, after, reason in mutations:
+    path = owner_root / relative
+    original_text = path.read_text()
+    assert before in original_text, before
+    path.write_text(original_text.replace(before, after))
+    fails(lambda: verifier._verify_dedicated(parsed, owner_root), reason)
+    path.write_text(original_text)
+# The called workflow must run the target unconditionally and propagate its
+# failure, regardless of boolean/string spelling. The actual workflow already
+# has a conditional upload step and a tag-guarded CI caller; both remain valid.
+workflow_path = owner_root / paths[1]
+workflow_text = workflow_path.read_text()
+for key, value in [
+    ("if", "false"), ("if", "'false'"), ("if", '"false"'),
+    ("continue-on-error", "true"), ("continue-on-error", "'true'"),
+    ("continue-on-error", '"true"'),
+]:
+    for before, after, reason in [
+        (
+            "  command-definition-oracles:\n",
+            f"  command-definition-oracles:\n    {key}: {value}\n",
+            "owning job must be unconditional and propagate failure",
+        ),
+        (
+            "      - name: Check the probe conformance rows\n",
+            f"      - name: Check the probe conformance rows\n        {key}: {value}\n",
+            "owning step must be unconditional and propagate failure",
+        ),
+    ]:
+        assert before in workflow_text, before
+        workflow_path.write_text(workflow_text.replace(before, after))
+        fails(lambda: verifier._verify_dedicated(parsed, owner_root), reason)
+        workflow_path.write_text(workflow_text)
+verifier._verify_dedicated(parsed, owner_root)
+missing = owner_root / paths[2]
+missing.unlink()
+fails(lambda: verifier._verify_dedicated(parsed, owner_root), "missing or invalid owner path")
+print("dedicated binary ownership tests: ok (coverage, disjointness, invocation chain, release dependency)")
+PY_DEDICATED
+
 mkdir "$tmp_dir/bin"
 cat > "$tmp_dir/bin/cargo" <<'EOF'
 #!/bin/sh
@@ -285,6 +418,24 @@ if CARGO_ARGS_FILE="$tmp_dir/unused.args" TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_
     TCL_LSP_RUST_HEAVY_TESTS="$tmp_dir/heavy-malformed.tsv" TCL_LSP_RUST_TEST_TIER=light \
     PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" list 1/2 2>/dev/null; then
     echo "a malformed heavy row must be refused" >&2
+    exit 1
+fi
+
+# Dedicated ownership stays outside ordinary selection in both tiers.
+for tier in heavy light; do
+    CARGO_ARGS_FILE="$tmp_dir/dedicated-$tier.args" \
+        TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/manifest-dedicated-runner.tsv" \
+        TCL_LSP_RUST_HEAVY_TESTS="$tmp_dir/heavy.tsv" TCL_LSP_RUST_TEST_TIER="$tier" \
+        PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" run 2/2
+    if grep -Fq -- conformance "$tmp_dir/dedicated-$tier.args"; then
+        echo "dedicated target must not be built or selected by ordinary $tier shards" >&2
+        exit 1
+    fi
+done
+if CARGO_ARGS_FILE="$tmp_dir/unused.args" \
+    TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/bad-dedicated.tsv" \
+    PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" run 2/2 2>/dev/null; then
+    echo "the runner must reject an unverified dedicated owner" >&2
     exit 1
 fi
 

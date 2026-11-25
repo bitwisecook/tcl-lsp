@@ -64,6 +64,9 @@ if [ ! -r "$manifest" ]; then
     exit 2
 fi
 
+# Validate dedicated ownership before either tier can select its assignment.
+python3 "$script_dir/verify-nextest-binary-shards.py" --check-dedicated "$manifest"
+
 declared_count=
 declare -a exclusions=()
 declare -a targets=(--lib --bins)
@@ -84,6 +87,7 @@ while IFS=$'\t' read -r field1 field2 field3 field4 field5 extra || [ -n "${fiel
             declared_count=$field2
             continue
             ;;
+        @dedicated) continue ;;
         @exclude)
             if [[ ! ${field2:-} =~ ^[A-Za-z0-9_-]+$ ]] || [ -n "${field3:-}" ]; then
                 echo "rust-test-binary-shard: malformed exclusion at $manifest:$line_number" >&2
