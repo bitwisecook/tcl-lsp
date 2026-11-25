@@ -109,12 +109,14 @@ fn original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_ord
                 row("NAMESPACE_BEFORE", &phase)[2] == "1"
             );
             assert!(interp.namespaces().jim_namespace_bytes(current).is_none());
-            assert!(interp
-                .namespace_variable_name_bytes_checked(
-                    tcl_runtime_api::NsId(current as u32),
-                    b"absent"
-                )
-                .is_err());
+            assert!(
+                interp
+                    .namespace_variable_name_bytes_checked(
+                        tcl_runtime_api::NsId(current as u32),
+                        b"absent"
+                    )
+                    .is_err()
+            );
             assert!(!obj::has_string_rep(namespace.as_ptr()));
             WHICH_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().clear());
             assert_eq!(
@@ -304,13 +306,13 @@ fn original_namespace_origin_matches_five_native_import_chains() {
             .collect()
     }
     let mut compared = 0;
-    for row in include_str!("../../../tests/data/native_namespace_origin/windows.tsv").lines() {
-        let fields = row.split('\t').collect::<Vec<_>>();
+    let fixture = include_str!("../../../tests/data/native_namespace_origin/windows.tsv");
+    for (_, fields) in tcl_test_support::fixture::tsv_rows::<4>(fixture) {
+        let release =
+            tcl_test_support::fixture::oracle_release(fields[0]).expect("modelled release");
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
-            crate::environment::profile_for_dialect(
-                tcl_dialect::TclVersion::profile_name_for(fields[0]).expect("modelled release"),
-            ),
+            crate::environment::profile_for_dialect(release.dialect_profile_name()),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();

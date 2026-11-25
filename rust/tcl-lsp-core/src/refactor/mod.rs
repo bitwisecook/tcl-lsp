@@ -243,6 +243,20 @@ impl Refactoring {
             .collect();
         tcl_lexer::apply_edits(source, &edits)
     }
+
+    /// Check the actual replacement span after applying a single-edit proposal.
+    fn check_replacement(
+        &self,
+        source: &str,
+        check: impl FnOnce(&str) -> Option<()>,
+    ) -> Option<()> {
+        let [edit] = self.edits.as_slice() else {
+            return None;
+        };
+        let after = self.try_apply(source).ok()?;
+        let start = edit.start as usize;
+        check(after.get(start..start.checked_add(edit.new_text.len())?)?)
+    }
 }
 
 /// Exclusive end byte offset for `tok`, including its closing delimiter.

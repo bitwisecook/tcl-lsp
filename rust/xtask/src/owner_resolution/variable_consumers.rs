@@ -22,6 +22,79 @@ use super::read;
 use anyhow::Result;
 use std::path::Path;
 
+/// Reject pack-blind predicates in production consumers of the registry.
+pub(super) fn validate_special_variable_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for relative in super::name_delimiters::production_source_paths(root)? {
+        if relative.starts_with("rust/tcl-registry/") {
+            continue;
+        }
+        let source = super::read_file(root, &relative)?;
+        if (source.contains("special_vars") || source.contains("readable_at_startup_in"))
+            && pack_blind_special_variable_predicate(&source)
+        {
+            problems.push(format!(
+                "{relative} reads a pack-blind special-variable predicate; use the active CommandRegistry"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
+fn pack_blind_special_variable_predicate(source: &str) -> bool {
+    use rustc_lexer::TokenKind;
+    let mut offset = 0;
+    let tokens = rustc_lexer::tokenize(source)
+        .filter_map(|token| {
+            let text = &source[offset..offset + token.len];
+            offset += token.len;
+            (!matches!(
+                token.kind,
+                TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment { .. }
+            ))
+            .then_some(text)
+        })
+        .collect::<Vec<_>>();
+    tokens
+        .windows(2)
+        .any(|pair| pair == [".", "readable_at_startup_in"])
+        || tokens.windows(4).enumerate().any(|(index, window)| {
+            let [module, ":", ":", name] = window else {
+                return false;
+            };
+            if !matches!(*module, "special_vars" | "r#special_vars") {
+                return false;
+            }
+            if *name == "{" {
+                return tokens[index + 4..]
+                    .iter()
+                    .take_while(|&&token| token != "}")
+                    .any(|name| name.trim_start_matches("r#").starts_with("is_"));
+            }
+            name.trim_start_matches("r#").starts_with("is_")
+        })
+}
+
+#[cfg(test)]
+#[test]
+fn startup_variable_owner_rejects_pack_blind_predicates() {
+    for source in [
+        "tcl_registry::special_vars::is_readable_at_startup(x, query)",
+        "use tcl_registry::special_vars :: {special_var_write_effect, is_externally_read};",
+        "use tcl_registry::special_vars /* comment */ :: r#is_initially_bound;",
+        "variable.readable_at_startup_in(query)",
+    ] {
+        assert!(pack_blind_special_variable_predicate(source), "{source}");
+    }
+    for source in [
+        "registry.startup_existence(x, query).readable()",
+        "use tcl_registry::special_vars::SpecialVarKind;",
+        "let example = \"special_vars::is_initially_bound\";",
+    ] {
+        assert!(!pack_blind_special_variable_predicate(source), "{source}");
+    }
+}
+
 /// Native variable inventories preserve entry and declared-slot order; ABI
 /// selection and physical ledgers must remain in their shared purpose owners.
 pub(super) fn validate_variable_table_consumers(root: &Path) -> Result<Vec<String>> {

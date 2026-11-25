@@ -80,11 +80,11 @@ async fn fixture(opaque: bool) -> (Fixture, Backend, Vec<crate::OriginalDocument
     let host_source = "proc selected {} {return 42}\n";
     std::fs::write(root.join("main.tcl"), &source).unwrap();
     std::fs::write(root.join("host.tcl"), host_source).unwrap();
-    let main = Uri::from_file_path(root.join("main.tcl")).unwrap();
-    let host = Uri::from_file_path(root.join("host.tcl")).unwrap();
+    let main = crate::canonical_file_uri(root.join("main.tcl")).unwrap();
+    let host = crate::canonical_file_uri(root.join("host.tcl")).unwrap();
     let backend = crate::tests::test_backend();
     // Production admits closed workspace sources through the folder scan.
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     open(&backend, &main, &source).await;
     open(&backend, &host, host_source).await;
@@ -189,7 +189,7 @@ async fn foreign_input_source_uri_and_selected_owner_keep_their_refusals() {
         .unwrap();
     assert!(capture.is_none() && Arc::ptr_eq(&refused[index].2, &original));
     let mut wrong_uri = documents;
-    wrong_uri[index].0 = Uri::from_file_path(fixture.root.join("other.tcl"))
+    wrong_uri[index].0 = crate::canonical_file_uri(fixture.root.join("other.tcl"))
         .unwrap()
         .as_str()
         .to_owned();

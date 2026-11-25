@@ -45,6 +45,33 @@ fn outcome(src: &str, needle: &str) -> Result<String, String> {
 }
 
 #[test]
+fn checked_proc_extraction_refuses_an_invocation_of_a_different_name() {
+    let config = LexerConfig::default();
+    let source = "puts 123";
+    let mut proposal = Refactoring {
+        title: String::new(),
+        edits: vec![
+            RefactorEdit {
+                start: 0,
+                end: 0,
+                new_text: "proc extracted {} {puts 123}\n".to_owned(),
+            },
+            RefactorEdit {
+                start: 0,
+                end: 8,
+                new_text: "extracted".to_owned(),
+            },
+        ],
+        kind: ActionKind::RefactorExtract,
+        data_group: None,
+        disabled: None,
+    };
+    assert!(check_proc_extraction(source, &proposal, "extracted", config).is_some());
+    proposal.edits[1].new_text = "unrelated".to_owned();
+    assert!(check_proc_extraction(source, &proposal, "extracted", config).is_none());
+}
+
+#[test]
 fn logical_written_roles_keep_literal_sigil_names_and_exact_element_shape() {
     for (source, names) in [
         ("set {$literal} 1", vec!["$literal"]),

@@ -1259,6 +1259,8 @@ mod tests {
     mod original_jim_output_keys;
     #[test]
     fn dynamic_catch_resets_error_state_in_all_six_native_engines() {
+        use tcl_test_support::fixture::{oracle_release, tsv_rows};
+
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
                 .as_chunks::<2>()
@@ -1268,18 +1270,18 @@ mod tests {
                 .collect()
         }
         let mut compared = 0;
-        for row in include_str!("../tests/data/native_dynamic_catch_reset/windows.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+        let fixture = include_str!("../tests/data/native_dynamic_catch_reset/windows.tsv");
+        for (_, fields) in tsv_rows::<4>(fixture) {
             let engine = if fields[0] == "jim" {
-                "jim".to_owned()
+                "jim"
             } else {
-                tcl_dialect::TclVersion::profile_name_for(fields[0])
+                oracle_release(fields[0])
                     .expect("modelled release")
-                    .to_owned()
+                    .dialect_profile_name()
             };
             let mut interp = crate::interp::Interp::with_native_core(
                 crate::interp::default_host(),
-                crate::environment::profile_for_dialect(&engine),
+                crate::environment::profile_for_dialect(engine),
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();

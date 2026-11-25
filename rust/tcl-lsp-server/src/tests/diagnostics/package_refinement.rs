@@ -151,21 +151,17 @@ fn original_package_consumers_keep_constraints_and_dependency_preference() {
 }
 
 #[test]
-fn refine_w120_conservative_drops_all_for_unknowable_require() {
-    // `package require myTkPackage` is unknown to both the registry and an
-    // empty package database, so it may load anything — drop the W120.
-    let registry = CommandRegistry::build_default();
+fn refine_w120_keeps_unrelated_diagnostic_for_an_unknown_package() {
     let resolver = PackageResolver::new();
     let out = refine_w120_diagnostics(
         vec![w120_diag("Tk")],
         &["myTkPackage".to_owned()],
         &resolver,
         &vfs::NativeStore,
-        &registry,
     );
     assert!(
-        !has_w120(&out),
-        "unknowable require ⇒ W120 dropped: {out:?}"
+        has_w120(&out),
+        "an unknown named requirement leaves an unrelated W120: {out:?}"
     );
 }
 
@@ -185,13 +181,11 @@ fn refine_w120_suppressed_when_wrapper_transitively_requires_tk() {
     );
     let mut resolver = PackageResolver::new();
     resolver.scan_tree(&ws.0, 100);
-    let registry = CommandRegistry::build_default();
     let out = refine_w120_diagnostics(
         vec![w120_diag("Tk")],
         &["myTkPackage".to_owned()],
         &resolver,
         &vfs::NativeStore,
-        &registry,
     );
     assert!(
         !has_w120(&out),
@@ -214,13 +208,11 @@ fn refine_w120_kept_when_resolvable_require_does_not_provide_tk() {
     );
     let mut resolver = PackageResolver::new();
     resolver.scan_tree(&ws.0, 100);
-    let registry = CommandRegistry::build_default();
     let out = refine_w120_diagnostics(
         vec![w120_diag("Tk")],
         &["plain".to_owned()],
         &resolver,
         &vfs::NativeStore,
-        &registry,
     );
     assert!(
         has_w120(&out),
@@ -232,8 +224,8 @@ fn refine_w120_kept_when_resolvable_require_does_not_provide_tk() {
 fn auto_source_graph_inherits_entry_requires() {
     // app.tcl requires Tk and sources lib/util.tcl; util inherits Tk, so a
     // Tk W120 in util is suppressed with no configuration at all.
-    let app = Uri::from_file_path("/proj/app.tcl").unwrap();
-    let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+    let app = crate::canonical_file_uri("/proj/app.tcl").unwrap();
+    let util = crate::canonical_file_uri("/proj/lib/util.tcl").unwrap();
     let index = ws_index(&[
         (&app, "package require Tk\nsource lib/util.tcl\n"),
         (&util, "proc u {} {}\n"),
@@ -253,8 +245,8 @@ fn explicit_entry_points_override_source_graph() {
     // as an entry point, other.tcl still inherits Tk (project-wide), and the
     // auto source-graph is bypassed entirely.
     let root = PathBuf::from("/proj");
-    let main = Uri::from_file_path("/proj/main.tcl").unwrap();
-    let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+    let main = crate::canonical_file_uri("/proj/main.tcl").unwrap();
+    let other = crate::canonical_file_uri("/proj/other.tcl").unwrap();
     let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
     // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
     assert_eq!(
@@ -321,7 +313,7 @@ fn a_load_level_source_covers_a_call_inside_a_proc_body() {
 /// down, so W120/W123 keep working normally.
 #[test]
 fn a_document_that_sources_nothing_inherits_nothing_and_does_not_abstain() {
-    let uri = Uri::from_file_path("/proj/solo.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/proj/solo.tcl").unwrap();
     let analysis = tcl_compiler::analyser::Analyser::new()
         .analyse("winfo exists .l\n", "tcl8.6")
         .clone();
@@ -347,7 +339,7 @@ fn a_document_that_sources_nothing_inherits_nothing_and_does_not_abstain() {
 /// abstention flag, and W120/W123 then go quiet document-wide.
 #[test]
 fn an_unfollowable_source_sets_the_abstention_flag() {
-    let uri = Uri::from_file_path("/proj/main.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/proj/main.tcl").unwrap();
     let src = "source nosuchfile.tcl\nwinfo exists .l\n";
     let analysis = tcl_compiler::analyser::Analyser::new()
         .analyse(src, "tcl8.6")
@@ -372,8 +364,8 @@ fn an_unfollowable_source_sets_the_abstention_flag() {
 /// followable source, so no abstention.
 #[test]
 fn a_followable_source_contributes_its_requires_without_abstaining() {
-    let main = Uri::from_file_path("/proj/main.tcl").unwrap();
-    let tk = Uri::from_file_path("/proj/tkFile.tcl").unwrap();
+    let main = crate::canonical_file_uri("/proj/main.tcl").unwrap();
+    let tk = crate::canonical_file_uri("/proj/tkFile.tcl").unwrap();
     let src = "source tkFile.tcl\nwinfo exists .l\n";
     let analysis = tcl_compiler::analyser::Analyser::new()
         .analyse(src, "tcl8.6")
@@ -406,8 +398,8 @@ fn a_followable_source_contributes_its_requires_without_abstaining() {
 /// have been applied globally.
 #[test]
 fn sourcing_a_non_tk_file_contributes_nothing() {
-    let main = Uri::from_file_path("/proj/main.tcl").unwrap();
-    let plain = Uri::from_file_path("/proj/plain.tcl").unwrap();
+    let main = crate::canonical_file_uri("/proj/main.tcl").unwrap();
+    let plain = crate::canonical_file_uri("/proj/plain.tcl").unwrap();
     let src = "source plain.tcl\nwinfo exists .l\n";
     let analysis = tcl_compiler::analyser::Analyser::new()
         .analyse(src, "tcl8.6")
@@ -431,7 +423,7 @@ fn sourcing_a_non_tk_file_contributes_nothing() {
 #[tokio::test]
 pub(in super::super) async fn source_graph_inheritance_suppresses_w120_in_sourced_module() {
     let backend = test_backend();
-    // Resolver that knows `http` (so the require is not "unknowable").
+    // Resolver that knows `http`.
     let http_ws = TmpWs::new("srcgraph-http");
     http_ws.write(
         "http/http.tcl",
@@ -446,8 +438,8 @@ pub(in super::super) async fn source_graph_inheritance_suppresses_w120_in_source
         resolver.scan_tree(&http_ws.0, 100);
         *backend.package_resolver.write().await = resolver;
     }
-    let app = Uri::from_file_path("/proj/app.tcl").unwrap();
-    let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+    let app = crate::canonical_file_uri("/proj/app.tcl").unwrap();
+    let util = crate::canonical_file_uri("/proj/lib/util.tcl").unwrap();
     // util.tcl uses http::register with no local `package require`.
     let util_src = "http::register foo 80 bar\n";
 
@@ -506,9 +498,9 @@ async fn explicit_entry_point_config_suppresses_w120_project_wide() {
         resolver.scan_tree(&http_ws.0, 100);
         *backend.package_resolver.write().await = resolver;
     }
-    let folder = Uri::from_file_path("/proj").unwrap();
-    let main = Uri::from_file_path("/proj/main.tcl").unwrap();
-    let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+    let folder = crate::canonical_file_uri("/proj").unwrap();
+    let main = crate::canonical_file_uri("/proj/main.tcl").unwrap();
+    let other = crate::canonical_file_uri("/proj/other.tcl").unwrap();
     // main.tcl requires http but does NOT source other.tcl.
     {
         let mut a = tcl_compiler::analyser::Analyser::new();
@@ -590,13 +582,11 @@ fn requiring_a_load_only_package_keeps_other_w120s() {
         resolver.provides("testpix"),
         "a load-only package is declared, so the database knows it",
     );
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let kept = refine_w120_diagnostics(
         vec![w120_diag("http")],
         &["testpix".to_owned()],
         &resolver,
         &vfs::NativeStore,
-        registry,
     );
     assert_eq!(
         kept.len(),
@@ -604,18 +594,15 @@ fn requiring_a_load_only_package_keeps_other_w120s() {
         "an unrelated W120 must survive a require of a binary-only package",
     );
 
-    // NEGATIVE control: a package nothing declares is still "unknowable",
-    // and the blanket suppression still applies.
-    let dropped = refine_w120_diagnostics(
+    let unresolved = refine_w120_diagnostics(
         vec![w120_diag("http")],
         &["neverheardof".to_owned()],
         &resolver,
         &vfs::NativeStore,
-        registry,
     );
     assert!(
-        dropped.is_empty(),
-        "a genuinely unknown package must still suppress W120",
+        has_w120(&unresolved),
+        "an unknown package leaves an unrelated W120",
     );
 }
 
@@ -625,11 +612,8 @@ fn requiring_a_load_only_package_keeps_other_w120s() {
 /// — so TK1002 (a widget path whose parent was never created) is the
 /// visible proof that the declaration activated Tk.
 ///
-/// W120 is the wrong probe here: `myExtension` is unresolvable in an
-/// empty workspace, and the server already drops every W120 for a
-/// document requiring a package it cannot resolve (the conservative
-/// rule). The gap this closes is everything W120's abstention does not
-/// cover — the Tk checks, completions, and hover.
+/// The test checks that the declared dependency activates Tk analysis,
+/// completions, and hover.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn declared_package_provides_makes_tk_available_to_diagnostics() {
     let backend = test_backend();

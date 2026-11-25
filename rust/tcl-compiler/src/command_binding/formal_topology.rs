@@ -18,7 +18,9 @@
 
 //! Original native formal bytes and their independently selected activation plan.
 
+use super::original_name_value::OriginalProducedNameValue;
 use crate::signature_scan::scope::SignatureSourceNameKey;
+use std::sync::Arc;
 use tcl_registry::InvocationDialect;
 use tcl_syntax::formal_params::{ByteFormalParameter, FormalByteArgumentBinding};
 
@@ -66,6 +68,51 @@ pub struct OriginalFormalTopology {
     producer: SignatureSourceNameKey,
     parameters: Vec<ByteFormalParameter>,
     grammar: tcl_dialect::ParameterGrammar,
+}
+
+/// The actual written vector and formal count at a reached, selected call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReachedProcedureCall {
+    pub(crate) words: Arc<[tcl_lexer::NativeWord]>,
+    pub(crate) allocation: super::CommandAllocation,
+    pub(crate) captured: usize,
+    pub(crate) arity: tcl_registry::Arity,
+}
+
+impl super::SourceCommandBindings {
+    pub(crate) fn reached_procedure_call(
+        &self,
+        binding: &super::SourceInvocationBinding,
+    ) -> Option<ReachedProcedureCall> {
+        if binding.runtime_reachability != super::SourceRuntimeReachability::Reached
+            || binding.entered_execution_observer.observed()
+        {
+            return None;
+        }
+        let target = binding.proved_execution_target()?;
+        if target.kind != super::BindingKind::Proc || target.registry_backed {
+            return None;
+        }
+        let allocation = target.implementation_allocation.as_ref()?;
+        let topology = self
+            .deferred
+            .get(&target.implementation_id())?
+            .original_parameters
+            .as_ref()?;
+        let formals = crate::signature_scan::formal_parameters::SignatureSourceFormalParameters::from_original_topology(topology);
+        let arity =
+            crate::signature_scan::arity::arity_from_count_shape(formals.argument_count_shape())?;
+        let written = binding.original_written_words.as_ref()?;
+        let site = binding.invocation_site()?;
+        (written.site() == site && self.root_origin.as_ref() == Some(&site.source)).then_some(())?;
+        let original = written.projection()?;
+        Some(ReachedProcedureCall {
+            words: Arc::from(original.native_words()),
+            allocation: allocation.clone(),
+            captured: target.prepended.len(),
+            arity,
+        })
+    }
 }
 
 impl std::hash::Hash for OriginalFormalTopology {
@@ -479,6 +526,7 @@ impl OriginalFormalTopology {
         &self,
         context: &mut crate::var_resolve::ResolveContext,
         actual: &[Option<&str>],
+        original_actual: Option<&[Option<Arc<OriginalProducedNameValue>>]>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<bool> {
         if context.invocation_dialect?.parameter_grammar()? != self.grammar {
@@ -489,13 +537,14 @@ impl OriginalFormalTopology {
         };
         context.original_formal_topology = Some(std::sync::Arc::new(self.clone()));
         for binding in bindings {
-            let (name, value) = match binding {
+            let (name, value, original_value) = match binding {
                 FormalByteArgumentBinding::Value {
                     parameter,
                     argument,
                 } => (
                     self.parameters[parameter].name.as_slice(),
                     actual[argument].map(str::to_owned),
+                    original_actual.and_then(|values| values.get(argument)?.as_deref()),
                 ),
                 FormalByteArgumentBinding::Default { parameter } => (
                     self.parameters[parameter].name.as_slice(),
@@ -504,6 +553,7 @@ impl OriginalFormalTopology {
                         .as_ref()
                         .and_then(|value| std::str::from_utf8(value).ok())
                         .map(str::to_owned),
+                    None,
                 ),
                 FormalByteArgumentBinding::Rest {
                     ref name,
@@ -520,6 +570,7 @@ impl OriginalFormalTopology {
                     if context.bind_original_formal_incoming(
                         name,
                         value.as_deref(),
+                        None,
                         self.producer.policy().recipe(),
                         registry,
                     )? {
@@ -548,6 +599,7 @@ impl OriginalFormalTopology {
             if !context.bind_original_formal_incoming(
                 name,
                 value.as_deref(),
+                original_value,
                 self.producer.policy().recipe(),
                 registry,
             )? {
@@ -563,7 +615,7 @@ impl OriginalFormalTopology {
         registry: &tcl_registry::CommandRegistry,
     ) {
         let actual = vec![None; self.parameters.len()];
-        if self.bind(context, &actual, registry).is_none() {
+        if self.bind(context, &actual, None, registry).is_none() {
             context.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
         }
     }
@@ -748,7 +800,7 @@ mod tests {
             );
             let topology = fixture(profile_name, br"{p\uD800}").unwrap();
             assert_eq!(
-                topology.bind(&mut context, &[Some("VALUE")], &registry),
+                topology.bind(&mut context, &[Some("VALUE")], None, &registry),
                 Some(true),
                 "{profile_name}"
             );
@@ -777,7 +829,7 @@ mod tests {
             assert_ne!(context.contents_presence(&other), ContentsPresence::Defined);
             context.execution_name_policy = None;
             assert_eq!(
-                topology.bind(&mut context, &[Some("VALUE")], &registry),
+                topology.bind(&mut context, &[Some("VALUE")], None, &registry),
                 None
             );
             assert_eq!(exact.kind, PlaceKind::Scalar);

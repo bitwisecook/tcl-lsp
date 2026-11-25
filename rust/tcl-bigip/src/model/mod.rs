@@ -22,7 +22,10 @@
 //! [`minimal::BigipGenericObject`]; rich typed kinds (pool, virtual,
 //! node, monitor, profile, rule, …) live in their per-module submodules.
 
-pub mod enums;
+pub mod data_group_keys;
+pub use data_group_keys::DataGroupKeys;
+
+mod enums;
 pub mod r#gen;
 pub mod minimal;
 pub mod port_names;

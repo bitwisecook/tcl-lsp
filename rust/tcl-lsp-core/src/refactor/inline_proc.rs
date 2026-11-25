@@ -162,17 +162,23 @@ pub fn inline_proc_in_program(
     let (call_start, call_end) = walk.command_span_offsets(source, &call)?;
 
     match plan_inline(source, &call, proc_def, analysis, registry, config) {
-        Ok(new_text) => Some(Refactoring {
-            title,
-            edits: vec![RefactorEdit {
-                start: call_start,
-                end: call_end,
-                new_text,
-            }],
-            kind: ActionKind::RefactorInline,
-            data_group: None,
-            disabled: None,
-        }),
+        Ok(new_text) => {
+            let proposal = Refactoring {
+                title,
+                edits: vec![RefactorEdit {
+                    start: call_start,
+                    end: call_end,
+                    new_text,
+                }],
+                kind: ActionKind::RefactorInline,
+                data_group: None,
+                disabled: None,
+            };
+            proposal.check_replacement(source, |replacement| {
+                check_inline_script(replacement, config)
+            })?;
+            Some(proposal)
+        }
         Err(reason) => Some(Refactoring {
             title,
             edits: Vec::new(),
@@ -181,6 +187,11 @@ pub fn inline_proc_in_program(
             disabled: Some(reason),
         }),
     }
+}
+
+fn check_inline_script(replacement: &str, config: LexerConfig) -> Option<()> {
+    (super::source_rewrite::script_word_spellings(replacement, config.nested())?.len() == 1)
+        .then_some(())
 }
 
 /// The inlined replacement text for `call`, or the reason it cannot be built.

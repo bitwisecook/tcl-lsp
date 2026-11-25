@@ -412,7 +412,8 @@ fn check_irule_ip_group_items(
 
 fn check_signed_data_group_items(
     rule: &crate::model::BigipRule,
-    view: &ModelView<'_>,
+    group_keys: &crate::model::DataGroupKeys<'_>,
+    default_partition: &str,
     context: &OriginalIrulesSourceContext,
     out: &mut Vec<ConfigDiagnostic>,
 ) {
@@ -421,21 +422,12 @@ fn check_signed_data_group_items(
         let Some(comparison) = &finding.signed_data_group_comparison else {
             continue;
         };
-        let group = crate::object_names::owner_partition_reference_paths(
+        let known_key = group_keys.unsigned_key_in(
             &comparison.group,
             &rule.full_path,
-            view.default_partition,
-        )
-        .into_iter()
-        .find_map(|path| view.data_groups.get(&path));
-        let known_key = group
-            .filter(|group| group.value_type == "integer")
-            .and_then(|group| {
-                group.records.iter().find_map(|key| {
-                    let key = key.parse::<u64>().ok()?;
-                    comparison.unsigned_keys.contains(&key).then_some(key)
-                })
-            });
+            default_partition,
+            &comparison.unsigned_keys,
+        );
         let (severity, message) = known_key.map_or_else(
             || (DiagSeverity::Hint, finding.message.clone()),
             |key| {
@@ -1401,6 +1393,7 @@ pub fn collect_profile_default_evidence(
 #[must_use]
 pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     let view = ModelView::build(config);
+    let group_keys = crate::model::DataGroupKeys::from_configs([config]);
     let mut out: Vec<ConfigDiagnostic> = Vec::new();
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let mut event_handlers = BTreeMap::new();
@@ -1412,7 +1405,13 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
         check_irule_snatpools(rule, &view, &mut out);
         if let Some(context) = OriginalIrulesSourceContext::capture(&rule.source, registry) {
             check_irule_ip_group_items(rule, &view, &context, &mut out);
-            check_signed_data_group_items(rule, &view, &context, &mut out);
+            check_signed_data_group_items(
+                rule,
+                &group_keys,
+                view.default_partition,
+                &context,
+                &mut out,
+            );
             event_handlers.insert(
                 path.to_owned(),
                 extract_original_irules_event_handlers(&rule.source, &context),

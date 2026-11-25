@@ -105,6 +105,41 @@ fn version_from_a_bundled_library_path() {
 }
 
 #[test]
+fn module_paths_keep_release_and_environment_precedence() {
+    let installations = [
+        TclInstallation {
+            version: "8.6.18".into(),
+            tcl_library: PathBuf::from("release86").join("library"),
+            auto_path: Vec::new(),
+        },
+        TclInstallation {
+            version: "9.0".into(),
+            tcl_library: PathBuf::from("release90").join("library"),
+            auto_path: Vec::new(),
+        },
+    ];
+    let paths = module_search_paths_with(&installations, TclVersion::V8_6, |name| match name {
+        "TCL8.6_TM_PATH" => Some("environment86".into()),
+        "TCL8_5_TM_PATH" => Some("environment85".into()),
+        "TCL9.0_TM_PATH" => Some("environment90".into()),
+        _ => None,
+    });
+    assert_eq!(
+        &paths[..2],
+        &[
+            PathBuf::from("environment85"),
+            PathBuf::from("environment86")
+        ]
+    );
+    assert_eq!(paths[2], PathBuf::from("release86").join("tcl8/site-tcl"));
+    assert_eq!(
+        paths.last(),
+        Some(&PathBuf::from("release86").join("tcl8/8.6"))
+    );
+    assert!(module_search_paths_with(&installations, TclVersion::V8_4, |_| None).is_empty());
+}
+
+#[test]
 fn library_paths_from_ini_multiline_and_comma_forms() {
     // Newline list with configparser indented continuation, [global] section.
     let global = "[global]\n\

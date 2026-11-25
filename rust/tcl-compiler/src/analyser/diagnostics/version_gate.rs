@@ -1111,16 +1111,28 @@ impl Analyser {
     /// Conditional probes are excluded for the same reason the floor excludes
     /// them: they guarantee nothing on every path.
     fn package_requirement_ceiling(&self, pkg: &str) -> Option<(String, String)> {
+        let release = tcl_dialect::TclVersion::from_profile(self.profile)
+            .unwrap_or(tcl_dialect::TclVersion::V9_1);
         self.result
             .package_requires
             .iter()
-            .filter(|r| r.name == pkg && !r.conditional)
+            .filter(|r| r.matches_package_descriptor(pkg) && !r.conditional && !r.exact)
             .filter_map(|r| {
-                let requirement = r.version.as_deref()?;
-                let ceiling = tcl_registry::version::requirement_upper_bound(requirement)?;
-                Some((requirement.to_owned(), ceiling.to_owned()))
+                let mut ceiling = None;
+                for requirement in r.written_requirements() {
+                    let (_, upper) =
+                        tcl_dialect::package_requirement_bounds_for(requirement, release)?;
+                    let upper = upper?;
+                    if ceiling.is_none_or(|(_, previous)| {
+                        tcl_dialect::compare_versions_for(previous, upper, release).is_lt()
+                    }) {
+                        ceiling = Some((requirement, upper));
+                    }
+                }
+                ceiling
             })
-            .min_by(|a, b| tcl_registry::version::compare(&a.1, &b.1))
+            .min_by(|a, b| tcl_dialect::compare_versions_for(a.1, b.1, release))
+            .map(|(requirement, ceiling)| (requirement.to_owned(), ceiling.to_owned()))
     }
 
     /// The resolved version floor for `pkg`, and where it came from.
@@ -1139,18 +1151,20 @@ impl Analyser {
     /// arm — are excluded: they do not guarantee the version on every path, so
     /// counting them would raise the floor and wrongly suppress a real W135/W136.
     fn package_version_floor(&self, pkg: &str) -> Option<(String, FloorSource)> {
+        let release = tcl_dialect::TclVersion::from_profile(self.profile)
+            .unwrap_or(tcl_dialect::TclVersion::V9_1);
         let has_unconditional_require = self
             .result
             .package_requires
             .iter()
-            .any(|r| r.name == pkg && !r.conditional);
+            .any(|r| r.matches_package_descriptor(pkg) && !r.conditional);
         let require_floor = self
             .result
             .package_requires
             .iter()
-            .filter(|r| r.name == pkg && !r.conditional)
-            .filter_map(crate::signature_scan::types::SignaturePackageRequire::written_lower_bound)
-            .max_by(|a, b| tcl_registry::version::compare(a, b));
+            .filter(|r| r.matches_package_descriptor(pkg) && !r.conditional)
+            .filter_map(|req| req.written_lower_bound_for(release))
+            .max_by(|a, b| tcl_dialect::compare_versions_for(a, b, release));
         // An **ambient** placement (the F5 surfaces) is part of the
         // runtime — its floor always applies. A **hosted** placement
         // (Tk / Itcl on plain Tcl) floors only once the package is

@@ -55,14 +55,11 @@ fn native_jim_core_keeps_only_constructor_empty_roles() {
 #[test]
 fn native_core_root_cells_match_six_original_constructor_inventories() {
     let fixture = include_str!("../../../tcl-registry/tests/data/native_bootstrap/core-roots.tsv");
-    for (profile_name, version) in [
-        ("tcl8.4", "8.4"),
-        ("tcl8.5", "8.5"),
-        ("tcl8.6", "8.6"),
-        ("tcl9.0", "9.0"),
-        ("tcl9.1", "9.1"),
-        ("jim", "jim"),
-    ] {
+    for profile_name in tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .map(tcl_dialect::TclVersion::dialect_profile_name)
+        .chain(["jim"])
+    {
         let profile = tcl_registry::model::resolve_environment(profile_name).unit_profile();
         let vm = Vm::with_native_core(
             Box::new(Vec::<u8>::new()),
@@ -76,22 +73,22 @@ fn native_core_root_cells_match_six_original_constructor_inventories() {
         .unwrap();
         assert_eq!(
             vm.lookup_command("binary").is_some(),
-            version != "jim",
+            profile_name != "jim",
             "{profile_name}"
         );
         assert_eq!(
             vm.lookup_command("oo::class").is_some(),
-            matches!(version, "8.6" | "9.0" | "9.1"),
+            matches!(profile_name, "tcl8.6" | "tcl9.0" | "tcl9.1"),
             "{profile_name}"
         );
         assert_eq!(
             vm.lookup_command("try").is_some(),
-            matches!(version, "8.6" | "9.0" | "9.1" | "jim"),
+            matches!(profile_name, "tcl8.6" | "tcl9.0" | "tcl9.1" | "jim"),
             "{profile_name}"
         );
         assert_eq!(
             vm.lookup_command("throw").is_some(),
-            matches!(version, "8.6" | "9.0" | "9.1"),
+            matches!(profile_name, "tcl8.6" | "tcl9.0" | "tcl9.1"),
             "{profile_name}"
         );
         assert!(vm.lookup_command("auto_load").is_none(), "{profile_name}");
@@ -99,8 +96,9 @@ fn native_core_root_cells_match_six_original_constructor_inventories() {
         let expected: Vec<_> = fixture
             .lines()
             .filter_map(|line| {
-                let fields: Vec<_> = line.split('\t').collect();
-                (fields[0] == version).then_some((fields[1].as_bytes().to_vec(), fields[2] == "1"))
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
+                (fields[0] == profile_name)
+                    .then_some((fields[1].as_bytes().to_vec(), fields[2] == "1"))
             })
             .collect();
         assert_ne!(expected, [] as [(std::vec::Vec<u8>, bool); 0]);

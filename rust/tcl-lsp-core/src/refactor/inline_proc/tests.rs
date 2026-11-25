@@ -20,6 +20,14 @@ use super::*;
 use tcl_compiler::analyser::Analyser;
 
 #[test]
+fn inline_recheck_declines_additional_commands_or_failed_syntax() {
+    let config = tcl_lexer::LexerConfig::default();
+    assert!(check_inline_script("puts value", config).is_some());
+    assert!(check_inline_script("puts value; puts unexpected", config).is_none());
+    assert!(check_inline_script("puts {value", config).is_none());
+}
+
+#[test]
 fn inline_arguments_use_complete_original_words_and_shared_literal_values() {
     for source in [
         "proc show {value} {puts $value}\nshow a\\ b\n",

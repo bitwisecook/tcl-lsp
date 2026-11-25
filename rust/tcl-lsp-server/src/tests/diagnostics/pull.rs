@@ -295,35 +295,17 @@ async fn pull_path_applies_w120_package_refinement() {
     // `http` package ⇒ single-file W120 for `http`.
     let src = "package require mywrap\nhttp::register foo 80 bar\n";
 
-    // NEGATIVE: empty resolver can't prove `mywrap` provides `http`.  The
-    // require is *unknowable* (unknown to registry + empty database), so the
-    // conservative refinement drops W120 — to assert the *unrefined* W120 we
-    // need a resolver that knows `mywrap` but where `mywrap` does NOT pull in
-    // `http`.  Build that first.
-    let plain_ws = TmpWs::new("w120-plain");
-    plain_ws.write(
-        "mywrap/mywrap.tcl",
-        "package provide mywrap 1.0\nproc mywrap::go {} {}\n",
-    );
-    plain_ws.write(
-        "mywrap/pkgIndex.tcl",
-        "package ifneeded mywrap 1.0 [list source [file join $dir mywrap.tcl]]\n",
-    );
-    {
-        let mut resolver = PackageResolver::new();
-        resolver.scan_tree(&plain_ws.0, 100);
-        *backend.package_resolver.write().await = resolver;
+    for source in [src, "package require $name\nhttp::register foo 80 bar\n"] {
+        let unrefined = backend
+            .full_diagnostics_for(&uri, Arc::from(source), "tcl8.6".to_owned(), "tcl")
+            .await
+            .unwrap();
+        assert!(
+            diag_codes(&unrefined).iter().any(|code| code == "W120"),
+            "an unknown package leaves unrelated W120: {:?}",
+            diag_codes(&unrefined),
+        );
     }
-    let unrefined = backend
-        .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
-        .await
-        .unwrap();
-    assert!(
-        diag_codes(&unrefined).iter().any(|c| c == "W120"),
-        "a resolvable wrapper that does NOT provide http must keep the W120, \
-             got: {:?}",
-        diag_codes(&unrefined),
-    );
 
     // POSITIVE: a wrapper whose implementation does `package require http`
     // makes `http` transitively available ⇒ the W120 is refined away.

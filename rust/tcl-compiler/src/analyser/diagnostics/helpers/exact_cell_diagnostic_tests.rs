@@ -99,7 +99,7 @@ fn original_array_scalar_advice_does_not_revive_retired_roots_or_elements() {
         );
         let function = cu.procedures.values().next().expect("original procedure");
         assert_eq!(
-            original_array_scalar_read_at_span(
+            original_read_cannot_be_undefined_at_span(
                 function,
                 occurrence_span(source, spelling),
                 registry,

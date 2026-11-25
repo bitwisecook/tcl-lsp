@@ -159,7 +159,7 @@ impl Analyser {
                 || report.has_declared_alias(name)
                 || ctx.supp.suppresses(name)
                 || ctx.extra_known_defined.contains(name)
-                || super::super::helpers::original_array_scalar_read_at_span(
+                || super::super::helpers::original_read_cannot_be_undefined_at_span(
                     fu,
                     span,
                     &self.profile_registry(),
@@ -267,7 +267,9 @@ impl Analyser {
                 || ctx.scope_aliases.contains(name)
                 || ctx.supp.suppresses(name)
                 || ctx.extra_known_defined.contains(name)
-                || super::super::helpers::original_array_scalar_read_at_span(fu, span, &registry)
+                || super::super::helpers::original_read_cannot_be_undefined_at_span(
+                    fu, span, &registry,
+                )
             {
                 continue;
             }

@@ -145,6 +145,8 @@ impl Backend {
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
         let excluded = self.diagnostics_excluded(uri).await;
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
+        let data_group_root =
+            super::f5_models::data_group_workspace_root(&self.workspace_folder_urls().await, uri);
         let sidecar_revision = self
             .fresh_analysis_cache
             .lock()
@@ -183,6 +185,7 @@ impl Backend {
             recovery_names: Arc::clone(&self.recovery_names),
             entry_points,
             folder_root,
+            data_group_root,
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project_members: Arc::clone(&self.db_project_members),

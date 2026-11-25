@@ -24,9 +24,9 @@ use super::*;
 fn source_uri_resolution_matches_from_file_path() {
     // The resolver must produce the exact URI string the index keys the
     // child document by, or the graph edge won't connect.
-    let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+    let app = crate::canonical_file_uri("/proj/app.tcl").unwrap();
     let child = resolve_source_uri(app.as_str(), "lib/util.tcl").unwrap();
-    let expected = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+    let expected = crate::canonical_file_uri("/proj/lib/util.tcl").unwrap();
     assert_eq!(child, expected.as_str());
 }
 
@@ -36,10 +36,15 @@ fn entry_point_paths_resolve_relative_and_absolute() {
     let rel = entry_point_uri("src/main.tcl", Some(&root)).unwrap();
     assert_eq!(
         rel,
-        Uri::from_file_path("/proj/src/main.tcl").unwrap().as_str()
+        crate::canonical_file_uri("/proj/src/main.tcl")
+            .unwrap()
+            .as_str()
     );
     let abs = entry_point_uri("/opt/app.tcl", Some(&root)).unwrap();
-    assert_eq!(abs, Uri::from_file_path("/opt/app.tcl").unwrap().as_str());
+    assert_eq!(
+        abs,
+        crate::canonical_file_uri("/opt/app.tcl").unwrap().as_str()
+    );
     // A relative entry with no folder root can't be resolved.
     assert!(entry_point_uri("main.tcl", None).is_none());
 }

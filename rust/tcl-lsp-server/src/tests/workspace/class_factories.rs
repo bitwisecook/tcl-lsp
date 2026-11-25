@@ -118,7 +118,7 @@ async fn scanned_analysis(
     root: &std::path::Path,
     name: &str,
 ) -> Arc<AnalysisResult> {
-    let uri = Uri::from_file_path(root.join(name)).unwrap();
+    let uri = crate::canonical_file_uri(root.join(name)).unwrap();
     let db = backend.db.lock().await;
     let files = backend.db_files.lock().await;
     let file = *files.get(&uri).expect("scanned file is a salsa input");
@@ -135,7 +135,7 @@ async fn a_cross_file_metaclass_resolves_after_the_workspace_scan() {
     let root = unique_scratch_dir("metaclass");
     write_metaclass_workspace(&root);
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
 
     let analysis = scanned_analysis(&backend, &root, "iconlist.tcl").await;
@@ -197,7 +197,7 @@ async fn a_three_level_factory_scan_withdraws_descendants_when_the_source_root_d
         .unwrap();
     }
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     {
         let index = backend.workspace_index.read().await;
@@ -266,7 +266,7 @@ async fn a_dynamic_metaclass_head_abstains_even_with_the_scan_index() {
     )
     .unwrap();
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
 
     // Non-vacuity: the very same scan *does* resolve the provable file, so
@@ -296,7 +296,7 @@ async fn a_workspace_with_no_metaclass_never_sets_the_factory_oracle() {
     )
     .unwrap();
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
 
     let db = backend.db.lock().await;
@@ -317,7 +317,7 @@ async fn removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_or
     let root = unique_scratch_dir("metaclass-remove-last");
     write_metaclass_workspace(&root);
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     assert_eq!(
         backend
@@ -367,7 +367,7 @@ async fn dropping_one_factory_reindexes_its_consumers_while_retaining_others() {
     )
     .unwrap();
     let backend = test_backend();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     {
         let index = backend.workspace_index.read().await;

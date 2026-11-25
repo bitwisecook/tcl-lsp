@@ -349,6 +349,12 @@ impl Analyser {
             {
                 continue;
             }
+            if emit_w123
+                && inv.lookup == SignatureCommandLookup::InvocationHead
+                && !inv.is_mathfunc_call
+            {
+                self.emit_deleted_alias_target(inv);
+            }
             // Only diagnostic-purpose selected-slot absence feeds W123.
             if self
                 .command_diagnostic_slot_presence(name, inv.range, inv.lookup, inv.is_mathfunc_call)
@@ -425,6 +431,35 @@ impl Analyser {
             self.result.diagnostics.push(diagnostic);
         }
         self.result.command_invocations = invocations;
+    }
+
+    fn emit_deleted_alias_target(
+        &mut self,
+        invocation: &crate::signature_scan::types::SignatureCommandInvocation,
+    ) {
+        let binding = self
+            .head_identities
+            .invocation_at_source("", invocation.range.start());
+        let Some(target) = binding.deleted_alias_target() else {
+            return;
+        };
+        let Ok(target) = target.try_utf8() else {
+            return;
+        };
+        if self.is_workspace_declared(target) || self.is_workspace_autoloaded(target) {
+            return;
+        }
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W123,
+                invocation.range,
+                format!(
+                    "Alias '{}' targets removed command '{target}'",
+                    invocation.name
+                ),
+                Severity::Hint,
+            ));
     }
 
     #[cfg(debug_assertions)]

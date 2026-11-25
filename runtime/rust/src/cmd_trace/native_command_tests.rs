@@ -155,11 +155,11 @@ fn original_command_traces_match_ten_native_byte_windows() {
             .collect()
     }
     let mut compared = 0;
-    for row in include_str!("../../tests/data/native_command_traces/windows.tsv").lines() {
-        let fields = row.split('\t').collect::<Vec<_>>();
-        let mut interp = interpreter(
-            tcl_dialect::TclVersion::profile_name_for(fields[0]).expect("modelled release"),
-        );
+    let fixture = include_str!("../../tests/data/native_command_traces/windows.tsv");
+    for (_, fields) in tcl_test_support::fixture::tsv_rows::<5>(fixture) {
+        let release =
+            tcl_test_support::fixture::oracle_release(fields[0]).expect("modelled release");
+        let mut interp = interpreter(release.dialect_profile_name());
         let source = decode(fields[2]);
         assert_eq!(
             interp.eval_str(&source).as_int(),

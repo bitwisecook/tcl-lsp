@@ -467,7 +467,7 @@ mod input_custody_tests {
         let sidecar = root.0.join("tcl8.6.tcl.stubs");
         std::fs::write(&file, "old_command\n").unwrap();
         std::fs::write(&sidecar, "stub old_command {}\n").unwrap();
-        let uri = Uri::from_file_path(&file).unwrap();
+        let uri = crate::canonical_file_uri(&file).unwrap();
         let (resume, receiver) = std::sync::mpsc::channel();
         let store = Arc::new(WorkerCompletionStore {
             caller: std::thread::current().id(),
@@ -548,7 +548,7 @@ mod sidecar_publication_tests {
             let uris = ["first.tcl", "second.tcl"].map(|name| {
                 let path = root.join(name);
                 std::fs::write(&path, source.as_bytes()).unwrap();
-                Uri::from_file_path(path).unwrap()
+                crate::canonical_file_uri(path).unwrap()
             });
             Self { root, uris, source }
         }

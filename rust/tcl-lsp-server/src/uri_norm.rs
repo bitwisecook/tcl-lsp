@@ -275,6 +275,12 @@ pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
         .ok()
 }
 
+/// The legacy provider spelling for ingress compatibility controls.
+#[cfg(all(test, windows))]
+pub(crate) fn legacy_provider_file_uri(path: impl AsRef<std::path::Path>) -> Option<Uri> {
+    Uri::from_file_path(path)
+}
+
 /// A document/workspace URI was unavailable under the selected native policy.
 /// The result supplies no file/provider absence, source freshness or edit grant.
 pub use tcl_lsp_core::file_uri::FileUriPathUnavailable as DocumentFilePathUnavailable;

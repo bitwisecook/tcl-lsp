@@ -50,19 +50,24 @@ fn lattice_to_fact(value: &LatticeValue, identity: Option<ValueIdentity>) -> Fac
 /// as, with its classification as the additional fact. A double is spelled
 /// as Tcl spells it (`3.0`, `1e+301`), never as Rust does (`3`).
 pub(crate) fn const_to_exact(c: &ConstValue) -> ExactValue {
+    const_into_exact(c.clone())
+}
+
+/// Materialise a lattice constant when the consumer owns its text.
+pub(crate) fn const_into_exact(c: ConstValue) -> ExactValue {
     match c {
-        ConstValue::Int(i) => ExactValue::int(*i),
+        ConstValue::Int(i) => ExactValue::int(i),
         ConstValue::Float(f) => ExactValue {
-            bytes: tcl_syntax::number::format_double(*f).into_bytes(),
-            numeric: Some(NumericValue::Float(*f)),
+            bytes: tcl_syntax::number::format_double(f).into_bytes(),
+            numeric: Some(NumericValue::Float(f)),
             representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
         },
         ConstValue::Bool(b) => ExactValue {
-            bytes: (if *b { "1" } else { "0" }).as_bytes().to_vec(),
-            numeric: Some(NumericValue::Bool(*b)),
+            bytes: (if b { "1" } else { "0" }).as_bytes().to_vec(),
+            numeric: Some(NumericValue::Bool(b)),
             representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
         },
-        ConstValue::String(s) => ExactValue::text(s.clone()),
+        ConstValue::String(s) => ExactValue::text(s),
     }
 }
 

@@ -1422,23 +1422,20 @@ mod native_dispatch_diagnostic_tests {
         // Native proof naming.namespace.dispatch-prefix-worker-availability:
         // docs/design/analysis/name-resolution-proofs/namespace-dispatch-prefix-worker-availability.md
         use tcl_syntax::naming::NativeNameProtocol;
+        use tcl_test_support::fixture::{oracle_release, tsv_rows};
+        let available = include_str!("../tests/data/native_namespace_dispatch/available.tsv");
+        let observations = include_str!("../tests/data/native_namespace_dispatch/errors.tsv");
         let mut compared = 0;
-        for row in include_str!("../tests/data/native_namespace_dispatch/errors.tsv").lines() {
-            let fields: Vec<_> = row.split('\t').collect();
-            let available = include_str!("../tests/data/native_namespace_dispatch/available.tsv")
-                .lines()
-                .find_map(|line| {
-                    let (engine, words) = line.split_once('\t')?;
+        for (line, fields) in tsv_rows::<3>(observations) {
+            let available = tsv_rows::<2>(available)
+                .find_map(|(_, [engine, words])| {
                     (engine == fields[0]).then(|| words.split(' ').collect::<Vec<_>>())
                 })
                 .expect("same native engine's captured available command words");
             let protocol = if fields[0] == "jim" {
                 NativeNameProtocol::Jim084
             } else {
-                NativeNameProtocol::C(
-                    tcl_dialect::TclVersion::from_version_string(fields[0])
-                        .expect("captured native C release"),
-                )
+                NativeNameProtocol::C(oracle_release(fields[0]).expect("captured native C release"))
             };
             let expected: Vec<_> = fields[2]
                 .as_bytes()
@@ -1450,7 +1447,7 @@ mod native_dispatch_diagnostic_tests {
             assert_eq!(
                 super::unknown_subcommand_message(protocol, &available, fields[1].as_bytes()),
                 expected,
-                "{row}"
+                "line {line}: {fields:?}"
             );
             compared += 1;
         }

@@ -28,9 +28,9 @@ use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::equality_source::scalar_string_disjunction as try_or_chain;
+use super::source_rewrite::{reindent_script, selected_proposed_spec};
 use super::{
     RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
-    reindent_body,
 };
 use crate::code_actions::ActionKind;
 
@@ -356,14 +356,15 @@ fn render_if_extraction(
         (dg, replacement)
     };
 
-    complete_single_command_source(&replacement, config)?;
-    Some(build_result(
+    build_result(
+        source,
         extent,
         &dg_name,
         value_type,
         replacement,
         data_group,
-    ))
+        config,
+    )
 }
 
 /// One generated command whose words at `expected` indices carry exactly the
@@ -564,9 +565,9 @@ fn membership_extraction(
         records,
     };
     let matches = class_match_command(subject_reference, dg_name, config)?;
-    let body_text = reindent_body(body, &format!("{indent}    "));
+    let body_text = reindent_script(body, &format!("{indent}    "), config.nested())?;
     let replacement = if let Some(eb) = else_body {
-        let else_text = reindent_body(eb, &format!("{indent}    "));
+        let else_text = reindent_script(eb, &format!("{indent}    "), config.nested())?;
         format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}")
     } else {
         format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}}")
@@ -635,14 +636,16 @@ fn command_indent<'a>(
 
 /// Assemble the final [`Refactoring`] from the computed replacement.
 fn build_result(
+    source: &str,
     extent: (u32, u32),
     dg_name: &str,
     value_type: &str,
     replacement: String,
     data_group: DataGroupDefinition,
-) -> Refactoring {
+    config: LexerConfig,
+) -> Option<Refactoring> {
     let (start, end) = extent;
-    Refactoring {
+    let proposal = Refactoring {
         title: format!("Extract to data-group '{dg_name}' ({value_type})"),
         edits: vec![RefactorEdit {
             start,
@@ -652,7 +655,11 @@ fn build_result(
         kind: ActionKind::RefactorExtract,
         data_group: Some(data_group),
         disabled: None,
-    }
+    };
+    proposal.check_replacement(source, |postimage| {
+        complete_single_command_source(postimage, config)
+    })?;
+    Some(proposal)
 }
 
 // switch extraction
@@ -774,14 +781,15 @@ fn render_switch_extraction(
         )?
     };
 
-    complete_single_command_source(&replacement, config)?;
-    Some(build_result(
+    build_result(
+        source,
         extent,
         &dg_name,
         value_type,
         replacement,
         data_group,
-    ))
+        config,
+    )
 }
 
 /// Build the value-mapping (`class lookup`) extraction for a switch.
@@ -937,30 +945,6 @@ fn written_operands_match(
     })
 }
 
-/// Newly authored output words have no original invocation to project. This
-/// positive Logical query retains the current descriptor at the proposal
-/// horizon, independently of output execution or insertion permissions.
-fn selected_proposed_spec(
-    analysis: &AnalysisResult,
-    registry: &CommandRegistry,
-    at: u32,
-    name: &str,
-) -> Option<&'static tcl_registry::CommandSpec> {
-    if !analysis.allows_retained_logical_declaration_advice() {
-        return None;
-    }
-    let context = analysis.resolved_input.as_ref()?.availability_context();
-    let expected = context.resolve_spec(registry, name)?;
-    let retained = match analysis.retained_command_realm()?.binding_at(name, at) {
-        tcl_compiler::realm::RealmBindingFact::Unchanged => true,
-        tcl_compiler::realm::RealmBindingFact::Command(target) => context
-            .resolve_spec(registry, target)
-            .is_some_and(|selected| std::ptr::eq(selected, expected)),
-        tcl_compiler::realm::RealmBindingFact::Rebound => false,
-    };
-    retained.then_some(expected)
-}
-
 fn selected_output_forms_available(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
@@ -1004,6 +988,29 @@ fn original_mapping_arms(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn data_group_extraction_refuses_an_invalid_replacement() {
+        let source = "puts x";
+        let extent = (0, u32::try_from(source.len()).unwrap());
+        let make = |new_text: &str| {
+            build_result(
+                source,
+                extent,
+                "values",
+                "string",
+                new_text.to_owned(),
+                DataGroupDefinition {
+                    name: "values".to_owned(),
+                    value_type: "string".to_owned(),
+                    records: vec![("a".to_owned(), String::new())],
+                },
+                LexerConfig::default(),
+            )
+        };
+        assert!(make("if {[class match $x equals values]} {puts x}").is_some());
+        assert!(make("if {[class match $x equals values]} {puts x").is_none());
+    }
 
     #[test]
     fn selected_if_scalar_source_keeps_reference_spelling_in_proposals() {

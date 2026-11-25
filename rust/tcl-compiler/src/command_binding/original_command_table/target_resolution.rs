@@ -381,16 +381,8 @@ impl ModuleCommandBindings {
             selected.insert(target.clone(), target.prepended.is_empty().then(Vec::new));
             return Some(());
         }
-        let slot = self.original_slot_for_command_key(key, policy)?;
-        let publication = self.original_publication_at(&slot, policy)?;
-        if !publication.has_implementation_allocation(target.implementation_allocation.as_ref()?) {
-            return None;
-        }
-        let alias = publication.alias_target()?;
-        let target_namespace = match alias.lookup() {
-            tcl_registry::AliasTargetLookup::Global => self.source_root_namespace_key()?,
-            tcl_registry::AliasTargetLookup::CallerNamespace => namespace.clone(),
-        };
+        let (alias, target_namespace) =
+            self.original_alias_target(target, key, policy, namespace)?;
         let paths = self.original_command_paths_for_input(&target_namespace, alias.name_input())?;
         let result = self.original_targets_for_paths(
             alias.name_input().policy(),
@@ -422,6 +414,84 @@ impl ModuleCommandBindings {
             selected.insert(terminal, inputs);
         }
         Some(())
+    }
+
+    fn original_alias_target(
+        &self,
+        target: &ResolvedCommandTarget,
+        key: &SourceCommandKey,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        namespace: &SourceNamespaceKey,
+    ) -> Option<(
+        &super::super::source_command_world::OriginalAliasTarget,
+        SourceNamespaceKey,
+    )> {
+        let slot = self.original_slot_for_command_key(key, policy)?;
+        let publication = self.original_publication_at(&slot, policy)?;
+        if !publication.has_implementation_allocation(target.implementation_allocation.as_ref()?) {
+            return None;
+        }
+        let alias = publication.alias_target()?;
+        let namespace = match alias.lookup() {
+            tcl_registry::AliasTargetLookup::Global => self.source_root_namespace_key()?,
+            tcl_registry::AliasTargetLookup::CallerNamespace => namespace.clone(),
+        };
+        Some((alias, namespace))
+    }
+
+    /// A reached alias chain terminates at a previously rebound slot that is
+    /// now absent. The outer alias remains a valid command slot. Report the
+    /// missing operand only when every step agrees, and the terminal lookup's
+    /// fallback is the stock handler or is itself absent.
+    pub(in super::super) fn original_deleted_alias_target<'a>(
+        &'a self,
+        mut input: &'a SignatureSourceNameInput,
+        mut namespace: SourceNamespaceKey,
+    ) -> Option<tcl_core_types::NameBytes> {
+        if self.has_opaque_domain() || self.source_step_observed() {
+            return None;
+        }
+        let mut visited = BTreeSet::new();
+        while let Some((key, bindings)) =
+            self.original_occupied_command_for_input(&namespace, input)
+        {
+            let MayBinding::Target(target) = bindings.first()? else {
+                return None;
+            };
+            if bindings.len() != 1
+                || target.terminal
+                || self.runtime_execution_observed(target.token.as_ref())
+            {
+                return None;
+            }
+            let (alias, target_namespace) =
+                self.original_alias_target(target, &key, input.policy(), &namespace)?;
+            if !visited.insert(key) {
+                return None;
+            }
+            input = alias.name_input();
+            namespace = target_namespace;
+        }
+        let presence = self.original_diagnostic_slot_presence_for_input(input, &namespace);
+        if visited.is_empty()
+            || self
+                .original_diagnostic_presence_after_absence(
+                    &namespace,
+                    input.policy(),
+                    presence,
+                    self.original_diagnostic_qualifier_is_retained(input, &namespace),
+                )
+                .knowledge
+                != tcl_core_types::Knowledge::Absent
+        {
+            return None;
+        }
+        let paths = self.original_command_paths_for_input(&namespace, input)?;
+        (!paths.is_empty()
+            && paths
+                .iter()
+                .all(|path| path.iter().any(|key| self.rebound_names.contains(key))))
+        .then(|| tcl_core_types::NameBytes::from(input.bytes()))
     }
 
     pub(in super::super) fn original_slot_for_command_key(

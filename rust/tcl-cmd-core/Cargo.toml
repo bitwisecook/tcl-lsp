@@ -55,6 +55,7 @@ tcl-runtime-api = { path = "../tcl-runtime-api" }
 md-5 = "0.11"
 sha1 = "0.11"
 sha2 = "0.11"
+data-encoding = "2.11"
 
 [lints]
 workspace = true

@@ -678,6 +678,17 @@ pub fn run(codes: &[String], corpus: &[PathBuf], examples: usize) -> Result<Exit
 mod tests {
     use super::*;
 
+    #[test]
+    fn workspace_scan_keeps_tcl_paths_and_separates_embedded_examples() {
+        let fixture = tcl_test_support::fixture::WorkspaceScan::new();
+        let (native, embedded) = discover_corpus(&[fixture.root().to_path_buf()]).unwrap();
+        assert_eq!(
+            native.into_iter().collect::<Vec<_>>(),
+            fixture.expected_sources()
+        );
+        assert_eq!(embedded, BTreeSet::from([fixture.root().join("notes.txt")]));
+    }
+
     #[cfg(unix)]
     #[test]
     fn corpus_walk_refuses_an_opaque_directory_basename() {

@@ -164,6 +164,10 @@ fn apply_selected_native_frame_effect(
                 if level.is_global_frame() =>
             {
                 selection.frame = crate::var_resolve::VariableExecutionFrame::Global;
+                selection.variables = state
+                    .source_variables
+                    .selected_frame_context(level)
+                    .map(Arc::new);
                 selection.namespace_key = state
                     .native_root_namespace_key()
                     .unwrap_or_else(|| SourceNamespaceKey::authored("::"));

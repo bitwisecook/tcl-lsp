@@ -1078,12 +1078,14 @@ mod tests {
                 .collect()
         }
         let mut checked = 0;
-        for row in include_str!("../tests/data/authored_procedure_names/native.tsv").lines() {
-            let columns: Vec<_> = row.split('\t').collect();
+        let fixture = include_str!("../tests/data/authored_procedure_names/native.tsv");
+        for (line, columns) in tcl_test_support::fixture::tsv_rows::<6>(fixture) {
             let environment = crate::model::ingress::resolve_environment(if columns[0] == "jim" {
                 "jim"
             } else {
-                tcl_dialect::TclVersion::profile_name_for(columns[0]).expect("captured release")
+                tcl_test_support::fixture::oracle_release(columns[0])
+                    .expect("captured release")
+                    .dialect_profile_name()
             });
             let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
             let native = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
@@ -1108,7 +1110,7 @@ mod tests {
                 assert_eq!(
                     procedure_name_creation_error_for_policy(policy, columns[2] == "1", &name),
                     expected,
-                    "{row}"
+                    "line {line}: {columns:?}"
                 );
             }
             assert_ne!(native.authority(), authored.authority());

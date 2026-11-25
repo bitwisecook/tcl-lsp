@@ -107,6 +107,10 @@ fn main() -> ExitCode {
             })
         })
         .collect();
+    trials.push(Trial::test("artefact::engine-row-format", || {
+        artefacts::assert_engine_row_snapshot();
+        Ok(())
+    }));
     for artefact in artefacts.iter() {
         let errors = artefact.structure_errors(&fixtures);
         let name = format!("artefact::{}", artefact.name);

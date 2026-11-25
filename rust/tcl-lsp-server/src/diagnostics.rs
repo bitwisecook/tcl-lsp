@@ -48,6 +48,8 @@ mod consumers;
 mod deep_pass;
 mod delivery;
 mod f5_models;
+#[cfg(test)]
+pub(super) use f5_models::refine_signed_data_group_diagnostics;
 mod inputs;
 mod package_refinement;
 mod publication;
@@ -362,6 +364,8 @@ pub(super) struct DiagInputs {
     /// The document's workspace-folder root, used to resolve relative
     /// `entry_points` to file URIs. `None` for a no-folder session.
     pub(super) folder_root: Option<PathBuf>,
+    /// The actual workspace folder supplying typed BIG-IP data groups.
+    pub(super) data_group_root: Option<PathBuf>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -449,6 +453,7 @@ pub(super) struct AnalyserPathInputs<'a> {
     /// W120 inheritance for this document's folder (see [`DiagInputs`]).
     pub(super) entry_points: &'a [String],
     pub(super) folder_root: Option<&'a Path>,
+    pub(super) data_group_root: Option<&'a Path>,
     /// Whether opt-in cross-file resolution is enabled — see
     /// `Backend::cross_file_resolution_enabled`. Independent of
     /// `LiftInputs::xc_diagnostics` (the unrelated f5-irules-specific
@@ -481,10 +486,10 @@ struct RefinementInputs<'a> {
     pub(super) package_resolver: &'a Arc<RwLock<PackageResolver>>,
     /// Each provider's own checked source/configuration, captured before resolution.
     pub(super) provider_sources: &'a provider_source::ProviderSourceAccess<'a>,
-    pub(super) registry: &'a CommandRegistry,
     /// The document's exact source-owned call candidates and their
     /// conditional source arity projections.
     settled_calls: CrossFileCalls,
+    workspace_sources: &'a Arc<crate::workspace_diagnostic_sources::WorkspaceDiagnosticSources>,
 }
 
 /// The resolved per-document settings an F5 model dialect's pull report reads
@@ -512,7 +517,6 @@ pub(super) struct F5ModelDocument<'a> {
 /// each call site.
 struct PullRefinementInputs<'a> {
     pub(super) dialect: &'static tcl_dialect::DialectProfile,
-    pub(super) registry: &'a CommandRegistry,
     pub(super) disabled: &'a HashSet<String>,
 }
 

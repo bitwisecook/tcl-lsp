@@ -537,7 +537,8 @@ fn bind_called_body_parameters(
         {
             return Some(topology.bindings(actual.len()).is_ok());
         }
-        return topology.bind(called, actual, context.registry);
+        let original_actual = original_positional_arguments(target, context, actual.len());
+        return topology.bind(called, actual, original_actual, context.registry);
     }
     bind_source_parameters(
         called,
@@ -547,6 +548,30 @@ fn bind_called_body_parameters(
         context.registry,
         native_result::numeric_call_arguments(context, target),
     )
+}
+
+fn original_positional_arguments<'a>(
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'a>,
+    count: usize,
+) -> Option<&'a [Option<Arc<super::super::original_name_value::OriginalProducedNameValue>>]> {
+    use crate::registry_invocation::EffectiveInvocationWord as Word;
+    let words = context.written_arguments?.get(1..)?;
+    if !target.prepended.is_empty()
+        || words.len() != count
+        || words.iter().any(|word| {
+            matches!(
+                word,
+                Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
+            )
+        })
+    {
+        return None;
+    }
+    context
+        .written_name_values?
+        .get(1..)
+        .filter(|values| values.len() == count)
 }
 
 fn bind_source_parameters(

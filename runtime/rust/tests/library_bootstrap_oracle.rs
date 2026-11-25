@@ -61,7 +61,11 @@ fn real_legacy_init_libraries_install_lookup_procedures() {
             interp.result_bytes()
         );
         let script = r#"
-            info procs ::auto_load
+            set first [interp create]
+            set nested [interp create [list $first inner]]
+            list [info procs ::auto_load] \
+                [interp eval $first {info procs ::auto_load}] \
+                [interp eval $nested {info procs ::auto_load}]
         "#;
         let oracle = run_script_from_source_tree(
             &tree,

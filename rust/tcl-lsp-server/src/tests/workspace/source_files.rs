@@ -21,6 +21,20 @@
 use super::*;
 
 #[test]
+fn workspace_scan_matches_the_shared_fixture() {
+    let fixture = tcl_test_support::fixture::WorkspaceScan::new();
+    let mut files = Vec::new();
+    assert!(collect_tcl_files(
+        &vfs::NativeStore,
+        fixture.root(),
+        100,
+        &mut files
+    ));
+    files.sort();
+    assert_eq!(files, fixture.expected_sources());
+}
+
+#[test]
 fn uri_under_folder_handles_trailing_slash_and_boundary() {
     assert!(uri_under_folder(
         "file:///ws/app/file.tcl",

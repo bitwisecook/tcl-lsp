@@ -738,7 +738,7 @@ impl CommandSemantics for StringMatchSemantics {
 }
 
 /// `format template ?arg …?` on the direct route: the shared format core
-/// (`tcl_cmd_core::format::format_cmd_with_syntax`) over [`ConstOps`] under
+/// (`tcl_cmd_core::format::format_cmd_for_release`) over [`ConstOps`] under
 /// the target release's numeral grammar. A conversion the release lacks is
 /// the program's error (`%b` from 8.6, `%p` and `%llu` from 9.0; tclsh 8.4
 /// raises `bad field specifier "b"`). Under a profile that names no release
@@ -773,7 +773,7 @@ impl FormatTemplateSemantics {
             return Err(DeclineReason::WrongRepresentation);
         }
         run_core_declining(input, budget, Self::NEEDS, |ops| {
-            tcl_cmd_core::format::format_cmd_with_syntax(ops, args, release.number_syntax())
+            tcl_cmd_core::format::format_cmd_for_release(ops, args, release)
                 .map_err(|error| ops.decline(&error))
         })
     }

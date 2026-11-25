@@ -206,13 +206,32 @@ impl PackageResolver {
         exists: &dyn Fn(&Path) -> bool,
         list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
     ) {
+        self.add_original_pkg_index_for_releases(
+            content,
+            directory,
+            index,
+            exists,
+            list_files,
+            &tcl_dialect::TclVersion::ALL,
+        );
+    }
+
+    pub(super) fn add_original_pkg_index_for_releases(
+        &mut self,
+        content: &str,
+        directory: &Path,
+        index: &Path,
+        exists: &dyn Fn(&Path) -> bool,
+        list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
+        releases: &[tcl_dialect::TclVersion],
+    ) {
         self.invalidate();
         // The same text read with core `package`/`if` semantics, as
         // `tclPkgUnknown` sources it, decides version guards the original
         // survey keeps undecidable. An entry it excludes for a release is not
         // offered for that release.
         let decided = super::parse_pkg_index(content, directory, index, exists, list_files);
-        for version in tcl_dialect::TclVersion::ALL {
+        for &version in releases {
             for info in
                 original_package_entries(content, directory, index, exists, list_files, version)
             {
@@ -265,6 +284,13 @@ impl PackageResolver {
         exact: bool,
         prefer: super::PackagePrefer,
     ) -> Vec<PathBuf> {
+        if let tcl_syntax::naming::NativeNameProtocol::C(release) = name.policy().recipe()
+            && let Some(module) =
+                self.modules
+                    .provider(name.bytes(), requirements, exact, prefer, release)
+        {
+            return module.source_files.clone();
+        }
         let mut files = Vec::new();
         for info in self.candidate_original_providers_for_require(name, requirements, exact, prefer)
         {
@@ -283,9 +309,17 @@ impl PackageResolver {
         &self,
         name: &tcl_registry::native_package::NativePackageNameKey,
     ) -> bool {
-        self.original_packages
-            .get(name)
-            .is_some_and(|infos| !infos.is_empty())
+        let module = match name.policy().recipe() {
+            tcl_syntax::naming::NativeNameProtocol::C(release) => {
+                self.modules.provides(name.bytes(), release)
+            }
+            _ => false,
+        };
+        module
+            || self
+                .original_packages
+                .get(name)
+                .is_some_and(|infos| !infos.is_empty())
     }
 
     /// Command publications from files contributed by exact original packages.
@@ -344,8 +378,9 @@ impl PackageResolver {
     ) -> Vec<PathBuf> {
         match name {
             PackageRequirementAdviceKey::Original(key) => {
-                if self.original_packages.contains_key(key) {
-                    return self.resolve_original_require(key, requirements, exact, prefer);
+                let original = self.resolve_original_require(key, requirements, exact, prefer);
+                if !original.is_empty() || self.original_packages.contains_key(key) {
+                    return original;
                 }
                 // A registration the original survey could not see at all
                 // (nested in `apply`, a loop or both arms of a branch) falls
@@ -538,25 +573,40 @@ impl PackageResolver {
         index_dir: &Path,
         exists: &dyn Fn(&Path) -> bool,
     ) {
+        self.add_original_tcl_index_for_releases(
+            content,
+            index_dir,
+            exists,
+            &tcl_dialect::TclVersion::ALL,
+        );
+    }
+
+    pub(super) fn add_original_tcl_index_for_releases(
+        &mut self,
+        content: &str,
+        index_dir: &Path,
+        exists: &dyn Fn(&Path) -> bool,
+        releases: &[tcl_dialect::TclVersion],
+    ) {
         self.invalidate();
-        let requests = tcl_dialect::TclVersion::ALL.map(|version| {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
-                .expect("C release profile");
-            let config = LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
-            );
-            let policy = NamePolicyProtocol::authored_tcl(version);
-            (config, policy)
-        });
-        for ((_, policy), entries) in requests.into_iter().zip(original_index_entries_batch(
+        let requests: Vec<_> = releases
+            .iter()
+            .map(|&version| {
+                let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+                    .expect("C release profile");
+                let config = LexerConfig::from_grammar(
+                    tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
+                );
+                let policy = NamePolicyProtocol::authored_tcl(version);
+                (config, policy)
+            })
+            .collect();
+        for ((_, policy), entries) in requests.iter().copied().zip(original_index_entries_batch(
             content, index_dir, exists, &requests,
         )) {
             for entry in entries {
                 self.original_auto_index
-                    .entry((
-                        policy.string_protocol(),
-                        NameBytes::from(entry.input.bytes()),
-                    ))
+                    .entry((policy.recipe(), NameBytes::from(entry.input.bytes())))
                     .or_default()
                     .push(entry);
             }
@@ -577,7 +627,7 @@ impl PackageResolver {
         for candidate in candidates {
             if let Some(files) = self
                 .original_auto_index
-                .get(&(key.policy().string_protocol(), candidate))
+                .get(&(key.policy().recipe(), candidate))
             {
                 return files.iter().map(|entry| entry.file.clone()).collect();
             }
@@ -596,7 +646,7 @@ impl PackageResolver {
         for candidate in advice.candidates() {
             if let Some(entries) = self
                 .original_auto_index
-                .get(&(advice.name().policy().string_protocol(), candidate.clone()))
+                .get(&(advice.name().policy().recipe(), candidate.clone()))
             {
                 return entries.iter().map(|entry| entry.file.clone()).collect();
             }

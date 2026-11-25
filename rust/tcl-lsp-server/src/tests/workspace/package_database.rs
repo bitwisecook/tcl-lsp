@@ -79,6 +79,19 @@ fn build_package_resolver_picks_up_a_discovered_installation_package() {
         resolver.provides("Tk"),
         "discovered install's Tk package should be in the database"
     );
+    for (release, expected) in [
+        (tcl_dialect::TclVersion::V8_6, 1),
+        (tcl_dialect::TclVersion::V9_0, 0),
+    ] {
+        let candidates = resolver.candidate_providers_for_require(
+            "Tk",
+            &[],
+            false,
+            tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+            Some(release),
+        );
+        assert_eq!(candidates.len(), expected, "{release:?}: {candidates:?}");
+    }
 }
 
 /// TP: a file's own `lappend auto_path [file dirname
@@ -111,7 +124,7 @@ async fn document_auto_path_mutation_feeds_the_package_database() {
     let backend = test_backend();
     // Root is `examples/` only: the package directory is the *parent*, so
     // the recursive tree scan can never reach it.
-    let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+    let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples")).unwrap();
     *backend.workspace_folders.lock().await = vec![narrow_root];
     backend.scan_workspace_folders().await.unwrap();
     assert!(
@@ -134,7 +147,7 @@ async fn document_auto_path_mutation_feeds_the_package_database() {
         "package require mypix2\nputs hi\n",
     );
     let backend2 = test_backend();
-    let bare_root = Uri::from_file_path(bare.0.join("reporoot/examples")).unwrap();
+    let bare_root = crate::canonical_file_uri(bare.0.join("reporoot/examples")).unwrap();
     *backend2.workspace_folders.lock().await = vec![bare_root];
     backend2.scan_workspace_folders().await.unwrap();
     assert!(
@@ -166,11 +179,11 @@ async fn definition_resolves_through_a_document_auto_path_package() {
     ws.write("reporoot/examples/user.tcl", user_src);
 
     let backend = test_backend();
-    let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+    let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples")).unwrap();
     *backend.workspace_folders.lock().await = vec![narrow_root];
     backend.scan_workspace_folders().await.unwrap();
 
-    let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+    let user_uri = crate::canonical_file_uri(ws.0.join("reporoot/examples/user.tcl")).unwrap();
     register(&backend, &user_uri, user_src).await;
     let locs = Box::pin(backend.compute_definition(
         &user_uri,
@@ -191,6 +204,59 @@ async fn definition_resolves_through_a_document_auto_path_package() {
         locs[0].uri.as_str().ends_with("mypix.tcl"),
         "unexpected target: {:?}",
         locs[0].uri,
+    );
+}
+
+#[tokio::test]
+async fn definition_resolves_a_module_outside_the_workspace() {
+    let ws = TmpWs::new("module-def");
+    ws.write(
+        "tm/acme/widget-1.2.tm",
+        "# tcl-dialect: tcl8.6\npackage provide acme::widget 1.2\n\
+         namespace eval ::acme::widget { proc v {} {return loaded} }\n",
+    );
+    let modules = ws.0.join("tm");
+    let source = format!(
+        "# tcl-dialect: tcl8.6\n::tcl::tm::path add [list {{{}}}]\n\
+         puts [list [package require acme::widget] [::acme::widget::v] [lsort [package versions acme::widget]]]\n",
+        modules.to_str().unwrap(),
+    );
+    ws.write("example/main.tcl", &source);
+    let backend = test_backend();
+    *backend.workspace_folders.lock().await =
+        vec![crate::canonical_file_uri(ws.0.join("example")).unwrap()];
+    backend.scan_workspace_folders().await.unwrap();
+    let expected = ws.0.join("tm/acme/widget-1.2.tm");
+    assert_eq!(
+        backend
+            .package_resolver
+            .read()
+            .await
+            .resolve_require_for_profile(
+                "acme::widget",
+                &[],
+                false,
+                tcl_lsp_core::package_resolver::PackagePrefer::Stable,
+                tcl_dialect::DialectProfile::find("tcl8.6"),
+            ),
+        [expected],
+    );
+
+    let document = crate::canonical_file_uri(ws.0.join("example/main.tcl")).unwrap();
+    register(&backend, &document, &source).await;
+    let targets = Box::pin(backend.compute_definition(
+        &document,
+        Position {
+            line: 2,
+            character: 50,
+        },
+    ))
+    .await
+    .unwrap();
+    assert_eq!(targets.len(), 1, "{targets:?}");
+    assert!(
+        targets[0].uri.as_str().ends_with("/tm/acme/widget-1.2.tm"),
+        "{targets:?}"
     );
 }
 
@@ -223,7 +289,7 @@ async fn a_triple_nested_dirname_auto_path_feeds_the_package_database() {
 
     let backend = test_backend();
     // Root is the leaf `demos/` directory — two levels below the package.
-    let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples/demos")).unwrap();
+    let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples/demos")).unwrap();
     *backend.workspace_folders.lock().await = vec![narrow_root];
     backend.scan_workspace_folders().await.unwrap();
     assert!(
@@ -247,7 +313,7 @@ fn retained_source_and_package_paths_consume_actual_plans() {
         tcl_compiler::auto_path_eval::capture_source_target_path_expression(&analysis, target)
             .unwrap();
     let imported = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
-    let expected = Uri::from_file_path("/ROOT/literal$é.tcl").unwrap();
+    let expected = crate::canonical_file_uri("/ROOT/literal$é.tcl").unwrap();
     assert_eq!(
         resolve_source_edge(
             "file:///ROOT/main.tcl",
@@ -283,7 +349,7 @@ fn retained_source_and_package_paths_consume_actual_plans() {
         )
         .is_none()
     );
-    let uri = Uri::from_file_path("/ROOT/main.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/ROOT/main.tcl").unwrap();
     for (source, expected) in [
         (
             "set auto_path [file join /ROOT {a b}]",
@@ -341,7 +407,7 @@ async fn a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd()
         "lappend auto_path lib\npackage require relpix\nputs [::relpix::go]\n",
     );
 
-    let main_uri = Uri::from_file_path(ws.0.join("reporoot/main.tcl")).unwrap();
+    let main_uri = crate::canonical_file_uri(ws.0.join("reporoot/main.tcl")).unwrap();
     let main_src = std::fs::read_to_string(ws.0.join("reporoot/main.tcl")).expect("read");
     let analysis = tcl_compiler::analyser::Analyser::new()
         .analyse(&main_src, "tcl8.6")
@@ -357,7 +423,7 @@ async fn a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd()
     // And it really does make the package resolvable, with the workspace
     // root scoped to the document's directory only.
     let backend = test_backend();
-    let root = Uri::from_file_path(ws.0.join("reporoot")).unwrap();
+    let root = crate::canonical_file_uri(ws.0.join("reporoot")).unwrap();
     *backend.workspace_folders.lock().await = vec![root];
     backend.scan_workspace_folders().await.unwrap();
     assert!(
@@ -399,7 +465,7 @@ async fn set_auto_path_puts_every_list_element_on_the_search_path() {
     let backend = test_backend();
     // Root is `examples/` only, so nothing but the assignment can reach
     // the three package directories.
-    let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+    let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples")).unwrap();
     *backend.workspace_folders.lock().await = vec![narrow_root];
     backend.scan_workspace_folders().await.unwrap();
 

@@ -116,3 +116,77 @@ fn native_jim_alias_metadata_cannot_use_raw_logical_name_eligibility() {
     );
     assert!(super::original_scope_alias_call(registry, Some(metadata), statement).is_none());
 }
+
+#[test]
+fn dialect_variable_writes_retain_the_selected_types_and_frame_policy() {
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use crate::types::{TclType, TypeLattice};
+    use crate::var_escape::{EscapeTag, analyse_var_escape_cu};
+    use std::sync::Arc;
+    use tcl_core_types::BodyFrameId;
+
+    let jim_loop = "proc examine {} {loop item 0 {}; return $item}";
+    let shared = "when CLIENT_DATA {set item 1; sharedvar item; return $item}";
+    for (dialect, source, name, expected_types) in [
+        (
+            "jimtcl",
+            jim_loop,
+            "::examine",
+            vec![TypeLattice::overdefined()],
+        ),
+        ("tcl8.6", jim_loop, "::examine", vec![]),
+        (
+            "f5-irules",
+            shared,
+            "::when::CLIENT_DATA",
+            vec![TypeLattice::of(TclType::Int), TypeLattice::overdefined()],
+        ),
+    ] {
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let input = ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let function = unit.function(name).unwrap();
+        let mut types: Vec<_> = function
+            .types
+            .iter()
+            .filter(|((symbol, _), _)| function.ssa.var_name(*symbol) == "item")
+            .map(|((_, version), inferred)| (*version, inferred.clone()))
+            .collect();
+        types.sort_unstable_by_key(|(version, _)| *version);
+        assert_eq!(
+            types
+                .into_iter()
+                .map(|(_, inferred)| inferred)
+                .collect::<Vec<_>>(),
+            expected_types,
+            "{dialect}"
+        );
+
+        let summaries = analyse_var_escape_cu(&unit, false);
+        let summary = &summaries[&BodyFrameId::Body(function.body_id.unwrap())];
+        assert!(!summary.local_slots.contains_key("item"), "{dialect}");
+        if dialect == "f5-irules" {
+            assert_eq!(summary.tags.get("item"), Some(&EscapeTag::Frame));
+        }
+    }
+}

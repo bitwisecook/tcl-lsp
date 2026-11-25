@@ -79,11 +79,11 @@ async fn definition_lands_in_the_package_release_tcl_would_load() {
         ws.write(&name, &user_src);
 
         let backend = test_backend();
-        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+        let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples")).unwrap();
         *backend.workspace_folders.lock().await = vec![narrow_root];
         backend.scan_workspace_folders().await.unwrap();
 
-        let user_uri = Uri::from_file_path(ws.0.join(&name)).unwrap();
+        let user_uri = crate::canonical_file_uri(ws.0.join(&name)).unwrap();
         register(&backend, &user_uri, &user_src).await;
         let locs = Box::pin(backend.compute_definition(
             &user_uri,
@@ -138,12 +138,15 @@ async fn package_definition_keeps_each_callers_release_in_one_backend() {
         );
         let path = format!("reporoot/examples/{name}.tcl");
         workspace.write(&path, &source);
-        callers.push((Uri::from_file_path(workspace.0.join(path)).unwrap(), source));
+        callers.push((
+            crate::canonical_file_uri(workspace.0.join(path)).unwrap(),
+            source,
+        ));
     }
     for order in [[0, 1, 0, 2], [1, 0, 1, 2]] {
         let backend = test_backend();
         *backend.workspace_folders.lock().await =
-            vec![Uri::from_file_path(workspace.0.join("reporoot/examples")).unwrap()];
+            vec![crate::canonical_file_uri(workspace.0.join("reporoot/examples")).unwrap()];
         backend.scan_workspace_folders().await.unwrap();
         for (uri, source) in &callers {
             // Opening replaces the scanned standalone view. The generic
@@ -235,11 +238,11 @@ async fn a_versioned_require_indexes_the_release_it_asks_for() {
     ws.write("reporoot/examples/user.tcl", &user_src);
 
     let backend = test_backend();
-    let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples")).unwrap();
+    let narrow_root = crate::canonical_file_uri(ws.0.join("reporoot/examples")).unwrap();
     *backend.workspace_folders.lock().await = vec![narrow_root];
     backend.scan_workspace_folders().await.unwrap();
 
-    let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+    let user_uri = crate::canonical_file_uri(ws.0.join("reporoot/examples/user.tcl")).unwrap();
     register(&backend, &user_uri, &user_src).await;
     let locs = Box::pin(backend.compute_definition(
         &user_uri,

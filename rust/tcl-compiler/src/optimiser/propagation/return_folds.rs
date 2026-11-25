@@ -20,7 +20,9 @@
 
 use super::super::helpers::spans::original_statement_rewrite_span;
 use super::super::{Optimisation, PassContext};
-use super::command_substitution_folds::{retained_o115, retained_substitution_calls};
+use super::command_substitution_folds::{
+    fold_retained_builtin, retained_call_at, retained_o115, retained_substitution_calls,
+};
 use super::render_propagation_word;
 use crate::ir::{CommandTokens, Statement};
 use tcl_core_types::DiagCode;
@@ -112,6 +114,56 @@ pub(super) fn original_return_word_replacement(
     (after.words.len() == command.native_words().len()).then_some((span, source))
 }
 
+fn fold_return_builtin(
+    ctx: &PassContext<'_>,
+    module: &crate::ir::Module,
+    tokens: &CommandTokens,
+    value_word: &crate::ir::WordExpr,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    let crate::ir::WordExpr::CommandSubstitution { source, .. } = value_word else {
+        return None;
+    };
+    let registry = ctx.registry?;
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
+    let calls = retained_substitution_calls(tokens, module, registry)?;
+    let call = retained_call_at(&calls, source.span.start())?;
+    let encoding = module
+        .source_metadata_input
+        .as_ref()
+        .map_or_default(crate::analyser::ResolvedAnalysisInput::script_encoding);
+    fold_retained_builtin(
+        module,
+        registry,
+        call,
+        &calls,
+        None,
+        metadata,
+        (ctx.dialect, Some(constants), encoding),
+    )
+}
+
+fn fold_return_expression(
+    ctx: &PassContext<'_>,
+    expression: &crate::expr_ast::ExprNode,
+    constants: &std::collections::HashMap<String, String>,
+    span: tcl_lexer::Span,
+) -> Option<String> {
+    let env = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+            )
+        })
+        .collect::<crate::tcl_expr_eval::Env>();
+    let value = ctx.eval_expression_at(expression, &env, span)?;
+    let folded = crate::tcl_expr_eval::format_tcl_value_with_policy(&value, ctx.fold_policy())?;
+    (!folded.contains(['$', '['])).then_some(folded)
+}
+
 /// Fold an original return operand using its retained word kind and constants.
 pub(super) fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
@@ -170,32 +222,33 @@ pub(super) fn try_fold_return_terminator(
         return;
     }
 
-    if let Some(expression) = expr {
-        let env = constants
-            .iter()
-            .map(|(name, value)| {
-                (
-                    name.clone(),
-                    crate::tcl_expr_eval::EnvValue::Str(value.clone()),
-                )
-            })
-            .collect::<crate::tcl_expr_eval::Env>();
-        if let Some(value) = ctx.eval_expression_at(expression, &env, span)
-            && let Some(folded) =
-                crate::tcl_expr_eval::format_tcl_value_with_policy(&value, ctx.fold_policy())
-            && !folded.contains(['$', '['])
-            && let Some((rewrite_span, replacement)) = tokens.and_then(|tokens| {
-                original_return_value_replacement(ctx, statement, tokens, &folded)
-            })
-        {
-            ctx.report(Optimisation::new(
-                DiagCode::O101,
-                "Fold constant expression",
-                rewrite_span,
-                replacement,
-            ));
-            return;
-        }
+    if let Some(expression) = expr
+        && let Some(folded) = fold_return_expression(ctx, expression, constants, span)
+        && let Some((rewrite_span, replacement)) = tokens
+            .and_then(|tokens| original_return_value_replacement(ctx, statement, tokens, &folded))
+    {
+        ctx.report(Optimisation::new(
+            DiagCode::O101,
+            "Fold constant expression",
+            rewrite_span,
+            replacement,
+        ));
+        return;
+    }
+
+    if let Some(tokens) = tokens
+        && let Some(word) = value_word.as_ref()
+        && let Some(folded) = fold_return_builtin(ctx, module, tokens, word, constants)
+        && let Some((span, replacement)) =
+            original_return_value_replacement(ctx, statement, tokens, &folded)
+    {
+        ctx.report(Optimisation::new(
+            DiagCode::O129,
+            "Fold constant builtin command substitution",
+            span,
+            replacement,
+        ));
+        return;
     }
 
     // Only fold `return $v` — numeric/bare literals and complex

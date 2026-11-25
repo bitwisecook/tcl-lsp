@@ -792,6 +792,7 @@ impl Backend {
             recovery_names: &proposal_recovery_names,
             entry_points: &inputs.entry_points,
             folder_root: inputs.folder_root.as_deref(),
+            data_group_root: inputs.data_group_root.as_deref(),
             cross_file_resolution: inputs.toggles.xc.cross_file_resolution,
         };
         let recovery = RecoveryWidenCtx {

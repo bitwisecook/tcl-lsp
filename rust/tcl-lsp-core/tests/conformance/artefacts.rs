@@ -334,6 +334,26 @@ fn render(kind: Kind, fixture: &Fixture, row: &Row, committed: &[String]) -> Vec
     out
 }
 
+pub fn assert_engine_row_snapshot() {
+    let fixture = Fixture {
+        path: PathBuf::new(),
+        area: "errors-returns".to_owned(),
+        file: "fixture.tcl".to_owned(),
+    };
+    let row = Row {
+        engines: vec![(
+            "tclsh8.6".to_owned(),
+            crate::engines::Outcome {
+                exit: "1".to_owned(),
+                output: "one ¶ two".to_owned(),
+            },
+        )],
+        dialects: Vec::new(),
+    };
+    let lines = render(Kind::Engines, &fixture, &row, &[]);
+    insta::assert_snapshot!(lines.join("\n"), @"fixture.tcl\ttclsh8.6\t1\tone ¶ two");
+}
+
 fn analysis_lines(file: &str, dialect: &Dialect, out: &mut Vec<String>) {
     let name = dialect.name;
     let codes: Vec<String> = dialect

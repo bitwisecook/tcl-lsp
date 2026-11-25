@@ -431,6 +431,19 @@ when cached registration data is read.
 
 ### Workspace index integration
 
+The resolver scans `TCLLIBPATH` before editor, user, project and installation
+library paths. Declarative `pkgIndex.tcl` and `tclIndex` entries share the same
+filesystem scan. Discovered installation paths restrict their package and
+original autoload candidates to the releases that use those paths. Tcl 8.5
+and later also look for `.tm` module advertisements in
+their release's module roots. A compatible module takes precedence over the
+ordinary package index search, and the shared Tcl version selector chooses
+among its advertised versions. An available top-level `tcl::tm::path add` can
+contribute a statically understood path from the current document. Relative
+paths are anchored on the document directory for source advice. The resolver
+reads module filenames and offers navigation to their source. It does not
+execute module initialisation.
+
 22. `WorkspaceIndex::add_document(uri, analysis)` records a document's procs,
     classes, invocation sites, `source` targets, and `package require`s;
     `remove_document(uri)` drops every entry from that document before a
@@ -449,9 +462,9 @@ when cached registration data is read.
     server's `refine_w120_diagnostics`:
     - **Transitive resolution** — a required package is resolved through the
       workspace `pkgIndex.tcl` database; a W120 for a package that the
-      requires transitively provide is dropped. If any required package is
-      *unknowable* (neither the registry nor the database knows it), it may
-      load anything, so every W120 is conservatively dropped.
+      requires transitively provide is dropped. An unknown or unresolved
+      requirement contributes no transitive providers. Unrelated W120
+      diagnostics remain visible.
     - **Cross-file inheritance** — see below.
 
 ### Cross-file `package require` inheritance (W120)

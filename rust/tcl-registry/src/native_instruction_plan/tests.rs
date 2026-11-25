@@ -244,12 +244,9 @@ fn original_uplevel_instruction_keeps_level_and_script_stack_geometry() {
         .lines()
         .skip(1)
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
-        let version = match fields[0] {
-            "9.0" => TclVersion::V9_0,
-            "9.1" => TclVersion::V9_1,
-            _ => unreachable!("measured compiler fixture"),
-        };
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
+        let version = tcl_test_support::fixture::oracle_release(fields[0])
+            .expect("measured compiler fixture");
         let selected = project(
             fields[2].as_bytes(),
             NativeCompilationGrammar::Uplevel,

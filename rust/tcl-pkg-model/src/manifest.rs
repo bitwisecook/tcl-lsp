@@ -37,7 +37,7 @@ use tcl_syntax::list::split_list_with_syntax;
 use tcl_syntax::manifest_words::{LiteralCommand, literal_commands};
 
 use crate::errors::TclPkgError;
-use crate::version::Version;
+use crate::version::{DependencyVersion, Version};
 
 // SPDX-style licence identifier, lightly validated.
 static SPDX_RE: LazyLock<Regex> =
@@ -78,7 +78,7 @@ const DIRECTIVES: &[&str] = &[
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
     pub name: String,
-    pub minimum: Version,
+    pub version: DependencyVersion,
     pub source_url: Option<String>,
     pub dev: bool,
 }
@@ -611,7 +611,7 @@ fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), St
             }
             ast.requires.push(Requirement {
                 name: remainder[0].clone(),
-                minimum: parse_ver("require", &remainder[1])?,
+                version: parse_dependency_version("require", &remainder[1])?,
                 source_url: source,
                 dev: false,
             });
@@ -627,7 +627,7 @@ fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), St
             }
             ast.dev_requires.push(Requirement {
                 name: remainder[0].clone(),
-                minimum: parse_ver("dev-require", &remainder[1])?,
+                version: parse_dependency_version("dev-require", &remainder[1])?,
                 source_url: source,
                 dev: true,
             });
@@ -788,6 +788,10 @@ fn parse_ver(name: &str, raw: &str) -> Result<Version, String> {
     Version::parse(raw).map_err(|e| format!("{name}: {e}"))
 }
 
+fn parse_dependency_version(name: &str, raw: &str) -> Result<DependencyVersion, String> {
+    DependencyVersion::parse(raw).map_err(|error| format!("{name}: {error}"))
+}
+
 fn parse_source_option(args: &[String]) -> (Vec<String>, Option<String>) {
     if args.len() >= 2 && args[args.len() - 2] == "-source" {
         let remainder = args[..args.len() - 2].to_vec();
@@ -896,7 +900,10 @@ mod tests {
         let ast = load("package myapp\nversion 1.0.0\nrequire json 1.3.5\n").unwrap();
         assert_eq!(ast.requires.len(), 1);
         assert_eq!(ast.requires[0].name, "json");
-        assert_eq!(ast.requires[0].minimum, Version::parse("1.3.5").unwrap());
+        assert_eq!(
+            ast.requires[0].version,
+            DependencyVersion::parse("1.3.5").unwrap()
+        );
         assert!(ast.requires[0].source_url.is_none());
 
         let ast = load(

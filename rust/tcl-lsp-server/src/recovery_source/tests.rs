@@ -18,6 +18,7 @@
 
 use super::*;
 use salsa::Setter as _;
+use tower_lsp_server::ls_types::Uri;
 
 async fn recover(backend: &Backend, uri: &Uri, source: &str) -> Arc<AnalysisResult> {
     recover_for_input(backend, uri, source, true).await
@@ -162,7 +163,7 @@ command_table_effect DefinesProcedure
         .folder_db_configs
         .lock()
         .await
-        .push((Uri::from_file_path("/library").unwrap(), config));
+        .push((crate::canonical_file_uri("/library").unwrap(), config));
     config
 }
 
@@ -173,7 +174,7 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
     // These are parser recognition candidates, not installed command receipts.
     let backend = crate::tests::test_backend();
     let config = provider_pack(&backend).await;
-    let library = Uri::from_file_path("/library/owned.tcl").unwrap();
+    let library = crate::canonical_file_uri("/library/owned.tcl").unwrap();
     backend
         .db_set_source(
             &library,
@@ -183,7 +184,7 @@ async fn malformed_recovery_keeps_provider_input_source_and_unavailable_status()
         .await
         .unwrap();
     register(&backend, "package ifneeded own 1.0 {source owned.tcl}").await;
-    let uri = Uri::from_file_path("/caller/incomplete.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/caller/incomplete.tcl").unwrap();
     let source = "package require own\nprovided\nproc unfinished {";
     let analysis = recover(&backend, &uri, source).await;
     let first = package_names(&backend).await;
@@ -276,7 +277,7 @@ async fn malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers
     let mut backend = crate::tests::test_backend();
     backend.state_mut_for_test().store = store;
     register(&backend, "package ifneeded w 1.2 {source stable.tcl}\npackage ifneeded w 1.3b1 {source beta.tcl}\npackage ifneeded dep 1.1 {source dep-old.tcl}\npackage ifneeded dep 1.2b1 {source dep-beta.tcl}\npackage ifneeded absent 1.0 {source absent.tcl}").await;
-    let uri = Uri::from_file_path("/caller/versioned.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/caller/versioned.tcl").unwrap();
     recover(
         &backend,
         &uri,
@@ -327,7 +328,7 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
     let mut backend = crate::tests::test_backend();
     backend.state_mut_for_test().store = store;
     register(&backend, "package ifneeded own 1.0 {source owned.tcl}").await;
-    let uri = Uri::from_file_path("/caller/guards.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/caller/guards.tcl").unwrap();
     let source = "package require own\nproc unfinished {";
     let current = recover(&backend, &uri, source).await;
     assert!(package_names(&backend).await.names.contains("provided"));
@@ -410,7 +411,7 @@ async fn original_base_completeness_retains_indexed_and_untracked_input_owners()
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
     // Server source gate; no scalar String byte/header or execution equivalence.
     let backend = crate::tests::test_backend();
-    let uri = Uri::from_file_path("/caller/completeness.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/caller/completeness.tcl").unwrap();
     let source = "set x ${a{}";
     backend
         .db_set_source(&uri, source, "tcl8.6".to_owned())
@@ -485,7 +486,7 @@ async fn malformed_recovery_preserves_original_autoload_labels_and_root_marker()
             source_file: PathBuf::from("/library/original.tcl"),
         },
     ]);
-    let uri = Uri::from_file_path("/caller/autoload-incomplete.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/caller/autoload-incomplete.tcl").unwrap();
     let source = ":::::owner::command\nproc unfinished {";
     let _ = recover(&backend, &uri, source).await;
     let cache = backend.recovery_names.lock().await;

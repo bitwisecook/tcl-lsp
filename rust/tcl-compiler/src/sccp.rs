@@ -91,6 +91,28 @@ pub fn cfg_order(cfg: &CfgFunction) -> Vec<BlockId> {
     order
 }
 
+/// Sweep to the optimistic fixpoint, then reopen any branch still waiting
+/// on an unknown value and settle again with that conservative reachability.
+fn settle_reachability(mut sweep: impl FnMut(bool) -> bool) {
+    for finalizing in [false, true] {
+        while sweep(finalizing) {}
+    }
+}
+
+fn incoming_executable_predecessors(
+    block: BlockId,
+    predecessors: &HashMap<BlockId, HashSet<BlockId>>,
+    executable_edges: &HashSet<(BlockId, BlockId)>,
+) -> Vec<BlockId> {
+    predecessors
+        .get(&block)
+        .into_iter()
+        .flatten()
+        .copied()
+        .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
+        .collect()
+}
+
 // Lattice join
 
 /// Canonical [`ConstValue`] ordering for deterministic set merges.

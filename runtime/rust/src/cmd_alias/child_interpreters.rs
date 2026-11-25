@@ -155,13 +155,10 @@ fn interp_create_original(
     // A safe parent makes every child safe, with or without `-safe`
     // (`Tcl_CreateChild`).
     let Some(original) = name_obj else {
-        let created = interp.create_child(None);
-        if interp.host_refusal_pending() {
-            return Code::Error;
-        }
-        if safe || interp.is_safe() {
-            interp.with_child(&created, |child| child.make_safe());
-        }
+        let created = match interp.create_tcl_child(None, safe) {
+            Ok(created) => created,
+            Err(code) => return code,
+        };
         interp.set_result_bytes(&created);
         return Code::Ok;
     };
@@ -205,20 +202,21 @@ fn interp_create_from_original_path(
         if owner.child_exists(&leaf) {
             return Ok(false);
         }
-        owner.create_child(Some(leaf.clone()));
-        if owner.host_refusal_pending() {
-            return Err(owner.clone());
-        }
-        if safe || owner.is_safe() {
-            owner.with_child(&leaf, |child| child.make_safe());
+        if let Err(code) = owner.create_tcl_child(Some(leaf.clone()), safe) {
+            return Err((code, owner.clone()));
         }
         Ok(true)
     });
     match outcome {
-        Some(Err(owner)) if !interp.host_refusal_pending() => {
+        Some(Err((_, owner))) if owner.host_refusal_pending() && !interp.host_refusal_pending() => {
             interp.transport_host_refusal_from(&owner)
         }
-        Some(Err(_)) => Code::Error,
+        Some(Err((code, owner))) => {
+            if !interp.host_refusal_pending() {
+                interp.set_result(owner.get_obj_result());
+            }
+            code
+        }
         Some(Ok(true)) => {
             interp.set_result(original);
             Code::Ok

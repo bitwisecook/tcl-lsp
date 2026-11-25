@@ -435,7 +435,7 @@ async fn seed_autoload_library(backend: &Backend, tag: &str) -> Uri {
         &[],
         WORKSPACE_SCAN_DIR_CAP,
     );
-    Uri::from_file_path(libdir.join("graph.tcl")).expect("library uri")
+    crate::canonical_file_uri(libdir.join("graph.tcl")).expect("library uri")
 }
 
 /// Put an entry for `uri` in every cache [`Backend::forget_uri_states`]

@@ -31,6 +31,30 @@ use serde_json::{Value, json};
 
 use crate::errors::TclPkgError;
 use crate::json::canonical_json;
+use crate::version::{DependencyVersion, VersionError};
+
+/// Encode one dependency reference while keeping `@` as the name separator.
+#[must_use]
+pub fn format_locked_requirement(name: &str, version: &DependencyVersion) -> String {
+    let operand = version.to_string();
+    match version {
+        DependencyVersion::Minimum(_) => format!("{name}@{operand}"),
+        DependencyVersion::Tcl(_) => {
+            format!("{name}@{}", operand.replace('%', "%25").replace('@', "%40"))
+        }
+    }
+}
+
+/// Decode the operand of one `name@version` lockfile entry.
+///
+/// # Errors
+/// The operand must be a legacy minimum or an encoded Tcl requirement.
+pub fn parse_locked_requirement(operand: &str) -> Result<DependencyVersion, VersionError> {
+    if operand.starts_with("-tcl ") || operand.starts_with("-exact ") {
+        return DependencyVersion::parse(&operand.replace("%40", "@").replace("%25", "%"));
+    }
+    DependencyVersion::parse(operand)
+}
 
 /// Schema version — bumped only on incompatible lockfile changes.
 pub const LOCKFILE_VERSION: i64 = 1;
@@ -410,6 +434,22 @@ mod tests {
             spec_integrity: None,
         });
         lf
+    }
+
+    #[test]
+    fn tcl_requirement_with_an_at_sign_round_trips() {
+        let requirement = DependencyVersion::parse("-exact 1.2+user@host%40").unwrap();
+        let mut lockfile = sample();
+        lockfile.packages[0].requires =
+            vec![format_locked_requirement("name@origin", &requirement)];
+        let reloaded = deserialise(&serialise(&lockfile)).unwrap();
+        let package = &reloaded.packages[0];
+        assert_eq!(
+            package.required_names().collect::<Vec<_>>(),
+            ["name@origin"]
+        );
+        let (_, operand) = package.requires[0].rsplit_once('@').unwrap();
+        assert_eq!(parse_locked_requirement(operand).unwrap(), requirement);
     }
 
     #[test]

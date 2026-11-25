@@ -51,8 +51,7 @@ use networking::{
 use parser_tools::{
     GRAMMAR__FA__OP_CMDS, GRAMMAR__ME__CPU__GASM_CMDS, GRAMMAR__ME__TCL_CMDS, GRAMMAR__ME_CMDS,
     GRAMMAR__PEG__INTERP_CMDS, PAGE__PLUGINMGR_CMDS, PAGE__UTIL__NORM_CMDS, PAGE__UTIL__PEG_CMDS,
-    PAGE__UTIL__QUOTE_CMDS, PAGE__UTIL_CMDS, PT__PEG_CMDS, PT_CMDS, PT_EXPORT_API_CMDS,
-    PT_IMPORT_API_CMDS,
+    PAGE__UTIL__QUOTE_CMDS, PAGE__UTIL_CMDS, PT__PEG_CMDS, PT_CMDS,
 };
 use simulation::{
     SIMULATION__ANNEALING_CMDS, SIMULATION__MONTECARLO_CMDS, SIMULATION__RANDOM_CMDS,
@@ -132,7 +131,7 @@ const BENCH__IN_CMDS: &[Row] = &[(
     "This command reads a benchmark result from the specified file and returns it as its result.",
 )];
 
-/// The `bench::out` package.
+/// Output formatters, each provided by its own package.
 const BENCH__OUT_CMDS: &[Row] = &[
     (
         "bench::out::csv",
@@ -234,7 +233,7 @@ const FILEUTIL_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `fileutil::magic` package.
+/// The `fileutil::magic::filetype` package.
 const FILEUTIL__MAGIC_CMDS: &[Row] = &[(
     "fileutil::magic::filetype",
     Arity::exact(1),
@@ -422,7 +421,7 @@ const PROCESSMAN_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `tcl::chan` package.
+/// Reflected channel support packages, each named after its command.
 const TCL__CHAN_CMDS: &[Row] = &[
     (
         "tcl::chan::core",
@@ -438,7 +437,7 @@ const TCL__CHAN_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `tcl::transform` package.
+/// The `tcl::transform::core` package.
 const TCL__TRANSFORM_CMDS: &[Row] = &[(
     "tcl::transform::core",
     Arity::exact(1),
@@ -547,7 +546,6 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("autoproxy", AUTOPROXY_CMDS),
     ("bee", BEE_CMDS),
     ("bench::in", BENCH__IN_CMDS),
-    ("bench::out", BENCH__OUT_CMDS),
     ("comm", COMM_CMDS),
     ("cron", CRON_CMDS),
     ("dns", DNS_CMDS),
@@ -566,12 +564,12 @@ const GROUPS: &[(&str, &[Row])] = &[
     ),
     ("doctools::toc", DOCTOOLS__TOC_CMDS),
     ("fileutil", FILEUTIL_CMDS),
-    ("fileutil::magic", FILEUTIL__MAGIC_CMDS),
+    ("fileutil::magic::filetype", FILEUTIL__MAGIC_CMDS),
     ("fileutil::magic::cgen", FILEUTIL__MAGIC__CGEN_CMDS),
     ("fileutil::magic::rt", FILEUTIL__MAGIC__RT_CMDS),
     ("ftp", FTP_CMDS),
     ("grammar::fa::op", GRAMMAR__FA__OP_CMDS),
-    ("grammar::me", GRAMMAR__ME_CMDS),
+    ("grammar::me::cpu", GRAMMAR__ME_CMDS),
     ("grammar::me::cpu::gasm", GRAMMAR__ME__CPU__GASM_CMDS),
     ("grammar::me::tcl", GRAMMAR__ME__TCL_CMDS),
     ("grammar::peg::interp", GRAMMAR__PEG__INTERP_CMDS),
@@ -587,16 +585,13 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("nameserv::server", NAMESERV__SERVER_CMDS),
     ("nettool", NETTOOL_CMDS),
     ("page::pluginmgr", PAGE__PLUGINMGR_CMDS),
-    ("page::util", PAGE__UTIL_CMDS),
-    ("page::util::norm", PAGE__UTIL__NORM_CMDS),
+    ("page::util::flow", PAGE__UTIL_CMDS),
     ("page::util::peg", PAGE__UTIL__PEG_CMDS),
     ("page::util::quote", PAGE__UTIL__QUOTE_CMDS),
     ("picoirc", PICOIRC_CMDS),
     ("processman", PROCESSMAN_CMDS),
-    ("pt", PT_CMDS),
+    ("pt::rde", PT_CMDS),
     ("pt::peg", PT__PEG_CMDS),
-    ("pt_export_api", PT_EXPORT_API_CMDS),
-    ("pt_import_api", PT_IMPORT_API_CMDS),
     ("sha1", SHA1_CMDS),
     // The `::sha2` namespace; the package is `sha256`.
     ("sha256", SHA2_CMDS),
@@ -604,8 +599,7 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("simulation::montecarlo", SIMULATION__MONTECARLO_CMDS),
     ("simulation::random", SIMULATION__RANDOM_CMDS),
     ("smtpd", SMTPD_CMDS),
-    ("tcl::chan", TCL__CHAN_CMDS),
-    ("tcl::transform", TCL__TRANSFORM_CMDS),
+    ("tcl::transform::core", TCL__TRANSFORM_CMDS),
     ("term::ansi::code::attr", TERM__ANSI__CODE__ATTR_CMDS),
     ("term::ansi::code::ctrl", TERM__ANSI__CODE__CTRL_CMDS),
     ("term::ansi::code::macros", TERM__ANSI__CODE__MACROS_CMDS),
@@ -707,6 +701,12 @@ pub fn specs() -> Vec<CommandSpec> {
     let mut specs: Vec<CommandSpec> = GROUPS
         .iter()
         .flat_map(|&(pkg, table)| rows(pkg, table))
+        .chain(
+            [BENCH__OUT_CMDS, PAGE__UTIL__NORM_CMDS, TCL__CHAN_CMDS]
+                .into_iter()
+                .flat_map(|table| table.iter())
+                .flat_map(|row| rows(row.0, std::slice::from_ref(row))),
+        )
         // The `html` package uses the richer [`HtmlRow`] table (per-command
         // return type, purity, and introducing release) rather than the shared
         // 4-tuple [`Row`], so it is appended separately.

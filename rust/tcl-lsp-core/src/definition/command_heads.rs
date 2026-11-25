@@ -407,9 +407,16 @@ pub(crate) fn resolved_indirect_head_proc(
 pub struct OriginalAutoloadRequest {
     pub(super) name: tcl_compiler::signature_scan::original_name::SignatureSourceNameKey,
     invocation: tcl_compiler::command_binding::SourceInvocationBinding,
+    unresolved_lookup: Option<tcl_compiler::command_binding::OriginalCommandLookup>,
 }
 
 impl OriginalAutoloadRequest {
+    /// Byte offset of the original invocation head.
+    #[must_use]
+    pub fn head_offset(&self) -> u32 {
+        self.name.span().start()
+    }
+
     /// Files selected by genuine `auto_index` entries and the retained caller scope.
     #[must_use]
     pub fn files(
@@ -417,6 +424,16 @@ impl OriginalAutoloadRequest {
         resolver: &crate::package_resolver::PackageResolver,
     ) -> Vec<std::path::PathBuf> {
         resolver.resolve_original_auto_command(&self.name, &self.invocation)
+    }
+
+    /// Select readonly source candidates from the implementations of the
+    /// caller's required packages. The authentic positioned lookup supplies
+    /// name policy and search order, independently of loading or dispatch.
+    #[must_use]
+    pub const fn unresolved_source_lookup(
+        &self,
+    ) -> Option<&tcl_compiler::command_binding::OriginalCommandLookup> {
+        self.unresolved_lookup.as_ref()
     }
 }
 
@@ -464,7 +481,19 @@ pub fn original_autoload_request_at(
         return None;
     };
     invocation.original_autoload_command_candidates(&name)?;
-    Some(OriginalAutoloadRequest { name, invocation })
+    let unresolved_lookup =
+        if site.resolved_command_reference.is_none() && site.resolved_definition.is_none() {
+            invocation
+                .original_static_command_lookup(&name)
+                .filter(|lookup| site.original_lookup.as_ref() == Some(lookup))
+        } else {
+            None
+        };
+    Some(OriginalAutoloadRequest {
+        name,
+        invocation,
+        unresolved_lookup,
+    })
 }
 
 /// The bare command word at `(line, character)` together with the

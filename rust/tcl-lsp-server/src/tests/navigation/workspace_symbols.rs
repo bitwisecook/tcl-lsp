@@ -691,7 +691,7 @@ async fn workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file() {
     let on_disk = root.join("scanned.tcl");
     let src = "proc scanned_only_helper {} {}\n";
     std::fs::write(&on_disk, src).unwrap();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     // Indexed like the folder scan does it — never inserted into
     // `documents`, so an open-document walk could not see it.
     let analysis = {

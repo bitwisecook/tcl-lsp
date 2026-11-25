@@ -89,6 +89,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use tcl_dialect::BracedVarStyle;
 use tcl_lexer::LexerConfig;
 
+use super::source_rewrite::script_word_spellings;
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::{ActionCommand, ActionKind};
 
@@ -145,13 +146,17 @@ pub fn extract_proc(
     match plan_extraction(
         source, &selected, &commands, scope, analysis, registry, config,
     ) {
-        Ok(plan) => Some(Refactoring {
-            title,
-            edits: plan.edits,
-            kind: ActionKind::RefactorExtract,
-            data_group: None,
-            disabled: None,
-        }),
+        Ok(plan) => {
+            let proposal = Refactoring {
+                title,
+                edits: plan.edits,
+                kind: ActionKind::RefactorExtract,
+                data_group: None,
+                disabled: None,
+            };
+            check_proc_extraction(source, &proposal, &plan.name, config)?;
+            Some(proposal)
+        }
         Err(reason) => Some(Refactoring {
             title,
             edits: Vec::new(),
@@ -160,6 +165,35 @@ pub fn extract_proc(
             disabled: Some(reason),
         }),
     }
+}
+
+fn check_proc_extraction(
+    source: &str,
+    proposal: &Refactoring,
+    name: &str,
+    config: LexerConfig,
+) -> Option<()> {
+    let [definition, call] = proposal.edits.as_slice() else {
+        return None;
+    };
+    let after = proposal.try_apply(source).ok()?;
+    let added = definition.new_text.len();
+    let start = definition.start as usize;
+    let declaration = after.get(start..start.checked_add(added)?)?;
+    let words = script_word_spellings(declaration, config)?;
+    let [header] = words.as_slice() else {
+        return None;
+    };
+    let ["proc", declared, _, _] = header.as_slice() else {
+        return None;
+    };
+    let start = (call.start as usize).checked_add(added)?;
+    let invocation = after.get(start..start.checked_add(call.new_text.len())?)?;
+    let words = script_word_spellings(invocation, config.nested())?;
+    let [command] = words.as_slice() else {
+        return None;
+    };
+    (*declared == name && command.first() == Some(declared)).then_some(())
 }
 
 /// Source-bound generated Name continuation under the actual original input.
@@ -234,6 +268,7 @@ struct Scope {
 /// A successful extraction: the definition insertion plus the call that
 /// replaces the selection.
 struct Plan {
+    name: String,
     edits: Vec<RefactorEdit>,
 }
 
@@ -553,6 +588,7 @@ fn plan_extraction(
     let insert_at = top_level_command_start(source, scope_commands, scope, block_start, &walk)
         .ok_or_else(|| "the original insertion command extent is unavailable".to_owned())?;
     Ok(Plan {
+        name,
         edits: vec![
             RefactorEdit {
                 start: insert_at,
@@ -1165,6 +1201,7 @@ fn render_definition(
             tcl_syntax::word_rules::lexical_unicode_source_word(var, config)?
         );
     }
+    let moved_start = body.len();
     for line in block.lines() {
         let stripped = line.strip_prefix(block_indent).unwrap_or(line);
         if stripped.trim().is_empty() {
@@ -1172,6 +1209,14 @@ fn render_definition(
         } else {
             let _ = writeln!(body, "    {}", stripped.trim_end());
         }
+    }
+    let original = script_word_spellings(block, config.nested())?;
+    if !script_word_spellings(&body[moved_start..], config.nested())
+        .is_some_and(|words| words == original)
+    {
+        body.truncate(moved_start);
+        body.push_str(block);
+        body.push('\n');
     }
     let formals = required_formal_word(&params, config, parameter_grammar)?;
     Some(format!("proc {name} {formals} {{\n{body}}}\n\n"))

@@ -731,7 +731,7 @@ pub(super) fn trusted_loader_is_selected(
             .filter_map(TransitionSubject::literal)
             .any(|requirement| {
                 if exact {
-                    tcl_dialect::compare_versions_for(version, requirement, release).is_eq()
+                    tcl_dialect::version_matches_exact_for(version, requirement, release)
                 } else {
                     tcl_dialect::version_satisfies_for(version, requirement, release)
                 }

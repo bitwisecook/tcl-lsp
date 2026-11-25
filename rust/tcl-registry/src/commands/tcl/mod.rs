@@ -87,6 +87,7 @@ mod exec_;
 mod exists_;
 mod exit_;
 mod jim_arithmetic;
+mod jim_loop;
 pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
@@ -371,6 +372,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         llength::spec(),
         lmap_::spec(),
         load::spec(),
+        jim_loop::spec(),
         lpop::spec(),
         lrange::spec(),
         lremove::spec(),

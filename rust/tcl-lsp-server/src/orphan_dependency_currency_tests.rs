@@ -19,7 +19,7 @@
 use super::*;
 
 fn fixture() -> (Uri, DocumentState, Arc<Mutex<HashMap<Uri, DiagSlot>>>) {
-    let uri = Uri::from_file_path("/proj/orphan.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/proj/orphan.tcl").unwrap();
     let mut document = DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned());
     document.backing_file_deleted = true;
     // Exercise the same producer setup as the original fixed fixture.

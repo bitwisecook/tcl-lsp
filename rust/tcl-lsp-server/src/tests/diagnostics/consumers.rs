@@ -68,9 +68,9 @@ fn retain_default_orphan_query_fixture(
 /// A body edit independently changes complete original source ownership.
 #[test]
 fn indexed_signature_changes_select_only_their_callers() {
-    let lib = Uri::from_file_path("/proj/lib.tcl").unwrap();
-    let caller = Uri::from_file_path("/proj/caller.tcl").unwrap();
-    let unrelated = Uri::from_file_path("/proj/unrelated.tcl").unwrap();
+    let lib = crate::canonical_file_uri("/proj/lib.tcl").unwrap();
+    let caller = crate::canonical_file_uri("/proj/caller.tcl").unwrap();
+    let unrelated = crate::canonical_file_uri("/proj/unrelated.tcl").unwrap();
     let mut index = ws_index(&[
         (&lib, "proc helper {a} {}\n"),
         (&caller, "helper 1 2\n"),
@@ -222,9 +222,9 @@ fn original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfac
 /// old constants, not the post-edit ones.
 #[test]
 fn a_constants_only_edit_reschedules_both_children() {
-    let parent = Uri::from_file_path("/proj/parent.tcl").unwrap();
-    let old_child = Uri::from_file_path("/proj/a/x.tcl").unwrap();
-    let new_child = Uri::from_file_path("/proj/b/x.tcl").unwrap();
+    let parent = crate::canonical_file_uri("/proj/parent.tcl").unwrap();
+    let old_child = crate::canonical_file_uri("/proj/a/x.tcl").unwrap();
+    let new_child = crate::canonical_file_uri("/proj/b/x.tcl").unwrap();
     let parent_before = "set dir /proj/a\nsource [file join $dir x.tcl]\n";
     let mut index = ws_index(&[
         (&parent, parent_before),
@@ -284,10 +284,10 @@ fn a_constants_only_edit_reschedules_both_children() {
 /// same parent.
 #[test]
 fn source_fact_changes_select_ancestors_and_descendants_not_siblings() {
-    let root = Uri::from_file_path("/proj/root.tcl").unwrap();
-    let child = Uri::from_file_path("/proj/child.tcl").unwrap();
-    let grandchild = Uri::from_file_path("/proj/grandchild.tcl").unwrap();
-    let sibling = Uri::from_file_path("/proj/sibling.tcl").unwrap();
+    let root = crate::canonical_file_uri("/proj/root.tcl").unwrap();
+    let child = crate::canonical_file_uri("/proj/child.tcl").unwrap();
+    let grandchild = crate::canonical_file_uri("/proj/grandchild.tcl").unwrap();
+    let sibling = crate::canonical_file_uri("/proj/sibling.tcl").unwrap();
     let index = ws_index(&[
         (&root, "source child.tcl\nsource sibling.tcl\n"),
         (&child, "source grandchild.tcl\npackage require Tk\n"),
@@ -310,9 +310,9 @@ fn source_fact_changes_select_ancestors_and_descendants_not_siblings() {
 /// all — the index-driven consumer queries find those.
 #[test]
 fn the_wake_set_skips_a_buffer_whose_backing_file_was_deleted() {
-    let indexed = Uri::from_file_path("/proj/indexed.tcl").unwrap();
-    let just_opened = Uri::from_file_path("/proj/just-opened.tcl").unwrap();
-    let orphaned = Uri::from_file_path("/proj/orphaned.tcl").unwrap();
+    let indexed = crate::canonical_file_uri("/proj/indexed.tcl").unwrap();
+    let just_opened = crate::canonical_file_uri("/proj/just-opened.tcl").unwrap();
+    let orphaned = crate::canonical_file_uri("/proj/orphaned.tcl").unwrap();
     let index = ws_index(&[(&indexed, "proc helper {a} {}\n")]);
 
     let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
@@ -348,8 +348,8 @@ fn the_wake_set_skips_a_buffer_whose_backing_file_was_deleted() {
 /// not a blanket re-wake.
 #[test]
 fn an_orphan_is_still_woken_by_a_signature_it_consumes() {
-    let orphan = Uri::from_file_path("/proj/orphan.tcl").unwrap();
-    let live = Uri::from_file_path("/proj/live.tcl").unwrap();
+    let orphan = crate::canonical_file_uri("/proj/orphan.tcl").unwrap();
+    let live = crate::canonical_file_uri("/proj/live.tcl").unwrap();
     let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
     docs.insert(
         orphan.clone(),
@@ -408,8 +408,8 @@ fn an_orphan_is_still_woken_by_a_signature_it_consumes() {
 /// stale with no signal.
 #[test]
 fn every_consumer_set_together_still_names_an_orphaned_caller() {
-    let live = Uri::from_file_path("/proj/live.tcl").unwrap();
-    let orphan = Uri::from_file_path("/proj/orphan.tcl").unwrap();
+    let live = crate::canonical_file_uri("/proj/live.tcl").unwrap();
+    let orphan = crate::canonical_file_uri("/proj/orphan.tcl").unwrap();
     // The index holds the publishing document only: the orphan was removed
     // from it by its own publish, exactly as `remove_document` leaves it.
     let index = ws_index(&[(&live, "proc helper {a b} {}\n")]);

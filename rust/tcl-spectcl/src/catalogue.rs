@@ -1310,6 +1310,7 @@ mod tests {
             | AnalyserHookId::PackageProvide
             | AnalyserHookId::PackageIfneeded
             | AnalyserHookId::PackagePrefer
+            | AnalyserHookId::ModulePathAdd
             | AnalyserHookId::Source
             | AnalyserHookId::RegexPatternCapture
             | AnalyserHookId::Load => true,
@@ -1334,7 +1335,8 @@ mod tests {
             tcl_registry::SourcePathOperation::Join
             | tcl_registry::SourcePathOperation::Dirname
             | tcl_registry::SourcePathOperation::Normalize
-            | tcl_registry::SourcePathOperation::ScriptPath => true,
+            | tcl_registry::SourcePathOperation::ScriptPath
+            | tcl_registry::SourcePathOperation::SingletonList => true,
         }
     }
 

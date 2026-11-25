@@ -326,7 +326,6 @@ pub(super) async fn refine_and_lift_diagnostics(
         refinement.inheritance,
         refinement.package_resolver,
         refinement.provider_sources,
-        refinement.registry,
     )
     .await;
     // Drop any W123 (unknown command) the package database can resolve —
@@ -364,7 +363,12 @@ pub(super) async fn refine_and_lift_diagnostics(
     let dialect = inputs.dialect;
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
     let compiler_diags = Arc::clone(compiler_diags);
+    let workspace_sources = Arc::clone(refinement.workspace_sources);
     crate::rt::spawn_blocking(move || {
+        super::f5_models::refine_signed_data_group_diagnostics(
+            &mut analyser_diags,
+            workspace_sources.configuration_texts(),
+        );
         // Every producer reads the *analysis* form — a lone `\r` terminates a
         // command for `tclsh` — while the spans lift against the client's
         // buffer, which the rewrite leaves byte-for-byte the same length.

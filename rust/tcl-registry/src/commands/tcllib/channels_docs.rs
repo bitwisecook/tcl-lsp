@@ -165,12 +165,6 @@ const VIRTCHAN_CMDS: &[Row] = &[
         "This command creates a new zero channel and returns its handle.",
     ),
     (
-        "tcl::combine",
-        Arity::exact(2),
-        &["tcl::combine seed1 seed2"],
-        "This command takes to seed lists and combines them into a single list by XORing them elementwise, modulo 256.",
-    ),
-    (
         "tcl::randomseed",
         Arity::exact(0),
         &["tcl::randomseed"],
@@ -297,10 +291,18 @@ fn halfpipe_spec() -> CommandSpec {
     }
 }
 
+const RANDOMSEED_CMDS: &[Row] = &[(
+    "tcl::combine",
+    Arity::exact(2),
+    &["tcl::combine seed1 seed2"],
+    "This command takes to seed lists and combines them into a single list by XORing them elementwise, modulo 256.",
+)];
+
 /// All doctools + virtual-channel command specs.
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = rows("doctools", DOCTOOLS_CMDS);
     specs.extend(self_pkg_rows(VIRTCHAN_CMDS));
+    specs.extend(rows("tcl::randomseed", RANDOMSEED_CMDS));
     specs.push(halfpipe_spec());
     specs
 }

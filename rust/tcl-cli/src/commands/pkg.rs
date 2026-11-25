@@ -33,15 +33,17 @@ use std::path::{Path, PathBuf};
 use serde_json::{Map, Value, json};
 use tcl_pkg::cas::ContentAddressableStore;
 use tcl_pkg::installer;
-use tcl_pkg::lockfile::{LockFile, LockedPackage, SourceSpec, read_lockfile, write_lockfile};
+use tcl_pkg::lockfile::{
+    LockFile, LockedPackage, SourceSpec, format_locked_requirement, parse_locked_requirement,
+    read_lockfile, write_lockfile,
+};
 use tcl_pkg::manifest::{
     RequirementKind, append_manifest_requirement, load_manifest, original_manifest_requirements,
     render_manifest_header, render_manifest_requirement,
 };
 use tcl_pkg::registry::RegistryClient;
-use tcl_pkg::resolver::{ExcludeSpec, PackageRef, ReplaceSpec, ResolveInput, resolve};
+use tcl_pkg::resolver::{ExcludeSpec, PackageDependency, ReplaceSpec, ResolveInput, resolve};
 use tcl_pkg::ui;
-use tcl_pkg::version::Version;
 
 /// Outcome of resolving + fetching one `(name, version)`, memoised so a package
 /// is fetched from the network at most once and shared between transitive
@@ -89,7 +91,7 @@ fn package_spec_integrity(
 fn read_package_requires(
     cas: &ContentAddressableStore,
     integrity: &str,
-) -> Vec<(PackageRef, Option<String>)> {
+) -> Vec<(PackageDependency, Option<String>)> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
@@ -110,7 +112,7 @@ fn read_package_requires(
                         .iter()
                         .map(|r| {
                             (
-                                PackageRef::new(r.name.clone(), r.minimum.clone()),
+                                PackageDependency::new(r.name.clone(), r.version.clone()),
                                 r.source_url.clone(),
                             )
                         })
@@ -127,12 +129,12 @@ fn read_package_requires(
     reqs
 }
 
-/// Parse a lockfile `requires` entry (`name@version`) back into a [`PackageRef`].
-fn parse_locked_ref(entry: &str) -> Option<PackageRef> {
+/// Parse a lockfile `requires` entry (`name@version`) back into a [`PackageDependency`].
+fn parse_locked_ref(entry: &str) -> Option<PackageDependency> {
     let (name, ver) = entry.rsplit_once('@')?;
-    Version::parse(ver)
+    parse_locked_requirement(ver)
         .ok()
-        .map(|v| PackageRef::new(name.to_string(), v))
+        .map(|v| PackageDependency::new(name.to_string(), v))
 }
 
 /// The package name of a lockfile `requires` entry (`name@version` → `name`).
@@ -378,15 +380,15 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         return Ok(1);
     }
 
-    let direct: Vec<PackageRef> = manifest
+    let direct: Vec<PackageDependency> = manifest
         .requires
         .iter()
-        .map(|r| PackageRef::new(r.name.clone(), r.minimum.clone()))
+        .map(|r| PackageDependency::new(r.name.clone(), r.version.clone()))
         .collect();
-    let dev_direct: Vec<PackageRef> = manifest
+    let dev_direct: Vec<PackageDependency> = manifest
         .dev_requires
         .iter()
-        .map(|r| PackageRef::new(r.name.clone(), r.minimum.clone()))
+        .map(|r| PackageDependency::new(r.name.clone(), r.version.clone()))
         .collect();
     let replaces: Vec<ReplaceSpec> = manifest
         .replaces
@@ -477,8 +479,8 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     // from its own manifest. A policy-rejected source aborts resolution; a fetch
     // failure degrades to a leaf (the materialisation loop then warns).
     let online_provider =
-        |name: &str, version: &Version| -> Result<Vec<PackageRef>, tcl_pkg::TclPkgError> {
-            match fetch_one(name, &version.to_string()) {
+        |name: &str, version: &str| -> Result<Vec<PackageDependency>, tcl_pkg::TclPkgError> {
+            match fetch_one(name, version) {
                 Ok(Some(result)) => {
                     let mut refs = Vec::new();
                     for (child, source_url) in read_package_requires(&cas, &result.integrity) {
@@ -511,7 +513,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         None
     };
     let offline_provider =
-        |name: &str, _version: &Version| -> Result<Vec<PackageRef>, tcl_pkg::TclPkgError> {
+        |name: &str, _version: &str| -> Result<Vec<PackageDependency>, tcl_pkg::TclPkgError> {
             let reqs = existing_lock
                 .as_ref()
                 .and_then(|lf| lf.lookup(name))
@@ -551,14 +553,18 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     tcl_pkg::stamp_lockfile(&mut lf);
     for rp in &resolved {
         let name = rp.reference.name.clone();
-        let version = rp.reference.version.to_string();
+        let version = rp.reference.version.clone();
         let mut entry = LockedPackage {
             name: name.clone(),
             version: version.clone(),
             source: SourceSpec::new("tarball", ""),
             integrity: String::new(),
             size: 0,
-            requires: rp.requires.iter().map(ToString::to_string).collect(),
+            requires: rp
+                .requires
+                .iter()
+                .map(|dependency| format_locked_requirement(&dependency.name, &dependency.version))
+                .collect(),
             provides: Vec::new(),
             license: String::new(),
             dev: rp.dev,

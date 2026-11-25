@@ -329,14 +329,7 @@ impl Backend {
         // `textDocument/codeAction`, which lifts its quick-fixes from this
         // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .published_analyser_diagnostics(
-                uri,
-                &analysis_text,
-                &analysis,
-                profile,
-                &registry,
-                &disabled,
-            )
+            .published_analyser_diagnostics(uri, &analysis_text, &analysis, profile, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         Ok(crate::rt::spawn_blocking(move || {
@@ -440,7 +433,6 @@ impl Backend {
             &inheritance,
             &self.package_resolver,
             &provider_access,
-            inputs.registry,
         )
         .await;
         let analyser_diags = refine_workspace_w123(
@@ -480,7 +472,6 @@ impl Backend {
         source: &str,
         analysis: &Arc<AnalysisResult>,
         dialect: &'static tcl_dialect::DialectProfile,
-        registry: &CommandRegistry,
         disabled: &HashSet<String>,
     ) -> Vec<tcl_compiler::analyser::Diagnostic> {
         // Opt-in project callback arity: direct cross-file calls are settled
@@ -502,11 +493,7 @@ impl Backend {
             uri,
             analyser_diags,
             analysis,
-            &PullRefinementInputs {
-                dialect,
-                registry,
-                disabled,
-            },
+            &PullRefinementInputs { dialect, disabled },
         )
         .await
     }

@@ -19,6 +19,67 @@
 use super::*;
 
 #[tokio::test]
+async fn a_workspace_data_group_promotes_a_standalone_irule_signed_scan_hint() {
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+
+    let mut backend = crate::tests::test_backend();
+    let store = Arc::new(crate::vfs::MemoryStore::new());
+    backend.state_mut_for_test().store = store.clone();
+    backend.workspace_scan_ready.mark_complete();
+    *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///signed-scan").unwrap()];
+
+    let rule = Uri::from_str("file:///signed-scan/sample.irule").unwrap();
+    let config = Uri::from_str("file:///signed-scan/bigip.conf").unwrap();
+    let rule_text = "when CLIENT_DATA {\n binary scan [TCP::payload] c item\n class match -- $item equals int_dg\n}";
+    let config_text =
+        "ltm data-group internal /Common/int_dg { type integer\n records { 129 { data hit } } }";
+    for (uri, path, text, dialect) in [
+        (&rule, "/signed-scan/sample.irule", rule_text, "f5-irules"),
+        (&config, "/signed-scan/bigip.conf", config_text, "f5-bigip"),
+    ] {
+        store.upsert_uri(uri.as_str(), path, text.as_bytes().to_vec());
+        let admission =
+            Arc::new(crate::DocumentPathAdmission::capture(uri, store.as_ref()).unwrap());
+        let state = DocumentState::with_version(text.to_owned(), dialect.to_owned(), 1)
+            .with_path_admission(admission);
+        backend
+            .documents
+            .lock("workspace_signed_scan")
+            .await
+            .insert(uri.clone(), state);
+    }
+    backend
+        .db_set_source(&rule, rule_text, "f5-irules".to_owned())
+        .await
+        .unwrap();
+    for expected in [DiagnosticSeverity::WARNING, DiagnosticSeverity::HINT] {
+        let report = backend
+            .produce_direct_diagnostic_report(&rule)
+            .await
+            .unwrap();
+        let signed = report.diagnostics.iter().find(|diagnostic| {
+            matches!(&diagnostic.code, Some(NumberOrString::String(code)) if code == "W156")
+        }).expect("signed data-group finding");
+        assert_eq!(signed.severity, Some(expected));
+        if expected == DiagnosticSeverity::WARNING {
+            assert!(signed.message.contains("Configured key 129"));
+            backend
+                .documents
+                .lock("close_workspace_configuration")
+                .await
+                .remove(&config);
+            assert!(matches!(
+                backend
+                    .publish_direct_diagnostic_report(&rule, report)
+                    .await
+                    .unwrap(),
+                Err(DiagnosticUnavailable::Stale)
+            ));
+        }
+    }
+}
+
+#[tokio::test]
 async fn a_direct_report_is_recomputed_after_initial_scheduler_admission() {
     let backend = crate::tests::test_backend();
     let expected = DiagnosticSourceExpectation {
@@ -179,13 +240,12 @@ async fn folder_registry_fixture() -> (
             Vec::new(),
         )
     };
-    backend
-        .folder_db_configs
-        .lock()
-        .await
-        .push((Uri::from_file_path("/diagnostic-registry").unwrap(), config));
+    backend.folder_db_configs.lock().await.push((
+        crate::canonical_file_uri("/diagnostic-registry").unwrap(),
+        config,
+    ));
     let expected = DiagnosticSourceExpectation {
-        uri: Uri::from_file_path("/diagnostic-registry/source.tcl").unwrap(),
+        uri: crate::canonical_file_uri("/diagnostic-registry/source.tcl").unwrap(),
         version: 1,
         source: "registry_probe provided {one} {return $one}\n".into(),
     };

@@ -77,7 +77,7 @@ pub fn brace_expr(source: &str, cursor: u32, analysis: &AnalysisResult) -> Optio
             return None;
         }
         let span = permission.original_operand().span();
-        return Some(Refactoring {
+        let proposal = Refactoring {
             title: "Brace expr for safety and performance".to_owned(),
             edits: vec![RefactorEdit {
                 start: span.start(),
@@ -87,12 +87,27 @@ pub fn brace_expr(source: &str, cursor: u32, analysis: &AnalysisResult) -> Optio
             kind: ActionKind::RefactorRewrite,
             data_group: None,
             disabled: None,
-        });
+        };
+        let operand = permission.original_operand();
+        let value = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            operand,
+        )?)
+        .ok()?;
+        proposal.check_replacement(source, |spelling| {
+            check_braced_word(spelling, &value, operand.config())
+        })?;
+        return Some(proposal);
     }
 
     // No source-advice or caller request can replace the independent issuer.
     // In particular, do not unwrap and rebrace Logical source text here.
     None
+}
+
+fn check_braced_word(spelling: &str, value: &str, config: tcl_lexer::LexerConfig) -> Option<()> {
+    (spelling.starts_with('{')
+        && tcl_syntax::word_rules::lexical_unicode_source_word_matches(spelling, value, config))
+    .then_some(())
 }
 
 #[cfg(test)]
@@ -124,6 +139,14 @@ mod tests {
 
     /// tclsh 8.4.20 to 9.1.0, `a` = `1 + 1`: the quoted form is 4, the braced
     /// form fails on a non-numeric operand.
+    #[test]
+    fn bracing_recheck_refuses_a_different_value_or_interpolation() {
+        let config = tcl_lexer::LexerConfig::default();
+        assert!(check_braced_word("{1 + 2}", "1 + 2", config).is_some());
+        assert!(check_braced_word("{1 + 3}", "1 + 2", config).is_none());
+        assert!(check_braced_word("\"$x\"", "$x", config).is_none());
+    }
+
     #[test]
     fn braces_a_quoted_expr() {
         let src = "expr \"$a + $b\"\n";

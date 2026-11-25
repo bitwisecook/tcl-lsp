@@ -83,7 +83,7 @@ pub(in super::super) async fn closed_file_republish_does_not_memoise_the_deep_co
     let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
         sink.lock().unwrap().push(key);
     }));
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, src).await;
     backend
         .db_set_source(&uri, src, "tcl8.6".to_owned())
@@ -180,7 +180,7 @@ async fn did_close_retains_diagnostics_for_on_disk_file_with_problems() {
     // `y` is assigned but never read → W211, a stable Tcl-dialect diagnostic.
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
     backend
         .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
@@ -222,7 +222,7 @@ async fn did_close_badge_reflects_on_disk_not_discarded_buffer() {
     let on_disk = root.join("warn.tcl");
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     // The open buffer is clean; only disk has the W211.  The retained badge
     // must come from disk.
     register(&backend, &uri, "proc foo {} { return 1 }\n").await;
@@ -261,7 +261,7 @@ async fn did_close_publishes_empty_badge_for_clean_on_disk_file() {
     let clean = "proc greet {} { puts hello }\ngreet\n";
     std::fs::write(&on_disk, clean).unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, clean).await;
     backend
         .db_set_source(&uri, clean, "tcl8.6".to_owned())
@@ -295,7 +295,7 @@ async fn did_close_clears_badge_when_file_deleted_before_close() {
     let on_disk = root.join("gone.tcl");
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
     backend
         .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
@@ -336,7 +336,7 @@ async fn publish_closed_is_noop_for_open_document() {
     let on_disk = root.join("buf.tcl");
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, "proc foo {} { set y 1 }\n").await;
     backend
         .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
@@ -427,7 +427,7 @@ async fn reschedule_closed_file_diagnostics_clears_badge_when_master_off() {
     let on_disk = root.join("warn.tcl");
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     // Prime the on-disk salsa source + a non-empty badge, as a prior close would.
     backend
         .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())

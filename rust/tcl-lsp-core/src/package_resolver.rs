@@ -128,8 +128,7 @@ pub fn package_prefer_at(
     }
 }
 
-/// Metadata for one `package ifneeded` declaration discovered in a
-/// `pkgIndex.tcl`.
+/// Package candidate discovered in an index or an advertised module file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageInfo {
     /// Package name (the `NAME` in `package ifneeded NAME VERSION …`).
@@ -149,7 +148,7 @@ pub struct PackageInfo {
     /// nothing can be said about which commands it installs, so a consumer
     /// must neither claim its commands are missing nor claim they exist.
     pub source_files: Vec<PathBuf>,
-    /// The `pkgIndex.tcl` that declared this entry.
+    /// The `pkgIndex.tcl` or `.tm` file that advertised this package.
     pub pkg_index_path: PathBuf,
     /// What must hold for the interpreter to reach this declaration at all —
     /// empty for the ordinary unguarded index file.  See
@@ -752,11 +751,12 @@ pub struct PackageResolver {
     >,
     original_auto_index: HashMap<
         (
-            tcl_syntax::native_string::NativeStringProtocol,
+            tcl_syntax::naming::NativeNameProtocol,
             tcl_core_types::NameBytes,
         ),
         Vec<original_names::OriginalAutoIndexRegistration>,
     >,
+    modules: modules::ModuleCatalog,
     scanned_dirs: Vec<PathBuf>,
     revision: u64,
 }
@@ -785,6 +785,7 @@ impl Default for PackageResolver {
             source_auto_index: HashMap::new(),
             original_auto_index: HashMap::new(),
             original_packages: HashMap::new(),
+            modules: modules::ModuleCatalog::default(),
             scanned_dirs: Vec::new(),
             revision: next_resolver_revision(),
         }
@@ -870,6 +871,28 @@ impl PackageResolver {
     /// that has the bytes but no filesystem (the browser worker) builds the
     /// same package database from them. See [`crate::vfs`].
     pub fn scan_path_in(&mut self, store: &dyn SourceStore, dir: &Path) {
+        self.scan_index_path_in(store, dir, &tcl_dialect::TclVersion::ALL, &[]);
+    }
+
+    /// Scan known installation paths with the release lines that search them.
+    /// An explicitly configured path scanned earlier remains common.
+    pub fn scan_installation_paths_in(
+        &mut self,
+        store: &dyn SourceStore,
+        paths: &[(PathBuf, Vec<tcl_dialect::TclVersion>)],
+    ) {
+        for (root, releases) in paths {
+            self.scan_index_path_in(store, root, releases, paths);
+        }
+    }
+
+    fn scan_index_path_in(
+        &mut self,
+        store: &dyn SourceStore,
+        dir: &Path,
+        releases: &[tcl_dialect::TclVersion],
+        installation_paths: &[(PathBuf, Vec<tcl_dialect::TclVersion>)],
+    ) {
         if !store.is_dir(dir) {
             return;
         }
@@ -877,9 +900,13 @@ impl PackageResolver {
         // order — `read_dir` order is filesystem-dependent, and discovery
         // order decides which provider an unconstrained `resolve` answers, so
         // it must not vary across machines.
-        self.scan_single_dir(store, dir);
+        self.scan_single_dir(store, dir, releases);
         for path in sorted_subdirs(store, dir) {
-            self.scan_single_dir(store, &path);
+            let releases = installation_paths
+                .iter()
+                .find(|(installed, _)| installed == &path)
+                .map_or(releases, |(_, releases)| releases.as_slice());
+            self.scan_single_dir(store, &path, releases);
         }
     }
 
@@ -911,7 +938,7 @@ impl PackageResolver {
                 continue;
             }
             visited += 1;
-            self.scan_single_dir(store, &dir);
+            self.scan_single_dir(store, &dir, &tcl_dialect::TclVersion::ALL);
             // Reverse-sorted push so the LIFO pop visits children in name
             // order, keeping discovery order machine-independent.
             for path in sorted_subdirs(store, &dir).into_iter().rev() {
@@ -922,7 +949,12 @@ impl PackageResolver {
         }
     }
 
-    fn scan_single_dir(&mut self, store: &dyn SourceStore, dir: &Path) {
+    fn scan_single_dir(
+        &mut self,
+        store: &dyn SourceStore,
+        dir: &Path,
+        releases: &[tcl_dialect::TclVersion],
+    ) {
         let dir_buf = dir.to_path_buf();
         if self.scanned_dirs.contains(&dir_buf) {
             return;
@@ -932,12 +964,15 @@ impl PackageResolver {
         if store.is_file(&pkg_index)
             && let Ok(content) = store.read_to_string(&pkg_index)
         {
-            let infos = parse_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
-                list_tcl_files(store, d)
-            });
-            self.add_original_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
-                list_tcl_files(store, d)
-            });
+            let exists = |path: &Path| store.is_file(path);
+            let files = |path: &Path| list_tcl_files(store, path);
+            let mut infos = parse_pkg_index(&content, dir, &pkg_index, &exists, &files);
+            for info in &mut infos {
+                info.conditions.limit_to_installations(releases);
+            }
+            self.add_original_pkg_index_for_releases(
+                &content, dir, &pkg_index, &exists, &files, releases,
+            );
             self.add_pkg_index(infos);
         }
         // `tclIndex` is matched case-insensitively (`tclIndex` / `tclindex`).
@@ -949,7 +984,12 @@ impl PackageResolver {
                     .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"));
                 if is_tcl_index && let Ok(content) = store.read_to_string(&entry.path) {
                     let dir_owned = entry.path.parent().unwrap_or(dir).to_path_buf();
-                    self.add_original_tcl_index(&content, &dir_owned, &|p| store.is_file(p));
+                    self.add_original_tcl_index_for_releases(
+                        &content,
+                        &dir_owned,
+                        &|p| store.is_file(p),
+                        releases,
+                    );
                     self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| {
                         store.is_file(p)
                     }));
@@ -1077,16 +1117,31 @@ impl PackageResolver {
         prefer: PackagePrefer,
         target: Option<tcl_dialect::TclVersion>,
     ) -> Vec<&PackageInfo> {
-        let Some(infos) = self.packages.get(name) else {
-            return Vec::new();
+        let infos: Vec<_> = self.packages.get(name).into_iter().flatten().collect();
+        let releases = target.as_slice();
+        let releases = if releases.is_empty() {
+            &tcl_dialect::TclVersion::ALL
+        } else {
+            releases
         };
-        candidate_package_infos(
-            &infos.iter().collect::<Vec<_>>(),
-            requirements,
-            exact,
-            prefer,
-            target,
-        )
+        let mut candidates = Vec::new();
+        for &release in releases {
+            let policy = tcl_syntax::native_string::NativeStringProtocol::for_tcl_version(release);
+            let key = policy.host_text_bytes(name);
+            let selected = match self
+                .modules
+                .provider(&key, requirements, exact, prefer, release)
+            {
+                Some(module) => vec![module],
+                None => candidate_package_infos(&infos, requirements, exact, prefer, Some(release)),
+            };
+            for candidate in selected {
+                if !candidates.contains(&candidate) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+        candidates
     }
 
     /// Assistance source candidates using the document's requirement grammar.
@@ -1130,7 +1185,7 @@ impl PackageResolver {
     /// Whether the scanned paths know how to provide `name`.
     #[must_use]
     pub fn provides(&self, name: &str) -> bool {
-        self.packages.contains_key(name)
+        self.packages.contains_key(name) || self.modules.provides_text(name)
     }
 
     /// Transitive package-name candidates from indexed implementation sources.
@@ -1198,7 +1253,13 @@ impl PackageResolver {
     /// Every package name known to the scanned paths.
     #[must_use]
     pub fn package_names(&self) -> Vec<&str> {
-        self.packages.keys().map(String::as_str).collect()
+        self.packages
+            .keys()
+            .map(String::as_str)
+            .chain(self.modules.entries().map(|(_, info)| info.name.as_str()))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect()
     }
 
     /// All registered package implementation paths, before version selection.
@@ -1216,6 +1277,11 @@ impl PackageResolver {
                     .values()
                     .flatten()
                     .flat_map(|provider| provider.metadata().source_files.iter().cloned()),
+            )
+            .chain(
+                self.modules
+                    .entries()
+                    .flat_map(|(_, info)| info.source_files.iter().cloned()),
             )
             .collect::<Vec<_>>();
         paths.sort();
@@ -1291,12 +1357,14 @@ impl PackageResolver {
         name: &str,
         target: Option<tcl_dialect::TclVersion>,
     ) -> Vec<PathBuf> {
-        let Some(infos) = self.packages.get(name) else {
-            return Vec::new();
-        };
-        infos
-            .iter()
+        self.packages
+            .get(name)
+            .into_iter()
+            .flatten()
             .filter(|i| i.availability(target) != reachability::Availability::Unavailable)
+            .chain(self.modules.entries().filter_map(|(release, info)| {
+                (target.is_none_or(|target| release == target) && info.name == name).then_some(info)
+            }))
             .flat_map(|i| i.source_files.iter().cloned())
             .collect()
     }
@@ -1339,6 +1407,7 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+mod modules;
 mod original_names;
 pub mod reachability;
 mod registration;

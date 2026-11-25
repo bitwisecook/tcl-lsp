@@ -487,8 +487,11 @@ fn membership_version(membership: &Membership) -> &str {
 }
 
 fn compare_product_labels(left: &str, right: &str) -> std::cmp::Ordering {
-    if tcl_dialect::validate_version(left) && tcl_dialect::validate_version(right) {
-        tcl_dialect::compare_versions(left, right)
+    let release = tcl_dialect::TclVersion::V9_1;
+    if tcl_dialect::validate_version_for(left, release)
+        && tcl_dialect::validate_version_for(right, release)
+    {
+        tcl_dialect::compare_versions_for(left, right, release)
     } else {
         left.cmp(right)
     }
@@ -497,6 +500,15 @@ fn compare_product_labels(left: &str, right: &str) -> std::cmp::Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn product_versions_use_tcl_ordering() {
+        assert!(compare_product_labels("1.2", "1.10").is_lt());
+        assert!(compare_product_labels("1.2a1", "1.2b1").is_lt());
+        assert!(compare_product_labels("1.2b1", "1.2").is_lt());
+        assert!(compare_product_labels("01.2+build", "1.2.0").is_eq());
+        assert!(compare_product_labels("2026-02-01", "2026-10-01").is_lt());
+    }
 
     #[test]
     fn embedded_data_is_valid_and_indexed() {

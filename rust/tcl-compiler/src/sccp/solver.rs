@@ -54,8 +54,7 @@ pub(super) use statements::sccp_process_statements;
 #[cfg(test)]
 pub(super) use statements::typed_element_write_base;
 pub(super) use sweep::sccp_process_phis;
-pub(super) use sweep::seed_live_in_roots;
-use sweep::seeded_values;
+pub(super) use sweep::{seed_live_in_roots, seeded_values};
 
 /// What a run must assume of the whole function when only the blocks an
 /// `executable` filter admits can run: the names it keeps overdefined
@@ -278,10 +277,12 @@ pub(super) fn solve(inputs: &SolveInputs<'_>, round: &Round, hazards: &RunHazard
     } = *inputs;
     let trace = trace.with_callback_writes_as_traces();
     let preds = compute_predecessors(cfg);
-    let mut values = seeded_values(ssa, param_constants);
+    let mut values = seeded_values(param_constants, |name| ssa.var_symbol(name));
 
     let grammar = solve_grammar(trace);
-    seed_live_in_roots(cfg, ssa, &mut values, grammar);
+    seed_live_in_roots(cfg, ssa, &mut values, grammar, |_, name| {
+        ssa.var_symbol(name)
+    });
 
     let escaping = hazards.escaping.clone();
     // Every command-specific answer below comes from the registry's

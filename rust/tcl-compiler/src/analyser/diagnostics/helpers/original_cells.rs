@@ -161,8 +161,9 @@ pub(in super::super) fn original_read_is_live_array_scalar(
         })
 }
 
-/// Original occurrence-only wrong-kind advice, independently of SSA versions.
-pub(in super::super) fn original_array_scalar_read_at_span(
+/// Every retained occurrence at the span reads defined contents or sees a
+/// live array root through a scalar read. Neither is an undefined read.
+pub(in super::super) fn original_read_cannot_be_undefined_at_span(
     fu: &crate::compilation_unit::FunctionUnit,
     span: tcl_lexer::Span,
     registry: &tcl_registry::CommandRegistry,
@@ -178,7 +179,9 @@ pub(in super::super) fn original_array_scalar_read_at_span(
                 let original = fu.abs_span(access.source.span);
                 if original.start() <= span.start() && span.end() <= original.end() {
                     found = true;
-                    if !original_read_is_live_array_scalar(access, registry) {
+                    if !original_read_is_live_array_scalar(access, registry)
+                        && !original_read_has_defined_contents(view, access, registry)
+                    {
                         return false;
                     }
                 }
@@ -186,6 +189,15 @@ pub(in super::super) fn original_array_scalar_read_at_span(
         }
     }
     found
+}
+
+fn original_read_has_defined_contents(
+    view: crate::ssa::SsaSourceView<'_>,
+    access: &crate::command_binding::SourceVariableAccess,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    view.read_contents_presence_alternatives_at(&access.source, &access.original_spelling, registry)
+        .is_some_and(|presence| presence.may_be_defined() && !presence.may_be_undefined())
 }
 
 /// Exact attempted cell/version at one original diagnostic read occurrence.
@@ -365,7 +377,8 @@ pub(in super::super) fn definition_has_cell_fact(
         })
 }
 
-/// Every captured read of this represented value must select an advised physical cell.
+/// Every captured read of this represented value must have defined contents
+/// or select an advised physical cell.
 pub(in super::super) fn read_has_cell_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     point: (BlockId, usize),
@@ -373,9 +386,8 @@ pub(in super::super) fn read_has_cell_fact(
     facts: &HashSet<crate::var_resolve::VariableCellKey>,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    let Some(tokens) =
-        crate::ssa::SsaSourceView::at_statement(&fu.ssa, point.0, point.1).source_tokens()
-    else {
+    let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, point.0, point.1);
+    let Some(tokens) = view.source_tokens() else {
         return false;
     };
     let mut seen = false;
@@ -385,11 +397,42 @@ pub(in super::super) fn read_has_cell_fact(
             continue;
         }
         seen = true;
-        if !original_read_cell(access, registry).is_some_and(|cell| facts.contains(&cell)) {
+        if !original_read_has_defined_contents(view, access, registry)
+            && !original_read_cell(access, registry).is_some_and(|cell| facts.contains(&cell))
+        {
             return false;
         }
     }
     seen
+}
+
+/// SSA keeps a name dependency across argument evaluation for liveness. The
+/// original continuation and read inventory determine whether it is a read.
+pub(in super::super) fn original_argument_use_has_no_read(
+    fu: &crate::compilation_unit::FunctionUnit,
+    statement: &crate::ir::Statement,
+    point: (BlockId, usize),
+    cell: &crate::var_resolve::VariableCellKey,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    use crate::var_resolve::ContentsPresence;
+    let Some(points) = &fu.ssa.point_contexts else {
+        return false;
+    };
+    let Some(binding) = points
+        .source_tokens_at(point.0, point.1)
+        .and_then(|tokens| tokens.source_binding.as_ref())
+    else {
+        return false;
+    };
+    binding.variable_context.contents_presence.get(cell) == Some(&ContentsPresence::Defined)
+        && !points.source_arguments_unknown_at(point.0, point.1, registry)
+        && crate::place_bridge::read_places_at(statement, point.0, point.1, points, registry)
+            .iter()
+            .all(|place| {
+                crate::var_resolve::canonical_binding_value_key(place)
+                    .is_some_and(|key| key != *cell)
+            })
 }
 
 /// Original namespace reads retain exact table, cell and lifetime identity.

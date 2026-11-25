@@ -26,7 +26,6 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_lsp_core::package_resolver::PackageResolver;
 use tcl_lsp_core::workspace_index as core_workspace_index;
-use tcl_registry::CommandRegistry;
 use tokio::sync::RwLock;
 use tower_lsp_server::ls_types::Uri;
 
@@ -137,29 +136,17 @@ fn w120_metadata_roots(
 /// conditional dependency advice from each registered implementation source.
 /// Each provider keeps its own configured input; this scan proves no loader ran.
 ///
-/// Two rules, mirroring C Tcl's reality that a package's load script can
-/// register arbitrary commands:
-///
-/// 1. **Conservative.** If any required package is *unknowable* — neither the
-///    command registry nor the scanned database can resolve it, and it isn't
-///    the core `Tcl` version pseudo-package — it may load anything, so every
-///    W120 is dropped. (A wrapper package not present in the workspace /
-///    `auto_path` lands here, so the refinement holds even with an empty
-///    database.)
-/// 2. **Precise.** Otherwise a W120 for package `P` is a false positive exactly
-///    when `P` is in the transitive closure of what the document's requires
-///    pull in — e.g. `package require myTkPackage`, whose implementation does
-///    `package require Tk`, makes `Tk` available and suppresses its W120, while
-///    a required package that does *not* pull in `Tk` leaves the W120 standing.
+/// A W120 for a package is suppressed by a named requirement for that
+/// provider in the dependency closure. Unknown requirements only limit the
+/// closure through that dependency.
 #[cfg(test)]
 pub(in super::super) fn refine_w120_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     package_requires: &[String],
     resolver: &PackageResolver,
     store: &dyn vfs::SourceStore,
-    registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
-    let availability = W120Availability::resolve(package_requires, resolver, store, registry);
+    let availability = W120Availability::resolve(package_requires, resolver, store);
     diags
         .into_iter()
         .filter(|d| !availability.suppresses(d))
@@ -167,7 +154,7 @@ pub(in super::super) fn refine_w120_diagnostics(
 }
 
 /// What one set of `package require`s makes available, as the W120 check reads
-/// it — the two rules of [`refine_w120_diagnostics`] in a reusable form.
+/// it in a reusable form.
 ///
 /// Split out because the position-gated path evaluates a *different*
 /// availability set per diagnostic offset and must be able to memoise the
@@ -176,9 +163,6 @@ pub(in super::super) fn refine_w120_diagnostics(
 pub(in super::super) struct W120Availability {
     pub(in super::super) original_available:
         std::collections::HashSet<tcl_registry::native_package::NativePackageNameKey>,
-    /// A required package neither the registry nor the database can resolve —
-    /// it may load anything, so every W120 is unprovable.
-    pub(in super::super) unknowable: bool,
     /// The conditional transitive closure of package dependency source advice.
     available: std::collections::HashSet<String>,
 }
@@ -189,20 +173,8 @@ impl W120Availability {
         package_requires: &[String],
         resolver: &PackageResolver,
         store: &dyn vfs::SourceStore,
-        registry: &CommandRegistry,
     ) -> Self {
-        let unknowable = package_requires
-            .iter()
-            .any(|p| p != "Tcl" && !registry.provides_package(p) && !resolver.provides(p));
-        if unknowable {
-            return Self {
-                unknowable,
-                available: std::collections::HashSet::new(),
-                original_available: std::collections::HashSet::new(),
-            };
-        }
         Self {
-            unknowable,
             original_available: std::collections::HashSet::new(),
             available: resolver
                 .transitive_available_packages(package_requires, &|p| store.read_to_string(p).ok())
@@ -216,13 +188,11 @@ impl W120Availability {
         target: Option<tcl_dialect::TclVersion>,
         resolver: &PackageResolver,
         sources: &provider_source::ProviderSourceAccess<'_>,
-        registry: &CommandRegistry,
     ) -> Self {
         use tcl_lsp_core::package_resolver::{
             PackageRequirementAdvice as Requirement, PackageRequirementAdviceKey as Key,
         };
         let mut result = Self {
-            unknowable: false,
             available: std::collections::HashSet::new(),
             original_available: std::collections::HashSet::new(),
         };
@@ -243,10 +213,8 @@ impl W120Availability {
                 std::slice::from_ref(root),
                 version,
                 &|path, parent| {
-                    let unknown =
-                        || Requirement::new(Key::Unknown, Vec::new(), false, parent.prefer());
                     let Ok(inventory) = sources.inventory(path, version, resolver) else {
-                        return vec![unknown()];
+                        return Vec::new();
                     };
                     let analysis = &inventory.analysis;
                     analysis
@@ -265,23 +233,6 @@ impl W120Availability {
                         .collect()
                 },
             );
-            if !root.key().matches_ascii_metadata("Tcl") {
-                let registry_package = match root.key() {
-                    Key::Original(key) => std::str::from_utf8(key.bytes())
-                        .ok()
-                        .filter(|name| name.is_ascii())
-                        .is_some_and(|name| registry.provides_package(name)),
-                    Key::AuthoredMetadata(name) => registry.provides_package(name),
-                    Key::Unknown => false,
-                };
-                if !registry_package
-                    && resolver
-                        .resolve_requirement_advice(root, version)
-                        .is_empty()
-                {
-                    result.unknowable = true;
-                }
-            }
             for dependency in available {
                 match dependency.key() {
                     Key::Original(key) => {
@@ -290,7 +241,7 @@ impl W120Availability {
                     Key::AuthoredMetadata(name) => {
                         result.available.insert(name.clone());
                     }
-                    Key::Unknown => result.unknowable = true,
+                    Key::Unknown => {}
                 }
             }
         }
@@ -308,8 +259,7 @@ impl W120Availability {
         let Some(package) = w120_required_package(d) else {
             return false;
         };
-        self.unknowable
-            || self.original_available.contains(package)
+        self.original_available.contains(package)
             || std::str::from_utf8(package.bytes()).is_ok_and(|descriptor| {
                 self.available
                     .iter()
@@ -405,7 +355,6 @@ pub(in super::super) async fn refine_workspace_w120(
     inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
     sources: &provider_source::ProviderSourceAccess<'_>,
-    registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
         return analyser_diags;
@@ -438,7 +387,7 @@ pub(in super::super) async fn refine_workspace_w120(
                 }
             }
             let available = scans.entry(roots.clone()).or_insert_with(|| {
-                W120Availability::resolve_original(&roots, target, &resolver, sources, registry)
+                W120Availability::resolve_original(&roots, target, &resolver, sources)
             });
             if !available.suppresses(&diagnostic) {
                 result.push(diagnostic);
@@ -472,7 +421,6 @@ pub(in super::super) async fn refine_workspace_w120(
             analysis_tcl_version(analysis),
             &resolver,
             sources,
-            registry,
         );
         return analyser_diags
             .into_iter()
@@ -502,7 +450,6 @@ pub(in super::super) async fn refine_workspace_w120(
                 analysis_tcl_version(analysis),
                 &resolver,
                 sources,
-                registry,
             )
         });
         if !scan.suppresses(&diag) {

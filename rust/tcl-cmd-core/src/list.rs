@@ -187,6 +187,21 @@ fn lindex_specs<O: NativeIndexOps>(
     Ok(index::IndexResult::Borrowed(cur))
 }
 
+/// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
+/// inclusive range over a collection of `len` items, or `None` when the
+/// range is empty (`first > last` after clamping `first` up to 0 and
+/// `last` down to `len-1`).
+#[must_use]
+pub fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, usize)> {
+    let last_max = i64::try_from(len).ok()? - 1;
+    let first = first.max(0);
+    let last = last.min(last_max);
+    if first > last {
+        return None;
+    }
+    Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
+}
+
 /// `lrange list first last` — the inclusive sublist, clamped.
 pub fn lrange<O: NativeIndexOps>(
     ops: &mut O,
@@ -206,25 +221,18 @@ pub fn lrange<O: NativeIndexOps>(
             let len = elems.len();
             let (lo, hi) = if let Some(indices) = indices {
                 (
-                    index::resolve_jim_encoding(indices[0], len).max(0),
+                    index::resolve_jim_encoding(indices[0], len),
                     index::resolve_jim_encoding(indices[1], len),
                 )
             } else {
                 (
-                    index::resolve_value(ops, first, len)?.max(0),
+                    index::resolve_value(ops, first, len)?,
                     index::resolve_value(ops, last, len)?,
                 )
             };
-            let Ok(lo) = usize::try_from(lo) else {
+            let Some((lo, hi)) = clamp_range(lo, hi, len) else {
                 return Ok(ops.new_list(Vec::new()));
             };
-            if hi < 0 || lo >= len {
-                return Ok(ops.new_list(Vec::new()));
-            }
-            let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
-            if lo > hi {
-                return Ok(ops.new_list(Vec::new()));
-            }
             Ok(ops.new_list(elems[lo..=hi].to_vec()))
         })()?;
         Ok(index::IndexResult::Created(created))

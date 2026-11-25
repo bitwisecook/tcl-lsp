@@ -120,6 +120,7 @@ impl SourceCommandBindings {
 fn discard_normal_operand_results(outcomes: &mut SourceOutcomes) {
     outcomes.normal_completion = None;
     outcomes.normal_value = None;
+    outcomes.normal_name_value = None;
     outcomes.normal_representation = None;
     outcomes.normal_object = None;
     outcomes.normal_method_prefix = None;

@@ -26,7 +26,7 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
 use tower_lsp_server::ls_types::{Position, Uri};
 
-use super::package_database::document_auto_path_dirs;
+use super::package_database::{document_auto_path_dirs, document_module_paths};
 use crate::documents::{DocumentPublication, DocumentSourceResult, canonical_file_uri};
 use crate::uri_norm::DocumentPath as _;
 use crate::{Backend, DocumentState};
@@ -98,11 +98,9 @@ impl Backend {
         let (mut files, mut resolver_revision) =
             self.logical_library_files_for_headers(coordinates).await;
         if files.is_empty() {
-            for file in self.required_library_files(uri, analysis).await {
-                if !files.contains(&file) {
-                    files.push(file);
-                }
-            }
+            (files, resolver_revision) = self
+                .required_library_files(uri, source, analysis, offset)
+                .await;
             let inheritance = self.source_inheritance_for(uri, analysis).await;
             if let Some(original) = inheritance.original.as_ref() {
                 let available = original.available_at(offset, None);
@@ -118,7 +116,6 @@ impl Backend {
                     }
                 }
             }
-            resolver_revision = self.package_resolver.read().await.revision();
         }
         if !files.is_empty()
             && self
@@ -192,9 +189,29 @@ impl Backend {
         self.merge_library_files(word, namespace, files).await
     }
 
-    async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
-        if analysis.package_requires.is_empty() {
-            return Vec::new();
+    pub(in super::super) async fn required_library_files(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        offset: u32,
+    ) -> (Vec<PathBuf>, u64) {
+        let body = analysis.innermost_definition_body_span(offset);
+        let requirements = analysis
+            .package_requires
+            .iter()
+            .filter(|requirement| {
+                let start = requirement.range.start();
+                !requirement.conditional
+                    && !requirement.control_flow
+                    && analysis
+                        .innermost_definition_body_span(start)
+                        .is_none_or(|span| Some(span) == body)
+                    && tcl_compiler::analyser::indirection::in_effect_within(start, offset, body)
+            })
+            .collect::<Vec<_>>();
+        if requirements.is_empty() {
+            return (Vec::new(), self.package_resolver.read().await.revision());
         }
         drop(self.workspace_scan_gate.lock().await);
         // This document's own `auto_path` mutations, folded in first: the
@@ -207,10 +224,16 @@ impl Backend {
         // a rescan.
         {
             let dirs = document_auto_path_dirs(uri, analysis);
-            if !dirs.is_empty() {
+            let modules = document_module_paths(uri, source, analysis);
+            if !dirs.is_empty() || modules.as_ref().is_some_and(|(_, roots)| !roots.is_empty()) {
                 let mut resolver = self.package_resolver.write().await;
                 for dir in &dirs {
                     resolver.scan_path_in(self.store.as_ref(), dir);
+                }
+                if let Some((release, roots)) = modules {
+                    for root in roots {
+                        resolver.prepend_module_path_in(self.store.as_ref(), &root, release, 256);
+                    }
                 }
             }
         }
@@ -219,19 +242,21 @@ impl Backend {
         // The state is interpreter-global, and along the `source` graph "ran
         // first" is a static fact, so a `package prefer latest` in the entry
         // file really is in force here.
-        let inherited_prefer = {
-            let index = self.workspace_index.read().await;
-            if index.source_ancestor_prefers_latest_from_resolved(uri.as_str()) {
-                tcl_lsp_core::package_resolver::PackagePrefer::Latest
-            } else {
-                self.default_package_prefer().await
-            }
+        let inherited_prefer = if self
+            .workspace_index
+            .read()
+            .await
+            .source_ancestor_prefers_latest_from_resolved(uri.as_str())
+        {
+            tcl_lsp_core::package_resolver::PackagePrefer::Latest
+        } else {
+            self.default_package_prefer().await
         };
 
         {
             let resolver = self.package_resolver.read().await;
             let mut files: Vec<PathBuf> = Vec::new();
-            for req in &analysis.package_requires {
+            for req in requirements {
                 // The document's own constraint decides which release is
                 // indexed: `package require widget 2.0` against a workspace
                 // holding 1.5 and 2.3 must navigate into 2.3 (C Tcl's
@@ -259,7 +284,7 @@ impl Backend {
                     }
                 }
             }
-            files
+            (files, resolver.revision())
         }
     }
 
@@ -422,7 +447,10 @@ impl Backend {
         let epoch = self.diag_inputs_epoch();
         drop(self.workspace_scan_gate.lock().await);
         let mut files = request.files(&*self.package_resolver.read().await);
-        for file in self.required_library_files(uri, analysis).await {
+        let (required, _) = self
+            .required_library_files(uri, source, analysis, request.head_offset())
+            .await;
+        for file in required {
             if !files.contains(&file) {
                 files.push(file);
             }

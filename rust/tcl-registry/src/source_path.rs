@@ -31,12 +31,19 @@ pub enum SourcePathOperation {
     Normalize,
     /// Use the document filename independently supplied by the consumer.
     ScriptPath,
+    /// A single-element list whose canonical spelling leaves the value intact.
+    SingletonList,
 }
 
 impl SourcePathOperation {
     /// Complete authoring vocabulary.
-    pub const ALL: &'static [Self] =
-        &[Self::Join, Self::Dirname, Self::Normalize, Self::ScriptPath];
+    pub const ALL: &'static [Self] = &[
+        Self::Join,
+        Self::Dirname,
+        Self::Normalize,
+        Self::ScriptPath,
+        Self::SingletonList,
+    ];
 
     /// Exact argument cardinality supported by the source algebra.
     /// Runtime arity and evaluation remain independent.
@@ -44,7 +51,7 @@ impl SourcePathOperation {
     pub const fn accepts_argument_count(self, count: usize) -> bool {
         match self {
             Self::Join => count >= 1,
-            Self::Dirname | Self::Normalize => count == 1,
+            Self::Dirname | Self::Normalize | Self::SingletonList => count == 1,
             Self::ScriptPath => count == 0,
         }
     }

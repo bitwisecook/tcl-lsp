@@ -226,7 +226,7 @@ async fn diagnostics_exclude_folder_path_glob_is_root_relative() {
     // path — `docs/**` covers the folder's `docs/` tree, not a file that
     // merely mentions `docs` elsewhere in its path or name.
     let backend = test_backend();
-    let folder = Uri::from_file_path("/w").unwrap();
+    let folder = crate::canonical_file_uri("/w").unwrap();
     let fc = FolderConfig {
         diagnostics_exclude: Some(vec!["docs/**".to_owned()]),
         ..FolderConfig::default()
@@ -267,7 +267,7 @@ async fn diagnostics_exclude_folder_list_replaces_the_global_one() {
         .apply_global_config(&serde_json::json!({ "diagnostics": { "exclude": ["*.ruff"] } }))
         .await
         .unwrap();
-    let folder = Uri::from_file_path("/w").unwrap();
+    let folder = crate::canonical_file_uri("/w").unwrap();
     let fc = FolderConfig {
         diagnostics_exclude: Some(vec!["docs/**".to_owned()]),
         ..FolderConfig::default()

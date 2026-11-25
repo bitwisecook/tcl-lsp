@@ -441,15 +441,16 @@ after partial mutation (tcllib's `try`, `snit`, and `sha1` all do).
 - **Multi-train truth.** A command may carry several disjoint
   applicability sets (`struct::graph` 1.x and 2.x shapes coexist; the
   resolver picks the train `package require`'s requirement selects).
-  `tcl_registry::model::tcllib::TCLLIB_MODULES` is a 200-row census read
+  `tcl_registry::model::tcllib::TCLLIB_MODULES` is a census read
   out of `tmp/tcllib-2.0` — each module's `package require` name, the
   trains its `pkgIndex.tcl` offers, its `package require Tcl` floor —
   supplying every tcllib declaration's applicability on the module's
   **own** axis; seven modules (`md5`, `sha1`, `snit`, `struct::tree`,
   `struct::graph`, `doctools::idx`, `doctools::toc`) are genuine parallel
-  trains. `UNBACKED_PACKAGE_NAMES` records the catalogue names no
-  `package provide` backs, and `the_identity_census_is_closed` fails the
-  build if a new one appears.
+  trains. `the_identity_census_is_closed` requires an actual tcllib
+  provider for every catalogue package. The `pt_export_api` and
+  `pt_import_api` manpages describe plugin interfaces rather than
+  commands installed as global `export` and `import`.
 - **Dynamic-surface honesty.** A pack declares that a provider's member
   set is runtime-extensible (`dynamic_surface` / `unknown_members`)
   instead of pretending closure — `struct::tree` discovers its method set

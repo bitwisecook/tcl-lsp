@@ -332,14 +332,7 @@ impl<'v> ParsedVersion<'v> {
     }
 
     fn parse_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> Option<Self> {
-        let bytes = if allow_plus_suffix {
-            string
-                .iter()
-                .position(|byte| *byte == b'+')
-                .map_or(string, |end| &string[..end])
-        } else {
-            string
-        };
+        let bytes = package_version_prefix_bytes(string, allow_plus_suffix);
         if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
         }
@@ -389,14 +382,7 @@ impl<'v> ParsedVersion<'v> {
     /// any other character is skipped. Never used to decide satisfaction —
     /// only to order two strings that are not versions in the first place.
     fn lenient_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> SegmentBuf<'v> {
-        let bytes = if allow_plus_suffix {
-            string
-                .iter()
-                .position(|byte| *byte == b'+')
-                .map_or(string, |end| &string[..end])
-        } else {
-            string
-        };
+        let bytes = package_version_prefix_bytes(string, allow_plus_suffix);
         let mut segments = SegmentBuf::new();
         let mut run_start = 0usize;
         for (i, &c) in bytes.iter().enumerate() {
@@ -568,6 +554,37 @@ pub fn validate_requirement_for(
             )
         }
     })
+}
+
+/// The written endpoints of a validated Tcl requirement.
+#[must_use]
+pub fn package_requirement_bounds_for(
+    requirement: &str,
+    release: TclVersion,
+) -> Option<(&str, Option<&str>)> {
+    validate_requirement_for(requirement, release).ok()?;
+    if release.has_package_requirements()
+        && let Some((lower, upper)) = requirement.split_once('-')
+    {
+        return Some((lower, (!upper.is_empty()).then_some(upper)));
+    }
+    Some((requirement, None))
+}
+
+/// Comparable portion of a Tcl package version, without release suffix data.
+#[must_use]
+pub fn package_version_prefix_for(version: &str, release: TclVersion) -> &str {
+    let size =
+        package_version_prefix_bytes(version.as_bytes(), release.allows_package_version_suffix())
+            .len();
+    &version[..size]
+}
+
+fn package_version_prefix_bytes(version: &[u8], allow_suffix: bool) -> &[u8] {
+    if allow_suffix && let Some(end) = version.iter().position(|byte| *byte == b'+') {
+        return &version[..end];
+    }
+    version
 }
 
 /// A digit run as a [`Segment::Number`], with C's leading-zero skip applied so

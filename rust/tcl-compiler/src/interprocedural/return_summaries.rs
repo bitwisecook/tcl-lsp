@@ -380,9 +380,7 @@ pub(super) fn summarise_returns(
 /// bytes that are not text.
 fn constant_return_of(value: &ExactValue) -> Option<ConstantReturn> {
     let text = value.as_str().ok()?;
-    if let Ok(int) = text.parse::<i64>()
-        && int.to_string() == text
-    {
+    if let Some(int) = ExactValue::from_literal(text).as_int() {
         return Some(ConstantReturn::Int(int));
     }
     if let Ok(double) = text.parse::<f64>()

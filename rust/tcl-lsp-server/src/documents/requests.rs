@@ -161,6 +161,9 @@ impl Backend {
         // input resolve so the open reads the *current* toggles; otherwise
         // reopening a file after the diagnostics master switch was turned off
         // republishes its pre-toggle squiggles from the stale inputs.
+        if Self::is_bigip_dialect(&dialect_for_diags) {
+            self.refresh_data_group_diagnostics(&uri).await;
+        }
         self.reschedule_diagnostics(uri, dialect_for_diags).await;
     }
 
@@ -270,6 +273,9 @@ impl Backend {
         // above is an edit that superseded a cold-open seed after its disk slot
         // was removed; there are no previous facts to retain, so it restores a
         // current view before advertising indexed readiness.
+        if Self::is_bigip_dialect(&dialect) {
+            self.refresh_data_group_diagnostics(&uri).await;
+        }
         self.schedule_diagnostics(uri.clone(), dialect).await;
         // Resolve a hint dirtied by this edit **or any superseded predecessor**.
         // The helper is a no-op when no generation is pending, so the ordinary
@@ -309,7 +315,7 @@ impl Backend {
             }
         };
 
-        {
+        let was_configuration = {
             // The ordered mutation is removal of the authoritative live
             // buffer. Index/caches are derived publications and happen only
             // after the turn is free.
@@ -319,21 +325,28 @@ impl Backend {
                 &[admission.as_ref()],
                 self.store.as_ref(),
                 || {
-                    docs.remove(uri);
+                    docs.remove(uri)
+                        .is_some_and(|doc| Self::is_bigip_dialect(&doc.dialect))
                 },
             );
             drop(docs);
-            if let Err(error) = removed {
-                drop(turn);
-                self.client
-                    .log_message(MessageType::WARNING, error.to_string())
-                    .await;
-                return;
+            match removed {
+                Ok(was_configuration) => was_configuration,
+                Err(error) => {
+                    drop(turn);
+                    self.client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                    return;
+                }
             }
-        }
+        };
         self.invalidate_live_publication(std::iter::once(uri));
         drop(turn);
         self.live_publication_advanced.notify_waiters();
+        if was_configuration {
+            self.refresh_data_group_diagnostics(uri).await;
+        }
 
         // Optimistically acquire the index and then currency-check the closed
         // state without ever waiting while holding either lock. A racing open

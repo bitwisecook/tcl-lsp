@@ -80,7 +80,7 @@ async fn folder_configuration(backend: &Backend, overlay: u64) -> tcl_lsp_db::An
         .folder_db_configs
         .lock()
         .await
-        .push((Uri::from_file_path("/library").unwrap(), config));
+        .push((crate::canonical_file_uri("/library").unwrap(), config));
     config
 }
 
@@ -109,7 +109,6 @@ fn assert_plain_tcl_has_no_provider(source: &str) {
 }
 
 fn assert_dependency_available(current: &W120Availability) {
-    assert!(!current.unknowable);
     assert!(
         current
             .original_available
@@ -139,7 +138,7 @@ async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() 
     let packs = provider_pack();
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
     let config = folder_configuration(&backend, packs.key).await;
-    let uri = Uri::from_file_path("/library/owned.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/library/owned.tcl").unwrap();
     let source = "provider360::define provided {one} {}";
     backend
         .db_set_source(&uri, source, "tcl".to_owned())
@@ -248,7 +247,7 @@ async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths(
     let mut backend = crate::tests::test_backend();
     backend.state_mut_for_test().store = store.clone();
     backend.folder_dialects.lock().await.push((
-        Uri::from_file_path("/library").unwrap(),
+        crate::canonical_file_uri("/library").unwrap(),
         "tcl8.6".to_owned(),
     ));
     register_packages(&backend, "package ifneeded own 1.0 {source own.tcl}\npackage ifneeded absent 1.0 {source absent.tcl}").await;
@@ -313,7 +312,7 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
     let source = "old_command\nbeta_command\ndep_old\ndep_beta";
     let calls = backend
         .fresh_analysis_for(
-            &Uri::from_file_path("/caller/main.tcl").unwrap(),
+            &crate::canonical_file_uri("/caller/main.tcl").unwrap(),
             Arc::from(source),
             "tcl8.6".to_owned(),
         )
@@ -338,7 +337,6 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
         })
         .collect::<Vec<_>>();
     assert_eq!(roots.len(), 1);
-    let registry = backend.registry_for_dialect(dialect.name).await;
     let resolver = backend.package_resolver.read().await;
     let remaining = refine_original_w123_diagnostics(
         calls.diagnostics.clone(),
@@ -360,7 +358,6 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
         Some(tcl_dialect::TclVersion::V8_6),
         &resolver,
         &sources,
-        &registry,
     );
     assert_dependency_available(&current);
     let absent = Analyser::new()
@@ -379,9 +376,13 @@ async fn configured_package_refinement_keeps_version_preference_and_unknown_prov
         Some(tcl_dialect::TclVersion::V8_6),
         &resolver,
         &sources,
-        &registry,
     );
-    assert!(unavailable.unknowable);
+    assert!(
+        unavailable
+            .original_available
+            .iter()
+            .all(|key| key.matches_ascii("absent"))
+    );
     assert!(
         refine_original_w123_diagnostics(
             calls.diagnostics.clone(),
@@ -407,8 +408,8 @@ async fn proposal_provider_fixture(indexed: bool) -> (Backend, Uri, PathBuf, Pat
     let library = std::env::temp_dir().join("tcl-lsp-proposal-provider-source/library");
     let caller_path = library.parent().unwrap().join("caller.tcl");
     let provider_path = library.join("owned.tcl");
-    let caller = Uri::from_file_path(&caller_path).unwrap();
-    let provider = Uri::from_file_path(&provider_path).unwrap();
+    let caller = crate::canonical_file_uri(&caller_path).unwrap();
+    let provider = crate::canonical_file_uri(&provider_path).unwrap();
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert_uri(
         caller.as_str(),
@@ -466,7 +467,7 @@ async fn proposal_provider_mode(backend: &Backend, uri: &Uri) -> ProposalProvide
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn proposal_selected_provider_refuses_old_schema_before_inventory_and_keeps_failure() {
     let (backend, _, _, path) = proposal_provider_fixture(true).await;
-    let uri = Uri::from_file_path(&path).unwrap();
+    let uri = crate::canonical_file_uri(&path).unwrap();
     let proposal = proposal_provider_mode(&backend, &uri).await;
     let dialects = ProviderDialectSources::of(&backend);
     let inputs = ProviderCaptureInputs {
@@ -583,7 +584,7 @@ async fn actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capt
         assert!(report.proposal_is_current(&resolver, &*db, &files, &published));
     }
     drop(resolver);
-    let provider_uri = Uri::from_file_path(&provider_path).unwrap();
+    let provider_uri = crate::canonical_file_uri(&provider_path).unwrap();
     backend
         .db_set_source(&provider_uri, "proc changed {} {}", "tcl8.6".to_owned())
         .await

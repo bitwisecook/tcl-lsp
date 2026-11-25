@@ -415,6 +415,40 @@ impl Interp {
         self.create_child(Some(name))
     }
 
+    /// Create a C Tcl child, then initialise its trusted library from the
+    /// same installation as its parent.
+    pub(crate) fn create_tcl_child(
+        &mut self,
+        name: Option<Vec<u8>>,
+        safe: bool,
+    ) -> Result<Vec<u8>, Code> {
+        let safe = safe || self.is_safe();
+        let library = self.initialised_library.borrow().clone();
+        let name = self.create_child(name);
+        if self.host_refusal_pending() {
+            return Err(Code::Error);
+        }
+        if safe {
+            self.with_child(&name, |child| child.make_safe());
+            return Ok(name);
+        }
+        let Some(library) = library else {
+            return Ok(name);
+        };
+        let failed = self.with_child(&name, |child| {
+            (child.init_library_from(Some(library)) != Code::Ok).then(|| child.clone())
+        });
+        let Some(Some(child)) = failed else {
+            return Ok(name);
+        };
+        self.delete_child(&name);
+        if child.host_refusal_pending() {
+            return Err(self.transport_host_refusal_from(&child));
+        }
+        self.set_result(child.get_obj_result());
+        Err(Code::Error)
+    }
+
     /// Create a child interpreter named `name` (auto-generated when empty),
     /// registering it as a command in this interp. Returns the name.
     pub(crate) fn create_child(&mut self, name: Option<Vec<u8>>) -> Vec<u8> {

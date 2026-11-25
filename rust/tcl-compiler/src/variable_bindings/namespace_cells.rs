@@ -362,9 +362,7 @@ fn transfer_source_state_transitions(
                         original_alias_target(state, &alias.target, operands, registry, false)
                     },
                 );
-                if target.is_global() && !target.dynamic {
-                    state.namespace_cells.present.insert(cell_key(&target));
-                }
+                state.allocate_namespace_alias_target(&target);
             }
             if let StateTransition::VariableCellAlias(alias) = &fact.transition {
                 let local = alias.local.argument_index().and_then(|index| {
@@ -502,9 +500,20 @@ pub fn fresh_namespace_cells(
     registry: &CommandRegistry,
 ) -> crate::var_resolve::NamespaceCellPresence {
     let query = registry.own_surface_query();
-    let present = tcl_registry::special_vars::SPECIAL_VARS
-        .iter()
-        .filter(|variable| variable.readable_at_startup_in(query))
+    let present = registry
+        .special_vars_for_dialect(query)
+        .filter(|variable| {
+            registry
+                .startup_existence(variable.name, query)
+                .initially_bound
+        })
+        // The native entry proof here is for the root table. Named namespace
+        // members need the allocated identity of their containing namespace.
+        .filter(|variable| {
+            tcl_syntax::naming::key_holder_and_tail(variable.name)
+                .0
+                .is_empty()
+        })
         // A global is addressed by its authored spelling or by its cell in
         // the root namespace table; the interpreter creates one variable.
         .flat_map(|variable| {

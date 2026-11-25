@@ -613,7 +613,7 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
     let file = root.join("closed.tcl");
     let source = "unindexed_metadata::read ::retained\n";
     std::fs::write(&file, source).unwrap();
-    let uri = Uri::from_file_path(&file).unwrap();
+    let uri = crate::canonical_file_uri(&file).unwrap();
     backend.reindex_index_from_disk(&uri).await.unwrap();
     let reads = index_reads(&backend, "::retained", &uri).await;
     assert_eq!(reads.len(), 1);
@@ -641,8 +641,8 @@ async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
     let file = root.join("consumer.tcl");
     let source = "::Meta create Thing {}\nunindexed_metadata::read ::retained\n";
     std::fs::write(&file, source).unwrap();
-    let uri = Uri::from_file_path(&file).unwrap();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    let uri = crate::canonical_file_uri(&file).unwrap();
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 1);
     let handles = index_evidence_handles(&backend);
@@ -683,8 +683,8 @@ async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
         "set retained 1\nunindexed_metadata::read retained\n",
     )
     .unwrap();
-    let sourced = Uri::from_file_path(&sourced_path).unwrap();
-    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    let sourced = crate::canonical_file_uri(&sourced_path).unwrap();
+    *backend.workspace_folders.lock().await = vec![crate::canonical_file_uri(&root).unwrap()];
     backend.scan_workspace_folders().await.unwrap();
     assert!(
         backend
@@ -1585,7 +1585,7 @@ required_package Tk
         packs: Arc::new(packs),
     };
     backend.sync_db_config().await;
-    let uri = Uri::from_file_path("/workspace/preview361.tcl").unwrap();
+    let uri = crate::canonical_file_uri("/workspace/preview361.tcl").unwrap();
     let source = "package require Tk\npreview361::frame .kept";
     backend.documents.lock("test").await.insert(
         uri.clone(),

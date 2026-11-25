@@ -52,7 +52,7 @@
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
 use tcl_dialect::model::SpecSurface;
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{CorePoints, Family, SpecProvider, SurfaceQuery, surface_admits};
 
 /// Startup binding and read-trace facts for a special variable.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -235,9 +235,9 @@ pub enum StartupBinding {
     Interpreter,
     /// Bound by a successful standard-library `Tcl_Init` / `init.tcl` run.
     TclInit,
-    /// Bound by the default `Tcl_Main` command-line host.
+    /// Bound by the default command-line shell before it runs a script.
     TclMain,
-    /// Bound by the standard `tclsh` application initialisation.
+    /// Bound by the shell's application or ambient package initialisation.
     AppInit,
     /// A core read trace materialises the value on the first direct read.
     ReadTrace,
@@ -355,21 +355,35 @@ impl SpecialVarSpec {
     /// `SpecSurface` flag for the active dialect).
     #[must_use]
     pub fn available_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        let dialect = variable_surface(dialect);
         surface_admits(self.surface, dialect.as_ref())
     }
 
-    /// Whether a read from the initial, default global scope is defined in
-    /// `dialect`.  This combines an eager startup binding with any documented
-    /// lazy read trace; callers must still account for scope and later writes.
+    /// Whether the row describes a core startup binding or read trace.
+    /// The registry's startup query also accounts for ambient packages.
     #[must_use]
     pub fn readable_at_startup_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
-        self.startup_existence(dialect).readable()
+        self.startup_existence(dialect, |_| false).readable()
     }
 
-    pub(crate) fn startup_existence(&self, dialect: Option<SurfaceQuery<'_>>) -> StartupExistence {
+    pub(crate) fn startup_existence(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+        ambient_package: impl Fn(&str) -> bool,
+    ) -> StartupExistence {
+        let Some(dialect) = variable_surface(dialect) else {
+            return StartupExistence::default();
+        };
+        let provides = |surface: &SpecSurface| {
+            surface.admits(&dialect)
+                && match surface.provider {
+                    SpecProvider::Core(_) => true,
+                    SpecProvider::Package(package) => ambient_package(package),
+                }
+        };
         StartupExistence {
-            initially_bound: surface_admits(self.initially_bound, dialect.as_ref()),
-            lazily_readable: surface_admits(self.lazily_readable, dialect.as_ref()),
+            initially_bound: self.initially_bound.iter().any(provides),
+            lazily_readable: self.lazily_readable.iter().any(provides),
         }
     }
 
@@ -378,10 +392,21 @@ impl SpecialVarSpec {
         &self,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> impl Iterator<Item = &SpecialVarKey> {
+        let dialect = variable_surface(dialect);
         self.keys
             .iter()
             .filter(move |k| surface_admits(k.surface, dialect.as_ref()))
     }
+}
+
+fn variable_surface(dialect: Option<SurfaceQuery<'_>>) -> Option<SurfaceQuery<'_>> {
+    let mut dialect = dialect?;
+    // Jim inherits command vocabulary from its Tcl anchor. Its interpreter
+    // creates its own variables and does not run the C Tcl bootstrap.
+    if let Some((Family::Jim, release)) = dialect.core.nearest() {
+        dialect.core = CorePoints::one(Family::Jim, release);
+    }
+    Some(dialect)
 }
 
 /// The availability set the special-variable membership tests answer under for
@@ -433,17 +458,17 @@ fn is_special_var(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
 
 #[cfg(test)]
 fn is_readable_at_startup(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).readable())
+    special_var(name).is_some_and(|spec| spec.readable_at_startup_in(dialect))
 }
 
 #[cfg(test)]
 fn is_initially_bound(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).initially_bound)
+    special_var(name).is_some_and(|spec| spec.startup_existence(dialect, |_| false).initially_bound)
 }
 
 #[cfg(test)]
 fn is_lazily_readable(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).lazily_readable)
+    special_var(name).is_some_and(|spec| spec.startup_existence(dialect, |_| false).lazily_readable)
 }
 
 #[cfg(test)]
@@ -481,18 +506,27 @@ pub fn special_vars_for_dialect(
     SPECIAL_VARS.iter().filter(move |v| v.available_in(dialect))
 }
 
+const TCL_AND_JIM: &[SpecSurface] = &[SpecSurface::ALL_TCL[0], SpecSurface::JIM[0]];
+const TCL_IRULES_AND_JIM: &[SpecSurface] = &[
+    SpecSurface::ALL_TCL_AND_IRULES[0],
+    SpecSurface::ALL_TCL_AND_IRULES[1],
+    SpecSurface::JIM[0],
+];
+const TCL85_PLUS_AND_JIM: &[SpecSurface] = &[SpecSurface::TCL85_PLUS[0], SpecSurface::JIM[0]];
+const TCL86_PLUS_AND_JIM: &[SpecSurface] = &[SpecSurface::TCL86_PLUS[0], SpecSurface::JIM[0]];
+
 /// `tcl_platform` array keys. Standard Tcl and F5 iRules diverge here: iRules
 /// reports BIG-IP values (`os` = `"BIG-IP"`) and adds `tmmVersion`, while
 /// dropping the desktop-only keys.
 const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     SpecialVarKey {
         key: "platform",
-        surface: SpecSurface::ALL_TCL_AND_IRULES,
+        surface: TCL_IRULES_AND_JIM,
         summary: "OS family: `unix`, `windows`, or (older) `macintosh`.",
     },
     SpecialVarKey {
         key: "os",
-        surface: SpecSurface::ALL_TCL_AND_IRULES,
+        surface: TCL_IRULES_AND_JIM,
         summary: "Operating-system name (`Linux`, `Windows NT`; `BIG-IP` on iRules).",
     },
     SpecialVarKey {
@@ -502,13 +536,13 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     },
     SpecialVarKey {
         key: "byteOrder",
-        surface: SpecSurface::ALL_TCL_AND_IRULES,
+        surface: TCL_IRULES_AND_JIM,
         summary: "`littleEndian` or `bigEndian`.",
     },
     SpecialVarKey {
         key: "wordSize",
-        surface: SpecSurface::ALL_TCL_AND_IRULES,
-        summary: "Size in bytes of the native `long` (4 or 8).",
+        surface: TCL_IRULES_AND_JIM,
+        summary: "Size in bytes of the native word (4 or 8).",
     },
     SpecialVarKey {
         key: "machine",
@@ -517,8 +551,8 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     },
     SpecialVarKey {
         key: "pointerSize",
-        surface: SpecSurface::TCL85_PLUS,
-        summary: "Size in bytes of a native pointer (Tcl 8.5+).",
+        surface: TCL85_PLUS_AND_JIM,
+        summary: "Size in bytes of a native pointer.",
     },
     SpecialVarKey {
         key: "user",
@@ -527,20 +561,20 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     },
     SpecialVarKey {
         key: "engine",
-        surface: SpecSurface::TCL85_PLUS,
-        summary: "Interpreter engine name — `Tcl` for the reference implementation (8.5+).",
+        surface: TCL85_PLUS_AND_JIM,
+        summary: "Interpreter engine name, `Tcl` or `Jim`.",
     },
     SpecialVarKey {
         key: "pathSeparator",
-        surface: SpecSurface::TCL86_PLUS,
-        summary: "Separator between paths in a search-path list (Tcl 8.6+).",
+        surface: TCL86_PLUS_AND_JIM,
+        summary: "Separator between paths in a search-path list.",
     },
     SpecialVarKey {
         key: "threaded",
         // Build conditional (`TCL_THREADS`), so no release-only profile can
         // promise this key to ordinary user code.
-        surface: &[],
-        summary: "Present only on Tcl 8.x builds configured with thread support.",
+        surface: SpecSurface::JIM,
+        summary: "Thread support indicator. Tcl 8.x provides it only in threaded builds.",
     },
     SpecialVarKey {
         key: "debug",
@@ -553,7 +587,49 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
         surface: SpecSurface::IRULES,
         summary: "iRules only: full TMM version including build number.",
     },
+    SpecialVarKey {
+        key: "bootstrap",
+        surface: SpecSurface::JIM,
+        summary: "Whether this is the bootstrap Jim interpreter.",
+    },
+    SpecialVarKey {
+        key: "stackFormat",
+        surface: SpecSurface::JIM,
+        summary: "Number of fields in a Jim stack frame.",
+    },
 ];
+
+const JIM_SHELL: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.84", None)])];
+
+const fn host_variable(
+    name: &'static str,
+    kind: SpecialVarKind,
+    surface: &'static [SpecSurface],
+    startup_binding: StartupBinding,
+    summary: &'static str,
+) -> SpecialVarSpec {
+    SpecialVarSpec {
+        name,
+        kind,
+        access: VarAccess::ReadOnly,
+        origin: VarOrigin::Dialect,
+        surface,
+        initially_bound: if matches!(startup_binding, StartupBinding::None) {
+            &[]
+        } else {
+            surface
+        },
+        lazily_readable: &[],
+        startup_binding,
+        runtime_hook: None,
+        keys: &[],
+        externally_read: false,
+        cmp_unsafe: false,
+        write_effect: None,
+        read_taint: None,
+        summary,
+    }
+}
 
 /// The complete special-variable table, dialect-versioned.
 ///
@@ -561,14 +637,14 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
 /// for readability; lookups are by name so order is not semantically
 /// significant.
 pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
-    // ── Command-line arguments (standard Tcl only; iRules has none) ─────────
+    // ── Command-line arguments (Tcl and Jim) ─────────
     SpecialVarSpec {
         name: "argc",
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         runtime_hook: None,
@@ -584,8 +660,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         runtime_hook: None,
@@ -601,8 +677,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         runtime_hook: None,
@@ -619,8 +695,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         runtime_hook: None,
@@ -706,8 +782,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Environment,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         runtime_hook: None,
@@ -849,12 +925,22 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         summary: "List of directories where binary packages are installed.",
     },
     SpecialVarSpec {
+        origin: VarOrigin::Interpreter,
+        ..host_variable(
+            "tclDefaultLibrary",
+            SpecialVarKind::Scalar,
+            SpecSurface::TCL84,
+            StartupBinding::None,
+            "Tcl 8.4's platform-dependent library bootstrap path, consumed and unset by `init.tcl`.",
+        )
+    },
+    SpecialVarSpec {
         name: "tcl_platform",
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Platform,
-        surface: SpecSurface::ALL_TCL_AND_IRULES,
-        initially_bound: SpecSurface::ALL_TCL_AND_IRULES,
+        surface: TCL_IRULES_AND_JIM,
+        initially_bound: TCL_IRULES_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         runtime_hook: None,
@@ -905,8 +991,8 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        surface: SpecSurface::ALL_TCL,
-        initially_bound: SpecSurface::ALL_TCL,
+        surface: TCL_AND_JIM,
+        initially_bound: TCL_AND_JIM,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         runtime_hook: None,
@@ -1019,6 +1105,113 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         read_taint: None,
         summary: "Script evaluated to print the continuation prompt for an incomplete command.",
     },
+    host_variable(
+        "jim::argv0",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::TclMain,
+        "Invocation name of the Jim shell executable.",
+    ),
+    host_variable(
+        "jim::exe",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::None,
+        "Path of the Jim shell executable when it can be resolved.",
+    ),
+    host_variable(
+        "jim::lineedit",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::TclMain,
+        "Whether the Jim shell has interactive line editing.",
+    ),
+    host_variable(
+        "tcl::autocomplete_commands",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::AppInit,
+        "Commands whose subcommands the Jim shell offers for completion.",
+    ),
+    host_variable(
+        "tcl::stdhint_commands",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::AppInit,
+        "Commands whose subcommands the Jim shell offers as hints.",
+    ),
+    host_variable(
+        "tcl::stdhint_col",
+        SpecialVarKind::Scalar,
+        JIM_SHELL,
+        StartupBinding::AppInit,
+        "Colour and intensity of command hints in the Jim shell.",
+    ),
+    host_variable(
+        "tcl::stdhint_cols",
+        SpecialVarKind::Array,
+        JIM_SHELL,
+        StartupBinding::AppInit,
+        "Colour and intensity names available for Jim shell hints.",
+    ),
+    host_variable(
+        "binary::convtype",
+        SpecialVarKind::Array,
+        JIM_SHELL,
+        StartupBinding::None,
+        "Conversion codes supplied by Jim's optional `binary` extension.",
+    ),
+    host_variable(
+        "binary::scalarinfo",
+        SpecialVarKind::Array,
+        JIM_SHELL,
+        StartupBinding::None,
+        "Scalar formats supplied by Jim's optional `binary` extension.",
+    ),
+    host_variable(
+        "tk_version",
+        SpecialVarKind::Scalar,
+        SpecSurface::TK,
+        StartupBinding::AppInit,
+        "The major and minor version of the loaded Tk package.",
+    ),
+    host_variable(
+        "tk_patchLevel",
+        SpecialVarKind::Scalar,
+        SpecSurface::TK,
+        StartupBinding::AppInit,
+        "The full patch level of the loaded Tk package.",
+    ),
+    SpecialVarSpec {
+        access: VarAccess::ReadWrite,
+        externally_read: true,
+        ..host_variable(
+            "tk_library",
+            SpecialVarKind::Scalar,
+            SpecSurface::TK,
+            StartupBinding::AppInit,
+            "Directory holding Tk's script library.",
+        )
+    },
+    SpecialVarSpec {
+        access: VarAccess::ReadWrite,
+        externally_read: true,
+        write_effect: Some(SideEffectTarget::InterpState),
+        ..host_variable(
+            "tk_strictMotif",
+            SpecialVarKind::Scalar,
+            SpecSurface::TK,
+            StartupBinding::AppInit,
+            "Controls whether Tk enforces strict Motif compatibility.",
+        )
+    },
+    host_variable(
+        "tk::Priv",
+        SpecialVarKind::Array,
+        SpecSurface::TK,
+        StartupBinding::AppInit,
+        "Tk's internal state for the current display.",
+    ),
     // ── iRules-specific ────────────────────────────────────────────────────
     SpecialVarSpec {
         name: "static",
@@ -1046,6 +1239,104 @@ mod tests {
     use tcl_dialect::model::SurfaceQuery;
 
     use super::*;
+
+    #[test]
+    fn startup_oracle_rosters_come_from_the_selected_registry() {
+        for release in tcl_dialect::TclVersion::ALL {
+            if let Some(shell) = tcl_test_support::witness_tclsh(release) {
+                check_startup_oracle(&shell.path, &format!("tcl{}", release.version_string()));
+            }
+        }
+        if let Some(jim) = tcl_test_support::locate_jimsh().unwrap()
+            && jim.version == "0.84"
+        {
+            check_startup_oracle(&jim.path, "jimtcl");
+        }
+        if let Some(wish) = std::env::var_os("TCL_LSP_WISH") {
+            check_startup_oracle(std::path::Path::new(&wish), "wish");
+        }
+    }
+
+    #[test]
+    fn an_active_package_surface_does_not_imply_a_startup_binding() {
+        let package = [tcl_dialect::model::PackageFloor::named("Tk")];
+        let query = Some(d("tcl8.6").with_packages(&package));
+        let tcl = crate::model::ingress::static_context_for("tcl8.6").commands();
+        assert!(tcl.special_var_in_dialect("tk_version", query).is_some());
+        assert!(!tcl.startup_existence("tk_version", query).readable());
+
+        let wish = crate::model::ingress::static_context_for("wish");
+        assert!(
+            wish.commands()
+                .startup_existence("tk_version", Some(wish.context().authoring_query()))
+                .initially_bound
+        );
+    }
+
+    fn check_startup_oracle(shell: &std::path::Path, dialect: &str) {
+        let context = crate::model::ingress::static_context_for(dialect);
+        let commands = context.commands();
+        let query = Some(context.context().authoring_query());
+        let jim = dialect == "jimtcl";
+        let wish = dialect == "wish";
+        let observed_at_startup = |spec: &SpecialVarSpec| !wish || spec.surface == SpecSurface::TK;
+        let specs: Vec<_> = commands
+            .special_vars_for_dialect(query)
+            .filter(|spec| spec.kind != SpecialVarKind::Namespace && observed_at_startup(spec))
+            .collect();
+        let names: Vec<_> = specs.iter().map(|spec| spec.name).collect();
+        let source = format!(
+            "unset ::oracle_fixture_root\n\
+             puts [lsort [info globals]]\n\
+             foreach n {{{names}}} {{\n\
+                 puts [list $n [info exists ::$n] [array exists ::$n]]\n\
+             }}\nexit\n",
+            names = names.join(" "),
+        );
+        let output = tcl_test_support::run_script_fixture(shell, &source, &[])
+            .unwrap()
+            .strict_text()
+            .unwrap();
+        let mut lines = output.lines();
+        let globals: Vec<_> = lines.next().unwrap().split_ascii_whitespace().collect();
+        let conditional_jim = |spec: &SpecialVarSpec| {
+            jim && spec.surface == JIM_SHELL && spec.startup_binding == StartupBinding::None
+        };
+        if !wish {
+            let mut expected: Vec<_> = specs
+                .iter()
+                .filter(|spec| {
+                    commands.startup_existence(spec.name, query).initially_bound
+                        || (conditional_jim(spec) && globals.contains(&spec.name))
+                })
+                .map(|spec| spec.name)
+                .collect();
+            expected.sort_unstable();
+            assert_eq!(globals, expected, "{dialect} startup roster");
+        }
+        for (line, spec) in lines.zip(&specs) {
+            let fact = commands.startup_existence(spec.name, query);
+            if conditional_jim(spec) {
+                continue;
+            }
+            let mut columns = line.split_ascii_whitespace();
+            assert_eq!(columns.next(), Some(spec.name), "{dialect}");
+            assert_eq!(
+                columns.next(),
+                Some(if fact.readable() { "1" } else { "0" }),
+                "{dialect} {line}"
+            );
+            if !jim {
+                let array = spec.kind == SpecialVarKind::Array && fact.readable();
+                assert_eq!(
+                    columns.next(),
+                    Some(if array { "1" } else { "0" }),
+                    "{dialect} {line}"
+                );
+            }
+        }
+        assert_eq!(output.lines().count(), specs.len() + 1, "{dialect}");
+    }
 
     /// The catalogue point the tests exercise these queries under — the
     /// production callers resolve an environment once and thread the
@@ -1699,14 +1990,11 @@ mod native_bootstrap_tests {
     #[test]
     fn constructor_root_order_and_undefined_cells_match_native_capture() {
         let fixture = include_str!("../tests/data/native_bootstrap/core-roots.tsv");
-        for (profile_name, version) in [
-            ("tcl8.4", "8.4"),
-            ("tcl8.5", "8.5"),
-            ("tcl8.6", "8.6"),
-            ("tcl9.0", "9.0"),
-            ("tcl9.1", "9.1"),
-            ("jim", "jim"),
-        ] {
+        for profile_name in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(tcl_dialect::TclVersion::dialect_profile_name)
+            .chain(["jim"])
+        {
             let profile = crate::model::resolve_environment(profile_name).unit_profile();
             let dialect = crate::InvocationDialect::of_profile(profile);
             let protocol = dialect.native_bootstrap_protocol().unwrap();
@@ -1728,8 +2016,8 @@ mod native_bootstrap_tests {
             let expected: Vec<_> = fixture
                 .lines()
                 .filter_map(|line| {
-                    let fields: Vec<_> = line.split('\t').collect();
-                    (fields[0] == version).then_some((fields[1], fields[2] == "1"))
+                    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
+                    (fields[0] == profile_name).then_some((fields[1], fields[2] == "1"))
                 })
                 .collect();
             assert_ne!(expected.len(), 0);
