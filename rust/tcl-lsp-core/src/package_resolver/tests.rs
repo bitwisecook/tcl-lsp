@@ -28,6 +28,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use super::reachability::Conditions;
 use super::*;
 
 // Test scaffolding.
@@ -146,7 +147,7 @@ fn tcl_module_paths_choose_ordered_release_specific_providers() {
         version: "3.0".into(),
         source_files: vec![fallback.clone()],
         pkg_index_path: scratch.path().join("pkgIndex.tcl"),
-        conditions: super::reachability::Conditions::default(),
+        conditions: Conditions::default(),
     }]);
     for release in TclVersion::ALL {
         resolver.scan_module_path_in(&NativeStore, &first, release, 16);
@@ -160,16 +161,18 @@ fn tcl_module_paths_choose_ordered_release_specific_providers() {
             assert!(files.is_empty());
             continue;
         }
-        assert_eq!(files, std::slice::from_ref(&selected));
+        assert_eq!(files.as_slice(), std::slice::from_ref(&selected));
         let profile = tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap();
         assert_eq!(
-            resolver.resolve_require_for_profile(
-                "acme::widget",
-                &["3.0"],
-                false,
-                PackagePrefer::Stable,
-                Some(profile),
-            ),
+            resolver
+                .resolve_require_for_profile(
+                    "acme::widget",
+                    &["3.0"],
+                    false,
+                    PackagePrefer::Stable,
+                    Some(profile),
+                )
+                .as_slice(),
             std::slice::from_ref(&fallback)
         );
         assert!(

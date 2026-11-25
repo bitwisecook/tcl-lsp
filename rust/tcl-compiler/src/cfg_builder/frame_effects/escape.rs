@@ -107,6 +107,13 @@ mod tests {
     fn variable_escape_preserves_selected_alias_source_boundaries() {
         use CallerFrameSelection::{DefaultCaller, Explicit};
         use TransitionSubject::{Literal, Unknown};
+
+        fn project(alias: &VariableCellAliasTransition) -> AliasEscape<'_> {
+            AliasEscape::from_transition(alias, |_, level| {
+                FrameLevel::parse_in(level, tcl_registry::default_registry())
+            })
+        }
+
         let unknown = Unknown {
             argument_index: 0,
             word_kind: InvocationWordKind::Dynamic,
@@ -125,11 +132,6 @@ mod tests {
                 target: 0,
             },
         };
-        fn project(alias: &VariableCellAliasTransition) -> AliasEscape<'_> {
-            AliasEscape::from_transition(alias, |_, level| {
-                FrameLevel::parse_in(level, tcl_registry::default_registry())
-            })
-        }
         let default = project(&alias);
         assert_eq!(default.local, Some("local"));
         assert!(matches!(default.source, CallerSource::Literal("caller")));

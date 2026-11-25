@@ -260,9 +260,9 @@ pub fn check(text: &str, rows: &Rows) -> Verdict {
                 verdict.missing.push(format!("{area}/{token}"));
             }
         } else if let Some((path, name)) = token.split_once('#').filter(|(path, _)| {
-            std::path::Path::new(path)
+            Path::new(path)
                 .extension()
-                .is_some_and(|extension| extension == "rs")
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
         }) {
             if rows.rust_test(path, name) {
                 verdict.rows.push(token.to_owned());
