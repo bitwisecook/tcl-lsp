@@ -27,8 +27,8 @@ e13-return-options.tcl	tcl8.6	-	review
 e13-return-options.tcl	tcl9.0	-	review
 e14-dead-after-control.tcl	tcl8.6	I230@6 W302@7 W302@8 W302@8	review
 e14-dead-after-control.tcl	tcl9.0	I230@6 W302@7 W302@8 W302@8	review
-e15-catch-defines-vars.tcl	tcl8.6	W210@2 W302@2	review
-e15-catch-defines-vars.tcl	tcl9.0	W210@2 W302@2	review
+e15-catch-defines-vars.tcl	tcl8.6	W302@2	review
+e15-catch-defines-vars.tcl	tcl9.0	W302@2	review
 e16-errorinfo-accumulation.tcl	tcl8.6	-	review
 e16-errorinfo-accumulation.tcl	tcl9.0	-	review
 e17-loop-body-codes.tcl	tcl8.6	-	review
@@ -47,16 +47,16 @@ e23-uncaught-toplevel-custom.tcl	tcl8.6	-	review
 e23-uncaught-toplevel-custom.tcl	tcl9.0	-	review
 e24-uncaught-error-trace.tcl	tcl8.6	-	review
 e24-uncaught-error-trace.tcl	tcl9.0	-	review
-e25-catch-for-loop-var.tcl	tcl8.6	W210@2 W210@2 W210@4 W302@4	review
-e25-catch-for-loop-var.tcl	tcl9.0	W210@2 W210@2 W210@4 W302@4	review
+e25-catch-for-loop-var.tcl	tcl8.6	W302@4	review
+e25-catch-for-loop-var.tcl	tcl9.0	W302@4	review
 e26-for-break-step.tcl	tcl8.6	-	review
 e26-for-break-step.tcl	tcl9.0	-	review
 e27-optimiser-try-finally.tcl	tcl8.6	-	review
 e27-optimiser-try-finally.tcl	tcl9.0	-	review
 e28-optimiser-return-level0.tcl	tcl8.6	-	review
 e28-optimiser-return-level0.tcl	tcl9.0	-	review
-e29-finally-reads-body-var.tcl	tcl8.6	W210@2	review
-e29-finally-reads-body-var.tcl	tcl9.0	W210@2	review
+e29-finally-reads-body-var.tcl	tcl8.6	-	review
+e29-finally-reads-body-var.tcl	tcl9.0	-	review
 e30-after-return-level0.tcl	tcl8.6	-	review
 e30-after-return-level0.tcl	tcl9.0	-	review
 e31-missing-variable-errorcode.tcl	tcl8.6	W210@2 W210@2 W210@2	review

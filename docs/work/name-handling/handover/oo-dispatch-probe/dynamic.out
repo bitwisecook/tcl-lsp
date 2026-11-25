@@ -1,17 +1,17 @@
 PROBE e01-eval-var.tcl tcl8.6: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
 PROBE e01-eval-var.tcl tcl9.0: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
-PROBE e02-eval-literal.tcl tcl8.6: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?] [W210 L4 Variable 'z' is read before it is set]
-PROBE e02-eval-literal.tcl tcl9.0: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?] [W210 L4 Variable 'z' is read before it is set]
+PROBE e02-eval-literal.tcl tcl8.6: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?]
+PROBE e02-eval-literal.tcl tcl9.0: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?]
 PROBE e03-uplevel.tcl tcl8.6: [E002 L4 Too few arguments for 'llength': expected at least 1, got 0 — usage: l]
 PROBE e03-uplevel.tcl tcl9.0: [E002 L4 Too few arguments for 'llength': expected at least 1, got 0 — usage: l]
-PROBE e04-upvar.tcl tcl8.6: [W210 L2 Variable 'q' is read before it is set]
-PROBE e04-upvar.tcl tcl9.0: [W210 L2 Variable 'q' is read before it is set]
+PROBE e04-upvar.tcl tcl8.6: 
+PROBE e04-upvar.tcl tcl9.0: 
 PROBE e05-global.tcl tcl8.6: 
 PROBE e05-global.tcl tcl9.0: 
 PROBE e06-ns-variable.tcl tcl8.6: 
 PROBE e06-ns-variable.tcl tcl9.0: 
-PROBE e07-shadow-builtin.tcl tcl8.6: [W113 L3 Procedure 'string' shadows built-in command (tcl8.6)]
-PROBE e07-shadow-builtin.tcl tcl9.0: [W113 L3 Procedure 'string' shadows built-in command (tcl9.0)]
+PROBE e07-shadow-builtin.tcl tcl8.6: [E003 L1 Too many arguments for 'string': expected at most 1, got 2] [W113 L3 Procedure 'string' shadows built-in command (tcl8.6)]
+PROBE e07-shadow-builtin.tcl tcl9.0: [E003 L1 Too many arguments for 'string': expected at most 1, got 2] [W113 L3 Procedure 'string' shadows built-in command (tcl9.0)]
 PROBE e08-redefine-arity.tcl tcl8.6: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
 PROBE e08-redefine-arity.tcl tcl9.0: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
 PROBE e09-delete-proc.tcl tcl8.6: [W123 L4 Unresolved command 'f' at this source point; did you mean 'if'?]
@@ -28,10 +28,10 @@ PROBE e14-dict-with.tcl tcl8.6: [W210 L3 Variable 'b' is read before it is set]
 PROBE e14-dict-with.tcl tcl9.0: [W210 L3 Variable 'b' is read before it is set]
 PROBE e15-unset-read.tcl tcl8.6: [W210 L1 Variable 'v' is read before it is set]
 PROBE e15-unset-read.tcl tcl9.0: [W210 L1 Variable 'v' is read before it is set]
-PROBE e16-alias-chain.tcl tcl8.6: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
-PROBE e16-alias-chain.tcl tcl9.0: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
-PROBE e17-proc-inside-proc.tcl tcl8.6: 
-PROBE e17-proc-inside-proc.tcl tcl9.0: 
+PROBE e16-alias-chain.tcl tcl8.6: [E002 L5 Too few arguments for 'two': expected at least 1, got 0] [W123 L7 Alias 'two' targets removed command 'one']
+PROBE e16-alias-chain.tcl tcl9.0: [E002 L5 Too few arguments for 'two': expected at least 1, got 0] [W123 L7 Alias 'two' targets removed command 'one']
+PROBE e17-proc-inside-proc.tcl tcl8.6: [E002 L4 Too few arguments for 'made': expected at least 1, got 0]
+PROBE e17-proc-inside-proc.tcl tcl9.0: [E002 L4 Too few arguments for 'made': expected at least 1, got 0]
 PROBE e18-uplevel-proc-def.tcl tcl8.6: 
 PROBE e18-uplevel-proc-def.tcl tcl9.0: 
 PROBE e19-apply-namespace.tcl tcl8.6: [W123 L3 Unresolved command 'helper' at this source point. The call widens the ]
@@ -50,8 +50,8 @@ PROBE e25-interp-alias-ns.tcl tcl8.6:
 PROBE e25-interp-alias-ns.tcl tcl9.0: 
 PROBE e26-info-commands-dispatch.tcl tcl8.6: [W307 L2 Non-literal command name — cannot statically analyse]
 PROBE e26-info-commands-dispatch.tcl tcl9.0: [W307 L2 Non-literal command name — cannot statically analyse]
-PROBE e27-catch-var.tcl tcl8.6: [W210 L1 Variable 'inside' is read before it is set] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
-PROBE e27-catch-var.tcl tcl9.0: [W210 L1 Variable 'inside' is read before it is set] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
+PROBE e27-catch-var.tcl tcl8.6: [W302 L1 catch without a result variable silently swallows errors. Consider cap]
+PROBE e27-catch-var.tcl tcl9.0: [W302 L1 catch without a result variable silently swallows errors. Consider cap]
 PROBE e28-foreach-lassign-regexp.tcl tcl8.6: [W210 L6 Variable 'n' is read before it is set]
 PROBE e28-foreach-lassign-regexp.tcl tcl9.0: [W210 L6 Variable 'n' is read before it is set]
 PROBE e29-namespace-eval-var-90.tcl tcl8.6: 

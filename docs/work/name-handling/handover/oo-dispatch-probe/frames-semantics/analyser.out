@@ -1,5 +1,5 @@
-PROBE fr01-uplevel-levels.tcl tcl8.6: [W210 L1 Variable 'x' is read before it is set]
-PROBE fr01-uplevel-levels.tcl tcl9.0: [W210 L1 Variable 'x' is read before it is set]
+PROBE fr01-uplevel-levels.tcl tcl8.6: 
+PROBE fr01-uplevel-levels.tcl tcl9.0: 
 PROBE fr02-upvar-levels.tcl tcl8.6: 
 PROBE fr02-upvar-levels.tcl tcl9.0: 
 PROBE fr03-info-level.tcl tcl8.6: [W214 L1 Parameter 'x' of proc '::a' is unused]
@@ -14,12 +14,12 @@ PROBE fr07-coroutine.tcl tcl8.6: [W302 L4 catch without a result variable silent
 PROBE fr07-coroutine.tcl tcl9.0: [W302 L4 catch without a result variable silently swallows errors. Consider cap]
 PROBE fr08-tcloo-frames.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
 PROBE fr08-tcloo-frames.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
-PROBE fr09-alias-frame.tcl tcl8.6: [W210 L3 Variable 'x' is read before it is set]
-PROBE fr09-alias-frame.tcl tcl9.0: [W210 L3 Variable 'x' is read before it is set]
+PROBE fr09-alias-frame.tcl tcl8.6: 
+PROBE fr09-alias-frame.tcl tcl9.0: 
 PROBE fr10-errorstack.tcl tcl8.6: 
 PROBE fr10-errorstack.tcl tcl9.0: 
-PROBE fr11-return-level.tcl tcl8.6: [W210 L4 Variable 'o' is read before it is set]
-PROBE fr11-return-level.tcl tcl9.0: [W210 L4 Variable 'o' is read before it is set]
+PROBE fr11-return-level.tcl tcl8.6: 
+PROBE fr11-return-level.tcl tcl9.0: 
 PROBE fr12-trace-frame.tcl tcl8.6: [W214 L1 Parameter 'n2' of proc '::tr' is unused] [W214 L1 Parameter 'op' of proc '::tr' is unused]
 PROBE fr12-trace-frame.tcl tcl9.0: [W214 L1 Parameter 'n2' of proc '::tr' is unused] [W214 L1 Parameter 'op' of proc '::tr' is unused]
 PROBE fr13-no-frame-cmds.tcl tcl8.6: [I230 L1 Condition '1' is always true; the alternate branch is unreachable] [W302 L1 catch without a result variable silently swallows errors. Consider cap]

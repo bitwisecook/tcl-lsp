@@ -15,8 +15,8 @@ i07-limits.tcl	tcl8.6	-	review
 i07-limits.tcl	tcl9.0	-	review
 i08-marktrusted-debug.tcl	tcl8.6	-	review
 i08-marktrusted-debug.tcl	tcl9.0	-	review
-i09-safe-package.tcl	tcl8.6	W120@2 W120@4 W120@10	review
-i09-safe-package.tcl	tcl9.0	W120@2 W120@4 W120@10	review
+i09-safe-package.tcl	tcl8.6	-	review
+i09-safe-package.tcl	tcl9.0	-	review
 i10-errors-bgerror.tcl	tcl8.6	-	review
 i10-errors-bgerror.tcl	tcl9.0	-	review
 i11-body-world.tcl	tcl8.6	-	review

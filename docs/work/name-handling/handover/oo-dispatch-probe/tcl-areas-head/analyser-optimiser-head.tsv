@@ -275,9 +275,9 @@ D	errors-returns	e14-dead-after-control.tcl	tcl8.6	I230@6:Condition '1' is alway
 O	errors-returns	e14-dead-after-control.tcl	tcl8.6	O107,O107,O107,O107,O112,O107
 D	errors-returns	e14-dead-after-control.tcl	tcl9.0	I230@6:Condition '1' is always true; the alternate branch is unreachable | W302@7:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@8:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result | W302@8:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	errors-returns	e14-dead-after-control.tcl	tcl9.0	O107,O107,O107,O107,O112,O107
-D	errors-returns	e15-catch-defines-vars.tcl	tcl8.6	W210@2:Variable 'v' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	errors-returns	e15-catch-defines-vars.tcl	tcl8.6	W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	errors-returns	e15-catch-defines-vars.tcl	tcl8.6	
-D	errors-returns	e15-catch-defines-vars.tcl	tcl9.0	W210@2:Variable 'v' is read before it is set | W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	errors-returns	e15-catch-defines-vars.tcl	tcl9.0	W302@2:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	errors-returns	e15-catch-defines-vars.tcl	tcl9.0	
 D	errors-returns	e16-errorinfo-accumulation.tcl	tcl8.6	
 O	errors-returns	e16-errorinfo-accumulation.tcl	tcl8.6	
@@ -315,9 +315,9 @@ D	errors-returns	e24-uncaught-error-trace.tcl	tcl8.6
 O	errors-returns	e24-uncaught-error-trace.tcl	tcl8.6	
 D	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
 O	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
-D	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the declared local frame | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	O101,hint:O102
-D	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the declared local frame | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
+D	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	W302@4:catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result
 O	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	O101,hint:O102
 D	errors-returns	e26-for-break-step.tcl	tcl8.6	
 O	errors-returns	e26-for-break-step.tcl	tcl8.6	O101,hint:O102,hint:O102
@@ -331,9 +331,9 @@ D	errors-returns	e28-optimiser-return-level0.tcl	tcl8.6
 O	errors-returns	e28-optimiser-return-level0.tcl	tcl8.6	
 D	errors-returns	e28-optimiser-return-level0.tcl	tcl9.0	
 O	errors-returns	e28-optimiser-return-level0.tcl	tcl9.0	
-D	errors-returns	e29-finally-reads-body-var.tcl	tcl8.6	W210@2:Variable 'a' is read before it is set
+D	errors-returns	e29-finally-reads-body-var.tcl	tcl8.6	
 O	errors-returns	e29-finally-reads-body-var.tcl	tcl8.6	
-D	errors-returns	e29-finally-reads-body-var.tcl	tcl9.0	W210@2:Variable 'a' is read before it is set
+D	errors-returns	e29-finally-reads-body-var.tcl	tcl9.0	
 O	errors-returns	e29-finally-reads-body-var.tcl	tcl9.0	
 D	errors-returns	e30-after-return-level0.tcl	tcl8.6	
 O	errors-returns	e30-after-return-level0.tcl	tcl8.6	O100
@@ -487,9 +487,9 @@ D	interps	i08-marktrusted-debug.tcl	tcl8.6
 O	interps	i08-marktrusted-debug.tcl	tcl8.6	
 D	interps	i08-marktrusted-debug.tcl	tcl9.0	
 O	interps	i08-marktrusted-debug.tcl	tcl9.0	
-D	interps	i09-safe-package.tcl	tcl8.6	W120@2:"safe::interpCreate" requires `package require safe` | W120@4:"safe::interpConfigure" requires `package require safe` | W120@10:"safe::interpDelete" requires `package require safe`
+D	interps	i09-safe-package.tcl	tcl8.6	
 O	interps	i09-safe-package.tcl	tcl8.6	
-D	interps	i09-safe-package.tcl	tcl9.0	W120@2:"safe::interpCreate" requires `package require safe` | W120@4:"safe::interpConfigure" requires `package require safe` | W120@10:"safe::interpDelete" requires `package require safe`
+D	interps	i09-safe-package.tcl	tcl9.0	
 O	interps	i09-safe-package.tcl	tcl9.0	
 D	interps	i10-errors-bgerror.tcl	tcl8.6	
 O	interps	i10-errors-bgerror.tcl	tcl8.6	
@@ -671,11 +671,11 @@ D	special-variables	sv19-auto-path-write.tcl	tcl8.6
 O	special-variables	sv19-auto-path-write.tcl	tcl8.6	
 D	special-variables	sv19-auto-path-write.tcl	tcl9.0	
 O	special-variables	sv19-auto-path-write.tcl	tcl9.0	
-D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar.
+D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar. | W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar. | W148@8:Numeral '08' is not accepted by the resolved Tcl numeral grammar.
 O	tcl9-changes	t01-octal-literals.tcl	tcl8.6	hint:O110,O129
 D	tcl9-changes	t01-octal-literals.tcl	tcl9.0	W230@4:Index '010' resolves to 10 (list has 10 elements); lindex silently returns empty string.
 O	tcl9-changes	t01-octal-literals.tcl	tcl9.0	hint:O110,O129
-D	tcl9-changes	t02-number-underscores.tcl	tcl8.6	W148@3:Numeral '1_000' is not accepted by the resolved Tcl numeral grammar. | W148@4:Numeral '1_0' is not accepted by the resolved Tcl numeral grammar.
+D	tcl9-changes	t02-number-underscores.tcl	tcl8.6	W148@2:Numeral '1_000' is not accepted by the resolved Tcl numeral grammar. | W148@3:Numeral '1_000' is not accepted by the resolved Tcl numeral grammar. | W148@4:Numeral '1_0' is not accepted by the resolved Tcl numeral grammar.
 O	tcl9-changes	t02-number-underscores.tcl	tcl8.6	
 D	tcl9-changes	t02-number-underscores.tcl	tcl9.0	
 O	tcl9-changes	t02-number-underscores.tcl	tcl9.0	
