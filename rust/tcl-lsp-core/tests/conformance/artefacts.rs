@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use crate::rows::{Fixture, Row};
+use crate::rows::{Dialect, Fixture, Row};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -90,8 +90,16 @@ const PROBE_VIEWS: &[(&str, &str, Kind)] = &[
     ("variables.out", "variables", Kind::At),
     ("variables-flow.out", "variables-flow", Kind::Bracket),
     ("variables-lookup.out", "variables-lookup", Kind::Var),
-    ("discriminating/analyser.out", "discriminating", Kind::Bracket),
-    ("frames-semantics/analyser.out", "frames-semantics", Kind::Bracket),
+    (
+        "discriminating/analyser.out",
+        "discriminating",
+        Kind::Bracket,
+    ),
+    (
+        "frames-semantics/analyser.out",
+        "frames-semantics",
+        Kind::Bracket,
+    ),
     ("namespaces/analyser.out", "namespaces", Kind::Bracket),
 ];
 
@@ -161,9 +169,7 @@ impl Artefact {
     }
 
     pub fn committed(&self, fixture: &Fixture) -> &[String] {
-        self.lines
-            .get(&fixture.name())
-            .map_or(&[], Vec::as_slice)
+        self.lines.get(&fixture.name()).map_or(&[], Vec::as_slice)
     }
 
     /// Lines for fixtures that do not exist, and a header that is not the
@@ -186,7 +192,10 @@ impl Artefact {
                 .map(|line| format!("{}: unattributed line {line:?}", self.name)),
         );
         if self.header != header_for(self.kind) {
-            errors.push(format!("{}: header differs from the generated one", self.name));
+            errors.push(format!(
+                "{}: header differs from the generated one",
+                self.name
+            ));
         }
         errors
     }
@@ -219,7 +228,9 @@ pub fn catalogue(root: &Path, fixtures: &[Fixture]) -> Vec<Artefact> {
     let areas: BTreeSet<String> = fixtures.iter().map(|f| f.area.clone()).collect();
     let mut artefacts: Vec<Artefact> = PROBE_VIEWS
         .iter()
-        .map(|&(name, area, kind)| Artefact::load(root, name, kind, BTreeSet::from([area.to_owned()])))
+        .map(|&(name, area, kind)| {
+            Artefact::load(root, name, kind, BTreeSet::from([area.to_owned()]))
+        })
         .collect();
     for area in &areas {
         // `expressions/engines.tsv` holds item 28's `exprs.txt` vector table.
@@ -272,158 +283,179 @@ fn list<T: std::fmt::Debug>(items: &[T]) -> String {
 
 fn render(kind: Kind, fixture: &Fixture, row: &Row, committed: &[String]) -> Vec<String> {
     let file = &fixture.file;
-    let area = &fixture.area;
-    let mut out = Vec::new();
-    match kind {
-        Kind::Engines => {
-            for (interpreter, outcome) in &row.engines {
-                out.push(format!(
+    if kind == Kind::Engines {
+        return row
+            .engines
+            .iter()
+            .map(|(interpreter, outcome)| {
+                format!(
                     "{file}\t{interpreter}\t{}\t{}",
                     outcome.exit, outcome.output
+                )
+            })
+            .collect();
+    }
+    let mut out = Vec::new();
+    for dialect in &row.dialects {
+        match kind {
+            Kind::Analysis => analysis_lines(file, dialect, &mut out),
+            Kind::Bracket | Kind::BracketQuoted | Kind::At => {
+                out.push(probe_line(kind, file, dialect));
+            }
+            Kind::Frame | Kind::Var => editor_lines(kind, file, dialect, &mut out),
+            Kind::Verdicts => out.push(verdict_line(file, dialect, committed)),
+            Kind::AreasHead => {
+                let (area, name) = (&fixture.area, dialect.name);
+                let diagnostics: Vec<String> = dialect
+                    .diagnostics
+                    .iter()
+                    .map(|d| format!("{}@{}:{}", d.code, d.line, d.message))
+                    .collect();
+                out.push(format!(
+                    "D\t{area}\t{file}\t{name}\t{}",
+                    diagnostics.join(" | ")
+                ));
+                out.push(format!(
+                    "O\t{area}\t{file}\t{name}\t{}",
+                    dialect.folds.join(",")
                 ));
             }
-        }
-        _ => {
-            for dialect in &row.dialects {
-                let name = dialect.name;
-                match kind {
-                    Kind::Analysis => {
-                        let codes: Vec<String> = dialect
-                            .diagnostics
-                            .iter()
-                            .map(|d| format!("{}@{}", d.code, d.line))
-                            .collect();
-                        out.push(format!("{file}\t{name}\tanalyser\t{}", codes.join(" ")));
-                        out.push(format!("{file}\t{name}\tfolder\t{}", dialect.folds.join(",")));
-                        if let Some(result) = &dialect.folded_execution {
-                            out.push(format!("{file}\t{name}\tfolded\t{result}"));
-                        }
-                        for answers in &dialect.editor {
-                            let definition: Vec<&String> =
-                                answers.definition.iter().map(|(_, position, _)| position).collect();
-                            out.push(format!(
-                                "{file}\t{name}\teditor\t{} | def={} | refs={} | rename={} | hover={}",
-                                answers.word,
-                                list(&definition),
-                                list(&answers.references),
-                                list(&answers.rename),
-                                answers.hover
-                            ));
-                        }
-                    }
-                    Kind::Bracket | Kind::BracketQuoted => {
-                        let mut codes: Vec<String> = dialect
-                            .diagnostics
-                            .iter()
-                            .map(|d| {
-                                let message: String = d.message.chars().take(70).collect();
-                                if kind == Kind::BracketQuoted {
-                                    let text: String = first_line(&d.text).chars().take(14).collect();
-                                    format!("[{} L{} {text:?} {message}]", d.code, d.line)
-                                } else {
-                                    format!("[{} L{} {message}]", d.code, d.line)
-                                }
-                            })
-                            .collect();
-                        codes.sort();
-                        out.push(format!("PROBE {file} {name}: {}", codes.join(" ")));
-                    }
-                    Kind::At => {
-                        let mut codes: Vec<String> = dialect
-                            .diagnostics
-                            .iter()
-                            .map(|d| {
-                                let text: String = first_line(&d.text).chars().take(12).collect();
-                                format!("{}@{text}", d.code)
-                            })
-                            .collect();
-                        codes.sort();
-                        out.push(format!("PROBE {file} {name}: {}", codes.join(" ")));
-                    }
-                    Kind::Frame | Kind::Var => {
-                        for answers in &dialect.editor {
-                            let definition: Vec<String> = answers
-                                .definition
-                                .iter()
-                                .map(|(line, position, text)| {
-                                    if kind == Kind::Frame {
-                                        format!("L{line}:{text}")
-                                    } else {
-                                        position.clone()
-                                    }
-                                })
-                                .collect();
-                            out.push(if kind == Kind::Frame {
-                                let codes: Vec<&String> = answers.diagnostics.iter().collect();
-                                format!(
-                                    "FRAME {file} {name} word={} | def={} | hover={} | diag={}",
-                                    answers.word,
-                                    list(&definition),
-                                    answers.hover,
-                                    list(&codes)
-                                )
-                            } else {
-                                let mut codes: Vec<String> = dialect
-                                    .diagnostics
-                                    .iter()
-                                    .map(|d| format!("{}@L{}", d.code, d.line))
-                                    .collect();
-                                codes.sort();
-                                format!(
-                                    "VAR {file} {name} at={:?} | def={} | refs={} | rename={} | hover={} | diag={}",
-                                    answers.at,
-                                    list(&definition),
-                                    list(&answers.references),
-                                    list(&answers.rename),
-                                    answers.hover,
-                                    list(&codes)
-                                )
-                            });
-                        }
-                    }
-                    Kind::Verdicts => {
-                        let codes = if dialect.diagnostics.is_empty() {
-                            "-".to_owned()
-                        } else {
-                            dialect
-                                .diagnostics
-                                .iter()
-                                .map(|d| format!("{}@{}", d.code, d.line))
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        };
-                        let verdict = committed
-                            .iter()
-                            .map(|line| line.split('\t').collect::<Vec<_>>())
-                            .find(|fields| {
-                                fields.get(1) == Some(&name)
-                                    && fields.get(2).map(|c| strip_details(c)) == Some(codes.clone())
-                            })
-                            .and_then(|fields| fields.get(3).map(|v| (*v).to_owned()))
-                            .filter(|verdict| !verdict.is_empty())
-                            .unwrap_or_else(|| "review".to_owned());
-                        out.push(format!("{file}\t{name}\t{codes}\t{verdict}"));
-                    }
-                    Kind::AreasHead => {
-                        let diagnostics: Vec<String> = dialect
-                            .diagnostics
-                            .iter()
-                            .map(|d| format!("{}@{}:{}", d.code, d.line, d.message))
-                            .collect();
-                        out.push(format!("D\t{area}\t{file}\t{name}\t{}", diagnostics.join(" | ")));
-                        out.push(format!("O\t{area}\t{file}\t{name}\t{}", dialect.folds.join(",")));
-                    }
-                    Kind::RewritesExecuted => {
-                        if let Some(result) = &dialect.folded_execution {
-                            out.push(format!("{result}\t{area}\t{file}\t{name}"));
-                        }
-                    }
-                    Kind::Engines => unreachable!(),
+            Kind::RewritesExecuted => {
+                if let Some(result) = &dialect.folded_execution {
+                    out.push(format!(
+                        "{result}\t{}\t{file}\t{}",
+                        fixture.area, dialect.name
+                    ));
                 }
             }
+            Kind::Engines => unreachable!("engine lines are rendered above"),
         }
     }
     out
+}
+
+fn analysis_lines(file: &str, dialect: &Dialect, out: &mut Vec<String>) {
+    let name = dialect.name;
+    let codes: Vec<String> = dialect
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}@{}", d.code, d.line))
+        .collect();
+    out.push(format!("{file}\t{name}\tanalyser\t{}", codes.join(" ")));
+    out.push(format!(
+        "{file}\t{name}\tfolder\t{}",
+        dialect.folds.join(",")
+    ));
+    if let Some(result) = &dialect.folded_execution {
+        out.push(format!("{file}\t{name}\tfolded\t{result}"));
+    }
+    for answers in &dialect.editor {
+        let definition: Vec<&String> = answers
+            .definition
+            .iter()
+            .map(|(_, position, _)| position)
+            .collect();
+        out.push(format!(
+            "{file}\t{name}\teditor\t{} | def={} | refs={} | rename={} | hover={}",
+            answers.word,
+            list(&definition),
+            list(&answers.references),
+            list(&answers.rename),
+            answers.hover
+        ));
+    }
+}
+
+fn probe_line(kind: Kind, file: &str, dialect: &Dialect) -> String {
+    let mut codes: Vec<String> = dialect
+        .diagnostics
+        .iter()
+        .map(|d| match kind {
+            Kind::At => {
+                let text: String = first_line(&d.text).chars().take(12).collect();
+                format!("{}@{text}", d.code)
+            }
+            Kind::BracketQuoted => {
+                let text: String = first_line(&d.text).chars().take(14).collect();
+                let message: String = d.message.chars().take(70).collect();
+                format!("[{} L{} {text:?} {message}]", d.code, d.line)
+            }
+            _ => {
+                let message: String = d.message.chars().take(70).collect();
+                format!("[{} L{} {message}]", d.code, d.line)
+            }
+        })
+        .collect();
+    codes.sort();
+    format!("PROBE {file} {}: {}", dialect.name, codes.join(" "))
+}
+
+fn editor_lines(kind: Kind, file: &str, dialect: &Dialect, out: &mut Vec<String>) {
+    let name = dialect.name;
+    for answers in &dialect.editor {
+        let definition: Vec<String> = answers
+            .definition
+            .iter()
+            .map(|(line, position, text)| {
+                if kind == Kind::Frame {
+                    format!("L{line}:{text}")
+                } else {
+                    position.clone()
+                }
+            })
+            .collect();
+        out.push(if kind == Kind::Frame {
+            format!(
+                "FRAME {file} {name} word={} | def={} | hover={} | diag={}",
+                answers.word,
+                list(&definition),
+                answers.hover,
+                list(&answers.diagnostics)
+            )
+        } else {
+            let mut codes: Vec<String> = dialect
+                .diagnostics
+                .iter()
+                .map(|d| format!("{}@L{}", d.code, d.line))
+                .collect();
+            codes.sort();
+            format!(
+                "VAR {file} {name} at={:?} | def={} | refs={} | rename={} | hover={} | diag={}",
+                answers.at,
+                list(&definition),
+                list(&answers.references),
+                list(&answers.rename),
+                answers.hover,
+                list(&codes)
+            )
+        });
+    }
+}
+
+/// A reviewed verdict holds while the codes it reviewed are unchanged.
+fn verdict_line(file: &str, dialect: &Dialect, committed: &[String]) -> String {
+    let name = dialect.name;
+    let codes = if dialect.diagnostics.is_empty() {
+        "-".to_owned()
+    } else {
+        dialect
+            .diagnostics
+            .iter()
+            .map(|d| format!("{}@{}", d.code, d.line))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let verdict = committed
+        .iter()
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .find(|fields| {
+            fields.get(1) == Some(&name)
+                && fields.get(2).map(|c| strip_details(c)).as_ref() == Some(&codes)
+        })
+        .and_then(|fields| fields.get(3).map(|v| (*v).to_owned()))
+        .filter(|verdict| !verdict.is_empty())
+        .unwrap_or_else(|| "review".to_owned());
+    format!("{file}\t{name}\t{codes}\t{verdict}")
 }
 
 fn first_line(text: &str) -> &str {

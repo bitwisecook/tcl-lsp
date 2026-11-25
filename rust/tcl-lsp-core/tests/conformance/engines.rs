@@ -43,10 +43,15 @@ pub struct Interpreters {
 }
 
 fn required_path(variable: &str) -> PathBuf {
-    let path = std::env::var_os(variable)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| panic!("{variable} is required; run `cargo xtask conformance`"));
-    assert!(path.is_file(), "{variable}={} is not a file", path.display());
+    let path = std::env::var_os(variable).map_or_else(
+        || panic!("{variable} is required; run `cargo xtask conformance`"),
+        PathBuf::from,
+    );
+    assert!(
+        path.is_file(),
+        "{variable}={} is not a file",
+        path.display()
+    );
     path
 }
 
@@ -169,7 +174,10 @@ impl Interpreter {
 
 static VOLATILE: LazyLock<[(Regex, &str); 5]> = LazyLock::new(|| {
     [
-        (Regex::new(r"thread '([^']*)' \(\d+\)").unwrap(), "thread '$1' (#)"),
+        (
+            Regex::new(r"thread '([^']*)' \(\d+\)").unwrap(),
+            "thread '$1' (#)",
+        ),
         (Regex::new(r"::oo::Obj\d+").unwrap(), "::oo::Obj#"),
         (Regex::new(r"0x[0-9a-fA-F]{6,}").unwrap(), "0x#"),
         (

@@ -86,8 +86,8 @@ fn dialects_for(area: &str) -> &'static [&'static str] {
 }
 
 pub fn compute(fixture: &Fixture, interpreters: &Interpreters, root: &Path) -> Row {
-    let bytes = std::fs::read(&fixture.path)
-        .unwrap_or_else(|error| panic!("{}: {error}", fixture.name()));
+    let bytes =
+        std::fs::read(&fixture.path).unwrap_or_else(|error| panic!("{}: {error}", fixture.name()));
     // Encoding fixtures carry bytes that are not UTF-8; the analysis columns
     // see the editor's lossy view and the folder is not executed on them.
     let exact = std::str::from_utf8(&bytes).is_ok();
@@ -111,10 +111,8 @@ pub fn compute(fixture: &Fixture, interpreters: &Interpreters, root: &Path) -> R
 
 fn line_of(source: &str, offset: usize) -> usize {
     source.as_bytes()[..offset.min(source.len())]
-        .iter()
-        .filter(|&&byte| byte == b'\n')
+        .split(|&byte| byte == b'\n')
         .count()
-        + 1
 }
 
 fn dialect_columns(
@@ -170,7 +168,10 @@ fn dialect_columns(
             || !source.is_char_boundary(range.start)
             || !source.is_char_boundary(range.end)
     });
-    let mut ranges: Vec<_> = optimisations.iter().map(|rewrite| rewrite.span.as_range()).collect();
+    let mut ranges: Vec<_> = optimisations
+        .iter()
+        .map(|rewrite| rewrite.span.as_range())
+        .collect();
     ranges.sort_by_key(|range| (range.start, range.end));
     let overlap = ranges.windows(2).find(|pair| pair[1].start < pair[0].end);
     let folded_execution = match (folds.is_empty() || !exact, release, invalid, overlap) {
@@ -227,7 +228,10 @@ fn run_copy(fixture: &Fixture, text: &[u8], run: impl FnOnce(&Path) -> Outcome) 
         COPIES.fetch_add(1, Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&directory).expect("scratch directory");
-    copy_tree(fixture.path.parent().expect("fixture directory"), &directory);
+    copy_tree(
+        fixture.path.parent().expect("fixture directory"),
+        &directory,
+    );
     let file = directory.join(&fixture.file);
     std::fs::write(&file, text).expect("scratch fixture");
     let outcome = run(&file);
@@ -316,20 +320,21 @@ fn editor_answers(
             let offset = u32::try_from(mark.cursor).expect("fixture offset fits u32");
             let pos = index.position_at_utf16(offset, source);
             let (line, character) = (pos.line, pos.character.get());
-            let definition = tcl_lsp_core::definition::definition(source, line, character, analysis)
-                .iter()
-                .map(|range| {
-                    let text = source
-                        .lines()
-                        .nth(range.start_line as usize)
-                        .unwrap_or_default();
-                    (
-                        range.start_line + 1,
-                        position(range),
-                        text.trim().chars().take(40).collect::<String>(),
-                    )
-                })
-                .collect();
+            let definition =
+                tcl_lsp_core::definition::definition(source, line, character, analysis)
+                    .iter()
+                    .map(|range| {
+                        let text = source
+                            .lines()
+                            .nth(range.start_line as usize)
+                            .unwrap_or_default();
+                        (
+                            range.start_line + 1,
+                            position(range),
+                            text.trim().chars().take(40).collect::<String>(),
+                        )
+                    })
+                    .collect();
             let references = tcl_lsp_core::references::references(
                 source, profile, line, character, analysis, true,
             )
@@ -349,15 +354,16 @@ fn editor_answers(
             .map(|edit| position(&edit.range))
             .collect();
             rename.sort();
-            let hover = tcl_lsp_core::hover::hover(source, line, character, analysis, Some(registry))
-                .and_then(|hover| {
-                    hover
-                        .value
-                        .lines()
-                        .find(|text| !text.is_empty() && !text.starts_with("```"))
-                        .map(str::to_owned)
-                })
-                .unwrap_or_else(|| "-".to_owned());
+            let hover =
+                tcl_lsp_core::hover::hover(source, line, character, analysis, Some(registry))
+                    .and_then(|hover| {
+                        hover
+                            .value
+                            .lines()
+                            .find(|text| !text.is_empty() && !text.starts_with("```"))
+                            .map(str::to_owned)
+                    })
+                    .unwrap_or_else(|| "-".to_owned());
             let diagnostics = analysis
                 .diagnostics
                 .iter()
@@ -402,8 +408,7 @@ pub fn fixtures(root: &Path) -> Vec<Fixture> {
             } else if path.extension().is_some_and(|ext| ext == "tcl") {
                 let area = relative
                     .parent()
-                    .map(|parent| parent.to_string_lossy().replace('\\', "/"))
-                    .unwrap_or_default();
+                    .map_or_default(|parent| parent.to_string_lossy().replace('\\', "/"));
                 let file = path
                     .file_name()
                     .and_then(|name| name.to_str())

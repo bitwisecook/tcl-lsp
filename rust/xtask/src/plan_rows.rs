@@ -89,7 +89,9 @@ pub fn migration_items(plan: &str) -> BTreeSet<u32> {
         for range in NUMBERS.captures_iter(&captures[2]) {
             let Some(first) = range.get(1) else { continue };
             let first: u32 = first.as_str().parse().expect("number");
-            let last: u32 = range.get(2).map_or(first, |m| m.as_str().parse().expect("number"));
+            let last: u32 = range
+                .get(2)
+                .map_or(first, |m| m.as_str().parse().expect("number"));
             numbers.extend(first..=last);
         }
     }
@@ -121,15 +123,17 @@ impl Rows {
             .collect();
         let mut areas: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for file in &files {
-            let Some(relative) = file.strip_prefix(PROBES).and_then(|r| r.strip_prefix('/'))
-            else {
+            let Some(relative) = file.strip_prefix(PROBES).and_then(|r| r.strip_prefix('/')) else {
                 continue;
             };
             let Some((area, name)) = relative.rsplit_once('/') else {
                 continue;
             };
             if let Some(stem) = name.strip_suffix(".tcl") {
-                areas.entry(area.to_owned()).or_default().push(stem.to_owned());
+                areas
+                    .entry(area.to_owned())
+                    .or_default()
+                    .push(stem.to_owned());
             }
         }
         Ok(Self { areas, files })
@@ -178,9 +182,10 @@ pub fn check(text: &str, rows: &Rows) -> Verdict {
         let token = captures[1].trim();
         let token = token.strip_prefix("oo-dispatch-probe/").unwrap_or(token);
         let (head, rest) = token.split_once('/').unwrap_or((token, ""));
-        let probe_area = rows.areas.keys().find(|name| {
-            *name == head || name.split('/').next() == Some(head)
-        });
+        let probe_area = rows
+            .areas
+            .keys()
+            .find(|name| *name == head || name.split('/').next() == Some(head));
         if token == "*/" || token == "*" {
             verdict.rows.push(format!("oo-dispatch-probe/{token}"));
             continue;
@@ -197,7 +202,10 @@ pub fn check(text: &str, rows: &Rows) -> Verdict {
             area = Some(area_name.clone());
             let directory = token.trim_end_matches('/');
             if rows.fixture(&area_name, id)
-                || rows.areas.keys().any(|name| name.starts_with(&format!("{directory}/")))
+                || rows
+                    .areas
+                    .keys()
+                    .any(|name| name.starts_with(&format!("{directory}/")))
                 || rows.file(&format!("{PROBES}/{token}"))
             {
                 verdict.rows.push(token.to_owned());
@@ -254,7 +262,11 @@ pub fn run(requested: &[u32], all: bool) -> anyhow::Result<ExitCode> {
     for item in &selected {
         let verdict = check(&item.text, &rows);
         if verdict.passes() {
-            println!("ok    {:>3}  {} row reference(s)", item.number, verdict.rows.len());
+            println!(
+                "ok    {:>3}  {} row reference(s)",
+                item.number,
+                verdict.rows.len()
+            );
         } else {
             failed += 1;
             let reason = if verdict.rows.is_empty() && verdict.missing.is_empty() {
@@ -286,7 +298,10 @@ mod tests {
     fn rows() -> Rows {
         Rows::new(
             BTreeMap::from([
-                ("dynamic".to_owned(), vec!["e02-eval-literal".to_owned(), "e04-upvar".to_owned()]),
+                (
+                    "dynamic".to_owned(),
+                    vec!["e02-eval-literal".to_owned(), "e04-upvar".to_owned()],
+                ),
                 ("namespaces/nav".to_owned(), vec!["k01-import".to_owned()]),
             ]),
             vec!["rust/tcl-syntax/tests/data/namespace_op_vectors.txt".to_owned()],
@@ -311,8 +326,14 @@ mod tests {
     #[test]
     fn a_directory_of_fixture_areas_is_a_row() {
         let mut rows = rows();
-        rows.areas.insert("rename-alias/editor-rename/before".to_owned(), vec!["e01-calls".to_owned()]);
-        rows.areas.insert("rename-alias".to_owned(), vec!["r01-rename-basic".to_owned()]);
+        rows.areas.insert(
+            "rename-alias/editor-rename/before".to_owned(),
+            vec!["e01-calls".to_owned()],
+        );
+        rows.areas.insert(
+            "rename-alias".to_owned(),
+            vec!["r01-rename-basic".to_owned()],
+        );
         assert!(check("every `rename-alias/editor-rename/` fixture", &rows).passes());
     }
 
@@ -324,14 +345,20 @@ mod tests {
         );
         assert_eq!(
             verdict.rows,
-            ["tcl-syntax/tests/data/namespace_op_vectors.txt", "namespaces/nav/"]
+            [
+                "tcl-syntax/tests/data/namespace_op_vectors.txt",
+                "namespaces/nav/"
+            ]
         );
         assert!(verdict.passes());
     }
 
     #[test]
     fn an_item_without_rows_fails() {
-        let verdict = check("Move the parser into `tcl-syntax`; `cargo xtask check` passes.", &rows());
+        let verdict = check(
+            "Move the parser into `tcl-syntax`; `cargo xtask check` passes.",
+            &rows(),
+        );
         assert!(verdict.rows.is_empty());
         assert!(!verdict.passes());
     }
@@ -339,7 +366,10 @@ mod tests {
     #[test]
     fn a_missing_vector_file_fails() {
         let verdict = check("`tcl-syntax/tests/data/missing_vectors.tsv`", &rows());
-        assert_eq!(verdict.missing, ["tcl-syntax/tests/data/missing_vectors.tsv"]);
+        assert_eq!(
+            verdict.missing,
+            ["tcl-syntax/tests/data/missing_vectors.tsv"]
+        );
     }
 
     #[test]

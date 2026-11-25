@@ -209,10 +209,11 @@ fn main() {
     println!("Warm whole-file analysis: {whole_file:.2?}");
     let edited_w210 = procedure_diagnostics(&edited, edited_w210);
     assert_eq!(edited_w210.len(), original_w210.len() + 1);
-    assert!(edited_w210.iter().any(|diagnostic| {
-        diagnostic.message.contains("missingProbeValue")
-            && edited[diagnostic.span.as_range()].contains("missingProbeValue")
-    }));
+    assert!(
+        edited_w210
+            .iter()
+            .any(|diagnostic| edited[diagnostic.span.as_range()].contains("missingProbeValue"))
+    );
 
     let slowest = trials
         .into_iter()

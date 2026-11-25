@@ -27,6 +27,7 @@ mod engines;
 mod rows;
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
@@ -34,6 +35,9 @@ use std::sync::{Arc, Mutex};
 use libtest_mimic::{Arguments, Failed, Trial};
 
 const UPDATE: &str = "TCL_LSP_CONFORMANCE_UPDATE";
+
+/// Lines each row rendered, by artefact index and fixture name.
+type Rendered = BTreeMap<usize, BTreeMap<String, Vec<String>>>;
 
 fn probe_root() -> PathBuf {
     PathBuf::from(concat!(
@@ -47,12 +51,15 @@ fn probe_root() -> PathBuf {
 fn main() -> ExitCode {
     let arguments = Arguments::from_args();
     let root = probe_root();
-    let repository = root.join("../../../../..").canonicalize().expect("repository root");
+    let repository = root
+        .join("../../../../..")
+        .canonicalize()
+        .expect("repository root");
     let update = std::env::var_os(UPDATE).is_some();
     let fixtures = rows::fixtures(&root);
     let artefacts = Arc::new(artefacts::catalogue(&root, &fixtures));
     let interpreters = Arc::new(std::sync::OnceLock::<engines::Interpreters>::new());
-    let rendered: Arc<Mutex<BTreeMap<usize, BTreeMap<String, Vec<String>>>>> = Arc::default();
+    let rendered: Arc<Mutex<Rendered>> = Arc::default();
 
     let mut trials: Vec<Trial> = fixtures
         .iter()
@@ -63,7 +70,8 @@ fn main() -> ExitCode {
             let rendered = Arc::clone(&rendered);
             let repository = repository.clone();
             Trial::test(format!("row::{}", fixture.name()), move || {
-                let interpreters = interpreters.get_or_init(engines::Interpreters::from_environment);
+                let interpreters =
+                    interpreters.get_or_init(engines::Interpreters::from_environment);
                 let row = rows::compute(&fixture, interpreters, &repository);
                 let mut differences = String::new();
                 for (index, artefact) in artefacts.iter().enumerate() {
@@ -72,12 +80,13 @@ fn main() -> ExitCode {
                     }
                     let lines = artefact.render(&fixture, &row);
                     if lines != artefact.committed(&fixture) {
-                        differences.push_str(&format!(
+                        let _ = write!(
+                            differences,
                             "{}:\n  committed: {:#?}\n  produced:  {:#?}\n",
                             artefact.name,
                             artefact.committed(&fixture),
                             lines
-                        ));
+                        );
                     }
                     rendered
                         .lock()
