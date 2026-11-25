@@ -1330,3 +1330,25 @@ fn a_command_the_release_lacks_is_reported_once() {
     let unknown = Analyser::new().analyse("chann names\n", "tcl8.6");
     assert!(unknown.diagnostics.iter().any(|d| d.code == DiagCode::W123));
 }
+
+#[test]
+fn w120_fires_for_a_thread_command_without_require() {
+    // Item 184, `threads-subsystems/t09`: tclsh has no `thread::` commands
+    // until `package require Thread`.
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let codes = |source: &str| -> Vec<DiagCode> {
+            Analyser::new()
+                .analyse(source, dialect)
+                .diagnostics
+                .iter()
+                .map(|d| d.code)
+                .collect()
+        };
+        assert_eq!(codes("thread::id\n"), [DiagCode::W120], "{dialect}");
+        assert_eq!(codes("tsv::names\n"), [DiagCode::W120], "{dialect}");
+        assert!(
+            !codes("package require Thread\nthread::id\n").contains(&DiagCode::W120),
+            "{dialect}"
+        );
+    }
+}

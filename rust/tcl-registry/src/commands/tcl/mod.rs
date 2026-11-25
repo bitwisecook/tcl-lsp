@@ -521,6 +521,14 @@ mod tests {
         ("base32::core::valid", UNMEASURED),
         ("fileutil::test", UNMEASURED),
         ("tcltest::normalizePath", UNMEASURED),
+        (
+            "thread::send",
+            "the result variable is written when the script completes, later under -async",
+        ),
+        (
+            "tsv::get",
+            "the variable is written only when the element exists",
+        ),
         ("button", TK_LINK),
         ("checkbutton", TK_LINK),
         ("entry", TK_LINK),

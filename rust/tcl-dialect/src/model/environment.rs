@@ -1153,6 +1153,16 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
                 hosted_pin("http", http),
                 hosted_pin("msgcat", msgcat),
                 hosted_pin("tcltest", tcltest),
+                // Thread is hosted: tclsh has no `thread::` commands until
+                // `package require Thread` (item 184, `threads-subsystems/t09`).
+                PackagePlacement {
+                    package: arc("Thread"),
+                    version: Placement::Requirement(reqs(
+                        VersionAxisId::package("Thread"),
+                        &["2.6-"],
+                    )),
+                    ambient: false,
+                },
             ],
             policy_defaults: open_policy(Some(release)),
             server_detection: DetectionFacts {
@@ -1198,11 +1208,18 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
         // No release is implied — an unversioned document names no Tcl
         // release either — so Tk sits on a requirement over its own axis,
         // which is also why this row grants no floor.
-        expected_packages: vec![PackagePlacement {
-            package: arc("Tk"),
-            version: Placement::Requirement(reqs(VersionAxisId::package("Tk"), &["8.4-"])),
-            ambient: false,
-        }],
+        expected_packages: vec![
+            PackagePlacement {
+                package: arc("Tk"),
+                version: Placement::Requirement(reqs(VersionAxisId::package("Tk"), &["8.4-"])),
+                ambient: false,
+            },
+            PackagePlacement {
+                package: arc("Thread"),
+                version: Placement::Requirement(reqs(VersionAxisId::package("Thread"), &["2.6-"])),
+                ambient: false,
+            },
+        ],
         policy_defaults: open_policy(None),
         server_detection: DetectionFacts {
             // The generic Tcl source extensions the editors register for

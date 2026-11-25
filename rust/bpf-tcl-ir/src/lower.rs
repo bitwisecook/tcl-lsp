@@ -826,7 +826,8 @@ impl Lowerer<'_> {
     ) -> Result<Option<Term>, BpfError> {
         let Some(op) = command_spec.and_then(|spec| spec.bpf_op) else {
             if literal_head
-                && (self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd))
+                && (self.is_coroutine_primitive(cmd, args)
+                    || tcl_registry::commands::thread::is_thread_command(cmd))
             {
                 return Err(concurrency_error(cmd, span));
             }
@@ -1207,17 +1208,6 @@ fn concurrency_error(cmd: &str, span: Span) -> BpfError {
              single bounded run to a verdict)"
         ),
     )
-}
-
-/// Whether `cmd` names the optional Thread package, which has no registry pack
-/// yet. Core Tcl coroutine membership is deliberately registry-owned above;
-/// this narrow prefix test is only a diagnostic hint for otherwise unknown
-/// extension commands and must not drive lowering semantics.
-fn is_unregistered_thread_command(cmd: &str) -> bool {
-    tcl_syntax::naming::written_command_parts(cmd.as_bytes())
-        .qualifiers
-        .first()
-        .is_some_and(|namespace| matches!(*namespace, b"thread" | b"tsv" | b"tpool"))
 }
 
 fn map_bin(op: BinOp) -> Option<IntBinOp> {

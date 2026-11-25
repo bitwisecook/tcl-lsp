@@ -81,6 +81,7 @@ fn rejects_concurrency_primitives() {
         "thread::create {}",
         "::thread::create {}",
         "thread::send $id {}",
+        "thread::id",
         "tsv::set arr k 1",
         "::tsv::set arr k 1",
         "tpool::create",

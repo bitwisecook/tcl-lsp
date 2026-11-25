@@ -1410,6 +1410,15 @@ pub static TRACE: MayWriteSemantics = MayWriteSemantics {
     kind: Some(BindingKind::Either),
 };
 
+/// `thread::send … ?varName?` and `tsv::get array element ?varName?`: the
+/// other thread's result or the shared store's element, which the source
+/// does not decide; `tsv::get` writes only when the element exists.
+pub static THREAD_RESULT: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Declared,
+    kind: Some(BindingKind::Scalar),
+};
+
 /// A command that writes nothing and has no route, for the reason the
 /// inventory records: `evaluate` declines with it and every transfer is
 /// generic, so the declaration classifies the command and leaves the

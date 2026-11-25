@@ -35,7 +35,7 @@ use crate::{
 };
 use tcl_dialect::model::SpecSurface;
 
-const SURFACE: &[SpecSurface] = &[SpecSurface::package("Thread")];
+const SURFACE: &[SpecSurface] = SpecSurface::ALL_TCL;
 const NEW_THREAD_CONTEXT: EvaluationContext = EvaluationContext {
     interpreter: BodyInterpreter::Unknown,
     frame: EvaluationFrame::Global,
@@ -189,6 +189,10 @@ fn create_roles(
     arguments: InvocationArguments<'_>,
     _: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
+    create_body_roles(arguments)
+}
+
+fn create_body_roles(arguments: InvocationArguments<'_>) -> Option<Vec<(u8, ArgRole)>> {
     let count = arguments.exact_argv_len()?;
     let mut script = 0;
     while script < count {
@@ -210,6 +214,24 @@ fn create_roles(
         1 => Some(vec![(u8::try_from(script).ok()?, ArgRole::Body)]),
         _ => None,
     }
+}
+
+/// The script a thread or pool worker runs later, in its own interpreter.
+fn deferred_scripts(roles: Option<Vec<(u8, ArgRole)>>) -> Vec<(u8, ScriptTiming)> {
+    roles
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, role)| *role == ArgRole::Body)
+        .map(|(index, _)| (index, ScriptTiming::Deferred))
+        .collect()
+}
+
+fn create_timing(arguments: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    deferred_scripts(create_body_roles(arguments))
+}
+
+fn pool_post_timing(arguments: InvocationArguments<'_>) -> Vec<(u8, ScriptTiming)> {
+    deferred_scripts(pool_post_body_roles(arguments))
 }
 
 fn send_spec() -> CommandSpec {
@@ -235,6 +257,9 @@ fn send_spec() -> CommandSpec {
             &["thread::send ?-async? ?-head? id script ?varname?"],
             "Thread 3.0.4 threadCmd.c",
         )),
+        semantics: crate::value_transfer::SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::THREAD_RESULT,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -247,6 +272,7 @@ fn create_spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::None,
         arity: Arity::at_least(0),
         arg_role_layout_resolver: Some(create_roles),
+        script_timing_resolver: Some(create_timing),
         arg_role_resolver_roles: &[ArgRole::Body],
         body_interpreter: BodyInterpreter::Unknown,
         body_kind: BodyKind::Structural,
@@ -314,6 +340,13 @@ fn shared_spec(
             &[],
             "Thread 3.0.4 threadSvCmd.c",
         )),
+        semantics: if output_variable {
+            crate::value_transfer::SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::THREAD_RESULT,
+            )
+        } else {
+            crate::value_transfer::SemanticsDeclaration::Inherited
+        },
         ..CommandSpec::DEFAULT
     }
 }
@@ -363,6 +396,11 @@ fn pool_create_spec() -> CommandSpec {
             }],
             ..EvaluationContextSpec::EMPTY
         }),
+        hover: Some(HoverSnippet::brief(
+            "Create a pool of worker threads.",
+            &["tpool::create ?options?"],
+            "Thread 3.0 tpool(n)",
+        )),
         ..CommandSpec::DEFAULT
     }
 }
@@ -371,6 +409,10 @@ fn pool_post_roles(
     arguments: InvocationArguments<'_>,
     _: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
+    pool_post_body_roles(arguments)
+}
+
+fn pool_post_body_roles(arguments: InvocationArguments<'_>) -> Option<Vec<(u8, ArgRole)>> {
     let count = arguments.exact_argv_len()?;
     let mut pool = 0;
     while pool < count {
@@ -395,6 +437,7 @@ fn pool_post_spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::None,
         arity: Arity::new(2, 4),
         arg_role_layout_resolver: Some(pool_post_roles),
+        script_timing_resolver: Some(pool_post_timing),
         arg_role_resolver_roles: &[ArgRole::Body],
         body_interpreter: BodyInterpreter::Unknown,
         body_kind: BodyKind::Structural,
@@ -405,9 +448,331 @@ fn pool_post_spec() -> CommandSpec {
             }],
             ..EvaluationContextSpec::EMPTY
         }),
+        hover: Some(HoverSnippet::brief(
+            "Post a job script to a thread pool.",
+            &["tpool::post ?-detached? ?-nowait? tpool script"],
+            "Thread 3.0 tpool(n)",
+        )),
         ..CommandSpec::DEFAULT
     }
 }
+
+/// A Thread command known by name, arity and manual-page summary only; its
+/// effects stay the conservative default.
+struct PlainCommand {
+    name: &'static str,
+    arity: Arity,
+    synopsis: &'static [&'static str],
+    detail: &'static str,
+}
+
+fn plain_spec(command: &PlainCommand) -> CommandSpec {
+    CommandSpec {
+        name: command.name,
+        surface: Some(SURFACE),
+        required_package: Some("Thread"),
+        runtime_backing: RuntimeBacking::None,
+        arity: command.arity,
+        hover: Some(HoverSnippet::brief(
+            command.detail,
+            command.synopsis,
+            "Thread 3.0 thread(n), tsv(n), tpool(n)",
+        )),
+        ..CommandSpec::DEFAULT
+    }
+}
+
+/// The rest of the Thread roster (`thread`, `tsv` and `tpool` manual pages).
+const PLAIN_COMMANDS: &[PlainCommand] = &[
+    PlainCommand {
+        name: "thread::id",
+        arity: Arity::exact(0),
+        synopsis: &["thread::id"],
+        detail: "Return the current thread's id.",
+    },
+    PlainCommand {
+        name: "thread::names",
+        arity: Arity::exact(0),
+        synopsis: &["thread::names"],
+        detail: "List the ids of every existing thread.",
+    },
+    PlainCommand {
+        name: "thread::exists",
+        arity: Arity::exact(1),
+        synopsis: &["thread::exists id"],
+        detail: "Whether a thread with this id exists.",
+    },
+    PlainCommand {
+        name: "thread::wait",
+        arity: Arity::exact(0),
+        synopsis: &["thread::wait"],
+        detail: "Enter the event loop until the thread is released.",
+    },
+    PlainCommand {
+        name: "thread::release",
+        arity: Arity::new(0, 2),
+        synopsis: &["thread::release ?-wait? ?id?"],
+        detail: "Decrement a thread's reference count.",
+    },
+    PlainCommand {
+        name: "thread::preserve",
+        arity: Arity::new(0, 1),
+        synopsis: &["thread::preserve ?id?"],
+        detail: "Increment a thread's reference count.",
+    },
+    PlainCommand {
+        name: "thread::join",
+        arity: Arity::exact(1),
+        synopsis: &["thread::join id"],
+        detail: "Wait for a joinable thread to exit.",
+    },
+    PlainCommand {
+        name: "thread::transfer",
+        arity: Arity::exact(2),
+        synopsis: &["thread::transfer id channel"],
+        detail: "Move a channel to another thread.",
+    },
+    PlainCommand {
+        name: "thread::detach",
+        arity: Arity::exact(1),
+        synopsis: &["thread::detach channel"],
+        detail: "Detach a channel from the current thread.",
+    },
+    PlainCommand {
+        name: "thread::attach",
+        arity: Arity::exact(1),
+        synopsis: &["thread::attach channel"],
+        detail: "Attach a previously detached channel.",
+    },
+    PlainCommand {
+        name: "thread::broadcast",
+        arity: Arity::exact(1),
+        synopsis: &["thread::broadcast script"],
+        detail: "Send a script to every thread asynchronously.",
+    },
+    PlainCommand {
+        name: "thread::eval",
+        arity: Arity::at_least(1),
+        synopsis: &["thread::eval ?-lock mutex? arg ?arg ...?"],
+        detail: "Evaluate a script under a mutex.",
+    },
+    PlainCommand {
+        name: "thread::errorproc",
+        arity: Arity::new(0, 1),
+        synopsis: &["thread::errorproc ?procname?"],
+        detail: "Set or query the asynchronous error handler.",
+    },
+    PlainCommand {
+        name: "thread::cancel",
+        arity: Arity::new(1, 3),
+        synopsis: &["thread::cancel ?-unwind? id ?result?"],
+        detail: "Cancel the script running in a thread.",
+    },
+    PlainCommand {
+        name: "thread::unwind",
+        arity: Arity::exact(0),
+        synopsis: &["thread::unwind"],
+        detail: "Exit the event loop entered by thread::wait.",
+    },
+    PlainCommand {
+        name: "thread::exit",
+        arity: Arity::new(0, 1),
+        synopsis: &["thread::exit ?status?"],
+        detail: "Terminate the current thread.",
+    },
+    PlainCommand {
+        name: "thread::configure",
+        arity: Arity::at_least(1),
+        synopsis: &["thread::configure id ?option? ?value? ..."],
+        detail: "Query or set a thread's options.",
+    },
+    PlainCommand {
+        name: "thread::mutex",
+        arity: Arity::at_least(1),
+        synopsis: &["thread::mutex option ?arg ...?"],
+        detail: "Create, lock, unlock or destroy a mutex.",
+    },
+    PlainCommand {
+        name: "thread::rwmutex",
+        arity: Arity::at_least(1),
+        synopsis: &["thread::rwmutex option ?arg ...?"],
+        detail: "Create and use a reader/writer mutex.",
+    },
+    PlainCommand {
+        name: "thread::cond",
+        arity: Arity::at_least(1),
+        synopsis: &["thread::cond option ?arg ...?"],
+        detail: "Create and use a condition variable.",
+    },
+    PlainCommand {
+        name: "tsv::names",
+        arity: Arity::new(0, 1),
+        synopsis: &["tsv::names ?pattern?"],
+        detail: "List the shared arrays.",
+    },
+    PlainCommand {
+        name: "tsv::object",
+        arity: Arity::new(2, 3),
+        synopsis: &["tsv::object array element ?lazyproc?"],
+        detail: "Create a command bound to a shared element.",
+    },
+    PlainCommand {
+        name: "tsv::move",
+        arity: Arity::exact(3),
+        synopsis: &["tsv::move array element newelement"],
+        detail: "Rename a shared element.",
+    },
+    PlainCommand {
+        name: "tsv::pop",
+        arity: Arity::new(2, 3),
+        synopsis: &["tsv::pop array element ?varname?"],
+        detail: "Return a shared element and unset it.",
+    },
+    PlainCommand {
+        name: "tsv::array",
+        arity: Arity::at_least(2),
+        synopsis: &["tsv::array option array ?arg ...?"],
+        detail: "Manage a shared array as a whole.",
+    },
+    PlainCommand {
+        name: "tsv::handlers",
+        arity: Arity::exact(0),
+        synopsis: &["tsv::handlers"],
+        detail: "List the persistent storage handlers.",
+    },
+    PlainCommand {
+        name: "tsv::lock",
+        arity: Arity::at_least(2),
+        synopsis: &["tsv::lock array arg ?arg ...?"],
+        detail: "Evaluate a script with a shared array locked.",
+    },
+    PlainCommand {
+        name: "tsv::lindex",
+        arity: Arity::at_least(2),
+        synopsis: &["tsv::lindex array element ?index ...?"],
+        detail: "Return an element of a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::linsert",
+        arity: Arity::at_least(4),
+        synopsis: &["tsv::linsert array element index value ?value ...?"],
+        detail: "Insert into a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::llength",
+        arity: Arity::exact(2),
+        synopsis: &["tsv::llength array element"],
+        detail: "Return the length of a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::lpop",
+        arity: Arity::new(2, 3),
+        synopsis: &["tsv::lpop array element ?index?"],
+        detail: "Remove and return a shared list element.",
+    },
+    PlainCommand {
+        name: "tsv::lpush",
+        arity: Arity::new(3, 4),
+        synopsis: &["tsv::lpush array element value ?index?"],
+        detail: "Insert a value into a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::lrange",
+        arity: Arity::exact(4),
+        synopsis: &["tsv::lrange array element first last"],
+        detail: "Return a range of a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::lreplace",
+        arity: Arity::at_least(4),
+        synopsis: &["tsv::lreplace array element first last ?value ...?"],
+        detail: "Replace a range of a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::lsearch",
+        arity: Arity::at_least(3),
+        synopsis: &["tsv::lsearch array element ?mode? pattern"],
+        detail: "Search a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::lset",
+        arity: Arity::at_least(4),
+        synopsis: &["tsv::lset array element index ?index ...? value"],
+        detail: "Set an element of a shared list.",
+    },
+    PlainCommand {
+        name: "tsv::keyldel",
+        arity: Arity::exact(3),
+        synopsis: &["tsv::keyldel array element key"],
+        detail: "Delete a key from a shared keyed list.",
+    },
+    PlainCommand {
+        name: "tsv::keylget",
+        arity: Arity::new(2, 4),
+        synopsis: &["tsv::keylget array element ?key? ?varname?"],
+        detail: "Read a shared keyed list.",
+    },
+    PlainCommand {
+        name: "tsv::keylkeys",
+        arity: Arity::new(2, 3),
+        synopsis: &["tsv::keylkeys array element ?key?"],
+        detail: "List the keys of a shared keyed list.",
+    },
+    PlainCommand {
+        name: "tsv::keylset",
+        arity: Arity::at_least(4),
+        synopsis: &["tsv::keylset array element key value ?key value ...?"],
+        detail: "Set keys of a shared keyed list.",
+    },
+    PlainCommand {
+        name: "tpool::names",
+        arity: Arity::exact(0),
+        synopsis: &["tpool::names"],
+        detail: "List the existing thread pools.",
+    },
+    PlainCommand {
+        name: "tpool::get",
+        arity: Arity::exact(2),
+        synopsis: &["tpool::get tpool job"],
+        detail: "Return a completed job's result.",
+    },
+    PlainCommand {
+        name: "tpool::wait",
+        arity: Arity::new(2, 4),
+        synopsis: &["tpool::wait tpool joblist ?varname?"],
+        detail: "Wait for jobs to complete.",
+    },
+    PlainCommand {
+        name: "tpool::cancel",
+        arity: Arity::new(2, 3),
+        synopsis: &["tpool::cancel tpool joblist ?varname?"],
+        detail: "Cancel pending jobs.",
+    },
+    PlainCommand {
+        name: "tpool::suspend",
+        arity: Arity::exact(1),
+        synopsis: &["tpool::suspend tpool"],
+        detail: "Suspend job processing.",
+    },
+    PlainCommand {
+        name: "tpool::resume",
+        arity: Arity::exact(1),
+        synopsis: &["tpool::resume tpool"],
+        detail: "Resume job processing.",
+    },
+    PlainCommand {
+        name: "tpool::preserve",
+        arity: Arity::exact(1),
+        synopsis: &["tpool::preserve tpool"],
+        detail: "Increment a pool's reference count.",
+    },
+    PlainCommand {
+        name: "tpool::release",
+        arity: Arity::exact(1),
+        synopsis: &["tpool::release tpool"],
+        detail: "Decrement a pool's reference count.",
+    },
+];
 
 /// Source-authored Thread contracts; package/profile admission is a separate operation.
 #[must_use]
@@ -425,6 +790,16 @@ pub fn thread_command_specs() -> Vec<CommandSpec> {
         shared_spec("tsv::append", Arity::at_least(3), false, false),
         shared_spec("tsv::lappend", Arity::at_least(3), false, false),
     ]
+    .into_iter()
+    .chain(PLAIN_COMMANDS.iter().map(plain_spec))
+    .collect()
+}
+
+/// Whether `name` (rooted or not) is a command of the Thread package pack.
+#[must_use]
+pub fn is_thread_command(name: &str) -> bool {
+    let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+    thread_command_specs().iter().any(|spec| spec.name == name)
 }
 
 #[cfg(test)]

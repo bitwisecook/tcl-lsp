@@ -326,6 +326,7 @@ shared_group!(
     crate::commands::ticklecharts::ticklecharts_command_specs
 );
 shared_group!(itcl_specs, crate::commands::itcl::itcl_command_specs);
+shared_group!(thread_specs, crate::commands::thread::thread_command_specs);
 shared_group!(tk_specs, crate::commands::tk::tk_command_specs);
 shared_group!(bpf_specs, crate::commands::bpf::bpf_command_specs);
 shared_group!(irules_specs, crate::commands::irules::irules_command_specs);
@@ -440,7 +441,7 @@ fn spec_packs_by_name() -> &'static FxHashMap<&'static str, Vec<&'static str>> {
 ///
 /// `tmsh_specs` is a filtered view of the same `commands/iapps/` sources, so
 /// it reports `iapps` — the directory a spec author would open.
-fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 14] {
+fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 15] {
     [
         ("tcl", tcl_specs()),
         ("stdlib", stdlib_specs()),
@@ -448,6 +449,7 @@ fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 14] {
         ("argparse", argparse_specs()),
         ("ticklecharts", ticklecharts_specs()),
         ("itcl", itcl_specs()),
+        ("thread", thread_specs()),
         ("tk", tk_specs()),
         ("expect", expect_specs()),
         ("bpf", bpf_specs()),

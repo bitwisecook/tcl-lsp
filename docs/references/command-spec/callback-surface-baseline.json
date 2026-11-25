@@ -966,6 +966,26 @@
       "location": "arg[3]"
     },
     {
+      "owner": "thread::create",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "thread::create",
+      "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "thread::send",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "thread::send",
+      "location": "dynamic-command-prefix"
+    },
+    {
+      "owner": "thread::send",
+      "location": "dynamic-script-timing"
+    },
+    {
       "owner": "time",
       "location": "arg[0]"
     },
@@ -1108,6 +1128,22 @@
     {
       "owner": "tk_getSaveFile",
       "location": "option -command value"
+    },
+    {
+      "owner": "tpool::create",
+      "location": "option -exitcmd value"
+    },
+    {
+      "owner": "tpool::create",
+      "location": "option -initcmd value"
+    },
+    {
+      "owner": "tpool::post",
+      "location": "dynamic-arg-role"
+    },
+    {
+      "owner": "tpool::post",
+      "location": "dynamic-script-timing"
     },
     {
       "owner": "trace add",

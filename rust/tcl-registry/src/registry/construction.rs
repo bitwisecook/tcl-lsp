@@ -21,7 +21,7 @@
 use super::{
     CommandRegistry, argparse_specs, bpf_specs, expect_specs, iapps_specs, irules_specs,
     itcl_specs, next_registry_generation, spectcl_specs, sslictcl_specs, stdlib_specs, tcl_specs,
-    tcllib_specs, ticklecharts_specs, tk_specs, tmsh_specs,
+    tcllib_specs, thread_specs, ticklecharts_specs, tk_specs, tmsh_specs,
 };
 use crate::arity::Arity;
 use crate::definer::DefinitionBodyGrammar;
@@ -68,6 +68,9 @@ impl CommandRegistry {
             registry.insert_shipped_static(spec);
         }
         for spec in itcl_specs() {
+            registry.insert_shipped_static(spec);
+        }
+        for spec in thread_specs() {
             registry.insert_shipped_static(spec);
         }
         // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
