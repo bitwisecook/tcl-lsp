@@ -10,10 +10,10 @@ PROBE fr05-apply-level.tcl tcl8.6:
 PROBE fr05-apply-level.tcl tcl9.0: 
 PROBE fr06-tailcall.tcl tcl8.6: 
 PROBE fr06-tailcall.tcl tcl9.0: 
-PROBE fr07-coroutine.tcl tcl8.6: [W302 L4 catch without a result variable silently swallows errors. Co]
-PROBE fr07-coroutine.tcl tcl9.0: [W302 L4 catch without a result variable silently swallows errors. Co]
-PROBE fr08-tcloo-frames.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call wid]
-PROBE fr08-tcloo-frames.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call wid]
+PROBE fr07-coroutine.tcl tcl8.6: [W302 L4 catch without a result variable silently swallows errors. Consider cap]
+PROBE fr07-coroutine.tcl tcl9.0: [W302 L4 catch without a result variable silently swallows errors. Consider cap]
+PROBE fr08-tcloo-frames.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
+PROBE fr08-tcloo-frames.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
 PROBE fr09-alias-frame.tcl tcl8.6: [W210 L3 Variable 'x' is read before it is set]
 PROBE fr09-alias-frame.tcl tcl9.0: [W210 L3 Variable 'x' is read before it is set]
 PROBE fr10-errorstack.tcl tcl8.6: 
@@ -22,28 +22,27 @@ PROBE fr11-return-level.tcl tcl8.6: [W210 L4 Variable 'o' is read before it is s
 PROBE fr11-return-level.tcl tcl9.0: [W210 L4 Variable 'o' is read before it is set]
 PROBE fr12-trace-frame.tcl tcl8.6: [W214 L1 Parameter 'n2' of proc '::tr' is unused] [W214 L1 Parameter 'op' of proc '::tr' is unused]
 PROBE fr12-trace-frame.tcl tcl9.0: [W214 L1 Parameter 'n2' of proc '::tr' is unused] [W214 L1 Parameter 'op' of proc '::tr' is unused]
-PROBE fr13-no-frame-cmds.tcl tcl8.6: [I230 L1 Condition '1' is always true; the alternate branch is unreac] [W302 L1 catch without a result variable silently swallows errors. Co]
-PROBE fr13-no-frame-cmds.tcl tcl9.0: [I230 L1 Condition '1' is always true; the alternate branch is unreac] [W302 L1 catch without a result variable silently swallows errors. Co]
+PROBE fr13-no-frame-cmds.tcl tcl8.6: [I230 L1 Condition '1' is always true; the alternate branch is unreachable] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
+PROBE fr13-no-frame-cmds.tcl tcl9.0: [I230 L1 Condition '1' is always true; the alternate branch is unreachable] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
 PROBE fr14-bad-levels.tcl tcl8.6: 
 PROBE fr14-bad-levels.tcl tcl9.0: 
 PROBE fr15-level-word-ambiguity.tcl tcl8.6: 
 PROBE fr15-level-word-ambiguity.tcl tcl9.0: 
-PROBE fr16-inscope-code.tcl tcl8.6: [W101 L2 eval with substituted arguments risks code injection. Prefer]
-PROBE fr16-inscope-code.tcl tcl9.0: [W101 L2 eval with substituted arguments risks code injection. Prefer]
+PROBE fr16-inscope-code.tcl tcl8.6: [W101 L2 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE fr16-inscope-code.tcl tcl9.0: [W101 L2 eval with substituted arguments risks code injection. Prefer direct in]
 PROBE fr17-uplevel-namespace.tcl tcl8.6: 
 PROBE fr17-uplevel-namespace.tcl tcl9.0: 
 PROBE fr18-upvar-recreate.tcl tcl8.6: 
 PROBE fr18-upvar-recreate.tcl tcl9.0: 
 PROBE n1-method-only.tcl tcl8.6: 
 PROBE n1-method-only.tcl tcl9.0: 
-PROBE n2-next.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call wid]
-PROBE n2-next.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call wid]
-PROBE n3-my.tcl tcl8.6: [W123 L1 Unresolved command 'my' at this source point. The call widen]
-PROBE n3-my.tcl tcl9.0: [W123 L1 Unresolved command 'my' at this source point. The call widen]
-PROBE n4-nextto.tcl tcl8.6: [W123 L2 Unresolved command 'nextto' at this source point. The call w]
-PROBE n4-nextto.tcl tcl9.0: [W123 L2 Unresolved command 'nextto' at this source point. The call w]
+PROBE n2-next.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
+PROBE n2-next.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
+PROBE n3-my.tcl tcl8.6: [W123 L1 Unresolved command 'my' at this source point. The call widens the vari]
+PROBE n3-my.tcl tcl9.0: [W123 L1 Unresolved command 'my' at this source point. The call widens the vari]
+PROBE n4-nextto.tcl tcl8.6: [W123 L2 Unresolved command 'nextto' at this source point. The call widens the ]
+PROBE n4-nextto.tcl tcl9.0: [W123 L2 Unresolved command 'nextto' at this source point. The call widens the ]
 PROBE n5-filter.tcl tcl8.6: [W307 L2 Non-literal command name — cannot statically analyse]
 PROBE n5-filter.tcl tcl9.0: [W307 L2 Non-literal command name — cannot statically analyse]
-PROBE n6-ctor-next.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call wid]
-PROBE n6-ctor-next.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call wid]
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 44.65s
+PROBE n6-ctor-next.tcl tcl8.6: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]
+PROBE n6-ctor-next.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call widens the va]

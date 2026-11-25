@@ -1,195 +1,257 @@
-fixture	interpreter	output
-u01-unknown-override.tcl	tclsh8.4	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	tclsh8.5	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	tclsh8.6	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	tclsh9.0	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	tclsh9.1	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	jim	u01-unknown-override.tcl:2: Error: can't rename "unknown": command doesn't exist ⏎ Traceback (most recent call last): ⏎   File "u01-unknown-override.tcl", line 2 ⏎     rename unknown _orig_unknown ⏎ [exit 1]
-u01-unknown-override.tcl	vm8.6	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	vm9.0	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	rt8.6	error: can't rename "unknown": command doesn't exist ⏎ [exit 1]
-u01-unknown-override.tcl	rt9.0	error: can't rename "unknown": command doesn't exist ⏎ [exit 1]
-u02-namespace-unknown.tcl	tclsh8.4	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ⏎     while executing ⏎ "namespace unknown [list ::ns::handler]" ⏎     (in namespace eval "::ns" script line 2) ⏎     invoked from within ⏎ "namespace eval ns { ⏎   namespace unknown [list ::ns::handler] ⏎   proc handler {args} { return "ns handler: $args" } ⏎   proc try_it {} { return [missing 1..." ⏎     (file "u02-namespace-unknown.tcl" line 2) ⏎ [exit 1]
-u02-namespace-unknown.tcl	tclsh8.5	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	tclsh8.6	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	tclsh9.0	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	tclsh9.1	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	jim	u02-namespace-unknown.tcl:3: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ⏎ Traceback (most recent call last): ⏎   File "u02-namespace-unknown.tcl", line 3 ⏎     namespace unknown ::ns::handler ⏎ [exit 1]
-u02-namespace-unknown.tcl	vm8.6	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	vm9.0	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	rt8.6	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	rt9.0	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u03-unknown-rewrites.tcl	tclsh8.4	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ⏎     while executing ⏎ "namespace unknown ::lazy::define" ⏎     (in namespace eval "::lazy" script line 2) ⏎     invoked from within ⏎ "namespace eval lazy { ⏎   namespace unknown ::lazy::define ⏎   proc define {cmd args} { ⏎     proc ::lazy::$cmd {args} "return \"defined $cmd: \$args\"" ⏎    ..." ⏎     (file "u03-unknown-rewrites.tcl" line 3) ⏎ [exit 1]
-u03-unknown-rewrites.tcl	tclsh8.5	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	tclsh8.6	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	tclsh9.0	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	tclsh9.1	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	jim	u03-unknown-rewrites.tcl:4: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ⏎ Traceback (most recent call last): ⏎   File "u03-unknown-rewrites.tcl", line 4 ⏎     namespace unknown ::lazy::define ⏎ [exit 1]
-u03-unknown-rewrites.tcl	vm8.6	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	vm9.0	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	rt8.6	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	rt9.0	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u04-auto-index.tcl	tclsh8.4	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	tclsh8.5	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	tclsh8.6	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	tclsh9.0	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	tclsh9.1	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	jim	u04-auto-index.tcl:4: Error: invalid command name "autofoo" ⏎ Traceback (most recent call last): ⏎   File "u04-auto-index.tcl", line 4 ⏎ before:  ⏎ [exit 1]
-u04-auto-index.tcl	vm8.6	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	vm9.0	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	rt8.6	before:  ⏎ error: invalid command name "autofoo" ⏎ [exit 1]
-u04-auto-index.tcl	rt9.0	before:  ⏎ error: invalid command name "autofoo" ⏎ [exit 1]
-u05-tclindex-mkindex.tcl	tclsh8.4	idx: set auto_index(libproc) [list source [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	tclsh8.5	idx: set auto_index(libproc) [list source [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	tclsh8.6	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	tclsh9.0	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	tclsh9.1	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	jim	u05-tclindex-mkindex.tcl:7: Error: invalid command name "auto_mkindex" ⏎ Traceback (most recent call last): ⏎   File "u05-tclindex-mkindex.tcl", line 7 ⏎ [exit 1]
-u05-tclindex-mkindex.tcl	vm8.6	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ [exit 124]
-u05-tclindex-mkindex.tcl	vm9.0	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ [exit 124]
-u05-tclindex-mkindex.tcl	rt8.6	error: invalid command name "auto_mkindex" ⏎ [exit 1]
-u05-tclindex-mkindex.tcl	rt9.0	error: invalid command name "auto_mkindex" ⏎ [exit 1]
-u06-auto-execok.tcl	tclsh8.4	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	tclsh8.5	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	tclsh8.6	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	tclsh9.0	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	tclsh9.1	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	jim	u06-auto-execok.tcl:2: Error: invalid command name "auto_execok" ⏎ Traceback (most recent call last): ⏎   File "u06-auto-execok.tcl", line 2 ⏎ [exit 1]
-u06-auto-execok.tcl	vm8.6	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	vm9.0	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	rt8.6	error: invalid command name "auto_execok" ⏎ [exit 1]
-u06-auto-execok.tcl	rt9.0	error: invalid command name "auto_execok" ⏎ [exit 1]
-u07-interactive-exec.tcl	tclsh8.4	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	tclsh8.5	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	tclsh8.6	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	tclsh9.0	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	tclsh9.1	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	jim	tcl_interactive: 1 0 ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	vm8.6	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	vm9.0	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	rt8.6	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	rt9.0	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	tclsh8.4	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	tclsh8.5	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	tclsh8.6	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	tclsh9.0	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	tclsh9.1	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	jim	require: 1.0 ⏎ sourced after require: 1 ⏎ auto_index: 0 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	vm8.6	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	vm9.0	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	rt8.6	error: can't find package foo ⏎ [exit 1]
-u08-tclpkgsetup-lazy.tcl	rt9.0	error: can't find package foo ⏎ [exit 1]
-u09-ensemble-unknown.tcl	tclsh8.4	bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ⏎     while executing ⏎ "namespace ensemble create -unknown ::ens::fallback" ⏎     (in namespace eval "::ens" script line 6) ⏎     invoked from within ⏎ "namespace eval ens { ⏎   proc a {} { return A } ⏎   proc fallback {ens sub args} { return [list ::ens::catchall $sub] } ⏎   proc catchall {sub args} { retur..." ⏎     (file "u09-ensemble-unknown.tcl" line 2) ⏎ [exit 1]
-u09-ensemble-unknown.tcl	tclsh8.5	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	tclsh8.6	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	tclsh9.0	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	tclsh9.1	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	jim	nshelper.tcl:158: Error: wrong # args: should be "ensemble command ?-automap prefix?" ⏎ Traceback (most recent call last): ⏎   File "u09-ensemble-unknown.tcl", line 7 ⏎     {namespace ensemble} create -unknown ::ens::fallback ⏎   File "nshelper.tcl", line 158, in namespace ensemble ⏎     ensemble ens -automap ens:: -unknown ::ens::fallback ⏎ [exit 1]
-u09-ensemble-unknown.tcl	vm8.6	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	vm9.0	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	rt8.6	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	rt9.0	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u10-oo-unknown-method.tcl	tclsh8.4	invalid command name "oo::class" ⏎     while executing ⏎ "oo::class create C { ⏎   method known {} { return known } ⏎   method unknown {name args} { return "unknown method $name: $args" } ⏎ }" ⏎     (file "u10-oo-unknown-method.tcl" line 2) ⏎ [exit 1]
-u10-oo-unknown-method.tcl	tclsh8.5	invalid command name "oo::class" ⏎     while executing ⏎ "oo::class create C { ⏎   method known {} { return known } ⏎   method unknown {name args} { return "unknown method $name: $args" } ⏎ }" ⏎     (file "u10-oo-unknown-method.tcl" line 2) ⏎ [exit 1]
-u10-oo-unknown-method.tcl	tclsh8.6	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u10-oo-unknown-method.tcl	tclsh9.0	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u10-oo-unknown-method.tcl	tclsh9.1	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u10-oo-unknown-method.tcl	jim	u10-oo-unknown-method.tcl:2: Error: invalid command name "oo::class" ⏎ Traceback (most recent call last): ⏎   File "u10-oo-unknown-method.tcl", line 2 ⏎ [exit 1]
-u10-oo-unknown-method.tcl	vm8.6	known ⏎ unknown method "missing": must be destroy, known or unknown ⏎     while executing ⏎ "$o missing 1 2" ⏎     invoked from within ⏎ "puts [$o missing 1 2]" ⏎     (file "u10-oo-unknown-method.tcl" line 8) ⏎ [exit 1]
-u10-oo-unknown-method.tcl	vm9.0	known ⏎ unknown method "missing": must be destroy, known or unknown ⏎     while executing ⏎ "$o missing 1 2" ⏎     invoked from within ⏎ "puts [$o missing 1 2]" ⏎     (file "u10-oo-unknown-method.tcl" line 8) ⏎ [exit 1]
-u10-oo-unknown-method.tcl	rt8.6	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u10-oo-unknown-method.tcl	rt9.0	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u11-auto-qualify.tcl	tclsh8.4	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	tclsh8.5	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	tclsh8.6	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	tclsh9.0	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	tclsh9.1	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	jim	u11-auto-qualify.tcl:2: Error: invalid command name "auto_qualify" ⏎ Traceback (most recent call last): ⏎   File "u11-auto-qualify.tcl", line 2 ⏎ [exit 1]
-u11-auto-qualify.tcl	vm8.6	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	vm9.0	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	rt8.6	error: invalid command name "auto_qualify" ⏎ [exit 1]
-u11-auto-qualify.tcl	rt9.0	error: invalid command name "auto_qualify" ⏎ [exit 1]
-u12-auto-import.tcl	tclsh8.4	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	tclsh8.5	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	tclsh8.6	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	tclsh9.0	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	tclsh9.1	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	jim	u12-auto-import.tcl:6: Error: invalid command name "util" ⏎ Traceback (most recent call last): ⏎   File "u12-auto-import.tcl", line 6 ⏎ imported:  ⏎ [exit 1]
-u12-auto-import.tcl	vm8.6	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	vm9.0	imported: util ⏎ util ⏎ [exit 0]
-u12-auto-import.tcl	rt8.6	imported:  ⏎ error: invalid command name "util" ⏎ [exit 1]
-u12-auto-import.tcl	rt9.0	imported:  ⏎ error: invalid command name "util" ⏎ [exit 1]
-u13-unknown-errorcode.tcl	tclsh8.4	msg: invalid command name "no_such_command_q" ⏎ code: NONE ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	tclsh8.5	msg: invalid command name "no_such_command_q" ⏎ code: NONE ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	tclsh8.6	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	tclsh9.0	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	tclsh9.1	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	jim	u13-unknown-errorcode.tcl:5: Error: can't read "::errorInfo": no such variable ⏎ Traceback (most recent call last): ⏎   File "u13-unknown-errorcode.tcl", line 5 ⏎ msg: invalid command name "no_such_command_q" ⏎ code: NONE ⏎ [exit 1]
-u13-unknown-errorcode.tcl	vm8.6	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	vm9.0	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	rt8.6	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is:  0 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	rt9.0	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is:  0 ⏎ [exit 0]
-u14-auto-reset.tcl	tclsh8.4	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	tclsh8.5	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	tclsh8.6	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	tclsh9.0	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	tclsh9.1	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	jim	u14-auto-reset.tcl:3: Error: invalid command name "rp" ⏎ Traceback (most recent call last): ⏎   File "u14-auto-reset.tcl", line 3 ⏎ [exit 1]
-u14-auto-reset.tcl	vm8.6	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	vm9.0	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	rt8.6	error: invalid command name "rp" ⏎ [exit 1]
-u14-auto-reset.tcl	rt9.0	error: invalid command name "rp" ⏎ [exit 1]
-u15-unknown-recursion.tcl	tclsh8.4	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	tclsh8.5	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	tclsh8.6	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	tclsh9.0	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	tclsh9.1	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	jim	selfref: 1 invalid command name "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	vm8.6	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	vm9.0	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	rt8.6	selfref: 1 invalid command name "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	rt9.0	selfref: 1 invalid command name "selfref" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	tclsh8.4	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ⏎     while executing ⏎ "namespace unknown {::ns1::h fixed} " ⏎     (in namespace eval "::ns1" script line 1) ⏎     invoked from within ⏎ "namespace eval ns1 { namespace unknown {::ns1::h fixed} ; proc h {pre args} { return "h $pre $args" } ; proc go {} { return [m a] } }" ⏎     (file "u16-namespace-unknown-errors.tcl" line 2) ⏎ [exit 1]
-u16-namespace-unknown-errors.tcl	tclsh8.5	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	tclsh8.6	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	tclsh9.0	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	tclsh9.1	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	jim	u16-namespace-unknown-errors.tcl:2: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ⏎ Traceback (most recent call last): ⏎   File "u16-namespace-unknown-errors.tcl", line 2 ⏎     namespace unknown {::ns1::h fixed} ⏎ [exit 1]
-u16-namespace-unknown-errors.tcl	vm8.6	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	vm9.0	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	rt8.6	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	rt9.0	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	vm8.6 (timeout 120, 17 s)	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	vm9.0 (timeout 120, 20 s)	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u01-unknown-override.tcl	rt8.6 --init	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u01-unknown-override.tcl	rt9.0 --init	unknown got: nosuch a {b c} ⏎ unknown got: ::ns::deep x ⏎ no unknown: 1 invalid command name "nosuch2" ⏎ [exit 0]
-u02-namespace-unknown.tcl	rt8.6 --init	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u02-namespace-unknown.tcl	rt9.0 --init	ns handler: missing 1 2 ⏎ global default: ::unknown ⏎ ns setting: ::ns::handler ⏎ other ns: 1:invalid command name "missing3" ⏎ reset: 1 invalid command name "missing" ⏎ [exit 0]
-u03-unknown-rewrites.tcl	rt8.6 --init	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u03-unknown-rewrites.tcl	rt9.0 --init	{defined later: 1} {defined later: 2} ::lazy::later ⏎ [exit 0]
-u04-auto-index.tcl	rt8.6 --init	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u04-auto-index.tcl	rt9.0 --init	before:  ⏎ autofoo 1 ⏎ after: autofoo ⏎ bar ⏎ auto_load missing: 0 ⏎ auto_load explicit: 1 baz ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	rt8.6 --init	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u05-tclindex-mkindex.tcl	rt9.0 --init	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ⏎ before:  ⏎ libproc 7 ⏎ helper ⏎ after: libproc ⏎ [exit 0]
-u06-auto-execok.tcl	rt8.6 --init	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u06-auto-execok.tcl	rt9.0 --init	sh: found ⏎ none: {} ⏎ builtin: {} ⏎ [exit 0]
-u07-interactive-exec.tcl	rt8.6 --init	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u07-interactive-exec.tcl	rt9.0 --init	tcl_interactive: 0 - ⏎ echo: 1 invalid command name "echo" ⏎ abbrev: 1 invalid command name "stri" ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	rt8.6 --init	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u08-tclpkgsetup-lazy.tcl	rt9.0 --init	require: 1.0 ⏎ sourced after require: 0 ⏎ auto_index: 1 0 ⏎ hello from foo ⏎ sourced after call: 1 ⏎ [exit 0]
-u09-ensemble-unknown.tcl	rt8.6 --init	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u09-ensemble-unknown.tcl	rt9.0 --init	A ⏎ catchall zzz 1 2 ⏎ added newsub x ⏎ added newsub y ⏎ [exit 0]
-u10-oo-unknown-method.tcl	rt8.6 --init	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u10-oo-unknown-method.tcl	rt9.0 --init	known ⏎ unknown method missing: 1 2 ⏎ no unknown: 1 unknown method "missing": must be destroy ⏎ [exit 0]
-u11-auto-qualify.tcl	rt8.6 --init	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u11-auto-qualify.tcl	rt9.0 --init	foo ⏎ ::a::b::foo foo ⏎ foo ⏎ ::a::x::foo ::x::foo ⏎ [exit 0]
-u12-auto-import.tcl	rt8.6 --init	imported:  ⏎ error: invalid command name "util" ⏎ [exit 1]
-u12-auto-import.tcl	rt9.0 --init	imported:  ⏎ error: invalid command name "util" ⏎ [exit 1]
-u13-unknown-errorcode.tcl	rt8.6 --init	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u13-unknown-errorcode.tcl	rt9.0 --init	msg: invalid command name "no_such_command_q" ⏎ code: TCL LOOKUP COMMAND no_such_command_q ⏎ info0: invalid command name "no_such_command_q" ⏎ unknown is: unknown 1 ⏎ [exit 0]
-u14-auto-reset.tcl	rt8.6 --init	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u14-auto-reset.tcl	rt9.0 --init	rp1 ⏎ after reset: 0  ⏎ [exit 0]
-u15-unknown-recursion.tcl	rt8.6 --init	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u15-unknown-recursion.tcl	rt9.0 --init	selfref: 1 self-referential recursion in "unknown" for command "selfref" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	rt8.6 --init	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
-u16-namespace-unknown-errors.tcl	rt9.0 --init	h fixed m a ⏎ fail: 1 handler failed ⏎ missing handler: 1 invalid command name "m" ⏎ [exit 0]
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+u01-unknown-override.tcl	tclsh8.4	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	tclsh8.5	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	tclsh8.6	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	tclsh9.0	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	tclsh9.1	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	jim	1	u01-unknown-override.tcl:2: Error: can't rename "unknown": command doesn't exist ¶ Traceback (most recent call last): ¶   File "u01-unknown-override.tcl", line 2 ¶     rename unknown _orig_unknown
+u01-unknown-override.tcl	vm8.4	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	vm8.5	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	vm8.6	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	vm9.0	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	vm9.1	0	unknown got: nosuch a {b c} ¶ unknown got: ::ns::deep x ¶ no unknown: 1 invalid command name "nosuch2"
+u01-unknown-override.tcl	rt8.4	1	error: can't rename "unknown": command doesn't exist
+u01-unknown-override.tcl	rt8.5	1	error: can't rename "unknown": command doesn't exist
+u01-unknown-override.tcl	rt8.6	1	error: can't rename "unknown": command doesn't exist
+u01-unknown-override.tcl	rt9.0	1	error: can't rename "unknown": command doesn't exist
+u01-unknown-override.tcl	rt9.1	1	error: can't rename "unknown": command doesn't exist
+u02-namespace-unknown.tcl	tclsh8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown [list ::ns::handler]" ¶     (in namespace eval "::ns" script line 2) ¶     invoked from within ¶ "namespace eval ns { ¶   namespace unknown [list ::ns::handler] ¶   proc handler {args} { return "ns handler: $args" } ¶   proc try_it {} { return [missing 1..." ¶     (file "u02-namespace-unknown.tcl" line 2)
+u02-namespace-unknown.tcl	tclsh8.5	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	tclsh8.6	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	tclsh9.0	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	tclsh9.1	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	jim	1	u02-namespace-unknown.tcl:3: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ¶ Traceback (most recent call last): ¶   File "u02-namespace-unknown.tcl", line 3 ¶     namespace unknown ::ns::handler
+u02-namespace-unknown.tcl	vm8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown [list ::ns::handler]" ¶     (in namespace eval "::ns" script line 2) ¶     invoked from within ¶ "namespace eval ns { ¶   namespace unknown [list ::ns::handler] ¶   proc handler {args} { return "ns handler: $args" } ¶   proc try_it {} { return [missing 1..." ¶     (file "u02-namespace-unknown.tcl" line 2)
+u02-namespace-unknown.tcl	vm8.5	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	vm8.6	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	vm9.0	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	vm9.1	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	rt8.4	1	error: bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
+u02-namespace-unknown.tcl	rt8.5	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	rt8.6	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	rt9.0	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u02-namespace-unknown.tcl	rt9.1	0	ns handler: missing 1 2 ¶ global default: ::unknown ¶ ns setting: ::ns::handler ¶ other ns: 1:invalid command name "missing3" ¶ reset: 1 invalid command name "missing"
+u03-unknown-rewrites.tcl	tclsh8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown ::lazy::define" ¶     (in namespace eval "::lazy" script line 2) ¶     invoked from within ¶ "namespace eval lazy { ¶   namespace unknown ::lazy::define ¶   proc define {cmd args} { ¶     proc ::lazy::$cmd {args} "return \"defined $cmd: \$args\"" ¶    ..." ¶     (file "u03-unknown-rewrites.tcl" line 3)
+u03-unknown-rewrites.tcl	tclsh8.5	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	tclsh8.6	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	tclsh9.0	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	tclsh9.1	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	jim	1	u03-unknown-rewrites.tcl:4: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ¶ Traceback (most recent call last): ¶   File "u03-unknown-rewrites.tcl", line 4 ¶     namespace unknown ::lazy::define
+u03-unknown-rewrites.tcl	vm8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown ::lazy::define" ¶     (in namespace eval "::lazy" script line 2) ¶     invoked from within ¶ "namespace eval lazy { ¶   namespace unknown ::lazy::define ¶   proc define {cmd args} { ¶     proc ::lazy::$cmd {args} "return \"defined $cmd: \$args\"" ¶    ..." ¶     (file "u03-unknown-rewrites.tcl" line 3)
+u03-unknown-rewrites.tcl	vm8.5	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	vm8.6	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	vm9.0	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	vm9.1	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	rt8.4	1	error: bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
+u03-unknown-rewrites.tcl	rt8.5	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	rt8.6	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	rt9.0	0	{defined later: 1} {defined later: 2} ::lazy::later
+u03-unknown-rewrites.tcl	rt9.1	0	{defined later: 1} {defined later: 2} ::lazy::later
+u04-auto-index.tcl	tclsh8.4	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	tclsh8.5	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	tclsh8.6	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	tclsh9.0	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	tclsh9.1	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	jim	1	before: ¶ u04-auto-index.tcl:4: Error: invalid command name "autofoo" ¶ Traceback (most recent call last): ¶   File "u04-auto-index.tcl", line 4
+u04-auto-index.tcl	vm8.4	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	vm8.5	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	vm8.6	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	vm9.0	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	vm9.1	0	before: ¶ autofoo 1 ¶ after: autofoo ¶ bar ¶ auto_load missing: 0 ¶ auto_load explicit: 1 baz
+u04-auto-index.tcl	rt8.4	1	before: ¶ error: invalid command name "autofoo"
+u04-auto-index.tcl	rt8.5	1	before: ¶ error: invalid command name "autofoo"
+u04-auto-index.tcl	rt8.6	1	before: ¶ error: invalid command name "autofoo"
+u04-auto-index.tcl	rt9.0	1	before: ¶ error: invalid command name "autofoo"
+u04-auto-index.tcl	rt9.1	1	before: ¶ error: invalid command name "autofoo"
+u05-tclindex-mkindex.tcl	tclsh8.4	0	idx: set auto_index(libproc) [list source [file join $dir a.tcl]] ¶ idx: set auto_index(::libns::helper) [list source [file join $dir a.tcl]] ¶ before: ¶ libproc 7 ¶ helper ¶ after: libproc
+u05-tclindex-mkindex.tcl	tclsh8.5	0	idx: set auto_index(libproc) [list source [file join $dir a.tcl]] ¶ idx: set auto_index(::libns::helper) [list source [file join $dir a.tcl]] ¶ before: ¶ libproc 7 ¶ helper ¶ after: libproc
+u05-tclindex-mkindex.tcl	tclsh8.6	0	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ before: ¶ libproc 7 ¶ helper ¶ after: libproc
+u05-tclindex-mkindex.tcl	tclsh9.0	0	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ before: ¶ libproc 7 ¶ helper ¶ after: libproc
+u05-tclindex-mkindex.tcl	tclsh9.1	0	idx: set auto_index(libproc) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ idx: set auto_index(::libns::helper) [list source -encoding utf-8 [file join $dir a.tcl]] ¶ before: ¶ libproc 7 ¶ helper ¶ after: libproc
+u05-tclindex-mkindex.tcl	jim	1	u05-tclindex-mkindex.tcl:7: Error: invalid command name "auto_mkindex" ¶ Traceback (most recent call last): ¶   File "u05-tclindex-mkindex.tcl", line 7
+u05-tclindex-mkindex.tcl	vm8.4	1	invalid command name "auto_mkindex" ¶     while executing ¶ "auto_mkindex lib *.tcl" ¶     (file "u05-tclindex-mkindex.tcl" line 7)
+u05-tclindex-mkindex.tcl	vm8.5	1	invalid command name "auto_mkindex" ¶     while executing ¶ "auto_mkindex lib *.tcl" ¶     (file "u05-tclindex-mkindex.tcl" line 7)
+u05-tclindex-mkindex.tcl	vm8.6	1	invalid command name "auto_mkindex" ¶     while executing ¶ "auto_mkindex lib *.tcl" ¶     (file "u05-tclindex-mkindex.tcl" line 7)
+u05-tclindex-mkindex.tcl	vm9.0	1	invalid command name "auto_mkindex" ¶     while executing ¶ "auto_mkindex lib *.tcl" ¶     (file "u05-tclindex-mkindex.tcl" line 7)
+u05-tclindex-mkindex.tcl	vm9.1	1	invalid command name "auto_mkindex" ¶     while executing ¶ "auto_mkindex lib *.tcl" ¶     (file "u05-tclindex-mkindex.tcl" line 7)
+u05-tclindex-mkindex.tcl	rt8.4	1	error: invalid command name "auto_mkindex"
+u05-tclindex-mkindex.tcl	rt8.5	1	error: invalid command name "auto_mkindex"
+u05-tclindex-mkindex.tcl	rt8.6	1	error: invalid command name "auto_mkindex"
+u05-tclindex-mkindex.tcl	rt9.0	1	error: invalid command name "auto_mkindex"
+u05-tclindex-mkindex.tcl	rt9.1	1	error: invalid command name "auto_mkindex"
+u06-auto-execok.tcl	tclsh8.4	0	sh: found ¶ none: {} ¶ builtin: {}
+u06-auto-execok.tcl	tclsh8.5	0	sh: found ¶ none: {} ¶ builtin: {}
+u06-auto-execok.tcl	tclsh8.6	0	sh: found ¶ none: {} ¶ builtin: {}
+u06-auto-execok.tcl	tclsh9.0	0	sh: found ¶ none: {} ¶ builtin: {}
+u06-auto-execok.tcl	tclsh9.1	0	sh: found ¶ none: {} ¶ builtin: {}
+u06-auto-execok.tcl	jim	1	u06-auto-execok.tcl:2: Error: invalid command name "auto_execok" ¶ Traceback (most recent call last): ¶   File "u06-auto-execok.tcl", line 2
+u06-auto-execok.tcl	vm8.4	1	invalid command name "auto_execok" ¶     while executing ¶ "auto_execok sh" ¶     (file "u06-auto-execok.tcl" line 1)
+u06-auto-execok.tcl	vm8.5	1	invalid command name "auto_execok" ¶     while executing ¶ "auto_execok sh" ¶     invoked from within ¶ "expr {[auto_execok sh] ne {} ? {found} : {missing}}" ¶     invoked from within ¶ "puts "sh: [expr {[auto_execok sh] ne {} ? {found} : {missing}}]"" ¶     (file "u06-auto-execok.tcl" line 2)
+u06-auto-execok.tcl	vm8.6	1	invalid command name "auto_execok" ¶     while executing ¶ "auto_execok sh" ¶     invoked from within ¶ "expr {[auto_execok sh] ne {} ? {found} : {missing}}" ¶     invoked from within ¶ "puts "sh: [expr {[auto_execok sh] ne {} ? {found} : {missing}}]"" ¶     (file "u06-auto-execok.tcl" line 2)
+u06-auto-execok.tcl	vm9.0	1	invalid command name "auto_execok" ¶     while executing ¶ "auto_execok sh" ¶     invoked from within ¶ "expr {[auto_execok sh] ne {} ? {found} : {missing}}" ¶     invoked from within ¶ "puts "sh: [expr {[auto_execok sh] ne {} ? {found} : {missing}}]"" ¶     (file "u06-auto-execok.tcl" line 2)
+u06-auto-execok.tcl	vm9.1	1	invalid command name "auto_execok" ¶     while executing ¶ "auto_execok sh" ¶     invoked from within ¶ "expr {[auto_execok sh] ne {} ? {found} : {missing}}" ¶     invoked from within ¶ "puts "sh: [expr {[auto_execok sh] ne {} ? {found} : {missing}}]"" ¶     (file "u06-auto-execok.tcl" line 2)
+u06-auto-execok.tcl	rt8.4	1	error: invalid command name "auto_execok"
+u06-auto-execok.tcl	rt8.5	1	error: invalid command name "auto_execok"
+u06-auto-execok.tcl	rt8.6	1	error: invalid command name "auto_execok"
+u06-auto-execok.tcl	rt9.0	1	error: invalid command name "auto_execok"
+u06-auto-execok.tcl	rt9.1	1	error: invalid command name "auto_execok"
+u07-interactive-exec.tcl	tclsh8.4	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	tclsh8.5	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	tclsh8.6	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	tclsh9.0	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	tclsh9.1	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	jim	0	tcl_interactive: 1 0 ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	vm8.4	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	vm8.5	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	vm8.6	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	vm9.0	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	vm9.1	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	rt8.4	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	rt8.5	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	rt8.6	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	rt9.0	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u07-interactive-exec.tcl	rt9.1	0	tcl_interactive: 0 - ¶ echo: 1 invalid command name "echo" ¶ abbrev: 1 invalid command name "stri"
+u08-tclpkgsetup-lazy.tcl	tclsh8.4	0	require: 1.0 ¶ sourced after require: 0 ¶ auto_index: 1 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	tclsh8.5	0	require: 1.0 ¶ sourced after require: 0 ¶ auto_index: 1 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	tclsh8.6	0	require: 1.0 ¶ sourced after require: 0 ¶ auto_index: 1 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	tclsh9.0	0	require: 1.0 ¶ sourced after require: 0 ¶ auto_index: 1 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	tclsh9.1	0	require: 1.0 ¶ sourced after require: 0 ¶ auto_index: 1 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	jim	0	require: 1.0 ¶ sourced after require: 1 ¶ auto_index: 0 0 ¶ hello from foo ¶ sourced after call: 1
+u08-tclpkgsetup-lazy.tcl	vm8.4	1	can't find package foo ¶     while executing ¶ "package require foo" ¶     invoked from within ¶ "puts "require: [package require foo]"" ¶     (file "u08-tclpkgsetup-lazy.tcl" line 10)
+u08-tclpkgsetup-lazy.tcl	vm8.5	1	can't find package foo ¶     while executing ¶ "package require foo" ¶     invoked from within ¶ "puts "require: [package require foo]"" ¶     (file "u08-tclpkgsetup-lazy.tcl" line 10)
+u08-tclpkgsetup-lazy.tcl	vm8.6	1	can't find package foo ¶     while executing ¶ "package require foo" ¶     invoked from within ¶ "puts "require: [package require foo]"" ¶     (file "u08-tclpkgsetup-lazy.tcl" line 10)
+u08-tclpkgsetup-lazy.tcl	vm9.0	1	can't find package foo ¶     while executing ¶ "package require foo" ¶     invoked from within ¶ "puts "require: [package require foo]"" ¶     (file "u08-tclpkgsetup-lazy.tcl" line 10)
+u08-tclpkgsetup-lazy.tcl	vm9.1	1	can't find package foo ¶     while executing ¶ "package require foo" ¶     invoked from within ¶ "puts "require: [package require foo]"" ¶     (file "u08-tclpkgsetup-lazy.tcl" line 10)
+u08-tclpkgsetup-lazy.tcl	rt8.4	1	error: can't find package foo
+u08-tclpkgsetup-lazy.tcl	rt8.5	1	error: can't find package foo
+u08-tclpkgsetup-lazy.tcl	rt8.6	1	error: can't find package foo
+u08-tclpkgsetup-lazy.tcl	rt9.0	1	error: can't find package foo
+u08-tclpkgsetup-lazy.tcl	rt9.1	1	error: can't find package foo
+u09-ensemble-unknown.tcl	tclsh8.4	1	bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace ensemble create -unknown ::ens::fallback" ¶     (in namespace eval "::ens" script line 6) ¶     invoked from within ¶ "namespace eval ens { ¶   proc a {} { return A } ¶   proc fallback {ens sub args} { return [list ::ens::catchall $sub] } ¶   proc catchall {sub args} { retur..." ¶     (file "u09-ensemble-unknown.tcl" line 2)
+u09-ensemble-unknown.tcl	tclsh8.5	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	tclsh8.6	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	tclsh9.0	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	tclsh9.1	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	jim	1	nshelper.tcl:158: Error: wrong # args: should be "ensemble command ?-automap prefix?" ¶ Traceback (most recent call last): ¶   File "u09-ensemble-unknown.tcl", line 7 ¶     {namespace ensemble} create -unknown ::ens::fallback ¶   File "nshelper.tcl", line 158, in namespace ensemble ¶     ensemble ens -automap ens:: -unknown ::ens::fallback
+u09-ensemble-unknown.tcl	vm8.4	1	bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace ensemble create -unknown ::ens::fallback" ¶     (in namespace eval "::ens" script line 6) ¶     invoked from within ¶ "namespace eval ens { ¶   proc a {} { return A } ¶   proc fallback {ens sub args} { return [list ::ens::catchall $sub] } ¶   proc catchall {sub args} { retur..." ¶     (file "u09-ensemble-unknown.tcl" line 2)
+u09-ensemble-unknown.tcl	vm8.5	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	vm8.6	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	vm9.0	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	vm9.1	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	rt8.4	1	error: bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
+u09-ensemble-unknown.tcl	rt8.5	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	rt8.6	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	rt9.0	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u09-ensemble-unknown.tcl	rt9.1	0	A ¶ catchall zzz 1 2 ¶ added newsub x ¶ added newsub y
+u10-oo-unknown-method.tcl	tclsh8.4	1	invalid command name "oo::class" ¶     while executing ¶ "oo::class create C { ¶   method known {} { return known } ¶   method unknown {name args} { return "unknown method $name: $args" } ¶ }" ¶     (file "u10-oo-unknown-method.tcl" line 2)
+u10-oo-unknown-method.tcl	tclsh8.5	1	invalid command name "oo::class" ¶     while executing ¶ "oo::class create C { ¶   method known {} { return known } ¶   method unknown {name args} { return "unknown method $name: $args" } ¶ }" ¶     (file "u10-oo-unknown-method.tcl" line 2)
+u10-oo-unknown-method.tcl	tclsh8.6	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u10-oo-unknown-method.tcl	tclsh9.0	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u10-oo-unknown-method.tcl	tclsh9.1	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u10-oo-unknown-method.tcl	jim	1	u10-oo-unknown-method.tcl:2: Error: invalid command name "oo::class" ¶ Traceback (most recent call last): ¶   File "u10-oo-unknown-method.tcl", line 2
+u10-oo-unknown-method.tcl	vm8.4	1	invalid command name "oo::class" ¶     while executing ¶ "oo::class create C { ¶   method known {} { return known } ¶   method unknown {name args} { return "unknown method $name: $args" } ¶ }" ¶     (file "u10-oo-unknown-method.tcl" line 2)
+u10-oo-unknown-method.tcl	vm8.5	1	invalid command name "oo::class" ¶     while executing ¶ "oo::class create C { ¶   method known {} { return known } ¶   method unknown {name args} { return "unknown method $name: $args" } ¶ }" ¶     (file "u10-oo-unknown-method.tcl" line 2)
+u10-oo-unknown-method.tcl	vm8.6	1	known ¶ unknown method "missing": must be destroy, known or unknown ¶     while executing ¶ "$o missing 1 2" ¶     invoked from within ¶ "puts [$o missing 1 2]" ¶     (file "u10-oo-unknown-method.tcl" line 8)
+u10-oo-unknown-method.tcl	vm9.0	1	known ¶ unknown method "missing": must be destroy, known or unknown ¶     while executing ¶ "$o missing 1 2" ¶     invoked from within ¶ "puts [$o missing 1 2]" ¶     (file "u10-oo-unknown-method.tcl" line 8)
+u10-oo-unknown-method.tcl	vm9.1	1	known ¶ unknown method "missing": must be destroy, known or unknown ¶     while executing ¶ "$o missing 1 2" ¶     invoked from within ¶ "puts [$o missing 1 2]" ¶     (file "u10-oo-unknown-method.tcl" line 8)
+u10-oo-unknown-method.tcl	rt8.4	1	error: invalid command name "oo::class"
+u10-oo-unknown-method.tcl	rt8.5	1	error: invalid command name "oo::class"
+u10-oo-unknown-method.tcl	rt8.6	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u10-oo-unknown-method.tcl	rt9.0	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u10-oo-unknown-method.tcl	rt9.1	0	known ¶ unknown method missing: 1 2 ¶ no unknown: 1 unknown method "missing": must be destroy
+u11-auto-qualify.tcl	tclsh8.4	0	foo ¶ ::a::b::foo foo ¶ foo ¶ ::a::x::foo ::x::foo
+u11-auto-qualify.tcl	tclsh8.5	0	foo ¶ ::a::b::foo foo ¶ foo ¶ ::a::x::foo ::x::foo
+u11-auto-qualify.tcl	tclsh8.6	0	foo ¶ ::a::b::foo foo ¶ foo ¶ ::a::x::foo ::x::foo
+u11-auto-qualify.tcl	tclsh9.0	0	foo ¶ ::a::b::foo foo ¶ foo ¶ ::a::x::foo ::x::foo
+u11-auto-qualify.tcl	tclsh9.1	0	foo ¶ ::a::b::foo foo ¶ foo ¶ ::a::x::foo ::x::foo
+u11-auto-qualify.tcl	jim	1	u11-auto-qualify.tcl:2: Error: invalid command name "auto_qualify" ¶ Traceback (most recent call last): ¶   File "u11-auto-qualify.tcl", line 2
+u11-auto-qualify.tcl	vm8.4	1	invalid command name "auto_qualify" ¶     while executing ¶ "auto_qualify foo ::" ¶     invoked from within ¶ "puts [auto_qualify foo ::]" ¶     (file "u11-auto-qualify.tcl" line 2)
+u11-auto-qualify.tcl	vm8.5	1	invalid command name "auto_qualify" ¶     while executing ¶ "auto_qualify foo ::" ¶     invoked from within ¶ "puts [auto_qualify foo ::]" ¶     (file "u11-auto-qualify.tcl" line 2)
+u11-auto-qualify.tcl	vm8.6	1	invalid command name "auto_qualify" ¶     while executing ¶ "auto_qualify foo ::" ¶     invoked from within ¶ "puts [auto_qualify foo ::]" ¶     (file "u11-auto-qualify.tcl" line 2)
+u11-auto-qualify.tcl	vm9.0	1	invalid command name "auto_qualify" ¶     while executing ¶ "auto_qualify foo ::" ¶     invoked from within ¶ "puts [auto_qualify foo ::]" ¶     (file "u11-auto-qualify.tcl" line 2)
+u11-auto-qualify.tcl	vm9.1	1	invalid command name "auto_qualify" ¶     while executing ¶ "auto_qualify foo ::" ¶     invoked from within ¶ "puts [auto_qualify foo ::]" ¶     (file "u11-auto-qualify.tcl" line 2)
+u11-auto-qualify.tcl	rt8.4	1	error: invalid command name "auto_qualify"
+u11-auto-qualify.tcl	rt8.5	1	error: invalid command name "auto_qualify"
+u11-auto-qualify.tcl	rt8.6	1	error: invalid command name "auto_qualify"
+u11-auto-qualify.tcl	rt9.0	1	error: invalid command name "auto_qualify"
+u11-auto-qualify.tcl	rt9.1	1	error: invalid command name "auto_qualify"
+u12-auto-import.tcl	tclsh8.4	0	imported: util ¶ util
+u12-auto-import.tcl	tclsh8.5	0	imported: util ¶ util
+u12-auto-import.tcl	tclsh8.6	0	imported: util ¶ util
+u12-auto-import.tcl	tclsh9.0	0	imported: util ¶ util
+u12-auto-import.tcl	tclsh9.1	0	imported: util ¶ util
+u12-auto-import.tcl	jim	1	imported: ¶ u12-auto-import.tcl:6: Error: invalid command name "util" ¶ Traceback (most recent call last): ¶   File "u12-auto-import.tcl", line 6
+u12-auto-import.tcl	vm8.4	1	imported: ¶ invalid command name "util" ¶     while executing ¶ "util" ¶     invoked from within ¶ "puts [util]" ¶     (file "u12-auto-import.tcl" line 6)
+u12-auto-import.tcl	vm8.5	1	imported: ¶ invalid command name "util" ¶     while executing ¶ "util" ¶     invoked from within ¶ "puts [util]" ¶     (file "u12-auto-import.tcl" line 6)
+u12-auto-import.tcl	vm8.6	1	imported: ¶ invalid command name "util" ¶     while executing ¶ "util" ¶     invoked from within ¶ "puts [util]" ¶     (file "u12-auto-import.tcl" line 6)
+u12-auto-import.tcl	vm9.0	1	imported: ¶ invalid command name "util" ¶     while executing ¶ "util" ¶     invoked from within ¶ "puts [util]" ¶     (file "u12-auto-import.tcl" line 6)
+u12-auto-import.tcl	vm9.1	1	imported: ¶ invalid command name "util" ¶     while executing ¶ "util" ¶     invoked from within ¶ "puts [util]" ¶     (file "u12-auto-import.tcl" line 6)
+u12-auto-import.tcl	rt8.4	1	imported: ¶ error: invalid command name "util"
+u12-auto-import.tcl	rt8.5	1	imported: ¶ error: invalid command name "util"
+u12-auto-import.tcl	rt8.6	1	imported: ¶ error: invalid command name "util"
+u12-auto-import.tcl	rt9.0	1	imported: ¶ error: invalid command name "util"
+u12-auto-import.tcl	rt9.1	1	imported: ¶ error: invalid command name "util"
+u13-unknown-errorcode.tcl	tclsh8.4	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	tclsh8.5	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	tclsh8.6	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	tclsh9.0	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	tclsh9.1	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	jim	1	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ u13-unknown-errorcode.tcl:5: Error: can't read "::errorInfo": no such variable ¶ Traceback (most recent call last): ¶   File "u13-unknown-errorcode.tcl", line 5
+u13-unknown-errorcode.tcl	vm8.4	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	vm8.5	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	vm8.6	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	vm9.0	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	vm9.1	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is: unknown 1
+u13-unknown-errorcode.tcl	rt8.4	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is:  0
+u13-unknown-errorcode.tcl	rt8.5	0	msg: invalid command name "no_such_command_q" ¶ code: NONE ¶ info0: invalid command name "no_such_command_q" ¶ unknown is:  0
+u13-unknown-errorcode.tcl	rt8.6	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is:  0
+u13-unknown-errorcode.tcl	rt9.0	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is:  0
+u13-unknown-errorcode.tcl	rt9.1	0	msg: invalid command name "no_such_command_q" ¶ code: TCL LOOKUP COMMAND no_such_command_q ¶ info0: invalid command name "no_such_command_q" ¶ unknown is:  0
+u14-auto-reset.tcl	tclsh8.4	0	rp1 ¶ after reset: 0
+u14-auto-reset.tcl	tclsh8.5	0	rp1 ¶ after reset: 0
+u14-auto-reset.tcl	tclsh8.6	0	rp1 ¶ after reset: 0
+u14-auto-reset.tcl	tclsh9.0	0	rp1 ¶ after reset: 0
+u14-auto-reset.tcl	tclsh9.1	0	rp1 ¶ after reset: 0
+u14-auto-reset.tcl	jim	1	u14-auto-reset.tcl:3: Error: invalid command name "rp" ¶ Traceback (most recent call last): ¶   File "u14-auto-reset.tcl", line 3
+u14-auto-reset.tcl	vm8.4	1	rp1 ¶ invalid command name "auto_reset" ¶     while executing ¶ "auto_reset" ¶     (file "u14-auto-reset.tcl" line 4)
+u14-auto-reset.tcl	vm8.5	1	rp1 ¶ invalid command name "auto_reset" ¶     while executing ¶ "auto_reset" ¶     (file "u14-auto-reset.tcl" line 4)
+u14-auto-reset.tcl	vm8.6	1	rp1 ¶ invalid command name "auto_reset" ¶     while executing ¶ "auto_reset" ¶     (file "u14-auto-reset.tcl" line 4)
+u14-auto-reset.tcl	vm9.0	1	rp1 ¶ invalid command name "auto_reset" ¶     while executing ¶ "auto_reset" ¶     (file "u14-auto-reset.tcl" line 4)
+u14-auto-reset.tcl	vm9.1	1	rp1 ¶ invalid command name "auto_reset" ¶     while executing ¶ "auto_reset" ¶     (file "u14-auto-reset.tcl" line 4)
+u14-auto-reset.tcl	rt8.4	1	error: invalid command name "rp"
+u14-auto-reset.tcl	rt8.5	1	error: invalid command name "rp"
+u14-auto-reset.tcl	rt8.6	1	error: invalid command name "rp"
+u14-auto-reset.tcl	rt9.0	1	error: invalid command name "rp"
+u14-auto-reset.tcl	rt9.1	1	error: invalid command name "rp"
+u15-unknown-recursion.tcl	tclsh8.4	0	selfref: 1 self-referential recursion in "unknown" for command "selfref"
+u15-unknown-recursion.tcl	tclsh8.5	0	selfref: 1 self-referential recursion in "unknown" for command "selfref"
+u15-unknown-recursion.tcl	tclsh8.6	0	selfref: 1 self-referential recursion in "unknown" for command "selfref"
+u15-unknown-recursion.tcl	tclsh9.0	0	selfref: 1 self-referential recursion in "unknown" for command "selfref"
+u15-unknown-recursion.tcl	tclsh9.1	0	selfref: 1 self-referential recursion in "unknown" for command "selfref"
+u15-unknown-recursion.tcl	jim	0	selfref: 1 invalid command name "selfref"
+u15-unknown-recursion.tcl	vm8.4	0	selfref: 1 too many nested evaluations (infinite loop?)
+u15-unknown-recursion.tcl	vm8.5	0	selfref: 1 too many nested evaluations (infinite loop?)
+u15-unknown-recursion.tcl	vm8.6	0	selfref: 1 too many nested evaluations (infinite loop?)
+u15-unknown-recursion.tcl	vm9.0	0	selfref: 1 too many nested evaluations (infinite loop?)
+u15-unknown-recursion.tcl	vm9.1	0	selfref: 1 too many nested evaluations (infinite loop?)
+u15-unknown-recursion.tcl	rt8.4	0	selfref: 1 invalid command name "selfref"
+u15-unknown-recursion.tcl	rt8.5	0	selfref: 1 invalid command name "selfref"
+u15-unknown-recursion.tcl	rt8.6	0	selfref: 1 invalid command name "selfref"
+u15-unknown-recursion.tcl	rt9.0	0	selfref: 1 invalid command name "selfref"
+u15-unknown-recursion.tcl	rt9.1	0	selfref: 1 invalid command name "selfref"
+u16-namespace-unknown-errors.tcl	tclsh8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown {::ns1::h fixed} " ¶     (in namespace eval "::ns1" script line 1) ¶     invoked from within ¶ "namespace eval ns1 { namespace unknown {::ns1::h fixed} ; proc h {pre args} { return "h $pre $args" } ; proc go {} { return [m a] } }" ¶     (file "u16-namespace-unknown-errors.tcl" line 2)
+u16-namespace-unknown-errors.tcl	tclsh8.5	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	tclsh8.6	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	tclsh9.0	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	tclsh9.1	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	jim	1	u16-namespace-unknown-errors.tcl:2: Error: namespace, unknown command "unknown": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which ¶ Traceback (most recent call last): ¶   File "u16-namespace-unknown-errors.tcl", line 2 ¶     namespace unknown {::ns1::h fixed}
+u16-namespace-unknown-errors.tcl	vm8.4	1	bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which ¶     while executing ¶ "namespace unknown {::ns1::h fixed} " ¶     (in namespace eval "::ns1" script line 1) ¶     invoked from within ¶ "namespace eval ns1 { namespace unknown {::ns1::h fixed} ; proc h {pre args} { return "h $pre $args" } ; proc go {} { return [m a] } }" ¶     (file "u16-namespace-unknown-errors.tcl" line 2)
+u16-namespace-unknown-errors.tcl	vm8.5	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	vm8.6	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	vm9.0	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	vm9.1	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	rt8.4	1	error: bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
+u16-namespace-unknown-errors.tcl	rt8.5	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	rt8.6	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	rt9.0	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"
+u16-namespace-unknown-errors.tcl	rt9.1	0	h fixed m a ¶ fail: 1 handler failed ¶ missing handler: 1 invalid command name "m"

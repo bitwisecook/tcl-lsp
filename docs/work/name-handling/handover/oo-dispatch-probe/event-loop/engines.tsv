@@ -1,172 +1,273 @@
-fixture	engine	output
-ev01-timer-order.tcl	tclsh8.4	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	tclsh8.5	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	tclsh8.6	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	tclsh9.0	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	tclsh9.1	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	jim	idle t0a t0b t200|[rc=0]
-ev01-timer-order.tcl	vm8.6	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	rt8.6	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	vm9.0	t0a t0b idle t200|[rc=0]
-ev01-timer-order.tcl	rt9.0	t0a t0b idle t200|[rc=0]
-ev02-after-frame.tcl	tclsh8.4	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	tclsh8.5	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	tclsh8.6	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	tclsh9.0	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	tclsh9.1	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	jim	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	vm8.6	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	rt8.6	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	vm9.0	0 :: 0|:: 0|[rc=0]
-ev02-after-frame.tcl	rt9.0	0 :: 0|:: 0|[rc=0]
-ev03-after-info-cancel.tcl	tclsh8.4	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	tclsh8.5	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	tclsh8.6	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	tclsh9.0	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	tclsh9.1	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	jim	{set ::never 1} timer|{} 1 {event "after#1" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	vm8.6	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	rt8.6	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	vm9.0	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev03-after-info-cancel.tcl	rt9.0	{set ::never 1} timer|{} 1 {event "after#0" doesn't exist}|{}|ok 0|[rc=0]
-ev04-update-idletasks.tcl	tclsh8.4	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	tclsh8.5	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	tclsh8.6	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	tclsh9.0	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	tclsh9.1	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	jim	1 1|1 0|[rc=0]
-ev04-update-idletasks.tcl	vm8.6	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	rt8.6	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	vm9.0	1 0|1 0|[rc=0]
-ev04-update-idletasks.tcl	rt9.0	1 0|1 0|[rc=0]
-ev05-bgerror-proc.tcl	tclsh8.4	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	tclsh8.5	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	tclsh8.6	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	tclsh9.0	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	tclsh9.1	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	jim	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	vm8.6	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	rt8.6	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	vm9.0	boom 1 ::|[rc=0]
-ev05-bgerror-proc.tcl	rt9.0	boom 1 ::|[rc=0]
-ev06-interp-bgerror.tcl	tclsh8.4	bad option "bgerror": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer|    while executing|"interp bgerror {} ns::h"|    (file "ev06-interp-bgerror.tcl" line 5)|[rc=1]
-ev06-interp-bgerror.tcl	tclsh8.5	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	tclsh8.6	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	tclsh9.0	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	tclsh9.1	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	jim	ev06-interp-bgerror.tcl:5: Error: wrong # args: should be "interp"|Traceback (most recent call last):|  File "ev06-interp-bgerror.tcl", line 5|    interp bgerror {} ns::h|[rc=1]
-ev06-interp-bgerror.tcl	vm8.6	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	rt8.6	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	vm9.0	ns::h|boom2 1 1 ::ns|[rc=0]
-ev06-interp-bgerror.tcl	rt9.0	ns::h|boom2 1 1 ::ns|[rc=0]
-ev07-late-definition.tcl	tclsh8.4	first second|[rc=0]
-ev07-late-definition.tcl	tclsh8.5	first second|[rc=0]
-ev07-late-definition.tcl	tclsh8.6	first second|[rc=0]
-ev07-late-definition.tcl	tclsh9.0	first second|[rc=0]
-ev07-late-definition.tcl	tclsh9.1	first second|[rc=0]
-ev07-late-definition.tcl	jim	first second|[rc=0]
-ev07-late-definition.tcl	vm8.6	first second|[rc=0]
-ev07-late-definition.tcl	rt8.6	first second|[rc=0]
-ev07-late-definition.tcl	vm9.0	first second|[rc=0]
-ev07-late-definition.tcl	rt9.0	first second|[rc=0]
-ev08-deferred-variable.tcl	tclsh8.4	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	tclsh8.5	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	tclsh8.6	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	tclsh9.0	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	tclsh9.1	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	jim	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	vm8.6	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	rt8.6	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	vm9.0	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev08-deferred-variable.tcl	rt9.0	captured 1 {can't read "x": no such variable} late-global|[rc=0]
-ev09-fileevent.tcl	tclsh8.4	12|hello 1|[rc=0]
-ev09-fileevent.tcl	tclsh8.5	12|hello 1|[rc=0]
-ev09-fileevent.tcl	tclsh8.6	12|hello 1|[rc=0]
-ev09-fileevent.tcl	tclsh9.0	12|hello 1|[rc=0]
-ev09-fileevent.tcl	tclsh9.1	12|hello 1|[rc=0]
-ev09-fileevent.tcl	jim	49|hello 1|[rc=0]
-ev09-fileevent.tcl	vm8.6	command pipelines are not supported|    while executing|"open |[list echo hello] r"|    invoked from within|"set f [open |[list echo hello] r]"|    (file "ev09-fileevent.tcl" line 2)|[rc=1]
-ev09-fileevent.tcl	rt8.6	error: couldn't open "|echo hello": no such file or directory|[rc=1]
-ev09-fileevent.tcl	vm9.0	command pipelines are not supported|    while executing|"open |[list echo hello] r"|    invoked from within|"set f [open |[list echo hello] r]"|    (file "ev09-fileevent.tcl" line 2)|[rc=1]
-ev09-fileevent.tcl	rt9.0	error: couldn't open "|echo hello": no such file or directory|[rc=1]
-ev09b-chan-pipe.tcl	tclsh8.4	invalid command name "chan"|    while executing|"chan pipe"|    invoked from within|"lassign [chan pipe] r w"|    (file "ev09b-chan-pipe.tcl" line 2)|[rc=1]
-ev09b-chan-pipe.tcl	tclsh8.5	unknown or ambiguous subcommand "pipe": must be blocked, close, configure, copy, create, eof, event, flush, gets, names, pending, postevent, puts, read, seek, tell, or truncate|    while executing|"chan pipe"|    invoked from within|"lassign [chan pipe] r w"|    (file "ev09b-chan-pipe.tcl" line 2)|[rc=1]
-ev09b-chan-pipe.tcl	tclsh8.6	onread file3|hello 1|[rc=0]
-ev09b-chan-pipe.tcl	tclsh9.0	onread file5|hello 1|[rc=0]
-ev09b-chan-pipe.tcl	tclsh9.1	onread file5|hello 1|[rc=0]
-ev09b-chan-pipe.tcl	jim	ev09b-chan-pipe.tcl:2: Error: invalid command name "chan"|Traceback (most recent call last):|  File "ev09b-chan-pipe.tcl", line 2|[rc=1]
-ev09b-chan-pipe.tcl	vm8.6	invalid command name "chan"|    while executing|"chan pipe"|    invoked from within|"lassign [chan pipe] r w"|    (file "ev09b-chan-pipe.tcl" line 2)|[rc=1]
-ev09b-chan-pipe.tcl	rt8.6	error: chan pipe is not supported under the WASM runtime|[rc=1]
-ev09b-chan-pipe.tcl	vm9.0	invalid command name "chan"|    while executing|"chan pipe"|    invoked from within|"lassign [chan pipe] r w"|    (file "ev09b-chan-pipe.tcl" line 2)|[rc=1]
-ev09b-chan-pipe.tcl	rt9.0	error: chan pipe is not supported under the WASM runtime|[rc=1]
-ev10-vwait-name.tcl	tclsh8.4	global woke ns|[rc=0]
-ev10-vwait-name.tcl	tclsh8.5	global woke ns|[rc=0]
-ev10-vwait-name.tcl	tclsh8.6	global woke ns|[rc=0]
-ev10-vwait-name.tcl	tclsh9.0	global woke ns|[rc=0]
-ev10-vwait-name.tcl	tclsh9.1	global woke ns|[rc=0]
-ev10-vwait-name.tcl	jim	global woke ns|[rc=0]
-ev10-vwait-name.tcl	vm8.6	global woke ns|[rc=0]
-ev10-vwait-name.tcl	rt8.6	global woke ns|[rc=0]
-ev10-vwait-name.tcl	vm9.0	global woke ns|[rc=0]
-ev10-vwait-name.tcl	rt9.0	global woke ns|[rc=0]
-ev11-idle-reentry.tcl	tclsh8.4	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	tclsh8.5	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	tclsh8.6	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	tclsh9.0	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	tclsh9.1	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	jim	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	vm8.6	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	rt8.6	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	vm9.0	a b|a b|[rc=0]
-ev11-idle-reentry.tcl	rt9.0	a b|a b|[rc=0]
-ev12-callback-in-proc-local.tcl	tclsh8.4	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	tclsh8.5	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	tclsh8.6	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	tclsh9.0	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	tclsh9.1	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	jim	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	vm8.6	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	rt8.6	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	vm9.0	can't read "local": no such variable|[rc=0]
-ev12-callback-in-proc-local.tcl	rt9.0	can't read "local": no such variable|[rc=0]
-ev13-tk-bind.tcl	tclsh8.4	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	tclsh8.5	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	tclsh8.6	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	tclsh9.0	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	tclsh9.1	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	jim	ev13-tk-bind.tcl:2: Error: Can't load package Tk|Traceback (most recent call last):|  File "ev13-tk-bind.tcl", line 2|    package require Tk|[rc=1]
-ev13-tk-bind.tcl	vm8.6	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	rt8.6	error: can't find package Tk|[rc=1]
-ev13-tk-bind.tcl	vm9.0	can't find package Tk|    while executing|"package require Tk"|    (file "ev13-tk-bind.tcl" line 2)|[rc=1]
-ev13-tk-bind.tcl	rt9.0	error: can't find package Tk|[rc=1]
-ev13-tk-bind.tcl	tk9.0.3 (python tkinter, xvfb-run tk/run_tk.py)	.b 1
-ev14-vwait-idle.tcl	tclsh8.4	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	tclsh8.5	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	tclsh8.6	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	tclsh9.0	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	tclsh9.1	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	jim	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	vm8.6	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	rt8.6	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	vm9.0	idle-ran|[rc=0]
-ev14-vwait-idle.tcl	rt9.0	idle-ran|[rc=0]
-ev15-update-not-due.tcl	tclsh8.4	bad option "milliseconds": must be clicks, format, scan, or seconds|    while executing|"clock milliseconds"|    invoked from within|"set t0 [clock milliseconds]"|    (file "ev15-update-not-due.tcl" line 3)|[rc=1]
-ev15-update-not-due.tcl	tclsh8.5	0 1|[rc=0]
-ev15-update-not-due.tcl	tclsh8.6	0 1|[rc=0]
-ev15-update-not-due.tcl	tclsh9.0	0 1|[rc=0]
-ev15-update-not-due.tcl	tclsh9.1	0 1|[rc=0]
-ev15-update-not-due.tcl	jim	0 1|[rc=0]
-ev15-update-not-due.tcl	vm8.6	0 1|[rc=0]
-ev15-update-not-due.tcl	rt8.6	0 1|[rc=0]
-ev15-update-not-due.tcl	vm9.0	0 1|[rc=0]
-ev15-update-not-due.tcl	rt9.0	0 1|[rc=0]
-ev16-debug-vm-turn.tcl	tclsh8.4	bad option "milliseconds": must be clicks, format, scan, or seconds|    while executing|"clock milliseconds"|    invoked from within|"set t0 [clock milliseconds]"|    (file "ev16-debug-vm-turn.tcl" line 2)|[rc=1]
-ev16-debug-vm-turn.tcl	tclsh8.5	a0|[rc=0]
-ev16-debug-vm-turn.tcl	tclsh8.6	a0|[rc=0]
-ev16-debug-vm-turn.tcl	tclsh9.0	a0|[rc=0]
-ev16-debug-vm-turn.tcl	tclsh9.1	a0|[rc=0]
-ev16-debug-vm-turn.tcl	jim	a0|[rc=0]
-ev16-debug-vm-turn.tcl	vm8.6	a0 late|[rc=0]
-ev16-debug-vm-turn.tcl	rt8.6	a0|[rc=0]
-ev16-debug-vm-turn.tcl	vm9.0	a0 late|[rc=0]
-ev16-debug-vm-turn.tcl	rt9.0	a0|[rc=0]
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+ev01-timer-order.tcl	tclsh8.4	0	t0a t0b idle t200
+ev01-timer-order.tcl	tclsh8.5	0	t0a t0b idle t200
+ev01-timer-order.tcl	tclsh8.6	0	t0a t0b idle t200
+ev01-timer-order.tcl	tclsh9.0	0	t0a t0b idle t200
+ev01-timer-order.tcl	tclsh9.1	0	t0a t0b idle t200
+ev01-timer-order.tcl	jim	0	idle t0a t0b t200
+ev01-timer-order.tcl	vm8.4	0	t0a t0b idle t200
+ev01-timer-order.tcl	vm8.5	0	t0a t0b idle t200
+ev01-timer-order.tcl	vm8.6	0	t0a t0b idle t200
+ev01-timer-order.tcl	vm9.0	0	t0a t0b idle t200
+ev01-timer-order.tcl	vm9.1	0	t0a t0b idle t200
+ev01-timer-order.tcl	rt8.4	0	t0a t0b idle t200
+ev01-timer-order.tcl	rt8.5	0	t0a t0b idle t200
+ev01-timer-order.tcl	rt8.6	0	t0a t0b idle t200
+ev01-timer-order.tcl	rt9.0	0	t0a t0b idle t200
+ev01-timer-order.tcl	rt9.1	0	t0a t0b idle t200
+ev02-after-frame.tcl	tclsh8.4	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	tclsh8.5	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	tclsh8.6	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	tclsh9.0	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	tclsh9.1	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	jim	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	vm8.4	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	vm8.5	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	vm8.6	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	vm9.0	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	vm9.1	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	rt8.4	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	rt8.5	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	rt8.6	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	rt9.0	0	0 :: 0 ¶ :: 0
+ev02-after-frame.tcl	rt9.1	0	0 :: 0 ¶ :: 0
+ev03-after-info-cancel.tcl	tclsh8.4	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	tclsh8.5	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	tclsh8.6	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	tclsh9.0	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	tclsh9.1	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	jim	0	{set ::never 1} timer ¶ {} 1 {event "after#1" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	vm8.4	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	vm8.5	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	vm8.6	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	vm9.0	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	vm9.1	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	rt8.4	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	rt8.5	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	rt8.6	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	rt9.0	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev03-after-info-cancel.tcl	rt9.1	0	{set ::never 1} timer ¶ {} 1 {event "after#0" doesn't exist} ¶ {} ¶ ok 0
+ev04-update-idletasks.tcl	tclsh8.4	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	tclsh8.5	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	tclsh8.6	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	tclsh9.0	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	tclsh9.1	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	jim	0	1 1 ¶ 1 0
+ev04-update-idletasks.tcl	vm8.4	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	vm8.5	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	vm8.6	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	vm9.0	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	vm9.1	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	rt8.4	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	rt8.5	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	rt8.6	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	rt9.0	0	1 0 ¶ 1 0
+ev04-update-idletasks.tcl	rt9.1	0	1 0 ¶ 1 0
+ev05-bgerror-proc.tcl	tclsh8.4	0	boom 1 ::
+ev05-bgerror-proc.tcl	tclsh8.5	0	boom 1 ::
+ev05-bgerror-proc.tcl	tclsh8.6	0	boom 1 ::
+ev05-bgerror-proc.tcl	tclsh9.0	0	boom 1 ::
+ev05-bgerror-proc.tcl	tclsh9.1	0	boom 1 ::
+ev05-bgerror-proc.tcl	jim	0	boom 1 ::
+ev05-bgerror-proc.tcl	vm8.4	0	boom 1 ::
+ev05-bgerror-proc.tcl	vm8.5	0	boom 1 ::
+ev05-bgerror-proc.tcl	vm8.6	0	boom 1 ::
+ev05-bgerror-proc.tcl	vm9.0	0	boom 1 ::
+ev05-bgerror-proc.tcl	vm9.1	0	boom 1 ::
+ev05-bgerror-proc.tcl	rt8.4	0	boom 1 ::
+ev05-bgerror-proc.tcl	rt8.5	0	boom 1 ::
+ev05-bgerror-proc.tcl	rt8.6	0	boom 1 ::
+ev05-bgerror-proc.tcl	rt9.0	0	boom 1 ::
+ev05-bgerror-proc.tcl	rt9.1	0	boom 1 ::
+ev06-interp-bgerror.tcl	tclsh8.4	1	bad option "bgerror": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer ¶     while executing ¶ "interp bgerror {} ns::h" ¶     (file "ev06-interp-bgerror.tcl" line 5)
+ev06-interp-bgerror.tcl	tclsh8.5	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	tclsh8.6	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	tclsh9.0	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	tclsh9.1	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	jim	1	ev06-interp-bgerror.tcl:5: Error: wrong # args: should be "interp" ¶ Traceback (most recent call last): ¶   File "ev06-interp-bgerror.tcl", line 5 ¶     interp bgerror {} ns::h
+ev06-interp-bgerror.tcl	vm8.4	1	bad option "bgerror": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer ¶     while executing ¶ "interp bgerror {} ns::h" ¶     (file "ev06-interp-bgerror.tcl" line 5)
+ev06-interp-bgerror.tcl	vm8.5	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	vm8.6	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	vm9.0	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	vm9.1	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	rt8.4	1	error: bad option "bgerror": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer
+ev06-interp-bgerror.tcl	rt8.5	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	rt8.6	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	rt9.0	0	ns::h ¶ boom2 1 1 ::ns
+ev06-interp-bgerror.tcl	rt9.1	0	ns::h ¶ boom2 1 1 ::ns
+ev07-late-definition.tcl	tclsh8.4	0	first second
+ev07-late-definition.tcl	tclsh8.5	0	first second
+ev07-late-definition.tcl	tclsh8.6	0	first second
+ev07-late-definition.tcl	tclsh9.0	0	first second
+ev07-late-definition.tcl	tclsh9.1	0	first second
+ev07-late-definition.tcl	jim	0	first second
+ev07-late-definition.tcl	vm8.4	0	first second
+ev07-late-definition.tcl	vm8.5	0	first second
+ev07-late-definition.tcl	vm8.6	0	first second
+ev07-late-definition.tcl	vm9.0	0	first second
+ev07-late-definition.tcl	vm9.1	0	first second
+ev07-late-definition.tcl	rt8.4	0	first second
+ev07-late-definition.tcl	rt8.5	0	first second
+ev07-late-definition.tcl	rt8.6	0	first second
+ev07-late-definition.tcl	rt9.0	0	first second
+ev07-late-definition.tcl	rt9.1	0	first second
+ev08-deferred-variable.tcl	tclsh8.4	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	tclsh8.5	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	tclsh8.6	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	tclsh9.0	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	tclsh9.1	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	jim	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	vm8.4	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	vm8.5	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	vm8.6	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	vm9.0	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	vm9.1	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	rt8.4	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	rt8.5	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	rt8.6	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	rt9.0	0	captured 1 {can't read "x": no such variable} late-global
+ev08-deferred-variable.tcl	rt9.1	0	captured 1 {can't read "x": no such variable} late-global
+ev09-fileevent.tcl	tclsh8.4	0	12 ¶ hello 1
+ev09-fileevent.tcl	tclsh8.5	0	12 ¶ hello 1
+ev09-fileevent.tcl	tclsh8.6	0	12 ¶ hello 1
+ev09-fileevent.tcl	tclsh9.0	0	12 ¶ hello 1
+ev09-fileevent.tcl	tclsh9.1	0	12 ¶ hello 1
+ev09-fileevent.tcl	jim	0	49 ¶ hello 1
+ev09-fileevent.tcl	vm8.4	1	command pipelines are not supported ¶     while executing ¶ "open |[list echo hello] r" ¶     invoked from within ¶ "set f [open |[list echo hello] r]" ¶     (file "ev09-fileevent.tcl" line 2)
+ev09-fileevent.tcl	vm8.5	1	command pipelines are not supported ¶     while executing ¶ "open |[list echo hello] r" ¶     invoked from within ¶ "set f [open |[list echo hello] r]" ¶     (file "ev09-fileevent.tcl" line 2)
+ev09-fileevent.tcl	vm8.6	1	command pipelines are not supported ¶     while executing ¶ "open |[list echo hello] r" ¶     invoked from within ¶ "set f [open |[list echo hello] r]" ¶     (file "ev09-fileevent.tcl" line 2)
+ev09-fileevent.tcl	vm9.0	1	command pipelines are not supported ¶     while executing ¶ "open |[list echo hello] r" ¶     invoked from within ¶ "set f [open |[list echo hello] r]" ¶     (file "ev09-fileevent.tcl" line 2)
+ev09-fileevent.tcl	vm9.1	1	command pipelines are not supported ¶     while executing ¶ "open |[list echo hello] r" ¶     invoked from within ¶ "set f [open |[list echo hello] r]" ¶     (file "ev09-fileevent.tcl" line 2)
+ev09-fileevent.tcl	rt8.4	1	error: couldn't open "|echo hello": no such file or directory
+ev09-fileevent.tcl	rt8.5	1	error: couldn't open "|echo hello": no such file or directory
+ev09-fileevent.tcl	rt8.6	1	error: couldn't open "|echo hello": no such file or directory
+ev09-fileevent.tcl	rt9.0	1	error: couldn't open "|echo hello": no such file or directory
+ev09-fileevent.tcl	rt9.1	1	error: couldn't open "|echo hello": no such file or directory
+ev09b-chan-pipe.tcl	tclsh8.4	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	tclsh8.5	1	unknown or ambiguous subcommand "pipe": must be blocked, close, configure, copy, create, eof, event, flush, gets, names, pending, postevent, puts, read, seek, tell, or truncate ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	tclsh8.6	0	onread file# ¶ hello 1
+ev09b-chan-pipe.tcl	tclsh9.0	0	onread file# ¶ hello 1
+ev09b-chan-pipe.tcl	tclsh9.1	0	onread file# ¶ hello 1
+ev09b-chan-pipe.tcl	jim	1	ev09b-chan-pipe.tcl:2: Error: invalid command name "chan" ¶ Traceback (most recent call last): ¶   File "ev09b-chan-pipe.tcl", line 2
+ev09b-chan-pipe.tcl	vm8.4	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	vm8.5	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	vm8.6	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	vm9.0	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	vm9.1	1	invalid command name "chan" ¶     while executing ¶ "chan pipe" ¶     invoked from within ¶ "lassign [chan pipe] r w" ¶     (file "ev09b-chan-pipe.tcl" line 2)
+ev09b-chan-pipe.tcl	rt8.4	1	error: invalid command name "chan"
+ev09b-chan-pipe.tcl	rt8.5	1	error: unknown or ambiguous subcommand "pipe": must be blocked, close, configure, copy, create, eof, event, flush, gets, names, pending, postevent, puts, read, seek, tell, or truncate
+ev09b-chan-pipe.tcl	rt8.6	1	error: chan pipe is not supported under the WASM runtime
+ev09b-chan-pipe.tcl	rt9.0	1	error: chan pipe is not supported under the WASM runtime
+ev09b-chan-pipe.tcl	rt9.1	1	error: chan pipe is not supported under the WASM runtime
+ev10-vwait-name.tcl	tclsh8.4	0	global woke ns
+ev10-vwait-name.tcl	tclsh8.5	0	global woke ns
+ev10-vwait-name.tcl	tclsh8.6	0	global woke ns
+ev10-vwait-name.tcl	tclsh9.0	0	global woke ns
+ev10-vwait-name.tcl	tclsh9.1	0	global woke ns
+ev10-vwait-name.tcl	jim	0	global woke ns
+ev10-vwait-name.tcl	vm8.4	0	global woke ns
+ev10-vwait-name.tcl	vm8.5	0	global woke ns
+ev10-vwait-name.tcl	vm8.6	0	global woke ns
+ev10-vwait-name.tcl	vm9.0	0	global woke ns
+ev10-vwait-name.tcl	vm9.1	0	global woke ns
+ev10-vwait-name.tcl	rt8.4	0	global woke ns
+ev10-vwait-name.tcl	rt8.5	0	global woke ns
+ev10-vwait-name.tcl	rt8.6	0	global woke ns
+ev10-vwait-name.tcl	rt9.0	0	global woke ns
+ev10-vwait-name.tcl	rt9.1	0	global woke ns
+ev11-idle-reentry.tcl	tclsh8.4	0	a b ¶ a b
+ev11-idle-reentry.tcl	tclsh8.5	0	a b ¶ a b
+ev11-idle-reentry.tcl	tclsh8.6	0	a b ¶ a b
+ev11-idle-reentry.tcl	tclsh9.0	0	a b ¶ a b
+ev11-idle-reentry.tcl	tclsh9.1	0	a b ¶ a b
+ev11-idle-reentry.tcl	jim	0	a b ¶ a b
+ev11-idle-reentry.tcl	vm8.4	0	a b ¶ a b
+ev11-idle-reentry.tcl	vm8.5	0	a b ¶ a b
+ev11-idle-reentry.tcl	vm8.6	0	a b ¶ a b
+ev11-idle-reentry.tcl	vm9.0	0	a b ¶ a b
+ev11-idle-reentry.tcl	vm9.1	0	a b ¶ a b
+ev11-idle-reentry.tcl	rt8.4	0	a b ¶ a b
+ev11-idle-reentry.tcl	rt8.5	0	a b ¶ a b
+ev11-idle-reentry.tcl	rt8.6	0	a b ¶ a b
+ev11-idle-reentry.tcl	rt9.0	0	a b ¶ a b
+ev11-idle-reentry.tcl	rt9.1	0	a b ¶ a b
+ev12-callback-in-proc-local.tcl	tclsh8.4	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	tclsh8.5	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	tclsh8.6	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	tclsh9.0	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	tclsh9.1	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	jim	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	vm8.4	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	vm8.5	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	vm8.6	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	vm9.0	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	vm9.1	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	rt8.4	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	rt8.5	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	rt8.6	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	rt9.0	0	can't read "local": no such variable
+ev12-callback-in-proc-local.tcl	rt9.1	0	can't read "local": no such variable
+ev13-tk-bind.tcl	tclsh8.4	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	tclsh8.5	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	tclsh8.6	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	tclsh9.0	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	tclsh9.1	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	jim	1	ev13-tk-bind.tcl:2: Error: Can't load package Tk ¶ Traceback (most recent call last): ¶   File "ev13-tk-bind.tcl", line 2 ¶     package require Tk
+ev13-tk-bind.tcl	vm8.4	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	vm8.5	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	vm8.6	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	vm9.0	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	vm9.1	1	can't find package Tk ¶     while executing ¶ "package require Tk" ¶     (file "ev13-tk-bind.tcl" line 2)
+ev13-tk-bind.tcl	rt8.4	1	error: can't find package Tk
+ev13-tk-bind.tcl	rt8.5	1	error: can't find package Tk
+ev13-tk-bind.tcl	rt8.6	1	error: can't find package Tk
+ev13-tk-bind.tcl	rt9.0	1	error: can't find package Tk
+ev13-tk-bind.tcl	rt9.1	1	error: can't find package Tk
+ev14-vwait-idle.tcl	tclsh8.4	0	idle-ran
+ev14-vwait-idle.tcl	tclsh8.5	0	idle-ran
+ev14-vwait-idle.tcl	tclsh8.6	0	idle-ran
+ev14-vwait-idle.tcl	tclsh9.0	0	idle-ran
+ev14-vwait-idle.tcl	tclsh9.1	0	idle-ran
+ev14-vwait-idle.tcl	jim	0	idle-ran
+ev14-vwait-idle.tcl	vm8.4	0	idle-ran
+ev14-vwait-idle.tcl	vm8.5	0	idle-ran
+ev14-vwait-idle.tcl	vm8.6	0	idle-ran
+ev14-vwait-idle.tcl	vm9.0	0	idle-ran
+ev14-vwait-idle.tcl	vm9.1	0	idle-ran
+ev14-vwait-idle.tcl	rt8.4	0	idle-ran
+ev14-vwait-idle.tcl	rt8.5	0	idle-ran
+ev14-vwait-idle.tcl	rt8.6	0	idle-ran
+ev14-vwait-idle.tcl	rt9.0	0	idle-ran
+ev14-vwait-idle.tcl	rt9.1	0	idle-ran
+ev15-update-not-due.tcl	tclsh8.4	1	bad option "milliseconds": must be clicks, format, scan, or seconds ¶     while executing ¶ "clock milliseconds" ¶     invoked from within ¶ "set t0 [clock milliseconds]" ¶     (file "ev15-update-not-due.tcl" line 3)
+ev15-update-not-due.tcl	tclsh8.5	0	0 1
+ev15-update-not-due.tcl	tclsh8.6	0	0 1
+ev15-update-not-due.tcl	tclsh9.0	0	0 1
+ev15-update-not-due.tcl	tclsh9.1	0	0 1
+ev15-update-not-due.tcl	jim	0	0 1
+ev15-update-not-due.tcl	vm8.4	0	0 1
+ev15-update-not-due.tcl	vm8.5	0	0 1
+ev15-update-not-due.tcl	vm8.6	0	0 1
+ev15-update-not-due.tcl	vm9.0	0	0 1
+ev15-update-not-due.tcl	vm9.1	1	
+ev15-update-not-due.tcl	rt8.4	0	0 1
+ev15-update-not-due.tcl	rt8.5	0	0 1
+ev15-update-not-due.tcl	rt8.6	0	0 1
+ev15-update-not-due.tcl	rt9.0	0	0 1
+ev15-update-not-due.tcl	rt9.1	0	0 1
+ev16-debug-vm-turn.tcl	tclsh8.4	1	bad option "milliseconds": must be clicks, format, scan, or seconds ¶     while executing ¶ "clock milliseconds" ¶     invoked from within ¶ "set t0 [clock milliseconds]" ¶     (file "ev16-debug-vm-turn.tcl" line 2)
+ev16-debug-vm-turn.tcl	tclsh8.5	0	a0
+ev16-debug-vm-turn.tcl	tclsh8.6	0	a0
+ev16-debug-vm-turn.tcl	tclsh9.0	0	a0
+ev16-debug-vm-turn.tcl	tclsh9.1	0	a0
+ev16-debug-vm-turn.tcl	jim	0	a0
+ev16-debug-vm-turn.tcl	vm8.4	0	a0
+ev16-debug-vm-turn.tcl	vm8.5	0	a0
+ev16-debug-vm-turn.tcl	vm8.6	0	a0 late
+ev16-debug-vm-turn.tcl	vm9.0	0	a0 late
+ev16-debug-vm-turn.tcl	vm9.1	1	
+ev16-debug-vm-turn.tcl	rt8.4	0	a0
+ev16-debug-vm-turn.tcl	rt8.5	0	a0
+ev16-debug-vm-turn.tcl	rt8.6	0	a0
+ev16-debug-vm-turn.tcl	rt9.0	0	a0
+ev16-debug-vm-turn.tcl	rt9.1	0	a0

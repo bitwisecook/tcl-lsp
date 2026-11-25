@@ -1,63 +1,65 @@
-# Analyser diagnostics through the tcl-lsp MCP server (cached build; may lag HEAD afe2f2d8 slightly), dialect tcl9.0 unless noted.
-# Format: fixture: [CODE Lline message]. "FALSE" marks a diagnostic contradicted by every tclsh that runs the fixture; "MISSED" marks a fault tclsh reports that the analyser does not.
-e01-catch-codes.tcl: none
-e02-catch-options.tcl: none
-e03-return-code-break-from-proc.tcl: none
-e04-bare-break-in-proc.tcl: [W302 L9 catch without result var]; MISSED: bare break/continue leaving procs b and c (tclsh: invoked "break" outside of a loop, always)
-e05-try-on-trap.tcl: none
-e06-try-finally-overrides.tcl: none
-e07-throw.tcl: [E002 L4 Too few arguments for 'throw'] (true; inside catch)
-e08-error-info-code.tcl: [W210 L10 Variable 'nosuch' is read before it is set] (true; deliberate failing read inside catch)
-e09-errorstack.tcl: none
-e10-errorline.tcl: none
-e11-custom-codes.tcl: none
-e12-break-through-eval-uplevel.tcl: [W302 L10]; MISSED: proc ub's uplevel 1 {break} always errors
-e13-return-options.tcl: none (return notreached after return -level 2 callee not flagged; no false positive)
-e14-dead-after-control.tcl: [I230 L6 Condition '1' is always true] [W302 L7] [W302 L8 x2]; MISSED: no diagnostic for unreachable commands after return, error, break, throw, if/else-both-return (the optimiser does find them: O107)
-e15-catch-defines-vars.tcl: [W302 L2]; no W210 after catch body or catch result/options vars (backlog entry not reproduced on this build)
-e16-errorinfo-accumulation.tcl: none
-e17-loop-body-codes.tcl: [W242 L9 for termination cannot be proven] FALSE-ish (step is break) [W210 L9 Variable 'z' is read before it is set] FALSE
-e18-try-in-proc-return.tcl: none
-e19-native-errorcodes.tcl: none
-e20-toplevel-return-source.tcl: none
-e21-handler-options.tcl: none
-e22-uncaught-toplevel-break.tcl: none; MISSED: top-level break in a script file always errors
-e23-uncaught-toplevel-custom.tcl: none
-e24-uncaught-error-trace.tcl: none
-e25-catch-for-loop-var.tcl: [W210 L2 Variable 'i' is read before it is set] FALSE (span = whole catch command) [W302 L4] [W210 L4 Variable 'j' is read before it is set] FALSE [W242 L4] FALSE-ish; proc b ([catch …] inside if) gets no W210
-e26-for-break-step.tcl: [W242 L2 for termination cannot be proven: 'i' never modified by the step or body] FALSE-ish (the step is break)
-e27-optimiser-try-finally.tcl: none
-e28-optimiser-return-level0.tcl: none
-e29-finally-reads-body-var.tcl: [W220 L2 Assignment to 'a' is never read] FALSE (the finally clause reads it)
-e30-after-return-level0.tcl: [W210 L2 Variable 'y' is read before it is set] FALSE (return -level 0 does not leave the procedure)
-e31-missing-variable-errorcode.tcl: [W210 L2 'nosuch'] [W210 L5 'nosuch3'] [W210 L6 'nosuch4'] (true; deliberate reads inside catch) [W210 L7 Variable 'nosuch5' is read before it is set] FALSE (array get of a missing variable returns {} without error)
-e32-posix-errorcode.tcl: none
-
-# Discriminating variants (not fixture files), tcl9.0:
-# proc a {} { catch {for {set i 0} {$i < 3} {incr i} {}} r ; return $r }          -> W210 'i' FALSE
-# proc b {} { catch { for {set i 0} {$i < 3} {incr i} {}} r ; return $r }         -> W210 'i' FALSE
-# proc c {} { catch {set x 1; for {set i 0} {$i < 3} {incr i} {}} r ; return $r }  -> W210 'i' FALSE
-# proc d {} { catch {foreach i {1 2} {puts $i}} r ; return $r }                    -> none
-# proc e {} { catch {while {[set q 1]} {break}} r ; return $r }                    -> none
-# proc b {} { try { for {set j 0} {$j < 3} {incr j} { puts $j } } on error {m} { return $m } ; return ok }  -> none
-# proc e {} { eval { for {set e 0} {$e < 2} {incr e} {} } ; return ok }           -> none
-# for {...} {...} {break} {...} without catch, in a proc                             -> W242 only
-# proc t {} { try { set a 1; return 1 } finally { puts $a } }                         -> W220 'a' FALSE
-# proc w {} { catch {error x} ; return $nn }                                        -> W210 'nn' (true)
-
-# Release gating, tcl8.4: try, throw, info errorstack, namespace unknown -> W002; return -level -> W004; catch {…} r o -> nothing (MISSED: 8.4 catch takes one variable, tclsh 8.4 fails 'wrong # args').
-# tcl8.5: try, throw, lmap -> W002 and also W123 'Unknown command' (double report; 8.4 gives W002 only).
-
-# Optimiser (MCP optimize):
-# e27, profile full/aggressive, tcl8.6 and tcl9.0: O107 "Eliminate unreachable dead code" deletes `puts fin` from `try { return 1 } finally { puts fin }`; aggressive also O103 folds [t] to 1. WRONG: tclsh prints "fin" then "1"; rewritten script prints "1".
-# e28, profile full, tcl8.6: O107 deletes `puts reached-v` after `return -level 0 lvl0`. WRONG: tclsh prints "reached-v" then ""; rewritten prints "lvl0".
-# try { error x } on error {m} { return h } finally { puts fin }: O107 deletes `puts fin`. WRONG.
-# Profile readability (the LSP default): no rewrites.
-# Correct O107: code after return, error, throw, return -code error, return -code ok (level 1), continue in foreach; return -code break/continue procs are not inlined.
-
-# Build staleness: the MCP binary (/root/.cache/tcl-lsp/tcl-mcp, 19 Nov 16:43) also reproduces #2142
-# (proc p {} {global g; try {error boom} finally {set g 1}} -> O107 empties the finally), which the source at HEAD
-# documents as fixed (rust/tcl-compiler/src/cfg_builder/cfg_lower/try_construct.rs:401-420), and HEAD's
-# rust/tcl-compiler/src/lowering/hooks/control.rs:117-159 lowers return -level 0 -code ok/error/break/continue as an ordinary command.
-# So the e27/e28 optimiser faults, and probably the e29/e30 W220/W210 faults, are faults of the cached build;
-# they were not re-run at HEAD because building is not allowed in this audit.
+# Generated by `cargo xtask conformance`. fixture <TAB> dialect <TAB> analyser codes as CODE@line ("-" = none) <TAB> reviewed verdict. A verdict is kept while the codes it reviewed are unchanged; otherwise it reads "review".
+e01-catch-codes.tcl	tcl8.6	-	review
+e01-catch-codes.tcl	tcl9.0	-	review
+e02-catch-options.tcl	tcl8.6	W155@2 W155@2	review
+e02-catch-options.tcl	tcl9.0	W155@2 W155@2	review
+e03-return-code-break-from-proc.tcl	tcl8.6	-	review
+e03-return-code-break-from-proc.tcl	tcl9.0	-	review
+e04-bare-break-in-proc.tcl	tcl8.6	W302@9	review
+e04-bare-break-in-proc.tcl	tcl9.0	W302@9	review
+e05-try-on-trap.tcl	tcl8.6	-	review
+e05-try-on-trap.tcl	tcl9.0	-	review
+e06-try-finally-overrides.tcl	tcl8.6	W307@8	review
+e06-try-finally-overrides.tcl	tcl9.0	W307@8	review
+e07-throw.tcl	tcl8.6	E002@4	review
+e07-throw.tcl	tcl9.0	E002@4	review
+e08-error-info-code.tcl	tcl8.6	W233@12	review
+e08-error-info-code.tcl	tcl9.0	W233@12	review
+e09-errorstack.tcl	tcl8.6	-	review
+e09-errorstack.tcl	tcl9.0	-	review
+e10-errorline.tcl	tcl8.6	-	review
+e10-errorline.tcl	tcl9.0	-	review
+e11-custom-codes.tcl	tcl8.6	-	review
+e11-custom-codes.tcl	tcl9.0	-	review
+e12-break-through-eval-uplevel.tcl	tcl8.6	W302@10	review
+e12-break-through-eval-uplevel.tcl	tcl9.0	W302@10	review
+e13-return-options.tcl	tcl8.6	-	review
+e13-return-options.tcl	tcl9.0	-	review
+e14-dead-after-control.tcl	tcl8.6	I230@6 W302@7 W302@8 W302@8	review
+e14-dead-after-control.tcl	tcl9.0	I230@6 W302@7 W302@8 W302@8	review
+e15-catch-defines-vars.tcl	tcl8.6	W210@2 W302@2	review
+e15-catch-defines-vars.tcl	tcl9.0	W210@2 W302@2	review
+e16-errorinfo-accumulation.tcl	tcl8.6	-	review
+e16-errorinfo-accumulation.tcl	tcl9.0	-	review
+e17-loop-body-codes.tcl	tcl8.6	-	review
+e17-loop-body-codes.tcl	tcl9.0	-	review
+e18-try-in-proc-return.tcl	tcl8.6	-	review
+e18-try-in-proc-return.tcl	tcl9.0	-	review
+e19-native-errorcodes.tcl	tcl8.6	W233@1 W210@3	review
+e19-native-errorcodes.tcl	tcl9.0	W233@1 W210@3	review
+e20-toplevel-return-source.tcl	tcl8.6	-	review
+e20-toplevel-return-source.tcl	tcl9.0	-	review
+e21-handler-options.tcl	tcl8.6	-	review
+e21-handler-options.tcl	tcl9.0	-	review
+e22-uncaught-toplevel-break.tcl	tcl8.6	-	review
+e22-uncaught-toplevel-break.tcl	tcl9.0	-	review
+e23-uncaught-toplevel-custom.tcl	tcl8.6	-	review
+e23-uncaught-toplevel-custom.tcl	tcl9.0	-	review
+e24-uncaught-error-trace.tcl	tcl8.6	-	review
+e24-uncaught-error-trace.tcl	tcl9.0	-	review
+e25-catch-for-loop-var.tcl	tcl8.6	W210@2 W210@2 W210@4 W302@4	review
+e25-catch-for-loop-var.tcl	tcl9.0	W210@2 W210@2 W210@4 W302@4	review
+e26-for-break-step.tcl	tcl8.6	W220@2	review
+e26-for-break-step.tcl	tcl9.0	W220@2	review
+e27-optimiser-try-finally.tcl	tcl8.6	-	review
+e27-optimiser-try-finally.tcl	tcl9.0	-	review
+e28-optimiser-return-level0.tcl	tcl8.6	-	review
+e28-optimiser-return-level0.tcl	tcl9.0	-	review
+e29-finally-reads-body-var.tcl	tcl8.6	W210@2	review
+e29-finally-reads-body-var.tcl	tcl9.0	W210@2	review
+e30-after-return-level0.tcl	tcl8.6	-	review
+e30-after-return-level0.tcl	tcl9.0	-	review
+e31-missing-variable-errorcode.tcl	tcl8.6	W210@2 W210@2	review
+e31-missing-variable-errorcode.tcl	tcl9.0	W210@2 W210@2	review
+e32-posix-errorcode.tcl	tcl8.6	-	review
+e32-posix-errorcode.tcl	tcl9.0	-	review

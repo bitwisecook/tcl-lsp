@@ -50,4 +50,3 @@ VAR v25-tk-textvariable-local.tcl tcl8.6 at="name " | def=["L1c16"] | refs=["L1c
 VAR v25-tk-textvariable-local.tcl tcl9.0 at="name " | def=["L1c16"] | refs=["L1c16", "L1c56"] | rename=["L1c16", "L1c56"] | hover=**Variable** `name` | diag=[]
 VAR v26-namespace-which-var.tcl tcl8.6 at="v] " | def=[] | refs=[] | rename=[] | hover=- | diag=[]
 VAR v26-namespace-which-var.tcl tcl9.0 at="v] " | def=[] | refs=[] | rename=[] | hover=- | diag=[]
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3663 filtered out; finished in 28.21s

@@ -1,33 +1,40 @@
-EXTD ns01-split-edges.tcl 
-EXTD ns02-exists-children.tcl 
-EXTD ns03-export-import.tcl 
-EXTD ns04-import-force.tcl 
-EXTD ns05-delete-recreate.tcl 
-EXTD ns06-path.tcl 
-EXTD ns07-unknown.tcl 
-EXTD ns08-which.tcl 
-EXTD ns09-current-contexts.tcl 
-EXTD ns10-implicit-create.tcl 
-EXTD ns11-rename-across.tcl 
-EXTD ns12-inscope-args.tcl W101@L4[eval with substituted arguments risks code injecti]
-EXTD ns13-forget.tcl 
-EXTD ns14-info-patterns.tcl 
-EXTD ns15-delete-current.tcl 
-EXTD ns16-global-forms.tcl 
-EXTD ns17-origin-chain.tcl 
-EXTD ns18-ensemble.tcl 
-EXTD ns19-variable-array.tcl 
-EXTD ns20-upvar-missing.tcl 
-EXT k01-import.tcl word=get_a col=59 | def=["L1:namespace eval ::lib { namespace export get*"] | hover=**Possible procedure** | diag=[]
-EXT k02-import-force.tcl word=x col=87 | def=["L1:namespace eval ::lib { namespace export x; p"] | hover=**Possible procedure** | diag=[]
-EXT k03-path.tcl word=h col=57 | def=["L1:namespace eval ::lib { proc h {} {return lib"] | hover=proc ::lib::h {} {...} | diag=[]
-EXT k04-delete-recreate.tcl word=p col=11 | def=["L3:namespace eval ::d { proc p {} {return new} "] | hover=proc ::d::p {} {...} | diag=[]
-EXT k05-rename-across.tcl word=q col=11 | def=[] | hover=- | diag=[]
-EXT k06-origin-chain.tcl word=f col=52 | def=["L1:namespace eval ::a { namespace export f; pro"] | hover=**Possible procedure** | diag=[]
-EXT k07-forget.tcl word=f col=90 | def=[] | hover=**Possible procedure** | diag=["W123@L2"]
-EXT k08-ensemble.tcl word=area col=10 | def=[] | hover=- | diag=[]
-EXT k09-deleted-call.tcl word=p col=18 | def=[] | hover=- | diag=[]
-EXT k10-ns-variable-qualified.tcl word=limit col=13 | def=["L1:namespace eval ::cfg { variable limit 3 }"] | hover=**Variable** `::cfg::limit` | diag=[]
-EXT k11-nested-relative.tcl word=p col=75 | def=["L1:namespace eval ::a { namespace eval b { proc"] | hover=- | diag=[]
-EXT k12-implicit-parent.tcl word=p col=12 | def=["L1:namespace eval a::b { proc p {} {return ab} "] | hover=proc ::a::b::p {} {...} | diag=[]
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3663 filtered out; finished in 7.77s
+PROBE ns01-split-edges.tcl tcl8.6: 
+PROBE ns01-split-edges.tcl tcl9.0: 
+PROBE ns02-exists-children.tcl tcl8.6: 
+PROBE ns02-exists-children.tcl tcl9.0: 
+PROBE ns03-export-import.tcl tcl8.6: 
+PROBE ns03-export-import.tcl tcl9.0: 
+PROBE ns04-import-force.tcl tcl8.6: 
+PROBE ns04-import-force.tcl tcl9.0: 
+PROBE ns05-delete-recreate.tcl tcl8.6: 
+PROBE ns05-delete-recreate.tcl tcl9.0: 
+PROBE ns06-path.tcl tcl8.6: 
+PROBE ns06-path.tcl tcl9.0: 
+PROBE ns07-unknown.tcl tcl8.6: 
+PROBE ns07-unknown.tcl tcl9.0: 
+PROBE ns08-which.tcl tcl8.6: 
+PROBE ns08-which.tcl tcl9.0: 
+PROBE ns09-current-contexts.tcl tcl8.6: 
+PROBE ns09-current-contexts.tcl tcl9.0: 
+PROBE ns10-implicit-create.tcl tcl8.6: 
+PROBE ns10-implicit-create.tcl tcl9.0: 
+PROBE ns11-rename-across.tcl tcl8.6: 
+PROBE ns11-rename-across.tcl tcl9.0: 
+PROBE ns12-inscope-args.tcl tcl8.6: [W101 L4 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE ns12-inscope-args.tcl tcl9.0: [W101 L4 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE ns13-forget.tcl tcl8.6: 
+PROBE ns13-forget.tcl tcl9.0: 
+PROBE ns14-info-patterns.tcl tcl8.6: 
+PROBE ns14-info-patterns.tcl tcl9.0: 
+PROBE ns15-delete-current.tcl tcl8.6: 
+PROBE ns15-delete-current.tcl tcl9.0: 
+PROBE ns16-global-forms.tcl tcl8.6: 
+PROBE ns16-global-forms.tcl tcl9.0: 
+PROBE ns17-origin-chain.tcl tcl8.6: 
+PROBE ns17-origin-chain.tcl tcl9.0: 
+PROBE ns18-ensemble.tcl tcl8.6: 
+PROBE ns18-ensemble.tcl tcl9.0: 
+PROBE ns19-variable-array.tcl tcl8.6: 
+PROBE ns19-variable-array.tcl tcl9.0: 
+PROBE ns20-upvar-missing.tcl tcl8.6: 
+PROBE ns20-upvar-missing.tcl tcl9.0: 

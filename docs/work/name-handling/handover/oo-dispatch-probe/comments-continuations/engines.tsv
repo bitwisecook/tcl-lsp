@@ -1,244 +1,433 @@
-fixture	engine	output
-c01-hash-mid-command.tcl	8.4	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	8.6	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	9.0	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	9.1	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	jim	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	vm8.6	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	vm9.0	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	rt8.6	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c01-hash-mid-command.tcl	rt9.0	1:wrong # args: should be "set varName ?newValue?"|y=2|[exit 0]
-c02-semicolon-hash-forms.tcl	8.4	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	8.6	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	9.0	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	9.1	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	jim	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	vm8.6	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	vm9.0	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	rt8.6	1 2 3|[exit 0]
-c02-semicolon-hash-forms.tcl	rt9.0	1 2 3|[exit 0]
-c04-switch-body-comment-even.tcl	8.4	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c04-switch-body-comment-even.tcl	8.6	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c04-switch-body-comment-even.tcl	9.0	A:D|1:wrong # args: should be "puts ?-nonewline? ?channel? string"|[exit 0]
-c04-switch-body-comment-even.tcl	9.1	A:D|1:wrong # args: should be "puts ?-nonewline? ?channel? string"|[exit 0]
-c04-switch-body-comment-even.tcl	jim	A:D|1:wrong # args: should be "puts ?-nonewline? ?chan? msg"|[exit 0]
-c04-switch-body-comment-even.tcl	vm8.6	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c04-switch-body-comment-even.tcl	vm9.0	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c04-switch-body-comment-even.tcl	rt8.6	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c04-switch-body-comment-even.tcl	rt9.0	A:D|1:wrong # args: should be "puts ?-nonewline? ?channelId? string"|[exit 0]
-c05-unbalanced-brace-in-comment.tcl	8.4	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}} r]:$r|"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	8.6	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}}"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	9.0	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}}"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	9.1	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}}"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	jim	c05-unbalanced-brace-in-comment.tcl:5: Error: extra characters after close-brace|Traceback (most recent call last):|  File "c05-unbalanced-brace-in-comment.tcl", line 5|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	vm8.6	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}}"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	vm9.0	extra characters after close-brace|    while executing|"puts [catch {eval {proc p {} {|    # unbalanced } here|    puts in-p|}}}"|    (file "c05-unbalanced-brace-in-comment.tcl" line 2)|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	rt8.6	error: extra characters after close-brace|[exit 1]
-c05-unbalanced-brace-in-comment.tcl	rt9.0	error: extra characters after close-brace|[exit 1]
-c06-balanced-braces-in-comment.tcl	8.4	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	8.6	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	9.0	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	9.1	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	jim	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	vm8.6	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	vm9.0	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	rt8.6	ok|[exit 0]
-c06-balanced-braces-in-comment.tcl	rt9.0	ok|[exit 0]
-c07-comment-backslash-continuation.tcl	8.4	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	8.6	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	9.0	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	9.1	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	jim	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	vm8.6	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	vm9.0	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	rt8.6	start|shown|[exit 0]
-c07-comment-backslash-continuation.tcl	rt9.0	start|shown|[exit 0]
-c08-continuation-in-braces.tcl	8.4	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	8.6	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	9.0	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	9.1	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	jim	10:x\|      y|5|[exit 0]
-c08-continuation-in-braces.tcl	vm8.6	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	vm9.0	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	rt8.6	3:x y|5|[exit 0]
-c08-continuation-in-braces.tcl	rt9.0	3:x y|5|[exit 0]
-c09-continuation-in-quotes.tcl	8.4	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	8.6	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	9.0	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	9.1	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	jim	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	vm8.6	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	vm9.0	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	rt8.6	3:x y|[exit 0]
-c09-continuation-in-quotes.tcl	rt9.0	3:x y|[exit 0]
-c10-continuation-bare.tcl	8.4	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	8.6	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	9.0	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	9.1	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	jim	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	vm8.6	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	vm9.0	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	rt8.6	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c10-continuation-bare.tcl	rt9.0	1:wrong # args: should be "set varName ?newValue?"|a b|[exit 0]
-c11-semicolon-in-quotes-braces.tcl	8.4	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	8.6	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	9.0	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	9.1	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	jim	c11-semicolon-in-quotes-braces.tcl:2: Error: invalid command name "y"|Traceback (most recent call last):|  File "c11-semicolon-in-quotes-braces.tcl", line 2|a;b|c;d|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	vm8.6	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	vm9.0	a;b|c;d|invalid command name "y"|    while executing|"y"|    invoked from within|"set l [list x;y]"|    (file "c11-semicolon-in-quotes-braces.tcl" line 2)|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	rt8.6	a;b|c;d|error: invalid command name "y"|[exit 1]
-c11-semicolon-in-quotes-braces.tcl	rt9.0	a;b|c;d|error: invalid command name "y"|[exit 1]
-c12-if-implicit-else-comment.tcl	8.4	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	8.6	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	9.0	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	9.1	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	jim	1:wrong # args: should be "if condition ?then? trueBody ?elseif ...? ?else? ?falseBody?"|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	vm8.6	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	vm9.0	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	rt8.6	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c12-if-implicit-else-comment.tcl	rt9.0	1:wrong # args: extra words after "else" clause in "if" command|0:|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	8.4	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	8.6	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	9.0	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	9.1	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	jim	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	vm8.6	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	vm9.0	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	rt8.6	yesno|[exit 0]
-c13-comment-in-if-proc-bodies.tcl	rt9.0	yesno|[exit 0]
-c14-expand-with-comment.tcl	8.4	extra characters after close-brace|    while executing|"set l [list {*}{a # b|  c}]|puts [llength $l]:$l|{*}{puts expanded} ;# comment after expansion|"|    (file "c14-expand-with-comment.tcl" line 1)|[exit 1]
-c14-expand-with-comment.tcl	8.6	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	9.0	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	9.1	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	jim	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	vm8.6	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	vm9.0	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	rt8.6	4:a # b c|expanded|[exit 0]
-c14-expand-with-comment.tcl	rt9.0	4:a # b c|expanded|[exit 0]
-c15-hash-in-data-lists.tcl	8.4	# k|extra characters after close-brace|    while executing|"set d [dict create {*}{|    # x|    k v|}]|puts [dict keys $d]|"|    (file "c15-hash-in-data-lists.tcl" line 6)|[exit 1]
-c15-hash-in-data-lists.tcl	8.6	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	9.0	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	9.1	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	jim	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	vm8.6	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	vm9.0	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	rt8.6	{#} k|{#} k|[exit 0]
-c15-hash-in-data-lists.tcl	rt9.0	{#} k|{#} k|[exit 0]
-c16-quote-brace-in-body.tcl	8.4	missing close-brace|    while executing|"puts [catch {eval {proc q {} { puts "{" }}} r]:$r|proc q2 {} { puts "\{" }|q2|"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	8.6	missing close-brace|    while executing|"puts [catch {"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	9.0	missing close-brace|    while executing|"puts [catch {"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	9.1	missing close-brace|    while executing|"puts [catch {"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	jim	c16-quote-brace-in-body.tcl:2: Error: unmatched "["|Traceback (most recent call last):|  File "c16-quote-brace-in-body.tcl", line 2|[exit 1]
-c16-quote-brace-in-body.tcl	vm8.6	missing close-brace|    while executing|"puts [catch {"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	vm9.0	missing close-brace|    while executing|"puts [catch {"|    (file "c16-quote-brace-in-body.tcl" line 2)|[exit 1]
-c16-quote-brace-in-body.tcl	rt8.6	error: missing close-brace|[exit 1]
-c16-quote-brace-in-body.tcl	rt9.0	error: missing close-brace|[exit 1]
-c17-hash-in-quoted-string.tcl	8.4	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	8.6	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	9.0	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	9.1	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	jim	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	vm8.6	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	vm9.0	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	rt8.6	# not a comment|# nor this|[exit 0]
-c17-hash-in-quoted-string.tcl	rt9.0	# not a comment|# nor this|[exit 0]
-c18-expr-continuation-and-comment.tcl	8.4	3|1:syntax error in expression "1 + 2 # trailing|": extra tokens at end of expression|[exit 0]
-c18-expr-continuation-and-comment.tcl	8.6	3|1:invalid character "#"|in expression "1 + 2 # trailing|"|[exit 0]
-c18-expr-continuation-and-comment.tcl	9.0	3|0:3|[exit 0]
-c18-expr-continuation-and-comment.tcl	9.1	3|0:3|[exit 0]
-c18-expr-continuation-and-comment.tcl	jim	3|0:3|[exit 0]
-c18-expr-continuation-and-comment.tcl	vm8.6	3|1:invalid character "#"|in expression "1 + 2 # trailing|"|[exit 0]
-c18-expr-continuation-and-comment.tcl	vm9.0	3|0:3|[exit 0]
-c18-expr-continuation-and-comment.tcl	rt8.6	3|1:invalid character "#"|in expression "1 + 2 # trailing|"|[exit 0]
-c18-expr-continuation-and-comment.tcl	rt9.0	3|0:3|[exit 0]
-c19-comment-body-continuation.tcl	8.4	1|[exit 0]
-c19-comment-body-continuation.tcl	8.6	1|[exit 0]
-c19-comment-body-continuation.tcl	9.0	1|[exit 0]
-c19-comment-body-continuation.tcl	9.1	1|[exit 0]
-c19-comment-body-continuation.tcl	jim	1|[exit 0]
-c19-comment-body-continuation.tcl	vm8.6	1|[exit 0]
-c19-comment-body-continuation.tcl	vm9.0	1|[exit 0]
-c19-comment-body-continuation.tcl	rt8.6	1|[exit 0]
-c19-comment-body-continuation.tcl	rt9.0	1|[exit 0]
-c20-backslash-space-vs-newline.tcl	8.4	invalid command name "b"|    while executing|"b"|    invoked from within|"puts [list a\ |b]"|    (file "c20-backslash-space-vs-newline.tcl" line 1)|[exit 1]
-c20-backslash-space-vs-newline.tcl	8.6	invalid command name "b"|    while executing|"b"|    invoked from within|"puts [list a\ |b]"|    (file "c20-backslash-space-vs-newline.tcl" line 1)|[exit 1]
-c20-backslash-space-vs-newline.tcl	9.0	invalid command name "b"|    while executing|"b"|    invoked from within|"puts [list a\ |b]"|    (file "c20-backslash-space-vs-newline.tcl" line 1)|[exit 1]
-c20-backslash-space-vs-newline.tcl	9.1	invalid command name "b"|    while executing|"b"|    invoked from within|"puts [list a\ |b]"|    (file "c20-backslash-space-vs-newline.tcl" line 1)|[exit 1]
-c20-backslash-space-vs-newline.tcl	jim	c20-backslash-space-vs-newline.tcl:2: Error: invalid command name "b"|Traceback (most recent call last):|  File "c20-backslash-space-vs-newline.tcl", line 2|[exit 1]
-c20-backslash-space-vs-newline.tcl	vm8.6	invalid command name "b"|    while executing|"b"|    (file "c20-backslash-space-vs-newline.tcl" line 2)|[exit 1]
-c20-backslash-space-vs-newline.tcl	vm9.0	invalid command name "b"|    while executing|"b"|    (file "c20-backslash-space-vs-newline.tcl" line 2)|[exit 1]
-c20-backslash-space-vs-newline.tcl	rt8.6	error: invalid command name "b"|[exit 1]
-c20-backslash-space-vs-newline.tcl	rt9.0	error: invalid command name "b"|[exit 1]
-c21-crlf-continuation.tcl	8.4	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\|puts [catch {eval {set b x\|}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	8.6	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\|puts [catch {eval {set b x\|}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	9.0	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\|puts [catch {eval {set b x\|}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	9.1	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\|puts [catch {eval {set b x\|}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	jim	0:2|4|[exit 0]
-c21-crlf-continuation.tcl	vm8.6	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\ |puts [catch {eval {set b x\ |}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	vm9.0	wrong # args: should be "set varName ?newValue?"|    while executing|"set a 1\ |puts [catch {eval {set b x\ |}} r]:[string length $r]"|    (file "c21-crlf-continuation.tcl" line 1)|[exit 1]
-c21-crlf-continuation.tcl	rt8.6	0:2|4|[exit 0]
-c21-crlf-continuation.tcl	rt9.0	0:2|4|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	8.4	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	8.6	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	9.0	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	9.1	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	jim	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	vm8.6	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	vm9.0	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	rt8.6	::ns::shown|[exit 0]
-c22-trailing-hash-in-namespace-eval.tcl	rt9.0	::ns::shown|[exit 0]
-c23-hash-word-in-list.tcl	8.4	x|#|[exit 0]
-c23-hash-word-in-list.tcl	8.6	x|#|[exit 0]
-c23-hash-word-in-list.tcl	9.0	x|#|[exit 0]
-c23-hash-word-in-list.tcl	9.1	x|#|[exit 0]
-c23-hash-word-in-list.tcl	jim	x|#|[exit 0]
-c23-hash-word-in-list.tcl	vm8.6	x|#|[exit 0]
-c23-hash-word-in-list.tcl	vm9.0	x|#|[exit 0]
-c23-hash-word-in-list.tcl	rt8.6	x|#|[exit 0]
-c23-hash-word-in-list.tcl	rt9.0	x|#|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	8.4	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	8.6	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	9.0	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	9.1	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	jim	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	vm8.6	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	vm9.0	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	rt8.6	a=1|#=2|[exit 0]
-c24-comment-in-dict-for-and-foreach.tcl	rt9.0	a=1|#=2|[exit 0]
-c03-switch-body-comment-odd.tcl	8.4	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	8.6	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	9.0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	9.1	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	jim	1:wrong # args: should be "switch ?options? string pattern body ... ?default body? or pattern body ?pattern body ...?"|[exit 0]
-c03-switch-body-comment-odd.tcl	vm8.6	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	vm9.0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	rt8.6	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c03-switch-body-comment-odd.tcl	rt9.0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation|[exit 0]
-c25-docstring-continuation.tcl	8.4	2:4:|[exit 0]
-c25-docstring-continuation.tcl	8.6	2:4:|[exit 0]
-c25-docstring-continuation.tcl	9.0	2:4:|[exit 0]
-c25-docstring-continuation.tcl	9.1	2:4:|[exit 0]
-c25-docstring-continuation.tcl	jim	2:4:|[exit 0]
-c25-docstring-continuation.tcl	vm8.6	2:4:|[exit 0]
-c25-docstring-continuation.tcl	vm9.0	2:4:|[exit 0]
-c25-docstring-continuation.tcl	rt8.6	2:4:|[exit 0]
-c25-docstring-continuation.tcl	rt9.0	2:4:|[exit 0]
-c26-switch-body-comment-words.tcl	8.4	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	8.6	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	9.0	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	9.1	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	jim	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	vm8.6	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	vm9.0	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	rt8.6	1:invalid command name "comment"|[exit 0]
-c26-switch-body-comment-words.tcl	rt9.0	1:invalid command name "comment"|[exit 0]
-c27-comment-even-backslashes.tcl	8.4	shown|[exit 0]
-c27-comment-even-backslashes.tcl	8.6	shown|[exit 0]
-c27-comment-even-backslashes.tcl	9.0	shown|[exit 0]
-c27-comment-even-backslashes.tcl	9.1	shown|[exit 0]
-c27-comment-even-backslashes.tcl	jim	shown|[exit 0]
-c27-comment-even-backslashes.tcl	vm8.6	shown|[exit 0]
-c27-comment-even-backslashes.tcl	vm9.0	shown|[exit 0]
-c27-comment-even-backslashes.tcl	rt8.6	shown|[exit 0]
-c27-comment-even-backslashes.tcl	rt9.0	shown|[exit 0]
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+c01-hash-mid-command.tcl	tclsh8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	tclsh8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	tclsh8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	tclsh9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	tclsh9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	jim	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	vm8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	vm8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	vm8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	vm9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	vm9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	rt8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	rt8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	rt8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	rt9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c01-hash-mid-command.tcl	rt9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ y=2
+c02-semicolon-hash-forms.tcl	tclsh8.4	0	1 2 3
+c02-semicolon-hash-forms.tcl	tclsh8.5	0	1 2 3
+c02-semicolon-hash-forms.tcl	tclsh8.6	0	1 2 3
+c02-semicolon-hash-forms.tcl	tclsh9.0	0	1 2 3
+c02-semicolon-hash-forms.tcl	tclsh9.1	0	1 2 3
+c02-semicolon-hash-forms.tcl	jim	0	1 2 3
+c02-semicolon-hash-forms.tcl	vm8.4	0	1 2 3
+c02-semicolon-hash-forms.tcl	vm8.5	0	1 2 3
+c02-semicolon-hash-forms.tcl	vm8.6	0	1 2 3
+c02-semicolon-hash-forms.tcl	vm9.0	0	1 2 3
+c02-semicolon-hash-forms.tcl	vm9.1	0	1 2 3
+c02-semicolon-hash-forms.tcl	rt8.4	0	1 2 3
+c02-semicolon-hash-forms.tcl	rt8.5	0	1 2 3
+c02-semicolon-hash-forms.tcl	rt8.6	0	1 2 3
+c02-semicolon-hash-forms.tcl	rt9.0	0	1 2 3
+c02-semicolon-hash-forms.tcl	rt9.1	0	1 2 3
+c03-switch-body-comment-odd.tcl	tclsh8.4	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	tclsh8.5	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	tclsh8.6	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	tclsh9.0	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	tclsh9.1	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	jim	0	1:wrong # args: should be "switch ?options? string pattern body ... ?default body? or pattern body ?pattern body ...?"
+c03-switch-body-comment-odd.tcl	vm8.4	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	vm8.5	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	vm8.6	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	vm9.0	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	vm9.1	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	rt8.4	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	rt8.5	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	rt8.6	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	rt9.0	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c03-switch-body-comment-odd.tcl	rt9.1	0	1:extra switch pattern with no body, this may be due to a comment incorrectly placed outside of a switch body - see the "switch" documentation
+c04-switch-body-comment-even.tcl	tclsh8.4	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	tclsh8.5	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	tclsh8.6	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	tclsh9.0	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channel? string"
+c04-switch-body-comment-even.tcl	tclsh9.1	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channel? string"
+c04-switch-body-comment-even.tcl	jim	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?chan? msg"
+c04-switch-body-comment-even.tcl	vm8.4	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	vm8.5	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	vm8.6	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	vm9.0	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	vm9.1	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	rt8.4	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	rt8.5	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	rt8.6	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	rt9.0	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c04-switch-body-comment-even.tcl	rt9.1	0	A:D ¶ 1:wrong # args: should be "puts ?-nonewline? ?channelId? string"
+c05-unbalanced-brace-in-comment.tcl	tclsh8.4	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}} r]:$r ¶ " ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	tclsh8.5	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}} r]:$r ¶ " ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	tclsh8.6	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	tclsh9.0	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	tclsh9.1	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	jim	1	c05-unbalanced-brace-in-comment.tcl:5: Error: extra characters after close-brace ¶ Traceback (most recent call last): ¶   File "c05-unbalanced-brace-in-comment.tcl", line 5
+c05-unbalanced-brace-in-comment.tcl	vm8.4	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	vm8.5	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	vm8.6	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	vm9.0	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	vm9.1	1	extra characters after close-brace ¶     while executing ¶ "puts [catch {eval {proc p {} { ¶     # unbalanced } here ¶     puts in-p ¶ }}}" ¶     (file "c05-unbalanced-brace-in-comment.tcl" line 2)
+c05-unbalanced-brace-in-comment.tcl	rt8.4	1	error: extra characters after close-brace
+c05-unbalanced-brace-in-comment.tcl	rt8.5	1	error: extra characters after close-brace
+c05-unbalanced-brace-in-comment.tcl	rt8.6	1	error: extra characters after close-brace
+c05-unbalanced-brace-in-comment.tcl	rt9.0	1	error: extra characters after close-brace
+c05-unbalanced-brace-in-comment.tcl	rt9.1	1	error: extra characters after close-brace
+c06-balanced-braces-in-comment.tcl	tclsh8.4	0	ok
+c06-balanced-braces-in-comment.tcl	tclsh8.5	0	ok
+c06-balanced-braces-in-comment.tcl	tclsh8.6	0	ok
+c06-balanced-braces-in-comment.tcl	tclsh9.0	0	ok
+c06-balanced-braces-in-comment.tcl	tclsh9.1	0	ok
+c06-balanced-braces-in-comment.tcl	jim	0	ok
+c06-balanced-braces-in-comment.tcl	vm8.4	0	ok
+c06-balanced-braces-in-comment.tcl	vm8.5	0	ok
+c06-balanced-braces-in-comment.tcl	vm8.6	0	ok
+c06-balanced-braces-in-comment.tcl	vm9.0	0	ok
+c06-balanced-braces-in-comment.tcl	vm9.1	0	ok
+c06-balanced-braces-in-comment.tcl	rt8.4	0	ok
+c06-balanced-braces-in-comment.tcl	rt8.5	0	ok
+c06-balanced-braces-in-comment.tcl	rt8.6	0	ok
+c06-balanced-braces-in-comment.tcl	rt9.0	0	ok
+c06-balanced-braces-in-comment.tcl	rt9.1	0	ok
+c07-comment-backslash-continuation.tcl	tclsh8.4	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	tclsh8.5	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	tclsh8.6	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	tclsh9.0	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	tclsh9.1	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	jim	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	vm8.4	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	vm8.5	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	vm8.6	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	vm9.0	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	vm9.1	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	rt8.4	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	rt8.5	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	rt8.6	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	rt9.0	0	start ¶ shown
+c07-comment-backslash-continuation.tcl	rt9.1	0	start ¶ shown
+c08-continuation-in-braces.tcl	tclsh8.4	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	tclsh8.5	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	tclsh8.6	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	tclsh9.0	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	tclsh9.1	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	jim	0	10:x\ ¶       y ¶ 5
+c08-continuation-in-braces.tcl	vm8.4	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	vm8.5	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	vm8.6	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	vm9.0	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	vm9.1	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	rt8.4	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	rt8.5	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	rt8.6	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	rt9.0	0	3:x y ¶ 5
+c08-continuation-in-braces.tcl	rt9.1	0	3:x y ¶ 5
+c09-continuation-in-quotes.tcl	tclsh8.4	0	3:x y
+c09-continuation-in-quotes.tcl	tclsh8.5	0	3:x y
+c09-continuation-in-quotes.tcl	tclsh8.6	0	3:x y
+c09-continuation-in-quotes.tcl	tclsh9.0	0	3:x y
+c09-continuation-in-quotes.tcl	tclsh9.1	0	3:x y
+c09-continuation-in-quotes.tcl	jim	0	3:x y
+c09-continuation-in-quotes.tcl	vm8.4	0	3:x y
+c09-continuation-in-quotes.tcl	vm8.5	0	3:x y
+c09-continuation-in-quotes.tcl	vm8.6	0	3:x y
+c09-continuation-in-quotes.tcl	vm9.0	0	3:x y
+c09-continuation-in-quotes.tcl	vm9.1	0	3:x y
+c09-continuation-in-quotes.tcl	rt8.4	0	3:x y
+c09-continuation-in-quotes.tcl	rt8.5	0	3:x y
+c09-continuation-in-quotes.tcl	rt8.6	0	3:x y
+c09-continuation-in-quotes.tcl	rt9.0	0	3:x y
+c09-continuation-in-quotes.tcl	rt9.1	0	3:x y
+c10-continuation-bare.tcl	tclsh8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	tclsh8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	tclsh8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	tclsh9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	tclsh9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	jim	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	vm8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	vm8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	vm8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	vm9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	vm9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	rt8.4	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	rt8.5	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	rt8.6	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	rt9.0	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c10-continuation-bare.tcl	rt9.1	0	1:wrong # args: should be "set varName ?newValue?" ¶ a b
+c11-semicolon-in-quotes-braces.tcl	tclsh8.4	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	tclsh8.5	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	tclsh8.6	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	tclsh9.0	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	tclsh9.1	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	jim	1	a;b ¶ c;d ¶ c11-semicolon-in-quotes-braces.tcl:2: Error: invalid command name "y" ¶ Traceback (most recent call last): ¶   File "c11-semicolon-in-quotes-braces.tcl", line 2
+c11-semicolon-in-quotes-braces.tcl	vm8.4	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	vm8.5	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	vm8.6	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	vm9.0	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	vm9.1	1	a;b ¶ c;d ¶ invalid command name "y" ¶     while executing ¶ "y" ¶     invoked from within ¶ "set l [list x;y]" ¶     (file "c11-semicolon-in-quotes-braces.tcl" line 2)
+c11-semicolon-in-quotes-braces.tcl	rt8.4	1	a;b ¶ c;d ¶ error: invalid command name "y"
+c11-semicolon-in-quotes-braces.tcl	rt8.5	1	a;b ¶ c;d ¶ error: invalid command name "y"
+c11-semicolon-in-quotes-braces.tcl	rt8.6	1	a;b ¶ c;d ¶ error: invalid command name "y"
+c11-semicolon-in-quotes-braces.tcl	rt9.0	1	a;b ¶ c;d ¶ error: invalid command name "y"
+c11-semicolon-in-quotes-braces.tcl	rt9.1	1	a;b ¶ c;d ¶ error: invalid command name "y"
+c12-if-implicit-else-comment.tcl	tclsh8.4	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	tclsh8.5	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	tclsh8.6	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	tclsh9.0	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	tclsh9.1	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	jim	0	1:wrong # args: should be "if condition ?then? trueBody ?elseif ...? ?else? ?falseBody?" ¶ 0:
+c12-if-implicit-else-comment.tcl	vm8.4	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	vm8.5	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	vm8.6	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	vm9.0	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	vm9.1	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	rt8.4	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	rt8.5	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	rt8.6	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	rt9.0	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c12-if-implicit-else-comment.tcl	rt9.1	0	1:wrong # args: extra words after "else" clause in "if" command ¶ 0:
+c13-comment-in-if-proc-bodies.tcl	tclsh8.4	0	yesno
+c13-comment-in-if-proc-bodies.tcl	tclsh8.5	0	yesno
+c13-comment-in-if-proc-bodies.tcl	tclsh8.6	0	yesno
+c13-comment-in-if-proc-bodies.tcl	tclsh9.0	0	yesno
+c13-comment-in-if-proc-bodies.tcl	tclsh9.1	0	yesno
+c13-comment-in-if-proc-bodies.tcl	jim	0	yesno
+c13-comment-in-if-proc-bodies.tcl	vm8.4	0	yesno
+c13-comment-in-if-proc-bodies.tcl	vm8.5	0	yesno
+c13-comment-in-if-proc-bodies.tcl	vm8.6	0	yesno
+c13-comment-in-if-proc-bodies.tcl	vm9.0	0	yesno
+c13-comment-in-if-proc-bodies.tcl	vm9.1	0	yesno
+c13-comment-in-if-proc-bodies.tcl	rt8.4	0	yesno
+c13-comment-in-if-proc-bodies.tcl	rt8.5	0	yesno
+c13-comment-in-if-proc-bodies.tcl	rt8.6	0	yesno
+c13-comment-in-if-proc-bodies.tcl	rt9.0	0	yesno
+c13-comment-in-if-proc-bodies.tcl	rt9.1	0	yesno
+c14-expand-with-comment.tcl	tclsh8.4	1	extra characters after close-brace ¶     while executing ¶ "set l [list {*}{a # b ¶   c}] ¶ puts [llength $l]:$l ¶ {*}{puts expanded} ;# comment after expansion ¶ " ¶     (file "c14-expand-with-comment.tcl" line 1)
+c14-expand-with-comment.tcl	tclsh8.5	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	tclsh8.6	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	tclsh9.0	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	tclsh9.1	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	jim	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	vm8.4	1	extra characters after close-brace ¶     while executing ¶ "set l [list {*}{" ¶     (file "c14-expand-with-comment.tcl" line 1)
+c14-expand-with-comment.tcl	vm8.5	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	vm8.6	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	vm9.0	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	vm9.1	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	rt8.4	1	error: extra characters after close-brace
+c14-expand-with-comment.tcl	rt8.5	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	rt8.6	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	rt9.0	0	4:a # b c ¶ expanded
+c14-expand-with-comment.tcl	rt9.1	0	4:a # b c ¶ expanded
+c15-hash-in-data-lists.tcl	tclsh8.4	1	# k ¶ extra characters after close-brace ¶     while executing ¶ "set d [dict create {*}{ ¶     # x ¶     k v ¶ }] ¶ puts [dict keys $d] ¶ " ¶     (file "c15-hash-in-data-lists.tcl" line 6)
+c15-hash-in-data-lists.tcl	tclsh8.5	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	tclsh8.6	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	tclsh9.0	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	tclsh9.1	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	jim	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	vm8.4	1	# k ¶ extra characters after close-brace ¶     while executing ¶ "set d [dict create {*}{" ¶     (file "c15-hash-in-data-lists.tcl" line 6)
+c15-hash-in-data-lists.tcl	vm8.5	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	vm8.6	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	vm9.0	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	vm9.1	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	rt8.4	1	# k ¶ error: extra characters after close-brace
+c15-hash-in-data-lists.tcl	rt8.5	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	rt8.6	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	rt9.0	0	{#} k ¶ {#} k
+c15-hash-in-data-lists.tcl	rt9.1	0	{#} k ¶ {#} k
+c16-quote-brace-in-body.tcl	tclsh8.4	1	missing close-brace ¶     while executing ¶ "puts [catch {eval {proc q {} { puts "{" }}} r]:$r ¶ proc q2 {} { puts "\{" } ¶ q2 ¶ " ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	tclsh8.5	1	missing close-brace ¶     while executing ¶ "puts [catch {eval {proc q {} { puts "{" }}} r]:$r ¶ proc q2 {} { puts "\{" } ¶ q2 ¶ " ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	tclsh8.6	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	tclsh9.0	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	tclsh9.1	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	jim	1	c16-quote-brace-in-body.tcl:2: Error: unmatched "[" ¶ Traceback (most recent call last): ¶   File "c16-quote-brace-in-body.tcl", line 2
+c16-quote-brace-in-body.tcl	vm8.4	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	vm8.5	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	vm8.6	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	vm9.0	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	vm9.1	1	missing close-brace ¶     while executing ¶ "puts [catch {" ¶     (file "c16-quote-brace-in-body.tcl" line 2)
+c16-quote-brace-in-body.tcl	rt8.4	1	error: missing close-brace
+c16-quote-brace-in-body.tcl	rt8.5	1	error: missing close-brace
+c16-quote-brace-in-body.tcl	rt8.6	1	error: missing close-brace
+c16-quote-brace-in-body.tcl	rt9.0	1	error: missing close-brace
+c16-quote-brace-in-body.tcl	rt9.1	1	error: missing close-brace
+c17-hash-in-quoted-string.tcl	tclsh8.4	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	tclsh8.5	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	tclsh8.6	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	tclsh9.0	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	tclsh9.1	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	jim	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	vm8.4	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	vm8.5	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	vm8.6	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	vm9.0	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	vm9.1	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	rt8.4	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	rt8.5	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	rt8.6	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	rt9.0	0	# not a comment ¶ # nor this
+c17-hash-in-quoted-string.tcl	rt9.1	0	# not a comment ¶ # nor this
+c18-expr-continuation-and-comment.tcl	tclsh8.4	0	3 ¶ 1:syntax error in expression "1 + 2 # trailing ¶ ": extra tokens at end of expression
+c18-expr-continuation-and-comment.tcl	tclsh8.5	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	tclsh8.6	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	tclsh9.0	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	tclsh9.1	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	jim	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	vm8.4	0	3 ¶ 1:syntax error in expression "1 + 2 # trailing ¶ ": extra tokens at end of expression
+c18-expr-continuation-and-comment.tcl	vm8.5	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	vm8.6	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	vm9.0	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	vm9.1	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	rt8.4	0	3 ¶ 1:syntax error in expression "1 + 2 # trailing ¶ ": extra tokens at end of expression
+c18-expr-continuation-and-comment.tcl	rt8.5	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	rt8.6	0	3 ¶ 1:invalid character "#" ¶ in expression "1 + 2 # trailing ¶ "
+c18-expr-continuation-and-comment.tcl	rt9.0	0	3 ¶ 0:3
+c18-expr-continuation-and-comment.tcl	rt9.1	0	3 ¶ 0:3
+c19-comment-body-continuation.tcl	tclsh8.4	0	1
+c19-comment-body-continuation.tcl	tclsh8.5	0	1
+c19-comment-body-continuation.tcl	tclsh8.6	0	1
+c19-comment-body-continuation.tcl	tclsh9.0	0	1
+c19-comment-body-continuation.tcl	tclsh9.1	0	1
+c19-comment-body-continuation.tcl	jim	0	1
+c19-comment-body-continuation.tcl	vm8.4	0	1
+c19-comment-body-continuation.tcl	vm8.5	0	1
+c19-comment-body-continuation.tcl	vm8.6	0	1
+c19-comment-body-continuation.tcl	vm9.0	0	1
+c19-comment-body-continuation.tcl	vm9.1	0	1
+c19-comment-body-continuation.tcl	rt8.4	0	1
+c19-comment-body-continuation.tcl	rt8.5	0	1
+c19-comment-body-continuation.tcl	rt8.6	0	1
+c19-comment-body-continuation.tcl	rt9.0	0	1
+c19-comment-body-continuation.tcl	rt9.1	0	1
+c20-backslash-space-vs-newline.tcl	tclsh8.4	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	tclsh8.5	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	tclsh8.6	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	tclsh9.0	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	tclsh9.1	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	jim	1	c20-backslash-space-vs-newline.tcl:2: Error: invalid command name "b" ¶ Traceback (most recent call last): ¶   File "c20-backslash-space-vs-newline.tcl", line 2
+c20-backslash-space-vs-newline.tcl	vm8.4	1	invalid command name "b" ¶     while executing ¶ "b" ¶     invoked from within ¶ "puts [list a\ ¶ b]" ¶     (file "c20-backslash-space-vs-newline.tcl" line 1)
+c20-backslash-space-vs-newline.tcl	vm8.5	1	invalid command name "b" ¶     while executing ¶ "b" ¶     (file "c20-backslash-space-vs-newline.tcl" line 2)
+c20-backslash-space-vs-newline.tcl	vm8.6	1	invalid command name "b" ¶     while executing ¶ "b" ¶     (file "c20-backslash-space-vs-newline.tcl" line 2)
+c20-backslash-space-vs-newline.tcl	vm9.0	1	invalid command name "b" ¶     while executing ¶ "b" ¶     (file "c20-backslash-space-vs-newline.tcl" line 2)
+c20-backslash-space-vs-newline.tcl	vm9.1	1	invalid command name "b" ¶     while executing ¶ "b" ¶     (file "c20-backslash-space-vs-newline.tcl" line 2)
+c20-backslash-space-vs-newline.tcl	rt8.4	1	error: invalid command name "b"
+c20-backslash-space-vs-newline.tcl	rt8.5	1	error: invalid command name "b"
+c20-backslash-space-vs-newline.tcl	rt8.6	1	error: invalid command name "b"
+c20-backslash-space-vs-newline.tcl	rt9.0	1	error: invalid command name "b"
+c20-backslash-space-vs-newline.tcl	rt9.1	1	error: invalid command name "b"
+c21-crlf-continuation.tcl	tclsh8.4	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	tclsh8.5	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	tclsh8.6	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	tclsh9.0	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	tclsh9.1	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	jim	0	0:2 ¶ 4
+c21-crlf-continuation.tcl	vm8.4	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	vm8.5	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	vm8.6	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	vm9.0	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	vm9.1	1	wrong # args: should be "set varName ?newValue?" ¶     while executing ¶ "set a 1\ ¶ puts [catch {eval {set b x\ ¶ }} r]:[string length $r]" ¶     (file "c21-crlf-continuation.tcl" line 1)
+c21-crlf-continuation.tcl	rt8.4	0	0:2 ¶ 4
+c21-crlf-continuation.tcl	rt8.5	0	0:2 ¶ 4
+c21-crlf-continuation.tcl	rt8.6	0	0:2 ¶ 4
+c21-crlf-continuation.tcl	rt9.0	0	0:2 ¶ 4
+c21-crlf-continuation.tcl	rt9.1	0	0:2 ¶ 4
+c22-trailing-hash-in-namespace-eval.tcl	tclsh8.4	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	tclsh8.5	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	tclsh8.6	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	tclsh9.0	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	tclsh9.1	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	jim	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	vm8.4	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	vm8.5	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	vm8.6	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	vm9.0	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	vm9.1	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	rt8.4	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	rt8.5	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	rt8.6	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	rt9.0	0	::ns::shown
+c22-trailing-hash-in-namespace-eval.tcl	rt9.1	0	::ns::shown
+c23-hash-word-in-list.tcl	tclsh8.4	0	x ¶ #
+c23-hash-word-in-list.tcl	tclsh8.5	0	x ¶ #
+c23-hash-word-in-list.tcl	tclsh8.6	0	x ¶ #
+c23-hash-word-in-list.tcl	tclsh9.0	0	x ¶ #
+c23-hash-word-in-list.tcl	tclsh9.1	0	x ¶ #
+c23-hash-word-in-list.tcl	jim	0	x ¶ #
+c23-hash-word-in-list.tcl	vm8.4	0	x ¶ #
+c23-hash-word-in-list.tcl	vm8.5	0	x ¶ #
+c23-hash-word-in-list.tcl	vm8.6	0	x ¶ #
+c23-hash-word-in-list.tcl	vm9.0	0	x ¶ #
+c23-hash-word-in-list.tcl	vm9.1	0	x ¶ #
+c23-hash-word-in-list.tcl	rt8.4	0	x ¶ #
+c23-hash-word-in-list.tcl	rt8.5	0	x ¶ #
+c23-hash-word-in-list.tcl	rt8.6	0	x ¶ #
+c23-hash-word-in-list.tcl	rt9.0	0	x ¶ #
+c23-hash-word-in-list.tcl	rt9.1	0	x ¶ #
+c24-comment-in-dict-for-and-foreach.tcl	tclsh8.4	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	tclsh8.5	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	tclsh8.6	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	tclsh9.0	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	tclsh9.1	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	jim	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	vm8.4	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	vm8.5	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	vm8.6	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	vm9.0	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	vm9.1	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	rt8.4	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	rt8.5	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	rt8.6	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	rt9.0	0	a=1 ¶ #=2
+c24-comment-in-dict-for-and-foreach.tcl	rt9.1	0	a=1 ¶ #=2
+c25-docstring-continuation.tcl	tclsh8.4	0	2:4:
+c25-docstring-continuation.tcl	tclsh8.5	0	2:4:
+c25-docstring-continuation.tcl	tclsh8.6	0	2:4:
+c25-docstring-continuation.tcl	tclsh9.0	0	2:4:
+c25-docstring-continuation.tcl	tclsh9.1	0	2:4:
+c25-docstring-continuation.tcl	jim	0	2:4:
+c25-docstring-continuation.tcl	vm8.4	0	2:4:
+c25-docstring-continuation.tcl	vm8.5	0	2:4:
+c25-docstring-continuation.tcl	vm8.6	0	2:4:
+c25-docstring-continuation.tcl	vm9.0	0	2:4:
+c25-docstring-continuation.tcl	vm9.1	0	2:4:
+c25-docstring-continuation.tcl	rt8.4	0	2:4:
+c25-docstring-continuation.tcl	rt8.5	0	2:4:
+c25-docstring-continuation.tcl	rt8.6	0	2:4:
+c25-docstring-continuation.tcl	rt9.0	0	2:4:
+c25-docstring-continuation.tcl	rt9.1	0	2:4:
+c26-switch-body-comment-words.tcl	tclsh8.4	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	tclsh8.5	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	tclsh8.6	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	tclsh9.0	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	tclsh9.1	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	jim	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	vm8.4	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	vm8.5	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	vm8.6	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	vm9.0	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	vm9.1	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	rt8.4	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	rt8.5	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	rt8.6	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	rt9.0	0	1:invalid command name "comment"
+c26-switch-body-comment-words.tcl	rt9.1	0	1:invalid command name "comment"
+c27-comment-even-backslashes.tcl	tclsh8.4	0	shown
+c27-comment-even-backslashes.tcl	tclsh8.5	0	shown
+c27-comment-even-backslashes.tcl	tclsh8.6	0	shown
+c27-comment-even-backslashes.tcl	tclsh9.0	0	shown
+c27-comment-even-backslashes.tcl	tclsh9.1	0	shown
+c27-comment-even-backslashes.tcl	jim	0	shown
+c27-comment-even-backslashes.tcl	vm8.4	0	shown
+c27-comment-even-backslashes.tcl	vm8.5	0	shown
+c27-comment-even-backslashes.tcl	vm8.6	0	shown
+c27-comment-even-backslashes.tcl	vm9.0	0	shown
+c27-comment-even-backslashes.tcl	vm9.1	0	shown
+c27-comment-even-backslashes.tcl	rt8.4	0	shown
+c27-comment-even-backslashes.tcl	rt8.5	0	shown
+c27-comment-even-backslashes.tcl	rt8.6	0	shown
+c27-comment-even-backslashes.tcl	rt9.0	0	shown
+c27-comment-even-backslashes.tcl	rt9.1	0	shown

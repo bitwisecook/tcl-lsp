@@ -14,8 +14,8 @@ PROBE e07-shadow-builtin.tcl tcl8.6: [W113 L3 Procedure 'string' shadows built-i
 PROBE e07-shadow-builtin.tcl tcl9.0: [W113 L3 Procedure 'string' shadows built-in command (tcl9.0)]
 PROBE e08-redefine-arity.tcl tcl8.6: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
 PROBE e08-redefine-arity.tcl tcl9.0: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
-PROBE e09-delete-proc.tcl tcl8.6: [W123 L4 Unresolved command 'f' at this source point; did you mean '!'?]
-PROBE e09-delete-proc.tcl tcl9.0: [W123 L4 Unresolved command 'f' at this source point; did you mean '!'?]
+PROBE e09-delete-proc.tcl tcl8.6: [W123 L4 Unresolved command 'f' at this source point; did you mean 'if'?]
+PROBE e09-delete-proc.tcl tcl9.0: [W123 L4 Unresolved command 'f' at this source point; did you mean 'if'?]
 PROBE e10-namespace-import.tcl tcl8.6: [W123 L5 Unresolved command 'helper' at this source point. The call widens the ]
 PROBE e10-namespace-import.tcl tcl9.0: [W123 L5 Unresolved command 'helper' at this source point. The call widens the ]
 PROBE e11-ns-relative-resolution.tcl tcl8.6: 
@@ -62,4 +62,3 @@ PROBE e31-namespace-eval-read.tcl tcl8.6:
 PROBE e31-namespace-eval-read.tcl tcl9.0: 
 PROBE e32-interp-alias-arity-target-proc.tcl tcl8.6: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]
 PROBE e32-interp-alias-arity-target-proc.tcl tcl9.0: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 38.87s

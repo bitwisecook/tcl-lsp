@@ -1,117 +1,177 @@
-fixture	interpreter	output (lines joined by ' | ', <rc>, <elapsed>)
-t01-thread-basic.tcl	tclsh8.4	error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" | error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-" | no-thread: can't find package Thread | <rc=0> <0s>
-t01-thread-basic.tcl	tclsh8.5	no-thread: can't find package Thread | <rc=0> <0s>
-t01-thread-basic.tcl	tclsh8.6	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory | <rc=0> <0s>
-t01-thread-basic.tcl	tclsh9.0	loaded=1 | exists=1 self-differs=1 | send=42 | async=2 | names>=2=1 | <rc=0> <0s>
-t01-thread-basic.tcl	tclsh9.1	loaded=1 | exists=1 self-differs=1 | send=42 | async=2 | names>=2=1 | <rc=0> <0s>
-t01-thread-basic.tcl	jim	no-thread: Can't load package Thread | <rc=0> <0s>
-t01-thread-basic.tcl	vm8.6	<rc=124> <20s>
-t01-thread-basic.tcl	vm8.6(timeout120)	no-thread: invalid command name "load" | <rc=0> <31s>
-t01-thread-basic.tcl	runtime8.6	no-thread: can't find package Thread | <rc=0> <0s>
-t01-thread-basic.tcl	vm9.0	<rc=124> <20s>
-t01-thread-basic.tcl	vm9.0(timeout120)	no-thread: invalid command name "load" | <rc=0> <29s>
-t01-thread-basic.tcl	runtime9.0	no-thread: can't find package Thread | <rc=0> <0s>
-t02-thread-isolation.tcl	tclsh8.4	error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" | error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-" | no-thread: can't find package Thread | <rc=0> <0s>
-t02-thread-isolation.tcl	tclsh8.5	no-thread: can't find package Thread | <rc=0> <0s>
-t02-thread-isolation.tcl	tclsh8.6	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory | <rc=0> <0s>
-t02-thread-isolation.tcl	tclsh9.0	var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | remote=remote | remote-here=1 invalid command name "remote" | <rc=0> <1s>
-t02-thread-isolation.tcl	tclsh9.1	var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | remote=remote | remote-here=1 invalid command name "remote" | <rc=0> <0s>
-t02-thread-isolation.tcl	jim	no-thread: Can't load package Thread | <rc=0> <0s>
-t02-thread-isolation.tcl	vm8.6	<rc=124> <20s>
-t02-thread-isolation.tcl	vm8.6(timeout120)	no-thread: invalid command name "load" | <rc=0> <46s>
-t02-thread-isolation.tcl	runtime8.6	no-thread: can't find package Thread | <rc=0> <1s>
-t02-thread-isolation.tcl	vm9.0	<rc=124> <20s>
-t02-thread-isolation.tcl	vm9.0(timeout120)	no-thread: invalid command name "load" | <rc=0> <54s>
-t02-thread-isolation.tcl	runtime9.0	no-thread: can't find package Thread | <rc=0> <1s>
-t03-tsv.tcl	tclsh8.4	error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" | error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-" | no-thread: can't find package Thread | <rc=0> <0s>
-t03-tsv.tcl	tclsh8.5	no-thread: can't find package Thread | <rc=0> <1s>
-t03-tsv.tcl	tclsh8.6	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory | <rc=0> <0s>
-t03-tsv.tcl	tclsh9.0	from-thread=alpha | hits=6 | items=a b | names=cfg | keys=hits items name | exists=0 | <rc=0> <0s>
-t03-tsv.tcl	tclsh9.1	from-thread=alpha | hits=6 | items=a b | names=cfg | keys=hits items name | exists=0 | <rc=0> <0s>
-t03-tsv.tcl	jim	no-thread: Can't load package Thread | <rc=0> <0s>
-t03-tsv.tcl	vm8.6	<rc=124> <20s>
-t03-tsv.tcl	vm8.6(timeout120)	no-thread: invalid command name "load" | <rc=0> <39s>
-t03-tsv.tcl	runtime8.6	no-thread: can't find package Thread | <rc=0> <1s>
-t03-tsv.tcl	vm9.0	<rc=124> <20s>
-t03-tsv.tcl	vm9.0(timeout120)	no-thread: invalid command name "load" | <rc=0> <21s>
-t03-tsv.tcl	runtime9.0	no-thread: can't find package Thread | <rc=0> <1s>
-t04-tcl-process.tcl	tclsh8.4	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t04-tcl-process.tcl	tclsh8.5	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t04-tcl-process.tcl	tclsh8.6	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t04-tcl-process.tcl	tclsh9.0	autopurge=1 | listed=1 | status=15212 0 | purged=0 | fail=1 | <rc=0> <0s>
-t04-tcl-process.tcl	tclsh9.1	autopurge=1 | listed=1 | status=15243 0 | purged=0 | fail=1 | <rc=0> <1s>
-t04-tcl-process.tcl	jim	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t04-tcl-process.tcl	vm8.6	no-tcl-process: invalid command name "tcl::process" | <rc=0> <9s>
-t04-tcl-process.tcl	runtime8.6	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t04-tcl-process.tcl	vm9.0	no-tcl-process: invalid command name "tcl::process" | <rc=0> <8s>
-t04-tcl-process.tcl	runtime9.0	no-tcl-process: invalid command name "tcl::process" | <rc=0> <0s>
-t05-zipfs.tcl	tclsh8.4	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t05-zipfs.tcl	tclsh8.5	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t05-zipfs.tcl	tclsh8.6	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t05-zipfs.tcl	tclsh9.0	root=//zipfs:/ | mounted=1 | list=//zipfs:/demo/hello.txt | read=zipped text | exists=1 | info=demo.zip | canon=//zipfs:/demo/x.txt | after=0 | <rc=0> <1s>
-t05-zipfs.tcl	tclsh9.1	root=//zipfs:/ | mounted=1 | list=//zipfs:/demo/hello.txt | read=zipped text | exists=1 | info=demo.zip | canon=//zipfs:/demo/x.txt | after=0 | <rc=0> <0s>
-t05-zipfs.tcl	jim	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t05-zipfs.tcl	vm8.6	no-zipfs: invalid command name "zipfs" | <rc=0> <7s>
-t05-zipfs.tcl	runtime8.6	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t05-zipfs.tcl	vm9.0	no-zipfs: invalid command name "zipfs" | <rc=0> <8s>
-t05-zipfs.tcl	runtime9.0	no-zipfs: invalid command name "zipfs" | <rc=0> <0s>
-t06-build-info.tcl	tclsh8.4	patchlevel-matches-provide=0 | tclversion=8.4 | threaded-defined=0 | build-info-cmd=0 | pkg-config=1 | <rc=0> <0s>
-t06-build-info.tcl	tclsh8.5	patchlevel-matches-provide=1 | tclversion=8.5 | threaded-defined=0 | build-info-cmd=0 | pkg-config=1 | <rc=0> <0s>
-t06-build-info.tcl	tclsh8.6	patchlevel-matches-provide=1 | tclversion=8.6 | threaded-defined=1 | build-info-cmd=0 | pkg-config=1 | <rc=0> <0s>
-t06-build-info.tcl	tclsh9.0	patchlevel-matches-provide=1 | tclversion=9.0 | threaded-defined=0 | build-info-cmd=1 | bi-version=0 | bi-patchlevel=0 1 | bi-commit-hex=0 | bi-threaded=0 | bi-debug=0 | pkg-config=1 | <rc=0> <0s>
-t06-build-info.tcl	tclsh9.1	patchlevel-matches-provide=1 | tclversion=9.1 | threaded-defined=0 | build-info-cmd=1 | bi-version=0 | bi-patchlevel=0 1 | bi-commit-hex=0 | bi-threaded=0 | bi-debug=0 | pkg-config=1 | <rc=0> <0s>
-t06-build-info.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t06-build-info.tcl:3: Error: info, unknown command "tclversion": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t06-build-info.tcl", line 3 |     info tclversion | patchlevel-matches-provide=0 | <rc=1> <0s>
-t06-build-info.tcl	vm8.6	patchlevel-matches-provide=1 | tclversion=8.6 | threaded-defined=1 | build-info-cmd=0 | pkg-config=1 | <rc=0> <9s>
-t06-build-info.tcl	runtime8.6	patchlevel-matches-provide=1 | tclversion=8.6 | threaded-defined=1 | build-info-cmd=0 | pkg-config=1 | <rc=0> <1s>
-t06-build-info.tcl	vm9.0	patchlevel-matches-provide=1 | tclversion=9.0 | threaded-defined=1 | build-info-cmd=1 | bi-version=0 | bi-patchlevel=0 1 | bi-commit-hex=1 | bi-threaded=0 | bi-debug=0 | pkg-config=1 | <rc=0> <11s>
-t06-build-info.tcl	runtime9.0	patchlevel-matches-provide=1 | tclversion=9.0 | threaded-defined=1 | build-info-cmd=1 | bi-version=0 | bi-patchlevel=0 1 | bi-commit-hex=1 | bi-threaded=0 | bi-debug=0 | pkg-config=1 | <rc=0> <0s>
-t07-unsupported.tcl	tclsh8.4	invalid command name "lmap" |     while executing | "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" |     invoked from within | "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" |     invoked from within | "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl" line 2) | <rc=1> <0s>
-t07-unsupported.tcl	tclsh8.5	invalid command name "lmap" |     while executing | "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" |     invoked from within | "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" |     invoked from within | "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl" line 2) | <rc=1> <0s>
-t07-unsupported.tcl	tclsh8.6	cmds=assemble corotype disassemble getbytecode inject representation timerate | repr=1 | disasm=1 | assemble=11 | corotype=yield | <rc=0> <0s>
-t07-unsupported.tcl	tclsh9.0	cmds=assemble corotype disassemble getbytecode loadIcu representation | repr=1 | disasm=1 | assemble=11 | corotype=yield | <rc=0> <0s>
-t07-unsupported.tcl	tclsh9.1	cmds=assemble corotype disassemble getbytecode grapheme loadIcu representation | repr=1 | disasm=1 | assemble=11 | corotype=yield | <rc=0> <0s>
-t07-unsupported.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl:4: Error: invalid command name "tcl::unsupported::representation" | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl", line 4 | cmds= | <rc=1> <0s>
-t07-unsupported.tcl	vm8.6	cmds=corotype representation | repr=1 | invalid command name "tcl::unsupported::disassemble" |     while executing | "tcl::unsupported::disassemble proc p" |     invoked from within | "string match *ByteCode* [tcl::unsupported::disassemble proc p]" |     invoked from within | "puts "disasm=[string match *ByteCode* [tcl::unsupported::disassemble proc p]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl" line 6) | <rc=1> <7s>
-t07-unsupported.tcl	runtime8.6	cmds=corotype representation | repr=1 | error: invalid command name "tcl::unsupported::disassemble" | <rc=1> <0s>
-t07-unsupported.tcl	vm9.0	cmds=corotype representation | repr=1 | invalid command name "tcl::unsupported::disassemble" |     while executing | "tcl::unsupported::disassemble proc p" |     invoked from within | "string match *ByteCode* [tcl::unsupported::disassemble proc p]" |     invoked from within | "puts "disasm=[string match *ByteCode* [tcl::unsupported::disassemble proc p]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/threads-subsystems/t07-unsupported.tcl" line 6) | <rc=1> <8s>
-t07-unsupported.tcl	runtime9.0	cmds=corotype representation | repr=1 | error: invalid command name "tcl::unsupported::disassemble" | <rc=1> <0s>
-t08-timerate.tcl	tclsh8.4	unsupported=0 core=0 | err=invalid command name "tcl::unsupported::timerate" | <rc=0> <0s>
-t08-timerate.tcl	tclsh8.5	unsupported=0 core=0 | err=invalid command name "tcl::unsupported::timerate" | <rc=0> <0s>
-t08-timerate.tcl	tclsh8.6	unsupported=1 core=0 | shape=8 | <rc=0> <0s>
-t08-timerate.tcl	tclsh9.0	unsupported=0 core=1 | shape=8 | <rc=0> <0s>
-t08-timerate.tcl	tclsh9.1	unsupported=0 core=1 | shape=8 | <rc=0> <0s>
-t08-timerate.tcl	jim	unsupported=0 core=1 | shape=8 | <rc=0> <0s>
-t08-timerate.tcl	vm8.6	unsupported=0 core=0 | err=invalid command name "tcl::unsupported::timerate" | <rc=0> <7s>
-t08-timerate.tcl	runtime8.6	unsupported=0 core=1 | shape=8 | <rc=0> <0s>
-t08-timerate.tcl	vm9.0	unsupported=0 core=0 | err=invalid command name "tcl::unsupported::timerate" | <rc=0> <7s>
-t08-timerate.tcl	runtime9.0	unsupported=0 core=1 | shape=8 | <rc=0> <0s>
-t09-thread-without-require.tcl	tclsh8.4	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	tclsh8.5	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	tclsh8.6	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	tclsh9.0	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	tclsh9.1	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	jim	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	vm8.6	thread-create=1 | tsv-set=1 | call=0 1 | <rc=0> <2s>
-t09-thread-without-require.tcl	runtime8.6	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t09-thread-without-require.tcl	vm9.0	thread-create=1 | tsv-set=1 | call=0 1 | <rc=0> <2s>
-t09-thread-without-require.tcl	runtime9.0	thread-create=0 | tsv-set=0 | call=1 invalid command name "thread::id" | <rc=0> <0s>
-t10-thread-builtin.tcl	tclsh8.4	error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" | error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-" | no-thread: can't find package Thread | <rc=0> <0s>
-t10-thread-builtin.tcl	tclsh8.5	no-thread: can't find package Thread | <rc=0> <0s>
-t10-thread-builtin.tcl	tclsh8.6	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory | <rc=0> <0s>
-t10-thread-builtin.tcl	tclsh9.0	source=package | send=42 | var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | async=2 | hits=6 from-thread=alpha | errorcode=1 boom {MY CODE} | <rc=0> <0s>
-t10-thread-builtin.tcl	tclsh9.1	source=package | send=42 | var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | async=2 | hits=6 from-thread=alpha | errorcode=1 boom {MY CODE} | <rc=0> <0s>
-t10-thread-builtin.tcl	jim	no-thread: Can't load package Thread | <rc=0> <0s>
-t10-thread-builtin.tcl	vm8.6	source=builtin provide= | send=42 | var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | invalid command name "local" |     while executing | "thread::send $t {local}" | <rc=1> <2s>
-t10-thread-builtin.tcl	runtime8.6	no-thread: can't find package Thread | <rc=0> <0s>
-t10-thread-builtin.tcl	vm9.0	source=builtin provide= | send=42 | var=1 can't read "shared": no such variable | proc=1 invalid command name "local" | invalid command name "local" |     while executing | "thread::send $t {local}" | <rc=1> <2s>
-t10-thread-builtin.tcl	runtime9.0	no-thread: can't find package Thread | <rc=0> <0s>
-t11-thread-stale-error.tcl	tclsh8.4	error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" | error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-" | no-thread: can't find package Thread | <rc=0> <0s>
-t11-thread-stale-error.tcl	tclsh8.5	no-thread: can't find package Thread | <rc=0> <0s>
-t11-thread-stale-error.tcl	tclsh8.6	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory | <rc=0> <0s>
-t11-thread-stale-error.tcl	tclsh9.0	caught=1 invalid command name "no-such-cmd" | next-sync=5 | async=2 | <rc=0> <0s>
-t11-thread-stale-error.tcl	tclsh9.1	caught=1 invalid command name "no-such-cmd" | next-sync=5 | async=2 | <rc=0> <0s>
-t11-thread-stale-error.tcl	jim	no-thread: Can't load package Thread | <rc=0> <0s>
-t11-thread-stale-error.tcl	vm8.6	caught=1 invalid command name "no-such-cmd" | next-sync=5 | invalid command name "no-such-cmd" |     while executing | "thread::send $t {no-such-cmd}" | <rc=1> <1s>
-t11-thread-stale-error.tcl	runtime8.6	no-thread: can't find package Thread | <rc=0> <1s>
-t11-thread-stale-error.tcl	vm9.0	caught=1 invalid command name "no-such-cmd" | next-sync=5 | invalid command name "no-such-cmd" |     while executing | "thread::send $t {no-such-cmd}" | <rc=1> <1s>
-t11-thread-stale-error.tcl	runtime9.0	no-thread: can't find package Thread | <rc=0> <1s>
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+t01-thread-basic.tcl	tclsh8.4	0	no-thread: can't find package Thread ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-"
+t01-thread-basic.tcl	tclsh8.5	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	tclsh8.6	0	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory
+t01-thread-basic.tcl	tclsh9.0	0	loaded=1 ¶ exists=1 self-differs=1 ¶ send=42 ¶ async=2 ¶ names>=2=1
+t01-thread-basic.tcl	tclsh9.1	0	loaded=1 ¶ exists=1 self-differs=1 ¶ send=42 ¶ async=2 ¶ names>=2=1
+t01-thread-basic.tcl	jim	0	no-thread: Can't load package Thread
+t01-thread-basic.tcl	vm8.4	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	vm8.5	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	vm8.6	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	vm9.0	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	vm9.1	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	rt8.4	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	rt8.5	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	rt8.6	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	rt9.0	0	no-thread: can't find package Thread
+t01-thread-basic.tcl	rt9.1	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	tclsh8.4	0	no-thread: can't find package Thread ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-"
+t02-thread-isolation.tcl	tclsh8.5	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	tclsh8.6	0	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory
+t02-thread-isolation.tcl	tclsh9.0	0	var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ remote=remote ¶ remote-here=1 invalid command name "remote"
+t02-thread-isolation.tcl	tclsh9.1	0	var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ remote=remote ¶ remote-here=1 invalid command name "remote"
+t02-thread-isolation.tcl	jim	0	no-thread: Can't load package Thread
+t02-thread-isolation.tcl	vm8.4	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	vm8.5	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	vm8.6	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	vm9.0	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	vm9.1	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	rt8.4	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	rt8.5	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	rt8.6	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	rt9.0	0	no-thread: can't find package Thread
+t02-thread-isolation.tcl	rt9.1	0	no-thread: can't find package Thread
+t03-tsv.tcl	tclsh8.4	0	no-thread: can't find package Thread ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-"
+t03-tsv.tcl	tclsh8.5	0	no-thread: can't find package Thread
+t03-tsv.tcl	tclsh8.6	0	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory
+t03-tsv.tcl	tclsh9.0	0	from-thread=alpha ¶ hits=6 ¶ items=a b ¶ names=cfg ¶ keys=hits items name ¶ exists=0
+t03-tsv.tcl	tclsh9.1	0	from-thread=alpha ¶ hits=6 ¶ items=a b ¶ names=cfg ¶ keys=hits items name ¶ exists=0
+t03-tsv.tcl	jim	0	no-thread: Can't load package Thread
+t03-tsv.tcl	vm8.4	0	no-thread: can't find package Thread
+t03-tsv.tcl	vm8.5	0	no-thread: can't find package Thread
+t03-tsv.tcl	vm8.6	0	no-thread: can't find package Thread
+t03-tsv.tcl	vm9.0	0	no-thread: can't find package Thread
+t03-tsv.tcl	vm9.1	0	no-thread: can't find package Thread
+t03-tsv.tcl	rt8.4	0	no-thread: can't find package Thread
+t03-tsv.tcl	rt8.5	0	no-thread: can't find package Thread
+t03-tsv.tcl	rt8.6	0	no-thread: can't find package Thread
+t03-tsv.tcl	rt9.0	0	no-thread: can't find package Thread
+t03-tsv.tcl	rt9.1	0	no-thread: can't find package Thread
+t04-tcl-process.tcl	tclsh8.4	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	tclsh8.5	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	tclsh8.6	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	tclsh9.0	0	autopurge=1 ¶ listed=1 ¶ status=1 0 ¶ purged=0 ¶ fail=1
+t04-tcl-process.tcl	tclsh9.1	0	autopurge=1 ¶ listed=1 ¶ status=1 0 ¶ purged=0 ¶ fail=1
+t04-tcl-process.tcl	jim	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	vm8.4	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	vm8.5	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	vm8.6	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	vm9.0	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	vm9.1	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	rt8.4	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	rt8.5	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	rt8.6	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	rt9.0	0	no-tcl-process: invalid command name "tcl::process"
+t04-tcl-process.tcl	rt9.1	0	no-tcl-process: invalid command name "tcl::process"
+t05-zipfs.tcl	tclsh8.4	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	tclsh8.5	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	tclsh8.6	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	tclsh9.0	0	root=//zipfs:/ ¶ mounted=1 ¶ list=//zipfs:/demo/hello.txt ¶ read=zipped text ¶ exists=1 ¶ info=demo.zip ¶ canon=//zipfs:/demo/x.txt ¶ after=0
+t05-zipfs.tcl	tclsh9.1	0	root=//zipfs:/ ¶ mounted=1 ¶ list=//zipfs:/demo/hello.txt ¶ read=zipped text ¶ exists=1 ¶ info=demo.zip ¶ canon=//zipfs:/demo/x.txt ¶ after=0
+t05-zipfs.tcl	jim	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	vm8.4	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	vm8.5	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	vm8.6	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	vm9.0	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	vm9.1	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	rt8.4	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	rt8.5	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	rt8.6	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	rt9.0	0	no-zipfs: invalid command name "zipfs"
+t05-zipfs.tcl	rt9.1	0	no-zipfs: invalid command name "zipfs"
+t06-build-info.tcl	tclsh8.4	0	patchlevel-matches-provide=0 ¶ tclversion=8.4 ¶ threaded-defined=0 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	tclsh8.5	0	patchlevel-matches-provide=1 ¶ tclversion=8.5 ¶ threaded-defined=0 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	tclsh8.6	0	patchlevel-matches-provide=1 ¶ tclversion=8.6 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	tclsh9.0	0	patchlevel-matches-provide=1 ¶ tclversion=9.0 ¶ threaded-defined=0 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=0 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t06-build-info.tcl	tclsh9.1	0	patchlevel-matches-provide=1 ¶ tclversion=9.1 ¶ threaded-defined=0 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=0 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t06-build-info.tcl	jim	1	patchlevel-matches-provide=0 ¶ t06-build-info.tcl:3: Error: info, unknown command "tclversion": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version ¶ Traceback (most recent call last): ¶   File "t06-build-info.tcl", line 3 ¶     info tclversion
+t06-build-info.tcl	vm8.4	0	patchlevel-matches-provide=0 ¶ tclversion=8.4 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	vm8.5	0	patchlevel-matches-provide=1 ¶ tclversion=8.5 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	vm8.6	0	patchlevel-matches-provide=1 ¶ tclversion=8.6 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	vm9.0	0	patchlevel-matches-provide=1 ¶ tclversion=9.0 ¶ threaded-defined=1 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=1 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t06-build-info.tcl	vm9.1	0	patchlevel-matches-provide=1 ¶ tclversion=9.1 ¶ threaded-defined=1 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=1 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t06-build-info.tcl	rt8.4	0	patchlevel-matches-provide=0 ¶ tclversion=8.4 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	rt8.5	0	patchlevel-matches-provide=1 ¶ tclversion=8.5 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	rt8.6	0	patchlevel-matches-provide=1 ¶ tclversion=8.6 ¶ threaded-defined=1 ¶ build-info-cmd=0 ¶ pkg-config=1
+t06-build-info.tcl	rt9.0	0	patchlevel-matches-provide=1 ¶ tclversion=9.0 ¶ threaded-defined=1 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=1 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t06-build-info.tcl	rt9.1	0	patchlevel-matches-provide=1 ¶ tclversion=9.1 ¶ threaded-defined=1 ¶ build-info-cmd=1 ¶ bi-version=0 ¶ bi-patchlevel=0 1 ¶ bi-commit-hex=1 ¶ bi-threaded=0 ¶ bi-debug=0 ¶ pkg-config=1
+t07-unsupported.tcl	tclsh8.4	1	invalid command name "lmap" ¶     while executing ¶ "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" ¶     invoked from within ¶ "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" ¶     invoked from within ¶ "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" ¶     (file "t07-unsupported.tcl" line 2)
+t07-unsupported.tcl	tclsh8.5	1	invalid command name "lmap" ¶     while executing ¶ "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" ¶     invoked from within ¶ "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" ¶     invoked from within ¶ "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" ¶     (file "t07-unsupported.tcl" line 2)
+t07-unsupported.tcl	tclsh8.6	0	cmds=assemble corotype disassemble getbytecode inject representation timerate ¶ repr=1 ¶ disasm=1 ¶ assemble=11 ¶ corotype=yield
+t07-unsupported.tcl	tclsh9.0	0	cmds=assemble corotype disassemble getbytecode loadIcu representation ¶ repr=1 ¶ disasm=1 ¶ assemble=11 ¶ corotype=yield
+t07-unsupported.tcl	tclsh9.1	0	cmds=assemble corotype disassemble getbytecode grapheme loadIcu representation ¶ repr=1 ¶ disasm=1 ¶ assemble=11 ¶ corotype=yield
+t07-unsupported.tcl	jim	1	cmds= ¶ t07-unsupported.tcl:4: Error: invalid command name "tcl::unsupported::representation" ¶ Traceback (most recent call last): ¶   File "t07-unsupported.tcl", line 4
+t07-unsupported.tcl	vm8.4	1	invalid command name "lmap" ¶     while executing ¶ "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" ¶     invoked from within ¶ "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" ¶     invoked from within ¶ "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" ¶     (file "t07-unsupported.tcl" line 2)
+t07-unsupported.tcl	vm8.5	1	invalid command name "lmap" ¶     while executing ¶ "lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}" ¶     invoked from within ¶ "lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]" ¶     invoked from within ¶ "puts "cmds=[lsort [lmap c [info commands ::tcl::unsupported::*] {namespace tail $c}]]"" ¶     (file "t07-unsupported.tcl" line 2)
+t07-unsupported.tcl	vm8.6	1	cmds=corotype representation ¶ repr=1 ¶ invalid command name "tcl::unsupported::disassemble" ¶     while executing ¶ "tcl::unsupported::disassemble proc p" ¶     invoked from within ¶ "string match *ByteCode* [tcl::unsupported::disassemble proc p]" ¶     invoked from within ¶ "puts "disasm=[string match *ByteCode* [tcl::unsupported::disassemble proc p]]"" ¶     (file "t07-unsupported.tcl" line 6)
+t07-unsupported.tcl	vm9.0	1	cmds=corotype representation ¶ repr=1 ¶ invalid command name "tcl::unsupported::disassemble" ¶     while executing ¶ "tcl::unsupported::disassemble proc p" ¶     invoked from within ¶ "string match *ByteCode* [tcl::unsupported::disassemble proc p]" ¶     invoked from within ¶ "puts "disasm=[string match *ByteCode* [tcl::unsupported::disassemble proc p]]"" ¶     (file "t07-unsupported.tcl" line 6)
+t07-unsupported.tcl	vm9.1	1	cmds=corotype representation ¶ repr=1 ¶ invalid command name "tcl::unsupported::disassemble" ¶     while executing ¶ "tcl::unsupported::disassemble proc p" ¶     invoked from within ¶ "string match *ByteCode* [tcl::unsupported::disassemble proc p]" ¶     invoked from within ¶ "puts "disasm=[string match *ByteCode* [tcl::unsupported::disassemble proc p]]"" ¶     (file "t07-unsupported.tcl" line 6)
+t07-unsupported.tcl	rt8.4	1	error: invalid command name "lmap"
+t07-unsupported.tcl	rt8.5	1	error: invalid command name "lmap"
+t07-unsupported.tcl	rt8.6	1	cmds=corotype representation ¶ repr=1 ¶ error: invalid command name "tcl::unsupported::disassemble"
+t07-unsupported.tcl	rt9.0	1	cmds=corotype representation ¶ repr=1 ¶ error: invalid command name "tcl::unsupported::disassemble"
+t07-unsupported.tcl	rt9.1	1	cmds=corotype representation ¶ repr=1 ¶ error: invalid command name "tcl::unsupported::disassemble"
+t08-timerate.tcl	tclsh8.4	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	tclsh8.5	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	tclsh8.6	0	unsupported=1 core=0 ¶ shape=8
+t08-timerate.tcl	tclsh9.0	0	unsupported=0 core=1 ¶ shape=8
+t08-timerate.tcl	tclsh9.1	0	unsupported=0 core=1 ¶ shape=8
+t08-timerate.tcl	jim	0	unsupported=0 core=1 ¶ shape=8
+t08-timerate.tcl	vm8.4	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	vm8.5	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	vm8.6	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	vm9.0	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	vm9.1	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	rt8.4	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	rt8.5	0	unsupported=0 core=0 ¶ err=invalid command name "tcl::unsupported::timerate"
+t08-timerate.tcl	rt8.6	0	unsupported=0 core=1 ¶ shape=8
+t08-timerate.tcl	rt9.0	0	unsupported=0 core=1 ¶ shape=8
+t08-timerate.tcl	rt9.1	0	unsupported=0 core=1 ¶ shape=8
+t09-thread-without-require.tcl	tclsh8.4	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	tclsh8.5	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	tclsh8.6	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	tclsh9.0	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	tclsh9.1	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	jim	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	vm8.4	0	thread-create=1 ¶ tsv-set=1 ¶ call=0 1
+t09-thread-without-require.tcl	vm8.5	0	thread-create=1 ¶ tsv-set=1 ¶ call=0 1
+t09-thread-without-require.tcl	vm8.6	0	thread-create=1 ¶ tsv-set=1 ¶ call=0 1
+t09-thread-without-require.tcl	vm9.0	0	thread-create=1 ¶ tsv-set=1 ¶ call=0 1
+t09-thread-without-require.tcl	vm9.1	0	thread-create=1 ¶ tsv-set=1 ¶ call=0 1
+t09-thread-without-require.tcl	rt8.4	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	rt8.5	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	rt8.6	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	rt9.0	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t09-thread-without-require.tcl	rt9.1	0	thread-create=0 ¶ tsv-set=0 ¶ call=1 invalid command name "thread::id"
+t10-thread-builtin.tcl	tclsh8.4	0	no-thread: can't find package Thread ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-"
+t10-thread-builtin.tcl	tclsh8.5	0	no-thread: can't find package Thread
+t10-thread-builtin.tcl	tclsh8.6	0	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory
+t10-thread-builtin.tcl	tclsh9.0	0	source=package ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ async=2 ¶ hits=6 from-thread=alpha ¶ errorcode=1 boom {MY CODE}
+t10-thread-builtin.tcl	tclsh9.1	0	source=package ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ async=2 ¶ hits=6 from-thread=alpha ¶ errorcode=1 boom {MY CODE}
+t10-thread-builtin.tcl	jim	0	no-thread: Can't load package Thread
+t10-thread-builtin.tcl	vm8.4	1	source=builtin provide= ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ invalid command name "local" ¶     while executing ¶ "thread::send $t {local}"
+t10-thread-builtin.tcl	vm8.5	1	source=builtin provide= ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ invalid command name "local" ¶     while executing ¶ "thread::send $t {local}"
+t10-thread-builtin.tcl	vm8.6	1	source=builtin provide= ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ invalid command name "local" ¶     while executing ¶ "thread::send $t {local}"
+t10-thread-builtin.tcl	vm9.0	1	source=builtin provide= ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ invalid command name "local" ¶     while executing ¶ "thread::send $t {local}"
+t10-thread-builtin.tcl	vm9.1	1	source=builtin provide= ¶ send=42 ¶ var=1 can't read "shared": no such variable ¶ proc=1 invalid command name "local" ¶ invalid command name "local" ¶     while executing ¶ "thread::send $t {local}"
+t10-thread-builtin.tcl	rt8.4	0	no-thread: can't find package Thread
+t10-thread-builtin.tcl	rt8.5	0	no-thread: can't find package Thread
+t10-thread-builtin.tcl	rt8.6	0	no-thread: can't find package Thread
+t10-thread-builtin.tcl	rt9.0	0	no-thread: can't find package Thread
+t10-thread-builtin.tcl	rt9.1	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	tclsh8.4	0	no-thread: can't find package Thread ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5/pkgIndex.tcl: expected version number but got "8.6-" ¶ error reading package index file /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/pkgIndex.tcl: expected version number but got "8.6-"
+t11-thread-stale-error.tcl	tclsh8.5	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	tclsh8.6	0	no-thread: couldn't load file "/opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so": /opt/google-cloud-sdk/platform/bundledpythonunix/lib/thread3.0.4/libthread3.0.4.so: cannot open shared object file: No such file or directory
+t11-thread-stale-error.tcl	tclsh9.0	0	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ async=2
+t11-thread-stale-error.tcl	tclsh9.1	0	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ async=2
+t11-thread-stale-error.tcl	jim	0	no-thread: Can't load package Thread
+t11-thread-stale-error.tcl	vm8.4	1	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ invalid command name "no-such-cmd" ¶     while executing ¶ "thread::send $t {no-such-cmd}"
+t11-thread-stale-error.tcl	vm8.5	1	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ invalid command name "no-such-cmd" ¶     while executing ¶ "thread::send $t {no-such-cmd}"
+t11-thread-stale-error.tcl	vm8.6	1	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ invalid command name "no-such-cmd" ¶     while executing ¶ "thread::send $t {no-such-cmd}"
+t11-thread-stale-error.tcl	vm9.0	1	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ invalid command name "no-such-cmd" ¶     while executing ¶ "thread::send $t {no-such-cmd}"
+t11-thread-stale-error.tcl	vm9.1	1	caught=1 invalid command name "no-such-cmd" ¶ next-sync=5 ¶ invalid command name "no-such-cmd" ¶     while executing ¶ "thread::send $t {no-such-cmd}"
+t11-thread-stale-error.tcl	rt8.4	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	rt8.5	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	rt8.6	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	rt9.0	0	no-thread: can't find package Thread
+t11-thread-stale-error.tcl	rt9.1	0	no-thread: can't find package Thread

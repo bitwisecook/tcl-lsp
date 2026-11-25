@@ -1,131 +1,209 @@
-fixture	engine	output
-co01-generator.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c counter 5"|    invoked from within|"puts [coroutine c counter 5]"|    (file "co01-generator.tcl" line 10)|[rc=1]
-co01-generator.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c counter 5"|    invoked from within|"puts [coroutine c counter 5]"|    (file "co01-generator.tcl" line 10)|[rc=1]
-co01-generator.tcl	tclsh8.6	::c|5 6 7||[rc=0]
-co01-generator.tcl	tclsh9.0	::c|5 6 7||[rc=0]
-co01-generator.tcl	tclsh9.1	::c|5 6 7||[rc=0]
-co01-generator.tcl	jim	co01-generator.tcl:10: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co01-generator.tcl", line 10|[rc=1]
-co01-generator.tcl	vm8.6	::c|5 6 7||[rc=0]
-co01-generator.tcl	rt8.6	::c|5 6 7||[rc=0]
-co01-generator.tcl	vm9.0	::c|5 6 7||[rc=0]
-co01-generator.tcl	rt9.0	::c|5 6 7||[rc=0]
-co02-coro-arity.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c g"|    invoked from within|"puts [coroutine c g]"|    (file "co02-coro-arity.tcl" line 3)|[rc=1]
-co02-coro-arity.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c g"|    invoked from within|"puts [coroutine c g]"|    (file "co02-coro-arity.tcl" line 3)|[rc=1]
-co02-coro-arity.tcl	tclsh8.6	start|1:wrong # args: should be "c ?arg?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	tclsh9.0	start|1:wrong # args: should be "c ?arg?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	tclsh9.1	start|1:wrong # args: should be "c ?arg?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	jim	co02-coro-arity.tcl:3: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co02-coro-arity.tcl", line 3|[rc=1]
-co02-coro-arity.tcl	vm8.6	start|1:wrong # args: should be "c ?arg?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	rt8.6	start|1:wrong # args: should be "c ?value?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	vm9.0	start|1:wrong # args: should be "c ?arg?"||one {x y z}||[rc=0]
-co02-coro-arity.tcl	rt9.0	start|1:wrong # args: should be "c ?value?"||one {x y z}||[rc=0]
-co03-info-coroutine.tcl	tclsh8.4	bad option "coroutine": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars|    while executing|"info coroutine"|    invoked from within|"list [info coroutine]"|    invoked from within|"puts "top=[list [info coroutine]]""|    (file "co03-info-coroutine.tcl" line 3)|[rc=1]
-co03-info-coroutine.tcl	tclsh8.5	unknown or ambiguous subcommand "coroutine": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars|    while executing|"info coroutine"|    invoked from within|"list [info coroutine]"|    invoked from within|"puts "top=[list [info coroutine]]""|    (file "co03-info-coroutine.tcl" line 3)|[rc=1]
-co03-info-coroutine.tcl	tclsh8.6	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	tclsh9.0	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	tclsh9.1	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	jim	co03-info-coroutine.tcl:3: Error: info, unknown command "coroutine": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version|Traceback (most recent call last):|  File "co03-info-coroutine.tcl", line 3|    info coroutine|[rc=1]
-co03-info-coroutine.tcl	vm8.6	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	rt8.6	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	vm9.0	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co03-info-coroutine.tcl	rt9.0	top={}|::c1|::ns::c2|::ns::c2|::ns::c2|::c1|[rc=0]
-co04-coro-frame.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c ns::body "|    (procedure "driver" line 1)|    invoked from within|"driver"|    invoked from within|"puts [driver]"|    (file "co04-coro-frame.tcl" line 13)|[rc=1]
-co04-coro-frame.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c ns::body "|    (procedure "driver" line 1)|    invoked from within|"driver"|    invoked from within|"puts [driver]"|    (file "co04-coro-frame.tcl" line 13)|[rc=1]
-co04-coro-frame.tcl	tclsh8.6	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	tclsh9.0	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	tclsh9.1	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	jim	co04-coro-frame.tcl:11: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co04-coro-frame.tcl", line 13|    driver|  File "co04-coro-frame.tcl", line 11, in driver|[rc=1]
-co04-coro-frame.tcl	vm8.6	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	rt8.6	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	vm9.0	1 ::ns ns::body|1 2|1|[rc=0]
-co04-coro-frame.tcl	rt9.0	1 ::ns ns::body|1 2|1|[rc=0]
-co05-rename-coro.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine a body"|    (file "co05-rename-coro.tcl" line 3)|[rc=1]
-co05-rename-coro.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine a body"|    (file "co05-rename-coro.tcl" line 3)|[rc=1]
-co05-rename-coro.tcl	tclsh8.6	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	tclsh9.0	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	tclsh9.1	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	jim	co05-rename-coro.tcl:3: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co05-rename-coro.tcl", line 3|[rc=1]
-co05-rename-coro.tcl	vm8.6	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	rt8.6	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	vm9.0	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co05-rename-coro.tcl	rt9.0	::b|{} b|{} 1 {invalid command name "b"}|[rc=0]
-co06-yield-outside.tcl	tclsh8.4	1 {invalid command name "yield"}|1 {invalid command name "yieldto"}|1 {invalid command name "yield"}|[rc=0]
-co06-yield-outside.tcl	tclsh8.5	1 {invalid command name "yield"}|1 {invalid command name "yieldto"}|1 {invalid command name "yield"}|[rc=0]
-co06-yield-outside.tcl	tclsh8.6	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	tclsh9.0	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	tclsh9.1	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	jim	1 {invalid command name "yield"}|1 {invalid command name "yieldto"}|1 {invalid command name "yield"}|[rc=0]
-co06-yield-outside.tcl	vm8.6	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	rt8.6	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	vm9.0	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co06-yield-outside.tcl	rt9.0	1 {yield can only be called in a coroutine}|1 {yieldto can only be called in a coroutine}|1 {yield can only be called in a coroutine}|[rc=0]
-co07-coroinject.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c body"|    (file "co07-coroinject.tcl" line 3)|[rc=1]
-co07-coroinject.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c body"|    (file "co07-coroinject.tcl" line 3)|[rc=1]
-co07-coroinject.tcl	tclsh8.6	1 {invalid command name "coroprobe"}|1 {invalid command name "coroinject"}|r=resumed v=10|[rc=0]
-co07-coroinject.tcl	tclsh9.0	0 10|0 {}|r=injected:x yield resumed v=10|[rc=0]
-co07-coroinject.tcl	tclsh9.1	0 10|0 {}|r=injected:x yield resumed v=10|[rc=0]
-co07-coroinject.tcl	jim	co07-coroinject.tcl:3: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co07-coroinject.tcl", line 3|[rc=1]
-co07-coroinject.tcl	vm8.6	1 {invalid command name "coroprobe"}|1 {invalid command name "coroinject"}|r=resumed v=10|[rc=0]
-co07-coroinject.tcl	rt8.6	1 {invalid command name "coroprobe"}|1 {invalid command name "coroinject"}|r=resumed v=10|[rc=0]
-co07-coroinject.tcl	vm9.0	0 10|0 {}|r=injected:x yield resumed v=10|[rc=0]
-co07-coroinject.tcl	rt9.0	0 10|0 {}|r=injected:x yield resumed v=10|[rc=0]
-co08-tailcall.tcl	tclsh8.4	invalid command name "tailcall"|    while executing|"tailcall target p "|    (procedure "ns::p" line 1)|    invoked from within|"ns::p"|    invoked from within|"puts [ns::p]"|    (file "co08-tailcall.tcl" line 7)|[rc=1]
-co08-tailcall.tcl	tclsh8.5	invalid command name "tailcall"|    while executing|"tailcall target p "|    (procedure "ns::p" line 1)|    invoked from within|"ns::p"|    invoked from within|"puts [ns::p]"|    (file "co08-tailcall.tcl" line 7)|[rc=1]
-co08-tailcall.tcl	tclsh8.6	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	tclsh9.0	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	tclsh9.1	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	jim	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|1 {tailcall can only be called from a proc or lambda}|[rc=0]
-co08-tailcall.tcl	vm8.6	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	rt8.6	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	vm9.0	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co08-tailcall.tcl	rt9.0	ns-target p 1|global-target lambda 1|ns-target lambda-ns 1|global-target method 1|1 {tailcall can only be called from a proc, lambda or method}|[rc=0]
-co09-tailcall-catch.tcl	tclsh8.4	invalid command name "tailcall"|    while executing|"tailcall list tc"|    (procedure "after_tc" line 1)|    invoked from within|"after_tc"|    invoked from within|"puts [after_tc]"|    (file "co09-tailcall-catch.tcl" line 3)|[rc=1]
-co09-tailcall-catch.tcl	tclsh8.5	invalid command name "tailcall"|    while executing|"tailcall list tc"|    (procedure "after_tc" line 1)|    invoked from within|"after_tc"|    invoked from within|"puts [after_tc]"|    (file "co09-tailcall-catch.tcl" line 3)|[rc=1]
-co09-tailcall-catch.tcl	tclsh8.6	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	tclsh9.0	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	tclsh9.1	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	jim	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	vm8.6	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	rt8.6	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	vm9.0	tc|inside|0 {}|[rc=0]
-co09-tailcall-catch.tcl	rt9.0	tc|inside|0 {}|[rc=0]
-co10-coro-finish.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c once"|    invoked from within|"puts [coroutine c once]"|    (file "co10-coro-finish.tcl" line 3)|[rc=1]
-co10-coro-finish.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c once"|    invoked from within|"puts [coroutine c once]"|    (file "co10-coro-finish.tcl" line 3)|[rc=1]
-co10-coro-finish.tcl	tclsh8.6	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	tclsh9.0	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	tclsh9.1	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	jim	co10-coro-finish.tcl:3: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co10-coro-finish.tcl", line 3|[rc=1]
-co10-coro-finish.tcl	vm8.6	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	rt8.6	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	vm9.0	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co10-coro-finish.tcl	rt9.0	a|b|1 {invalid command name "c"}|ok|1 boom {}|[rc=0]
-co11-coro-lambda.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3"|    invoked from within|"puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]"|    (file "co11-coro-lambda.tcl" line 2)|[rc=1]
-co11-coro-lambda.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3"|    invoked from within|"puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]"|    (file "co11-coro-lambda.tcl" line 2)|[rc=1]
-co11-coro-lambda.tcl	tclsh8.6	5|1 ::g|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	tclsh9.0	5|1 ::g|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	tclsh9.1	5|1 ::g|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	jim	co11-coro-lambda.tcl:2: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co11-coro-lambda.tcl", line 2|[rc=1]
-co11-coro-lambda.tcl	vm8.6	5|1 ::g|1 {wrong # args: should be "coroutine name command ?arg ...?"}|1 {wrong # args: should be "coroutine name command ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	rt8.6	5|1 ::g|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	vm9.0	5|1 ::g|1 {wrong # args: should be "coroutine name command ?arg ...?"}|1 {wrong # args: should be "coroutine name command ?arg ...?"}|[rc=0]
-co11-coro-lambda.tcl	rt9.0	5|1 ::g|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|1 {wrong # args: should be "coroutine name cmd ?arg ...?"}|[rc=0]
-co12-coro-tailcall.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c body"|    invoked from within|"puts [coroutine c body]"|    (file "co12-coro-tailcall.tcl" line 4)|[rc=1]
-co12-coro-tailcall.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c body"|    invoked from within|"puts [coroutine c body]"|    (file "co12-coro-tailcall.tcl" line 4)|[rc=1]
-co12-coro-tailcall.tcl	tclsh8.6	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	tclsh9.0	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	tclsh9.1	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	jim	co12-coro-tailcall.tcl:4: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co12-coro-tailcall.tcl", line 4|[rc=1]
-co12-coro-tailcall.tcl	vm8.6	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	rt8.6	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	vm9.0	b1|h1|h-done||[rc=0]
-co12-coro-tailcall.tcl	rt9.0	b1|h1|h-done||[rc=0]
-co13-coro-delete-from-inside.tcl	tclsh8.4	invalid command name "coroutine"|    while executing|"coroutine c body"|    (file "co13-coro-delete-from-inside.tcl" line 3)|[rc=1]
-co13-coro-delete-from-inside.tcl	tclsh8.5	invalid command name "coroutine"|    while executing|"coroutine c body"|    (file "co13-coro-delete-from-inside.tcl" line 3)|[rc=1]
-co13-coro-delete-from-inside.tcl	tclsh8.6	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	tclsh9.0	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	tclsh9.1	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	jim	co13-coro-delete-from-inside.tcl:3: Error: invalid command name "coroutine"|Traceback (most recent call last):|  File "co13-coro-delete-from-inside.tcl", line 3|[rc=1]
-co13-coro-delete-from-inside.tcl	vm8.6	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	rt8.6	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	vm9.0	0 after-delete {}|[rc=0]
-co13-coro-delete-from-inside.tcl	rt9.0	0 after-delete {}|[rc=0]
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+co01-generator.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c counter 5" ¶     invoked from within ¶ "puts [coroutine c counter 5]" ¶     (file "co01-generator.tcl" line 10)
+co01-generator.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c counter 5" ¶     invoked from within ¶ "puts [coroutine c counter 5]" ¶     (file "co01-generator.tcl" line 10)
+co01-generator.tcl	tclsh8.6	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	tclsh9.0	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	tclsh9.1	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	jim	1	co01-generator.tcl:10: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co01-generator.tcl", line 10
+co01-generator.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c counter 5" ¶     invoked from within ¶ "puts [coroutine c counter 5]" ¶     (file "co01-generator.tcl" line 10)
+co01-generator.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c counter 5" ¶     invoked from within ¶ "puts [coroutine c counter 5]" ¶     (file "co01-generator.tcl" line 10)
+co01-generator.tcl	vm8.6	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	vm9.0	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	vm9.1	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	rt8.4	1	error: invalid command name "coroutine"
+co01-generator.tcl	rt8.5	1	error: invalid command name "coroutine"
+co01-generator.tcl	rt8.6	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	rt9.0	0	::c ¶ 5 6 7 ¶ 
+co01-generator.tcl	rt9.1	0	::c ¶ 5 6 7 ¶ 
+co02-coro-arity.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c g" ¶     invoked from within ¶ "puts [coroutine c g]" ¶     (file "co02-coro-arity.tcl" line 3)
+co02-coro-arity.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c g" ¶     invoked from within ¶ "puts [coroutine c g]" ¶     (file "co02-coro-arity.tcl" line 3)
+co02-coro-arity.tcl	tclsh8.6	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	tclsh9.0	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	tclsh9.1	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	jim	1	co02-coro-arity.tcl:3: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co02-coro-arity.tcl", line 3
+co02-coro-arity.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c g" ¶     invoked from within ¶ "puts [coroutine c g]" ¶     (file "co02-coro-arity.tcl" line 3)
+co02-coro-arity.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c g" ¶     invoked from within ¶ "puts [coroutine c g]" ¶     (file "co02-coro-arity.tcl" line 3)
+co02-coro-arity.tcl	vm8.6	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	vm9.0	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	vm9.1	0	start ¶ 1:wrong # args: should be "c ?arg?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	rt8.4	1	error: invalid command name "coroutine"
+co02-coro-arity.tcl	rt8.5	1	error: invalid command name "coroutine"
+co02-coro-arity.tcl	rt8.6	0	start ¶ 1:wrong # args: should be "c ?value?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	rt9.0	0	start ¶ 1:wrong # args: should be "c ?value?" ¶  ¶ one {x y z} ¶ 
+co02-coro-arity.tcl	rt9.1	0	start ¶ 1:wrong # args: should be "c ?value?" ¶  ¶ one {x y z} ¶ 
+co03-info-coroutine.tcl	tclsh8.4	1	bad option "coroutine": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars ¶     while executing ¶ "info coroutine" ¶     invoked from within ¶ "list [info coroutine]" ¶     invoked from within ¶ "puts "top=[list [info coroutine]]"" ¶     (file "co03-info-coroutine.tcl" line 3)
+co03-info-coroutine.tcl	tclsh8.5	1	unknown or ambiguous subcommand "coroutine": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars ¶     while executing ¶ "info coroutine" ¶     invoked from within ¶ "list [info coroutine]" ¶     invoked from within ¶ "puts "top=[list [info coroutine]]"" ¶     (file "co03-info-coroutine.tcl" line 3)
+co03-info-coroutine.tcl	tclsh8.6	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	tclsh9.0	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	tclsh9.1	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	jim	1	co03-info-coroutine.tcl:3: Error: info, unknown command "coroutine": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version ¶ Traceback (most recent call last): ¶   File "co03-info-coroutine.tcl", line 3 ¶     info coroutine
+co03-info-coroutine.tcl	vm8.4	1	bad option "coroutine": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars ¶     while executing ¶ "info coroutine" ¶     invoked from within ¶ "list [info coroutine]" ¶     invoked from within ¶ "puts "top=[list [info coroutine]]"" ¶     (file "co03-info-coroutine.tcl" line 3)
+co03-info-coroutine.tcl	vm8.5	1	unknown or ambiguous subcommand "coroutine": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars ¶     while executing ¶ "info coroutine" ¶     invoked from within ¶ "list [info coroutine]" ¶     invoked from within ¶ "puts "top=[list [info coroutine]]"" ¶     (file "co03-info-coroutine.tcl" line 3)
+co03-info-coroutine.tcl	vm8.6	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	vm9.0	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	vm9.1	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	rt8.4	1	error: bad option "coroutine": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars
+co03-info-coroutine.tcl	rt8.5	1	error: unknown or ambiguous subcommand "coroutine": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars
+co03-info-coroutine.tcl	rt8.6	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	rt9.0	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co03-info-coroutine.tcl	rt9.1	0	top={} ¶ ::c1 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::ns::c2 ¶ ::c1
+co04-coro-frame.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c ns::body " ¶     (procedure "driver" line 1) ¶     invoked from within ¶ "driver" ¶     invoked from within ¶ "puts [driver]" ¶     (file "co04-coro-frame.tcl" line 13)
+co04-coro-frame.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c ns::body " ¶     (procedure "driver" line 1) ¶     invoked from within ¶ "driver" ¶     invoked from within ¶ "puts [driver]" ¶     (file "co04-coro-frame.tcl" line 13)
+co04-coro-frame.tcl	tclsh8.6	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	tclsh9.0	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	tclsh9.1	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	jim	1	co04-coro-frame.tcl:11: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co04-coro-frame.tcl", line 13 ¶     driver ¶   File "co04-coro-frame.tcl", line 11, in driver
+co04-coro-frame.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c ns::body " ¶     (procedure "driver" line 1) ¶     invoked from within ¶ "driver" ¶     invoked from within ¶ "puts [driver]" ¶     (file "co04-coro-frame.tcl" line 13)
+co04-coro-frame.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c ns::body " ¶     (procedure "driver" line 1) ¶     invoked from within ¶ "driver" ¶     invoked from within ¶ "puts [driver]" ¶     (file "co04-coro-frame.tcl" line 13)
+co04-coro-frame.tcl	vm8.6	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	vm9.0	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	vm9.1	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	rt8.4	1	error: invalid command name "coroutine"
+co04-coro-frame.tcl	rt8.5	1	error: invalid command name "coroutine"
+co04-coro-frame.tcl	rt8.6	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	rt9.0	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co04-coro-frame.tcl	rt9.1	0	1 ::ns ns::body ¶ 1 2 ¶ 1
+co05-rename-coro.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine a body" ¶     (file "co05-rename-coro.tcl" line 3)
+co05-rename-coro.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine a body" ¶     (file "co05-rename-coro.tcl" line 3)
+co05-rename-coro.tcl	tclsh8.6	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	tclsh9.0	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	tclsh9.1	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	jim	1	co05-rename-coro.tcl:3: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co05-rename-coro.tcl", line 3
+co05-rename-coro.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine a body" ¶     (file "co05-rename-coro.tcl" line 3)
+co05-rename-coro.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine a body" ¶     (file "co05-rename-coro.tcl" line 3)
+co05-rename-coro.tcl	vm8.6	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	vm9.0	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	vm9.1	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	rt8.4	1	error: invalid command name "coroutine"
+co05-rename-coro.tcl	rt8.5	1	error: invalid command name "coroutine"
+co05-rename-coro.tcl	rt8.6	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	rt9.0	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co05-rename-coro.tcl	rt9.1	0	::b ¶ {} b ¶ {} 1 {invalid command name "b"}
+co06-yield-outside.tcl	tclsh8.4	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	tclsh8.5	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	tclsh8.6	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	tclsh9.0	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	tclsh9.1	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	jim	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	vm8.4	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	vm8.5	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	vm8.6	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	vm9.0	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	vm9.1	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	rt8.4	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	rt8.5	0	1 {invalid command name "yield"} ¶ 1 {invalid command name "yieldto"} ¶ 1 {invalid command name "yield"}
+co06-yield-outside.tcl	rt8.6	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	rt9.0	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co06-yield-outside.tcl	rt9.1	0	1 {yield can only be called in a coroutine} ¶ 1 {yieldto can only be called in a coroutine} ¶ 1 {yield can only be called in a coroutine}
+co07-coroinject.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co07-coroinject.tcl" line 3)
+co07-coroinject.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co07-coroinject.tcl" line 3)
+co07-coroinject.tcl	tclsh8.6	0	1 {invalid command name "coroprobe"} ¶ 1 {invalid command name "coroinject"} ¶ r=resumed v=10
+co07-coroinject.tcl	tclsh9.0	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co07-coroinject.tcl	tclsh9.1	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co07-coroinject.tcl	jim	1	co07-coroinject.tcl:3: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co07-coroinject.tcl", line 3
+co07-coroinject.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co07-coroinject.tcl" line 3)
+co07-coroinject.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co07-coroinject.tcl" line 3)
+co07-coroinject.tcl	vm8.6	0	1 {invalid command name "coroprobe"} ¶ 1 {invalid command name "coroinject"} ¶ r=resumed v=10
+co07-coroinject.tcl	vm9.0	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co07-coroinject.tcl	vm9.1	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co07-coroinject.tcl	rt8.4	1	error: invalid command name "coroutine"
+co07-coroinject.tcl	rt8.5	1	error: invalid command name "coroutine"
+co07-coroinject.tcl	rt8.6	0	1 {invalid command name "coroprobe"} ¶ 1 {invalid command name "coroinject"} ¶ r=resumed v=10
+co07-coroinject.tcl	rt9.0	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co07-coroinject.tcl	rt9.1	0	0 10 ¶ 0 {} ¶ r=injected:x yield resumed v=10
+co08-tailcall.tcl	tclsh8.4	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall target p " ¶     (procedure "ns::p" line 1) ¶     invoked from within ¶ "ns::p" ¶     invoked from within ¶ "puts [ns::p]" ¶     (file "co08-tailcall.tcl" line 7)
+co08-tailcall.tcl	tclsh8.5	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall target p " ¶     (procedure "ns::p" line 1) ¶     invoked from within ¶ "ns::p" ¶     invoked from within ¶ "puts [ns::p]" ¶     (file "co08-tailcall.tcl" line 7)
+co08-tailcall.tcl	tclsh8.6	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	tclsh9.0	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	tclsh9.1	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	jim	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ 1 {tailcall can only be called from a proc or lambda}
+co08-tailcall.tcl	vm8.4	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall target p " ¶     (procedure "ns::p" line 1) ¶     invoked from within ¶ "ns::p" ¶     invoked from within ¶ "puts [ns::p]" ¶     (file "co08-tailcall.tcl" line 7)
+co08-tailcall.tcl	vm8.5	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall target p " ¶     (procedure "ns::p" line 1) ¶     invoked from within ¶ "ns::p" ¶     invoked from within ¶ "puts [ns::p]" ¶     (file "co08-tailcall.tcl" line 7)
+co08-tailcall.tcl	vm8.6	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	vm9.0	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	vm9.1	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	rt8.4	1	error: invalid command name "tailcall"
+co08-tailcall.tcl	rt8.5	1	error: invalid command name "tailcall"
+co08-tailcall.tcl	rt8.6	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	rt9.0	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co08-tailcall.tcl	rt9.1	0	ns-target p 1 ¶ global-target lambda 1 ¶ ns-target lambda-ns 1 ¶ global-target method 1 ¶ 1 {tailcall can only be called from a proc, lambda or method}
+co09-tailcall-catch.tcl	tclsh8.4	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall list tc" ¶     (procedure "after_tc" line 1) ¶     invoked from within ¶ "after_tc" ¶     invoked from within ¶ "puts [after_tc]" ¶     (file "co09-tailcall-catch.tcl" line 3)
+co09-tailcall-catch.tcl	tclsh8.5	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall list tc" ¶     (procedure "after_tc" line 1) ¶     invoked from within ¶ "after_tc" ¶     invoked from within ¶ "puts [after_tc]" ¶     (file "co09-tailcall-catch.tcl" line 3)
+co09-tailcall-catch.tcl	tclsh8.6	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	tclsh9.0	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	tclsh9.1	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	jim	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	vm8.4	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall list tc" ¶     (procedure "after_tc" line 1) ¶     invoked from within ¶ "after_tc" ¶     invoked from within ¶ "puts [after_tc]" ¶     (file "co09-tailcall-catch.tcl" line 3)
+co09-tailcall-catch.tcl	vm8.5	1	invalid command name "tailcall" ¶     while executing ¶ "tailcall list tc" ¶     (procedure "after_tc" line 1) ¶     invoked from within ¶ "after_tc" ¶     invoked from within ¶ "puts [after_tc]" ¶     (file "co09-tailcall-catch.tcl" line 3)
+co09-tailcall-catch.tcl	vm8.6	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	vm9.0	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	vm9.1	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	rt8.4	1	error: invalid command name "tailcall"
+co09-tailcall-catch.tcl	rt8.5	1	error: invalid command name "tailcall"
+co09-tailcall-catch.tcl	rt8.6	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	rt9.0	0	tc ¶ inside ¶ 0 {}
+co09-tailcall-catch.tcl	rt9.1	0	tc ¶ inside ¶ 0 {}
+co10-coro-finish.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c once" ¶     invoked from within ¶ "puts [coroutine c once]" ¶     (file "co10-coro-finish.tcl" line 3)
+co10-coro-finish.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c once" ¶     invoked from within ¶ "puts [coroutine c once]" ¶     (file "co10-coro-finish.tcl" line 3)
+co10-coro-finish.tcl	tclsh8.6	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	tclsh9.0	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	tclsh9.1	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	jim	1	co10-coro-finish.tcl:3: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co10-coro-finish.tcl", line 3
+co10-coro-finish.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c once" ¶     invoked from within ¶ "puts [coroutine c once]" ¶     (file "co10-coro-finish.tcl" line 3)
+co10-coro-finish.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c once" ¶     invoked from within ¶ "puts [coroutine c once]" ¶     (file "co10-coro-finish.tcl" line 3)
+co10-coro-finish.tcl	vm8.6	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	vm9.0	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	vm9.1	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	rt8.4	1	error: invalid command name "coroutine"
+co10-coro-finish.tcl	rt8.5	1	error: invalid command name "coroutine"
+co10-coro-finish.tcl	rt8.6	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	rt9.0	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co10-coro-finish.tcl	rt9.1	0	a ¶ b ¶ 1 {invalid command name "c"} ¶ ok ¶ 1 boom {}
+co11-coro-lambda.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3" ¶     invoked from within ¶ "puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]" ¶     (file "co11-coro-lambda.tcl" line 2)
+co11-coro-lambda.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3" ¶     invoked from within ¶ "puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]" ¶     (file "co11-coro-lambda.tcl" line 2)
+co11-coro-lambda.tcl	tclsh8.6	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co11-coro-lambda.tcl	tclsh9.0	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co11-coro-lambda.tcl	tclsh9.1	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co11-coro-lambda.tcl	jim	1	co11-coro-lambda.tcl:2: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co11-coro-lambda.tcl", line 2
+co11-coro-lambda.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3" ¶     invoked from within ¶ "puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]" ¶     (file "co11-coro-lambda.tcl" line 2)
+co11-coro-lambda.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3" ¶     invoked from within ¶ "puts [coroutine g apply {{a b} { yield [expr {$a + $b}]; return [list [info level] [info coroutine]] }} 2 3]" ¶     (file "co11-coro-lambda.tcl" line 2)
+co11-coro-lambda.tcl	vm8.6	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"}
+co11-coro-lambda.tcl	vm9.0	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"}
+co11-coro-lambda.tcl	vm9.1	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name command ?arg ...?"}
+co11-coro-lambda.tcl	rt8.4	1	error: invalid command name "coroutine"
+co11-coro-lambda.tcl	rt8.5	1	error: invalid command name "coroutine"
+co11-coro-lambda.tcl	rt8.6	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co11-coro-lambda.tcl	rt9.0	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co11-coro-lambda.tcl	rt9.1	0	5 ¶ 1 ::g ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"} ¶ 1 {wrong # args: should be "coroutine name cmd ?arg ...?"}
+co12-coro-tailcall.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     invoked from within ¶ "puts [coroutine c body]" ¶     (file "co12-coro-tailcall.tcl" line 4)
+co12-coro-tailcall.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     invoked from within ¶ "puts [coroutine c body]" ¶     (file "co12-coro-tailcall.tcl" line 4)
+co12-coro-tailcall.tcl	tclsh8.6	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	tclsh9.0	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	tclsh9.1	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	jim	1	co12-coro-tailcall.tcl:4: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co12-coro-tailcall.tcl", line 4
+co12-coro-tailcall.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     invoked from within ¶ "puts [coroutine c body]" ¶     (file "co12-coro-tailcall.tcl" line 4)
+co12-coro-tailcall.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     invoked from within ¶ "puts [coroutine c body]" ¶     (file "co12-coro-tailcall.tcl" line 4)
+co12-coro-tailcall.tcl	vm8.6	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	vm9.0	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	vm9.1	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	rt8.4	1	error: invalid command name "coroutine"
+co12-coro-tailcall.tcl	rt8.5	1	error: invalid command name "coroutine"
+co12-coro-tailcall.tcl	rt8.6	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	rt9.0	0	b1 ¶ h1 ¶ h-done ¶ 
+co12-coro-tailcall.tcl	rt9.1	0	b1 ¶ h1 ¶ h-done ¶ 
+co13-coro-delete-from-inside.tcl	tclsh8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co13-coro-delete-from-inside.tcl" line 3)
+co13-coro-delete-from-inside.tcl	tclsh8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co13-coro-delete-from-inside.tcl" line 3)
+co13-coro-delete-from-inside.tcl	tclsh8.6	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	tclsh9.0	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	tclsh9.1	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	jim	1	co13-coro-delete-from-inside.tcl:3: Error: invalid command name "coroutine" ¶ Traceback (most recent call last): ¶   File "co13-coro-delete-from-inside.tcl", line 3
+co13-coro-delete-from-inside.tcl	vm8.4	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co13-coro-delete-from-inside.tcl" line 3)
+co13-coro-delete-from-inside.tcl	vm8.5	1	invalid command name "coroutine" ¶     while executing ¶ "coroutine c body" ¶     (file "co13-coro-delete-from-inside.tcl" line 3)
+co13-coro-delete-from-inside.tcl	vm8.6	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	vm9.0	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	vm9.1	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	rt8.4	1	error: invalid command name "coroutine"
+co13-coro-delete-from-inside.tcl	rt8.5	1	error: invalid command name "coroutine"
+co13-coro-delete-from-inside.tcl	rt8.6	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	rt9.0	0	0 after-delete {}
+co13-coro-delete-from-inside.tcl	rt9.1	0	0 after-delete {}

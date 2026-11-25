@@ -1,116 +1,369 @@
-fixture	engine	output
-j01-ref-getref-setref.tcl	jim	1|hello|world|[exit 0]
-j01-ref-getref-setref.tcl	8.6	invalid command name "ref"|    while executing|"ref hello mytag"|    invoked from within|"set r [ref hello mytag]"|    (file "j01-ref-getref-setref.tcl" line 2)|[exit 1]
-j01-ref-getref-setref.tcl	9.0	invalid command name "ref"|    while executing|"ref hello mytag"|    invoked from within|"set r [ref hello mytag]"|    (file "j01-ref-getref-setref.tcl" line 2)|[exit 1]
-j01-ref-getref-setref.tcl	vm9.0	invalid command name "ref"|    while executing|"ref hello mytag"|    invoked from within|"set r [ref hello mytag]"|    (file "j01-ref-getref-setref.tcl" line 2)|[exit 1]
-j01-ref-getref-setref.tcl	rt9.0	error: invalid command name "ref"|[exit 1]
-j02-collect-finalize.tcl	jim	3|finalized val|collected 1|[exit 0]
-j02-collect-finalize.tcl	8.6	invalid command name "ref"|    while executing|"ref val tag fin"|    invoked from within|"set r [ref val tag fin]"|    (file "j02-collect-finalize.tcl" line 3)|[exit 1]
-j02-collect-finalize.tcl	9.0	invalid command name "ref"|    while executing|"ref val tag fin"|    invoked from within|"set r [ref val tag fin]"|    (file "j02-collect-finalize.tcl" line 3)|[exit 1]
-j02-collect-finalize.tcl	vm9.0	invalid command name "ref"|    while executing|"ref val tag fin"|    invoked from within|"set r [ref val tag fin]"|    (file "j02-collect-finalize.tcl" line 3)|[exit 1]
-j02-collect-finalize.tcl	rt9.0	error: invalid command name "ref"|[exit 1]
-j03-local-proc.tcl	jim	local-helper|after: 0|[exit 0]
-j03-local-proc.tcl	8.6	invalid command name "local"|    while executing|"local proc helper {} {return local-helper}"|    (procedure "outer" line 2)|    invoked from within|"outer"|    invoked from within|"puts [outer]"|    (file "j03-local-proc.tcl" line 6)|[exit 1]
-j03-local-proc.tcl	9.0	invalid command name "local"|    while executing|"local proc helper {} {return local-helper}"|    (procedure "outer" line 2)|    invoked from within|"outer"|    invoked from within|"puts [outer]"|    (file "j03-local-proc.tcl" line 6)|[exit 1]
-j03-local-proc.tcl	vm9.0	invalid command name "local"|    while executing|"local proc helper {} {return local-helper}"|    (procedure "outer" line 2)|    invoked from within|"outer"|    invoked from within|"puts [outer]"|    (file "j03-local-proc.tcl" line 6)|[exit 1]
-j03-local-proc.tcl	rt9.0	error: invalid command name "local"|[exit 1]
-j04-upcall.tcl	jim	new+orig|orig|[exit 0]
-j04-upcall.tcl	8.6	invalid command name "local"|    while executing|"local proc greet {} {return "new+[upcall greet]"}"|    (procedure "wrap" line 2)|    invoked from within|"wrap"|    invoked from within|"puts [wrap]"|    (file "j04-upcall.tcl" line 7)|[exit 1]
-j04-upcall.tcl	9.0	invalid command name "local"|    while executing|"local proc greet {} {return "new+[upcall greet]"}"|    (procedure "wrap" line 2)|    invoked from within|"wrap"|    invoked from within|"puts [wrap]"|    (file "j04-upcall.tcl" line 7)|[exit 1]
-j04-upcall.tcl	vm9.0	invalid command name "local"|    while executing|"local proc greet {} {return "new+[upcall greet]"}"|    (procedure "wrap" line 2)|    invoked from within|"wrap"|    invoked from within|"puts [wrap]"|    (file "j04-upcall.tcl" line 7)|[exit 1]
-j04-upcall.tcl	rt9.0	error: invalid command name "local"|[exit 1]
-j06-dict-sugar.tcl	jim	1|a 1 b 2 c 3|0|[exit 0]
-j06-dict-sugar.tcl	8.6	can't read "d(a)": variable isn't array|    while executing|"puts $d(a)"|    (file "j06-dict-sugar.tcl" line 3)|[exit 1]
-j06-dict-sugar.tcl	9.0	can't read "d(a)": variable isn't array|    while executing|"puts $d(a)"|    (file "j06-dict-sugar.tcl" line 3)|[exit 1]
-j06-dict-sugar.tcl	vm9.0	can't read "d(a)": variable isn't array|    while executing|"puts $d(a)"|    (file "j06-dict-sugar.tcl" line 3)|[exit 1]
-j06-dict-sugar.tcl	rt9.0	error: can't read "d(a)": variable isn't array|[exit 1]
-j07-lambda-statics.tcl	jim	8|2|[exit 0]
-j07-lambda-statics.tcl	8.6	invalid command name "lambda"|    while executing|"lambda {x} {expr {$x * 2}}"|    invoked from within|"set f [lambda {x} {expr {$x * 2}}]"|    (file "j07-lambda-statics.tcl" line 2)|[exit 1]
-j07-lambda-statics.tcl	9.0	invalid command name "lambda"|    while executing|"lambda {x} {expr {$x * 2}}"|    invoked from within|"set f [lambda {x} {expr {$x * 2}}]"|    (file "j07-lambda-statics.tcl" line 2)|[exit 1]
-j07-lambda-statics.tcl	vm9.0	invalid command name "lambda"|    while executing|"lambda {x} {expr {$x * 2}}"|    invoked from within|"set f [lambda {x} {expr {$x * 2}}]"|    (file "j07-lambda-statics.tcl" line 2)|[exit 1]
-j07-lambda-statics.tcl	rt9.0	error: invalid command name "lambda"|[exit 1]
-j08-alias-curry.tcl	jim	1:0|ABC|[exit 0]
-j08-alias-curry.tcl	8.6	invalid command name "alias"|    while executing|"alias e info exists"|    (file "j08-alias-curry.tcl" line 2)|[exit 1]
-j08-alias-curry.tcl	9.0	invalid command name "alias"|    while executing|"alias e info exists"|    (file "j08-alias-curry.tcl" line 2)|[exit 1]
-j08-alias-curry.tcl	vm9.0	invalid command name "alias"|    while executing|"alias e info exists"|    (file "j08-alias-curry.tcl" line 2)|[exit 1]
-j08-alias-curry.tcl	rt9.0	error: invalid command name "alias"|[exit 1]
-j10-stackdump.tcl	jim	boom|-code -errorcode -errorinfo -level|28|[exit 0]
-j10-stackdump.tcl	8.6	boom|-code -errorcode -errorinfo -errorline -errorstack -level|invalid command name "stackdump"|    while executing|"stackdump [dict get $opts -errorinfo]"|    invoked from within|"llength [stackdump [dict get $opts -errorinfo]]"|    invoked from within|"puts [llength [stackdump [dict get $opts -errorinfo]]]"|    (file "j10-stackdump.tcl" line 7)|[exit 1]
-j10-stackdump.tcl	9.0	boom|-code -errorcode -errorinfo -errorline -errorstack -level|invalid command name "stackdump"|    while executing|"stackdump [dict get $opts -errorinfo]"|    invoked from within|"llength [stackdump [dict get $opts -errorinfo]]"|    invoked from within|"puts [llength [stackdump [dict get $opts -errorinfo]]]"|    (file "j10-stackdump.tcl" line 7)|[exit 1]
-j10-stackdump.tcl	vm9.0	boom|-code -errorcode -errorinfo -errorline -errorstack -level|invalid command name "stackdump"|    while executing|"stackdump [dict get $opts -errorinfo]"|    invoked from within|"llength [stackdump [dict get $opts -errorinfo]]"|    invoked from within|"puts [llength [stackdump [dict get $opts -errorinfo]]]"|    (file "j10-stackdump.tcl" line 7)|[exit 1]
-j10-stackdump.tcl	rt9.0	boom|-code -errorcode -errorinfo -errorline -errorstack -level|error: invalid command name "stackdump"|[exit 1]
-j11-exists.tcl	jim	1:0:1:1:1|[exit 0]
-j11-exists.tcl	8.6	invalid command name "exists"|    while executing|"exists x"|    invoked from within|"puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]"|    (file "j11-exists.tcl" line 4)|[exit 1]
-j11-exists.tcl	9.0	invalid command name "exists"|    while executing|"exists x"|    invoked from within|"puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]"|    (file "j11-exists.tcl" line 4)|[exit 1]
-j11-exists.tcl	vm9.0	invalid command name "exists"|    while executing|"exists x"|    invoked from within|"puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]"|    (file "j11-exists.tcl" line 4)|[exit 1]
-j11-exists.tcl	rt9.0	error: invalid command name "exists"|[exit 1]
-j12-lmap.tcl	jim	1 4 9|1 3|[exit 0]
-j12-lmap.tcl	8.6	1 4 9|1 3|[exit 0]
-j12-lmap.tcl	9.0	1 4 9|1 3|[exit 0]
-j12-lmap.tcl	vm9.0	1 4 9|1 3|[exit 0]
-j12-lmap.tcl	rt9.0	1 4 9|1 3|[exit 0]
-j15-backslash-newline-in-braces.tcl	jim	6|[exit 0]
-j15-backslash-newline-in-braces.tcl	8.6	3|[exit 0]
-j15-backslash-newline-in-braces.tcl	9.0	3|[exit 0]
-j15-backslash-newline-in-braces.tcl	vm9.0	3|[exit 0]
-j15-backslash-newline-in-braces.tcl	rt9.0	3|[exit 0]
-j16-array-is-dict.tcl	jim	0:1|0:4|[exit 0]
-j16-array-is-dict.tcl	8.6	1:can't read "a": variable is array|1:can't read "a": variable is array|[exit 0]
-j16-array-is-dict.tcl	9.0	1:can't read "a": variable is array|1:can't read "a": variable is array|[exit 0]
-j16-array-is-dict.tcl	vm9.0	1:can't read "a": variable is array|1:can't read "a": variable is array|[exit 0]
-j16-array-is-dict.tcl	rt9.0	1:can't read "a": variable is array|1:can't read "a": variable is array|[exit 0]
-j17-defer.tcl	jim	body|deferred|[exit 0]
-j17-defer.tcl	8.6	invalid command name "defer"|    while executing|"defer {puts deferred}"|    (procedure "p" line 2)|    invoked from within|"p"|    (file "j17-defer.tcl" line 5)|[exit 1]
-j17-defer.tcl	9.0	invalid command name "defer"|    while executing|"defer {puts deferred}"|    (procedure "p" line 2)|    invoked from within|"p"|    (file "j17-defer.tcl" line 5)|[exit 1]
-j17-defer.tcl	vm9.0	invalid command name "defer"|    while executing|"defer {puts deferred}"|    (procedure "p" line 2)|    invoked from within|"p"|    (file "j17-defer.tcl" line 5)|[exit 1]
-j17-defer.tcl	rt9.0	error: invalid command name "defer"|[exit 1]
-j18-loop-range.tcl	jim	0120:||0:0 1 2|[exit 0]
-j18-loop-range.tcl	8.6	1:invalid command name "loop"||1:invalid command name "range"|[exit 0]
-j18-loop-range.tcl	9.0	1:invalid command name "loop"||1:invalid command name "range"|[exit 0]
-j18-loop-range.tcl	vm9.0	1:invalid command name "loop"||1:invalid command name "range"|[exit 0]
-j18-loop-range.tcl	rt9.0	1:invalid command name "loop"||1:invalid command name "range"|[exit 0]
-j19-proc-statics.tcl	jim	2|[exit 0]
-j19-proc-statics.tcl	8.6	wrong # args: should be "proc name args body"|    while executing|"proc counter {} {{count 0}} {incr count}"|    (file "j19-proc-statics.tcl" line 2)|[exit 1]
-j19-proc-statics.tcl	9.0	wrong # args: should be "proc name args body"|    while executing|"proc counter {} {{count 0}} {incr count}"|    (file "j19-proc-statics.tcl" line 2)|[exit 1]
-j19-proc-statics.tcl	vm9.0	wrong # args: should be "proc name args body"|    while executing|"proc counter {} {{count 0}} {incr count}"|    (file "j19-proc-statics.tcl" line 2)|[exit 1]
-j19-proc-statics.tcl	rt9.0	error: wrong # args: should be "proc name args body"|[exit 1]
-j20-octal-and-expr.tcl	jim	10|0:8|3:-4|0|[exit 0]
-j20-octal-and-expr.tcl	8.6	8|0:8|3:-4|0|[exit 0]
-j20-octal-and-expr.tcl	9.0	10|0:8|3:-4|0|[exit 0]
-j20-octal-and-expr.tcl	vm9.0	10|0:8|3:-4|0|[exit 0]
-j20-octal-and-expr.tcl	rt9.0	10|0:0o10|3:-4|0|[exit 0]
-j21-upvar-global.tcl	jim	2|9|0:9|[exit 0]
-j21-upvar-global.tcl	8.6	2|9|0:9|[exit 0]
-j21-upvar-global.tcl	9.0	2|9|0:9|[exit 0]
-j21-upvar-global.tcl	vm9.0	2|9|0:9|[exit 0]
-j21-upvar-global.tcl	rt9.0	2|9|0:9|[exit 0]
-j22-string-and-list-misc.tcl	jim	0:bcd|1:invalid command name "string equal"|0:3|0:3 2 1|[exit 0]
-j22-string-and-list-misc.tcl	8.6	1:unknown or ambiguous subcommand "byterange": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart|1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices|0:3|0:3 2 1|[exit 0]
-j22-string-and-list-misc.tcl	9.0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart|1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices|0:3|0:3 2 1|[exit 0]
-j22-string-and-list-misc.tcl	vm9.0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart|1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices|0:3|0:3 2 1|[exit 0]
-j22-string-and-list-misc.tcl	rt9.0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart|1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices|0:3|0:3 2 1|[exit 0]
-j05-expr-sugar.tcl	jim	6|sum=3|[exit 0]
-j05-expr-sugar.tcl	8.6	can't read "(3*2)": no such variable|    while executing|"puts $($x*2)"|    (file "j05-expr-sugar.tcl" line 3)|[exit 1]
-j05-expr-sugar.tcl	9.0	can't read "(3*2)": no such variable|    while executing|"puts $($x*2)"|    (file "j05-expr-sugar.tcl" line 3)|[exit 1]
-j05-expr-sugar.tcl	vm9.0	can't read "(3*2)": no such variable|    while executing|"puts $($x*2)"|    (file "j05-expr-sugar.tcl" line 3)|[exit 1]
-j05-expr-sugar.tcl	rt9.0	error: can't read "(3*2)": no such variable|[exit 1]
-j09-namespace.tcl	jim	::ns|5|[exit 0]
-j09-namespace.tcl	8.6	::ns|5|[exit 0]
-j09-namespace.tcl	9.0	::ns|5|[exit 0]
-j09-namespace.tcl	vm9.0	::ns|5|[exit 0]
-j09-namespace.tcl	rt9.0	::ns|5|[exit 0]
-j13-info-differences.tcl	jim	0:s 7|0:0|0:1|0:info exists|0:0|0:2|0:16|[exit 0]
-j13-info-differences.tcl	8.6	wrong # args: should be "proc name args body"|    while executing|"proc p {} {{s 7}} {return [info statics p]}"|    (file "j13-info-differences.tcl" line 2)|[exit 1]
-j13-info-differences.tcl	9.0	wrong # args: should be "proc name args body"|    while executing|"proc p {} {{s 7}} {return [info statics p]}"|    (file "j13-info-differences.tcl" line 2)|[exit 1]
-j13-info-differences.tcl	vm9.0	wrong # args: should be "proc name args body"|    while executing|"proc p {} {{s 7}} {return [info statics p]}"|    (file "j13-info-differences.tcl" line 2)|[exit 1]
-j13-info-differences.tcl	rt9.0	error: wrong # args: should be "proc name args body"|[exit 1]
-j14-error-return.tcl	jim	1:custom stack|2:x|1:x|3:|deep|[exit 0]
-j14-error-return.tcl	8.6	1:custom stack|2:x|1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error"|    while executing|"-error"} -errorline 1|1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break"|    while executing|"-break"} -errorline 1|deep|[exit 0]
-j14-error-return.tcl	9.0	1:custom stack|2:x|1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error"|    while executing|"-error"} -errorline 1|1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break"|    while executing|"-break"} -errorline 1|deep|[exit 0]
-j14-error-return.tcl	vm9.0	1:custom stack|2:x|1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error"|    while executing|"-error"} -errorline 1|1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break"|    while executing|"-break"} -errorline 1|deep|[exit 0]
-j14-error-return.tcl	rt9.0	1:custom stack|2:x|1:-code 1 -level 0 -errorstack {INNER -error} -errorcode {TCL LOOKUP COMMAND -error} -errorinfo {invalid command name "-error"|    while executing|"-error"} -errorline 1|1:-code 1 -level 0 -errorstack {INNER -break} -errorcode {TCL LOOKUP COMMAND -break} -errorinfo {invalid command name "-break"|    while executing|"-break"} -errorline 1|deep|[exit 0]
-j23-rt-expr-literal-in-catch.tcl	jim	8|0:8|0:16|[exit 0]
-j23-rt-expr-literal-in-catch.tcl	8.6	8|0:8|0:16|[exit 0]
-j23-rt-expr-literal-in-catch.tcl	9.0	8|0:8|0:16|[exit 0]
-j23-rt-expr-literal-in-catch.tcl	vm9.0	8|0:8|0:16|[exit 0]
-j23-rt-expr-literal-in-catch.tcl	rt9.0	8|0:0o10|0:0x10|[exit 0]
+# Generated by `cargo xtask conformance`. fixture <TAB> interpreter <TAB> exit status <TAB> stdout and stderr, lines joined with " ¶ ". tclshX.Y = C Tcl; jim = jimsh; vmX.Y = tclvm --tcl-version X.Y; rtX.Y = run_script --quiet --tcl-version X.Y.
+j01-ref-getref-setref.tcl	tclsh8.4	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	tclsh8.5	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	tclsh8.6	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	tclsh9.0	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	tclsh9.1	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	jim	0	1 ¶ hello ¶ world
+j01-ref-getref-setref.tcl	vm8.4	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	vm8.5	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	vm8.6	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	vm9.0	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	vm9.1	1	invalid command name "ref" ¶     while executing ¶ "ref hello mytag" ¶     invoked from within ¶ "set r [ref hello mytag]" ¶     (file "j01-ref-getref-setref.tcl" line 2)
+j01-ref-getref-setref.tcl	rt8.4	1	error: invalid command name "ref"
+j01-ref-getref-setref.tcl	rt8.5	1	error: invalid command name "ref"
+j01-ref-getref-setref.tcl	rt8.6	1	error: invalid command name "ref"
+j01-ref-getref-setref.tcl	rt9.0	1	error: invalid command name "ref"
+j01-ref-getref-setref.tcl	rt9.1	1	error: invalid command name "ref"
+j02-collect-finalize.tcl	tclsh8.4	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	tclsh8.5	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	tclsh8.6	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	tclsh9.0	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	tclsh9.1	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	jim	0	3 ¶ finalized val ¶ collected 1
+j02-collect-finalize.tcl	vm8.4	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	vm8.5	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	vm8.6	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	vm9.0	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	vm9.1	1	invalid command name "ref" ¶     while executing ¶ "ref val tag fin" ¶     invoked from within ¶ "set r [ref val tag fin]" ¶     (file "j02-collect-finalize.tcl" line 3)
+j02-collect-finalize.tcl	rt8.4	1	error: invalid command name "ref"
+j02-collect-finalize.tcl	rt8.5	1	error: invalid command name "ref"
+j02-collect-finalize.tcl	rt8.6	1	error: invalid command name "ref"
+j02-collect-finalize.tcl	rt9.0	1	error: invalid command name "ref"
+j02-collect-finalize.tcl	rt9.1	1	error: invalid command name "ref"
+j03-local-proc.tcl	tclsh8.4	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	tclsh8.5	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	tclsh8.6	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	tclsh9.0	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	tclsh9.1	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	jim	0	local-helper ¶ after: 0
+j03-local-proc.tcl	vm8.4	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	vm8.5	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	vm8.6	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	vm9.0	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	vm9.1	1	invalid command name "local" ¶     while executing ¶ "local proc helper {} {return local-helper}" ¶     (procedure "outer" line 2) ¶     invoked from within ¶ "outer" ¶     invoked from within ¶ "puts [outer]" ¶     (file "j03-local-proc.tcl" line 6)
+j03-local-proc.tcl	rt8.4	1	error: invalid command name "local"
+j03-local-proc.tcl	rt8.5	1	error: invalid command name "local"
+j03-local-proc.tcl	rt8.6	1	error: invalid command name "local"
+j03-local-proc.tcl	rt9.0	1	error: invalid command name "local"
+j03-local-proc.tcl	rt9.1	1	error: invalid command name "local"
+j04-upcall.tcl	tclsh8.4	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	tclsh8.5	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	tclsh8.6	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	tclsh9.0	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	tclsh9.1	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	jim	0	new+orig ¶ orig
+j04-upcall.tcl	vm8.4	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	vm8.5	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	vm8.6	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	vm9.0	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	vm9.1	1	invalid command name "local" ¶     while executing ¶ "local proc greet {} {return "new+[upcall greet]"}" ¶     (procedure "wrap" line 2) ¶     invoked from within ¶ "wrap" ¶     invoked from within ¶ "puts [wrap]" ¶     (file "j04-upcall.tcl" line 7)
+j04-upcall.tcl	rt8.4	1	error: invalid command name "local"
+j04-upcall.tcl	rt8.5	1	error: invalid command name "local"
+j04-upcall.tcl	rt8.6	1	error: invalid command name "local"
+j04-upcall.tcl	rt9.0	1	error: invalid command name "local"
+j04-upcall.tcl	rt9.1	1	error: invalid command name "local"
+j05-expr-sugar.tcl	tclsh8.4	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	tclsh8.5	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	tclsh8.6	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	tclsh9.0	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	tclsh9.1	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	jim	0	6 ¶ sum=3
+j05-expr-sugar.tcl	vm8.4	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	vm8.5	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	vm8.6	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	vm9.0	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	vm9.1	1	can't read "(3*2)": no such variable ¶     while executing ¶ "puts $($x*2)" ¶     (file "j05-expr-sugar.tcl" line 3)
+j05-expr-sugar.tcl	rt8.4	1	error: can't read "(3*2)": no such variable
+j05-expr-sugar.tcl	rt8.5	1	error: can't read "(3*2)": no such variable
+j05-expr-sugar.tcl	rt8.6	1	error: can't read "(3*2)": no such variable
+j05-expr-sugar.tcl	rt9.0	1	error: can't read "(3*2)": no such variable
+j05-expr-sugar.tcl	rt9.1	1	error: can't read "(3*2)": no such variable
+j06-dict-sugar.tcl	tclsh8.4	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	tclsh8.5	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	tclsh8.6	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	tclsh9.0	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	tclsh9.1	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	jim	0	1 ¶ a 1 b 2 c 3 ¶ 0
+j06-dict-sugar.tcl	vm8.4	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	vm8.5	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	vm8.6	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	vm9.0	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	vm9.1	1	can't read "d(a)": variable isn't array ¶     while executing ¶ "puts $d(a)" ¶     (file "j06-dict-sugar.tcl" line 3)
+j06-dict-sugar.tcl	rt8.4	1	error: can't read "d(a)": variable isn't array
+j06-dict-sugar.tcl	rt8.5	1	error: can't read "d(a)": variable isn't array
+j06-dict-sugar.tcl	rt8.6	1	error: can't read "d(a)": variable isn't array
+j06-dict-sugar.tcl	rt9.0	1	error: can't read "d(a)": variable isn't array
+j06-dict-sugar.tcl	rt9.1	1	error: can't read "d(a)": variable isn't array
+j07-lambda-statics.tcl	tclsh8.4	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	tclsh8.5	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	tclsh8.6	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	tclsh9.0	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	tclsh9.1	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	jim	0	8 ¶ 2
+j07-lambda-statics.tcl	vm8.4	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	vm8.5	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	vm8.6	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	vm9.0	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	vm9.1	1	invalid command name "lambda" ¶     while executing ¶ "lambda {x} {expr {$x * 2}}" ¶     invoked from within ¶ "set f [lambda {x} {expr {$x * 2}}]" ¶     (file "j07-lambda-statics.tcl" line 2)
+j07-lambda-statics.tcl	rt8.4	1	error: invalid command name "lambda"
+j07-lambda-statics.tcl	rt8.5	1	error: invalid command name "lambda"
+j07-lambda-statics.tcl	rt8.6	1	error: invalid command name "lambda"
+j07-lambda-statics.tcl	rt9.0	1	error: invalid command name "lambda"
+j07-lambda-statics.tcl	rt9.1	1	error: invalid command name "lambda"
+j08-alias-curry.tcl	tclsh8.4	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	tclsh8.5	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	tclsh8.6	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	tclsh9.0	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	tclsh9.1	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	jim	0	1:0 ¶ ABC
+j08-alias-curry.tcl	vm8.4	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	vm8.5	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	vm8.6	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	vm9.0	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	vm9.1	1	invalid command name "alias" ¶     while executing ¶ "alias e info exists" ¶     (file "j08-alias-curry.tcl" line 2)
+j08-alias-curry.tcl	rt8.4	1	error: invalid command name "alias"
+j08-alias-curry.tcl	rt8.5	1	error: invalid command name "alias"
+j08-alias-curry.tcl	rt8.6	1	error: invalid command name "alias"
+j08-alias-curry.tcl	rt9.0	1	error: invalid command name "alias"
+j08-alias-curry.tcl	rt9.1	1	error: invalid command name "alias"
+j09-namespace.tcl	tclsh8.4	0	::ns ¶ 5
+j09-namespace.tcl	tclsh8.5	0	::ns ¶ 5
+j09-namespace.tcl	tclsh8.6	0	::ns ¶ 5
+j09-namespace.tcl	tclsh9.0	0	::ns ¶ 5
+j09-namespace.tcl	tclsh9.1	0	::ns ¶ 5
+j09-namespace.tcl	jim	0	::ns ¶ 5
+j09-namespace.tcl	vm8.4	0	::ns ¶ 5
+j09-namespace.tcl	vm8.5	0	::ns ¶ 5
+j09-namespace.tcl	vm8.6	0	::ns ¶ 5
+j09-namespace.tcl	vm9.0	0	::ns ¶ 5
+j09-namespace.tcl	vm9.1	0	::ns ¶ 5
+j09-namespace.tcl	rt8.4	0	::ns ¶ 5
+j09-namespace.tcl	rt8.5	0	::ns ¶ 5
+j09-namespace.tcl	rt8.6	0	::ns ¶ 5
+j09-namespace.tcl	rt9.0	0	::ns ¶ 5
+j09-namespace.tcl	rt9.1	0	::ns ¶ 5
+j10-stackdump.tcl	tclsh8.4	1	wrong # args: should be "catch command ?varName?" ¶     while executing ¶ "catch {a} msg opts" ¶     (file "j10-stackdump.tcl" line 4)
+j10-stackdump.tcl	tclsh8.5	1	boom ¶ -code -errorcode -errorinfo -errorline -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	tclsh8.6	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	tclsh9.0	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	tclsh9.1	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	jim	0	boom ¶ -code -errorcode -errorinfo -level ¶ 28
+j10-stackdump.tcl	vm8.4	1	wrong # args: should be "catch command ?varName?" ¶     while executing ¶ "catch {a} msg opts" ¶     (file "j10-stackdump.tcl" line 4)
+j10-stackdump.tcl	vm8.5	1	boom ¶ -code -errorcode -errorinfo -errorline -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	vm8.6	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	vm9.0	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	vm9.1	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ invalid command name "stackdump" ¶     while executing ¶ "stackdump [dict get $opts -errorinfo]" ¶     invoked from within ¶ "llength [stackdump [dict get $opts -errorinfo]]" ¶     invoked from within ¶ "puts [llength [stackdump [dict get $opts -errorinfo]]]" ¶     (file "j10-stackdump.tcl" line 7)
+j10-stackdump.tcl	rt8.4	1	error: wrong # args: should be "catch command ?varName?"
+j10-stackdump.tcl	rt8.5	1	boom ¶ -code -errorcode -errorinfo -errorline -level ¶ error: invalid command name "stackdump"
+j10-stackdump.tcl	rt8.6	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ error: invalid command name "stackdump"
+j10-stackdump.tcl	rt9.0	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ error: invalid command name "stackdump"
+j10-stackdump.tcl	rt9.1	1	boom ¶ -code -errorcode -errorinfo -errorline -errorstack -level ¶ error: invalid command name "stackdump"
+j11-exists.tcl	tclsh8.4	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	tclsh8.5	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	tclsh8.6	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	tclsh9.0	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	tclsh9.1	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	jim	0	1:0:1:1:1
+j11-exists.tcl	vm8.4	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	vm8.5	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	vm8.6	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	vm9.0	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	vm9.1	1	invalid command name "exists" ¶     while executing ¶ "exists x" ¶     invoked from within ¶ "puts [exists x]:[exists y]:[exists -command puts]:[exists -proc puts]:[exists -proc q]" ¶     (file "j11-exists.tcl" line 4)
+j11-exists.tcl	rt8.4	1	error: invalid command name "exists"
+j11-exists.tcl	rt8.5	1	error: invalid command name "exists"
+j11-exists.tcl	rt8.6	1	error: invalid command name "exists"
+j11-exists.tcl	rt9.0	1	error: invalid command name "exists"
+j11-exists.tcl	rt9.1	1	error: invalid command name "exists"
+j12-lmap.tcl	tclsh8.4	1	invalid command name "lmap" ¶     while executing ¶ "lmap x {1 2 3} {expr {$x * $x}}" ¶     invoked from within ¶ "puts [lmap x {1 2 3} {expr {$x * $x}}]" ¶     (file "j12-lmap.tcl" line 1)
+j12-lmap.tcl	tclsh8.5	1	invalid command name "lmap" ¶     while executing ¶ "lmap x {1 2 3} {expr {$x * $x}}" ¶     invoked from within ¶ "puts [lmap x {1 2 3} {expr {$x * $x}}]" ¶     (file "j12-lmap.tcl" line 1)
+j12-lmap.tcl	tclsh8.6	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	tclsh9.0	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	tclsh9.1	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	jim	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	vm8.4	1	invalid command name "lmap" ¶     while executing ¶ "lmap x {1 2 3} {expr {$x * $x}}" ¶     invoked from within ¶ "puts [lmap x {1 2 3} {expr {$x * $x}}]" ¶     (file "j12-lmap.tcl" line 1)
+j12-lmap.tcl	vm8.5	1	invalid command name "lmap" ¶     while executing ¶ "lmap x {1 2 3} {expr {$x * $x}}" ¶     invoked from within ¶ "puts [lmap x {1 2 3} {expr {$x * $x}}]" ¶     (file "j12-lmap.tcl" line 1)
+j12-lmap.tcl	vm8.6	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	vm9.0	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	vm9.1	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	rt8.4	1	error: invalid command name "lmap"
+j12-lmap.tcl	rt8.5	1	error: invalid command name "lmap"
+j12-lmap.tcl	rt8.6	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	rt9.0	0	1 4 9 ¶ 1 3
+j12-lmap.tcl	rt9.1	0	1 4 9 ¶ 1 3
+j13-info-differences.tcl	tclsh8.4	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	tclsh8.5	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	tclsh8.6	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	tclsh9.0	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	tclsh9.1	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	jim	0	0:s 7 ¶ 0:0 ¶ 0:1 ¶ 0:info exists ¶ 0:0 ¶ 0:2 ¶ 0:16
+j13-info-differences.tcl	vm8.4	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	vm8.5	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	vm8.6	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	vm9.0	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	vm9.1	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc p {} {{s 7}} {return [info statics p]}" ¶     (file "j13-info-differences.tcl" line 2)
+j13-info-differences.tcl	rt8.4	1	error: wrong # args: should be "proc name args body"
+j13-info-differences.tcl	rt8.5	1	error: wrong # args: should be "proc name args body"
+j13-info-differences.tcl	rt8.6	1	error: wrong # args: should be "proc name args body"
+j13-info-differences.tcl	rt9.0	1	error: wrong # args: should be "proc name args body"
+j13-info-differences.tcl	rt9.1	1	error: wrong # args: should be "proc name args body"
+j14-error-return.tcl	tclsh8.4	1	wrong # args: should be "catch command ?varName?" ¶     while executing ¶ "catch {error msg {custom stack}} r opts" ¶     invoked from within ¶ "puts [catch {error msg {custom stack}} r opts]:[dict get $opts -errorinfo]" ¶     (file "j14-error-return.tcl" line 2)
+j14-error-return.tcl	tclsh8.5	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	tclsh8.6	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	tclsh9.0	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	tclsh9.1	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	jim	0	1:custom stack ¶ 2:x ¶ 1:x ¶ 3: ¶ deep
+j14-error-return.tcl	vm8.4	1	wrong # args: should be "catch command ?varName?" ¶     while executing ¶ "catch {error msg {custom stack}} r opts" ¶     invoked from within ¶ "puts [catch {error msg {custom stack}} r opts]:[dict get $opts -errorinfo]" ¶     (file "j14-error-return.tcl" line 2)
+j14-error-return.tcl	vm8.5	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	vm8.6	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	vm9.0	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk1 -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk1 -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	vm9.1	0	1:custom stack ¶ 2:x ¶ 1:-errorcode {TCL LOOKUP COMMAND -error} -code 1 -level 0 -errorstack {INNER {invokeStk -error}} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-errorcode {TCL LOOKUP COMMAND -break} -code 1 -level 0 -errorstack {INNER {invokeStk -break}} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	rt8.4	1	error: wrong # args: should be "catch command ?varName?"
+j14-error-return.tcl	rt8.5	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	rt8.6	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorstack {INNER -error} -errorcode {TCL LOOKUP COMMAND -error} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorstack {INNER -break} -errorcode {TCL LOOKUP COMMAND -break} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	rt9.0	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorstack {INNER -error} -errorcode {TCL LOOKUP COMMAND -error} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorstack {INNER -break} -errorcode {TCL LOOKUP COMMAND -break} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j14-error-return.tcl	rt9.1	0	1:custom stack ¶ 2:x ¶ 1:-code 1 -level 0 -errorstack {INNER -error} -errorcode {TCL LOOKUP COMMAND -error} -errorinfo {invalid command name "-error" ¶     while executing ¶ "-error"} -errorline 1 ¶ 1:-code 1 -level 0 -errorstack {INNER -break} -errorcode {TCL LOOKUP COMMAND -break} -errorinfo {invalid command name "-break" ¶     while executing ¶ "-break"} -errorline 1 ¶ deep
+j15-backslash-newline-in-braces.tcl	tclsh8.4	0	3
+j15-backslash-newline-in-braces.tcl	tclsh8.5	0	3
+j15-backslash-newline-in-braces.tcl	tclsh8.6	0	3
+j15-backslash-newline-in-braces.tcl	tclsh9.0	0	3
+j15-backslash-newline-in-braces.tcl	tclsh9.1	0	3
+j15-backslash-newline-in-braces.tcl	jim	0	6
+j15-backslash-newline-in-braces.tcl	vm8.4	0	3
+j15-backslash-newline-in-braces.tcl	vm8.5	0	3
+j15-backslash-newline-in-braces.tcl	vm8.6	0	3
+j15-backslash-newline-in-braces.tcl	vm9.0	0	3
+j15-backslash-newline-in-braces.tcl	vm9.1	0	3
+j15-backslash-newline-in-braces.tcl	rt8.4	0	3
+j15-backslash-newline-in-braces.tcl	rt8.5	0	3
+j15-backslash-newline-in-braces.tcl	rt8.6	0	3
+j15-backslash-newline-in-braces.tcl	rt9.0	0	3
+j15-backslash-newline-in-braces.tcl	rt9.1	0	3
+j16-array-is-dict.tcl	tclsh8.4	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	tclsh8.5	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	tclsh8.6	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	tclsh9.0	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	tclsh9.1	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	jim	0	0:1 ¶ 0:4
+j16-array-is-dict.tcl	vm8.4	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	vm8.5	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	vm8.6	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	vm9.0	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	vm9.1	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	rt8.4	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	rt8.5	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	rt8.6	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	rt9.0	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j16-array-is-dict.tcl	rt9.1	0	1:can't read "a": variable is array ¶ 1:can't read "a": variable is array
+j17-defer.tcl	tclsh8.4	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	tclsh8.5	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	tclsh8.6	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	tclsh9.0	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	tclsh9.1	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	jim	0	body ¶ deferred
+j17-defer.tcl	vm8.4	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	vm8.5	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	vm8.6	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	vm9.0	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	vm9.1	1	invalid command name "defer" ¶     while executing ¶ "defer {puts deferred}" ¶     (procedure "p" line 2) ¶     invoked from within ¶ "p" ¶     (file "j17-defer.tcl" line 5)
+j17-defer.tcl	rt8.4	1	error: invalid command name "defer"
+j17-defer.tcl	rt8.5	1	error: invalid command name "defer"
+j17-defer.tcl	rt8.6	1	error: invalid command name "defer"
+j17-defer.tcl	rt9.0	1	error: invalid command name "defer"
+j17-defer.tcl	rt9.1	1	error: invalid command name "defer"
+j18-loop-range.tcl	tclsh8.4	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	tclsh8.5	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	tclsh8.6	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	tclsh9.0	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	tclsh9.1	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	jim	0	0120: ¶  ¶ 0:0 1 2
+j18-loop-range.tcl	vm8.4	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	vm8.5	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	vm8.6	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	vm9.0	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	vm9.1	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	rt8.4	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	rt8.5	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	rt8.6	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	rt9.0	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j18-loop-range.tcl	rt9.1	0	1:invalid command name "loop" ¶  ¶ 1:invalid command name "range"
+j19-proc-statics.tcl	tclsh8.4	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	tclsh8.5	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	tclsh8.6	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	tclsh9.0	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	tclsh9.1	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	jim	0	2
+j19-proc-statics.tcl	vm8.4	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	vm8.5	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	vm8.6	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	vm9.0	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	vm9.1	1	wrong # args: should be "proc name args body" ¶     while executing ¶ "proc counter {} {{count 0}} {incr count}" ¶     (file "j19-proc-statics.tcl" line 2)
+j19-proc-statics.tcl	rt8.4	1	error: wrong # args: should be "proc name args body"
+j19-proc-statics.tcl	rt8.5	1	error: wrong # args: should be "proc name args body"
+j19-proc-statics.tcl	rt8.6	1	error: wrong # args: should be "proc name args body"
+j19-proc-statics.tcl	rt9.0	1	error: wrong # args: should be "proc name args body"
+j19-proc-statics.tcl	rt9.1	1	error: wrong # args: should be "proc name args body"
+j20-octal-and-expr.tcl	tclsh8.4	1	8 ¶ 1:syntax error in expression "0o10": extra tokens at end of expression ¶ 3:-4 ¶ syntax error in expression "2 ** -1": unexpected operator * ¶     while executing ¶ "expr {2 ** -1}" ¶     invoked from within ¶ "puts [expr {2 ** -1}]" ¶     (file "j20-octal-and-expr.tcl" line 4)
+j20-octal-and-expr.tcl	tclsh8.5	0	8 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	tclsh8.6	0	8 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	tclsh9.0	0	10 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	tclsh9.1	0	10 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	jim	0	10 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	vm8.4	1	8 ¶ 1:syntax error in expression "0o10": extra tokens at end of expression ¶ 3:-4 ¶ syntax error in expression "2 ** -1": unexpected operator * ¶     while executing ¶ "expr {2 ** -1}" ¶     invoked from within ¶ "puts [expr {2 ** -1}]" ¶     (file "j20-octal-and-expr.tcl" line 4)
+j20-octal-and-expr.tcl	vm8.5	0	8 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	vm8.6	0	8 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	vm9.0	0	10 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	vm9.1	0	10 ¶ 0:8 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	rt8.4	1	8 ¶ 1:syntax error in expression "0o10": extra tokens at end of expression ¶ 3:-4 ¶ error: syntax error in expression "2 ** -1": unexpected operator *
+j20-octal-and-expr.tcl	rt8.5	0	8 ¶ 0:0o10 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	rt8.6	0	8 ¶ 0:0o10 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	rt9.0	0	10 ¶ 0:0o10 ¶ 3:-4 ¶ 0
+j20-octal-and-expr.tcl	rt9.1	0	10 ¶ 0:0o10 ¶ 3:-4 ¶ 0
+j21-upvar-global.tcl	tclsh8.4	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	tclsh8.5	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	tclsh8.6	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	tclsh9.0	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	tclsh9.1	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	jim	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	vm8.4	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	vm8.5	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	vm8.6	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	vm9.0	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	vm9.1	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	rt8.4	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	rt8.5	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	rt8.6	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	rt9.0	0	2 ¶ 9 ¶ 0:9
+j21-upvar-global.tcl	rt9.1	0	2 ¶ 9 ¶ 0:9
+j22-string-and-list-misc.tcl	tclsh8.4	0	1:bad option "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -inline, -integer, -not, -real, -regexp, -sorted, or -start ¶ 1:invalid command name "lassign" ¶ 1:invalid command name "lreverse"
+j22-string-and-list-misc.tcl	tclsh8.5	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	tclsh8.6	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	tclsh9.0	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	tclsh9.1	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	jim	0	0:bcd ¶ 1:invalid command name "string equal" ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	vm8.4	0	1:bad option "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -inline, -integer, -not, -real, -regexp, -sorted, or -start ¶ 1:invalid command name "lassign" ¶ 1:invalid command name "lreverse"
+j22-string-and-list-misc.tcl	vm8.5	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	vm8.6	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	vm9.0	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	vm9.1	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	rt8.4	0	1:bad option "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, tolower, toupper, totitle, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -inline, -integer, -not, -real, -regexp, -sorted, or -start ¶ 1:invalid command name "lassign" ¶ 1:invalid command name "lreverse"
+j22-string-and-list-misc.tcl	rt8.5	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	rt8.6	0	1:unknown or ambiguous subcommand "byterange": must be bytelength, cat, compare, equal, first, index, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	rt9.0	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j22-string-and-list-misc.tcl	rt9.1	0	1:unknown or ambiguous subcommand "byterange": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart ¶ 1:bad option "-command": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices ¶ 0:3 ¶ 0:3 2 1
+j23-rt-expr-literal-in-catch.tcl	tclsh8.4	1	syntax error in expression "0o10": extra tokens at end of expression ¶     while executing ¶ "expr {0o10}" ¶     invoked from within ¶ "puts [expr {0o10}]" ¶     (file "j23-rt-expr-literal-in-catch.tcl" line 2)
+j23-rt-expr-literal-in-catch.tcl	tclsh8.5	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	tclsh8.6	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	tclsh9.0	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	tclsh9.1	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	jim	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	vm8.4	1	syntax error in expression "0o10": extra tokens at end of expression ¶     while executing ¶ "expr {0o10}" ¶     invoked from within ¶ "puts [expr {0o10}]" ¶     (file "j23-rt-expr-literal-in-catch.tcl" line 2)
+j23-rt-expr-literal-in-catch.tcl	vm8.5	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	vm8.6	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	vm9.0	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	vm9.1	0	8 ¶ 0:8 ¶ 0:16
+j23-rt-expr-literal-in-catch.tcl	rt8.4	1	error: syntax error in expression "0o10": extra tokens at end of expression
+j23-rt-expr-literal-in-catch.tcl	rt8.5	0	8 ¶ 0:0o10 ¶ 0:0x10
+j23-rt-expr-literal-in-catch.tcl	rt8.6	0	8 ¶ 0:0o10 ¶ 0:0x10
+j23-rt-expr-literal-in-catch.tcl	rt9.0	0	8 ¶ 0:0o10 ¶ 0:0x10
+j23-rt-expr-literal-in-catch.tcl	rt9.1	0	8 ¶ 0:0o10 ¶ 0:0x10

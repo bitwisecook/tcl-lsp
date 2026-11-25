@@ -1,68 +1,47 @@
-# Analyser/LSP probes for the chan area (MCP tcl-lsp tools; cached build, may lag 35f11afc).
-# Engine fixtures c01-c23 are mostly runtime behaviour; the static probes below exercise the same commands as direct source.
-
-## a01 option values, 9.0 (fconfigure/chan configure/close/puts)
-fconfigure $f -buffering sideways        -> W127 (correct)
-fconfigure $f -buffersize abc            -> nothing (tclsh: expected integer)
-chan configure $f -blocking maybe        -> nothing (tclsh: expected boolean)
-close $f sideways                        -> nothing (tclsh: bad direction)
-puts $f after  (after close $f)          -> nothing (use after close)
-chan puts a b c d                        -> nothing (tclsh: wrong # args; plan 129)
-fblocked                                 -> E002 (correct)
-chan pipe x                              -> E003 (correct)
-fconfigure $f -inputmode raw (file)      -> nothing (value valid; option is console-only at run time)
-
-## a02 release gates, 8.5 / 8.4
-chan close $f write (8.5)                -> W137 (correct)
-close $f write (8.5, 8.4)                -> W135 (correct; different code for the same rule)
-chan push (8.5)                          -> W002 (correct)
-fconfigure -profile (8.5)                -> W004 (correct)
-chan truncate (8.5)                      -> nothing (correct: 8.5 has truncate)
-chan names (8.4)                         -> W002 + W123 (two reports for one fact)
-
-## a03 handler protocols and callbacks, 9.0 / 8.6
-proc rc1 {cmd}; chan create read rc1                 -> nothing (handler called with >= 3 words: initialize id mode)
-proc cb {}; fcopy stdin stdout -command cb           -> nothing (callback gets >= 1 appended word)
-proc one {a}; chan push stdout one                   -> nothing (transform gets >= 2)
-proc one {a}; socket -server one 0                   -> E002 (false) and no arity report (accept gets 3)
-proc cb {}; trace add variable x write cb            -> nothing (same gap outside channels)
-proc cb {}; chan event stdin readable cb             -> nothing (correct: no appended args)
-proc acc {s a p}; socket -server acc 8080            -> E002 "Too few arguments for 'socket': expected at least 2, got 1" (FALSE POSITIVE, error severity)
-socket -server acc -myaddr 127.0.0.1 0               -> E002 (FALSE POSITIVE)
-proc acc {s a p} (unused a, p)                       -> W214 unused-parameter hints on protocol-fixed parameters (noise)
-chan event $c writable onw (onw undefined)           -> W123 (correct)
-chan create sideways rc                              -> nothing (tclsh: bad mode)
-chan postevent stdin sideways                        -> nothing (tclsh: bad event)
-chan pending sideways stdin                          -> W127 (correct)
-fconfigure stdin -buffering line -blocking           -> nothing (odd option/value count; plan 128)
-fcopy stdin stdout -size                             -> nothing (missing value)
-puts stdout x nonewline (8.6)                        -> E003 (FALSE POSITIVE; 8.6 accepts, c19; plan 123)
-read stdin nonewline (8.6)                           -> nothing (correct)
-close a b c                                          -> E003 "expected at most 2 ... usage: close channelId" (usage text without ?direction?)
-chan push a                                          -> W126 says "argument to 'chan'" (subcommand not named)
-
-## a04 channel values
-set n [expr {1+2}]; gets $n                          -> W126 INT not CHANNEL (correct)
-set l [list a b]; puts $l hi                          -> W126 (correct)
-proc leak {} {set f [open a.txt w]; puts $f x}       -> nothing (leak)
-set f [open a]; close $f; gets $f (in proc)          -> nothing (use after close)
-set h [open a]; set g $h; close $g; eof $h           -> nothing (use after close through alias)
-set f [open a.txt]; puts $f x                        -> nothing (write to read-only channel)
-
-## a05 taint (8.6)
-set c [socket localhost 80]; set line [gets $c]; exec sh -c $line -> nothing (no T100; socket and gets are TAINT_SOURCE)
-eval $line                                           -> W101 (generic, not taint)
-set u [gets stdin]; open $u w                        -> W103 (word-shape rule)
-open "|$u"                                           -> W103
-
-## a06 navigation and hover (8.6)
-definition of rc in [chan create read rc]            -> proc rc (correct)
-definition of xf in chan push $c xf                  -> proc xf (correct)
-definition of acc in socket -server acc 0            -> proc acc (correct)
-definition of done in fcopy ... -command done        -> proc done (correct)
-definition of rc in chan event $c readable [list rc x] -> proc rc (correct)
-hover on rc in chan create                           -> "proc ::rc {cmd id args}" (no protocol/method list)
-hover on $f after open                               -> "Inferred intrep: channel" (no mode, path or state)
-
-## a07 optimiser (aggressive, 8.6)
-fconfigure/eof/tell/chan names/file channels sequence -> no rewrites (safe: channel commands are not folded)
+# Generated by `cargo xtask conformance`. fixture <TAB> dialect <TAB> analyser codes as CODE@line ("-" = none) <TAB> reviewed verdict. A verdict is kept while the codes it reviewed are unchanged; otherwise it reads "review".
+c01-chan-roster.tcl	tcl8.6	-	review
+c01-chan-roster.tcl	tcl9.0	-	review
+c02-std-channels.tcl	tcl8.6	-	review
+c02-std-channels.tcl	tcl9.0	-	review
+c03-naming.tcl	tcl8.6	-	review
+c03-naming.tcl	tcl9.0	-	review
+c04-file-config.tcl	tcl8.6	-	review
+c04-file-config.tcl	tcl9.0	-	review
+c05-close-direction.tcl	tcl8.6	-	review
+c05-close-direction.tcl	tcl9.0	-	review
+c06-refchan-protocol.tcl	tcl8.6	-	review
+c06-refchan-protocol.tcl	tcl9.0	-	review
+c07-refchan-full.tcl	tcl8.6	W214@4	review
+c07-refchan-full.tcl	tcl9.0	W214@4	review
+c08-refchan-errors.tcl	tcl8.6	-	review
+c08-refchan-errors.tcl	tcl9.0	-	review
+c09-transform.tcl	tcl8.6	W214@4	review
+c09-transform.tcl	tcl9.0	W214@4	review
+c10-use-after-close.tcl	tcl8.6	-	review
+c10-use-after-close.tcl	tcl9.0	-	review
+c11-seek-tell-eof.tcl	tcl8.6	-	review
+c11-seek-tell-eof.tcl	tcl9.0	-	review
+c12-fcopy.tcl	tcl8.6	-	review
+c12-fcopy.tcl	tcl9.0	-	review
+c13-socket.tcl	tcl8.6	W214@3 W214@3	review
+c13-socket.tcl	tcl9.0	W214@3 W214@3	review
+c14-pipe.tcl	tcl8.6	-	review
+c14-pipe.tcl	tcl9.0	-	review
+c15-zlib-push.tcl	tcl8.6	-	review
+c15-zlib-push.tcl	tcl9.0	-	review
+c16-tcl9-options.tcl	tcl8.6	-	review
+c16-tcl9-options.tcl	tcl9.0	-	review
+c17-arity.tcl	tcl8.6	-	review
+c17-arity.tcl	tcl9.0	-	review
+c18-postevent.tcl	tcl8.6	W214@3	review
+c18-postevent.tcl	tcl9.0	W214@3	review
+c19-gets-read-forms.tcl	tcl8.6	-	review
+c19-gets-read-forms.tcl	tcl9.0	-	review
+c20-buffering.tcl	tcl8.6	-	review
+c20-buffering.tcl	tcl9.0	-	review
+c21-interp-transfer.tcl	tcl8.6	W302@3	review
+c21-interp-transfer.tcl	tcl9.0	W302@3	review
+c22-leak.tcl	tcl8.6	-	review
+c22-leak.tcl	tcl9.0	-	review
+c23-stdin-snapshot.tcl	tcl8.6	-	review
+c23-stdin-snapshot.tcl	tcl9.0	-	review

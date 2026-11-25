@@ -1,40 +1,33 @@
-# Analyser and LSP answers for interps/ through the tcl-lsp MCP tools (cached build,
-# may lag HEAD afe2f2d8 slightly). Dialect tcl9.0 unless stated. Format:
-# fixture: [CODE L<1-based line> message-prefix] ...   (every fixture is a correct program;
-# anything listed is a false positive unless marked TRUE)
-i01-create-eval.tcl: [W211 L3 'secret' set but never used (TRUE: the child cannot read it)] [W312 L8 interp eval multiple args] [W312 L10 unbraced script (literal word parentProc)] [W210 L13 'childVar' read before set (FALSE, not interp-specific: `info exists` inside a quoted word's command substitution is taken as a read; `puts "x=[info exists neverSet]"` alone gives it, the bare `[info exists x]` form does not)] [W312 L14 unbraced script (literal word childProc)]
-i02-alias.tcl: [W312 L9 multiple args] [W312 L10 unbraced (literal bump5)] [E003 L22 too many args for 'inChild' (TRUE: alias into child's `where`, 0 args)]
-i03-child-object.tcl: [W123 L10 unknown command 'kid'; did you mean 'pid' (FALSE: `interp create kid` creates command kid)] [W123 L11 same]
-i04-safe.tcl: [W304 L10 invokehidden insert --] [W312 L10 'invokehidden with an unbraced script argument' (FALSE: `pwd` is a hidden command name, not a script)]
-i05-hide-expose.tcl: [W210 L3 'a' read before set (FALSE: formal of a proc defined inside `interp eval $c {...}`)] [W312 L6] [W304 L7] [W312 L7 invokehidden 'script' (command name)] [W304 L9] [W312 L9] [W312 L11]
-i06-share-transfer.tcl: (none)
-i07-limits.tcl: [W241 L11 while provably infinite (TRUE in isolation; the child's command limit ends it)]; symbol 'i' from the child body listed among the parent's symbols
-i08-marktrusted-debug.tcl: (none)
-i09-safe-package.tcl: [W120 L2 "safe::interpCreate" requires `package require safe` (FALSE: auto-loaded via tclIndex on 8.4-9.1, measured)] [W120 L4 safe::interpConfigure] [W120 L10 safe::interpDelete]
-i10-errors-bgerror.tcl: [W210 L6 'msg' read before set (FALSE: formal of a proc defined inside `interp eval`)]
-i11-body-world.tcl: (none)
-i12-alias-into-child-world.tcl: (none)
-i13-subcommand-prefix.tcl: [W145 L4 ambiguous 'ex' (TRUE)] [W307 L5 non-literal command name on `$c ev` (`$c eval` is accepted in i03)] [W304 L6] [W001 L7 unknown subcommand 'bogus' (TRUE)]
-i14-cancel-stale-error.tcl: [W304 L3] [W302 L4] [W304 L5]
-i15-alias-wrongargs.tcl: not run through MCP (engine-only fixture)
-i16-create-options.tcl: [E003 L2 too many arguments for 'interp create' on `-s b` (FALSE)] [E003 L3 on `c -safe` (FALSE; its quick fix 'Remove surplus argument' deletes -safe, making the child unsafe)] [E003 L7 on `d -bogus` (the command does fail, but with bad option)]; no W129 for `exec` in child b (created by `-s`)
-# snippet: `interp create -safe a; interp eval a {exec echo hi}` -> W129 (right); `interp create c -safe` -> E003 and W129 together (the arity check and the safety reader disagree)
-
-# Release gating (tcl8.4 / tcl8.5 snippets): W002 on interp limit/bgerror/debug (8.5+), children/cancel (8.6+): correct.
-# tcl8.4: `interp bgerror $c handler` also gives W123 'handler' (resolved in the parent world).
-
-# Navigation, references, rename
-i12 goto-def on alias target word `compute` in `interp alias {} viaChild $c compute` (L3) -> parent proc compute L7   WRONG (target interp is $c)
-i12 goto-def on call `viaChild` (L6) -> child proc compute L5                                                        correct
-i12 references of child compute (L5) -> L5, viaChild calls L6, L8; not the alias target word L3                     inconsistent with goto-def
-i12 rename parent compute (L7) -> edits L7 and the alias target word L3                                             WRONG EDIT (re-points the alias at a child command that does not exist)
-i11 goto-def on `helper` inside `$c eval helper` -> none                                                             correct (abstains)
-i11 rename parent helper (L14) -> edits only L14, not the target word of `$c alias helper helper` (L17)             WRONG EDIT (alias left pointing at a deleted name)
-i11 references of proc-local `local` (L4) -> L4, L6 `interp eval $c {set local}`, L8, L10                           WRONG (L6, L8 are the child's global `local`)
-snippet: proc f {set x 5; interp eval $c {set x 7}; set r [interp eval $c {set x}]; puts "$x $r"}: rename x -> edits L2, the child body `{set x}` (L5) but not `{set x 7}` (L4), and $x   WRONG EDIT
-snippet: goto-def of `x` in the child `{set x}` -> none                                                              correct (abstains)
-i02 rename bump -> definition + three `{} bump` alias targets                                                       correct
-i02 hover / goto-def on `bumpBy` inside `interp eval $c bumpBy 2` -> null / none                                    abstains
-snippet: `interp bgerror $c handler` with a parent and a child `handler` -> goto-def gives the PARENT proc           WRONG (the handler runs in the child)
-snippet: `interp alias $c log {} handler` -> parent proc                                                             correct
-optimiser (full profile): no rewrite across interp eval; parent constants after `interp eval $c {set y 2}` are not folded (abstains; no wrong rewrite)
+# Generated by `cargo xtask conformance`. fixture <TAB> dialect <TAB> analyser codes as CODE@line ("-" = none) <TAB> reviewed verdict. A verdict is kept while the codes it reviewed are unchanged; otherwise it reads "review".
+i01-create-eval.tcl	tcl8.6	-	review
+i01-create-eval.tcl	tcl9.0	-	review
+i02-alias.tcl	tcl8.6	-	review
+i02-alias.tcl	tcl9.0	-	review
+i03-child-object.tcl	tcl8.6	-	review
+i03-child-object.tcl	tcl9.0	-	review
+i04-safe.tcl	tcl8.6	-	review
+i04-safe.tcl	tcl9.0	-	review
+i05-hide-expose.tcl	tcl8.6	-	review
+i05-hide-expose.tcl	tcl9.0	-	review
+i06-share-transfer.tcl	tcl8.6	-	review
+i06-share-transfer.tcl	tcl9.0	-	review
+i07-limits.tcl	tcl8.6	-	review
+i07-limits.tcl	tcl9.0	-	review
+i08-marktrusted-debug.tcl	tcl8.6	-	review
+i08-marktrusted-debug.tcl	tcl9.0	-	review
+i09-safe-package.tcl	tcl8.6	W120@2 W120@4 W120@10	review
+i09-safe-package.tcl	tcl9.0	W120@2 W120@4 W120@10	review
+i10-errors-bgerror.tcl	tcl8.6	-	review
+i10-errors-bgerror.tcl	tcl9.0	-	review
+i11-body-world.tcl	tcl8.6	-	review
+i11-body-world.tcl	tcl9.0	-	review
+i12-alias-into-child-world.tcl	tcl8.6	-	review
+i12-alias-into-child-world.tcl	tcl9.0	-	review
+i13-subcommand-prefix.tcl	tcl8.6	W145@4 W307@5	review
+i13-subcommand-prefix.tcl	tcl9.0	W145@4 W307@5	review
+i14-cancel-stale-error.tcl	tcl8.6	W304@3 W302@4 W304@5	review
+i14-cancel-stale-error.tcl	tcl9.0	W304@3 W302@4 W304@5	review
+i15-alias-wrongargs.tcl	tcl8.6	E003@4	review
+i15-alias-wrongargs.tcl	tcl9.0	E003@4	review
+i16-create-options.tcl	tcl8.6	-	review
+i16-create-options.tcl	tcl9.0	-	review
