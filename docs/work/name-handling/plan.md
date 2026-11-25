@@ -31,59 +31,14 @@
 
 Deferred engine-only work: 18, 20, 30, 34, 38, 42, 72's engine part, 88, 135, 141, 155–157, 161, 163, 171, 177, 178, 181, 203, 208, 209, 213–216, and the engine parts of 168, 183, 186 and 193; 137 and 154. Also deferred: the remaining BIG-IP items 111, 118, 223–226 and 234; 142's cross-event `table` half (it needs the session-state model) and 74.
 
-The catalogue-driven header this replaces, with its counts and working rules, is kept in [current-state.md](current-state.md#superseded-plan-header-23-november-2026). Live measurements stay there too.
+[Current state](current-state.md) holds live measurements and shared verification, including the [registry facts](current-state.md#registry-facts-verification).
 
-**Registry-fact implementation.** The release catalogues and policy probes,
-argument contexts and completion/deferral contracts, partial-value kernel,
-existing object-system profiles, and channel option/protocol facts are now
-implemented. Verification and remaining obligations are recorded in
-[current-state.md](current-state.md#registry-facts-verification). These items
-remain in progress where their completion tests also require later binding,
-engine, editor or complete-catalogue migrations.
+**Item status**
 
-**Phase 1 verification.** The owner-resolution, value-transfer, host-lockfile
-and Tcl evidence gates passed. The focused compiler checks, including the
-signed scan and regexp fixtures, and all BIG-IP library tests passed. The
-browser report and WASI runtime type checks also passed. The MCP, CLI and
-LSP-core runs reproduced the recorded item 243, rename-planning, minifier
-and refactoring failures. The VM try suite reproduced the existing Jim
-dash-command failure. Editor catalogs were regenerated and `test-jetbrains`
-passed. `test-emacs` stopped
-while provisioning dependencies because the system APT lists directory is
-read-only.
-
-The previous checkpoint passed `prep-pr`, all 50 Rust drift checks, the
-package resolver's 36 tests, the 12 installation tests, the four focused navigation cases and the seven
-server W120 tests. The startup roster passed against the pinned Tcl and Tk
-interpreters and Jim. The wider compiler unresolved suite retained two
-existing W123 failures. Its Rust lint gate stopped on a runtime test formatting
-difference, corrected in this checkpoint.
-
-This checkpoint verifies caller-frame projections (22), the package-version
-consumers (31) and the checked refactor edits (145). The compiler sweep passed
-80 of 83 selected tests. The same two availability failures and one
-namespace capture failure reproduce on the previous checkpoint. The package
-oracle, SpecTcl vocabulary, LSP document floor and MCP wire checks passed.
-The preceding checkpoint passed `prep-pr`, `test-jetbrains`, the focused
-compiler and package-provider tests, and the checked-edit regressions. The
-wider refactor run reproduced the same 55 failing tests on the baseline.
-The combined SCCP and fixture-owner checkpoint passed `prep-pr`, workspace
-and runtime Clippy, and the offline X.509 tests. The drift batch found one
-upstream interpreter path using a fixed Tcl list grammar. It now reads the
-document grammar, and the focused drift check passed. The full gates are
-rerunning after the upstream diagnostic and conformance updates.
-
-**Status of every numbered item (25 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
-
-- **completed**: done and verified on `work`.
-- **in progress**: part of the work exists on `work` (code, a harness or recorded evidence) and the rest is open.
-- **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
-- **not yet started**: needs a decision, an investigation or a design before implementation can begin.
-
-Counts: completed 62, in progress 31, designed 149, not yet started 3 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–245 added). Wrong answers re-checked on the current binaries and source for this pass:
-- item 42: `lremove` is still missing in the VM;
-- item 18: `next` still runs one level too deep in the VM;
-- item 114: the shared matcher and cross-gate coverage are still open.
+- **completed** applies when the item's acceptance checks pass on `work`.
+- **in progress** applies when part of the work exists on `work` and the rest is open.
+- **designed** applies when the approach, owner and acceptance checks are specified.
+- **not yet started** applies when a decision, investigation or design is still needed.
 
 TclOO and class-system coverage, measured against tclsh 8.6–9.1 (matrix in the same handover, queue item 2):
 
@@ -130,16 +85,15 @@ Non-OO evaluation, namespace and alias gaps (queue item 4 of the handover, fixtu
    - Phase 1: The analyser and editor use the retained namespace receiver to identify the existing global in Tcl 8.x. The eight named fixtures passed on all five pinned C Tcl releases, and the analyser and LSP definition and reference checks agreed across the five profiles.
    - Done when: LSP definition and references for `x` in `variables-lookup/v13-ns-eval-creative` and the analyser on `dynamic/e12`, `e29`, `e31` and `variables-flow/w01`–`w04` follow 8.x creative writing under tcl8.4–8.6 (the write goes to `::x`; `e31` L3 is reported) and namespace-local writing under tcl9.0 (no report), matching tclsh 8.4–9.1 runs of the same files.
 14. **[in progress]** Report: `namespace code` captured in the wrong namespace, reads of never-set globals, reads after `unset`, calls through a deleted alias target, arity of procedures defined inside procedures, writes to a 9.0 `const`, and calls to a built-in replaced by a procedure with a different signature.
-   - Phase 1: Required reads use the registry contract and exact cell absence. The analyser reports `e15` and leaves the `info exists` probe in `v24` clean. The selected alias-target and procedure-arity answers passed on `e16`, `e17`, `e07` and `e30` under Tcl 8.6 and 9.0. An isolated compiler build passed all 18 namespace-prefix controls. The unchanged `c13` has no W307 under those releases. Its proved inline constructor carries the captured prefix and preserves the earlier command-world state. Reflected stdout transforms on pinned C Tcl changed command or variable state during the earlier `puts` in the `e05`, `e20` and `e23` controls. Those diagnostics still need evidence about intervening effects, and `e20` also needs the immutable-cell write check.
-   - The Tcl 9.0 and 9.1 const controls agreed across aliases, repeated initialisation, existing mutable cells, namespace recreation and trace veto. The source resolver still needs immutable state on the selected cell generation and a write-only rejection check. Its current store-shape check also serves reads.
+   - Open work for 14a, 14b and 14f requires a source-entry contract for stdout and a way to carry its callback effects through normal continuation. Fresh interpreters on pinned Tcl inherited a host stdout transform that supplied `::helper` in `e23`, supplied `::nope` in `e05`, or replaced `::set` in `e20`. The required-read checks use the registry contract and exact cell absence.
    - Split into separately checkable parts, each with its own fixture in `oo-dispatch-probe/dynamic/`:
-     - 14a: `namespace code` captured in the wrong namespace. Done when: `e23-ns-code` L6 (`eval $bad`) reports `helper` unresolved in `::`, the `::lib` capture on L2–L3 is clean, and `dispatch/c13-namespace-code` has no `W307`.
-     - 14b: reads of never-set globals. Done when: `e05-global` L5 reports a read of `nope`, which no code path sets, and the `p`/`q` reads of `g` stay clean.
-     - 14c: reads after `unset`. Done when: `e15-unset-read` reports `W210` (or a dedicated code) at `set v` after `unset v`, and `variables-lookup/v24-unset-read` (`info exists u`) stays clean.
-     - 14d: calls through a deleted alias target. Done when: `e16-alias-chain` L7 (`two y` after `interp alias {} one {}`) is reported, and L4–L5 keep their current answers.
-     - 14e: arity of procedures defined inside procedures. Done when: `e17-proc-inside-proc` L4 (`made` with no argument) reports `E002`, as `e32` does for a top-level procedure.
-     - 14f: writes to a 9.0 `const`. Done when: `e20-const-90` L3 (`set limit 4`) is reported under tcl9.0 and tcl9.1 and `const` is reported as unavailable under tcl8.6.
-     - 14g: built-in replaced by a procedure with a different signature. Done when: `e07-shadow-builtin` reports `E003` at `string length abc` inside `p` (the replacement takes one argument), and `e30-rename-builtin-proc-wrap` (an `args` wrapper) reports no arity error.
+     - 14a (open): `namespace code` captured in the wrong namespace. All 18 isolated namespace-prefix controls passed. The inline constructor carries the captured prefix. `c13` and the bound callback in `constants/folds/c16` have no W307 under Tcl 8.6 and 9.0. Done when: `e23-ns-code` L6 (`eval $bad`) reports `helper` unresolved in `::`, the `::lib` capture on L2–L3 is clean, and `dispatch/c13-namespace-code` has no `W307`.
+     - 14b (open): reads of never-set globals. Done when: `e05-global` L5 reports a read of `nope`, which no code path sets, and the `p`/`q` reads of `g` stay clean.
+     - 14c (verified): reads after `unset`. The analyser reports `e15` and leaves the `v24` existence probe clean. Done when: `e15-unset-read` reports `W210` (or a dedicated code) at `set v` after `unset v`, and `variables-lookup/v24-unset-read` (`info exists u`) stays clean.
+     - 14d (verified under Tcl 8.6 and 9.0): calls through a deleted alias target. Done when: `e16-alias-chain` L7 (`two y` after `interp alias {} one {}`) is reported, and L4–L5 keep their current answers.
+     - 14e (verified under Tcl 8.6 and 9.0): arity of procedures defined inside procedures. Done when: `e17-proc-inside-proc` L4 (`made` with no argument) reports `E002`, as `e32` does for a top-level procedure.
+     - 14f (open): writes to a 9.0 `const`. The resolver also needs immutable state on the selected cell generation and a write-only rejection check. Tcl 9.0 and 9.1 controls agreed across aliases, repeated initialisation, existing mutable cells, namespace recreation and trace veto. Done when: `e20-const-90` L3 (`set limit 4`) is reported under tcl9.0 and tcl9.1 and `const` is reported as unavailable under tcl8.6.
+     - 14g (verified under Tcl 8.6 and 9.0): built-in replaced by a procedure with a different signature. Done when: `e07-shadow-builtin` reports `E003` at `string length abc` inside `p` (the replacement takes one argument), and `e30-rename-builtin-proc-wrap` (an `args` wrapper) reports no arity error.
 
 Tk gaps (queue item 5 of the handover, fixtures in `oo-dispatch-probe/tk/`):
 
@@ -271,13 +225,14 @@ User procedures, objects and libraries (design: [user and library commands](user
 Constants, constant folding and procedure folding (evidence and full steps: [constants and folding](constant-folding-design.md); fixtures in `oo-dispatch-probe/constants/`):
 
 59. **[in progress]** One constant value: `ExactValue` (bytes, numeric reading, representation) in SCCP, the expression folder, static loops, return summaries and `ConstOps`, replacing about ten constant types and three literal parsers; float spelling decided once by the release policy.
-   - Phase 1: Both SCCP paths, static loop facts and return summaries use shared literal or integer projections. Static loops use SCCP's constant type and its expression and string projections. All 96 golden comparisons and 25 execution checks agreed in the focused build. `c18`, `e06` and `e07` rewrote across the five releases. The `c13` and `c14` rewrites and remaining representations are open. A literal replacement can change operand numeric conversion, result-object sharing, and cached float spelling after a precision change. On Tcl 8.4, changing even a valid sibling expression changes the enclosing source quoted in `c14`'s parser error.
+   - Current state: Both SCCP paths, static loop facts and return summaries use shared literal or integer projections. One `parse_literal_value` remains. `c18`, `e06` and `e07` rewrote across all five pinned Tcl releases and preserved exit status and output. `c13` and `c14` also matched exit status and output across all five releases, with no rewrite applied.
+   - Open: The remaining constant representations need `ExactValue` views and a ratchet. A `c13` or `c14` rewrite must preserve operand conversion, native result-object sharing and cached float spelling after a precision change. Tcl 8.4 also quotes the enclosing source in `c14`'s parser error, so changing even a valid sibling changes stderr.
    - Done when: `constants/folds/c13-number-forms`, `c14-float-format`, `c18-octal-release`, `e06-float` and `e07-float-text` rewrite and run equal before and after under tclsh 8.4–9.1, one `parse_literal_value` remains (grep), and the other constant types are views of `ExactValue`, held by a `registry-axes` ratchet.
 60. **[completed]** One evaluator per command: registry folds for `string` case conversion, `reverse`, `map`, `format`, `scan` and `concat` call `tcl-cmd-core`; codegen's `fold_const_branch` and `concat_cmd` use the shared folders; one `format` path for every entry point; the `string compare --`/`equal --`/`string is` wrong folds from the test-scrub handover are fixed.
    - Phase 1: The registry's format fold uses the command core's template and renderer. String case conversion, reverse, map, scan and concat use shared kernels, and folded codegen branches use the Tcl expression grammar. `c02`, `c03` and `c17` rewrote and ran equivalently on all five pinned C Tcl releases. The compare, equal and string-is controls passed against the C Tcl and Jim oracles.
    - Done when: `constants/folds/c02-string-ops`, `c03-format` and `c17-string-concat` and the test-scrub `string compare --`, `string equal --` and `string is` rows fold to tclsh's values per release, and codegen's `fold_const_branch` and `concat_cmd` call the shared folders (no `.trim()` or local number parsing left in `bytecoded.rs`).
 61. **[completed]** One SCCP fixed-point driver produces optimiser facts and diagnostic original value facts.
-   - Phase 1: Both consumers use the same reachable-block traversal, entry opening, predecessor selection, phi joins, fixed-point stages and terminator edge transfer. Barrier widening, fresh SSA clobbers and prior-value reads share one lattice transfer. Source receipt checks and optimiser completion and existence tracking are callbacks in the same sweep. All 96 analyser and optimiser golden comparisons matched with the expanded-head diagnostic held constant. On the rebased build all 96 optimiser outputs matched. The only analyser differences since the combined trial were two W148 findings introduced by the upstream expression diagnostic. The separate item 14 fix removes W307 from the bound callback in `c16` on both measured releases. All three new solver tests passed, together with the loop-jump and host-barrier agreement checks. Three other switch and catch checks reproduced the same failures on the baseline.
+   - Phase 1: Both consumers use the same reachable-block traversal, entry opening, predecessor selection, phi joins, fixed-point stages and terminator edge transfer. Barrier widening, fresh SSA clobbers and prior-value reads share one lattice transfer. Source receipt checks and optimiser completion and existence tracking are callbacks in the same sweep. All 96 paired analyser and optimiser golden comparisons matched on the rebased build. All three new solver tests passed, together with the loop-jump and host-barrier agreement checks. Three other switch and catch checks reproduced the same failures on the baseline.
    - Done when: one SCCP solver produces both the optimiser facts and the diagnostic "original value facts" (the second solver is deleted), and the analyser and optimiser goldens on `constants/folds/` are unchanged.
 62. **[designed]** Specialised procedure summaries: fold calls with constant arguments, recursion under a fuel budget, constant procedures inside `expr`, and cross-file and library calls through contract queries (today O103 folds zero-argument, single-file, non-recursive calls only); bounded constant loops through `static_loops`; one boolean spelling for `ConstantReturn`.
    - Done when: `constants/folds/c07-pure-proc`, `c08-recursive` (within the fuel budget), `d13-const-proc-in-expr` and `c06-loop` fold with execution before and after equal under tclsh 8.6 and 9.0, `c09-impure-proc`, `c11-redefined`, `c12-renamed-builtin` and `c15-upvar-proc` do not fold, and `e01-bool-return` gives one boolean spelling.
@@ -350,7 +305,8 @@ Foundations, architecture and object systems (the structural work the domain ite
    - Done when: the split crates build, the `cargo-deny` layer gate passes, and the memo gate finds zero `Mutex`, `OnceLock`, `thread_local!` memos or `Box::leak` outside `tcl-lsp-db`. Release build time and `tcl-lsp-server` binary size are recorded before and after each split in the analysis-performance suite, and neither grows by more than 5%.
 91. **[in progress]** Third-party adoption by payoff: `imbl` and `slotmap`, `cargo-deny` wrappers, `insta` with `libtest-mimic`, a time-boxed `ascent` trial, `rowan`/`cstree` only if structured words show the need; replace hand-rolled generic code (AES/OpenPGP first, then line index, URIs, ANSI, JSON escaping, base32, punycode, CRC/Adler, similarity, DOT), each behind its stated condition.
    - Conformance: `rust/tcl-cmd-core/src/base32.rs#each_encoding_is_the_packages` and `rust/tcl-cmd-core/src/base32.rs#decode_answers_only_a_canonical_encoding`.
-   - Phase 1: AES-CFB uses RustCrypto, CRC/Adler use library implementations, and similarity uses strsim. The namespace publication ledger uses `imbl` for persistent ordered entries. The `insta` snapshot test passed inside the `libtest-mimic` conformance harness. Base32 uses `data-encoding` with Tcllib's error and padding rules. Tcllib fixtures passed on four pinned releases, and the old and new Base32 implementations agreed over 1,712,384 input shapes. The tested rPGP graph introduced RUSTSEC-2026-0387 through a required dependency and was removed. The existing OpenPGP packet reader remains.
+   - Phase 1: AES-CFB uses RustCrypto, CRC/Adler use library implementations, and similarity uses strsim. The namespace publication ledger uses `imbl` for persistent ordered entries. The `insta` snapshot test passed inside the `libtest-mimic` conformance harness. Base32 uses `data-encoding` with Tcllib's error and padding rules. Tcllib fixtures passed on four pinned releases, and the old and new Base32 implementations agreed over 1,712,384 input shapes. The existing OpenPGP packet reader remains.
+   - OpenPGP replacement remains open. rPGP still requires a dependency affected by RUSTSEC-2026-0387. The current reader supports 16 layers of nesting and accepts short initial partial chunks. `glomar-pgp` passed dependency metadata checks. It caps nesting at eight layers and rejects those chunks. Sequoia uses a licence outside the allowlist. `minipgp6` lacks SEIPD v1 decryption.
    - The `slotmap` trial rejected stale keys natively and under Wasmtime. Sparse and dense iteration both changed allocation order after retirement, so neither replaces the ordered candidate stores directly. `line-index` matched normalised LF/CRLF input in both builds. It counted a lone CR in raw document text as a column and takes UTF-8 text, while the current owner also indexes arbitrary native bytes and repairs incrementally edited snapshots. The `tcl::idna` registry entry declares the Tcl package surface. A Rust Punycode implementation would add behaviour to that surface.
    - Ascent trial: Ascent 0.8.1 and the existing caller-frame escape worklist agreed on named and unbounded escapes for 21,808 frame results across 80 deterministic call graphs. Five-run medians were 76 ms for the worklist and 72 ms for Ascent natively, and 105 ms and 73 ms under Wasmtime. The browser target also type-checked. Keep the worklist in production until the phase 6 call-edge or taint workload can establish a benefit on real inputs.
    - The DOT trial with `petgraph` changed named node IDs and parallel-edge output. The ANSI trial changed grouped escape sequences and precedence for explicit colour settings and environment overrides. Both producers still use their current emitters. The structured-words work in phase 2 determines whether to trial `rowan` or `cstree`.
@@ -540,11 +496,9 @@ Fixes found in the studies but not yet planned:
    - Done when: `rg 'enter_level|frame_depth_stash' docs/` returns zero sites, and `rg` finds each frame type name defined once across `rust/`. The frame contract's claims link to `frames-semantics/` rows under the contract-evidence gate.
 141. **[designed]** Packages step 1 remainder from [packages](package-design.md): use an absolute library path in the VM's `auto_path`.
    - Done when: `tclvm` run from a different working directory gives absolute entries for `file pathtype` on every `auto_path` element. `packages/p04-ifneeded-require.tcl` succeeds after a `cd` in the VM as under tclsh 8.6–9.1. Deferred off this branch.
-142. **[in progress]** (owner decision, 23 November 2026) W156 consumers not modelled (from the signed-scan handover): `class match` keys and `table` values.
+142. **[in progress]** (owner decision, 23 November 2026) Extend W156 to signed values used as `class match` keys and cross-event `table` values.
    - Conformance: `rust/tcl-lsp-server/src/current_diagnostics/tests.rs#a_workspace_data_group_promotes_a_standalone_irule_signed_scan_hint`.
-   - Phase 1 verified for `class`: The registry descriptor supplies the `class match` and `class search` item. W156 defaults to a hint. An integer group with a key such as 129 after a signed byte scan promotes it to a warning. BIG-IP configuration validation and the standalone LSP endpoint use the same typed keys. The endpoint test covers an open workspace configuration, invalidates the result when the configuration closes, and verifies the restored hint. Closed-file discovery remains outside this ingress.
-   - **`class match`: W156 owns it.** A signed scan value used as a `class match`/`class search` item is a W156 consumer, like `==`. Measured: after `binary scan … c b`, `class match $b equals int_dg` gets only W304's generic "insert `--`" suggestion, and with `--` added nothing fires, although a byte 0x81 is stored as -127 and can never equal key 129.
-   - **Severity follows what is known about the data group.** A hint by default. A real finding (warning) when the data group is known, from the BIG-IP configuration or workspace data groups, to hold as a key the unsigned value that the signed scan result is compared against (for example key 129 against a `c` read). The data-group facts come from the BIG-IP schema owner (items 111, 118), not from a W156 table.
+   - Phase 1 verified for `class`: The registry descriptor supplies the `class match` and `class search` item. W156 defaults to a hint. An integer group with a key such as 129 after a signed byte scan promotes it to a warning. BIG-IP configuration validation and the standalone LSP endpoint use typed keys from the same schema owner (items 111 and 118). The endpoint test covers an open workspace configuration, invalidates the result when the configuration closes, and verifies the restored hint. Closed-file discovery remains outside this ingress.
    - **W304 owns the option terminator.** A leading `-` is certain once the operand is proved negative. A signed scan value can also be non-negative. Keep the terminator suggestion distinct from the unsigned-key finding.
    - **`table`: full, cross-event.** W156 follows a signed scan value written with `table set`/`add`/`replace` to comparisons on `table lookup` results in any event and connection, keyed by the table key (and subtable). This needs the session-state model of `table` keys across events (shared with the fakeCMP and `static::` work); `table incr` with a negative delta stays legitimate, and values remain unsigned 64-bit.
    - Done when (`class`): `class match` with and without `--` and `class search` hint for an unknown group. A known integer data group holding 129 promotes the finding after a signed byte scan. Cover both the configuration and standalone workspace data-group sources.
