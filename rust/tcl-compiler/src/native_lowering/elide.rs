@@ -142,11 +142,11 @@ impl<'a> TraceLedger<'a> {
             return BarrierDecision::Kept(BarrierKept::TraceLedgerUnknown);
         }
         let base = place.base();
-        let traced = crate::variable_observation_names::variable_name_may_be_observed(
+        let traced = crate::command_binding::trace_registrations::name_may_be_observed(
             self.traced,
             base,
             false,
-            crate::variable_observation_names::VariableProtectionPurpose::NativeLoweringLedger,
+            crate::command_binding::trace_registrations::ObservationPolicy::NativeLoweringLedger,
         ) || matches!(place, CellPlace::Element { .. } if self.traced.contains(&place.spelling()));
         if traced {
             BarrierDecision::Kept(BarrierKept::VariableTraced)

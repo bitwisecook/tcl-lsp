@@ -639,7 +639,7 @@ fn try_fold_chain_at(
             // through its callback, so it ends this source chain.
             Some(other)
                 if write_var(&other) != var
-                    && !crate::variable_observation_names::variable_name_may_be_observed(protected, write_var(&other), false, crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection) =>
+                    && !chain_target_is_protected(protected, write_var(&other)) =>
             {
                 j += 1;
             }
@@ -698,11 +698,11 @@ fn try_fold_chain_at(
 }
 
 fn chain_target_is_protected(protected: &HashSet<String>, var: &str) -> bool {
-    crate::variable_observation_names::variable_name_may_be_observed(
+    crate::command_binding::trace_registrations::name_may_be_observed(
         protected,
         var,
         false,
-        crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
+        crate::command_binding::trace_registrations::ObservationPolicy::MixedSource,
     )
 }
 

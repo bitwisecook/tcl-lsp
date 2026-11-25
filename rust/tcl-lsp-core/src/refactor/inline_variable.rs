@@ -848,7 +848,7 @@ fn require_supported_inline_source_history(
         &mut |command, _, _| {
             let observers = tcl_registry::Traits::INTROSPECTS_BY_NAME
                 | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
-                | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE
+                | tcl_compiler::command_binding::trace_registrations::TRACE_REGISTRATION_TRAITS
                 | tcl_registry::Traits::CREATES_SCOPE_ALIAS
                 | tcl_registry::Traits::DYNAMIC_EVAL_BODY;
             if walk

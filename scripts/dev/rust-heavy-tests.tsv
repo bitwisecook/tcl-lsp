@@ -181,7 +181,7 @@ tcl-compiler	interprocedural::tests::deeply_nested_if_survives_interprocedural_s
 tcl-compiler	interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write
 tcl-compiler	interprocedural::transfer::tests::summaries_compose_through_two_callees
 tcl-compiler	lowering::tests::deeply_nested_if_past_max_lower_depth_barriers_not_crashes
-tcl-compiler	lowering::tests::deeply_nested_if_survives_walk_for_trace
+tcl-compiler	lowering::tests::deeply_nested_if_survives_the_trace_walk
 tcl-compiler	optimiser::chain_fold::tests::deeply_nested_if_survives_fold_script
 tcl-compiler	optimiser::elimination::tests::o126_keeps_the_store_of_a_call_that_may_raise
 tcl-compiler	optimiser::end_offset::tests::deeply_nested_if_survives_collect_statement_spans

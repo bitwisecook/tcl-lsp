@@ -32,9 +32,12 @@
 //! Because the marks are flow-sensitive, a `trace add variable x` or a
 //! `global x` only marks accesses that *follow* it.
 //!
+//! The trace half is a view over the binding trace owner
+//! ([`crate::command_binding::trace_registrations::TracedNames`]).
+//!
 //! Distinct from [`crate::var_escape`], which answers the *codegen*
-//! slot-resolution question (`Local` vs `Frame`) and carries no
-//! `TRACED` flag — this is the optimiser-soundness lattice (the
+//! slot-resolution question (`Local` vs `Frame`) — this is the
+//! optimiser-soundness lattice (the
 //! foundation for an applicable O104 string-build fold and flow-
 //! sensitive alias/trace reasoning in memory-SSA / SCCP / GVN).  The
 //! current O104 is hint-only, so this lattice has no optimiser
@@ -53,6 +56,7 @@ use tcl_registry::StateTransition;
 use tcl_registry::{CallerFrameSelection, CommandRegistry, VariableAliasTarget};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
+use crate::command_binding::trace_registrations::TracedNames;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name_braced;
 
@@ -68,8 +72,6 @@ bitflags! {
         const NAMESPACE = 1 << 1;
         /// `upvar N>=1` — aliases a *caller* frame.
         const UPVAR = 1 << 2;
-        /// Under a `trace` — every access is observable.
-        const TRACED = 1 << 3;
     }
 }
 
@@ -86,12 +88,6 @@ impl EscapeFlag {
     #[must_use]
     pub fn writes_outer_scope(self) -> bool {
         self.intersects(Self::GLOBAL | Self::NAMESPACE)
-    }
-
-    /// True when the name is under a `trace`.
-    #[must_use]
-    pub fn is_traced(self) -> bool {
-        self.contains(Self::TRACED)
     }
 }
 
@@ -143,13 +139,13 @@ fn standalone_observability_context(
         .map(Into::into)
 }
 
-/// Apply original alias/trace hazards under supplied availability, not labels.
-/// Missing or foreign metadata grants no declaration or physical-store closure.
-pub(crate) fn stmt_gen_with_metadata_context(
+/// Visit `stmt`, or each statement of an opaque `switch` arm, under supplied
+/// availability. Missing or foreign metadata visits nothing.
+fn for_each_gen_statement<'a>(
     stmt: &Statement,
-    state: &mut State,
     registry: &CommandRegistry,
-    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    visit: &mut dyn FnMut(&Statement, crate::registry_invocation::InvocationMetadataContext<'a>),
 ) {
     let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
         return;
@@ -159,23 +155,65 @@ pub(crate) fn stmt_gen_with_metadata_context(
     if matches!(stmt, Statement::Switch { .. }) {
         for script in crate::ir_helpers::nested_bodies(stmt) {
             crate::ir::for_each_statement(script, &mut |inner| {
-                stmt_gen_with_metadata_context(inner, state, registry, Some(context));
+                for_each_gen_statement(inner, registry, Some(context), visit);
             });
         }
         return;
     }
-    stmt_gen_direct_with_metadata_context(stmt, state, registry, Some(context));
+    visit(stmt, context);
 }
 
-fn stmt_gen_direct_with_metadata_context(
+/// Apply original alias hazards under supplied availability, not labels.
+/// Missing or foreign metadata grants no declaration or physical-store closure.
+pub(crate) fn stmt_gen_with_metadata_context(
     stmt: &Statement,
     state: &mut State,
     registry: &CommandRegistry,
     context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) {
-    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
-        return;
-    };
+    for_each_gen_statement(stmt, registry, context, &mut |stmt, context| {
+        alias_gen(stmt, state, registry, context);
+    });
+}
+
+/// The alias state and the owner's traced names at one point.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct PointState {
+    aliases: State,
+    traced: TracedNames,
+}
+
+impl PointState {
+    fn join(&mut self, other: &Self) -> bool {
+        join_into(&mut self.aliases, &other.aliases) | self.traced.join(&other.traced)
+    }
+
+    fn apply(
+        &mut self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) {
+        for_each_gen_statement(stmt, registry, context, &mut |stmt, context| {
+            alias_gen(stmt, &mut self.aliases, registry, context);
+            self.traced.record_statement(stmt, registry, Some(context));
+        });
+    }
+
+    fn escaping(&self) -> impl Iterator<Item = &String> {
+        self.aliases
+            .iter()
+            .filter_map(|(name, flags)| (!flags.is_empty()).then_some(name))
+            .chain(self.traced.names())
+    }
+}
+
+fn alias_gen(
+    stmt: &Statement,
+    state: &mut State,
+    registry: &CommandRegistry,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+) {
     if let Some(normal) = stmt.tokens().and_then(|tokens| {
         crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
             registry,
@@ -186,26 +224,6 @@ fn stmt_gen_direct_with_metadata_context(
         for alias in normal.variable_alias_transitions() {
             if let Some(local) = alias.local.literal() {
                 mark_name(state, local, alias_flag(&alias.target, &normal));
-            }
-        }
-    }
-    if let Some(possible) = stmt.tokens().and_then(|tokens| {
-        crate::registry_invocation::possible_variable_trace_transitions_with_metadata_context(
-            registry,
-            Some(context),
-            tokens,
-        )
-    }) {
-        for trace in possible.transitions() {
-            match trace {
-                tcl_registry::TraceTransition::Add { target, .. }
-                | tcl_registry::TraceTransition::Remove { target, .. } => {
-                    if let tcl_registry::TraceTarget::Variable(target) = target
-                        && let Some(name) = target.literal()
-                    {
-                        mark_name(state, name, EscapeFlag::TRACED);
-                    }
-                }
             }
         }
     }
@@ -246,7 +264,7 @@ fn join_into(dst: &mut State, src: &State) -> bool {
 
 /// Result of the alias/observability analysis for one function.
 pub struct VarObservability<'a> {
-    block_entry: HashMap<BlockId, State>,
+    block_entry: HashMap<BlockId, PointState>,
     ordered_blocks: Vec<BlockId>,
     cfg: &'a CfgFunction,
     registry: &'a CommandRegistry,
@@ -254,20 +272,21 @@ pub struct VarObservability<'a> {
 }
 
 impl VarObservability<'_> {
-    fn state_at(&self, block: BlockId, stmt_idx: usize) -> State {
+    fn state_at(&self, block: BlockId, stmt_idx: usize) -> PointState {
         let mut state = self.block_entry.get(&block).cloned().unwrap_or_default();
         if let Some(blk) = self.cfg.blocks.get(&block) {
             for stmt in blk.statements.iter().take(stmt_idx) {
-                stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
+                state.apply(stmt, self.registry, self.context);
             }
         }
         state
     }
 
-    /// The escape flags of `name` when `block::stmt_idx` executes.
+    /// The alias flags of `name` when `block::stmt_idx` executes.
     #[must_use]
     pub fn flag_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> EscapeFlag {
         self.state_at(block, stmt_idx)
+            .aliases
             .get(normalise_var_name_braced(name, true))
             .copied()
             .unwrap_or_default()
@@ -276,7 +295,12 @@ impl VarObservability<'_> {
     /// True when `name` is aliased or traced at this point.
     #[must_use]
     pub fn is_escaping_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> bool {
-        !self.flag_at(block, stmt_idx, name).is_empty()
+        let state = self.state_at(block, stmt_idx);
+        state.traced.contains(name)
+            || state
+                .aliases
+                .get(normalise_var_name_braced(name, true))
+                .is_some_and(|flags| !flags.is_empty())
     }
 
     /// Original dependency names marked aliased or traced at this exact
@@ -288,16 +312,27 @@ impl VarObservability<'_> {
         block: BlockId,
         stmt_idx: usize,
     ) -> std::collections::HashSet<String> {
-        self.state_at(block, stmt_idx)
-            .into_iter()
-            .filter_map(|(name, flags)| (!flags.is_empty()).then_some(name))
-            .collect()
+        self.state_at(block, stmt_idx).escaping().cloned().collect()
     }
 
-    /// True when `name` is under a `trace` at this point.
+    /// True when the trace owner says `name` may be traced at this point.
     #[must_use]
     pub fn is_traced_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> bool {
-        self.flag_at(block, stmt_idx, name).is_traced()
+        self.state_at(block, stmt_idx).traced.contains(name)
+    }
+
+    /// Every point state of the body, in order.
+    fn for_each_point(&self, visit: &mut dyn FnMut(&PointState)) {
+        for block in &self.ordered_blocks {
+            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
+            visit(&state);
+            if let Some(blk) = self.cfg.blocks.get(block) {
+                for stmt in &blk.statements {
+                    state.apply(stmt, self.registry, self.context);
+                    visit(&state);
+                }
+            }
+        }
     }
 
     /// Whole-function union: every name that is ever aliased or traced
@@ -305,56 +340,17 @@ impl VarObservability<'_> {
     #[must_use]
     pub fn escaping_var_names(&self) -> std::collections::HashSet<String> {
         let mut names = std::collections::HashSet::new();
-        for block in &self.ordered_blocks {
-            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-            collect_escaping(&state, &mut names);
-            if let Some(blk) = self.cfg.blocks.get(block) {
-                for stmt in &blk.statements {
-                    stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
-                    collect_escaping(&state, &mut names);
-                }
-            }
-        }
+        self.for_each_point(&mut |state| names.extend(state.escaping().cloned()));
         names
     }
 
-    /// Whole-function union: every name that is ever under a `trace` at any
-    /// point in the body — [`Self::escaping_var_names`] narrowed to the
-    /// `TRACED` flag alone (excluding a plain `global` / `variable` /
-    /// `upvar` alias with no trace). The flow-insensitive view: a trace
-    /// added partway through the function is treated as covering the whole
-    /// function, the same conservative widening [`Self::escaping_var_names`]
-    /// already applies for SCCP.
+    /// Whole-function union of the names the trace owner says may be traced
+    /// at any point in the body, excluding untraced aliases.
     #[must_use]
     pub fn traced_var_names(&self) -> std::collections::HashSet<String> {
         let mut names = std::collections::HashSet::new();
-        for block in &self.ordered_blocks {
-            let mut state = self.block_entry.get(block).cloned().unwrap_or_default();
-            collect_traced(&state, &mut names);
-            if let Some(blk) = self.cfg.blocks.get(block) {
-                for stmt in &blk.statements {
-                    stmt_gen_with_metadata_context(stmt, &mut state, self.registry, self.context);
-                    collect_traced(&state, &mut names);
-                }
-            }
-        }
+        self.for_each_point(&mut |state| names.extend(state.traced.names().cloned()));
         names
-    }
-}
-
-fn collect_traced(state: &State, names: &mut std::collections::HashSet<String>) {
-    for (name, flag) in state {
-        if flag.is_traced() {
-            names.insert(name.clone());
-        }
-    }
-}
-
-fn collect_escaping(state: &State, names: &mut std::collections::HashSet<String>) {
-    for (name, flag) in state {
-        if !flag.is_empty() {
-            names.insert(name.clone());
-        }
     }
 }
 
@@ -509,10 +505,10 @@ pub fn analyse_var_observability_in<'a>(
 
     let mut order = cfg.reverse_postorder();
     order.retain(|id| executable(id));
-    let mut block_entry: HashMap<BlockId, State> = cfg
+    let mut block_entry: HashMap<BlockId, PointState> = cfg
         .blocks
         .keys()
-        .map(|id| (*id, State::default()))
+        .map(|id| (*id, PointState::default()))
         .collect();
     let mut block_exit = block_entry.clone();
 
@@ -522,17 +518,17 @@ pub fn analyse_var_observability_in<'a>(
     while changed {
         changed = false;
         for &id in &order {
-            let mut entry = State::default();
+            let mut entry = PointState::default();
             if let Some(ps) = preds.get(&id) {
                 for p in ps {
-                    join_into(&mut entry, &block_exit[p]);
+                    entry.join(&block_exit[p]);
                 }
             }
             block_entry.insert(id, entry.clone());
             let mut exit_state = entry;
             if let Some(blk) = cfg.blocks.get(&id) {
                 for stmt in &blk.statements {
-                    stmt_gen_with_metadata_context(stmt, &mut exit_state, registry, context);
+                    exit_state.apply(stmt, registry, context);
                 }
             }
             if exit_state != block_exit[&id] {
@@ -645,8 +641,8 @@ mod tests {
         assert!(observations.escaping_var_names().contains("$g"));
         assert!(!observations.escaping_var_names().contains("g"));
         let mut flags = State::new();
-        mark_name(&mut flags, "$g", EscapeFlag::TRACED);
-        assert_eq!(flags.get("$g"), Some(&EscapeFlag::TRACED));
+        mark_name(&mut flags, "$g", EscapeFlag::GLOBAL);
+        assert_eq!(flags.get("$g"), Some(&EscapeFlag::GLOBAL));
         assert!(!flags.contains_key("g"));
     }
 
@@ -788,11 +784,7 @@ mod tests {
             .extend(origins.iter().map(|&origin| (origin, handler)));
         let reg = registry();
         let observations = analyse_var_observability(&graph, &reg);
-        assert!(
-            observations
-                .flag_at(handler, 0, "t")
-                .contains(EscapeFlag::TRACED)
-        );
+        assert!(observations.is_traced_at(handler, 0, "t"));
         assert!(
             observations
                 .flag_at(handler, 0, "g")
@@ -846,7 +838,7 @@ mod tests {
         let reg = registry();
         let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(
-            obs.flag_at(handler, 0, "t").contains(EscapeFlag::TRACED),
+            obs.is_traced_at(handler, 0, "t"),
             "handler access must remain trace-observable"
         );
         assert!(
@@ -856,7 +848,7 @@ mod tests {
     }
 
     /// [`VarObservability::traced_var_names`] narrows `escaping_var_names`
-    /// to the `TRACED` flag alone — a plain alias with no trace (`global g`)
+    /// to the trace owner's names alone — a plain alias with no trace (`global g`)
     /// must not appear in it, even though it does appear in the broader
     /// `escaping_var_names` set.
     #[test]
@@ -906,7 +898,7 @@ mod tests {
     #[test]
     fn trace_add_execution_does_not_mark_a_variable() {
         // `trace add execution` targets a *command* name, not a variable —
-        // must not spuriously flag its target as a TRACED variable.
+        // must not spuriously flag its target as a traced variable.
         let c = cu("proc ::p {} { trace add execution foo enter cb\nset foo 1 }");
         let fu = c.function("::p").unwrap();
         let reg = registry();

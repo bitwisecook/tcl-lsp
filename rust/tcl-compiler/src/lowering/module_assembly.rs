@@ -16,13 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Starting and finishing a module: the entry frame and runtime target namespace, the final passes and the variable-trace facts.
+//! Starting and finishing a module: the entry frame and runtime target namespace, and the final passes.
 
 use super::execution_regions::stock_body_provider_loader;
 use super::script_bodies::unavailable_original_body_script;
 use super::{Lowerer, LoweringMetadataOrigin, SourceEntryOrigin};
-use crate::ir::{Module, Script, Statement};
-use tcl_registry::CommandRegistry;
+use crate::ir::Module;
 
 impl Lowerer<'_> {
     pub(super) fn retain_module_source_bindings(&mut self) {
@@ -226,173 +225,13 @@ impl Lowerer<'_> {
                 )
             });
         if observer_facts {
-            populate_trace_facts(&mut module, registry, standalone_metadata);
+            crate::command_binding::trace_registrations::populate_trace_facts(
+                &mut module,
+                registry,
+                standalone_metadata,
+            );
             module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
         }
         module
     }
-}
-
-/// Post-lower scan for `trace add ...` calls that populates
-/// `Module::traced_commands` / `has_dynamic_trace` (execution traces)
-/// and `Module::traced_variables` / `has_dynamic_variable_trace`
-/// (variable traces).
-///
-/// Runs over the top-level script + every procedure body + every `TclOO`
-/// method body (`module.methods`, already populated by
-/// `extract_oo_methods_pass` before this runs). Original command operands
-/// contribute source-renderable keys from their retained lookup geometry;
-/// missing or opaque geometry sets `has_dynamic_trace` so GVN treats every
-/// call as potentially traced. Authored compatibility has its separate written
-/// grammar; a descriptor label cannot supply an original trace operand.
-/// Literal variable names targeted by any `Traits::
-/// ESTABLISHES_VARIABLE_TRACE` subcommand — the registry's
-/// `ArgRole::VarWrite` resolution for `trace add|remove|variable|vdelete`,
-/// covering both the modern and deprecated legacy spellings — land in
-/// `traced_variables`; non-literal targets flip
-/// `has_dynamic_variable_trace`.
-pub(super) fn populate_trace_facts(
-    module: &mut Module,
-    registry: &CommandRegistry,
-    standalone: bool,
-) {
-    // naming.compiler.original-analysis-metadata-context
-    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    let context =
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
-            .or_else(|| {
-                (standalone && module.source_metadata_input.is_none())
-                    .then(|| {
-                        registry
-                            .profile()
-                            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                            .map(crate::registry_invocation::InvocationMetadataContext::from)
-                    })
-                    .flatten()
-            });
-    // Borrow every retained body instead of cloning it: a derived `Clone` of
-    // cap-deep structured IR overflows a 2 MiB thread. The facts collect
-    // separately and are applied once the walk has finished.
-    let mut facts = TraceFacts::default();
-    walk_for_trace(&module.top_level, &mut facts, registry, context);
-    // Every statically-known frame, not just named procedures: a `trace`
-    // call inside a `namespace eval` / `apply` body (`Module::body_units`)
-    // or a `TclOO` method (`Module::methods`) is just as live as one inside
-    // a `proc` — omitting either class here would silently under-populate
-    // `traced_variables` the moment an optimiser pass starts reaching into
-    // those bodies (`CompilationUnit::all_body_function_units`).
-    for body in module
-        .procedures
-        .values()
-        .map(|p| &p.body)
-        .chain(module.body_lowerings().map(|(_, p)| &p.body))
-        .chain(module.methods.values().map(|m| &m.body))
-    {
-        walk_for_trace(body, &mut facts, registry, context);
-    }
-    module.traced_variables.extend(facts.variables);
-    module.traced_commands.extend(facts.commands);
-    module.has_dynamic_variable_trace |= facts.dynamic_variable;
-    module.has_dynamic_trace |= facts.dynamic;
-}
-
-/// Trace facts one retained-body walk collects for its [`Module`].
-#[derive(Default)]
-pub(super) struct TraceFacts {
-    variables: std::collections::BTreeSet<String>,
-    pub(super) commands: std::collections::BTreeSet<String>,
-    dynamic_variable: bool,
-    dynamic: bool,
-}
-
-/// Possible variable registrations are observer hazards even when receiver
-/// lookup cannot select a unique normal handler. Execution traces retain their
-/// stricter dispatch proof in the separate path below.
-fn record_possible_variable_trace(
-    transition: &tcl_registry::TraceTransition,
-    module: &mut TraceFacts,
-) {
-    use tcl_registry::{TraceTarget, TraceTransition};
-    let (TraceTransition::Add { target, .. } | TraceTransition::Remove { target, .. }) = transition;
-    let TraceTarget::Variable(subject) = target else {
-        return;
-    };
-    if let Some(target) = subject.literal() {
-        let name = crate::variable_observation_names::module_observation_key(target);
-        module.variables.insert(name.to_owned());
-    } else {
-        module.dynamic_variable = true;
-    }
-}
-
-/// Collect typed trace transitions through the shared retained-body visitor.
-pub(super) fn walk_for_trace(
-    script: &Script,
-    module: &mut TraceFacts,
-    registry: &CommandRegistry,
-    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-) {
-    crate::ir::for_each_statement(script, &mut |stmt| {
-        if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
-            return;
-        }
-        let Some(context) = context else {
-            // Missing source metadata cannot close either observer-hazard inventory.
-            module.dynamic_variable = true;
-            module.dynamic = true;
-            return;
-        };
-        if let Some(possible) = stmt.tokens().and_then(|tokens| {
-            crate::registry_invocation::possible_variable_trace_transitions_with_metadata_context(
-                registry,
-                Some(context),
-                tokens,
-            )
-        }) {
-            for transition in possible.transitions() {
-                record_possible_variable_trace(transition, module);
-            }
-            if possible.metadata_unavailable() {
-                module.dynamic_variable = true;
-                module.dynamic = true;
-            }
-        }
-        let Some(invocation) =
-            crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-                registry,
-                Some(context),
-                stmt,
-            )
-        else {
-            return;
-        };
-        let Some(transitions) = invocation.facts.state_transitions.declared() else {
-            return;
-        };
-        for fact in transitions.facts() {
-            use tcl_registry::{StateTransition, TraceTarget, TraceTransition};
-            let StateTransition::Trace(transition) = &fact.transition else {
-                continue;
-            };
-            let (target, add) = match transition {
-                TraceTransition::Add { target, .. } => (target, true),
-                TraceTransition::Remove { target, .. } => (target, false),
-            };
-            match target {
-                TraceTarget::Execution(subject) if add => {
-                    let keys = stmt.tokens().and_then(|tokens| {
-                        crate::registry_invocation::original_execution_trace_keys(
-                            registry, context, tokens, subject,
-                        )
-                    });
-                    if let Some(keys) = keys {
-                        module.commands.extend(keys);
-                    } else {
-                        module.dynamic = true;
-                    }
-                }
-                TraceTarget::Variable(_) | TraceTarget::Command(_) | TraceTarget::Execution(_) => {}
-            }
-        }
-    });
 }

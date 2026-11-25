@@ -719,11 +719,11 @@ fn couple_const_dead_store_chain(
     if tcl_syntax::naming::is_absolute(var)
         || super::elimination::store_is_seen_elsewhere(fu, chain, scope_aliases)
         || rmw_hidden.contains(var)
-        || crate::variable_observation_names::variable_name_may_be_observed(
+        || crate::command_binding::trace_registrations::name_may_be_observed(
             *traced,
             var,
             false,
-            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+            crate::command_binding::trace_registrations::ObservationPolicy::Module,
         )
     {
         return None;

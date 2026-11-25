@@ -25,7 +25,13 @@ use super::*;
 #[test]
 fn trace_add_execution_literal_recorded() {
     let m = lower_to_ir("trace add execution foo enter handler", &reg());
-    assert!(m.traced_commands.contains("foo"));
+    assert!(
+        crate::command_binding::trace_registrations::command_may_be_traced(
+            &m.traced_commands,
+            false,
+            "foo"
+        )
+    );
     assert!(!m.has_dynamic_trace);
 }
 
@@ -41,7 +47,13 @@ fn trace_add_execution_qualified_canonicalised() {
     let m = lower_to_ir("trace add execution ::ns::foo enter h", &reg());
     // Stripped of leading ``::`` so the GVN gate's
     // `command.trim_start_matches("::")` lookup hits.
-    assert!(m.traced_commands.contains("ns::foo"));
+    assert!(
+        crate::command_binding::trace_registrations::command_may_be_traced(
+            &m.traced_commands,
+            false,
+            "ns::foo"
+        )
+    );
 }
 
 #[test]
@@ -53,23 +65,23 @@ fn trace_add_variable_does_not_record_execution_trace() {
     assert!(!m.has_dynamic_trace);
 }
 
-/// `walk_for_trace`'s post-lower scan recurses once per nested
+/// `ModuleTraceRegistrations::walk`'s post-lower scan recurses once per nested
 /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame`
 /// body, with no depth cap of its own. Transitively bounded to
 /// `MAX_LOWER_NEST_DEPTH`
 /// (256) by `lower_script`/`lower_body` (this same `lower_to_ir` call
-/// builds the `Script` `walk_for_trace` then scans), so this is
+/// builds the `Script` `ModuleTraceRegistrations::walk` then scans), so this is
 /// defence-in-depth / consistency with every other full-tree walker in
 /// this crate, not a currently-reproducible crash. 1000 levels of
 /// source nesting is comfortably past the cap; the assertion is
 /// that lowering (which runs `populate_trace_facts` ->
-/// `walk_for_trace`) returns at all, not what it returns. Spawns its
+/// `ModuleTraceRegistrations::walk`) returns at all, not what it returns. Spawns its
 /// own big-stack thread since the lexer/CST/segmenter stages upstream
 /// of `lower_script`'s own cap still walk the full un-truncated source
 /// nesting before that cap trims it — same rationale as
 /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
 #[test]
-fn deeply_nested_if_survives_walk_for_trace() {
+fn deeply_nested_if_survives_the_trace_walk() {
     const DEPTH: usize = 1000;
     const STACK_SIZE: usize = 64 * 1024 * 1024;
     let mut src = String::new();
@@ -206,13 +218,21 @@ fn trace_add_variable_through_interp_alias_recorded() {
 #[test]
 fn trace_add_execution_through_interp_alias_recorded() {
     // Same alias-resolution requirement for the execution-trace channel:
-    // `walk_for_trace` gates entry into both `traced_commands` and
-    // `populate_variable_trace_facts` on one shared canonical-name check.
+    // `ModuleTraceRegistrations::walk` gates entry into both `traced_commands` and
+    // the variable-trace inventory on one shared canonical-name check.
     let m = lower_to_ir(
         "interp alias {} tracer {} trace\ntracer add execution foo enter h",
         &reg(),
     );
-    assert!(m.traced_commands.contains("foo"), "{:?}", m.traced_commands);
+    assert!(
+        crate::command_binding::trace_registrations::command_may_be_traced(
+            &m.traced_commands,
+            false,
+            "foo"
+        ),
+        "{:?}",
+        m.traced_commands
+    );
     assert!(!m.has_dynamic_trace);
 }
 
@@ -229,7 +249,11 @@ fn trace_add_execution_does_not_record_variable_trace() {
 fn trace_add_execution_inside_proc_recorded() {
     let m = lower_to_ir("proc init {} { trace add execution foo enter h }", &reg());
     assert!(
-        m.traced_commands.contains("foo"),
+        crate::command_binding::trace_registrations::command_may_be_traced(
+            &m.traced_commands,
+            false,
+            "foo"
+        ),
         "traced_commands={:?}",
         m.traced_commands,
     );
@@ -258,7 +282,15 @@ fn trace_add_execution_abbreviated_type_word_not_variable() {
     // widen `traced_variables`.
     let m = lower_to_ir("trace add e foo enter h", &reg());
     assert_eq!(m.traced_variables.len(), 0);
-    assert!(m.traced_commands.contains("foo"), "{:?}", m.traced_commands);
+    assert!(
+        crate::command_binding::trace_registrations::command_may_be_traced(
+            &m.traced_commands,
+            false,
+            "foo"
+        ),
+        "{:?}",
+        m.traced_commands
+    );
 }
 
 #[test]

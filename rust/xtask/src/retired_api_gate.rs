@@ -372,6 +372,38 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "is_interp_alias_shape",
         outside_registry_only: false,
     },
+    // Trace facts have one owner in binding
+    // (`tcl_compiler::command_binding::trace_registrations`): the textual
+    // observation-name module, the flow lattice's own trace flag and the
+    // per-consumer `is_traced` checks are views over it now.
+    RetiredPattern {
+        needle: "variable_observation_names",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "VariableObservationNameSet",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "VariableProtectionPurpose",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "VariableWriteObservationPurpose",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "module_observation_key",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "EscapeFlag::TRACED",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "is_traced",
+        outside_registry_only: false,
+    },
 ];
 
 /// One **owned** spelling: an answer the programme centralised, and the
@@ -460,6 +492,23 @@ const OWNED: &[OwnedPattern] = &[
             "rust/tcl-codegen/src/",
             "rust/tcl-lsp-core/src/tk_preview.rs",
         ],
+    },
+    // **May a trace observe this?** — the binding trace owner. A consumer
+    // asks `traits_may_register_trace` or the module projection's queries
+    // instead of reading the trace trait or the traced-command set itself.
+    // The registry-invocation hazard mask lists the trait beside other
+    // non-trace hazards.
+    OwnedPattern {
+        needle: "ESTABLISHES_VARIABLE_TRACE",
+        owners: &[
+            "rust/tcl-registry/",
+            "rust/tcl-compiler/src/command_binding/trace_registrations.rs",
+            "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+        ],
+    },
+    OwnedPattern {
+        needle: "traced_commands.contains",
+        owners: &["rust/tcl-compiler/src/command_binding/trace_registrations.rs"],
     },
     // **Which command surface does this document analyse against?** — gap
     // ruling R1's one door. The per-document declaration set is assembled in
@@ -830,6 +879,18 @@ mod tests {
             ("if !is_interp_alias_shape(args) { return; }", 1),
             ("if spec.traits.contains(Traits::PURE) { }", 1),
             ("traits: Traits::PURE | Traits::CSE_CANDIDATE,", 1),
+            (
+                "crate::variable_observation_names::variable_name_may_be_observed(n)",
+                1,
+            ),
+            ("let k = module_observation_key(name);", 1),
+            (
+                "fn f(p: VariableProtectionPurpose, w: VariableWriteObservationPurpose) {}",
+                2,
+            ),
+            ("impl VariableObservationNameSet for Names {}", 1),
+            ("const T: EscapeFlag = EscapeFlag::TRACED;", 1),
+            ("if self.is_traced(&place) { }", 1),
         ] {
             assert_eq!(scan(seeded, false).len(), findings, "{seeded}");
         }
@@ -893,9 +954,29 @@ mod tests {
                 1,
             ),
             ("let declared = DeclaredSurface::new();", 1),
+            (
+                "traits.contains(tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE)",
+                1,
+            ),
+            ("if traced_commands.contains(command) { }", 1),
         ] {
             assert_eq!(scan_owned(seeded, outsider).len(), findings, "{seeded}");
         }
+    }
+
+    /// Trace queries outside their owner and the runtime's own traced-slot
+    /// names are not the retired per-consumer checks.
+    #[test]
+    fn trace_owner_views_do_not_match() {
+        for ok in [
+            "if interp.var_is_traced(name) { }",
+            "let traced = obs.is_traced_at(block, 0, name);",
+            "trace_registrations::variable_may_be_traced(names, false, name)",
+        ] {
+            assert!(scan(ok, false).is_empty(), "{ok}");
+        }
+        let owner = "rust/tcl-compiler/src/command_binding/trace_registrations.rs";
+        assert!(scan_owned("Traits::ESTABLISHES_VARIABLE_TRACE", owner).is_empty());
     }
 
     /// An owned answer is not a violation in the module that owns it, and

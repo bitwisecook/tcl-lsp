@@ -84,15 +84,13 @@ pub fn apply_module_variable_traces(
     ssa: &SsaFunction,
     traces: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TaintLattice> {
-    let is_traced =
-        |name: &str| traces.has_dynamic_variable_trace || traces.traced_variables.contains(name);
     for (key, lattice) in &mut taints {
-        if is_traced(ssa.var_name(key.0)) {
+        if traces.variable_may_be_traced(ssa.var_name(key.0)) {
             *lattice = TaintLattice::tainted();
         }
     }
     for symbol in collect_global_reads(ssa) {
-        if is_traced(ssa.var_name(symbol)) {
+        if traces.variable_may_be_traced(ssa.var_name(symbol)) {
             taints
                 .entry((symbol, 0))
                 .and_modify(|t| *t = TaintLattice::tainted())

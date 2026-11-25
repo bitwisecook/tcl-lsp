@@ -276,7 +276,7 @@ impl CfgBuilder<'_> {
             self.config,
         );
         let base = |name: &str| {
-            crate::variable_observation_names::module_observation_key(
+            crate::command_binding::trace_registrations::observation_key(
                 tcl_syntax::naming::normalise_var_name_braced(name, true),
             )
             .to_owned()

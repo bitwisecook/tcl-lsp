@@ -429,7 +429,7 @@ impl LatticeDriver<'_> {
             {
                 return Err(DeclineReason::OverlappingTargets);
             }
-            if self.is_traced(&place) {
+            if self.may_be_traced(&place) {
                 return Err(DeclineReason::TracedPlace);
             }
             placed.push((place, store));
@@ -442,17 +442,20 @@ impl LatticeDriver<'_> {
     /// it while the evaluation runs — not traced, not escaping, and not an
     /// element of an array that is.
     pub(in super::super) fn state_owns(&self, place: &PlaceRef) -> bool {
-        !self.is_traced(place)
+        !self.may_be_traced(place)
             && !self.is_escaping(place)
             && !self.is_escaping(&PlaceRef::scalar(place.base()))
     }
 
-    /// Whether a trace can observe `place`: the module names it in a trace,
-    /// or traces a computed name.
-    fn is_traced(&self, place: &PlaceRef) -> bool {
-        self.context.has_dynamic_variable_trace
-            || self.context.traced_variables.contains(&place.name)
-            || self.context.traced_variables.contains(place.base())
+    /// Whether the trace owner says a trace may observe `place` or its base.
+    fn may_be_traced(&self, place: &PlaceRef) -> bool {
+        [place.name.as_str(), place.base()].into_iter().any(|name| {
+            crate::command_binding::trace_registrations::variable_may_be_traced(
+                &self.context.traced_variables,
+                self.context.has_dynamic_variable_trace,
+                name,
+            )
+        })
     }
 
     /// Whether `place` is writable from outside the function — the
