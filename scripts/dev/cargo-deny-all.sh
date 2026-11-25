@@ -19,13 +19,18 @@ if ((${#lockfiles[@]} == 0)); then
     exit 1
 fi
 
+status=0
 for lockfile in "${lockfiles[@]}"; do
     manifest="${lockfile%Cargo.lock}Cargo.toml"
     if [[ ! -f "$manifest" ]]; then
         echo "ERROR: tracked $lockfile has no adjacent $manifest" >&2
-        exit 1
+        status=1
+        continue
     fi
 
     echo "==> cargo deny: $manifest ($lockfile)"
-    cargo deny --locked --all-features --manifest-path "$manifest" check
+    if ! cargo deny --locked --all-features --manifest-path "$manifest" check; then
+        status=1
+    fi
 done
+exit "$status"

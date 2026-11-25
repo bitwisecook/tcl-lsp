@@ -85,9 +85,11 @@ wasm-bindgen's exact report/query pins and every CI CLI pin on the same
 release when refreshing all twelve Cargo roots.
 
 Audit every Rust root with `bash scripts/dev/cargo-deny-all.sh` and each
-application lockfile with `npm audit`. An existing green test run does not
-replace a fresh advisory check. Open VSX uses the same `@vscode/vsce` release
-as VS Code packaging through the `ovsx` dependency override.
+application lockfile with `npm audit`. The Rust wrapper reports each tracked
+workspace and returns a failed status if any audit fails. An existing green
+test run does not replace a fresh advisory check. Open VSX uses the same
+`@vscode/vsce` release as VS Code packaging through the `ovsx` dependency
+override.
 
 Changing a minimum version touches all of: `rust-toolchain.toml`, `ci.yml`,
 the Makefile's Prerequisites comment block, `README.md` § *Building and
