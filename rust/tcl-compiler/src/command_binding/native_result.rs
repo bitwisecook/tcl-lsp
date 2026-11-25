@@ -653,6 +653,48 @@ impl SourceOutcomes {
             .map(|(_, value)| value)
     }
 
+    fn retain_native_normal_results(
+        &mut self,
+        before: &ModuleCommandBindings,
+        target: &SourceCommandTarget,
+        context: SourceExecutionContext<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        arguments: tcl_registry::InvocationArguments<'_>,
+        selection: NativeResultSelection,
+    ) {
+        if let Some(normal) = &self.normal {
+            if self.normal_name_value.is_none() {
+                self.normal_name_value = selected_name_result(
+                    selection,
+                    facts.operation,
+                    before,
+                    normal,
+                    target,
+                    context,
+                )
+                .or_else(|| {
+                    let argument = facts
+                        .native_result?
+                        .normal_scoped_prefix_operand(arguments, facts.argument_offset)?;
+                    selected_scoped_prefix_result(argument, before, normal, target, context)
+                })
+                .map(Arc::new);
+            }
+            if self.normal_value.is_none() {
+                self.normal_value =
+                    selected_result(selection, arguments, before, normal, context).map(Arc::new);
+            }
+            self.normal_representation = selected_result_representation(
+                selection, arguments, before, normal, target, context,
+            )
+            .map(Arc::new)
+            .or(self.normal_representation.take().filter(|receipt| {
+                receipt.is_current(&normal.source_variables)
+                    || receipt.is_immediate_created_result()
+            }));
+        }
+    }
+
     pub(super) fn retain_native_result(
         &mut self,
         before: &ModuleCommandBindings,
@@ -696,44 +738,14 @@ impl SourceOutcomes {
             return;
         };
         let selection = contract.select(invocation.arguments(), facts.argument_offset);
-        if let Some(normal) = &self.normal {
-            if self.normal_name_value.is_none() {
-                self.normal_name_value = selected_name_result(
-                    selection,
-                    facts.operation,
-                    before,
-                    normal,
-                    target,
-                    context,
-                )
-                .or_else(|| {
-                    let argument = contract.normal_scoped_prefix_operand(
-                        invocation.arguments(),
-                        facts.argument_offset,
-                    )?;
-                    selected_scoped_prefix_result(argument, before, normal, target, context)
-                })
-                .map(Arc::new);
-            }
-            if self.normal_value.is_none() {
-                self.normal_value =
-                    selected_result(selection, invocation.arguments(), before, normal, context)
-                        .map(Arc::new);
-            }
-            self.normal_representation = selected_result_representation(
-                selection,
-                invocation.arguments(),
-                before,
-                normal,
-                target,
-                context,
-            )
-            .map(Arc::new)
-            .or(self.normal_representation.take().filter(|receipt| {
-                receipt.is_current(&normal.source_variables)
-                    || receipt.is_immediate_created_result()
-            }));
-        }
+        self.retain_native_normal_results(
+            before,
+            target,
+            context,
+            &facts,
+            invocation.arguments(),
+            selection,
+        );
         let returned_object = matches!(
             contract,
             tcl_registry::native_result::NativeResultContract::ReturnResult
