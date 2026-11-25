@@ -165,7 +165,6 @@ impl CfgBuilder<'_> {
             span,
             body,
             result_var,
-            options_var,
             raw_args,
             tokens,
             ..
@@ -189,13 +188,7 @@ impl CfgBuilder<'_> {
             };
             self.alias_observed_vars.extend(observed);
         }
-        let mut defs = Vec::new();
-        if let Some(rv) = result_var {
-            defs.push(rv.clone());
-        }
-        if let Some(ov) = options_var {
-            defs.push(ov.clone());
-        }
+        let defs = crate::ir_helpers::structural_variable_write_projection(stmt).literal_names;
         if defs.is_empty() {
             return;
         }

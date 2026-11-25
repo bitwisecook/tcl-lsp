@@ -41,16 +41,22 @@ pub(in super::super) fn build_package_resolver(
     dir_cap: usize,
 ) -> PackageResolver {
     let mut resolver = PackageResolver::new();
+    workspace_scan_trace!("package.auto_path.begin");
+    for dir in effective_auto_path(
+        store,
+        roots,
+        editor_library_paths,
+        discovered,
+        core_tcl_install::tcllibpath_dirs(),
+    ) {
+        workspace_scan_trace!("package.path.begin path={dir:?}");
+        resolver.scan_path_in(store, &dir);
+        workspace_scan_trace!("package.path.end path={dir:?}");
+    }
     for root in roots {
         workspace_scan_trace!("package.tree.begin root={root:?} dir_cap={dir_cap}");
         resolver.scan_tree_in(store, root, dir_cap);
         workspace_scan_trace!("package.tree.end root={root:?}");
-    }
-    workspace_scan_trace!("package.auto_path.begin");
-    for dir in effective_auto_path(store, roots, editor_library_paths, discovered) {
-        workspace_scan_trace!("package.path.begin path={dir:?}");
-        resolver.scan_path_in(store, &dir);
-        workspace_scan_trace!("package.path.end path={dir:?}");
     }
     resolver
 }
@@ -177,16 +183,17 @@ pub(in super::super) fn document_auto_path_dirs(
 /// The effective `auto_path` for the package database, layering the configured
 /// sources plus on-disk discovery (deduped, in priority order):
 ///
-/// 1. editor `tclLsp.libraryPaths`,
-/// 2. user config `config.ini` `[global] libraryPaths`,
-/// 3. per-workspace `.tcl-lsp.ini` `[project] libraryPaths`,
-/// 4. discovered Tcl installations' `auto_path`,
-/// 5. `TCLLIBPATH`.
+/// 1. `TCLLIBPATH`,
+/// 2. editor `tclLsp.libraryPaths`,
+/// 3. user config `config.ini` `[global] libraryPaths`,
+/// 4. per-workspace `.tcl-lsp.ini` `[project] libraryPaths`,
+/// 5. discovered Tcl installations' `auto_path`.
 pub(in super::super) fn effective_auto_path(
     store: &dyn vfs::SourceStore,
     roots: &[PathBuf],
     editor_library_paths: &[String],
     discovered: &[core_tcl_install::TclInstallation],
+    environment_paths: Vec<PathBuf>,
 ) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     let push = |p: PathBuf, out: &mut Vec<PathBuf>| {
@@ -194,6 +201,9 @@ pub(in super::super) fn effective_auto_path(
             out.push(p);
         }
     };
+    for p in environment_paths {
+        push(p, &mut out);
+    }
     for p in editor_library_paths {
         push(PathBuf::from(p), &mut out);
     }
@@ -216,9 +226,6 @@ pub(in super::super) fn effective_auto_path(
         for p in &inst.auto_path {
             push(p.clone(), &mut out);
         }
-    }
-    for p in core_tcl_install::tcllibpath_dirs() {
-        push(p, &mut out);
     }
     out
 }

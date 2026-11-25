@@ -21,18 +21,6 @@
 use super::*;
 
 #[test]
-fn redos_shape_detector() {
-    assert!(super::super::has_redos_shape("(a+)+"));
-    assert!(super::super::has_redos_shape("(a*)*"));
-    assert!(super::super::has_redos_shape("(a|a)+"));
-    assert!(super::super::has_redos_shape("(foo|bar){2}"));
-    // No nested quantifier / overlapping alternation → safe.
-    assert!(!super::super::has_redos_shape("^[a-z]+$"));
-    assert!(!super::super::has_redos_shape("(abc)+"));
-    assert!(!super::super::has_redos_shape("a|b|c"));
-}
-
-#[test]
 fn w302_fire_and_forget_bare_close_silent() {
     // FP-STY-05: `catch {close $fh}` is the documented fire-and-forget
     // idiom — no W302.
@@ -491,40 +479,46 @@ fn w302_fire_and_forget_is_registry_destructive_data() {
 
 #[test]
 fn w303_redos_nested_quantifiers() {
-    // Nested quantifier and overlapping alternation, in regexp /
+    // Backreferences with repetition or alternatives, in regexp /
     // regsub and a `switch -regexp` braced case list.
-    assert_eq!(sec_codes("regexp {(a+)+} $str\n", "W303"), 1);
-    assert_eq!(sec_codes("regexp {(a|a)+} $str\n", "W303"), 1);
-    assert_eq!(sec_codes("regsub {(x*)*} $s y out\n", "W303"), 1);
+    assert_eq!(sec_codes("regexp {^((a+)+)\\1$} $str\n", "W303"), 1);
+    assert_eq!(sec_codes("regexp {^((a|aa)+)\\1$} $str\n", "W303"), 1);
+    assert_eq!(sec_codes("regsub {^((x*)*)\\1$} $s y out\n", "W303"), 1);
     assert_eq!(
-        sec_codes("switch -regexp $x {(a+)+ {body} default {x}}\n", "W303"),
+        sec_codes(
+            "switch -regexp $x {{^((a+)+)\\1$} {body} default {x}}\n",
+            "W303"
+        ),
         1
     );
     // Option flags before the pattern are skipped.
-    assert_eq!(sec_codes("regexp -nocase {(a+)+} $s\n", "W303"), 1);
+    assert_eq!(sec_codes("regexp -nocase {^((a+)+)\\1$} $s\n", "W303"), 1);
     // Anchored nested quantifier still fires.
-    assert_eq!(sec_codes("regexp {(a+)+$} $x\n", "W303"), 1);
-    // Safe patterns don't fire.
+    assert_eq!(sec_codes("regexp {^((a+)+)\\1$} $x\n", "W303"), 1);
+    // Regular patterns without backreferences don't fire.
+    assert_eq!(sec_codes("regexp {(a+)+} $str", "W303"), 0);
+    assert_eq!(sec_codes("regexp {(a|a)+} $str", "W303"), 0);
     assert_eq!(sec_codes("regexp {abc} $str\n", "W303"), 0);
     assert_eq!(sec_codes("regexp {[0-9]+} $s\n", "W303"), 0);
+    assert_eq!(sec_codes(r"regexp {\(a|b\)+} $str", "W303"), 0);
     // FP gate: glob-pattern commands are not regexes — the guard is the
     // spec's `pattern_type == Regex`, so regex-looking text under
     // `string match` / `lsearch` must not fire.
-    assert_eq!(sec_codes("string match {(a+)+$} $x\n", "W303"), 0);
-    assert_eq!(sec_codes("lsearch $l {(a+)+$}\n", "W303"), 0);
+    assert_eq!(sec_codes("string match {^((a+)+)\\1$} $x\n", "W303"), 0);
+    assert_eq!(sec_codes("lsearch $l {^((a+)+)\\1$}\n", "W303"), 0);
 }
 
 #[test]
 fn w303_message_and_severity() {
     let mut a = Analyser::new();
-    let r = a.analyse("regexp {(a+)+} $s\n", "tcl8.6");
+    let r = a.analyse("regexp {^((a+)+)\\1$} $s\n", "tcl8.6");
     let w303 = r
         .diagnostics
         .iter()
         .find(|d| d.code == DiagCode::W303)
         .unwrap();
     assert_eq!(w303.severity, Severity::Warning);
-    assert!(w303.message.contains("catastrophic"), "{w303:?}");
+    assert!(w303.message.contains("backreference"), "{w303:?}");
 }
 
 #[test]

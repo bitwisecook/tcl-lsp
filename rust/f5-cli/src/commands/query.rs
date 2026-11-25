@@ -65,46 +65,23 @@ use crate::cli::FormatArgs;
 
 use tcl_cli_support::difflib;
 
-/// Percent-decode a URI component (the inverse of the `file_uri` encoder in
-/// `tcl-bigip-io`), so a `config_uri` round-trips back to the on-disk path.
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    let hex = |b: u8| -> Option<u8> {
-        match b {
-            b'0'..=b'9' => Some(b - b'0'),
-            b'a'..=b'f' => Some(b - b'a' + 10),
-            b'A'..=b'F' => Some(b - b'A' + 10),
-            _ => None,
-        }
-    };
-    while i < bytes.len() {
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
-            && let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2]))
-        {
-            out.push(h * 16 + l);
-            i += 3;
-            continue;
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-/// Resolve a `config_uri` to a local path, accepting `file://` and bare paths.
-/// Returns `None` for a non-file scheme.
+/// Resolve the config provider's local file URI or an already native path.
 fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
-    if let Some(rest) = config_uri.strip_prefix("file://") {
-        // Strip an optional `//netloc`; the path starts at the first `/`.
-        let path = rest.find('/').map_or(rest, |i| &rest[i..]);
-        Some(percent_decode(path))
+    use tcl_lsp_core::file_uri::{FileUriPathPurpose, to_path};
+
+    let file_scheme = config_uri
+        .split_once(':')
+        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("file"));
+    if file_scheme {
+        to_path(config_uri, FileUriPathPurpose::NativeFile)
+            .ok()?
+            .into_os_string()
+            .into_string()
+            .ok()
     } else if config_uri.contains("://") {
         None
     } else {
-        Some(percent_decode(config_uri))
+        Some(config_uri.to_owned())
     }
 }
 
@@ -1219,8 +1196,9 @@ mod provider_source_tests {
 
 #[cfg(test)]
 mod ucs_cert_tests {
-    use super::{ProviderSources, make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+    use super::{ProviderSources, make_ucs_cert_reader, ucs_uri_to_path};
     use tcl_bigip_query::value::Value;
+    use tcl_lsp_core::file_uri::{FileUriEscaping, from_path};
 
     // Generate the filestore certificate locally; recover its identity from
     // the certificate rather than the metadata-free configuration stanza.
@@ -1238,10 +1216,10 @@ mod ucs_cert_tests {
     #[test]
     fn reader_reads_and_parses_real_cert() {
         let (archive, expected_fp) = fixture();
-        let fixture = archive.path.to_str().expect("temporary UCS path");
+        let fixture =
+            from_path(&archive.path, FileUriEscaping::Unreserved).expect("temporary UCS URI");
         let reader = make_ucs_cert_reader(ProviderSources::default());
-        let value = reader(&format!("file://{fixture}"), CACHE_PATH)
-            .expect("reader reads + parses the cert");
+        let value = reader(&fixture, CACHE_PATH).expect("reader reads + parses the cert");
         let Value::Object(map) = value else {
             panic!("ucs_cert must return an x509 dict");
         };
@@ -1262,10 +1240,9 @@ mod ucs_cert_tests {
     #[test]
     fn ucs_cert_reaches_cert_through_the_dsl() {
         let (archive, expected_fp) = fixture();
-        let fixture = archive.path.to_str().expect("temporary UCS path");
         let pass = crate::cli::PassphraseArgs::default().to_options();
         let (uri, src) =
-            tcl_bigip_io::read_path(fixture, false, &pass).expect("UCS reads as an SCF");
+            tcl_bigip_io::read_path(&archive.path, false, &pass).expect("UCS reads as an SCF");
         let opts = tcl_bigip_query::QueryOptions {
             ucs_cert_reader: Some(make_ucs_cert_reader(ProviderSources::default())),
             ..tcl_bigip_query::QueryOptions::default()
@@ -1295,20 +1272,24 @@ mod ucs_cert_tests {
     #[test]
     fn reader_errors_on_missing_member() {
         let (archive, _) = fixture();
-        let fixture = archive.path.to_str().expect("temporary UCS path");
+        let fixture =
+            from_path(&archive.path, FileUriEscaping::Unreserved).expect("temporary UCS URI");
         let reader = make_ucs_cert_reader(ProviderSources::default());
-        let err = reader(&format!("file://{fixture}"), "/config/filestore/nope_1").unwrap_err();
+        let err = reader(&fixture, "/config/filestore/nope_1").unwrap_err();
         assert!(format!("{err}").contains("ucs_cert"), "got: {err}");
     }
 
     #[test]
-    fn uri_and_percent_decode() {
-        assert_eq!(
-            ucs_uri_to_path("file:///tmp/a.ucs").as_deref(),
-            Some("/tmp/a.ucs")
-        );
-        assert_eq!(ucs_uri_to_path("/tmp/a.ucs").as_deref(), Some("/tmp/a.ucs"));
+    fn config_file_uris_round_trip_without_reinterpreting_bare_paths() {
+        let path = if cfg!(windows) {
+            r"C:\tmp\a b%20#.ucs"
+        } else {
+            "/tmp/a b%20#.ucs"
+        };
+        let uri = from_path(std::path::Path::new(path), FileUriEscaping::Unreserved).unwrap();
+        assert_eq!(ucs_uri_to_path(&uri).as_deref(), Some(path));
+        assert_eq!(ucs_uri_to_path(path).as_deref(), Some(path));
         assert_eq!(ucs_uri_to_path("https://x/a"), None);
-        assert_eq!(percent_decode("a%20b%2Fc"), "a b/c");
+        assert_eq!(ucs_uri_to_path("file:///tmp/invalid%FF.ucs"), None);
     }
 }

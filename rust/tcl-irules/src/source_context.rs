@@ -27,7 +27,7 @@ fn selected_rule_procedure_operand(
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic, ResolvedAnalysisInput};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::ir::{Module, SourceIrulesEventBody};
 use tcl_compiler::registry_invocation::source_structure::{
@@ -103,6 +103,7 @@ pub struct OriginalIrulesSourceContext {
     /// Operand extents whose single scalar substitution constant propagation
     /// settled to one string, from the unit `capture` built.
     propagated_operands: Vec<(Span, String)>,
+    signed_data_group_diagnostics: Vec<Diagnostic>,
 }
 
 /// An original source handler, retaining conditional applicability and body
@@ -710,6 +711,15 @@ fn propagated_operand_values(
     values
 }
 
+fn signed_data_group_diagnostics(analysis: &AnalysisResult) -> Vec<Diagnostic> {
+    analysis
+        .diagnostics
+        .iter()
+        .filter(|finding| finding.signed_data_group_comparison.is_some())
+        .cloned()
+        .collect()
+}
+
 impl OriginalIrulesSourceContext {
     /// Retain the actual source analysis, lowered event descriptors and complete
     /// availability context. No grammar or context is rebuilt from labels.
@@ -780,6 +790,7 @@ impl OriginalIrulesSourceContext {
             commands,
             source_vectors: vectors,
             propagated_operands: Vec::new(),
+            signed_data_group_diagnostics: signed_data_group_diagnostics(analysis),
         })
     }
 
@@ -813,6 +824,7 @@ impl OriginalIrulesSourceContext {
             commands: Vec::new(),
             source_vectors: vectors,
             propagated_operands: Vec::new(),
+            signed_data_group_diagnostics: signed_data_group_diagnostics(analysis),
         })
     }
 
@@ -851,6 +863,13 @@ impl OriginalIrulesSourceContext {
         let mut captured = Self::from_analysis(source, &analysis, &unit.ir_module, &context)?;
         captured.propagated_operands = propagated_operand_values(source, &unit, &captured.commands);
         Some(captured)
+    }
+
+    /// Signed-scan findings from the same source analysis, with the data-group
+    /// comparison facts a model owner needs to supply configured keys.
+    #[must_use]
+    pub fn signed_data_group_diagnostics(&self) -> &[Diagnostic] {
+        &self.signed_data_group_diagnostics
     }
 
     /// The one string constant propagation settled for a single-variable

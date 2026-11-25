@@ -1149,8 +1149,7 @@ impl Analyser {
             .package_requires
             .iter()
             .filter(|r| r.name == pkg && !r.conditional)
-            .filter_map(|r| r.version.as_deref())
-            .map(tcl_registry::version::requirement_lower_bound)
+            .filter_map(crate::signature_scan::types::SignaturePackageRequire::written_lower_bound)
             .max_by(|a, b| tcl_registry::version::compare(a, b));
         // An **ambient** placement (the F5 surfaces) is part of the
         // runtime — its floor always applies. A **hosted** placement
@@ -1307,12 +1306,8 @@ impl Analyser {
             .package_requires
             .iter()
             .filter(|r| r.name == "Tcl" && !r.conditional)
-            .filter_map(|r| r.version.as_deref())
-            .filter_map(|v| {
-                tcl_dialect::TclVersion::from_package_version(
-                    tcl_registry::version::requirement_lower_bound(v),
-                )
-            })
+            .filter_map(crate::signature_scan::types::SignaturePackageRequire::written_lower_bound)
+            .filter_map(tcl_dialect::TclVersion::from_package_version)
             .max();
         self.profile.effective_tcl_version(tcl_floor)
     }

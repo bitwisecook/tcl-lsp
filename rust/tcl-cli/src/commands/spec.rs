@@ -1120,11 +1120,8 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
 /// snapshot — and finally cut to the **newest** `limit`, because recent
 /// releases are what a spec is being written against.
 ///
-/// The comparator is the dialect port rather than
-/// `tcl_registry::version::compare` because a release tag routinely carries a
-/// prerelease suffix: the registry comparator parses dotted integers only, so
-/// `1.0a1`, `1.0b1`, and `1.0` all compare equal and the `limit` cut would
-/// keep whichever the tag-name tiebreak happened to sort last. Duplicate
+/// Tcl's version comparison orders alpha and beta tags below the stable
+/// release, so the limit favours the stable release. Duplicate
 /// detection stays *textual*, so two differently-spelt labels for the same
 /// release (`1.0` / `1.0.0`) both survive to the importer, which warns about
 /// them by name.
@@ -1447,11 +1444,7 @@ mod tests {
 
     #[test]
     fn prerelease_tags_order_below_the_release_they_lead_up_to() {
-        // `tcl_registry::version::compare` stops at the first non-numeric
-        // segment, so it reads all three of these as `1.0` — the order would
-        // then fall to the tag-name tiebreak (`v1.0` first) and `--limit 1`
-        // would import a beta instead of the release. The `package vcompare`
-        // port orders alpha < beta < release.
+        // The shared Tcl package ordering puts alpha below beta below release.
         let tags: Vec<String> = ["v1.0", "v1.0b1", "v1.0a1"]
             .iter()
             .map(ToString::to_string)

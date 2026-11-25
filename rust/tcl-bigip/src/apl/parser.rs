@@ -21,8 +21,9 @@
 use std::sync::OnceLock;
 
 use regex::Regex;
+use tcl_lexer::SourceMap;
 
-use crate::range::{Position, Range};
+use crate::range::{Range, position_at};
 
 use super::model::{AplField, AplInclude, AplModel, AplSection, AplTable};
 use super::tokens::FIELD_TYPE_KEYWORDS;
@@ -63,35 +64,6 @@ fn required_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\brequired\b").unwrap())
 }
 
-/// Convert a byte offset to a code-point (character) index.
-fn byte_to_cp(source: &str, byte: usize) -> usize {
-    source
-        .get(..byte.min(source.len()))
-        .map_or(0, |s| s.chars().count())
-}
-
-/// Convert a byte offset to an LSP `(line, character)`.
-///
-/// `character` is a **UTF-16 code-unit** offset, per the LSP position encoding —
-/// what [`crate::range::Position`] documents and what every other position in
-/// this crate uses.  Counting *code points* instead would be right only for the
-/// Basic Multilingual Plane: a single astral character (an emoji in an APL
-/// `display` string) is one code point but two UTF-16 units, so every
-/// diagnostic after it on that line would come out one column short.
-fn offset_to_line_char(source: &str, byte: usize) -> (u32, u32) {
-    let prefix = source.get(..byte.min(source.len())).unwrap_or(source);
-    let line = u32::try_from(prefix.matches('\n').count()).unwrap_or(u32::MAX);
-    let line_start = prefix.rfind('\n').map_or(0, |i| i + 1);
-    let character = u32::try_from(
-        source[line_start..byte.min(source.len())]
-            .chars()
-            .map(char::len_utf16)
-            .sum::<usize>(),
-    )
-    .unwrap_or(u32::MAX);
-    (line, character)
-}
-
 /// The matching APL closing brace, or the real end of an incomplete body.
 /// Each returned offset is a source boundary, including at a non-ASCII EOF.
 fn block_body_end(source: &str, start: usize) -> usize {
@@ -117,23 +89,13 @@ fn block_body_end(source: &str, start: usize) -> usize {
     source.len()
 }
 
-/// Build a name range from a byte offset + the name (code-point spans).
-fn name_range(source: &str, abs_byte: usize, name: &str) -> Range {
-    let (line, character) = offset_to_line_char(source, abs_byte);
-    let start_off = byte_to_cp(source, abs_byte);
-    let name_len = u32::try_from(name.chars().count()).unwrap_or(0);
-    let start_off_u = u32::try_from(start_off).unwrap_or(u32::MAX);
+/// Build a name range with zero-based UTF-16 columns and code-point offsets.
+fn name_range(source_map: &SourceMap<'_>, abs_byte: usize, name: &str) -> Range {
+    let source = source_map.source();
+    let index = source_map.line_index();
     Range {
-        start: Position {
-            line,
-            character,
-            offset: start_off_u,
-        },
-        end: Position {
-            line,
-            character: character + name_len,
-            offset: start_off_u + name_len,
-        },
+        start: position_at(source, index, abs_byte),
+        end: position_at(source, index, abs_byte + name.len()),
     }
 }
 
@@ -142,7 +104,7 @@ fn parse_fields_in_block(
     block_source: &str,
     prefix: &str,
     base_offset: usize,
-    source: &str,
+    source_map: &SourceMap<'_>,
 ) -> Vec<(String, AplField)> {
     let mut fields: Vec<(String, AplField)> = Vec::new();
     for m in field_decl_re().captures_iter(block_source) {
@@ -174,7 +136,7 @@ fn parse_fields_in_block(
             qualified_name: qname,
             field_type: ftype.to_owned(),
             is_required: is_req,
-            range: name_range(source, abs_byte, fname),
+            range: name_range(source_map, abs_byte, fname),
         };
         // Last-wins on duplicate field name, first-seen order.
         if let Some(slot) = fields.iter_mut().find(|(k, _)| k == fname) {
@@ -198,6 +160,7 @@ fn insert_field<'a>(all: &mut Vec<(String, AplField)>, fields: impl Iterator<Ite
 #[must_use]
 pub fn parse_apl(source: &str) -> AplModel {
     let mut model = AplModel::default();
+    let source_map = SourceMap::new(source);
 
     for m in include_re().captures_iter(source) {
         let whole = m.get(0).unwrap();
@@ -231,10 +194,10 @@ pub fn parse_apl(source: &str) -> AplModel {
         let block = &source[brace_pos + 1..end_pos];
         section_ranges.push((brace_pos, end_pos, sec_name.clone()));
 
-        let fields = parse_fields_in_block(block, &sec_name, brace_pos + 1, source);
+        let fields = parse_fields_in_block(block, &sec_name, brace_pos + 1, &source_map);
         insert_field(&mut model.all_fields, fields.iter().map(|(_, f)| f));
         let section = AplSection {
-            range: Some(name_range(source, name_m.start(), &sec_name)),
+            range: Some(name_range(&source_map, name_m.start(), &sec_name)),
             name: sec_name.clone(),
             qualified_name: sec_name.clone(),
             fields,
@@ -264,10 +227,10 @@ pub fn parse_apl(source: &str) -> AplModel {
             format!("{parent_prefix}.{tbl_name}")
         };
 
-        let columns = parse_fields_in_block(block, &qualified, brace_pos + 1, source);
+        let columns = parse_fields_in_block(block, &qualified, brace_pos + 1, &source_map);
         insert_field(&mut model.all_fields, columns.iter().map(|(_, f)| f));
         let table = AplTable {
-            range: Some(name_range(source, name_m.start(), &tbl_name)),
+            range: Some(name_range(&source_map, name_m.start(), &tbl_name)),
             name: tbl_name,
             qualified_name: qualified.clone(),
             columns,
@@ -290,6 +253,20 @@ mod tests {
 
     fn get<'a>(v: &'a [(String, AplField)], k: &str) -> &'a AplField {
         &v.iter().find(|(n, _)| n == k).unwrap().1
+    }
+
+    #[test]
+    fn name_range_uses_utf16_columns_and_code_point_offsets() {
+        let model = parse_apl("\nsection éé😀 {}\n");
+        let range = model.sections[0].1.range.unwrap();
+        assert_eq!(
+            (range.start.line, range.start.character, range.start.offset),
+            (1, 8, 9)
+        );
+        assert_eq!(
+            (range.end.line, range.end.character, range.end.offset),
+            (1, 12, 12)
+        );
     }
 
     #[test]

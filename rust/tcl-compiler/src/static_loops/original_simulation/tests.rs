@@ -721,20 +721,6 @@ fn saturating_f64_to_i64_in_range_and_saturates() {
     assert_eq!(saturating_f64_to_i64(-1e30), i64::MIN);
 }
 
-// parse_literal_value
-
-#[test]
-fn parse_literal_int_bool_string() {
-    assert_eq!(parse_literal_value("42"), StaticValue::Int(42));
-    assert_eq!(parse_literal_value("-7"), StaticValue::Int(-7));
-    assert_eq!(parse_literal_value("true"), StaticValue::Bool(true));
-    assert_eq!(parse_literal_value("False"), StaticValue::Bool(false));
-    assert_eq!(
-        parse_literal_value("hello"),
-        StaticValue::Str("hello".into())
-    );
-}
-
 // simple_var_ref
 
 #[test]

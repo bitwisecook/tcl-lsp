@@ -170,17 +170,10 @@ fn errorcode_prefix_match(
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
     let code = ValueOps::list_elements(vm, errorcode)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-    if pattern.len() > code.len() {
-        return Ok(false);
-    }
-    for (left, right) in pattern.iter().zip(&code) {
-        let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)
-            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-        if !equal {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+    tcl_cmd_core::return_options::trap_prefix_matches(&pattern, &code, |left, right| {
+        tcl_syntax::native_equality::full_native_equality(vm, left, right)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))
+    })
 }
 
 fn original_jim_errorcode_prefix_match(
@@ -227,22 +220,20 @@ fn original_jim_errorcode_prefix_match(
             )
         };
         current(vm)?;
-        if pattern_members.len() > code_members.len() {
-            return Ok(false);
-        }
-        for (left, right) in pattern_members.iter().zip(code_members.iter()) {
-            current(vm)?;
-            scope.current_for_value(vm, left)?;
-            scope.current_for_value(vm, right)?;
-            let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)?;
-            current(vm)?;
-            scope.current_for_value(vm, left)?;
-            scope.current_for_value(vm, right)?;
-            if !equal {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        tcl_cmd_core::return_options::trap_prefix_matches(
+            &pattern_members,
+            &code_members,
+            |left, right| {
+                current(vm)?;
+                scope.current_for_value(vm, left)?;
+                scope.current_for_value(vm, right)?;
+                let equal = tcl_syntax::native_equality::full_native_equality(vm, left, right)?;
+                current(vm)?;
+                scope.current_for_value(vm, left)?;
+                scope.current_for_value(vm, right)?;
+                Ok(equal)
+            },
+        )
     })();
     if let Err(error) = &reached {
         if let Some(first) = error.native_execution_refusal() {

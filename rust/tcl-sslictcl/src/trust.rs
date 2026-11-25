@@ -381,9 +381,9 @@ impl TrustStore {
         TrustDecision::Trusted
     }
 
-    /// Decide trust for a particular product version. Version comparison is
-    /// numeric-component aware (`120.1` sorts after `99`) with lexical
-    /// fallback for vendor labels.
+    /// Decide trust for a particular product version using Tcl's package
+    /// ordering for numeric and prerelease versions, with a lexical fallback
+    /// for vendor labels.
     #[must_use]
     pub fn decision_for_version(
         &self,
@@ -402,11 +402,11 @@ impl TrustStore {
                 && membership
                     .first_version
                     .as_deref()
-                    .is_none_or(|first| compare_versions(client_version, first).is_ge())
+                    .is_none_or(|first| compare_product_labels(client_version, first).is_ge())
                 && membership
                     .last_version
                     .as_deref()
-                    .is_none_or(|last| compare_versions(client_version, last).is_le())
+                    .is_none_or(|last| compare_product_labels(client_version, last).is_le())
         }) else {
             return TrustDecision::Unknown;
         };
@@ -486,18 +486,9 @@ fn membership_version(membership: &Membership) -> &str {
         .unwrap_or("")
 }
 
-fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
-    let numeric = |value: &str| {
-        value
-            .split(|character: char| !character.is_ascii_digit())
-            .filter(|part| !part.is_empty())
-            .map(|part| part.parse::<u64>().unwrap_or(u64::MAX))
-            .collect::<Vec<_>>()
-    };
-    let left_numeric = numeric(left);
-    let right_numeric = numeric(right);
-    if !left_numeric.is_empty() && !right_numeric.is_empty() {
-        left_numeric.cmp(&right_numeric)
+fn compare_product_labels(left: &str, right: &str) -> std::cmp::Ordering {
+    if tcl_dialect::validate_version(left) && tcl_dialect::validate_version(right) {
+        tcl_dialect::compare_versions(left, right)
     } else {
         left.cmp(right)
     }

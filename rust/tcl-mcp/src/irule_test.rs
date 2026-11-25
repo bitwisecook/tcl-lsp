@@ -249,7 +249,7 @@ pub(crate) fn cfg_paths_json(source: &str) -> Vec<Value> {
 /// return the grouped/annotated wire shape.
 #[must_use]
 pub fn irule_cfg_paths(args: &Value) -> Value {
-    let source = args.get("source").and_then(Value::as_str).unwrap_or("");
+    let source: &str = &crate::tools::analysis_source(args);
     let paths = extract_test_paths(source);
 
     // Group by event, preserving first-seen order (serde_json keeps insertion

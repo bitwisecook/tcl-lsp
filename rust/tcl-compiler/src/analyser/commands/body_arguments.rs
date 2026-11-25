@@ -657,7 +657,7 @@ impl Analyser {
             tcl_registry::events::IrulesExecutionContext::TopLevel
                 | tcl_registry::events::IrulesExecutionContext::EventBody
         ) {
-            self.result.has_dynamic_providers = true;
+            self.result.record_unresolved_provider_effect();
         }
     }
 

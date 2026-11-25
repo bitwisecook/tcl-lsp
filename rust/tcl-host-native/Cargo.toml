@@ -37,6 +37,7 @@ authors.workspace = true
 description = "Std-backed NativeHost (full-capability Host impl) shared across Tcl runtimes"
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-host-c-abi = { path = "../tcl-host-c-abi" }
 

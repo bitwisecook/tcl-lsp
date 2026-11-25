@@ -37,7 +37,6 @@
 
 #![forbid(unsafe_code)]
 
-mod aes_cfb;
 pub mod icontrol_path;
 pub mod openpgp;
 pub mod paths;

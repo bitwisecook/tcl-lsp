@@ -642,7 +642,7 @@ fn entry_fact(
         return Existence::MayBound;
     }
     if let Some(spec) = special(name) {
-        let bound = registry.is_initially_bound(name, dialect);
+        let bound = registry.startup_existence(name, dialect).initially_bound;
         return match spec.kind {
             tcl_registry::special_vars::SpecialVarKind::Scalar if bound => {
                 Existence::Bound(BindingKind::Scalar)

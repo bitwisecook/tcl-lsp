@@ -81,14 +81,7 @@ unsafe fn write_completion(
         Ok(completion) => completion,
         Err(_) => return TCL_INVOKE_ABI_HOST_REFUSED,
     };
-    let code = match completion.code {
-        tcl_runtime_api::Code::Ok => 0,
-        tcl_runtime_api::Code::Error => 1,
-        tcl_runtime_api::Code::Return => 2,
-        tcl_runtime_api::Code::Break => 3,
-        tcl_runtime_api::Code::Continue => 4,
-        tcl_runtime_api::Code::Other(code) => code,
-    };
+    let code = completion.code.as_i32();
     // SAFETY: `out` is writable aligned storage per the caller's contract.
     unsafe {
         out.write(TclCompletionAbi {

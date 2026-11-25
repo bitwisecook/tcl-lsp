@@ -466,15 +466,16 @@ fn variable_trigger_completions(
             Ok(None) => return None,
             Err(_) => return Some(Vec::new()),
         };
-    if let Some(items) = original_variables::items(source, line, character, analysis, &prefix) {
-        return Some(items);
-    }
-    if !analysis.allows_retained_logical_declaration_advice() {
-        return Some(Vec::new());
-    }
-    Some(variable_completions_in_source(
-        source, line, character, analysis, &prefix,
-    ))
+    let mut items = original_variables::items(source, line, character, analysis, &prefix)
+        .unwrap_or_else(|| {
+            if analysis.allows_retained_logical_declaration_advice() {
+                variable_completions_in_source(source, line, character, analysis, &prefix)
+            } else {
+                Vec::new()
+            }
+        });
+    variables::extend_special_variable_completions(source, analysis, &prefix, &index, &mut items);
+    Some(items)
 }
 
 /// Compute completions for a position in `source`.

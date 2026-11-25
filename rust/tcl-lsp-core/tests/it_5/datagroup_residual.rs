@@ -302,7 +302,7 @@ fn if_membership_with_else_emits_else_branch() {
     // *shape* (if/else) is ordinary Tcl but the predicate is not stock.
     let source = "if {$h eq \"a\"} {\n    pool p\n} elseif {$h eq \"b\"} {\n    pool p\n} else {\n    pool def\n}";
     let r = if_dg(source, "hosts").expect("result");
-    let applied = r.apply(source);
+    let applied = r.try_apply(source).unwrap();
     assert_eq!(
         applied,
         "if { [class match $h equals hosts] } {\n    pool p\n} else {\n    pool def\n}",
@@ -315,7 +315,10 @@ fn if_membership_with_else_emits_else_branch() {
 fn if_membership_without_else_has_no_else_branch() {
     // Identical bodies, no else → single-arm `class match`.
     let source = "if {$h eq \"a\"} {\n    pool p\n} elseif {$h eq \"b\"} {\n    pool p\n}";
-    let applied = if_dg(source, "hosts").expect("result").apply(source);
+    let applied = if_dg(source, "hosts")
+        .expect("result")
+        .try_apply(source)
+        .unwrap();
     assert_eq!(
         applied,
         "if { [class match $h equals hosts] } {\n    pool p\n}"
@@ -329,7 +332,10 @@ fn if_mapping_set_form_uses_class_lookup() {
     // `set … [class lookup …]` and the group carries keyed records.
     let source = "if {$p eq \"80\"} {\n    set proto http\n} elseif {$p eq \"443\"} {\n    set proto https\n}";
     let r = if_dg(source, "proto_map").expect("result");
-    assert_eq!(r.apply(source), "set proto [class lookup $p proto_map]");
+    assert_eq!(
+        r.try_apply(source).unwrap(),
+        "set proto [class lookup $p proto_map]"
+    );
     let g = dg(&r);
     assert!(g.records.contains(&("80".to_owned(), "http".to_owned())));
     assert!(g.records.contains(&("443".to_owned(), "https".to_owned())));
@@ -343,7 +349,10 @@ fn if_mapping_return_form_uses_return_class_lookup() {
     let source =
         "if {$p eq \"80\"} {\n    return http\n} elseif {$p eq \"443\"} {\n    return https\n}";
     let r = if_dg(source, "proto_map").expect("result");
-    assert_eq!(r.apply(source), "return [class lookup $p proto_map]");
+    assert_eq!(
+        r.try_apply(source).unwrap(),
+        "return [class lookup $p proto_map]"
+    );
 }
 
 #[test]
@@ -353,7 +362,11 @@ fn if_or_chain_single_body_membership() {
     let source = "if {$h eq \"a\" || $h eq \"b\" || $h eq \"c\"} {\n    pool p\n}";
     let r = if_dg(source, "hosts").expect("result");
     assert_eq!(dg(&r).records.len(), 3);
-    assert!(r.apply(source).contains("class match $h equals hosts"));
+    assert!(
+        r.try_apply(source)
+            .unwrap()
+            .contains("class match $h equals hosts")
+    );
 }
 
 #[test]
@@ -468,7 +481,7 @@ fn switch_membership_with_default_emits_else() {
     // default mapped to the `else` arm.
     let source = "switch -exact -- $ext {\n    .jpg { drop }\n    .png { drop }\n    .gif { drop }\n    default { accept }\n}";
     let r = switch_dg(source, "imgs").expect("result");
-    let applied = r.apply(source);
+    let applied = r.try_apply(source).unwrap();
     assert!(
         applied.contains("class match $ext equals imgs"),
         "{applied}"
@@ -484,7 +497,7 @@ fn switch_mapping_with_default_set_form() {
     // with the default value in the else arm.
     let source = "switch -exact -- $m {\n    GET { set h hg }\n    POST { set h hp }\n    PUT { set h hu }\n    default { set h hd }\n}";
     let r = switch_dg(source, "hmap").expect("result");
-    let applied = r.apply(source);
+    let applied = r.try_apply(source).unwrap();
     assert!(
         applied.contains("if { [class match $m equals hmap] }"),
         "{applied}"
@@ -501,7 +514,7 @@ fn switch_mapping_with_default_return_form() {
     // Distinct `return` bodies + default → if/else with `return`.
     let source = "switch -exact -- $m {\n    GET { return hg }\n    POST { return hp }\n    PUT { return hu }\n    default { return hd }\n}";
     let r = switch_dg(source, "hmap").expect("result");
-    let applied = r.apply(source);
+    let applied = r.try_apply(source).unwrap();
     assert!(
         applied.contains("return [class lookup $m hmap]"),
         "{applied}"
@@ -514,7 +527,7 @@ fn switch_mapping_no_default_set_form() {
     // Distinct `set` bodies, no default → bare `set … [class lookup …]`.
     let source = "switch -exact -- $m {\n    GET { set h hg }\n    POST { set h hp }\n    PUT { set h hu }\n}";
     let r = switch_dg(source, "hmap").expect("result");
-    assert_eq!(r.apply(source), "set h [class lookup $m hmap]");
+    assert_eq!(r.try_apply(source).unwrap(), "set h [class lookup $m hmap]");
 }
 
 #[test]
@@ -522,14 +535,20 @@ fn switch_mapping_no_default_return_form() {
     // Distinct `return` bodies, no default → bare `return [class lookup …]`.
     let source = "switch -exact -- $m {\n    GET { return hg }\n    POST { return hp }\n    PUT { return hu }\n}";
     let r = switch_dg(source, "hmap").expect("result");
-    assert_eq!(r.apply(source), "return [class lookup $m hmap]");
+    assert_eq!(
+        r.try_apply(source).unwrap(),
+        "return [class lookup $m hmap]"
+    );
 }
 
 #[test]
 fn switch_membership_no_default_no_else() {
     // Identical bodies, no default → single-arm `class match` (no else).
     let source = "switch -exact -- $e {\n    .a { drop }\n    .b { drop }\n    .c { drop }\n}";
-    let applied = switch_dg(source, "x").expect("result").apply(source);
+    let applied = switch_dg(source, "x")
+        .expect("result")
+        .try_apply(source)
+        .unwrap();
     assert!(applied.contains("class match $e equals x"), "{applied}");
     assert!(!applied.contains("else"), "{applied}");
 }

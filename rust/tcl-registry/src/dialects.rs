@@ -28,49 +28,23 @@
 //! source text and therefore need `tcl_lexer` — they sit above the lexer,
 //! unlike the vocabulary itself.
 
+use tcl_dialect::{CorePackageRole, TclVersion};
+
 /// Number of leading lines scanned for a `# tcl-dialect:` directive.
 pub const DIALECT_DIRECTIVE_SCAN_LINES: usize = 5;
-
-/// Map a bare Tcl `<major.minor>` version to its canonical dialect name.
-fn tcl_version_dialect(ver: &str) -> Option<&'static str> {
-    Some(match ver {
-        "8.4" => "tcl8.4",
-        "8.5" => "tcl8.5",
-        "8.6" => "tcl8.6",
-        "9.0" => "tcl9.0",
-        "9.1" => "tcl9.1",
-        _ => return None,
-    })
-}
 
 /// `true` when the ASCII byte is a `\w` word character.
 fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Extract a leading `<major>.<minor>` version from `s` — one or more digits, a
-/// `.`, and one or more digits. Trailing content (a patchlevel `.z`, a `-`
-/// range suffix, whitespace) is ignored, so `"9.0"`, `"9.0.3"`, and `"8.5-9.0"`
-/// all yield the leading `major.minor`. Returns `None` when `s` doesn't start
-/// with a `major.minor` pair.
-fn extract_major_minor(s: &str) -> Option<String> {
-    let bytes = s.as_bytes();
-    let mut j = 0;
-    while j < bytes.len() && bytes[j].is_ascii_digit() {
-        j += 1;
-    }
-    if j == 0 || j >= bytes.len() || bytes[j] != b'.' {
-        return None;
-    }
-    j += 1;
-    let d2 = j;
-    while j < bytes.len() && bytes[j].is_ascii_digit() {
-        j += 1;
-    }
-    if j == d2 {
-        return None;
-    }
-    Some(s[..j].to_string())
+/// The oldest Tcl release line admitted by these written alternatives.
+fn version_requirement(words: &[ScanWord], exact: bool) -> Option<TclVersion> {
+    crate::version::alternatives_lower_bound(
+        words.iter().map(|word| Some(word.text.as_str())),
+        exact,
+    )
+    .and_then(TclVersion::from_package_version)
 }
 
 /// Maximum nesting depth `scan_tokens_for_tcl_version` descends into command
@@ -98,7 +72,7 @@ struct ScanWord {
 /// `Comment` / a single quoted word), and bracket / brace nesting is handled
 /// structurally instead of by fragile delimiter counting. Returns the first
 /// `<major.minor>` found in reading order, or `None`.
-fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
+fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<TclVersion> {
     if depth >= VERSION_SCAN_DEPTH {
         return None;
     }
@@ -161,7 +135,7 @@ fn is_script_body_command(name: &str) -> bool {
 /// Match one tokenised command against the two Tcl-version idioms, first
 /// descending into any command-substitution / script-body argument so a guard
 /// nested inside this command (e.g. `if { [package vsatisfies …] }`) is found.
-fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
+fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<TclVersion> {
     // Recurse into command substitutions unconditionally (they are always real
     // scripts), but into braced / quoted words only when this command evaluates
     // them as script / expression bodies. The gate is applied at *every* nesting
@@ -187,12 +161,10 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
         // core package under the lower-case `tcl` alias; that spelling was not
         // accepted by Tcl 8.x, so it is only a version signal from 9.0 onward.
         Some("require") => {
-            let mut i = 2;
-            if cmd.get(i).map(|w| w.text.as_str()) == Some("-exact") {
-                i += 1;
-            }
-            let version = cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text))?;
-            if !is_tcl_core_package(cmd.get(i).map(|w| w.text.as_str()), &version) {
+            let exact = cmd.get(2).is_some_and(|word| word.text == "-exact");
+            let i = 2 + usize::from(exact);
+            let version = version_requirement(cmd.get(i + 1..)?, exact)?;
+            if !is_tcl_core_package(cmd.get(i).map(|w| w.text.as_str()), version) {
                 return None;
             }
             Some(version)
@@ -202,9 +174,9 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
         // other package can't select a Tcl dialect.
         Some("vsatisfies") => {
             let subject = cmd.get(2)?;
-            let version = cmd.get(3).and_then(|w| extract_major_minor(&w.text))?;
+            let version = version_requirement(cmd.get(3..)?, false)?;
             if subject.kind != tcl_lexer::TokenType::Cmd
-                || !is_package_require_tcl(&subject.text, &version)
+                || !is_package_require_tcl(&subject.text, version)
             {
                 return None;
             }
@@ -214,19 +186,16 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
     }
 }
 
-/// Whether `name` is C Tcl's core package for the requested minimum version.
-///
-/// `Tcl` is the package name in every supported C Tcl. Tcl 9 additionally
-/// exposes the lower-case `tcl` alias (used by its shipped `init.tcl`), while
-/// Tcl 8 rejects that alias. Do not use case-insensitive matching: `TCL` is
-/// not a C Tcl core package spelling.
-fn is_tcl_core_package(name: Option<&str>, version: &str) -> bool {
-    name == Some("Tcl") || (name == Some("tcl") && version.starts_with("9."))
+/// Whether the requested release publishes this exact core-package spelling.
+fn is_tcl_core_package(name: Option<&str>, version: TclVersion) -> bool {
+    version.core_provided_packages().iter().any(|package| {
+        package.role == CorePackageRole::InterpreterRelease && name == Some(package.name)
+    })
 }
 
 /// Whether `s` tokenises to exactly `package require Tcl` (or Tcl 9's lower
 /// `tcl` alias) — the subject of a `vsatisfies` Tcl-version guard.
-fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
+fn is_package_require_tcl(s: &str, requested_version: TclVersion) -> bool {
     // dialect-drift-ok: a detection-time probe of a `[package require Tcl]`
     // substitution, run before any dialect is resolved.
     let Ok(tokens) = tcl_lexer::Lexer::new(s).tokenise_all() else {
@@ -331,7 +300,8 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// covers vendor extensions (`.sdc`, `.do`, `.xdc`) that are Tcl but are not
 /// project source we index.
 pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
-    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
+    "tcl", "tk", "itcl", "itk", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl",
+    "test",
     // The long spellings of the two extensions above that every editor
     // registers: `.irules` is owned by `f5-irules` and `.expect` by `expect`
     // in the profile catalogue, so a file with either name opens as project
@@ -354,6 +324,38 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     // and indexed like any other source.
     "sslictcl",
 ];
+
+/// Build, dependency and scratch directories omitted from workspace source walks.
+pub const SKIP_SCAN_DIRS: &[&str] = &[
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "tmp",
+];
+
+/// Whether a directory is hidden, generated, or has no representable name.
+#[must_use]
+pub fn is_skipped_scan_dir(path: &std::path::Path) -> bool {
+    path.file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_none_or(|name| name.starts_with('.') || SKIP_SCAN_DIRS.contains(&name))
+}
+
+/// Whether the path has a Tcl-family source extension, including live pack claims.
+/// Compare ASCII extensions without a per-file allocation.
+#[must_use]
+pub fn is_tcl_source(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|ext| {
+            TCL_SOURCE_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+                || is_pack_source_extension(ext)
+        })
+}
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], written so it
 /// matches **any casing** — `**/*.{[tT][cC][lL],…}`.
@@ -1056,10 +1058,8 @@ fn shebang_dialect(source: &str) -> Option<&'static str> {
 /// large script reveals only near its end without paying that cost on the
 /// common (signal-near-the-top) path.
 fn detect_content_signals(head: &str) -> Option<&'static str> {
-    if let Some(ver) = scan_tokens_for_tcl_version(head, 0)
-        && let Some(d) = tcl_version_dialect(&ver)
-    {
-        return Some(d);
+    if let Some(version) = scan_tokens_for_tcl_version(head, 0) {
+        return Some(version.dialect_profile_name());
     }
     detect_from_content(head)
 }
@@ -1143,8 +1143,7 @@ pub fn detect_dialect_from_source(source: &str) -> Option<&'static str> {
         return Some(d);
     }
     let head = scan_head(source);
-    let scan =
-        |s: &str| scan_tokens_for_tcl_version(s, 0).and_then(|ver| tcl_version_dialect(&ver));
+    let scan = |s: &str| scan_tokens_for_tcl_version(s, 0).map(TclVersion::dialect_profile_name);
     // Head first (cheap); on a miss, the full source so a late guard in a huge
     // script is still caught.
     scan(head).or_else(|| (source.len() > head.len()).then(|| scan(source)).flatten())
@@ -1155,6 +1154,26 @@ mod detect_tests {
     use super::{detect_dialect, detect_dialect_directive};
 
     const DEF: &str = "tcl9.0";
+
+    #[test]
+    fn package_requirement_detection_uses_the_tcl_version_grammar() {
+        assert_eq!(
+            detect_dialect("package require Tcl 8.6b1\n", None, DEF),
+            "tcl8.6"
+        );
+        assert_eq!(
+            detect_dialect("package require Tcl 8.6bad\n", None, DEF),
+            DEF
+        );
+    }
+
+    #[test]
+    fn package_requirement_detection_preserves_older_alternatives() {
+        assert_eq!(
+            detect_dialect("package require Tcl 9.0 8.6\n", None, DEF),
+            "tcl8.6"
+        );
+    }
 
     #[test]
     fn version_scan_recognises_written_root_separator_runs() {

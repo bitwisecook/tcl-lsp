@@ -49,9 +49,8 @@ separate top-level binary from the `tcl` binary.  It is a pure-Rust,
 3. **Networking** (`rust/tcl-bigip-io` + `rust/f5-cli/src/commands/remote/`)
    — `tcl-bigip-io` is the pure-Rust input layer: UCS archive extraction
    (`src/ucs.rs`, gzip-tar via `flate2` + `tar`, with encrypted UCS
-   handled as an OpenPGP-symmetric message in `src/openpgp.rs` /
-   `src/aes_cfb.rs` using the RustCrypto `aes` stack — no shelling out to
-   `gpg`) and the `read_path` / `load_paths` resolver (`src/paths.rs`).
+   handled in `src/openpgp.rs` with the RustCrypto `aes` and `cfb-mode`
+   crates) and the `read_path` / `load_paths` resolver (`src/paths.rs`).
    The live-device transport lives in `rust/f5-cli/src/commands/remote/`:
    an iControl REST client (`rest.rs`, built on `ureq` 3.x + `rustls`,
    with `base64` Basic-auth encoding and self-signed-cert handling via
@@ -240,7 +239,7 @@ rust/tcl-bigip/src/                   ← BIG-IP object model + parser
 
 rust/tcl-bigip-io/src/                ← input layer
 ├── ucs.rs                            ← UCS archive handling (gzip-tar)
-├── openpgp.rs aes_cfb.rs             ← encrypted-UCS OpenPGP-symmetric
+├── openpgp.rs                        ← encrypted-UCS OpenPGP-symmetric
 └── paths.rs                          ← read_path / load_paths resolver
 
 rust/tcl-bigip-query/src/             ← the f5 query DSL engine

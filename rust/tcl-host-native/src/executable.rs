@@ -21,6 +21,8 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::TclVersion;
+
 /// Resolve an explicit path or the first executable on `PATH`.
 ///
 /// Keep the selected filename (including symlinks) and make the result
@@ -32,6 +34,31 @@ pub fn which(program: impl AsRef<Path>) -> Option<PathBuf> {
         return executable_at(program).and_then(|path| std::path::absolute(path).ok());
     }
     which_on_path(program, &std::env::var_os("PATH")?)
+}
+
+/// Find the newest versioned Tcl shell on PATH, then try the unversioned name.
+#[must_use]
+pub fn find_tclsh() -> Option<PathBuf> {
+    find_tclsh_on_path(&std::env::var_os("PATH")?)
+}
+
+fn find_tclsh_on_path(path: &OsStr) -> Option<PathBuf> {
+    TclVersion::ALL
+        .into_iter()
+        .rev()
+        .find_map(|version| which_on_path(Path::new(&tclsh_name(version)), path))
+        .or_else(|| which_on_path(Path::new("tclsh"), path))
+}
+
+/// Find the executable named for one Tcl release. An oracle caller still
+/// validates the returned binary and may try the unversioned executable.
+#[must_use]
+pub fn versioned_tclsh(version: TclVersion) -> Option<PathBuf> {
+    which(tclsh_name(version))
+}
+
+fn tclsh_name(version: TclVersion) -> String {
+    format!("tclsh{}", version.version_string())
 }
 
 fn which_on_path(program: &Path, path: &OsStr) -> Option<PathBuf> {
@@ -128,6 +155,23 @@ mod tests {
 
         assert_eq!(which_on_path(name, &path), Some(runnable));
         assert_eq!(which(blocked), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prefers_tclsh91_across_path_entries() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let root = Scratch::new("tclsh-order");
+        let later = root.0.join("later");
+        std::fs::create_dir(&later).unwrap();
+        let newest = later.join("tclsh9.1");
+        for executable in [&root.0.join("tclsh9.0"), &root.0.join("tclsh"), &newest] {
+            std::fs::write(executable, "").unwrap();
+            std::fs::set_permissions(executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let path = std::env::join_paths([&root.0, &later]).unwrap();
+        assert_eq!(find_tclsh_on_path(&path), Some(newest));
     }
 
     #[test]

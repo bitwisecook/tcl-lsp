@@ -32,7 +32,7 @@
 //!
 //! Only what that path needs is implemented:
 //!
-//! * AES-128/192/256 (via [`crate::aes_cfb`]) — the only ciphers UCS uses.
+//! * AES-128/192/256 (via RustCrypto) — the only ciphers UCS uses.
 //! * S2K simple / salted / iterated-and-salted, any supported digest.
 //! * OpenPGP-CFB for SEIPD v1, with the quick-check and SHA-1 MDC verify.
 //! * ZIP / ZLIB inner compression (raw / zlib-wrapped DEFLATE via `flate2`).
@@ -44,11 +44,10 @@
 
 use std::io::Read;
 
+use cfb_mode::cipher::KeyIvInit;
 use digest::Digest;
 use flate2::read::{DeflateDecoder, ZlibDecoder};
 use tcl_core_types::RecursionLimit;
-
-use crate::aes_cfb::{Aes, cfb_decrypt};
 
 const BLOCK: usize = 16;
 
@@ -294,18 +293,33 @@ fn s2k_derive(hash_id: u8, passphrase: &[u8], salt: &[u8], count: usize, keylen:
     }
 }
 
-fn make_cipher(cipher_id: u8, key: &[u8]) -> Result<Aes, OpenPgpError> {
-    let Some(keylen) = cipher_keylen(cipher_id) else {
-        return Err(OpenPgpError::new(format!(
-            "unsupported symmetric cipher (algorithm {cipher_id}); the bundled decryptor only handles AES — install gpg/gpg2"
-        )));
-    };
+/// Decrypt the OpenPGP full-block CFB stream used by SKESK and SEIPD v1.
+fn decrypt_cfb(cipher_id: u8, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
+    const IV: [u8; BLOCK] = [0; BLOCK];
+    let keylen = cipher_keylen(cipher_id).ok_or_else(|| unsupported_cipher(cipher_id))?;
     if key.len() != keylen {
         return Err(OpenPgpError::new(
             "session key length does not match cipher",
         ));
     }
-    Aes::new(key).map_err(OpenPgpError::new)
+    let mut plaintext = ciphertext.to_vec();
+    match keylen {
+        16 => cfb_mode::Decryptor::<aes::Aes128>::new_from_slices(key, &IV)
+            .map(|cipher| cipher.decrypt(&mut plaintext)),
+        24 => cfb_mode::Decryptor::<aes::Aes192>::new_from_slices(key, &IV)
+            .map(|cipher| cipher.decrypt(&mut plaintext)),
+        32 => cfb_mode::Decryptor::<aes::Aes256>::new_from_slices(key, &IV)
+            .map(|cipher| cipher.decrypt(&mut plaintext)),
+        _ => unreachable!("AES key length was selected above"),
+    }
+    .map_err(|_| OpenPgpError::new("session key length does not match cipher"))?;
+    Ok(plaintext)
+}
+
+fn unsupported_cipher(cipher_id: u8) -> OpenPgpError {
+    OpenPgpError::new(format!(
+        "unsupported symmetric cipher (algorithm {cipher_id}); the bundled decryptor only handles AES — install gpg/gpg2"
+    ))
 }
 
 // Packet handlers
@@ -320,11 +334,7 @@ fn decode_skesk(body: &[u8], passphrase: &[u8]) -> Result<(u8, Vec<u8>), OpenPgp
     }
     let cipher_id = at(body, 1)?;
     let s2k = parse_s2k(body, 2)?;
-    let Some(keylen) = cipher_keylen(cipher_id) else {
-        return Err(OpenPgpError::new(format!(
-            "unsupported symmetric cipher (algorithm {cipher_id}); the bundled decryptor only handles AES — install gpg/gpg2"
-        )));
-    };
+    let keylen = cipher_keylen(cipher_id).ok_or_else(|| unsupported_cipher(cipher_id))?;
     let s2k_key = s2k_derive(s2k.hash_id, passphrase, &s2k.salt, s2k.count, keylen);
     let encrypted_key = &body[s2k.next_off.min(body.len())..];
     if encrypted_key.is_empty() {
@@ -333,8 +343,7 @@ fn decode_skesk(body: &[u8], passphrase: &[u8]) -> Result<(u8, Vec<u8>), OpenPgp
     }
     // Wrapped session key: CFB-decrypt with an all-zero IV; the first
     // plaintext byte is the real cipher algorithm, the rest is the key.
-    let cipher = make_cipher(cipher_id, &s2k_key)?;
-    let decrypted = cfb_decrypt(&cipher, &[0u8; BLOCK], encrypted_key);
+    let decrypted = decrypt_cfb(cipher_id, &s2k_key, encrypted_key)?;
     let real_id = decrypted[0];
     Ok((real_id, decrypted[1..].to_vec()))
 }
@@ -347,8 +356,7 @@ fn decrypt_seipd(body: &[u8], cipher_id: u8, session_key: &[u8]) -> Result<Vec<u
             "unsupported encrypted-data packet (AEAD/SEIPD v2); install gpg/gpg2",
         ));
     }
-    let cipher = make_cipher(cipher_id, session_key)?;
-    let plain = cfb_decrypt(&cipher, &[0u8; BLOCK], &body[1..]);
+    let plain = decrypt_cfb(cipher_id, session_key, &body[1..])?;
     if plain.len() < BLOCK + 2 + 22 {
         return Err(OpenPgpError::new(
             "encrypted data too short (corrupt archive)",
@@ -550,6 +558,47 @@ pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, Open
         ));
     }
     extract_literal(&decrypt_seipd(&enc_body, cipher_id, &session_key)?, 0)
+}
+
+#[cfg(test)]
+mod cfb_tests {
+    use super::decrypt_cfb;
+
+    #[test]
+    fn decrypts_all_aes_widths_and_partial_final_blocks() {
+        // OpenSSL aes-{128,192,256}-cfb with an all-zero IV and sequential key bytes.
+        let key: Vec<u8> = (0..32).collect();
+        let vectors = [
+            (
+                7,
+                16,
+                [
+                    137, 209, 94, 89, 215, 200, 11, 162, 31, 46, 243, 22, 200, 169, 180, 84, 69,
+                    77, 227, 144, 153, 94, 13, 80, 188, 227,
+                ],
+            ),
+            (
+                8,
+                24,
+                [
+                    222, 18, 52, 236, 76, 52, 245, 2, 179, 247, 164, 83, 81, 96, 250, 42, 162, 21,
+                    216, 134, 172, 178, 134, 184, 130, 110,
+                ],
+            ),
+            (
+                9,
+                32,
+                [
+                    189, 224, 101, 216, 122, 14, 207, 240, 217, 146, 232, 30, 180, 79, 27, 173, 68,
+                    79, 47, 211, 10, 113, 190, 176, 56, 94,
+                ],
+            ),
+        ];
+        for (cipher_id, keylen, ciphertext) in vectors {
+            let plaintext = decrypt_cfb(cipher_id, &key[..keylen], &ciphertext).unwrap();
+            assert_eq!(plaintext, b"OpenPGP partial-block test");
+        }
+    }
 }
 
 #[cfg(test)]

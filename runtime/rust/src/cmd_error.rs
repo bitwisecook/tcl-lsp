@@ -370,7 +370,7 @@ fn jim_options_raw(
     receipt: tcl_runtime_api::jim_return_state::JimReturnReceipt<obj::Owned>,
     code: Code,
 ) -> Result<*mut TclObj, tcl_runtime_api::NativeExecutionError> {
-    jim_options_pairs_raw(interp, receipt.option_pairs(api_code(code)))
+    jim_options_pairs_raw(interp, receipt.option_pairs(code))
 }
 
 fn jim_options_pairs_raw(
@@ -502,7 +502,7 @@ pub(crate) fn completion_options(
             .collect();
         let planned = completion_options::plan(
             interp.runtime_version(),
-            api_code(eff_code),
+            eff_code,
             i64::try_from(level).unwrap_or(i64::MAX),
             &values,
             error.as_ref(),
@@ -535,7 +535,7 @@ pub(crate) fn completion_options(
             .map_err(|error| interp.refuse_completion_value_access(error))?;
             let overlay = completion_options::plan_with_origin(
                 interp.runtime_version(),
-                api_code(eff_code),
+                eff_code,
                 i64::try_from(level).unwrap_or(i64::MAX),
                 tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
                 &[],
@@ -592,17 +592,6 @@ pub(crate) fn completion_options(
         return Err(first);
     }
     reached
-}
-
-fn api_code(code: Code) -> tcl_runtime_api::Code {
-    match code {
-        Code::Ok => tcl_runtime_api::Code::Ok,
-        Code::Error => tcl_runtime_api::Code::Error,
-        Code::Return => tcl_runtime_api::Code::Return,
-        Code::Break => tcl_runtime_api::Code::Break,
-        Code::Continue => tcl_runtime_api::Code::Continue,
-        Code::Other(value) => tcl_runtime_api::Code::Other(value),
-    }
 }
 
 // error
@@ -776,16 +765,11 @@ impl HandlerVariables {
 /// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
 /// `continue` or an integer that fits a C `int`) to its numeric code.
 fn code_word_to_int(spec: &[u8]) -> Option<i64> {
-    match spec {
-        b"ok" => Some(0),
-        b"error" => Some(1),
-        b"return" => Some(2),
-        b"break" => Some(3),
-        b"continue" => Some(4),
-        // A completion code accepts the full signed/unsigned 32-bit range (C's
-        // `Tcl_GetIntFromObj`), with `0x`/`0o`/`0b`/`0d` prefixes and a sign.
-        _ => crate::interp::parse_completion_int(spec).map(i64::from),
-    }
+    use tcl_cmd_core::return_options::ReturnOptionsProtocol;
+    ReturnOptionsProtocol::Tcl86Plus
+        .named_completion_code(spec)
+        .or_else(|| crate::interp::parse_completion_int(spec))
+        .map(i64::from)
 }
 
 /// Does `pattern` (a list) match `errorcode` (a list) as a leading sublist?
@@ -796,7 +780,10 @@ fn errorcode_prefix_match(pattern: &[u8], errorcode: &[u8]) -> bool {
         Err(_) => return false,
     };
     let ec = crate::parse::split_list(errorcode).unwrap_or_default();
-    pat.len() <= ec.len() && pat.iter().zip(ec.iter()).all(|(a, b)| a == b)
+    tcl_cmd_core::return_options::trap_prefix_matches(&pat, &ec, |left, right| {
+        Ok::<_, core::convert::Infallible>(left == right)
+    })
+    .unwrap_or_else(|never| match never {})
 }
 
 /// `try`'s handler-type words, in C table order (`TryObjCmd`'s `handlerNames`,
@@ -1148,10 +1135,9 @@ fn try_compiles_script_word(interp: &Interp, argv: &[*mut TclObj]) -> bool {
 /// `bad completion code "X": must be ok, error, return, break, continue, or an
 /// integer` — an unrecognised `on` code word.
 fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
-    let mut m = b"bad completion code \"".to_vec();
-    m.extend_from_slice(word);
-    m.extend_from_slice(b"\": must be ok, error, return, break, continue, or an integer");
-    interp.set_error(&m)
+    interp.set_error(&tcl_cmd_core::return_options::bad_completion_code_message(
+        word,
+    ))
 }
 
 /// Bind a `try` handler clause's `[resultVar ?optionsVar?]` to the body's result

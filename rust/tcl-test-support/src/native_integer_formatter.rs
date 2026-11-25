@@ -175,8 +175,7 @@ mod tests {
         let fixture =
             include_str!("../../tcl-host-c-abi/testdata/native_integer_formatter/observations.tsv");
         let mut count = 0;
-        for row in fixture.lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+        for (line, fields) in crate::fixture::tsv_rows::<9>(fixture) {
             let kind = match fields[1] {
                 "long" => NativeIntegerKind::Long,
                 "wide" => NativeIntegerKind::Wide,
@@ -210,9 +209,9 @@ mod tests {
             let after = environment.state().unwrap();
             assert_eq!(
                 before, after,
-                "native updater preserves reached thread errno: {row}"
+                "native updater preserves reached thread errno at line {line}: {fields:?}"
             );
-            assert_eq!(observed, expected, "{row}");
+            assert_eq!(observed, expected, "line {line}: {fields:?}");
             count += 1;
         }
         assert_eq!(count, 812);

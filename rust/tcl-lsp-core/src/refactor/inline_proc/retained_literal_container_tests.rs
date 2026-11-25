@@ -42,6 +42,6 @@ fn logical_inline_uses_shared_actual_word_and_expression_constructors() {
         )
         .unwrap();
         assert!(action.disabled.is_none(), "{:?}", action.disabled);
-        assert!(action.apply(source).ends_with(suffix));
+        assert!(action.try_apply(source).unwrap().ends_with(suffix));
     }
 }

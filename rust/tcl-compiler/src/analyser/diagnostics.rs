@@ -105,8 +105,6 @@ pub(in crate::analyser::diagnostics) use dataflow::{body_references_param, find_
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use helpers::find_dotted_quads;
 #[cfg(test)]
-pub(in crate::analyser::diagnostics) use security::has_redos_shape;
-#[cfg(test)]
 pub(in crate::analyser::diagnostics) use usage::{
     first_nested_expr, is_benign_unicode, is_valid_subnet_mask, looks_like_subnet_mask,
     nearest_valid_mask,

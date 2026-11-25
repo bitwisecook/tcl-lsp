@@ -48,7 +48,7 @@
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC],[sS][sS][lL][iI][cC][tT][cC][lL]}"
+    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[iI][tT][kK],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC],[sS][sS][lL][iI][cC][tT][cC][lL]}"
   ],
   "main": "./out/extension.js",
   "browser": "./out/extension.browser.js",
@@ -83,7 +83,8 @@
           ".tk",
           ".itcl",
           ".tm",
-          ".test"
+          ".test",
+          ".itk"
         ],
         "firstLine": "^#!.*\\b(?:tclsh|wish)[0-9.]*\\b",
         "configuration": "./language-configuration.json"

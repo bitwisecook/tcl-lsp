@@ -52,7 +52,7 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 | `complete` | Completion items at the cursor (variables, procs, switches, subcommands, snippets). | `source`*, `line`*, `character`*, `dialect` |
 | `goto_definition` | Definition location(s) for the symbol at the cursor. | `source`*, `line`*, `character`*, `dialect` |
 | `find_references` | All references to the symbol at the cursor (including its declaration). | `source`*, `line`*, `character`*, `dialect` |
-| `rename` | Text edits to rename the symbol at the cursor; null when not renameable. | `source`*, `line`*, `character`*, `new_name`*, `dialect` |
+| `rename` | Text edits to rename the symbol at the cursor, or a refused object with a reason. | `source`*, `line`*, `character`*, `new_name`*, `dialect` |
 | `code_actions` | Code actions (quick-fixes + refactors) for a selection range: a fix for every finding the source shows — analyser, compiler-check and optimiser rewrite alike — and for no other. | `source`*, `start_line`*, `start_character`*, `end_line`*, `end_character`*, `dialect`, `disable`, `enable` |
 | `extract_variable` | Extract a selected expression into a new `set var …` binding. | `source`*, `start_line`*, `start_character`*, `end_line`*, `end_character`*, `dialect`, `var_name` |
 | `extract_datagroup` | Extract an if/switch over literals into an iRules data-group + lookup. | `source`*, `dialect`, `line`*, `character`*, `dg_name` |
@@ -81,6 +81,11 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 `suppressed` array: every finding the policy hid, with its reason, so an
 agent can tell a clean report from one that hid something (see
 [how do I turn a diagnostic off?](../kcs-howto-suppress-diagnostics.md)).
+
+A failed tool call, such as an unknown dialect or an unreadable input file,
+sets `isError` and returns an `error` message. A valid request that cannot be
+applied, such as a refactoring with no eligible selection, returns a successful
+reply with a `refused` object containing its `reason`.
 
 ## Operational context
 

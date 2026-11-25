@@ -85,6 +85,12 @@ The F5 rows were measured on BIG-IP 21.1; the registry records each as the
 argument's integer domain (`arg_domains`). Mask the value first, for
 example `[expr {$len & 0xffff}]`.
 
+For a `class match` or `class search` equality comparison, W156 hints at
+the signed range when the group's keys are unknown. The BIG-IP configuration
+validator reports a warning when the referenced integer group supplies a key
+in the unsigned half of that field's range. For example, an 8-bit signed
+field cannot equal a configured key of 129.
+
 W156 follows the value through branches and loops, into nested expressions
 and command substitutions, and through procedure code after a call it cannot
 resolve. It does not yet look inside `oo::class` or `itcl` method bodies.

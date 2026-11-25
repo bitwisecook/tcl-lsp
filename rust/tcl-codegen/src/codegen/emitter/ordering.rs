@@ -26,6 +26,8 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::cfg::{Function as CfgFunction, Terminator};
 use tcl_compiler::expr_ast::ExprNode;
+use tcl_compiler::tcl_expr_eval::{TclValue, parse_literal_in};
+use tcl_dialect::NumberSyntax;
 
 // Block-name prefix constants
 
@@ -60,26 +62,29 @@ pub fn starts_with_any(name: &str, prefixes: &[&str]) -> bool {
 /// Returns `Some(true)`/`Some(false)` for constant conditions, `None`
 /// if the value is unknown at compile time.
 #[must_use]
-pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
-    // Only literal text is folded here. Every other node — variables, command
-    // substitutions, compiled words and structured operators — carries a runtime
-    // value or is folded by the caller, so it collapses to `None`.
-    let trimmed = match cond {
-        ExprNode::Literal { text, .. } => text.as_str(),
-        // A string operand's value only when it is fixed text.
-        ExprNode::String { text, .. } => tcl_syntax::expr::fixed_string_operand(text)?,
-        _ => return None,
+pub fn fold_const_branch(cond: &ExprNode, numbers: NumberSyntax) -> Option<bool> {
+    // Constant layout only applies to a bare literal. String operands and
+    // structured expressions keep their native evaluation and conversions.
+    let ExprNode::Literal { text, .. } = cond else {
+        return None;
     };
-    if let Ok(i) = trimmed.parse::<i64>() {
-        return Some(i != 0);
+    if matches!(numbers, NumberSyntax::Jim | NumberSyntax::Jim080)
+        && tcl_syntax::boolean::is_boolean_word(text)
+        && !tcl_syntax::boolean::is_boolean_full_word(text)
+    {
+        return None;
     }
-    if let Ok(f) = trimmed.parse::<f64>() {
-        return Some(f != 0.0);
-    }
-    match trimmed.to_lowercase().as_str() {
-        "true" | "yes" | "on" => Some(true),
-        "false" | "no" | "off" => Some(false),
-        _ => None,
+    let value = parse_literal_in(text, numbers)?;
+    match value {
+        TclValue::Float(value)
+            if value.is_nan()
+                || (numbers.double_read_rejects_range_error()
+                    && tcl_syntax::number::is_out_of_range_double(text, numbers)) =>
+        {
+            None
+        }
+        TclValue::Big(_) => None,
+        _ => Some(value.is_truthy()),
     }
 }
 
@@ -92,17 +97,23 @@ pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
 /// layout-friendly order, and unreachable blocks (dead branches from
 /// constant-folded conditions) are omitted.
 #[must_use]
-pub fn linearise(cfg: &CfgFunction) -> Vec<String> {
+pub fn linearise(cfg: &CfgFunction, numbers: NumberSyntax) -> Vec<String> {
     let mut visited: HashSet<String> = HashSet::new();
     let mut order: Vec<String> = Vec::new();
     let entry = cfg.block_name(cfg.entry).to_owned();
-    dfs(cfg, &entry, &mut visited, &mut order);
+    dfs(cfg, &entry, &mut visited, &mut order, numbers);
     order.reverse();
     reorder_bottom_tested(cfg, order)
 }
 
 /// Depth-first traversal populating `order` in post-order.
-fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut Vec<String>) {
+fn dfs(
+    cfg: &CfgFunction,
+    name: &str,
+    visited: &mut HashSet<String>,
+    order: &mut Vec<String>,
+    numbers: NumberSyntax,
+) {
     if visited.contains(name) {
         return;
     }
@@ -123,14 +134,14 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
         .flatten()
         {
             let continuation = cfg.block_name(*continuation).to_owned();
-            dfs(cfg, &continuation, visited, order);
+            dfs(cfg, &continuation, visited, order, numbers);
         }
     }
     if let Some(term) = &blk.terminator {
         match term {
             Terminator::Goto { target, .. } => {
                 let target = cfg.block_name(*target).to_owned();
-                dfs(cfg, &target, visited, order);
+                dfs(cfg, &target, visited, order, numbers);
             }
             Terminator::Branch {
                 condition,
@@ -140,24 +151,24 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
             } => {
                 let true_target = cfg.block_name(*true_target).to_owned();
                 let false_target = cfg.block_name(*false_target).to_owned();
-                match fold_const_branch(condition) {
+                match fold_const_branch(condition, numbers) {
                     Some(true) => {
                         // For loop headers, still visit the exit block
                         // so that break jumps have a valid target.
                         if starts_with_any(name, LOOP_HEADER_PREFIXES) {
-                            dfs(cfg, &false_target, visited, order);
+                            dfs(cfg, &false_target, visited, order, numbers);
                         }
-                        dfs(cfg, &true_target, visited, order);
+                        dfs(cfg, &true_target, visited, order, numbers);
                     }
                     Some(false) => {
-                        dfs(cfg, &false_target, visited, order);
+                        dfs(cfg, &false_target, visited, order, numbers);
                     }
                     None => {
                         // Visit false-target first so that in the
                         // reversed post-order the true-target (then-body)
                         // appears immediately after the condition block.
-                        dfs(cfg, &false_target, visited, order);
-                        dfs(cfg, &true_target, visited, order);
+                        dfs(cfg, &false_target, visited, order, numbers);
+                        dfs(cfg, &true_target, visited, order, numbers);
                     }
                 }
             }
@@ -426,17 +437,53 @@ mod tests {
 
     #[test]
     fn fold_const_branch_int() {
-        assert_eq!(fold_const_branch(&lit("1")), Some(true));
-        assert_eq!(fold_const_branch(&lit("0")), Some(false));
-        assert_eq!(fold_const_branch(&lit("42")), Some(true));
+        assert_eq!(
+            fold_const_branch(&lit("1"), NumberSyntax::default()),
+            Some(true)
+        );
+        assert_eq!(
+            fold_const_branch(&lit("0"), NumberSyntax::default()),
+            Some(false)
+        );
+        assert_eq!(
+            fold_const_branch(&lit("42"), NumberSyntax::default()),
+            Some(true)
+        );
     }
 
     #[test]
     fn fold_const_branch_bool_words() {
-        assert_eq!(fold_const_branch(&lit("true")), Some(true));
-        assert_eq!(fold_const_branch(&lit("false")), Some(false));
-        assert_eq!(fold_const_branch(&lit("yes")), Some(true));
-        assert_eq!(fold_const_branch(&lit("no")), Some(false));
+        assert_eq!(
+            fold_const_branch(&lit("true"), NumberSyntax::default()),
+            Some(true)
+        );
+        assert_eq!(
+            fold_const_branch(&lit("false"), NumberSyntax::default()),
+            Some(false)
+        );
+        assert_eq!(
+            fold_const_branch(&lit("yes"), NumberSyntax::default()),
+            Some(true)
+        );
+        assert_eq!(
+            fold_const_branch(&lit("no"), NumberSyntax::default()),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn fold_const_branch_uses_release_number_grammar() {
+        assert_eq!(fold_const_branch(&lit("08"), NumberSyntax::Tcl85), None);
+        assert_eq!(
+            fold_const_branch(&lit("08"), NumberSyntax::Tcl90),
+            Some(true)
+        );
+        assert_eq!(fold_const_branch(&lit("NaN"), NumberSyntax::Tcl85), None);
+        assert_eq!(fold_const_branch(&lit("1e-400"), NumberSyntax::Tcl84), None);
+        assert_eq!(
+            fold_const_branch(&lit("0x10"), NumberSyntax::Tcl85),
+            Some(true)
+        );
     }
 
     #[test]
@@ -447,7 +494,7 @@ mod tests {
             start: 0,
             end: 2,
         };
-        assert_eq!(fold_const_branch(&v), None);
+        assert_eq!(fold_const_branch(&v, NumberSyntax::default()), None);
     }
 
     #[test]
@@ -457,7 +504,7 @@ mod tests {
             left: Box::new(lit("1")),
             right: Box::new(lit("2")),
         };
-        assert_eq!(fold_const_branch(&b), None);
+        assert_eq!(fold_const_branch(&b, NumberSyntax::default()), None);
     }
 
     /// A CFG whose interner maps `names` (in order, entry first) to ids and
@@ -488,7 +535,7 @@ mod tests {
             expr: None,
             braced: false,
         });
-        assert_eq!(linearise(&cfg), vec!["entry_0"]);
+        assert_eq!(linearise(&cfg, NumberSyntax::default()), vec!["entry_0"]);
     }
 
     #[test]
@@ -532,7 +579,7 @@ mod tests {
             braced: false,
         });
 
-        let order = linearise(&cfg);
+        let order = linearise(&cfg, NumberSyntax::default());
         assert_eq!(order[0], "entry_0");
         assert_eq!(order[order.len() - 1], "join_1");
         assert!(order.contains(&"then_1".to_owned()));
@@ -575,7 +622,7 @@ mod tests {
             braced: false,
         });
 
-        let order = linearise(&cfg);
+        let order = linearise(&cfg, NumberSyntax::default());
         assert!(!order.contains(&"else_1".to_owned()));
         assert!(order.contains(&"then_1".to_owned()));
     }

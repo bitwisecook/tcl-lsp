@@ -207,53 +207,7 @@ use crate::namespace::{CommandBinding, Namespaces, NsId, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse;
 
-/// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary
-/// user codes from `return -code N` / `try on N`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Code {
-    Ok,
-    Error,
-    Return,
-    Break,
-    Continue,
-    /// A non-standard completion code (any `int` other than 0..4), produced by
-    /// `return -code N`. It propagates like an exception until a `catch`/`try`
-    /// reports it; it is never `0..=4` (those canonicalise to the named variants
-    /// via [`Code::from_int`]).
-    Other(i32),
-}
-
-impl Code {
-    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4, or the
-    /// raw value for [`Code::Other`]) — what `catch` returns and `return -code` /
-    /// the `-code` options-dict entry use.
-    #[must_use]
-    pub(crate) fn as_int(self) -> i64 {
-        match self {
-            Code::Ok => 0,
-            Code::Error => 1,
-            Code::Return => 2,
-            Code::Break => 3,
-            Code::Continue => 4,
-            Code::Other(n) => i64::from(n),
-        }
-    }
-
-    /// Map an integer completion code to a [`Code`]: `0..=4` to the named
-    /// variants, anything else to [`Code::Other`] (`TclProcessReturn` /
-    /// `TclGetCompletionCodeFromObj`).
-    #[must_use]
-    pub(crate) fn from_int(n: i32) -> Code {
-        match n {
-            0 => Code::Ok,
-            1 => Code::Error,
-            2 => Code::Return,
-            3 => Code::Break,
-            4 => Code::Continue,
-            other => Code::Other(other),
-        }
-    }
-}
+pub use tcl_core_types::Code;
 
 /// Parse a completion-code integer the way `TclGetIntFromObj` does: the emulated
 /// release's integer grammar (an optional sign, the radix prefixes that release
@@ -270,25 +224,10 @@ impl Code {
 /// `int` — `Tcl_GetIntFromObj` rejects all three.
 #[must_use]
 pub(crate) fn parse_completion_int(b: &[u8]) -> Option<i32> {
-    use tcl_syntax::number::{Number, ParseFlags};
-
-    let s = core::str::from_utf8(b).ok()?.trim();
-    let flags = ParseFlags {
-        integer_only: true,
-        ..ParseFlags::default()
-    };
-    // The facility consumes the sign itself, so hand it the signed text whole —
-    // stripping one here and letting it read another would accept `--5`.
-    let value = match tcl_syntax::number::parse_whole_with(s, flags)? {
-        // Parsed wide so `i32::MIN` and the unsigned half are both reachable;
-        // the range check below is what makes this an `int`.
-        Number::Int(v) => v,
-        Number::Big { .. } | Number::Double(_) | Number::Nan { .. } => return None,
-    };
-    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
-        return None;
-    }
-    Some(value as i32)
+    tcl_cmd_core::return_options::completion_code_integer(
+        core::str::from_utf8(b).ok()?.trim(),
+        tcl_syntax::number::Numbers::Runtime,
+    )
 }
 
 /// A built-in command handler. Receives the full argv (`argv[0]` is the command

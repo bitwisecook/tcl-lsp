@@ -442,6 +442,7 @@ pub(in super::super) fn cross_file_arity_diagnostics(
         }
         out.push(tcl_compiler::analyser::Diagnostic {
             subject: None,
+            signed_data_group_comparison: None,
             code,
             span: inv.range,
             message,

@@ -1291,21 +1291,17 @@ fn scope_route(
     }
     if code == Code::Return {
         Route::Return(ReturnCompletionRoute {
-            eventual_code: tcl_registry::CompletionCode::from_int(
-                interp.pending_return_code().as_int() as i32,
-            ),
+            eventual_code: interp.pending_return_code(),
             remaining_level: interp.pending_return_level() as u64,
         })
     } else {
-        Route::Tcl(tcl_registry::CompletionCode::from_int(code.as_int() as i32))
+        Route::Tcl(code)
     }
 }
 
 fn scope_writeback_failure(plan: &tcl_registry::dictionary_scope::DictionaryScopePlan) -> Code {
     match plan.writeback_failure_route() {
-        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(code) => {
-            Code::from_int(code.as_int() as i32)
-        }
+        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(code) => code,
         _ => unreachable!("authored writeback failure route is exact"),
     }
 }
@@ -1322,13 +1318,10 @@ fn finish_scope_completion(
             if original == Code::Return {
                 interp.set_return_state(0, Code::Ok);
             }
-            Code::from_int(code.as_int() as i32)
+            code
         }
         Route::Return(returned) => {
-            interp.set_return_state(
-                returned.remaining_level as usize,
-                Code::from_int(returned.eventual_code.as_int() as i32),
-            );
+            interp.set_return_state(returned.remaining_level as usize, returned.eventual_code);
             Code::Return
         }
         _ => original,

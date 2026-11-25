@@ -33,7 +33,7 @@ fn logical_inline_uses_actual_source_call_header_after_reporting_maps_are_remove
     )
     .unwrap();
     assert!(action.disabled.is_none(), "{:?}", action.disabled);
-    assert!(action.apply(source).ends_with("expr {2 + 1}"));
+    assert!(action.try_apply(source).unwrap().ends_with("expr {2 + 1}"));
     assert!(
         inline_proc(
             &format!("{source} "),

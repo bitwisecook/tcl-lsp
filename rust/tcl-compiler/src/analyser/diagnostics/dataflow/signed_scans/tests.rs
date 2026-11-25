@@ -503,3 +503,26 @@ fn comparisons_at_the_signed_bound_are_constant() {
         }
     }
 }
+
+#[test]
+fn data_group_equality_on_signed_scan_hints_with_or_without_terminator() {
+    use crate::analyser::types::Severity;
+
+    for comparison in [
+        "class match $key equals int_dg",
+        "class match -- $key equals int_dg",
+        "class search int_dg equals $key",
+        "set found [class match -- $key equals int_dg]",
+        "if {[class search -- int_dg equals $key]} { log local0. found }",
+    ] {
+        let source =
+            format!("when CLIENT_DATA {{\n  binary scan [TCP::payload] c key\n  {comparison}\n}}");
+        let diagnostics = w156("f5-irules", &source);
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("{comparison}: {diagnostics:?}");
+        };
+        assert_eq!(diagnostic.severity, Severity::Hint, "{comparison}");
+        assert_eq!(&source[diagnostic.span.as_range()], "$key", "{comparison}");
+        assert!(diagnostic.message.contains("int_dg"), "{comparison}");
+    }
+}

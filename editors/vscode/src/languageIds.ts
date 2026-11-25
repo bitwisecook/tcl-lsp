@@ -114,6 +114,7 @@ export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {
   ".itcl": "tcl",
   ".tm": "tcl",
   ".test": "tcl",
+  ".itk": "tcl",
   ".exp": "tcl-expect",
   ".expect": "tcl-expect",
   ".scf": "tcl-bigip",

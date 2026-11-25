@@ -75,7 +75,10 @@ fn original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_
     let index = LineIndex::new(source);
     let action = datagroup_advice(source, 0, "answers", &analysis, &index)
         .expect("actual authored output and original conditional arm source");
-    assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+    assert_eq!(
+        action.try_apply(source).unwrap(),
+        "set answer [class lookup $x answers]"
+    );
     assert_eq!(action.data_group.as_ref().unwrap().records.len(), 2);
     let older = datagroup_analysis(source, "tcl8.4", registry.clone());
     assert!(datagroup_advice(source, 0, "answers", &older, &index).is_none());
@@ -156,7 +159,10 @@ fn original_refactor_requests_do_not_replace_native_or_vendor_policy_with_irules
     for dialect in ["tcl8.6", "tcl9.0", "jimtcl", "f5-irules", "f5-tmsh"] {
         let args = json!({"source":source,"dialect":dialect,"line":0,"character":0,
                 "start_line":0,"start_character":0,"end_line":0,"end_character":0});
-        assert_eq!(extract_datagroup(&args), Value::Null, "{dialect}");
+        assert!(
+            extract_datagroup(&args)["refused"]["reason"].is_string(),
+            "{dialect}"
+        );
         let candidates = refactor(&args);
         assert!(
             candidates["available"]
@@ -192,7 +198,7 @@ fn original_code_action_responses_retain_disabled_rewrite_obligations() {
         .expect("selected Native structure retains its rewrite obligation");
     assert!(action["edits"].is_null());
     assert!(
-        action["disabled"]
+        action["refused"]["reason"]
             .as_str()
             .unwrap()
             .starts_with("missing-control-flow-equivalence:")
@@ -206,9 +212,6 @@ fn original_refactor_requests_use_the_selected_analysis_for_shadowed_heads() {
     let source = "proc expr {value} {return $value}\nexpr $x + 1\n";
     let args = json!({"source":source,"dialect":"tcl8.6","line":1,"character":2});
     let result = brace_expr(&args);
-    assert!(
-        result.is_null() || result.get("disabled").is_some(),
-        "{result}"
-    );
+    assert!(result["refused"]["reason"].is_string(), "{result}");
     assert_eq!(arg_str(&args, "dialect"), "tcl8.6");
 }

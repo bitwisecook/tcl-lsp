@@ -18,7 +18,10 @@
 
 //! The tools that answer what an editor asks: command and event lookups, hover, completion, definition, references and rename.
 
-use super::{IRULES_DIALECT, analyse, arg_str, arg_u32, lsp_range_json, registry, resolve_dialect};
+use super::{
+    IRULES_DIALECT, analyse, analysis_source, arg_str, arg_u32, lsp_range_json, refused, registry,
+    resolve_dialect,
+};
 use serde_json::{Value, json};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
@@ -106,7 +109,7 @@ pub(super) fn command_info(args: &Value) -> Value {
 pub(super) const SOURCE_URI: &str = "file:///source.tcl";
 
 pub(super) fn hover(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let context = analysis
@@ -122,12 +125,12 @@ pub(super) fn hover(args: &Value) -> Value {
         commands,
     ) {
         Some(h) => json!({ "contents": h.value }),
-        None => Value::Null,
+        None => refused("No hover information at the requested position"),
     }
 }
 
 pub(super) fn complete(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let context = analysis
@@ -175,7 +178,7 @@ fn completion_kind_str(k: tcl_lsp_core::completion::CompletionKind) -> &'static 
 }
 
 pub(super) fn goto_definition(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let ranges = tcl_lsp_core::definition::definition(
@@ -192,7 +195,7 @@ pub(super) fn goto_definition(args: &Value) -> Value {
 }
 
 pub(super) fn find_references(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let ranges = tcl_lsp_core::references::references(
@@ -211,7 +214,7 @@ pub(super) fn find_references(args: &Value) -> Value {
 }
 
 pub(super) fn rename(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let context = analysis
@@ -230,7 +233,7 @@ pub(super) fn rename(args: &Value) -> Value {
     );
     let edits = match outcome {
         Ok(edits) => edits,
-        Err(refusal) => return json!({ "refused": { "reason": refusal.reason } }),
+        Err(refusal) => return refused(refusal.reason),
     };
     let edits_json: Vec<Value> = edits
         .iter()

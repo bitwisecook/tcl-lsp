@@ -112,13 +112,13 @@ Anything that defines Tcl semantics stays in-house, because it must match the C 
 
 Order of adoption by payoff: `imbl` and `slotmap`; `cargo-deny` wrappers; `insta` with `libtest-mimic` for the harness; a time-boxed `ascent` trial; `rowan`/`cstree` only if the structured-words work shows the home-grown tree is the bottleneck. Each candidate is checked against the `deny.toml` licence allowlist and the native and WASM builds when it is added. All are MIT, Apache-2.0, Zlib or similar except `imbl` and `rpds`, which are MPL-2.0 (file-level copyleft, usable from a permissive project and already allowed by `deny.toml`).
 
-### Hand-rolled generic code to replace
+### Generic code replacements
 
 Found by searching for implementation signatures (hash constants, CRC tables, alphabets, escape writers) outside the Tcl-semantic owners.
 
 | Code | What it is | Replacement | Condition |
 | --- | --- | --- | --- |
-| `tcl-bigip-io/src/aes_cfb.rs` | hand-written AES and OpenPGP CFB | RustCrypto `aes` (already used elsewhere) and `cfb-mode` | security-sensitive: replace first |
+| `tcl-bigip-io/src/openpgp.rs` | AES-CFB decryption | RustCrypto `aes` and `cfb-mode` | migrated in phase 1 with known-answer tests for all key widths and partial blocks |
 | `tcl-bigip-io/src/openpgp.rs` | dependency-free OpenPGP symmetric decryptor with its own inflate | `pgp` (rPGP, MIT/Apache) with `flate2` | not `sequoia-openpgp` (LGPL) |
 | `tcl-lexer/src/line_index.rs`, UTF-16 helpers in `tcl-lsp-core/src/definition.rs` | offset to line and UTF-16 column | `line-index` | becomes the source-map structure |
 | `tcl-lsp-server/src/uri_norm.rs`, percent encoding in `tcl-lsp-core/src/document_links.rs` and `f5-cli` | URI normalisation and percent encoding | `fluent-uri` or `url`, `percent-encoding` | editor URI round-trip tests |
@@ -126,8 +126,8 @@ Found by searching for implementation signatures (hash constants, CRC tables, al
 | `tcl-registry/src/snapshot.rs` | hand-written JSON escaping | `serde_json` | byte-identical snapshot output |
 | `tcl-cmd-core/src/base32.rs` | RFC 4648 base32 as tcllib reads it | `data-encoding` | tcllib oracle: padding and error cases |
 | `tcl::idna` punycode (`tcl-registry/src/commands/tcl/tcl_idna.rs`) | RFC 3492 punycode | `idna`'s punycode module | Tcl 9.0/9.1 oracle |
-| CRC-32 and Adler-32 in `runtime/rust/src/cmd_zlib.rs` | checksums (DEFLATE already uses `flate2`) | `crc32fast`, `adler2` | `zlib crc32`/`adler32` oracle incl. start values |
-| `tcl-compiler/src/text.rs` | text similarity for suggestions | `strsim` | same suggestion order |
+| CRC-32 and Adler-32 in `runtime/rust/src/cmd_zlib.rs` | checksums (DEFLATE uses `flate2`) | `crc32fast`, `adler2` | migrated in phase 1 and checked against Tcl initial-value and empty-input cases |
+| `tcl-compiler/src/text.rs` | text similarity for suggestions | `strsim` | migrated in phase 1 with agreement on transpositions and Unicode |
 | `tcl-userdirs` | per-user directory conventions | `etcetera` or `dirs` | only if their conventions match ours |
 | DOT writers (`tcl-bigip/src/graph.rs` and other graph output) | Graphviz text | `petgraph::dot` once `petgraph` is adopted | diagram goldens |
 

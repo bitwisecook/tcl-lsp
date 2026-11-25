@@ -197,9 +197,111 @@ fn original_patterns(original: &OriginalDiagnosticInvocation) -> Vec<OriginalPat
     patterns
 }
 
-fn pattern_diagnostics(original: &OriginalDiagnosticInvocation) -> Vec<Diagnostic> {
+fn has_redos_shape(
+    roles: &[tcl_regex::PatternComponent],
+    unit_at: impl Fn(usize) -> Option<u32>,
+) -> bool {
+    use tcl_regex::PatternRole;
+    if !roles
+        .iter()
+        .any(|part| part.role == PatternRole::Backreference)
+    {
+        return false;
+    }
+    let repeats = |component: &tcl_regex::PatternComponent| {
+        component.role == PatternRole::Quantifier
+            && unit_at(component.range.start)
+                .is_some_and(|unit| [u32::from(b'+'), u32::from(b'*')].contains(&unit))
+    };
+    let mut groups = Vec::<bool>::new();
+    for (index, component) in roles.iter().enumerate() {
+        match component.role {
+            PatternRole::CaptureOpen
+            | PatternRole::NoncaptureOpen
+            | PatternRole::PositiveLookahead
+            | PatternRole::NegativeLookahead => groups.push(false),
+            PatternRole::GroupClose => {
+                let risky = groups.pop().unwrap_or_default();
+                if risky
+                    && roles.get(index + 1).is_some_and(|next| {
+                        next.range.start == component.range.end && repeats(next)
+                    })
+                {
+                    return true;
+                }
+            }
+            PatternRole::Alternation | PatternRole::Quantifier
+                if component.role == PatternRole::Alternation || repeats(component) =>
+            {
+                if let Some(group) = groups.last_mut() {
+                    *group = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn native_redos_shape(
+    pattern: &str,
+    profile: &tcl_dialect::DialectProfile,
+    mut flags: tcl_cmd_core::regex::RegexFlags,
+) -> bool {
+    use tcl_dialect::{TclVersion, model::Family};
+    use tcl_syntax::native_regex::NativeRegexpRecipe;
+    use tcl_syntax::native_tcl_utf::NativeCPlainChar;
+
+    if !pattern.contains('\\') {
+        return false;
+    }
+    match profile.runtime_core_family() {
+        Some(Family::Jim) => tcl_regex::jim::Regex::components(
+            pattern.as_bytes(),
+            tcl_regex::cmd_core::jim_flags(flags),
+        )
+        .is_ok_and(|roles| {
+            has_redos_shape(&roles, |at| {
+                pattern.as_bytes().get(at).copied().map(u32::from)
+            })
+        }),
+        Some(Family::Tcl) => {
+            let versions = profile.runtime_version().map(|version| [version]);
+            let versions = versions
+                .as_ref()
+                .map_or(&TclVersion::ALL[..], |only| &only[..]);
+            versions.iter().all(|&version| {
+                flags.z_anchor = version.regex_z_anchor();
+                let recipe = NativeRegexpRecipe::for_version(version);
+                let units = recipe.pattern_units(pattern.as_bytes(), NativeCPlainChar::Signed);
+                tcl_regex::are_components(&units, tcl_regex::cmd_core::are_flags(flags))
+                    .is_ok_and(|roles| has_redos_shape(&roles, |at| units.get(at).copied()))
+            })
+        }
+        _ => false,
+    }
+}
+
+fn pattern_diagnostics(
+    original: &OriginalDiagnosticInvocation,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<Diagnostic> {
+    let flags = original
+        .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
+        .flatten()
+        .map_or_else(tcl_cmd_core::regex::RegexFlags::default, |scan| {
+            let mut flags = tcl_cmd_core::regex::RegexFlags::default();
+            for option in scan
+                .options
+                .iter()
+                .filter(|option| option.available && option.values.is_some())
+            {
+                flags.apply_compile_option(option.option.name);
+            }
+            flags
+        });
     original_patterns(original).into_iter().filter_map(|pattern| {
-        if !super::has_redos_shape(&pattern.value) { return None; }
+        if !native_redos_shape(&pattern.value, profile, flags) { return None; }
         let subject = if pattern.path.is_empty() {
             original.subject(RegistrySourceDiagnosticKind::PatternShape, Some(pattern.argument))
         } else {
@@ -207,7 +309,7 @@ fn pattern_diagnostics(original: &OriginalDiagnosticInvocation) -> Vec<Diagnosti
         }?;
         let DiagnosticSubject::RegistrySource(subject) = subject else { return None };
         Some(Diagnostic::new(DiagCode::W303, subject.span(),
-            "Regular expression may be vulnerable to catastrophic backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential matching time on crafted input.".to_owned(),
+            "A regular expression with repeated alternatives or nested repetition and a backreference can take substantially longer to reject some inputs (backtracking).".to_owned(),
             Severity::Warning).with_subject(DiagnosticSubject::RegistrySource(subject)))
     }).collect()
 }
@@ -223,7 +325,7 @@ impl Analyser {
         if original.matches_analysis(&self.result, &self.source) {
             self.result
                 .diagnostics
-                .extend(pattern_diagnostics(original));
+                .extend(pattern_diagnostics(original, self.profile));
         }
     }
 
@@ -246,7 +348,7 @@ impl Analyser {
                 if subject.kind() == RegistrySourceDiagnosticKind::PatternShape && subject.words() == written.words())));
         self.result
             .diagnostics
-            .extend(pattern_diagnostics(projected));
+            .extend(pattern_diagnostics(projected, self.profile));
     }
 }
 
@@ -343,46 +445,46 @@ mod tests {
         let input = current_input();
         for (source, argument, written, path, span) in [
             (
-                "interp alias {} rx {} regexp -nocase {(é+)+}; rx literal",
+                "interp alias {} rx {} regexp -nocase {^((é+)+)\\1$}; rx literal",
                 1,
                 None,
                 vec![],
-                "{(é+)+}",
+                "{^((é+)+)\\1$}",
             ),
             (
-                "interp alias {} rx {} regexp -nocase; rename rx moved; moved {(é+)+} literal",
+                "interp alias {} rx {} regexp -nocase; rename rx moved; moved {^((é+)+)\\1$} literal",
                 1,
                 Some(0),
                 vec![],
-                "{(é+)+}",
+                "{^((é+)+)\\1$}",
             ),
             (
-                "rename regexp Held; Held \"(é+)+\" literal",
+                "rename regexp Held; Held \"^((é+)+)\\\\1$\" literal",
                 0,
                 Some(0),
                 vec![],
-                "\"(é+)+\"",
+                "\"^((é+)+)\\\\1$\"",
             ),
             (
-                "interp alias {} choose {} switch -regexp; choose $s {(é+)+ {BODY} default {OTHER}}",
+                "interp alias {} choose {} switch -regexp; choose $s {^((é+)+)\\\\1$ {BODY} default {OTHER}}",
                 2,
                 Some(1),
                 vec![0],
-                "(é+)+",
+                "^((é+)+)\\\\1$",
             ),
             (
-                "interp alias {} choose {} switch -regexp literal {(é+)+ {BODY}}; choose",
+                "interp alias {} choose {} switch -regexp literal {^((é+)+)\\\\1$ {BODY}}; choose",
                 2,
                 None,
                 vec![0],
-                "(é+)+",
+                "^((é+)+)\\\\1$",
             ),
             (
-                "switch -regexp $s {(a+)+ {FIRST} (é+)+ {SECOND} default {OTHER}}",
+                "switch -regexp $s {^((a+)+)\\\\1$ {FIRST} ^((é+)+)\\\\1$ {SECOND} default {OTHER}}",
                 2,
                 Some(2),
                 vec![0],
-                "(a+)+",
+                "^((a+)+)\\\\1$",
             ),
         ] {
             let analyser = analyse(source, &input);
@@ -407,7 +509,7 @@ mod tests {
                     panic!("second field")
                 };
                 assert_eq!(second.list_element_path(), &[2]);
-                assert_eq!(&source[second.span().as_range()], "(é+)+");
+                assert_eq!(&source[second.span().as_range()], "^((é+)+)\\\\1$");
             }
         }
     }
@@ -430,7 +532,7 @@ mod tests {
                 .with_command_store(Arc::clone(current.commands())),
         );
         assert!(Arc::ptr_eq(current.commands(), older.commands()));
-        let source = "pattern_current {(a+)+} literal";
+        let source = "pattern_current {^((a+)+)\\1$} literal";
         assert_eq!(
             findings(&analyse(source, &input(Arc::clone(&current))).result).len(),
             1
@@ -441,10 +543,10 @@ mod tests {
         );
         let current = input(current);
         for source in [
-            "regsub -all {(a+)+} literal replacement out",
-            "lsearch -regexp $items {(a+)+}",
-            "switch -regexp $s {(a+)+} $body default $other",
-            "switch -reg $s {(a+)+ {BODY}}",
+            "regsub -all {^((a+)+)\\1$} literal replacement out",
+            "lsearch -regexp $items {^((a+)+)\\1$}",
+            "switch -regexp $s {^((a+)+)\\1$} $body default $other",
+            "switch -reg $s {^((a+)+)\\\\1$ {BODY}}",
         ] {
             assert_eq!(
                 findings(&analyse(source, &current).result).len(),
@@ -453,17 +555,17 @@ mod tests {
             );
         }
         for source in [
-            "proc regexp args {return CUSTOM}; regexp {(a+)+} literal",
-            "namespace eval custom {proc regexp args {return CUSTOM}}; custom::regexp {(a+)+} literal",
-            "interp alias {} rx {} regexp; rename regexp Held; rx {(a+)+} literal",
-            "interp alias {} rx {} regexp; rename regexp {}; rx {(a+)+} literal",
-            "regexp $option {(a+)+} literal",
-            "regexp {*}$options {(a+)+} literal",
-            "switch $option $s {(a+)+ {BODY}}",
-            "switch -glob $s {(a+)+ {BODY}}",
-            "switch -exact $s {(a+)+ {BODY}}",
-            "string match {(a+)+} literal",
-            "lsearch $items {(a+)+}",
+            "proc regexp args {return CUSTOM}; regexp {^((a+)+)\\1$} literal",
+            "namespace eval custom {proc regexp args {return CUSTOM}}; custom::regexp {^((a+)+)\\1$} literal",
+            "interp alias {} rx {} regexp; rename regexp Held; rx {^((a+)+)\\1$} literal",
+            "interp alias {} rx {} regexp; rename regexp {}; rx {^((a+)+)\\1$} literal",
+            "regexp $option {^((a+)+)\\1$} literal",
+            "regexp {*}$options {^((a+)+)\\1$} literal",
+            "switch $option $s {^((a+)+)\\\\1$ {BODY}}",
+            "switch -glob $s {^((a+)+)\\\\1$ {BODY}}",
+            "switch -exact $s {^((a+)+)\\\\1$ {BODY}}",
+            "string match {^((a+)+)\\1$} literal",
+            "lsearch $items {^((a+)+)\\1$}",
         ] {
             assert!(
                 findings(&analyse(source, &current).result).is_empty(),
@@ -478,12 +580,12 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = current_input();
         let source =
-            r"switch -regexp $s {\(é+\)+ {BODY} # {COMMENT_PATTERN} ; {SEPARATOR_PATTERN}}";
+            r"switch -regexp $s {\^((é+)+)\\1$ {BODY} # {COMMENT_PATTERN} ; {SEPARATOR_PATTERN}}";
         let analyser = analyse(source, &input);
         let found = findings(&analyser.result);
         assert_eq!(found.len(), 1);
-        assert_eq!(&source[found[0].span.as_range()], r"\(é+\)+");
-        let malformed = "switch -regexp $s {(é+)+ \"unterminated}";
+        assert_eq!(&source[found[0].span.as_range()], r"\^((é+)+)\\1$");
+        let malformed = "switch -regexp $s {^((é+)+)\\\\1$ \"unterminated}";
         assert_eq!(
             findings(&analyse(malformed, &input).result),
             [] as [&crate::analyser::types::Diagnostic; 0]
@@ -494,14 +596,14 @@ mod tests {
         assert_eq!(findings(&lenient_result.result).len(), 1);
         assert_eq!(
             &malformed[findings(&lenient_result.result)[0].span.as_range()],
-            "(é+)+"
+            "^((é+)+)\\\\1$"
         );
         // A computed clause list retains a value but cannot acquire field spans.
         let source = "switch -regexp $s $clauses";
         let analyser = analyse(source, &input);
         let written = original_at(&analyser, source, source);
         let projected = written
-            .with_supplemental_literals(&[(2, "(a+)+ {BODY}".to_owned())])
+            .with_supplemental_literals(&[(2, "^((a+)+)\\\\1$ {BODY}".to_owned())])
             .unwrap();
         assert!(case_patterns(&projected).is_none());
         assert!(
@@ -517,10 +619,10 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = current_input();
         for source in [
-            "proc f {} {set p {(a+)+}; regexp $p literal}",
-            "interp alias {} store {} set; proc f {} {store p {(a+)+}; regexp $p literal}",
-            "proc f {} {set {$p} {(a+)+}; regexp ${$p} literal}",
-            "proc f {} {set {p(open} {(a+)+}; regexp ${p(open} literal}",
+            "proc f {} {set p {^((a+)+)\\1$}; regexp $p literal}",
+            "interp alias {} store {} set; proc f {} {store p {^((a+)+)\\1$}; regexp $p literal}",
+            "proc f {} {set {$p} {^((a+)+)\\1$}; regexp ${$p} literal}",
+            "proc f {} {set {p(open} {^((a+)+)\\1$}; regexp ${p(open} literal}",
         ] {
             let unit = cu(source, &input);
             assert!(unit.function("::f").is_some(), "genuine source procedure");
@@ -542,20 +644,23 @@ mod tests {
             let Some(DiagnosticSubject::RegistrySource(subject)) = found[0].subject() else {
                 panic!("proven original pattern")
             };
-            assert_eq!(subject.supplemental_literals(), &[(0, "(a+)+".to_owned())]);
+            assert_eq!(
+                subject.supplemental_literals(),
+                &[(0, "^((a+)+)\\1$".to_owned())]
+            );
             assert_eq!(subject.list_element_path(), [] as [usize; 0]);
         }
         for source in [
             "proc f {p} {regexp $p literal}",
-            "proc f {} {set p {(a+)+}; set p safe; regexp $p literal}",
-            "proc set args {return CUSTOM}; proc f {} {set p {(a+)+}; regexp $p literal}",
+            "proc f {} {set p {^((a+)+)\\1$}; set p safe; regexp $p literal}",
+            "proc set args {return CUSTOM}; proc f {} {set p {^((a+)+)\\1$}; regexp $p literal}",
         ] {
             assert!(
                 findings(&analyse(source, &input).result).is_empty(),
                 "{source}"
             );
         }
-        let source = "proc f {} {set p {(a+)+}; regexp $p literal}";
+        let source = "proc f {} {set p {^((a+)+)\\1$}; regexp $p literal}";
         let unit = cu(source, &input);
         for axis in 0..5 {
             let mut changed = unit.clone();
@@ -600,7 +705,7 @@ mod tests {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = current_input();
-        let source = "proc f {s} {set mode -regexp; switch $mode $s {(é+)+ {BODY}}}";
+        let source = "proc f {s} {set mode -regexp; switch $mode $s {^((é+)+)\\\\1$ {BODY}}}";
         let unit = cu(source, &input);
         assert!(unit.function("::f").is_some());
         let mut analyser = analyse(source, &input);
@@ -608,14 +713,14 @@ mod tests {
             .result
             .diagnostics
             .retain(|finding| finding.code != DiagCode::W303);
-        let call = "switch $mode $s {(é+)+ {BODY}}";
+        let call = "switch $mode $s {^((é+)+)\\\\1$ {BODY}}";
         let original = original_at(&analyser, source, call);
         assert!(original_patterns(&original).is_empty());
         queue_written(&mut analyser, source, call);
         analyser.emit_proven_word_diagnostics(&unit);
         let found = findings(&analyser.result);
         assert_eq!(found.len(), 1);
-        assert_eq!(&source[found[0].span.as_range()], "(é+)+");
+        assert_eq!(&source[found[0].span.as_range()], "^((é+)+)\\\\1$");
         let Some(DiagnosticSubject::RegistrySource(subject)) = found[0].subject() else {
             panic!("selected clause")
         };
@@ -631,14 +736,14 @@ mod tests {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = current_input();
-        let source = "regexp {(a+)+} literal";
+        let source = "regexp {^((a+)+)\\1$} literal";
         let original = original_at(&analyse(source, &input), source, source);
         for axis in 0..5 {
             let mut analyser = analyse(source, &input);
             analyser.result.diagnostics.clear();
             match axis {
                 0 => analyser.result.resolved_input = None,
-                1 => analyser.source = "regexp {(b+)+} literal".to_owned().into(),
+                1 => analyser.source = "regexp {^((b+)+)\\1$} literal".to_owned().into(),
                 2 => {
                     analyser.result.resolved_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl9.0")
@@ -666,9 +771,9 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = current_input();
         for source in [
-            "# Unicode prefix é\nproc f {} {set p {(a+)+}; regexp $p literal}",
-            "interp alias {} rx {} regexp -nocase; proc f {} {rx {(é+)+} literal}",
-            "proc f {s} {switch -regexp $s {(é+)+ {BODY} default {OTHER}}}",
+            "# Unicode prefix é\nproc f {} {set p {^((a+)+)\\1$}; regexp $p literal}",
+            "interp alias {} rx {} regexp -nocase; proc f {} {rx {^((é+)+)\\1$} literal}",
+            "proc f {s} {switch -regexp $s {^((é+)+)\\\\1$ {BODY} default {OTHER}}}",
         ] {
             let whole = analyse(source, &input);
             let mut item = Analyser::new().with_resolved_input(input.clone());

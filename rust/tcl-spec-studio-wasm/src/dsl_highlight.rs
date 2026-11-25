@@ -346,8 +346,7 @@ mod tests {
 
     #[test]
     fn top_level_and_nested_statement_heads_are_command_words() {
-        let src =
-            "speclib mylib 1.0 {\n\ncommand foo {\n    arity 1..\n    traits {CSE_CANDIDATE}\n}\n\n}\n";
+        let src = "speclib mylib 1.0 {\n\ncommand foo {\n    arity 1..\n    traits {CSE_CANDIDATE}\n}\n\n}\n";
         let cs = classes(src);
         assert!(cs.contains(&("command-word", "speclib".to_owned())));
         assert!(cs.contains(&("command-word", "command".to_owned())));

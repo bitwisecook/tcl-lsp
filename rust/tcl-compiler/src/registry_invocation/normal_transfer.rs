@@ -318,6 +318,38 @@ impl NormalTransferInvocation {
         })
     }
 
+    /// A written value receiver whose contents are proved absent before the
+    /// required read. Existence probes have a different result contract.
+    pub(crate) fn missing_value_read_argument(
+        &self,
+        state: &crate::var_resolve::ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Option<(usize, tcl_core_types::NameBytes)> {
+        use tcl_registry::native_result::{NativeResultSelection, VariableResultPhase};
+        let contract = self.invocation.facts.native_result?;
+        let NativeResultSelection::VariableValue {
+            variable_at,
+            phase: VariableResultPhase::AfterRead,
+        } = self.with_arguments(|arguments| {
+            contract.select(arguments, self.invocation.facts.argument_offset)
+        })
+        else {
+            return None;
+        };
+        let origin = self.written_argument(variable_at)?;
+        let place = self.original_operands.as_ref()?.access(
+            variable_at,
+            state,
+            registry,
+            tcl_registry::TraceOperation::Read,
+            false,
+        );
+        state
+            .read_is_definitely_missing(&place, registry)
+            .then_some(())?;
+        Some((origin, place.cell?.name))
+    }
+
     /// Bound contents changes, including destruction; no runtime dispatch licence.
     #[must_use]
     pub fn mutation_places(

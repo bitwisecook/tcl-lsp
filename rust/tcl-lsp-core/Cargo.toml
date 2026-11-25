@@ -37,6 +37,7 @@ transport-fixtures = []
 
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-platform = { path = "../tcl-platform" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }

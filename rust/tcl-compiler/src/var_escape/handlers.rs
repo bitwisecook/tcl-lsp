@@ -276,7 +276,11 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         state.record_unbounded_upvar();
         return;
     }
-    for idx in upvar_local_declaration_indices("upvar", args) {
+    for idx in upvar_local_declaration_indices(
+        crate::var_escape::helpers::default_registry(),
+        "upvar",
+        args,
+    ) {
         if let Some(name) = args.get(idx) {
             state.escape_with_reason(
                 name,
@@ -309,9 +313,12 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
 }
 
 /// Escape every var named in `global a b c`.
-pub fn handle_global(args: &[String], state: &mut EscapeState) {
-    let owned: Vec<String> = args.to_vec();
-    for idx in global_declaration_indices(&owned) {
+pub fn handle_global(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+    state: &mut EscapeState,
+) {
+    for idx in global_declaration_indices(registry, args) {
         if let Some(name) = args.get(idx) {
             state.escape(name);
         }
@@ -319,9 +326,12 @@ pub fn handle_global(args: &[String], state: &mut EscapeState) {
 }
 
 /// Escape every var declared by `variable name ?value? ...`.
-pub fn handle_variable(args: &[String], state: &mut EscapeState) {
-    let owned: Vec<String> = args.to_vec();
-    for idx in variable_declaration_indices(&owned) {
+pub fn handle_variable(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+    state: &mut EscapeState,
+) {
+    for idx in variable_declaration_indices(registry, args) {
         if let Some(name) = args.get(idx) {
             state.escape(name);
         }
@@ -330,15 +340,18 @@ pub fn handle_variable(args: &[String], state: &mut EscapeState) {
 
 /// Handle the `namespace` compound command for escape purposes.
 /// Currently only `namespace upvar ns src dst ...` matters.
-pub fn handle_namespace_call(args: &[String], state: &mut EscapeState) {
+pub fn handle_namespace_call(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+    state: &mut EscapeState,
+) {
     let Some(sub) = args.first() else {
         return;
     };
     if sub != "upvar" {
         return;
     }
-    let owned: Vec<String> = args.to_vec();
-    for idx in upvar_local_declaration_indices("namespace", &owned) {
+    for idx in upvar_local_declaration_indices(registry, "namespace", args) {
         if let Some(name) = args.get(idx) {
             state.escape(name);
         }
@@ -502,7 +515,11 @@ mod tests {
     #[test]
     fn global_escapes_named_vars() {
         let mut s = EscapeState::default();
-        handle_global(&args_of(&["a", "b", "c"]), &mut s);
+        handle_global(
+            crate::var_escape::helpers::default_registry(),
+            &args_of(&["a", "b", "c"]),
+            &mut s,
+        );
         assert!(s.is_frame_helper("a"));
         assert!(s.is_frame_helper("b"));
         assert!(s.is_frame_helper("c"));
@@ -512,7 +529,11 @@ mod tests {
     fn variable_escapes_declared_names() {
         let mut s = EscapeState::default();
         // ``variable a 1 b 2 c`` — every-other-arg starting at 0.
-        handle_variable(&args_of(&["a", "1", "b", "2", "c"]), &mut s);
+        handle_variable(
+            crate::var_escape::helpers::default_registry(),
+            &args_of(&["a", "1", "b", "2", "c"]),
+            &mut s,
+        );
         assert!(s.is_frame_helper("a"));
         assert!(s.is_frame_helper("b"));
         assert!(s.is_frame_helper("c"));
@@ -521,14 +542,22 @@ mod tests {
     #[test]
     fn namespace_upvar_escapes_dst() {
         let mut s = EscapeState::default();
-        handle_namespace_call(&args_of(&["upvar", "ns", "src", "dst"]), &mut s);
+        handle_namespace_call(
+            crate::var_escape::helpers::default_registry(),
+            &args_of(&["upvar", "ns", "src", "dst"]),
+            &mut s,
+        );
         assert!(s.is_frame_helper("dst"));
     }
 
     #[test]
     fn namespace_other_subcommand_is_noop() {
         let mut s = EscapeState::default();
-        handle_namespace_call(&args_of(&["eval", "ns", "body"]), &mut s);
+        handle_namespace_call(
+            crate::var_escape::helpers::default_registry(),
+            &args_of(&["eval", "ns", "body"]),
+            &mut s,
+        );
         assert!(s.tags.is_empty());
         assert!(!s.dynamic_barrier());
     }

@@ -42,38 +42,12 @@
 /// O(len(a) × len(b)) time, O(min(len(a), len(b))) space.
 #[must_use]
 pub fn edit_distance(a: &str, b: &str) -> usize {
-    // Operate on chars so multi-byte UTF-8 sequences count as
-    // one edit.
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    if a_chars.len() < b_chars.len() {
-        return edit_distance_inner(&b_chars, &a_chars);
+    // strsim sizes its working rows from the second string.
+    if a.chars().count() < b.chars().count() {
+        strsim::osa_distance(b, a)
+    } else {
+        strsim::osa_distance(a, b)
     }
-    edit_distance_inner(&a_chars, &b_chars)
-}
-
-fn edit_distance_inner(longer: &[char], shorter: &[char]) -> usize {
-    if shorter.is_empty() {
-        return longer.len();
-    }
-    // Rolling three-row DP: `prev2` (i-2), `prev` (i-1), `curr` (i).
-    // The transposition case reads `prev2[j-1]`.
-    let mut prev2: Vec<usize> = Vec::new();
-    let mut prev: Vec<usize> = (0..=shorter.len()).collect();
-    for (i, &ca) in longer.iter().enumerate() {
-        let mut curr: Vec<usize> = Vec::with_capacity(shorter.len() + 1);
-        curr.push(i + 1);
-        for (j, &cb) in shorter.iter().enumerate() {
-            let cost = usize::from(ca != cb);
-            let mut v = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
-            if i > 0 && j > 0 && ca == shorter[j - 1] && longer[i - 1] == cb {
-                v = v.min(prev2[j - 1] + 1);
-            }
-            curr.push(v);
-        }
-        prev2 = std::mem::replace(&mut prev, curr);
-    }
-    prev[shorter.len()]
 }
 
 /// The "did you mean…?" distance budget for a name of `chars` characters:

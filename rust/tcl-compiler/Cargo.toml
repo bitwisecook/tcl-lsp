@@ -33,6 +33,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
+tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-core-types = { path = "../tcl-core-types" }
@@ -41,6 +42,7 @@ bitflags = "2"
 thiserror = "2.0"
 unicode-general-category = "1.1.0"
 rustc-hash = { workspace = true }
+strsim = "0.11"
 regex = "1"
 # Arbitrary-precision integers for exact `expr` constant folding (the numeric
 # tower of docs/design/compiler/type-tracking.md): the folder mirrors the VM's

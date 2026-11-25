@@ -134,7 +134,7 @@ command = "/home/you/bin/tcl-lsp-server-wasi"
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
+file-types = ["tcl", "tk", "itcl", "itk", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
 language-servers = ["tcl-lsp"]
 ```
 
@@ -316,10 +316,10 @@ return {
 ```lua
 vim.filetype.add({ extension = {
   -- <generated: install-neovim-extensions>
-  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', irul = 'tcl',
-  irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl', exp = 'tcl',
-  apl = 'tcl', test = 'tcl', irules = 'tcl', expect = 'tcl', tmsh = 'tcl',
-  tclspec = 'tcl', sslictcl = 'tcl',
+  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', itk = 'tcl', tm = 'tcl',
+  irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
+  exp = 'tcl', apl = 'tcl', test = 'tcl', irules = 'tcl', expect = 'tcl',
+  tmsh = 'tcl', tclspec = 'tcl', sslictcl = 'tcl',
   -- </generated>
 }})
 vim.lsp.enable('tcl_lsp')
@@ -363,7 +363,7 @@ command = "/home/you/bin/tcl-lsp-server"
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
+file-types = ["tcl", "tk", "itcl", "itk", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test", "irules", "expect", "tmsh", "tclspec", "sslictcl"]
 language-servers = ["tcl-lsp"]
 ```
 
@@ -423,7 +423,7 @@ if executable(expand('~/bin/tcl-lsp-server'))
     augroup END
 endif
 
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.itk,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
 ```
 
 **coc.nvim** (`neoclide/coc.nvim`) in `coc-settings.json`
@@ -447,7 +447,7 @@ au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.
 `.impl` files won't trigger the server):
 
 ```vim
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.itk,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec,*.sslictcl set filetype=tcl
 ```
 
 ### Kate
@@ -504,7 +504,7 @@ hook global WinSetOption filetype=tcl %{ lsp-enable-window }
       "name": "tcl-lsp",
       "executable": "C:\\Users\\you\\tcl-lsp-server.exe",
       "args": "",
-      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp", ".apl", ".test", ".irules", ".expect", ".tmsh", ".tclspec", ".sslictcl"],
+      "fileExtensions": [".tcl", ".tk", ".itcl", ".itk", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp", ".apl", ".test", ".irules", ".expect", ".tmsh", ".tclspec", ".sslictcl"],
       "initOptions": { "tclLsp": { "dialect": "tcl8.6" } }
     }
   }
@@ -538,7 +538,7 @@ local lsp = require "plugins.lsp"
 lsp.add_server {
   name = "tcl-lsp",
   language = "tcl",
-  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$", "%.exp$", "%.apl$", "%.test$", "%.irules$", "%.expect$", "%.tmsh$", "%.tclspec$", "%.sslictcl$" },
+  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.itk$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$", "%.exp$", "%.apl$", "%.test$", "%.irules$", "%.expect$", "%.tmsh$", "%.tclspec$", "%.sslictcl$" },
   command = { "/home/you/bin/tcl-lsp-server" },
   settings = { tclLsp = { dialect = "tcl8.6" } },
 }

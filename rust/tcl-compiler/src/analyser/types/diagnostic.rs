@@ -22,6 +22,15 @@ use crate::irules_checks::CodeFix;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_lexer::Span;
 
+/// Source data-group equality with an item holding a signed scan result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedDataGroupComparison {
+    /// Literal group reference selected by the registry.
+    pub group: String,
+    /// Unsigned keys representable by the scan field but outside its signed range.
+    pub unsigned_keys: std::ops::RangeInclusive<u64>,
+}
+
 /// Diagnostic emitted by the analyser.
 ///
 /// Carries a stable ``code`` (e.g. ``"W210"``), the source
@@ -31,6 +40,8 @@ use tcl_lexer::Span;
 pub struct Diagnostic {
     /// Optional typed subject from the emitting semantic owner.
     pub subject: Option<super::super::DiagnosticSubject>,
+    /// Evidence a configuration owner can use to resolve a signed group comparison.
+    pub signed_data_group_comparison: Option<Box<SignedDataGroupComparison>>,
     /// Stable W-/IRULE-coded identifier.
     pub code: DiagCode,
     /// Source span the diagnostic anchors to.
@@ -60,6 +71,7 @@ impl Diagnostic {
             severity,
             fixes: Vec::new(),
             subject: None,
+            signed_data_group_comparison: None,
         }
     }
 

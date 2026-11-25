@@ -44,7 +44,7 @@ fn original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports
 ";
     let result = action(source, r"p\uD800 VALUE", true).expect("actual original call");
     assert!(result.disabled.is_none(), "{:?}", result.disabled);
-    assert!(result.apply(source).ends_with(" puts VALUE\n"));
+    assert!(result.try_apply(source).unwrap().ends_with(" puts VALUE\n"));
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn original_inline_keeps_inert_braced_data_and_refuses_erased_reads_or_free_cell
     let literal = "proc p {x} {puts {$x}}\np VALUE\n";
     let result = action(literal, "p VALUE", false).unwrap();
     assert!(result.disabled.is_none(), "{:?}", result.disabled);
-    assert!(result.apply(literal).ends_with("puts {$x}\n"));
+    assert!(result.try_apply(literal).unwrap().ends_with("puts {$x}\n"));
     for source in [
         "proc p {unused} {puts SAFE}\nset value VALUE\np $value\n",
         "proc p {x} {puts $outside}\np VALUE\n",
@@ -88,7 +88,7 @@ fn original_inline_bindings_keep_alias_prefix_expansion_defaults_and_arity() {
     ] {
         let result = action(source, call, true).expect("actual original call");
         assert!(result.disabled.is_none(), "{:?}", result.disabled);
-        assert!(result.apply(source).contains(expected));
+        assert!(result.try_apply(source).unwrap().contains(expected));
     }
     let arity = "proc p {x} {puts $x}\np 1 2\n";
     let result = action(arity, "p 1 2", true).unwrap();

@@ -43,7 +43,7 @@ use crate::tcl_expr_eval::{Env, EnvValue, TclValue};
 
 use super::{BuiltinFoldInputs, ConstantBranch, FoldTrust, SccpResult, TraceInputs};
 #[cfg(test)]
-use super::{cfg_order, compute_predecessors, join, set_value};
+use super::{cfg_order, compute_predecessors, join, sccp_process_phis, set_value};
 
 mod assignment_folds;
 mod block_transfer;
@@ -54,9 +54,7 @@ mod math_expressions;
 mod value_solver;
 
 #[cfg(test)]
-pub use assignment_folds::{
-    extract_foreach_elements, parse_literal_value, resolve_foreach_list_via_lattice,
-};
+use super::{extract_foreach_elements, parse_literal_value, resolve_foreach_list_via_lattice};
 #[cfg(test)]
 use assignment_folds::{resolve_const_string, split_head, strip_one_level};
 #[cfg(test)]
@@ -77,9 +75,9 @@ pub use existence_branches::{
 use math_expressions::{env_from_uses, fold_math_expression};
 #[cfg(test)]
 use value_solver::branch_deferrable;
-use value_solver::solve_value_facts;
 #[cfg(test)]
-use value_solver::{compatibility_escaping, sccp_process_phis};
+use value_solver::compatibility_escaping;
+use value_solver::solve_value_facts;
 
 /// Exact producer queried for an analysis value, separately from erasure proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

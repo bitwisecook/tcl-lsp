@@ -228,27 +228,20 @@ pub struct Refactoring {
 }
 
 impl Refactoring {
-    /// Apply the edits to `source` bottom-to-top, returning the
-    /// rewritten text.  Edits are sorted by descending start offset so
-    /// an earlier edit never shifts a later one's coordinates.
+    /// Apply this batch to the source it was authored against.
     ///
-    /// The sort key is `(start, end)`, not `start` alone: an insertion and a
-    /// replacement can legitimately share a start offset — extract-proc puts
-    /// the new definition at the line the selection begins on and replaces
-    /// that selection with a call — and ordering by start alone leaves which
-    /// of the two lands first up to the sort's stability, interleaving the two
-    /// texts.  Applying the wider edit first is the only order that composes.
-    #[must_use]
-    pub fn apply(&self, source: &str) -> String {
-        let mut sorted: Vec<&RefactorEdit> = self.edits.iter().collect();
-        sorted.sort_by_key(|e| std::cmp::Reverse((e.start, e.end)));
-        let mut result = source.to_owned();
-        for edit in sorted {
-            let start = (edit.start as usize).min(result.len());
-            let end = (edit.end as usize).min(result.len()).max(start);
-            result.replace_range(start..end, &edit.new_text);
-        }
-        result
+    /// # Errors
+    /// Returns an error for an invalid or overlapping source range.
+    pub fn try_apply(&self, source: &str) -> Result<String, tcl_lexer::SourceEditError> {
+        let edits: Vec<_> = self
+            .edits
+            .iter()
+            .map(|edit| tcl_lexer::SourceEdit {
+                span: edit.start as usize..edit.end as usize,
+                text: edit.new_text.clone(),
+            })
+            .collect();
+        tcl_lexer::apply_edits(source, &edits)
     }
 }
 
@@ -1394,8 +1387,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn apply_is_bottom_to_top() {
-        let r = Refactoring {
+    fn apply_uses_original_ranges_and_refuses_stale_geometry() {
+        let mut r = Refactoring {
             title: "t".into(),
             edits: vec![
                 RefactorEdit {
@@ -1413,7 +1406,10 @@ mod tests {
             data_group: None,
             disabled: None,
         };
-        assert_eq!(r.apply("set x 42"), "let x 99");
+        assert_eq!(r.try_apply("set x 42").unwrap(), "let x 99");
+        assert!(r.try_apply("set x 4").is_err());
+        r.edits[0].start = 2;
+        assert!(r.try_apply("set x 42").is_err());
     }
 
     #[test]

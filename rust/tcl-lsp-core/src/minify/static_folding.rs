@@ -19,8 +19,6 @@
 //! The aggressive tier's folding of quoted strings whose value is statically proven.
 
 #[cfg(test)]
-use super::Edit;
-#[cfg(test)]
 use super::Statement;
 #[cfg(test)]
 use super::TaintLattice;
@@ -28,7 +26,7 @@ use super::TaintLattice;
 use super::Version;
 #[cfg(test)]
 use super::command_rendering::utf8_len;
-use super::{apply_edits, original};
+use super::{SourceEdit, apply_edits, original};
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::collections::HashMap;
@@ -139,11 +137,17 @@ pub(super) fn fold_original_static_substrings(
         }
     }
     let count = edits.len();
-    let edits = edits
+    let edits: Vec<_> = edits
         .into_iter()
-        .map(|((start, end), replacement)| (start as usize, (end - start) as usize, replacement))
+        .map(|((start, end), text)| SourceEdit {
+            span: start as usize..end as usize,
+            text,
+        })
         .collect();
-    (apply_edits(source, edits), count, folds)
+    apply_edits(source, &edits).map_or_else(
+        |_| (source.to_owned(), 0, BTreeMap::new()),
+        |result| (result, count, folds),
+    )
 }
 
 fn fold_original_word_parts(
@@ -208,7 +212,7 @@ pub(super) fn fold_static_substrings(
     registry: &CommandRegistry,
 ) -> (String, usize, BTreeMap<String, String>) {
     let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
-    let mut edits: Vec<Edit> = Vec::new();
+    let mut edits: Vec<SourceEdit> = Vec::new();
     let mut fold_map: BTreeMap<String, String> = BTreeMap::new();
 
     let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
@@ -228,15 +232,17 @@ pub(super) fn fold_static_substrings(
     }
     // Deduplicate by (offset, length).
     let mut seen: HashSet<(usize, usize)> = HashSet::new();
-    let mut unique: Vec<Edit> = Vec::new();
+    let mut unique: Vec<SourceEdit> = Vec::new();
     for e in edits {
-        if seen.insert((e.0, e.1)) {
+        if seen.insert((e.span.start, e.span.end)) {
             unique.push(e);
         }
     }
     let fold_count = unique.len();
-    let result = apply_edits(source, unique);
-    (result, fold_count, fold_map)
+    apply_edits(source, &unique).map_or_else(
+        |_| (source.to_owned(), 0, BTreeMap::new()),
+        |result| (result, fold_count, fold_map),
+    )
 }
 
 /// The read-only context a constant-fold decision needs: the scope's
@@ -256,7 +262,7 @@ struct FoldContext<'a> {
 fn collect_folds_for_scope(
     source: &str,
     cx: FoldContext<'_>,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
     let (fu, style) = (cx.fu, cx.style);
@@ -317,7 +323,10 @@ fn collect_folds_for_scope(
                                         &folded, cx.config,
                                     )
                             {
-                                edits.push((arg_off, close - arg_off + 1, replacement));
+                                edits.push(SourceEdit {
+                                    span: arg_off..close + 1,
+                                    text: replacement,
+                                });
                                 fold_map.insert(content.clone(), folded);
                             }
                         }
@@ -341,7 +350,7 @@ fn try_fold_region(
     value: &str,
     uses: &HashMap<tcl_compiler::ssa::Symbol, Version>,
     cx: FoldContext<'_>,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
     let (fu, style) = (cx.fu, cx.style);
@@ -371,7 +380,10 @@ fn try_fold_region(
     else {
         return;
     };
-    edits.push((abs_start, close - abs_start + 1, replacement));
+    edits.push(SourceEdit {
+        span: abs_start..close + 1,
+        text: replacement,
+    });
     fold_map.insert(inner.to_owned(), folded);
 }
 

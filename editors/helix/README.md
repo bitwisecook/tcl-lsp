@@ -30,7 +30,7 @@ args = []
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "test"]
+file-types = ["tcl", "tk", "itcl", "tm", "test", "itk"]
 shebangs = ["tclsh"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }

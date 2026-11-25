@@ -31,7 +31,12 @@ fn logical_inline_call_selection_uses_current_original_body_regions() {
     let registry = analysis.resolved_registry().unwrap();
     let action = inline_proc(source, cursor, &analysis, registry).unwrap();
     assert!(action.disabled.is_none(), "{:?}", action.disabled);
-    assert!(action.apply(source).ends_with("run {expr {2 + 1}}"));
+    assert!(
+        action
+            .try_apply(source)
+            .unwrap()
+            .ends_with("run {expr {2 + 1}}")
+    );
     let inert = "proc eval args {}; proc p {x} {expr {$x + 1}}; eval {p 2}";
     let analysis = tcl_compiler::analyser::Analyser::new().analyse(inert, "tcl");
     let cursor = u32::try_from(inert.rfind("p 2").unwrap()).unwrap();
@@ -51,7 +56,7 @@ p 2";
     let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
     let action = inline_proc(source, cursor, &analysis, &registry).unwrap();
     assert!(action.disabled.is_none(), "{:?}", action.disabled);
-    assert!(action.apply(source).ends_with("expr {2 + 1}"));
+    assert!(action.try_apply(source).unwrap().ends_with("expr {2 + 1}"));
     analysis.resolved_input = None;
     assert!(inline_proc(source, cursor, &analysis, &registry).is_none());
     let source = "interp alias {} finish {} return

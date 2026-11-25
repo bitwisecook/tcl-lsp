@@ -777,6 +777,27 @@ fn raw_profile_properties(config: &BigipConfig) -> BTreeMap<String, BTreeMap<Str
         .collect()
 }
 
+// File locators name entries in the supplied BIG-IP material map. They are
+// not paths admitted to the local host filesystem.
+fn material_source_key(source: &str) -> &str {
+    let Ok(uri) = fluent_uri::Uri::parse(source) else {
+        return source;
+    };
+    let path = uri.path().as_str();
+    if uri.scheme().as_str().eq_ignore_ascii_case("file")
+        && uri
+            .authority()
+            .is_none_or(|authority| authority.as_str().is_empty())
+        && uri.query().is_none()
+        && uri.fragment().is_none()
+        && path.starts_with('/')
+    {
+        path
+    } else {
+        source
+    }
+}
+
 fn certificate_material<S: BuildHasher>(
     config: &BigipConfig,
     certificate_pems: &HashMap<String, String, S>,
@@ -788,10 +809,7 @@ fn certificate_material<S: BuildHasher>(
         };
         let candidates = [
             certificate.cache_path.as_str(),
-            certificate
-                .source_path
-                .strip_prefix("file://")
-                .unwrap_or(&certificate.source_path),
+            material_source_key(&certificate.source_path),
             certificate.full_path.as_str(),
             certificate.name.as_str(),
         ];
@@ -823,9 +841,7 @@ fn private_key_material<S: BuildHasher>(
         };
         let candidates = [
             key.cache_path.as_str(),
-            key.source_path
-                .strip_prefix("file://")
-                .unwrap_or(&key.source_path),
+            material_source_key(&key.source_path),
             key.full_path.as_str(),
             key.name.as_str(),
         ];
@@ -1061,6 +1077,20 @@ mod tests {
             );
         }
         std::fs::read_to_string(&certificate).expect("read the generated certificate")
+    }
+
+    #[test]
+    fn projects_local_file_locators_to_material_keys() {
+        for (source, expected) in [
+            ("file:///config/cert%20a.pem", "/config/cert%20a.pem"),
+            ("/config/cert a.pem", "/config/cert a.pem"),
+            (
+                "file://remote/config/cert.pem",
+                "file://remote/config/cert.pem",
+            ),
+        ] {
+            assert_eq!(material_source_key(source), expected);
+        }
     }
 
     #[test]

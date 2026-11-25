@@ -33,6 +33,7 @@ vim.filetype.add({
     -- <generated: neovim-extensions>
     -- Tcl
     tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', test = 'tcl',
+    itk = 'tcl',
     -- Expect
     exp = 'tcl', expect = 'tcl',
     -- F5 BIG-IP

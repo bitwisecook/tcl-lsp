@@ -64,7 +64,9 @@
 //! relation; [`references`] does not join unavailable handles by these labels.
 
 use std::path::{Path, PathBuf};
+
 use std::sync::Arc;
+use tcl_registry::dialects::is_tcl_source;
 
 use tcl_irules::ilx::{
     IlxExtension, IlxMethodCall, IlxMethodRegistration, extension_entry_file,
@@ -1205,18 +1207,6 @@ fn collect_tcl_sources(
             collect_tcl_sources(&entry.path, store, depth + 1, budget, out);
         }
     }
-}
-
-/// Whether `path` carries one of the Tcl-family source extensions the server
-/// indexes — the same list the workspace scan filters on.
-fn is_tcl_source(path: &Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| {
-            tcl_registry::dialects::TCL_SOURCE_EXTENSIONS
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(ext))
-        })
 }
 
 /// A directory's own name, as a `String`.

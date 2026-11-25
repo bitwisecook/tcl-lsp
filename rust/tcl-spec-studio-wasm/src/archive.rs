@@ -33,12 +33,10 @@
 //! what was skipped and why.
 
 use std::io::{Cursor, Read};
+use std::path::Path;
 
 use serde_json::{Value, json};
-
-/// The extensions a Tcl library is written in — the same set the studio's
-/// directory import keeps (`studio.ts`'s `TCL_EXTENSIONS`).
-const TCL_EXTENSIONS: [&str; 5] = [".tcl", ".tm", ".test", ".itcl", ".itk"];
+use tcl_registry::dialects::{is_skipped_scan_dir, is_tcl_source};
 
 /// Total uncompressed bytes across every extracted entry.
 ///
@@ -94,10 +92,14 @@ impl Extraction {
     }
 }
 
-/// Whether `name` looks like a Tcl source we can draft specs from.
-fn is_tcl_source(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    TCL_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+/// Whether a relative path names a Tcl source inside the scanned tree.
+pub(crate) fn is_import_source(name: &str) -> bool {
+    let path = Path::new(name);
+    is_tcl_source(path)
+        && !path
+            .ancestors()
+            .skip(1)
+            .any(|parent| !parent.as_os_str().is_empty() && is_skipped_scan_dir(parent))
 }
 
 /// Read every Tcl source out of the zip in `bytes`.
@@ -133,7 +135,7 @@ pub fn extract(bytes: &[u8]) -> Result<Extraction, String> {
             out.skipped.push(format!("entry {index}: unreadable name"));
             continue;
         };
-        if !is_tcl_source(&name) {
+        if !is_import_source(&name) {
             continue;
         }
         let size = member.size();
@@ -179,7 +181,7 @@ pub fn extract_json(bytes: &[u8]) -> Value {
 mod tests {
     use std::io::Write;
 
-    use super::{Entry, extract, extract_json, is_tcl_source};
+    use super::{Entry, extract, extract_json, is_import_source};
 
     /// Build a zip in memory from `(name, contents)` pairs.
     fn zip_of(members: &[(&str, &[u8])]) -> Vec<u8> {
@@ -222,11 +224,26 @@ mod tests {
 
     #[test]
     fn recognises_every_tcl_extension_case_insensitively() {
-        for name in ["a.tcl", "b.TM", "c.Test", "d.itcl", "e.ITK"] {
-            assert!(is_tcl_source(name), "{name} should be a Tcl source");
+        for name in [
+            "a.tcl",
+            "b.TM",
+            "c.Test",
+            "d.itcl",
+            "e.ITK",
+            "f.tk",
+            "sub/g.irul",
+        ] {
+            assert!(is_import_source(name), "{name} should be a Tcl source");
         }
-        for name in ["a.tcl.bak", "notes.txt", "tcl", "x.tclspec"] {
-            assert!(!is_tcl_source(name), "{name} should not be a Tcl source");
+        for name in [
+            "a.tcl.bak",
+            "notes.txt",
+            "tcl",
+            "src/target/deep.tcl",
+            "build/x.tcl",
+            ".venv/tool.tcl",
+        ] {
+            assert!(!is_import_source(name), "{name} should not be a Tcl source");
         }
     }
 

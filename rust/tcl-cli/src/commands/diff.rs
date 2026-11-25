@@ -90,26 +90,12 @@ fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
     Ok(selected)
 }
 
-/// `range_dict` over a command span: inclusive→exclusive end (`+1`), which is
-/// exactly the segmenter's exclusive `span.end()`. The whole-command range is
-/// never a single braced word, so `widen_for_highlight` is a no-op here.
-fn range_json(span: tcl_lexer::Span, line_index: &LineIndex, source: &str) -> Json {
-    let start = line_index.position_at_utf16(span.start(), source);
-    let end = line_index.position_at_utf16(span.end(), source);
-    let mut m = BTreeMap::new();
-    m.insert("startLine".to_owned(), Json::Int(i64::from(start.line)));
-    m.insert(
-        "startCol".to_owned(),
-        Json::Int(i64::from(start.character.get())),
-    );
-    m.insert("startOffset".to_owned(), Json::Int(i64::from(span.start())));
-    m.insert("endLine".to_owned(), Json::Int(i64::from(end.line)));
-    m.insert(
-        "endCol".to_owned(),
-        Json::Int(i64::from(end.character.get())),
-    );
-    m.insert("endOffset".to_owned(), Json::Int(i64::from(span.end())));
-    Json::Object(m)
+/// The segmenter's command span already has its exclusive end.
+fn range_json(span: tcl_lexer::Span, line_index: &LineIndex) -> Json {
+    value_to_json(&tcl_explorer::formatters::byte_range_json(
+        line_index.position_at(span.start()),
+        line_index.position_at(span.end()),
+    ))
 }
 
 /// `partial_delimiter.name.lower()` or `""`.
@@ -262,7 +248,7 @@ fn serialise_command_ast(
                         .map_or_default(|v| v.iter().map(|&b| Json::Bool(b)).collect()),
                 ),
             );
-            m.insert("range".to_owned(), range_json(cmd.span, line_index, source));
+            m.insert("range".to_owned(), range_json(cmd.span, line_index));
             Json::Object(m)
         })
         .collect();
@@ -576,6 +562,20 @@ fn write_diff_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diff_and_explorer_report_the_same_byte_columns() {
+        let source = "puts éé; puts 😀";
+        let start = u32::try_from(source.find("; puts").unwrap() + 2).unwrap();
+        let span = tcl_lexer::Span::new(start, u32::try_from(source.len()).unwrap());
+        let index = LineIndex::new(source);
+        let diff: Value = serde_json::from_str(&range_json(span, &index).dumps_indent2()).unwrap();
+        let explorer = tcl_explorer::formatters::range_dict(span, &index, source);
+        assert_eq!(diff["startCol"], 11);
+        assert_eq!(diff["startCol"], explorer["startCol"]);
+        assert_eq!(diff["endCol"], explorer["endCol"]);
+        assert_eq!(explorer["startColUtf16"], 9);
+    }
 
     fn logical_input(
         registry: std::sync::Arc<CommandRegistry>,

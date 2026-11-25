@@ -24,9 +24,7 @@ use crate::spec::CommandSpec;
 use crate::traits::Traits;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{OnceLock, PoisonError, RwLock};
-use tcl_dialect::model::{
-    SpecProvider, SpecSurface, SurfaceQuery, surface_admits, surface_provided_by,
-};
+use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceQuery, surface_provided_by};
 
 /// Command names registered by *every* dialect. Backs
 /// [`CommandRegistry::known_in_any_dialect`] — the dialect-agnostic existence
@@ -230,37 +228,20 @@ impl CommandRegistry {
             .filter(move |spec| spec.available_in(dialect))
     }
 
-    /// Whether a bare global `name` is readable before user code in
-    /// `dialect` — the registry face of
-    /// [`crate::special_vars::is_readable_at_startup`], so a pack-declared
-    /// startup binding answers too.
+    /// Startup binding and read-trace facts for the bare global `name`.
+    /// Pack-declared variables use the same release query as built-in ones.
     #[must_use]
-    pub fn is_readable_at_startup(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    pub fn startup_existence(
+        &self,
+        name: &str,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> crate::special_vars::StartupExistence {
         self.special_var(name)
-            .is_some_and(|spec| spec.readable_at_startup_in(dialect))
+            .map_or_else(Default::default, |spec| spec.startup_existence(dialect))
     }
 
-    /// Whether `name` is eagerly bound before user code in `dialect` — the
-    /// registry face of [`crate::special_vars::is_initially_bound`], so a
-    /// pack-declared startup binding answers too.
-    #[must_use]
-    pub fn is_initially_bound(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-        self.special_var(name)
-            .is_some_and(|spec| surface_admits(spec.initially_bound, dialect.as_ref()))
-    }
-
-    /// Whether a read of `name` in `dialect` runs a declared read trace that
-    /// materialises its value again after `unset` — the registry face of
-    /// [`crate::special_vars::is_lazily_readable`], pack rows included.
-    #[must_use]
-    pub fn is_lazily_readable(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-        self.special_var(name)
-            .is_some_and(|spec| surface_admits(spec.lazily_readable, dialect.as_ref()))
-    }
-
-    /// Whether the runtime observes a write to `name` in `dialect` — the
-    /// registry face of [`crate::special_vars::is_externally_read`], pack
-    /// rows included.
+    /// Whether the runtime observes a write to `name` in `dialect`.
+    /// Pack declarations participate alongside the built-in registry.
     #[must_use]
     pub fn is_externally_read(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
         self.special_var_in_dialect(name, dialect)
@@ -689,7 +670,11 @@ impl CommandRegistry {
         self.by_name
             .values()
             .flat_map(|specs| specs.iter())
-            .any(|spec| spec.required_package == Some(pkg))
+            .any(|spec| {
+                spec.required_package.is_some_and(|descriptor| {
+                    crate::native_package::matches_package_descriptor(pkg.as_bytes(), descriptor)
+                })
+            })
     }
 
     /// Return every registered [`CommandSpec`] for `name` (all dialects),

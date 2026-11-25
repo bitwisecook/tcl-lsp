@@ -215,3 +215,38 @@ fn dict_with_keys_of_a_literal_complete_in_its_body() {
     assert!(labels.contains(&"$name".to_owned()), "{labels:?}");
     assert!(labels.contains(&"$age".to_owned()), "{labels:?}");
 }
+
+#[test]
+fn special_variable_completion_uses_current_release() {
+    for (dialect, precision) in [("tcl8.4", true), ("tcl9.0", false)] {
+        let source = "puts $tcl_";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let items = completions(source, 0, 10, &analysis, None, None, profile);
+        assert_eq!(
+            items.iter().any(|item| item.label == "$tcl_precision"),
+            precision,
+            "{dialect}: {items:?}"
+        );
+        assert!(
+            items.iter().any(|item| item.label == "$tcl_platform"),
+            "{dialect}: {items:?}"
+        );
+
+        let local = "proc p {} {puts $tcl_}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(local, dialect);
+        let items = completions(local, 0, 21, &analysis, None, None, profile);
+        assert!(items.is_empty(), "{dialect}: {items:?}");
+
+        let source = "puts $tcl_platform(";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+        let items = completions(source, 0, 19, &analysis, None, None, profile);
+        if dialect == "tcl8.4" {
+            assert_eq!(items.len(), 7, "{dialect}: {items:?}");
+        }
+        assert!(
+            items.iter().any(|item| item.label == "$tcl_platform(os)"),
+            "{dialect}: {items:?}"
+        );
+    }
+}

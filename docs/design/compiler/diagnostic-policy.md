@@ -689,6 +689,8 @@ shown set, and takes no such flag.
 `review` and `find-legacy` read `shown()`, keeping their own grouping
 (`diag_meta::meta` categories, the security / taint / thread split, the
 convertible-code table), which is presentation and stays theirs. Each
+diagnostic and fix range uses zero-based lines and UTF-16 code-unit columns,
+with the same `{start, end}` shape as editor edits. Each
 payload carries a `suppressed` array — `{code, range, reason, message}` for
 a hidden finding, `range` and `message` `null` for a gap, a default-off gap
 left out, and `{producer, codes, range, reason, message}` for a not-run

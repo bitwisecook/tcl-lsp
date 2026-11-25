@@ -23,6 +23,7 @@ use super::*;
 fn w120_diag(pkg: &str) -> tcl_compiler::analyser::Diagnostic {
     use tcl_compiler::analyser::types::{CodeFix, Severity};
     tcl_compiler::analyser::Diagnostic {
+        signed_data_group_comparison: None,
         subject: Some(tcl_compiler::analyser::DiagnosticSubject::RequiredPackage(
             tcl_registry::native_package::NativePackageNameKey::from_native_units(
                 pkg.as_bytes(),

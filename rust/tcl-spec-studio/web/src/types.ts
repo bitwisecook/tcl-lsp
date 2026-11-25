@@ -539,6 +539,7 @@ export interface StudioWasm {
      `completeHistory` is the caller's claim that the releases given are *all*
      of them, which is what licenses an `introduced_version` on the earliest. */
   unzip_entries(bytes: Uint8Array): string;
+  is_import_source(relativePath: string): boolean;
   import_package_versions(snapshotsJson: string, dialect: string, completeHistory: boolean): string;
 
   /* The pack store. Every one of these takes the `.tclspec` document, so the

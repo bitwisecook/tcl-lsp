@@ -151,15 +151,11 @@ fn startup_read_facts(
 ) -> StartupReadFacts {
     let (startup_name, global_binding) =
         super::helpers::startup_cell_binding(cell, initial_global, global_aliases);
+    let startup = registry.startup_existence(startup_name, dialect);
     StartupReadFacts {
-        readable: global_binding
-            && version == 0
-            && !killed
-            && registry.is_readable_at_startup(startup_name, dialect),
-        initially_bound: global_binding
-            && version == 0
-            && registry.is_initially_bound(startup_name, dialect),
-        lazy_read: global_binding && registry.is_lazily_readable(startup_name, dialect),
+        readable: global_binding && version == 0 && !killed && startup.readable(),
+        initially_bound: global_binding && version == 0 && startup.initially_bound,
+        lazy_read: global_binding && startup.lazily_readable,
     }
 }
 

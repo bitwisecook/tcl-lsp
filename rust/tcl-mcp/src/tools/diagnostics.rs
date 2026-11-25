@@ -21,8 +21,8 @@
 use super::editor_queries::SOURCE_URI;
 use super::source_structure::{detect_events, doc_symbol_to_json, event_order_list};
 use super::{
-    Analysed, PolicyInputs, analyse_under, arg_str, arg_u32, byte_range, lsp_range_json,
-    resolve_dialect,
+    Analysed, PolicyInputs, analyse_under, arg_str, arg_u32, lsp_range_json, resolve_dialect,
+    span_range_json,
 };
 use serde_json::{Map, Value, json};
 use tcl_lexer::SourceMap;
@@ -39,7 +39,7 @@ pub(super) fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
         "code": code,
         "severity": shown.severity.as_str(),
         "message": d.message,
-        "range": byte_range(sm, d.span),
+        "range": span_range_json(sm, d.span),
         "category": crate::diag_meta::meta().categorise(code),
     });
     if let Some(subject) = d.structured_data() {
@@ -51,7 +51,7 @@ pub(super) fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
             .iter()
             .map(|f| {
                 json!({
-                    "range": byte_range(sm, f.span),
+                    "range": span_range_json(sm, f.span),
                     "new_text": f.new_text,
                     "description": f.description,
                 })
@@ -71,7 +71,7 @@ pub(super) fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
 fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> Value {
     json!({
         "code": finding.code.as_str(),
-        "range": byte_range(sm, finding.span),
+        "range": span_range_json(sm, finding.span),
         "reason": reason.to_string(),
         "message": finding.message,
     })
@@ -141,10 +141,10 @@ pub(super) fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
     let report = analysed.diagnostics_report();
-    let sm = SourceMap::new(source);
+    let sm = SourceMap::new(&analysed.analysis_text);
     let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
     let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
-        source,
+        &analysed.analysis_text,
         &analysed.findings.analysis,
     )
     .iter()
@@ -155,8 +155,8 @@ pub(super) fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
         "diagnostic_count": diagnostics.len(),
         "diagnostics": diagnostics,
         "symbols": symbols,
-        "events": detect_events(source, &analysed.findings.analysis),
-        "event_order": event_order_list(source, &analysed.findings.analysis),
+        "events": detect_events(&analysed.analysis_text, &analysed.findings.analysis),
+        "event_order": event_order_list(&analysed.analysis_text, &analysed.findings.analysis),
         "suppressed": suppressed_json(&report, &sm, |_| true),
     })
 }
@@ -170,7 +170,7 @@ pub(super) fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
     let report = analysed.diagnostics_report();
-    let sm = SourceMap::new(source);
+    let sm = SourceMap::new(&analysed.analysis_text);
     let meta = crate::diag_meta::meta();
     let mut categories = Map::new();
     for (key, label) in &meta.category_order {
@@ -200,7 +200,7 @@ pub(super) fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
     let report = analysed.diagnostics_report();
-    let sm = SourceMap::new(source);
+    let sm = SourceMap::new(&analysed.analysis_text);
     let meta = crate::diag_meta::meta();
     let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
         report
@@ -237,7 +237,7 @@ pub(super) fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let dialect = resolve_dialect(args, source);
     let analysed = analyse_under(source, &dialect, inputs);
     let report = analysed.diagnostics_report();
-    let sm = SourceMap::new(source);
+    let sm = SourceMap::new(&analysed.analysis_text);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
     // 6-code table.
@@ -329,7 +329,7 @@ pub(super) fn code_actions_from_analysis(args: &Value, analysed: &Analysed) -> V
                 m.insert("data_group_definition".to_owned(), json!(dg));
             }
             if let Some(reason) = &a.disabled {
-                m.insert("disabled".to_owned(), json!(reason));
+                m.insert("refused".to_owned(), json!({ "reason": reason }));
             }
             obj
         })

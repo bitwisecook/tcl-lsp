@@ -190,6 +190,25 @@ pub struct SignaturePackageRequire {
     pub origin: PackageRequireOrigin,
 }
 
+impl SignaturePackageRequire {
+    /// A lower bound implied by the written versions in this requirement.
+    #[must_use]
+    pub fn written_lower_bound(&self) -> Option<&str> {
+        let versions = self
+            .requirements
+            .iter()
+            .map(|version| Some(version.as_str()))
+            .chain(
+                self.requirements
+                    .is_empty()
+                    .then_some(self.version.as_deref())
+                    .flatten()
+                    .map(Some),
+            );
+        tcl_registry::version::alternatives_lower_bound(versions, self.exact)
+    }
+}
+
 /// How a [`SignaturePackageRequire`] came to be recorded.
 ///
 /// A binary extension makes a package available with nothing in any Tcl

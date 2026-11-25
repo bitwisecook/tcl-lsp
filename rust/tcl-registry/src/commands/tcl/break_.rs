@@ -54,7 +54,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Abort execution of the innermost enclosing loop.",
             synopsis: &["break"],
-            snippet: "Typically invoked inside the body of a looping command such as for, foreach, or while. It raises a TCL_BREAK exception that aborts the current script out to the innermost containing loop, which then stops iterating and returns normally — execution resumes with the statement after the loop. The exception is also handled by catch, Tk event bindings, and the outermost script of a procedure body. Used anywhere else — outside a loop, catch, Tk binding, or a procedure's top level — it is an error: invoked \"break\" outside of a loop.",
+            snippet: "Typically invoked inside the body of a looping command such as for, foreach, or while. It raises a TCL_BREAK exception that aborts the current script out to the innermost containing loop, which then stops iterating and returns normally — execution resumes with the statement after the loop. The exception can also be caught by catch or try, and a Tk binding may handle it. When a bare break escapes a procedure body or script evaluation without a handler, Tcl reports an error: invoked \"break\" outside of a loop.",
             source: "Tcl man page break.n",
             examples: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 5} {\n        break\n    }\n    puts $i\n}",
             return_value: "None in normal use — control transfers to just past the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",

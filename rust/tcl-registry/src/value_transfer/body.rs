@@ -46,13 +46,14 @@ fn dict_keys(context: &super::AnalysisContext, text: &str) -> Option<Vec<String>
     if elements.len() % 2 != 0 {
         return None;
     }
-    let mut keys: Vec<String> = Vec::with_capacity(elements.len() / 2);
-    for [key, _] in elements.as_chunks::<2>().0 {
-        if !keys.iter().any(|held| held == key.as_ref()) {
-            keys.push(key.to_string());
-        }
-    }
-    Some(keys)
+    let pairs = elements.as_chunks::<2>().0;
+    let slots = tcl_syntax::value::canonical_dict_slots(pairs.iter().map(|[key, _]| key.as_ref()));
+    Some(
+        slots
+            .into_iter()
+            .map(|(key, _)| pairs[key][0].to_string())
+            .collect(),
+    )
 }
 
 /// The value the dictionary at `path` holds within `text`, the last value

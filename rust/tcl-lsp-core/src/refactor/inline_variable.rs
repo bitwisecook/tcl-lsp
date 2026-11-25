@@ -267,7 +267,7 @@ impl LogicalVariableInliningRecipe {
         // This is the complete actual proposed source, not an evaluated value.
         // Shared lexer/group/word ownership validates all enclosing grammar,
         // including delimiters around the replacement and removed statement.
-        let proposed = action.apply(source);
+        let proposed = action.try_apply(source).ok()?;
         let postimage = tcl_lexer::SourceImage::document(&proposed);
         let post = tcl_lexer::native_script_words_in(
             postimage.clone(),
@@ -311,7 +311,7 @@ impl LogicalVariableInliningRecipe {
             || self.receiver.image() != &self.image
             || self.rhs.config() != current.config()
             || self.receiver.config() != current.config()
-            || self.postimage.bytes() != self.action.apply(source).as_bytes()
+            || self.postimage.bytes() != self.action.try_apply(source).ok()?.as_bytes()
         {
             return None;
         }
@@ -946,7 +946,7 @@ mod tests {
         let reg = super::super::test_registry();
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let li = LineIndex::new(source);
-        inline_variable(source, cursor, &analysis, &reg, &li).map(|r| r.apply(source))
+        inline_variable(source, cursor, &analysis, &reg, &li).map(|r| r.try_apply(source).unwrap())
     }
 
     #[test]
@@ -997,7 +997,7 @@ mod tests {
             let index = LineIndex::new(source);
             let action = inline_variable(source, 0, &analysis, registry, &index);
             if let Some(expected) = expected {
-                assert_eq!(action.unwrap().apply(source), expected);
+                assert_eq!(action.unwrap().try_apply(source).unwrap(), expected);
             } else {
                 assert!(action.is_none());
             }
@@ -1018,7 +1018,8 @@ mod tests {
         assert_eq!(
             inline_variable(source, 0, &analysis, registry, &index)
                 .unwrap()
-                .apply(source),
+                .try_apply(source)
+                .unwrap(),
             "puts VALUE"
         );
         let mut missing = analysis.clone();
@@ -1086,7 +1087,7 @@ mod tests {
             let registry = analysis.resolved_registry().unwrap();
             let index = LineIndex::new(source);
             let change = inline_variable(source, 0, &analysis, registry, &index).expect(dialect);
-            assert_eq!(change.apply(source), "puts 7", "{dialect}");
+            assert_eq!(change.try_apply(source).unwrap(), "puts 7", "{dialect}");
             assert!(inline_variable("# stale source", 0, &analysis, registry, &index).is_none());
             let mut missing = analysis.clone();
             missing.resolved_input = None;
@@ -1227,7 +1228,7 @@ mod selected_declaration_tests {
         let action = inline_variable(source, cursor, &analysis, registry, &LineIndex::new(source))
             .expect("the declaration in the selected procedure");
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "proc first {} {set held FIRST; puts $held}; proc second {} {; puts SECOND}"
         );
 
@@ -1336,7 +1337,8 @@ mod original_interpolation_source_tests {
         assert_eq!(
             inline_variable(source, 0, &analysis, registry, &lines)
                 .unwrap()
-                .apply(source),
+                .try_apply(source)
+                .unwrap(),
             "puts \"v:a\\\"b\""
         );
         let mut missing = analysis.clone();
@@ -1373,10 +1375,13 @@ mod logical_inline_source_intent_tests {
     #[test]
     fn conditional_intent_retains_original_rhs_and_complete_postimage() {
         let source = "set held ${other}\nputs ${held}";
-        assert_eq!(authored(source).unwrap().apply(source), "puts ${other}");
+        assert_eq!(
+            authored(source).unwrap().try_apply(source).unwrap(),
+            "puts ${other}"
+        );
         let source = "set held VALUE\nputs pre-${held}-post";
         assert_eq!(
-            authored(source).unwrap().apply(source),
+            authored(source).unwrap().try_apply(source).unwrap(),
             "puts pre-VALUE-post"
         );
     }
@@ -1415,7 +1420,12 @@ mod logical_inline_substitution_ancestry_tests {
                 &LineIndex::new(source),
             )
             .expect("conditional source intent retains genuine nested ancestry");
-            assert!(action.apply(source).contains("[string repeat x 2]"));
+            assert!(
+                action
+                    .try_apply(source)
+                    .unwrap()
+                    .contains("[string repeat x 2]")
+            );
         }
     }
 

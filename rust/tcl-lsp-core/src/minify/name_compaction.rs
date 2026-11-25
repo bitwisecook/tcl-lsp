@@ -19,7 +19,7 @@
 //! The compact tier: short names for procedure-local variables, parameters and isolated procedures.
 
 use super::symbol_map::SymbolMap;
-use super::{Edit, MinifyEnv, apply_edits, lexical_metadata, original};
+use super::{MinifyEnv, SourceEdit, apply_edits, lexical_metadata, original};
 use rustc_hash::FxHashSet;
 use std::collections::BTreeMap;
 use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
@@ -176,7 +176,7 @@ pub(super) fn apply_rename_traits<'a>(
 pub(super) fn rename_params_in_list(
     formals: &[tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName],
     var_map: &BTreeMap<String, String>,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
 ) {
     for formal in formals {
         let (Ok(name), Some(span)) = (std::str::from_utf8(formal.name()), formal.source_span())
@@ -185,7 +185,10 @@ pub(super) fn rename_params_in_list(
         };
         if let Some(short) = var_map.get(name) {
             let range = span.as_range();
-            edits.push((range.start, range.len(), short.clone()));
+            edits.push(SourceEdit {
+                span: range,
+                text: short.clone(),
+            });
         }
     }
 }
@@ -295,7 +298,7 @@ pub(super) fn compact_names(
     };
     let commands = lexical_metadata::CommandCensus::observed_commands(&census);
     let mut symbol_map = SymbolMap::default();
-    let mut edits: Vec<Edit> = Vec::new();
+    let mut edits: Vec<SourceEdit> = Vec::new();
 
     let mut barriers = find_rename_barriers(&analysis, env, commands, isolated);
     if !lexical_metadata::CommandCensus::is_complete(&census, source, &analysis) {
@@ -366,8 +369,12 @@ pub(super) fn compact_names(
         &mut symbol_map,
         &mut edits,
     );
-    let result = apply_edits(source, edits);
-    (result, symbol_map)
+    edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
+    edits.dedup();
+    apply_edits(source, &edits).map_or_else(
+        |_| (source.to_owned(), SymbolMap::default()),
+        |result| (result, symbol_map),
+    )
 }
 
 fn compact_isolated_procedure_names(
@@ -376,7 +383,7 @@ fn compact_isolated_procedure_names(
     analysis: &AnalysisResult,
     builtin_names: &FxHashSet<&str>,
     symbol_map: &mut SymbolMap,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
 ) {
     let mut proc_gen = AuthoredCompactNameSequence::new(input.lexer_config());
     let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
@@ -409,15 +416,20 @@ fn compact_isolated_procedure_names(
 
         let r = proc_def.name_span;
         let actual = slice(source, r);
-        let def_key = (r.start() as usize, actual.len());
+        let def_span = r.as_range();
         if actual == *name {
-            edits.push((r.start() as usize, actual.len(), short.clone()));
+            edits.push(SourceEdit {
+                span: def_span.clone(),
+                text: short.clone(),
+            });
         }
         for call in current_proc_call_sites(source, proc_def, analysis) {
             let call_text = slice(source, call);
-            let key = (call.start() as usize, call_text.len());
-            if key != def_key && call_text == *name {
-                edits.push((call.start() as usize, call_text.len(), short.clone()));
+            if call.as_range() != def_span && call_text == *name {
+                edits.push(SourceEdit {
+                    span: call.as_range(),
+                    text: short.clone(),
+                });
             }
         }
         symbol_map.procs.insert(name.clone(), short);
@@ -433,7 +445,7 @@ pub(super) fn compact_logical_formals(
     isolated: bool,
     renamed_scopes: &[&Scope],
     symbol_map: &mut SymbolMap,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
 ) {
     // naming.minifier.logical-formal-binding-alpha
     // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
@@ -500,7 +512,7 @@ pub(super) fn compact_logical_formals(
                 .chain(formal.references().iter().map(tcl_compiler::registry_invocation::logical_formals::OriginalLogicalFormalReference::name_span))
             {
                 let range = span.as_range();
-                edits.push((range.start, range.len(), short.clone()));
+                edits.push(SourceEdit { span: range, text: short.clone() });
             }
             mapping.insert(formal.name().to_owned(), short);
         }
@@ -528,7 +540,7 @@ struct ScopeCtx<'a> {
 /// edit list.
 struct ScopeOut<'a, 'scope> {
     pub(super) symbol_map: &'a mut SymbolMap,
-    edits: &'a mut Vec<Edit>,
+    edits: &'a mut Vec<SourceEdit>,
     renamed_scopes: &'a mut Vec<&'scope Scope>,
 }
 
@@ -672,14 +684,12 @@ fn process_scope<'a>(
             if short.len() >= var_name.len() {
                 continue;
             }
-            if !is_param {
-                let span = var_def.definition_span;
-                out.edits
-                    .push((span.start() as usize, span.len() as usize, short.clone()));
-            }
-            for span in reference_names {
-                out.edits
-                    .push((span.start() as usize, span.len() as usize, short.clone()));
+            let declaration = (!is_param).then_some(var_def.definition_span);
+            for span in declaration.into_iter().chain(reference_names) {
+                out.edits.push(SourceEdit {
+                    span: span.as_range(),
+                    text: short.clone(),
+                });
             }
             var_map.insert(var_name.clone(), short);
         }

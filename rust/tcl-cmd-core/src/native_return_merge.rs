@@ -18,9 +18,18 @@
 
 //! `TclMergeReturnOptions` retains one original dictionary through expansion and removal.
 
+use std::rc::Rc;
+
 use crate::{
     CmdError,
+    native_append::{self, NativeAppendObjects},
     return_options::{self, ReturnOptionsOps, ReturnOptionsProtocol},
+};
+use tcl_dialect::TclVersion;
+use tcl_runtime_api::native_return_literal::{NativeKnownWordLiteral, NativeReturnOptionsLiteral};
+use tcl_syntax::{
+    native_object_append::NativeObjectAppendProtocol, native_string::NativeStringProtocol,
+    value::ValueError,
 };
 
 /// Original key/value handles obtained from one native dictionary traversal.
@@ -197,6 +206,73 @@ pub fn merge_retaining_controls<O: NativeReturnMergeObjects>(
         ops.put(&mut root, &pair[0], &pair[1])?;
     }
     Ok((merged, ops.finish(root)))
+}
+
+/// Materialise a compiler-known word through the backend's original objects.
+///
+/// # Errors
+/// Preserves native append failures on the original objects.
+pub fn materialise_known_word<A: NativeAppendObjects>(
+    objects: &A,
+    strings: NativeStringProtocol,
+    word: &NativeKnownWordLiteral,
+) -> Result<A::Value, CmdError> {
+    let append = NativeObjectAppendProtocol::for_string_protocol(strings);
+    let mut temporary = objects.new_string(Rc::from(&b""[..]));
+    for piece in &word.pieces {
+        temporary = native_append::append_counted_bytes(objects, append, &temporary, piece)?;
+    }
+    if word.composite {
+        let receiver = objects.new_string(Rc::from(&b""[..]));
+        Ok(
+            native_append::append_object(objects, append, Some(&receiver), &temporary)?
+                .into_value(),
+        )
+    } else {
+        Ok(temporary)
+    }
+}
+
+/// Manufacture the private Return literal through the backend's original
+/// append and Dictionary objects, validating the compiler's controls.
+///
+/// # Errors
+/// Preserves native construction failures and refuses an inconsistent recipe.
+pub fn manufacture<O: NativeReturnMergeObjects, A: NativeAppendObjects>(
+    recipe: &NativeReturnOptionsLiteral,
+    backend: impl FnOnce(TclVersion) -> Result<(O, A), CmdError>,
+    to_merge_value: impl Fn(A::Value) -> O::Value,
+) -> Result<O::Value, CmdError> {
+    let version = recipe
+        .protocol
+        .tcl_version()
+        .filter(|version| *version >= TclVersion::V8_5)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "private Return compiler origin",
+        ))?;
+    let (mut ops, append_objects) = backend(version)?;
+    let protocol = ReturnOptionsProtocol::for_native_strings(recipe.protocol);
+    let originals = recipe
+        .words
+        .iter()
+        .map(|word| {
+            materialise_known_word(&append_objects, recipe.protocol, word).map(&to_merge_value)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (merged, options) = if recipe.retains_controls {
+        merge_retaining_controls(&mut ops, protocol, &originals)?
+    } else {
+        let merged = merge(&mut ops, protocol, &originals)?;
+        let options = merged.options.clone();
+        (merged, options)
+    };
+    if (merged.code, merged.level, merged.size) != (recipe.code, recipe.level, recipe.size) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native Return literal controls mismatch",
+        )
+        .into());
+    }
+    Ok(options)
 }
 
 /// `Tcl_SetReturnOptions` validates the original outer even List before merging.

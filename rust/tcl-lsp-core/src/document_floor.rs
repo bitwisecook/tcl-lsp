@@ -114,41 +114,19 @@ impl<'a> DocumentFloor<'a> {
 
     fn requirement_floor(&self, req: &'a SignaturePackageRequire) -> Option<&'a str> {
         if req.original_name.is_some() {
-            // Alternatives are OR: every admitted version is bounded by the
-            // least requested floor. Independent require statements combine
-            // by their greatest floor in for_spec.
-            let mut floor = None;
-            for input in &req.original_requirements {
+            let alternatives = req.original_requirements.iter().map(|input| {
                 let input = input.as_ref()?;
                 if !self.input_is_current(input) || input.bytes().contains(&0) {
                     return None;
                 }
-                let text = std::str::from_utf8(input.bytes()).ok()?;
-                let lower = tcl_registry::version::requirement_lower_bound(text);
-                floor = Some(floor.map_or(lower, |previous| {
-                    if tcl_registry::version::compare(lower, previous).is_lt() {
-                        lower
-                    } else {
-                        previous
-                    }
-                }));
-            }
-            return floor;
+                std::str::from_utf8(input.bytes()).ok()
+            });
+            return tcl_registry::version::alternatives_lower_bound(alternatives, req.exact);
         }
         self.analysis
             .allows_lexical_declaration_advice()
             .then_some(())?;
-        req.requirements
-            .iter()
-            .map(String::as_str)
-            .chain(
-                req.requirements
-                    .is_empty()
-                    .then_some(req.version.as_deref())
-                    .flatten(),
-            )
-            .map(tcl_registry::version::requirement_lower_bound)
-            .min_by(|a, b| tcl_registry::version::compare(a, b))
+        req.written_lower_bound()
     }
 
     /// The source-advice version floor for `spec`'s owning package.

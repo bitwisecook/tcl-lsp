@@ -50,7 +50,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, ensure_ascii, read_input_documents_as, write_text_output};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
-use tcl_lexer::{LexerConfig, LineIndex, SourceImage, Utf16Col};
+use tcl_lexer::{LexerConfig, LineIndex, SourceEdit, SourceImage, Utf16Col, apply_edits};
 
 use crate::cli::InputArgs;
 
@@ -173,7 +173,7 @@ fn collect_rename_edits(
     source: &str,
     analysis: &AnalysisResult,
     names_seen: &mut HashMap<String, String>,
-) -> Vec<(usize, usize, String)> {
+) -> Vec<SourceEdit> {
     let Some(config) = analysis.body_lexer_config else {
         return Vec::new();
     };
@@ -188,7 +188,7 @@ fn collect_rename_edits(
     occurrences.sort_by_key(|occurrence| (occurrence.span().start(), occurrence.span().end()));
     // Bucket by the complete symbol hash, then compare the complete identity.
     let mut selected: HashMap<u64, Vec<_>> = HashMap::new();
-    let mut edits: Vec<(usize, usize, String)> = Vec::new();
+    let mut edits: Vec<SourceEdit> = Vec::new();
     for occurrence in occurrences {
         let symbol = occurrence.symbol();
         let hash = selected.hasher().hash_one(symbol);
@@ -224,7 +224,10 @@ fn collect_rename_edits(
                     Utf16Col::new(edit.range.end_character),
                     source,
                 ) as usize;
-                source.get(start..end).map(|_| (start, end, edit.new_text))
+                source.get(start..end).map(|_| SourceEdit {
+                    span: start..end,
+                    text: edit.new_text,
+                })
             })
             .collect::<Option<Vec<_>>>();
         let Some(plan) = plan else {
@@ -233,33 +236,16 @@ fn collect_rename_edits(
         // Two symbols can share one original list container. Accept the whole
         // symbol's plan only when every edit is disjoint from previous plans;
         // retaining just some occurrences would change the reproducer's names.
-        if plan.iter().any(|(start, end, _)| {
+        if plan.iter().any(|edit| {
             edits
                 .iter()
-                .any(|(prior_start, prior_end, _)| start < prior_end && prior_start < end)
+                .any(|prior| edit.span.start < prior.span.end && prior.span.start < edit.span.end)
         }) {
             continue;
         }
         edits.extend(plan);
     }
     edits
-}
-
-/// Apply non-overlapping `(start, end, text)` edits right-to-left.
-fn apply_edits(source: &str, edits: &[(usize, usize, String)]) -> String {
-    let mut seen: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
-    let mut uniq: Vec<(usize, usize, String)> = Vec::new();
-    for (s, e, t) in edits {
-        if seen.insert((*s, *e)) {
-            uniq.push((*s, *e, t.clone()));
-        }
-    }
-    uniq.sort_by_key(|e| std::cmp::Reverse(e.0));
-    let mut out = source.to_owned();
-    for (s, e, t) in uniq {
-        out.replace_range(s..e, &t);
-    }
-    out
 }
 
 /// Strip common leading whitespace from non-blank lines.
@@ -357,12 +343,12 @@ pub fn minimize_diagnostic_with_input(
         let mut names_seen: HashMap<String, String> = HashMap::new();
         let analysis = analyse_source(&reduced, input);
         let edits = collect_rename_edits(&reduced, &analysis, &mut names_seen);
-        if !edits.is_empty() {
-            let candidate = apply_edits(&reduced, &edits);
-            if fires(&candidate, code, input) {
-                reduced = candidate;
-                did_rename = true;
-            }
+        if !edits.is_empty()
+            && let Ok(candidate) = apply_edits(&reduced, &edits)
+            && fires(&candidate, code, input)
+        {
+            reduced = candidate;
+            did_rename = true;
         }
     }
 
@@ -520,17 +506,6 @@ mod tests {
     }
 
     #[test]
-    fn apply_edits_rewrites_right_to_left_and_dedups() {
-        // Two edits on the same span are de-duplicated (first wins).
-        let edits = vec![
-            (0usize, 1usize, "X".to_owned()),
-            (4usize, 5usize, "Y".to_owned()),
-            (0usize, 1usize, "Z".to_owned()),
-        ];
-        assert_eq!(apply_edits("abcde", &edits), "XbcdY");
-    }
-
-    #[test]
     fn short_for_skips_reserved_and_qualified_names() {
         let mut seen = HashMap::new();
         assert_eq!(short_for("env", &mut seen), None);
@@ -555,7 +530,7 @@ mod tests {
     fn renamed_source(source: &str, input: &ResolvedAnalysisInput) -> String {
         let analysis = analyse_source(source, input);
         let edits = collect_rename_edits(source, &analysis, &mut HashMap::new());
-        apply_edits(source, &edits)
+        apply_edits(source, &edits).unwrap()
     }
 
     #[test]
@@ -618,19 +593,13 @@ mod tests {
         let input = input_for("tcl8.6");
         let source = "set long 1; list $long";
         let mut analysis = analyse_source(source, &input);
-        assert_ne!(
-            collect_rename_edits(source, &analysis, &mut HashMap::new()),
-            [] as [(usize, usize, std::string::String); 0]
-        );
-        assert_eq!(
-            collect_rename_edits("set other 1; list $long", &analysis, &mut HashMap::new()),
-            [] as [(usize, usize, std::string::String); 0]
+        assert!(!collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
+        assert!(
+            collect_rename_edits("set other 1; list $long", &analysis, &mut HashMap::new())
+                .is_empty()
         );
         analysis.resolved_input = None;
-        assert_eq!(
-            collect_rename_edits(source, &analysis, &mut HashMap::new()),
-            [] as [(usize, usize, std::string::String); 0]
-        );
+        assert!(collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
 
         let collision = "set long 1; set a 2; list $long $a";
         let renamed = renamed_source(collision, &input);

@@ -197,3 +197,49 @@ fn ns_scope_array_element_read_attaches_under_8x_m11() {
     let r90 = a.analyse(src, "tcl9.0");
     assert_eq!(global_var_refs(&r90, "arr"), 0, "9.0: no fallback");
 }
+
+#[test]
+fn ns_scope_write_reports_the_selected_global_cell_under_8x() {
+    let source =
+        "set x global\nnamespace eval ::n { set x nsevalset }\nnamespace eval ::n { set y $x }\n";
+    let namespace_write = u32::try_from(source.find("x nsevalset").unwrap()).unwrap();
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let result = Analyser::new().analyse(source, dialect);
+        let reaches_root = dialect.starts_with("tcl8.");
+        assert_eq!(
+            result.global_scope.variables["x"]
+                .references
+                .iter()
+                .any(|span| span.start() == namespace_write),
+            reaches_root,
+            "{dialect}"
+        );
+        assert_eq!(
+            result
+                .global_scope
+                .children
+                .iter()
+                .any(|scope| scope.variables.contains_key("x")),
+            !reaches_root,
+            "{dialect}"
+        );
+    }
+}
+
+#[test]
+fn ns_scope_creative_write_leaves_no_namespace_cell_under_8x() {
+    let source = "set x 1\nnamespace eval ::n { set x 2 }\nputs [catch {set ::n::x} m]:$m\n";
+    let read = source.find("::n::x").unwrap();
+    for (dialect, missing) in [("tcl8.6", true), ("tcl9.0", false)] {
+        let result = Analyser::new().analyse(source, dialect);
+        assert_eq!(
+            result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagCode::W210
+                    && diagnostic.span.as_range() == (read..read + "::n::x".len())
+            }),
+            missing,
+            "{dialect}: {:?}",
+            result.diagnostics
+        );
+    }
+}

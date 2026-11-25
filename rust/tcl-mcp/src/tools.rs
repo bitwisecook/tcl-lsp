@@ -18,9 +18,8 @@
 
 //! MCP tool registry + handlers — each calls the Rust analysis crates directly.
 //!
-//! Handlers take the JSON `arguments` object and return a JSON result `Value`;
-//! [`call`] renders it into the MCP `content[].text` wire shape (a JSON string),
-//! kept stable so existing clients are unaffected.
+//! Handlers take JSON arguments. The server sends their JSON payloads in
+//! `content[].text` and marks tool failures with `isError`.
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
@@ -99,7 +98,8 @@ fn resolve_dialect(args: &Value, source: &str) -> String {
             // (`set_dialect` stores one), so the lookup returns it unchanged.
             let default =
                 crate::environment::canonical_id_for_dialect(&session).unwrap_or(DEFAULT_DIALECT);
-            tcl_registry::detect_dialect(source, None, default).to_owned()
+            let source = tcl_lexer::normalise_lone_cr(source);
+            tcl_registry::detect_dialect(&source, None, default).to_owned()
         }
     }
 }
@@ -122,7 +122,15 @@ pub(crate) fn declared_dialect(args: &Value) -> String {
     }
 }
 
-fn set_dialect(args: &Value) -> Value {
+fn unknown_dialect(requested: &str) -> Value {
+    let names = dialect_names();
+    json!({
+        "error": format!("Unknown dialect '{requested}'; valid surface: {}", names.join(", ")),
+        "valid_dialects": names,
+    })
+}
+
+fn set_dialect(args: &Value) -> ToolResult {
     let requested = arg_str(args, "dialect");
     // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds a
     // canonical environment id.
@@ -133,29 +141,27 @@ fn set_dialect(args: &Value) -> Value {
     // unknown spelling. The advertised `enum` and the `valid_dialects` list
     // are the selectable canonical ids.
     let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
-        return json!({
-            "error": format!(
-                "Unknown dialect '{requested}'; valid surface: {}",
-                dialect_names().join(", ")
-            ),
-            "valid_dialects": dialect_names(),
-        });
+        return Err(unknown_dialect(requested));
     };
     let resolved = profile.name.to_owned();
     let mut guard = session_dialect().lock().expect("session dialect lock");
     let previous = std::mem::replace(&mut *guard, resolved.clone());
     let changed = previous != resolved;
-    json!({
+    Ok(json!({
         "dialect": resolved,
         "display_name": profile.display_name,
         "requested": requested,
         "previous": previous,
         "changed": changed,
-    })
+    }))
 }
 
 fn arg_str<'a>(args: &'a Value, key: &str) -> &'a str {
     args.get(key).and_then(Value::as_str).unwrap_or("")
+}
+
+pub(crate) fn analysis_source(args: &Value) -> std::borrow::Cow<'_, str> {
+    tcl_lexer::normalise_lone_cr(arg_str(args, "source"))
 }
 
 fn arg_u32(args: &Value, key: &str) -> u32 {
@@ -362,15 +368,12 @@ fn arg_bool(args: &Value, key: &str) -> bool {
     }
 }
 
-/// `{line, character}` for a byte offset, using byte columns (matching the
-/// facade's `SourceMap`-based diagnostic ranges).
-fn byte_pos(sm: &SourceMap<'_>, offset: u32) -> Value {
-    let p = sm.position_at(offset);
-    json!({ "line": p.line, "character": p.character.get() })
-}
-
-fn byte_range(sm: &SourceMap<'_>, span: Span) -> Value {
-    json!({ "start": byte_pos(sm, span.start()), "end": byte_pos(sm, span.end()) })
+fn span_range_json(sm: &SourceMap<'_>, span: Span) -> Value {
+    lsp_range_json(&tcl_lsp_core::definition::span_to_range(
+        sm.source(),
+        sm.line_index(),
+        span,
+    ))
 }
 
 /// The nested LSP range shape `{start:{line,character}, end:{…}}` (UTF-16).
@@ -430,7 +433,17 @@ fn help(args: &Value) -> Value {
 
 // ── Registry table ────────────────────────────────────────────────────
 
-type Handler = fn(&Value) -> Value;
+pub(crate) type ToolResult = Result<Value, Value>;
+
+pub(crate) fn tool_error(message: impl std::fmt::Display) -> Value {
+    json!({ "error": message.to_string() })
+}
+
+pub(crate) fn refused(reason: impl std::fmt::Display) -> Value {
+    json!({ "refused": { "reason": reason.to_string() } })
+}
+
+type Handler = fn(&Value) -> ToolResult;
 
 struct ToolDef {
     name: &'static str,
@@ -491,13 +504,31 @@ fn kcs_tool_table() -> String {
     out
 }
 
-/// Run a tool by name against its JSON `arguments`, returning the raw JSON
-/// result — or `None` when the tool is unknown.
+/// Run a tool by name, retaining whether its JSON payload describes a failure.
+pub fn run_tool(name: &str, args: &Value) -> ToolResult {
+    let tool = TOOLS
+        .iter()
+        .find(|t| t.name == name)
+        .ok_or_else(|| tool_error(format_args!("Unknown tool: {name}")))?;
+    let dialect = arg_str(args, tool_table::DIALECT_PARAM);
+    if !dialect.is_empty()
+        && tool
+            .params
+            .iter()
+            .any(|param| param.0 == tool_table::DIALECT_PARAM)
+        && crate::environment::known_profile_for_dialect(dialect).is_none()
+    {
+        return Err(unknown_dialect(dialect));
+    }
+    (tool.handler)(args)
+}
+
+#[cfg(test)]
 pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
     TOOLS
         .iter()
-        .find(|t| t.name == name)
-        .map(|t| (t.handler)(args))
+        .any(|tool| tool.name == name)
+        .then(|| run_tool(name, args).unwrap_or_else(|payload| payload))
 }
 
 /// The KCS note's tool table is generated from [`TOOLS`]; set

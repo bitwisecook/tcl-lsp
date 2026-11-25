@@ -19,31 +19,17 @@
 //! Encoding of object-name segments at the iControl REST boundary.
 
 use tcl_bigip::object_names::BigIpName;
+use tcl_platform::file_uri::escaped_component;
 
 /// Convert `/Common/foo` -> `~Common~foo` (iControl REST format).
 #[must_use]
 pub fn encode_path(full_path: &str) -> String {
     if full_path.starts_with('/') {
-        percent_encode(&full_path.replace('/', "~"))
+        escaped_component(&full_path.replace('/', "~"))
     } else {
         // Percent-encode everything but the RFC 3986 unreserved set.
-        percent_encode(full_path)
+        escaped_component(full_path)
     }
-}
-
-/// Percent-encode every byte that is not an unreserved character
-/// (`A-Z a-z 0-9 _ . - ~`), encoding all others including `/`.
-fn percent_encode(s: &str) -> String {
-    use std::fmt::Write as _;
-    let mut out = String::with_capacity(s.len());
-    for &b in s.as_bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b'~') {
-            out.push(b as char);
-        } else {
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
 }
 
 /// Encode an authored path, short name or already encoded resource ID.

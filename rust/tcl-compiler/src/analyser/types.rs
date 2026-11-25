@@ -279,6 +279,9 @@ pub struct AnalysisResult {
     /// flag because the dynamic provider may register the missing
     /// command at runtime.
     pub has_dynamic_providers: bool,
+    /// Whether dynamic source loading or command mutations can invalidate
+    /// missing-package advice independently of unnameable package requirements.
+    pub(crate) has_unresolved_provider_effects: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
     /// Conditional source path writes from the same retained analysis input,
@@ -652,6 +655,13 @@ macro_rules! analysis_result_report_eq {
     }};
 }
 
+impl AnalysisResult {
+    pub(crate) fn record_unresolved_provider_effect(&mut self) {
+        self.has_dynamic_providers = true;
+        self.has_unresolved_provider_effects = true;
+    }
+}
+
 impl PartialEq for AnalysisResult {
     fn eq(&self, other: &Self) -> bool {
         analysis_result_report_eq!(self, other; [
@@ -693,6 +703,7 @@ impl PartialEq for AnalysisResult {
             package_ifneededs,
             package_prefer_latest,
             has_dynamic_providers,
+            has_unresolved_provider_effects,
             source_targets,
             path_constant_assignments,
             command_aliases,
@@ -797,6 +808,7 @@ macro_rules! analysis_result_mismatch_fields {
                 package_ifneededs,
                 package_prefer_latest,
                 has_dynamic_providers,
+            has_unresolved_provider_effects,
                 source_targets,
                 path_constant_assignments,
                 command_aliases,
@@ -990,7 +1002,7 @@ pub use class_members::{
     ObjectMemberState, ObjectMethodDef, PropertyDef, RenamedMember, class_constructor_key,
     class_destructor_key, class_member_key, class_property_key,
 };
-pub use diagnostic::Diagnostic;
+pub use diagnostic::{Diagnostic, SignedDataGroupComparison};
 pub use occurrence_records::{
     AutoPathEntry, AutoPathForm, DynamicVariableNameSite, InstanceCommandBinding, NamespaceRef,
     PackageIfneeded, PackageProvide, QualifiedVarRef, RegexPattern,

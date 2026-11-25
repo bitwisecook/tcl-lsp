@@ -31,13 +31,6 @@
 //! representation they care about — `String` names for memory-SSA,
 //! source tokens for the LSP declaration provider.
 
-use std::sync::OnceLock;
-
-fn default_registry() -> &'static tcl_registry::CommandRegistry {
-    static REGISTRY: OnceLock<tcl_registry::CommandRegistry> = OnceLock::new();
-    REGISTRY.get_or_init(tcl_registry::CommandRegistry::build_default)
-}
-
 fn registry_role_indices(
     registry: &tcl_registry::CommandRegistry,
     command: &str,
@@ -58,14 +51,13 @@ fn registry_role_indices(
     registry.arg_indices_for_role(command, &refs, tcl_registry::prelude::ArgRole::VarWrite)
 }
 
-fn default_registry_role_indices(command: &str, args: &[String]) -> Vec<usize> {
-    registry_role_indices(default_registry(), command, args)
-}
-
 /// Return registry-declared `global` name positions, excluding substitutions.
 #[must_use]
-pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
-    default_registry_role_indices("global", args)
+pub fn global_declaration_indices(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+) -> Vec<usize> {
+    registry_role_indices(registry, "global", args)
         .into_iter()
         .filter(|&i| {
             args.get(i)
@@ -76,8 +68,11 @@ pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
 
 #[must_use]
 /// Return registry-declared `variable` name positions, excluding substitutions.
-pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
-    default_registry_role_indices("variable", args)
+pub fn variable_declaration_indices(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+) -> Vec<usize> {
+    registry_role_indices(registry, "variable", args)
         .into_iter()
         .filter(|&i| {
             args.get(i)
@@ -88,8 +83,11 @@ pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
 
 #[must_use]
 /// Return registry-declared `my variable` name positions, excluding substitutions.
-pub fn my_variable_declaration_indices(args: &[String]) -> Vec<usize> {
-    default_registry_role_indices("my", args)
+pub fn my_variable_declaration_indices(
+    registry: &tcl_registry::CommandRegistry,
+    args: &[String],
+) -> Vec<usize> {
+    registry_role_indices(registry, "my", args)
         .into_iter()
         .filter(|&i| {
             args.get(i)
@@ -100,8 +98,12 @@ pub fn my_variable_declaration_indices(args: &[String]) -> Vec<usize> {
 
 #[must_use]
 /// Return registry-declared `upvar` local positions whose source and local are static.
-pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<usize> {
-    default_registry_role_indices(command, args)
+pub fn upvar_local_declaration_indices(
+    registry: &tcl_registry::CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<usize> {
+    registry_role_indices(registry, command, args)
         .into_iter()
         .filter(|&i| {
             args.get(i).is_some_and(|local| !local.starts_with('$'))
@@ -115,8 +117,12 @@ pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<us
 
 #[must_use]
 /// Return registry-declared local alias positions, retaining dynamic sources.
-pub fn upvar_local_alias_indices(command: &str, args: &[String]) -> Vec<usize> {
-    default_registry_role_indices(command, args)
+pub fn upvar_local_alias_indices(
+    registry: &tcl_registry::CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<usize> {
+    registry_role_indices(registry, command, args)
         .into_iter()
         .filter(|&i| args.get(i).is_some_and(|local| !local.starts_with('$')))
         .collect()
@@ -251,23 +257,26 @@ mod tests {
     #[test]
     fn global_decls_bare_names_only() {
         let args = v(&["foo", "bar", "$skip"]);
-        assert_eq!(global_declaration_indices(&args), vec![0, 1]);
+        assert_eq!(global_declaration_indices(registry(), &args), vec![0, 1]);
     }
 
     #[test]
     fn global_decls_empty_input() {
-        assert_eq!(global_declaration_indices(&[]), [] as [usize; 0]);
+        assert_eq!(
+            global_declaration_indices(registry(), &[]),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
     fn global_scope_aliases_are_registry_described() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let registry = registry();
         assert_eq!(
-            global_scope_alias_local_indices(&registry, "global", &v(&["x", "y"])),
+            global_scope_alias_local_indices(registry, "global", &v(&["x", "y"])),
             vec![0, 1]
         );
         assert_eq!(
-            global_scope_alias_local_indices(&registry, "upvar", &v(&["1", "x", "y"])).len(),
+            global_scope_alias_local_indices(registry, "upvar", &v(&["1", "x", "y"])).len(),
             0
         );
     }
@@ -276,13 +285,16 @@ mod tests {
     fn variable_decls_skip_values() {
         // `variable foo 42 bar 99 baz` → names at 0, 2, 4.
         let args = v(&["foo", "42", "bar", "99", "baz"]);
-        assert_eq!(variable_declaration_indices(&args), vec![0, 2, 4]);
+        assert_eq!(
+            variable_declaration_indices(registry(), &args),
+            vec![0, 2, 4]
+        );
     }
 
     #[test]
     fn variable_decls_reject_substituted_names() {
         let args = v(&["$x", "42", "bar", "99"]);
-        assert_eq!(variable_declaration_indices(&args), vec![2]);
+        assert_eq!(variable_declaration_indices(registry(), &args), vec![2]);
     }
 
     #[test]
@@ -290,33 +302,48 @@ mod tests {
         // Unlike the top-level `variable` command, the object `variable`
         // method takes only names: `my variable x y z` declares x, y, z.
         let args = v(&["variable", "x", "y", "z"]);
-        assert_eq!(my_variable_declaration_indices(&args), vec![1, 2, 3]);
+        assert_eq!(
+            my_variable_declaration_indices(registry(), &args),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
     fn my_variable_decls_skip_substituted_and_non_variable_subcommand() {
         let args = v(&["variable", "x", "$dyn", "y"]);
-        assert_eq!(my_variable_declaration_indices(&args), vec![1, 3]);
+        assert_eq!(
+            my_variable_declaration_indices(registry(), &args),
+            vec![1, 3]
+        );
         // A different `my` method (e.g. `my varname x`) is not a declaration.
         assert_eq!(
-            my_variable_declaration_indices(&v(&["varname", "x"])),
+            my_variable_declaration_indices(registry(), &v(&["varname", "x"])),
             [] as [usize; 0]
         );
-        assert_eq!(my_variable_declaration_indices(&[]), [] as [usize; 0]);
+        assert_eq!(
+            my_variable_declaration_indices(registry(), &[]),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
     fn upvar_without_level() {
         // `upvar caller local`
         let args = v(&["caller", "local"]);
-        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![1]);
+        assert_eq!(
+            upvar_local_declaration_indices(registry(), "upvar", &args),
+            vec![1]
+        );
     }
 
     #[test]
     fn upvar_with_integer_level() {
         // `upvar 1 caller local`
         let args = v(&["1", "caller", "local"]);
-        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+        assert_eq!(
+            upvar_local_declaration_indices(registry(), "upvar", &args),
+            vec![2]
+        );
     }
 
     #[test]
@@ -324,7 +351,7 @@ mod tests {
         // All measured C releases and Jim reject a negative frame selector.
         let args = v(&["-1", "caller", "local"]);
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &args),
+            upvar_local_declaration_indices(registry(), "upvar", &args),
             [] as [usize; 0]
         );
     }
@@ -333,14 +360,20 @@ mod tests {
     fn upvar_with_hash_level() {
         // `upvar #0 caller local`
         let args = v(&["#0", "caller", "local"]);
-        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+        assert_eq!(
+            upvar_local_declaration_indices(registry(), "upvar", &args),
+            vec![2]
+        );
     }
 
     #[test]
     fn upvar_multi_pair() {
         // `upvar 1 a la b lb`
         let args = v(&["1", "a", "la", "b", "lb"]);
-        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2, 4]);
+        assert_eq!(
+            upvar_local_declaration_indices(registry(), "upvar", &args),
+            vec![2, 4]
+        );
     }
 
     #[test]
@@ -349,7 +382,7 @@ mod tests {
         // like a substitution.
         let args = v(&["1", "$cached", "local"]);
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &args),
+            upvar_local_declaration_indices(registry(), "upvar", &args),
             [] as [usize; 0]
         );
     }
@@ -360,7 +393,7 @@ mod tests {
         // `namespace upvar ns src dst src2 dst2` as one command.
         let args = v(&["upvar", "::ns", "src", "dst", "src2", "dst2"]);
         assert_eq!(
-            upvar_local_declaration_indices("namespace", &args),
+            upvar_local_declaration_indices(registry(), "namespace", &args),
             vec![3, 5]
         );
     }
@@ -370,7 +403,7 @@ mod tests {
         // Pre-composed command word "namespace upvar".
         let args = v(&["::ns", "src", "dst"]);
         assert_eq!(
-            upvar_local_declaration_indices("namespace upvar", &args),
+            upvar_local_declaration_indices(registry(), "namespace upvar", &args),
             vec![2]
         );
     }
@@ -379,7 +412,7 @@ mod tests {
     fn upvar_unrelated_command_empty() {
         let args = v(&["a", "b"]);
         assert_eq!(
-            upvar_local_declaration_indices("set", &args),
+            upvar_local_declaration_indices(registry(), "set", &args),
             [] as [usize; 0]
         );
     }
@@ -387,13 +420,13 @@ mod tests {
     #[test]
     fn upvar_insufficient_args_empty() {
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &[]),
+            upvar_local_declaration_indices(registry(), "upvar", &[]),
             [] as [usize; 0]
         );
         // Only level, no pairs.
         let args = v(&["1"]);
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &args),
+            upvar_local_declaration_indices(registry(), "upvar", &args),
             [] as [usize; 0]
         );
     }
@@ -405,10 +438,13 @@ mod tests {
         // scope, so the observability flavour keeps it.
         let args = v(&["0", "$src", "local"]);
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &args),
+            upvar_local_declaration_indices(registry(), "upvar", &args),
             [] as [usize; 0]
         );
-        assert_eq!(upvar_local_alias_indices("upvar", &args), vec![2]);
+        assert_eq!(
+            upvar_local_alias_indices(registry(), "upvar", &args),
+            vec![2]
+        );
     }
 
     #[test]
@@ -416,97 +452,113 @@ mod tests {
         // A `$`-substituted *local* names no static variable — skipped by
         // both flavours.
         let args = v(&["0", "src", "$local"]);
-        assert_eq!(upvar_local_alias_indices("upvar", &args), [] as [usize; 0]);
+        assert_eq!(
+            upvar_local_alias_indices(registry(), "upvar", &args),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
     fn upvar_alias_handles_namespace_forms_and_levels() {
         let ns = v(&["upvar", "::ns", "src", "dst", "src2", "dst2"]);
-        assert_eq!(upvar_local_alias_indices("namespace", &ns), vec![3, 5]);
+        assert_eq!(
+            upvar_local_alias_indices(registry(), "namespace", &ns),
+            vec![3, 5]
+        );
         let lv = v(&["#0", "caller", "local"]);
-        assert_eq!(upvar_local_alias_indices("upvar", &lv), vec![2]);
+        assert_eq!(upvar_local_alias_indices(registry(), "upvar", &lv), vec![2]);
     }
 
-    fn registry() -> tcl_registry::CommandRegistry {
-        tcl_registry::CommandRegistry::build_default()
+    fn registry() -> &'static tcl_registry::CommandRegistry {
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
     }
 
     #[test]
     fn is_scope_alias_call_recognises_alias_creators() {
         let reg = registry();
-        assert!(is_scope_alias_call(&reg, "global", &v(&["g"])));
-        assert!(is_scope_alias_call(&reg, "variable", &v(&["n", "1"])));
-        assert!(is_scope_alias_call(&reg, "upvar", &v(&["src", "dst"])));
+        assert!(is_scope_alias_call(reg, "global", &v(&["g"])));
+        assert!(is_scope_alias_call(reg, "variable", &v(&["n", "1"])));
+        assert!(is_scope_alias_call(reg, "upvar", &v(&["src", "dst"])));
         assert!(is_scope_alias_call(
-            &reg,
+            reg,
             "namespace",
             &v(&["upvar", "::ns", "a", "b"])
         ));
         // TclOO's per-object `variable` analogue — the per-subcommand flag.
-        assert!(is_scope_alias_call(&reg, "my", &v(&["variable", "x"])));
+        assert!(is_scope_alias_call(reg, "my", &v(&["variable", "x"])));
     }
 
     #[test]
     fn is_scope_alias_call_rejects_non_alias_commands() {
         let reg = registry();
-        assert!(!is_scope_alias_call(&reg, "set", &v(&["x", "1"])));
+        assert!(!is_scope_alias_call(reg, "set", &v(&["x", "1"])));
         assert!(!is_scope_alias_call(
-            &reg,
+            reg,
             "namespace",
             &v(&["eval", "::n", "body"])
         ));
         // `my` dispatching an ordinary method is not an alias.
-        assert!(!is_scope_alias_call(&reg, "my", &v(&["speak"])));
-        assert!(!is_scope_alias_call(&reg, "nosuchcmd", &v(&["x"])));
+        assert!(!is_scope_alias_call(reg, "my", &v(&["speak"])));
+        assert!(!is_scope_alias_call(reg, "nosuchcmd", &v(&["x"])));
     }
 
     #[test]
     fn scope_alias_local_indices_covers_every_form() {
         let reg = registry();
         assert_eq!(
-            scope_alias_local_indices(&reg, "global", &v(&["a", "b", "$dyn"])),
+            scope_alias_local_indices(reg, "global", &v(&["a", "b", "$dyn"])),
             vec![0, 1]
         );
         assert_eq!(
-            scope_alias_local_indices(&reg, "variable", &v(&["n", "1", "m"])),
+            scope_alias_local_indices(reg, "variable", &v(&["n", "1", "m"])),
             vec![0, 2]
         );
         assert_eq!(
-            scope_alias_local_indices(&reg, "upvar", &v(&["1", "src", "dst"])),
+            scope_alias_local_indices(reg, "upvar", &v(&["1", "src", "dst"])),
             vec![2]
         );
         assert_eq!(
-            scope_alias_local_indices(&reg, "namespace", &v(&["upvar", "::ns", "s", "d"])),
+            scope_alias_local_indices(reg, "namespace", &v(&["upvar", "::ns", "s", "d"])),
             vec![3]
         );
         // `my variable x y` — resolved via the spec's own role resolver.
         assert_eq!(
-            scope_alias_local_indices(&reg, "my", &v(&["variable", "x", "y"])),
+            scope_alias_local_indices(reg, "my", &v(&["variable", "x", "y"])),
             vec![1, 2]
         );
         assert_eq!(
-            scope_alias_local_indices(&reg, "puts", &v(&["x"])),
+            scope_alias_local_indices(reg, "puts", &v(&["x"])),
             [] as [usize; 0]
         );
     }
 
     #[test]
-    fn unresolved_upvar_policy_abstains_on_release_specific_layout() {
+    fn upvar_declarations_use_the_selected_frame_level_policy() {
+        let tcl84 = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
+        assert!(upvar_local_declaration_indices(tcl84, "upvar", &v(&["1", "b"])).is_empty());
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["$lvl", "a", "b"])),
-            [] as [usize; 0]
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["1", "b"])),
+            vec![1],
         );
-        assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["1", "b"])),
-            [] as [usize; 0]
+        assert!(
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["$lvl", "a", "b"]))
+                .is_empty()
         );
     }
 
     #[test]
     fn selected_upvar_roles_follow_actual_frame_presence_policy() {
-        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
             let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
-            let expected = if matches!(dialect, "tcl8.4" | "tcl8.5") {
+            let expected = if matches!(dialect, "tcl8.4" | "tcl8.5" | "f5-irules") {
                 vec![]
             } else {
                 vec![1]

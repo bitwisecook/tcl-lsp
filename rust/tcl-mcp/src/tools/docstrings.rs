@@ -18,24 +18,22 @@
 
 //! The docstring tools: generate one, read a procedure's documentation and update a file's docstrings.
 
-use super::{analyse, arg_bool, arg_str, resolve_dialect};
+use super::{analyse, analysis_source, arg_bool, arg_str, refused, resolve_dialect};
 use serde_json::{Map, Value, json};
 use tcl_lexer::LineIndex;
 
-/// Split `s` into lines keeping each trailing `\n` (like
-/// `splitlines(keepends=True)` over `\n`); re-joining with `concat()` is
-/// loss-free. Mirrors the `insert_docstring_stubs` facade helper.
-fn split_keep_ends(s: &str) -> Vec<String> {
+/// Split the original text at the line ends recognised by analysis.
+fn split_keep_ends(original: &str, analysis_text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut start = 0;
-    for (i, &b) in s.as_bytes().iter().enumerate() {
+    for (i, &b) in analysis_text.as_bytes().iter().enumerate() {
         if b == b'\n' {
-            out.push(s[start..=i].to_owned());
+            out.push(original[start..=i].to_owned());
             start = i + 1;
         }
     }
-    if start < s.len() {
-        out.push(s[start..].to_owned());
+    if start < original.len() {
+        out.push(original[start..].to_owned());
     }
     out
 }
@@ -43,7 +41,7 @@ fn split_keep_ends(s: &str) -> Vec<String> {
 // ── Docstring tools ───────────────────────────────────────────────────
 
 pub(super) fn generate_docstring(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let proc_name = arg_str(args, "proc_name");
     let style = match arg_str(args, "style") {
@@ -55,7 +53,7 @@ pub(super) fn generate_docstring(args: &Value) -> Value {
     let Some(declarations) =
         tcl_lsp_core::procedure_symbol::for_literal_name(source, &analysis, proc_name)
     else {
-        return json!({ "error": "The current original procedure inventory is unavailable" });
+        return refused("The current original procedure inventory is unavailable");
     };
     match declarations.as_slice() {
         [proc] => {
@@ -65,25 +63,33 @@ pub(super) fn generate_docstring(args: &Value) -> Value {
             );
             json!({ "proc": proc_name, "docstring": docstring })
         }
-        [] => json!({
-            "error": format!("Proc '{proc_name}' not found at global scope; use its qualified name for a namespace declaration"),
-        }),
-        _ => json!({
-            "error": format!("Proc '{proc_name}' has multiple source declarations"),
-            "declarations": declarations.iter().map(|proc| json!({
-                "name_start": proc.name_span.start(),
-                "name_end": proc.name_span.end(),
-            })).collect::<Vec<_>>(),
-        }),
+        [] => refused(format_args!(
+            "Proc '{proc_name}' not found at global scope; use its qualified name for a namespace declaration"
+        )),
+        _ => {
+            let mut result = refused(format_args!(
+                "Proc '{proc_name}' has multiple source declarations"
+            ));
+            result["declarations"] = json!(
+                declarations
+                    .iter()
+                    .map(|proc| json!({
+                        "name_start": proc.name_span.start(),
+                        "name_end": proc.name_span.end(),
+                    }))
+                    .collect::<Vec<_>>()
+            );
+            result
+        }
     }
 }
 
 pub(super) fn read_proc_docs(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
-        return json!({ "error": "The current original procedure inventory is unavailable" });
+        return refused("The current original procedure inventory is unavailable");
     };
     let entries: Vec<Value> = procs
         .into_iter()
@@ -108,7 +114,7 @@ pub(super) fn read_proc_docs(args: &Value) -> Value {
             {
                 m.insert(
                     "name_source".to_owned(),
-                    json!(source.get(original.name_input().span().as_range())),
+                    json!(arg_str(args, "source").get(original.name_input().span().as_range())),
                 );
             }
             m.insert("name_start".to_owned(), json!(proc.name_span.start()));
@@ -138,7 +144,7 @@ pub(super) fn read_proc_docs(args: &Value) -> Value {
 }
 
 pub(super) fn update_docstrings(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let style = match arg_str(args, "style") {
         "" => "doxygen",
@@ -149,7 +155,7 @@ pub(super) fn update_docstrings(args: &Value) -> Value {
     let line_index = LineIndex::new(source);
     let tag = tcl_lsp_core::formatting::resolve_tag_style(style);
     let Some(procs) = tcl_lsp_core::procedure_symbol::declarations(source, &analysis) else {
-        return json!({ "error": "The current original procedure inventory is unavailable" });
+        return refused("The current original procedure inventory is unavailable");
     };
     let total_procs = procs.len();
 
@@ -161,7 +167,7 @@ pub(super) fn update_docstrings(args: &Value) -> Value {
         .collect();
     targets.sort_by_key(|p| std::cmp::Reverse(line_index.line_at(p.name_span.start())));
 
-    let mut lines: Vec<String> = split_keep_ends(source);
+    let mut lines: Vec<String> = split_keep_ends(arg_str(args, "source"), source);
     for proc in &targets {
         let stub =
             tcl_lsp_core::formatting::generate_stub_for_proc(proc, tag, decoration, '.', 70, "");

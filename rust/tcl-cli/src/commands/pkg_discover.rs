@@ -33,27 +33,9 @@ use tcl_compiler::optimiser::optimise_source_multipass_admitting_with_analysis_i
 use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
 use tcl_pkg::manifest::{ManifestAst, RequirementKind, append_manifest_requirement, load_manifest};
 use tcl_pkg::version::Version;
+use tcl_registry::dialects::{is_skipped_scan_dir, is_tcl_source};
 
 use crate::cli::PkgCommon;
-
-/// Directories which contain generated, installed, or vendored code rather
-/// than the root project's own direct dependency declarations.
-const SKIP_DIRECTORIES: &[&str] = &[
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    ".tclpkg-build-home",
-    ".tclpkg-build-tmp",
-    "__pycache__",
-    "build",
-    "dist",
-    "lib",
-    "node_modules",
-    "target",
-    "tmp",
-    "vendor",
-];
 
 #[derive(Debug, Clone, Serialize)]
 struct RequirementReport {
@@ -186,7 +168,7 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
         match append_requirements(manifest_path, &additions) {
             Ok(()) => additions
                 .into_iter()
-                .map(|(name, (_, minimum))| AddedRequirement { name, minimum })
+                .map(|(name, minimum)| AddedRequirement { name, minimum })
                 .collect(),
             Err(error) => {
                 tcl_cli_support::errln!("error: {error:#}");
@@ -530,6 +512,13 @@ fn classify(
         report.reason = Some("version requirement is not statically resolvable".to_owned());
         return report;
     };
+    if tcl_dialect::validate_requirement(requirement_text).is_err() {
+        report.status = "unresolved";
+        report.reason = Some(format!(
+            "invalid Tcl version requirement: {requirement_text}"
+        ));
+        return report;
+    }
     if tcl_registry::version::requirement_upper_bound(requirement_text).is_some() {
         report.status = "review";
         report.reason = Some("tclpkg.tcl requirements cannot express an upper bound".to_owned());
@@ -547,33 +536,27 @@ fn classify(
     report
 }
 
-fn collect_additions(reports: &[RequirementReport]) -> BTreeMap<String, (Version, String)> {
-    let mut additions: BTreeMap<String, (Version, String)> = BTreeMap::new();
+fn collect_additions(reports: &[RequirementReport]) -> BTreeMap<String, String> {
+    let mut additions: BTreeMap<String, String> = BTreeMap::new();
     for report in reports.iter().filter(|report| report.status == "candidate") {
         let (Some(name), Some(minimum)) = (&report.name, &report.minimum) else {
             continue;
         };
-        let Ok(parsed) = Version::parse(minimum) else {
-            continue;
-        };
-        match additions.get(name) {
-            Some((current, _)) if current >= &parsed => {}
-            _ => {
-                additions.insert(name.clone(), (parsed, minimum.clone()));
-            }
+        if additions
+            .get(name)
+            .is_none_or(|current| tcl_dialect::compare_versions(current, minimum).is_lt())
+        {
+            additions.insert(name.clone(), minimum.clone());
         }
     }
     additions
 }
 
-fn append_requirements(
-    path: &Path,
-    additions: &BTreeMap<String, (Version, String)>,
-) -> anyhow::Result<()> {
+fn append_requirements(path: &Path, additions: &BTreeMap<String, String>) -> anyhow::Result<()> {
     let original = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read manifest {}", path.display()))?;
     let mut proposed = original;
-    for (name, (_, minimum)) in additions {
+    for (name, minimum) in additions {
         proposed = append_manifest_requirement(
             &proposed,
             Some(&path.to_string_lossy()),
@@ -725,7 +708,14 @@ fn collect_source_path(
             continue;
         }
         if file_type.is_dir() {
-            if !recursive || should_skip_directory(&child) {
+            // Installed and vendored dependencies do not declare the
+            // root project's direct requirements.
+            if !recursive
+                || is_skipped_scan_dir(&child)
+                || child
+                    .file_name()
+                    .is_some_and(|name| name == "lib" || name == "vendor")
+            {
                 continue;
             }
             collect_source_path(&child, true, false, manifest_path, paths)?;
@@ -734,24 +724,6 @@ fn collect_source_path(
         }
     }
     Ok(())
-}
-
-fn should_skip_directory(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with('.') || SKIP_DIRECTORIES.contains(&name))
-}
-
-fn is_tcl_source(path: &Path) -> bool {
-    if path.file_name().is_some_and(|name| name == "pkgIndex.tcl") {
-        return true;
-    }
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase)
-        .is_some_and(|extension| {
-            tcl_registry::dialects::TCL_SOURCE_EXTENSIONS.contains(&extension.as_str())
-        })
 }
 
 #[cfg(test)]
@@ -883,11 +855,12 @@ mod tests {
         let reports = [
             report("json", "1.2"),
             report("json", "1.10"),
+            report("json", "1.10b1"),
             report("http", "2.9"),
         ];
         let additions = collect_additions(&reports);
-        assert_eq!(additions["json"].1, "1.10");
-        assert_eq!(additions["http"].1, "2.9");
+        assert_eq!(additions["json"], "1.10");
+        assert_eq!(additions["http"], "2.9");
     }
 
     #[test]
@@ -921,13 +894,7 @@ mod tests {
         );
         std::fs::write(&path, original).unwrap();
         let mut refused = additions;
-        refused.insert(
-            "zzz".to_owned(),
-            (
-                Version::parse("1.0").unwrap(),
-                "1.0; require injected 9.0".to_owned(),
-            ),
-        );
+        refused.insert("zzz".to_owned(), "1.0; require injected 9.0".to_owned());
         assert!(append_requirements(&path, &refused).is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
         std::fs::remove_dir_all(directory).unwrap();

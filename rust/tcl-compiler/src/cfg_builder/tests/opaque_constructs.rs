@@ -152,7 +152,19 @@ fn dedup_preserves_order() {
 #[test]
 fn an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call() {
     let module = lower_module("set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } } msg opts\n");
-    let cfg = build_cfg(&module, false);
+    let definitions = crate::ir_helpers::defs_from_ir_script(&module.top_level);
+    assert!(definitions.ends_with(&["msg".to_owned(), "opts".to_owned()]));
+    let analysis = build_cfg(&module, false);
+    assert!(analysis.top_level.blocks.values().any(|block| {
+        block.statements.iter().any(|statement| matches!(
+            statement,
+            Statement::Call { defs, tokens: Some(tokens), .. }
+                if defs == &["msg", "opts"]
+                    && tokens.synthetic == Some(crate::ir::SyntheticMarker::CapturedCatchOutputs)
+        ))
+    }));
+
+    let cfg = build_cfg_codegen(&module, false);
     let calls = calls_in_order(&cfg.top_level);
     let marker = position_of(&calls, "<arm-writes>");
     let catch = position_of(&calls, "catch");

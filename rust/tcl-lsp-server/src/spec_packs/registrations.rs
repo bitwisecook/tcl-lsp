@@ -23,10 +23,11 @@ use std::path::{Path, PathBuf};
 use tower_lsp_server::ls_types::{
     DidChangeWatchedFilesRegistrationOptions, FileOperationFilter, FileOperationPattern,
     FileOperationPatternOptions, FileOperationRegistrationOptions, FileSystemWatcher, GlobPattern,
-    MessageType, OneOf, Registration, RelativePattern, Unregistration, Uri, WatchKind,
+    MessageType, OneOf, Registration, RelativePattern, Unregistration, WatchKind,
 };
 
 use crate::Backend;
+use crate::documents::canonical_file_uri;
 use crate::protocol::bounded_client_request;
 
 impl Backend {
@@ -319,22 +320,13 @@ impl Backend {
             return;
         }
 
-        let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
         let registration = Registration {
             id: REGISTRATION_ID.to_owned(),
             method: METHOD.to_owned(),
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
                 watchers: watches
                     .iter()
-                    .filter_map(|(base, pattern)| {
-                        Some(FileSystemWatcher {
-                            glob_pattern: GlobPattern::Relative(RelativePattern {
-                                base_uri: OneOf::Right(Uri::from_file_path(base)?),
-                                pattern: pattern.clone(),
-                            }),
-                            kind: all_kinds,
-                        })
-                    })
+                    .filter_map(|(base, pattern)| external_pack_file_watcher(base, pattern))
                     .collect(),
             })
             .ok(),
@@ -350,4 +342,31 @@ impl Backend {
                 .await;
         }
     }
+}
+
+fn external_pack_file_watcher(base: &Path, pattern: &str) -> Option<FileSystemWatcher> {
+    Some(FileSystemWatcher {
+        glob_pattern: GlobPattern::Relative(RelativePattern {
+            base_uri: OneOf::Right(canonical_file_uri(base)?),
+            pattern: pattern.to_owned(),
+        }),
+        kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+    })
+}
+
+#[cfg(all(test, windows))]
+#[test]
+fn pack_watch_and_open_document_use_the_same_windows_uri() {
+    let base = Path::new(r"C:\workspace\private pack");
+    let watcher = external_pack_file_watcher(base, "**/*.tclspec").unwrap();
+    let GlobPattern::Relative(RelativePattern {
+        base_uri: OneOf::Right(uri),
+        ..
+    }) = watcher.glob_pattern
+    else {
+        panic!("expected a rooted relative watch pattern");
+    };
+    let mut opened = serde_json::json!({ "uri": "file:///c%3A/workspace/private%20pack" });
+    crate::uri_norm::normalise_uris_in_params(&mut opened);
+    assert_eq!(uri.as_str(), opened["uri"].as_str().unwrap());
 }

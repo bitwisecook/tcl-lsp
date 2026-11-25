@@ -25,13 +25,11 @@ use crate::{
 };
 use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
 use tcl_cmd_core::{
-    native_append,
     native_return_merge::{self, NativeReturnMergeObjects},
     return_options::ReturnOptionsOps,
     CmdError,
 };
-use tcl_runtime_api::native_return_literal::{NativeKnownWordLiteral, NativeReturnOptionsLiteral};
-use tcl_syntax::value::ValueError;
+use tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral;
 impl NativeReturnMergeObjects for NativeReturnOps {
     type Dictionary = PreparedNativeDictionary;
     fn fresh_dictionary(&mut self) -> Result<Self::Dictionary, CmdError> {
@@ -106,64 +104,19 @@ impl NativeReturnMergeObjects for NativeReturnOps {
         root.into_value()
     }
 }
-fn known_word(ops: &NativeReturnOps, word: &NativeKnownWordLiteral) -> Result<Owned, CmdError> {
-    let append = ops
-        .dialect
-        .native_object_append_protocol(None)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "native known word append",
-        ))?
-        .recipe();
-    let objects = RuntimeAppendObjects {
-        dialect: ops.dialect,
-        binary_recipe: None,
-    };
-    let mut temporary = RuntimeAppendValue::fresh_string(b"");
-    for piece in &word.pieces {
-        temporary = native_append::append_counted_bytes(&objects, append, &temporary, piece)?;
-    }
-    let result = if word.composite {
-        let receiver = RuntimeAppendValue::fresh_string(b"");
-        native_append::append_object(&objects, append, Some(&receiver), &temporary)?.into_value()
-    } else {
-        temporary
-    };
-    Ok(Owned::retain(result.as_ptr()))
-}
 pub(crate) fn manufacture(recipe: &NativeReturnOptionsLiteral) -> Result<Owned, CmdError> {
-    let version = recipe
-        .protocol
-        .tcl_version()
-        .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "private Return compiler origin",
-        ))?;
-    let mut ops = NativeReturnOps::for_c(version)?;
-    let protocol =
-        ops.dialect
-            .return_options_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native Return merger",
-            ))?;
-    let originals = recipe
-        .words
-        .iter()
-        .map(|word| known_word(&ops, word))
-        .collect::<Result<Vec<_>, _>>()?;
-    let (merged, options) = if recipe.retains_controls {
-        native_return_merge::merge_retaining_controls(&mut ops, protocol, &originals)?
-    } else {
-        let merged = native_return_merge::merge(&mut ops, protocol, &originals)?;
-        let options = merged.options.clone();
-        (merged, options)
-    };
-    if (merged.code, merged.level, merged.size) != (recipe.code, recipe.level, recipe.size) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native Return literal controls mismatch",
-        )
-        .into());
-    }
-    Ok(options)
+    native_return_merge::manufacture(
+        recipe,
+        |version| {
+            let ops = NativeReturnOps::for_c(version)?;
+            let objects = RuntimeAppendObjects {
+                dialect: ops.dialect,
+                binary_recipe: None,
+            };
+            Ok((ops, objects))
+        },
+        |result| Owned::retain(result.as_ptr()),
+    )
 }
 
 #[cfg(test)]
@@ -271,9 +224,19 @@ mod physical_tests {
                 )
                 .unwrap();
                 let mut ops = NativeReturnOps::for_c(version).unwrap();
+                let objects = RuntimeAppendObjects {
+                    dialect: ops.dialect,
+                    binary_recipe: None,
+                };
                 let originals = (1..capture.original_words().len())
                     .map(|index| {
-                        known_word(&ops, &capture.known_word_literal(index).unwrap()).unwrap()
+                        let value = native_return_merge::materialise_known_word(
+                            &objects,
+                            ops.string,
+                            &capture.known_word_literal(index).unwrap(),
+                        )
+                        .unwrap();
+                        Owned::retain(value.as_ptr())
                     })
                     .collect::<Vec<_>>();
                 let check = |window: &str,

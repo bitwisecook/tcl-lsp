@@ -22,38 +22,26 @@ use super::TclVersion;
 use crate::literal_folds::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
 use tcl_syntax::number::Numbers;
 
-/// Compile-time folds for pure `string`
-/// subcommands, consumed by the optimiser's O129 general-builtin
-/// constant-fold path through the registry `const_fold` callbacks.
-///
-/// Each receives the arguments *after* the subcommand word (so
-/// `[string toupper foo]` calls [`fold_toupper`] with `["foo"]`) and
-/// is restricted to ASCII input: Rust's `to_ascii_uppercase` /
-/// `to_ascii_lowercase` and char-reversal agree with Tcl's
-/// `Tcl_UtfToUpper` / `Tcl_UtfToLower` / `string reverse` exactly on
-/// ASCII, while non-ASCII case mapping diverges (Rust's full Unicode
-/// `char::to_uppercase` can expand one char to several, e.g. ß → SS,
-/// whereas Tcl maps 1:1). Bailing on non-ASCII is conservative —
-/// never a wrong fold.
+pub(crate) use tcl_cmd_core::literal_value::{
+    fold_string_map, fold_string_reverse as fold_reverse,
+};
+
+/// The release-specific case tables agree on ASCII.
+fn fold_case(args: &[&str], convert: fn(char) -> char) -> Option<String> {
+    let [value] = args else {
+        return None;
+    };
+    value
+        .is_ascii()
+        .then(|| value.chars().map(convert).collect())
+}
+
 pub(crate) fn fold_toupper(args: &[&str]) -> Option<String> {
-    match args {
-        [s] if s.is_ascii() => Some(s.to_ascii_uppercase()),
-        _ => None,
-    }
+    fold_case(args, tcl_cmd_core::string::simple_upper)
 }
 
 pub(crate) fn fold_tolower(args: &[&str]) -> Option<String> {
-    match args {
-        [s] if s.is_ascii() => Some(s.to_ascii_lowercase()),
-        _ => None,
-    }
-}
-
-pub(crate) fn fold_reverse(args: &[&str]) -> Option<String> {
-    match args {
-        [s] if s.is_ascii() => Some(s.chars().rev().collect()),
-        _ => None,
-    }
+    fold_case(args, tcl_cmd_core::string::simple_lower)
 }
 
 pub(crate) fn fold_length(args: &[&str]) -> Option<String> {
@@ -397,64 +385,4 @@ pub(crate) fn fold_equal(args: &[&str]) -> Option<String> {
 
 pub(crate) fn fold_equal_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     fold_comparison(args, version, tcl_cmd_core::string::CompareMode::Equal)
-}
-
-/// `string map ?-nocase? mapping string`.  ASCII-restricted (byte-exact
-/// greedy left-to-right replacement matching Tcl's `string map`; the
-/// `mapping` is a list of old/new pairs, first matching pair wins).
-pub(crate) fn fold_string_map(args: &[&str]) -> Option<String> {
-    let (mapping_str, s) = match args {
-        [m, s] => (*m, *s),
-        ["-nocase", m, s] => {
-            // -nocase handled below via case-insensitive byte compare.
-            return fold_string_map_impl(m, s, true);
-        }
-        _ => return None,
-    };
-    fold_string_map_impl(mapping_str, s, false)
-}
-
-fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<String> {
-    if !mapping_str.is_ascii() || !s.is_ascii() {
-        return None;
-    }
-    let pairs = crate::literal_folds::split_list(mapping_str)?;
-    if pairs.len() % 2 != 0 {
-        return None;
-    }
-    let reps: Vec<(&str, &str)> = pairs
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|kv| (kv[0].as_str(), kv[1].as_str()))
-        .collect();
-    let sb = s.as_bytes();
-    let mut out = String::with_capacity(s.len());
-    let mut pos = 0;
-    while pos < sb.len() {
-        let mut matched = false;
-        for (old, new) in &reps {
-            let ob = old.as_bytes();
-            if ob.is_empty() || pos + ob.len() > sb.len() {
-                continue;
-            }
-            let window = &sb[pos..pos + ob.len()];
-            let hit = if nocase {
-                window.eq_ignore_ascii_case(ob)
-            } else {
-                window == ob
-            };
-            if hit {
-                out.push_str(new);
-                pos += ob.len();
-                matched = true;
-                break;
-            }
-        }
-        if !matched {
-            out.push(sb[pos] as char); // ASCII byte → char
-            pos += 1;
-        }
-    }
-    Some(out)
 }

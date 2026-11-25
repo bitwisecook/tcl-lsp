@@ -633,7 +633,7 @@ impl Analyser {
                 });
             let Some(original) = original else {
                 if pat_raw.contains(['$', '[']) {
-                    self.result.has_dynamic_providers = true;
+                    self.result.record_unresolved_provider_effect();
                 }
                 idx += 1;
                 continue;
@@ -1050,7 +1050,7 @@ impl Analyser {
         if args[1].trim().is_empty() {
             return;
         }
-        self.result.has_dynamic_providers = true;
+        self.result.record_unresolved_provider_effect();
     }
 
     /// Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom

@@ -1076,8 +1076,10 @@ fn refactor_engine_actions(
             // form carries a follow-up rename command; a refused one does
             // not (there is nothing to rename).
             let mut action = refactoring_to_action(&r, source, line_index);
-            action.command =
-                refactor::extract_proc_rename_command_for_analysis(&r, source, analysis);
+            if action.disabled.is_none() {
+                action.command =
+                    refactor::extract_proc_rename_command_for_analysis(&r, source, analysis);
+            }
             out.push(action);
         }
     }
@@ -1121,17 +1123,28 @@ fn refactoring_to_action(
     source: &str,
     line_index: &LineIndex,
 ) -> CodeAction {
+    let disabled = r
+        .disabled
+        .clone()
+        .or_else(|| r.try_apply(source).err().map(|error| error.to_string()));
     CodeAction {
         title: r.title.clone(),
-        edits: r
-            .edits
-            .iter()
-            .map(|e| e.to_lsp(source, line_index))
-            .collect(),
+        edits: if disabled.is_none() {
+            r.edits
+                .iter()
+                .map(|e| e.to_lsp(source, line_index))
+                .collect()
+        } else {
+            Vec::new()
+        },
         kind: r.kind,
         command: None,
-        data_group_definition: r.data_group.as_ref().map(crate::refactor::data_group_tcl),
-        disabled: r.disabled.clone(),
+        data_group_definition: if disabled.is_none() {
+            r.data_group.as_ref().map(crate::refactor::data_group_tcl)
+        } else {
+            None
+        },
+        disabled,
     }
 }
 

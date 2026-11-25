@@ -628,22 +628,17 @@ fn handler_kind_spelling(kind: HandlerMatch) -> &'static str {
 /// renderers must not reimplement it. Unknown symbolic selectors cannot be
 /// completion codes.
 fn handler_completion_code(handler: &TryHandler, registry: &CommandRegistry) -> Option<i32> {
+    use tcl_registry::completion::{canonical_completion_code, standard_completion_code};
+
     if handler.kind != HandlerMatch::CompletionCode {
         return None;
     }
-    match handler.match_arg.as_str() {
-        "ok" => Some(0),
-        "error" => Some(1),
-        "return" => Some(2),
-        "break" => Some(3),
-        "continue" => Some(4),
-        value => registry.profile().and_then(|profile| {
-            tcl_registry::completion::canonical_completion_code(
-                value,
-                tcl_syntax::number::Numbers::of_profile(Some(profile)),
-            )
-        }),
-    }
+    standard_completion_code(&handler.match_arg)
+        .map(tcl_registry::completion::CompletionCode::as_i32)
+        .or_else(|| {
+            let numbers = tcl_syntax::number::Numbers::of_profile(Some(registry.profile()?));
+            canonical_completion_code(&handler.match_arg, numbers)
+        })
 }
 
 /// Build the `if` flow-node dict from its clauses and optional `else` body.

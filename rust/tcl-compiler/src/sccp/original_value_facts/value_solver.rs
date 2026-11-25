@@ -18,7 +18,8 @@
 
 //! The purpose-aware value solver: seeds, the fixpoint over the blocks, φ joins and the finished facts.
 
-use super::super::{TraceInputs, cfg_order, compute_predecessors, join, set_value};
+use super::super::solver::sccp_process_phis;
+use super::super::{TraceInputs, cfg_order, compute_predecessors};
 use super::block_transfer::{
     collect_constant_branches, sccp_process_statements, sccp_process_terminator,
 };
@@ -485,45 +486,4 @@ pub(super) fn branch_deferrable(
         }
     }
     any_operand && any_unknown
-}
-
-/// Join phi values from edge-executable predecessors for one block. Returns
-/// `true` if any lattice value changed. Used by [`execution_value_facts`].
-pub(super) fn sccp_process_phis(
-    values: &mut HashMap<ValueKey, LatticeValue>,
-    ssa_block: &crate::ssa::SsaBlock,
-    incoming_exec: &[BlockId],
-) -> bool {
-    if incoming_exec.is_empty() {
-        return false;
-    }
-    let mut changed = false;
-    for phi in &ssa_block.phis {
-        let mut phi_val = LatticeValue::Unknown;
-        for pred in incoming_exec {
-            let incoming_ver = phi.incoming.get(pred).copied().unwrap_or(0);
-            // A version-0 incoming is the entry / live-in root (a proc
-            // parameter, global, or other caller-supplied value). Its
-            // runtime value is unknown at compile time, so it joins in as
-            // `Overdefined` — never skipped. Skipping it would let a phi
-            // that merges a live-in with a defined-arm constant fold to
-            // that constant, miscompiling any `if {$param} { set x k }`
-            // followed by a test on `x`. This mirrors the interval pass,
-            // which joins `TOP` for `inc == 0` (intervals.rs:570-574).
-            // `seed_live_in_roots` pins `(name, 0)` `Overdefined`; the
-            // explicit default keeps the join correct even if a feed was
-            // never seeded.
-            let key: ValueKey = (phi.name, incoming_ver);
-            let candidate = values.get(&key).cloned().unwrap_or(if incoming_ver == 0 {
-                LatticeValue::Overdefined
-            } else {
-                LatticeValue::Unknown
-            });
-            phi_val = join(&phi_val, &candidate);
-        }
-        if set_value(values, (phi.name, phi.version), &phi_val) {
-            changed = true;
-        }
-    }
-    changed
 }

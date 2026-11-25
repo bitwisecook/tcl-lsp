@@ -884,9 +884,6 @@ fn manifest_dirs_observed(
 
 /// Directories a scan never descends into.
 ///
-/// Mirrors the LSP server's own workspace-scan filter (vendor directories and
-/// dot-directories), with the one exception that matters here: `.tcl-lsp` is a
-/// dot-directory the design *requires* us to look in.
 /// Whether `dir` is the `lib` folder `tcl pkg install` materialises each
 /// dependency into, as a symlink into the package store, beside a lockfile.
 /// The walk follows those links, and only those, keeping the workspace path.
@@ -897,13 +894,11 @@ fn is_installed_package_dir(store: &dyn SourceStore, dir: &Path) -> bool {
             .is_some_and(|project| store.exists(&project.join(PACKAGE_LOCKFILE)))
 }
 
+/// Apply the workspace scan policy while allowing the `.tcl-lsp` pack directory.
 fn is_skipped_dir(path: &Path) -> bool {
-    match path.file_name().and_then(|n| n.to_str()) {
-        Some(WORKSPACE_PACK_DIR) => false,
-        Some(name) => name.starts_with('.') || matches!(name, "node_modules" | "target" | "tmp"),
-        // No representable file name (e.g. `..`): skip to be safe.
-        None => true,
-    }
+    path.file_name()
+        .is_none_or(|name| name != WORKSPACE_PACK_DIR)
+        && tcl_registry::dialects::is_skipped_scan_dir(path)
 }
 
 /// Ask the actual source provider for its own canonical spelling. The native

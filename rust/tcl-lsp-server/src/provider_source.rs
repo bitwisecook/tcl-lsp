@@ -63,8 +63,9 @@ impl ProviderDialectSources {
     }
 
     async fn capture(&self) -> ProviderDialectInputs {
+        let document_overrides = self.document_overrides.lock().await.clone();
         ProviderDialectInputs {
-            document_overrides: Arc::new(self.document_overrides.lock().await.clone()),
+            document_overrides: Arc::new(document_overrides),
             folders: merged_folder_dialect_overrides(&self.folder_dialects, &self.folder_configs)
                 .await,
             default: session_dialect_from(&self.session_override, &self.default_dialect).await,

@@ -18,8 +18,8 @@
 
 //! One block of the value solver: its statements' stores and clobbers, its terminator's executable edges and the constant branches.
 
+use super::super::parse_literal_value;
 use super::super::{BuiltinFoldInputs, ConstantBranch, join, set_value};
-use super::assignment_folds::parse_literal_value;
 use super::branch_decisions::branch_decision;
 use super::definition_values::evaluate_def_with_math;
 use super::math_expressions::{env_from_uses, fold_math_expression};

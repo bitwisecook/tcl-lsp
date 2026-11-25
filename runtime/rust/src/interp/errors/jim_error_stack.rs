@@ -336,7 +336,7 @@ impl Interp {
         }
         Ok(tcl_runtime_api::jim_return_state::JimReturnReceipt {
             pending: tcl_runtime_api::jim_return_state::JimReturnState {
-                code: self.return_code.get().as_int() as i32,
+                code: self.return_code.get().as_i32(),
                 level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
             },
             error_code,
@@ -365,7 +365,6 @@ impl Interp {
             })
         };
         current()?;
-        let exit = tcl_runtime_api::Code::from_int(exit.as_int() as i32);
         let pairs =
             if tcl_runtime_api::jim_return_state::JimReturnReceipt::<()>::uses_error_metadata(exit)
             {
@@ -373,7 +372,7 @@ impl Interp {
                     .option_pairs(exit)
             } else {
                 tcl_runtime_api::jim_return_state::JimReturnState {
-                    code: self.return_code.get().as_int() as i32,
+                    code: self.return_code.get().as_i32(),
                     level: i64::try_from(self.return_level.get()).unwrap_or(i64::MAX),
                 }
                 .option_pairs(exit)

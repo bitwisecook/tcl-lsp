@@ -188,14 +188,25 @@ fn is_skipped_scan_dir_skips_vendor_and_hidden() {
 fn collect_tcl_files_walks_recursively_and_skips_vendor() {
     let root = unique_scratch_dir("walk");
     std::fs::create_dir_all(root.join("sub")).unwrap();
-    std::fs::create_dir_all(root.join("node_modules")).unwrap();
-    std::fs::create_dir_all(root.join(".git")).unwrap();
+    for directory in [
+        "node_modules",
+        ".git",
+        "target",
+        "tmp",
+        "build",
+        "dist",
+        ".venv",
+    ] {
+        std::fs::create_dir_all(root.join(directory)).unwrap();
+        std::fs::write(root.join(directory).join("ignored.tcl"), "set hidden 1\n").unwrap();
+    }
     std::fs::write(root.join("top.tcl"), "set x 1\n").unwrap();
     std::fs::write(root.join("mod.tm"), "set y 2\n").unwrap();
     std::fs::write(root.join("readme.txt"), "not tcl\n").unwrap();
     std::fs::write(root.join("sub/nested.tcl"), "set z 3\n").unwrap();
-    std::fs::write(root.join("node_modules/dep.tcl"), "set q 4\n").unwrap();
-    std::fs::write(root.join(".git/hook.tcl"), "set w 5\n").unwrap();
+    std::fs::write(root.join("widget.tk"), "set tk 4\n").unwrap();
+    std::fs::write(root.join("widget.ITK"), "set itk 5\n").unwrap();
+    std::fs::write(root.join("sub/traffic.irul"), "when HTTP_REQUEST {}\n").unwrap();
 
     let mut out = Vec::new();
     collect_tcl_files(&vfs::NativeStore, &root, 100, &mut out);
@@ -207,7 +218,17 @@ fn collect_tcl_files_walks_recursively_and_skips_vendor() {
 
     std::fs::remove_dir_all(&root).ok();
 
-    assert_eq!(names, vec!["mod.tm", "nested.tcl", "top.tcl"]);
+    assert_eq!(
+        names,
+        [
+            "mod.tm",
+            "nested.tcl",
+            "top.tcl",
+            "traffic.irul",
+            "widget.ITK",
+            "widget.tk"
+        ]
+    );
 }
 
 #[test]

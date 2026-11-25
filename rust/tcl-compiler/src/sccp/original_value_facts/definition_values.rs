@@ -18,11 +18,11 @@
 
 //! The value one definition takes: retained expression words, original substitutions, iteration bindings and normal stores.
 
-use super::super::BuiltinFoldInputs;
-use super::assignment_folds::{
-    extract_foreach_elements, fold_assign_value, lattice_const_text, parse_literal_value,
-    resolve_foreach_list_via_lattice, try_fold_cmd_subst,
+use super::super::{
+    BuiltinFoldInputs, extract_foreach_elements, parse_literal_value,
+    resolve_foreach_list_via_lattice,
 };
+use super::assignment_folds::{fold_assign_value, lattice_const_text, try_fold_cmd_subst};
 use super::math_expressions::{env_from_uses, fold_math_expression};
 use super::{MathFoldContext, RetainedExpressionFoldInputs, SolverPurpose};
 use crate::analyses::{ConstValue, LatticeValue};

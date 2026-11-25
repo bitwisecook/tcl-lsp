@@ -21,9 +21,9 @@
 //!
 //! The DEFLATE codec is [`flate2`] on its pure-Rust `miniz_oxide` backend (no C
 //! `libz`), so this builds for the `wasm32` cdylib as well as native. The
-//! checksums are computed here directly (they double as the `crc32`/`adler32`
-//! subcommands and are tiny). Streaming (`zlib stream`) and channel stacking
-//! (`zlib push`) are *not* supported under the tree-walking / WASM runtime:
+//! checksum subcommands use `crc32fast` and `adler2`. Streaming (`zlib stream`)
+//! and channel stacking (`zlib push`) are unsupported in the tree-walking
+//! and WASM runtime:
 //! `stream` builds a stateful command object and `push` stacks a transform on a
 //! real channel, neither of which the runtime models — they report so clearly.
 //!
@@ -44,50 +44,18 @@ pub fn install(interp: &mut Interp) {
 
 // checksums
 
-/// The reflected CRC-32 table (polynomial `0xEDB88320`), built at compile time.
-const fn crc_table() -> [u32; 256] {
-    let mut table = [0u32; 256];
-    let mut n = 0;
-    while n < 256 {
-        let mut c = n as u32;
-        let mut k = 0;
-        while k < 8 {
-            c = if c & 1 != 0 {
-                0xedb8_8320 ^ (c >> 1)
-            } else {
-                c >> 1
-            };
-            k += 1;
-        }
-        table[n] = c;
-        n += 1;
-    }
-    table
-}
-
-static CRC_TABLE: [u32; 256] = crc_table();
-
-/// zlib's `crc32(init, data)` — `init` is the running CRC to continue from
-/// (`0` to start). Matches `zlib crc32 data ?startValue?`.
+/// zlib's `crc32(init, data)` with a previous checksum, or 0 to start.
 fn crc32(init: u32, data: &[u8]) -> u32 {
-    let mut c = init ^ 0xffff_ffff;
-    for &b in data {
-        c = CRC_TABLE[((c ^ u32::from(b)) & 0xff) as usize] ^ (c >> 8);
-    }
-    c ^ 0xffff_ffff
+    let mut checksum = crc32fast::Hasher::new_with_initial(init);
+    checksum.update(data);
+    checksum.finalize()
 }
 
-/// zlib's `adler32(init, data)` — `init` is the running checksum (`1` to start).
-/// Matches `zlib adler32 data ?startValue?`.
+/// zlib's `adler32(init, data)` with a previous checksum, or 1 to start.
 fn adler32(init: u32, data: &[u8]) -> u32 {
-    const MOD: u32 = 65521;
-    let mut a = init & 0xffff;
-    let mut b = (init >> 16) & 0xffff;
-    for &byte in data {
-        a = (a + u32::from(byte)) % MOD;
-        b = (b + a) % MOD;
-    }
-    (b << 16) | a
+    let mut checksum = adler2::Adler32::from_checksum(init);
+    checksum.write_slice(data);
+    checksum.checksum()
 }
 
 // codec (flate2 / miniz_oxide)
@@ -450,6 +418,11 @@ mod tests {
         assert_eq!(ok(&mut i, b"zlib crc32 abc"), b"891568578");
         assert_eq!(ok(&mut i, b"zlib adler32 abc"), b"38600999");
         assert_eq!(ok(&mut i, b"zlib crc32 abc 5"), b"871334697");
+        // tclsh 8.6.16, including signed starts with unreduced Adler sums.
+        assert_eq!(ok(&mut i, b"zlib crc32 {} -1"), b"4294967295");
+        assert_eq!(ok(&mut i, b"zlib adler32 abc 5"), b"39387435");
+        assert_eq!(ok(&mut i, b"zlib adler32 {} -1"), b"917518");
+        assert_eq!(ok(&mut i, b"zlib adler32 a -1"), b"8192111");
         // Arity.
         assert_eq!(i.eval_str(b"zlib crc32 a b c"), Code::Error);
         assert_eq!(

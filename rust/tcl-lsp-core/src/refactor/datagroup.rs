@@ -1020,7 +1020,7 @@ mod tests {
                 "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
             );
             let action = if_dg(&source, "subjects").expect("selected scalar membership syntax");
-            let proposed = action.apply(&source);
+            let proposed = action.try_apply(&source).unwrap();
             assert!(
                 proposed.contains(&format!("class match {subject} equals subjects")),
                 "{proposed}"
@@ -1030,7 +1030,8 @@ mod tests {
             );
             let proposed = if_dg(&source, "subjects")
                 .expect("selected scalar mapping syntax")
-                .apply(&source);
+                .try_apply(&source)
+                .unwrap();
             assert_eq!(
                 proposed,
                 format!("return [class lookup {subject} subjects]")
@@ -1162,7 +1163,10 @@ mod tests {
         let index = LineIndex::new(source);
         let action = extract_to_datagroup_with_analysis(source, 0, "answers", &analysis, &index)
             .expect("current authored output metadata and genuine original arm operations");
-        assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+        assert_eq!(
+            action.try_apply(source).unwrap(),
+            "set answer [class lookup $x answers]"
+        );
         assert_eq!(dg(&action).records.len(), 2);
         let older = super::super::test_logical_analysis(source, "tcl8.4", registry.clone());
         assert!(extract_to_datagroup_with_analysis(source, 0, "answers", &older, &index).is_none());
@@ -1325,7 +1329,7 @@ mod tests {
         assert!(g.records.contains(&("a.com".to_owned(), String::new())));
         let tcl = data_group_tcl(g);
         assert!(tcl.contains("type string"));
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert!(applied.contains("class match"), "{applied:?}");
         assert!(applied.contains("allowed_hosts"));
     }
@@ -1415,7 +1419,7 @@ mod tests {
             "my hosts $x",
             "the supplied name is not sanitised"
         );
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert_eq!(
             applied,
             "if { [class match $host equals {my hosts $x}] } {\n    pool web_pool\n}"
@@ -1424,7 +1428,7 @@ mod tests {
         let mapping = "switch -exact -- $method {\n    GET { set {the handler} get }\n    POST { set {the handler} post }\n    PUT { set {the handler} put }\n}";
         let r = switch_dg(mapping, "methods[1]").expect("result");
         assert_eq!(
-            r.apply(mapping),
+            r.try_apply(mapping).unwrap(),
             "set {the handler} [class lookup $method {methods[1]}]"
         );
         assert!(generated_operand_values("set a b", config(), &[(1, "a")]).is_some());
@@ -1447,7 +1451,7 @@ mod tests {
     fn if_rewrite_covers_entire_command() {
         let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
         let r = if_dg(source, "hosts").expect("result");
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         // Verify the full applied output (apply + tmsh).
         assert_eq!(
             applied,
@@ -1485,7 +1489,7 @@ mod tests {
         assert_eq!(g.value_type, "string");
         assert_eq!(g.records.len(), 3);
         assert!(g.records.contains(&("b.com".to_owned(), String::new())));
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert_eq!(
             applied,
             "if { [class match $host equals allowed_hosts] } {\n    pool web_pool\n}"
@@ -1499,7 +1503,7 @@ mod tests {
         let r = if_dg(source, "hosts").expect("result");
         let g = dg(&r);
         assert_eq!(g.records.len(), 2);
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert!(applied.contains("pool a_pool"), "{applied:?}");
         assert!(applied.contains("pool default_pool"), "{applied:?}");
         assert!(!applied.contains("then"), "{applied:?}");
@@ -1513,7 +1517,7 @@ mod tests {
         let source = "if {$host eq \"a.com\" || $host eq \"b.com\" || $host eq \"c.com\"} then {\n    pool web_pool\n}";
         let r = if_dg(source, "allowed").expect("result");
         assert_eq!(dg(&r).records.len(), 3);
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert_eq!(
             applied,
             "if { [class match $host equals allowed] } {\n    pool web_pool\n}"
