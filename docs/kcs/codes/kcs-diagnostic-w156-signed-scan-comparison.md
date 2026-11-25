@@ -89,7 +89,9 @@ For a `class match` or `class search` equality comparison, W156 hints at
 the signed range when the group's keys are unknown. The BIG-IP configuration
 validator reports a warning when the referenced integer group supplies a key
 in the unsigned half of that field's range. For example, an 8-bit signed
-field cannot equal a configured key of 129.
+field cannot equal a configured key of 129. For a standalone iRule, the
+language server also uses open BIG-IP configurations in the same workspace
+folder. Missing or conflicting group declarations leave the hint in place.
 
 W156 follows the value through branches and loops, into nested expressions
 and command substitutions, and through procedure code after a call it cannot
