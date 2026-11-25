@@ -400,6 +400,7 @@ mod native_variable_tables;
 #[doc(hidden)]
 pub mod runtime_entry;
 mod snit_definition;
+pub mod trace_registrations;
 pub use compiled_invocation::{
     CompiledExecutionCertainty, CompiledExecutionResidual, NativeCompilationSnapshot,
     NativeCompilerTargets, NativeInlineRejection, SourceCompiledInvocationProof,

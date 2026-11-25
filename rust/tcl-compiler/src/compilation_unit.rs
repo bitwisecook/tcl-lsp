@@ -669,6 +669,16 @@ impl<'a> ModuleTraceFacts<'a> {
         }
     }
 
+    /// Whether the trace owner says a module trace may observe `name`.
+    #[must_use]
+    pub fn variable_may_be_traced(&self, name: &str) -> bool {
+        crate::command_binding::trace_registrations::variable_may_be_traced(
+            self.traced_variables,
+            self.has_dynamic_variable_trace,
+            name,
+        )
+    }
+
     /// No `Module` in hand (a standalone per-function build) — behaviourally
     /// identical to "nothing is traced".
     #[must_use]

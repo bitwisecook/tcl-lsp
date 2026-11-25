@@ -66,8 +66,8 @@ impl Lowerer<'_> {
 
     /// Populate `module.methods` from the fully-assembled IR.
     ///
-    /// Runs as a cache-independent post-pass (mirroring
-    /// [`populate_trace_facts`]): clone the top-level script and proc
+    /// Runs as a cache-independent post-pass (mirroring the trace owner's
+    /// `populate_trace_facts`): clone the top-level script and proc
     /// bodies, then walk them — plus any `namespace eval` blocks — for
     /// `oo::class create` / `oo::define` barriers and lift each
     /// `method` / `constructor` / `destructor` body to an

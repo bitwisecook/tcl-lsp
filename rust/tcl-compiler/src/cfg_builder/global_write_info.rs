@@ -1520,10 +1520,10 @@ fn collect_write_targets(
 fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
     let qualified = tcl_syntax::naming::is_absolute_bytes(name.as_bytes())
         .then(|| tcl_syntax::naming::normalise_qualified_name(name));
-    crate::variable_observation_names::record_variable_write_name(
+    crate::command_binding::trace_registrations::record_possible_write_name(
         names,
         qualified.as_deref().unwrap_or(name),
-        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
+        crate::command_binding::trace_registrations::WriteNamePolicy::OuterScope,
     );
 }
 

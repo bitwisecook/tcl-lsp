@@ -338,7 +338,7 @@ fn reject_observable_motion(
     analysis: &AnalysisResult,
     walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
-    use tcl_registry::Traits;
+    use tcl_compiler::command_binding::trace_registrations;
     let mut traced = false;
     let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
@@ -346,7 +346,7 @@ fn reject_observable_motion(
         &mut |command, _, _| {
             traced |= walk
                 .source_traits(source, command)
-                .is_some_and(|traits| traits.contains(Traits::ESTABLISHES_VARIABLE_TRACE));
+                .is_some_and(trace_registrations::traits_may_register_trace);
             false
         },
     );

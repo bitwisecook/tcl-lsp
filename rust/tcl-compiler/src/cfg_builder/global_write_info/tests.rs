@@ -97,7 +97,7 @@ fn module_in(src: &str, registry: &CommandRegistry, environment: &str) -> Module
 
 /// The globals a summary names, each spelling unrooted: the naming owner
 /// records an outer-scope write under its rooted and its plain spelling
-/// (`variable_observation_names::record_variable_write_name`).
+/// (`trace_registrations::record_possible_write_name`).
 fn unrooted_names(row: &GlobalWriteInfo) -> BTreeSet<&str> {
     row.names
         .iter()

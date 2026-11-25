@@ -882,7 +882,13 @@ fn constructed_procedure_calls_require_the_original_native_trace_owner() {
         "proc cb args {}; proc p {x} {return $x}; proc other args {}; trace add execution other enter cb; p VALUE",
         tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
     );
-    assert!(traced.ir_module.traced_commands.contains("other"));
+    assert!(
+        tcl_compiler::command_binding::trace_registrations::command_may_be_traced(
+            &traced.ir_module.traced_commands,
+            false,
+            "other"
+        )
+    );
     let refused = function_facts(
         &traced.top_level,
         &traced.ir_module,

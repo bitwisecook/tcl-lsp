@@ -73,7 +73,11 @@ fn trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty
         module.traced_commands.clear();
         module.has_dynamic_variable_trace = false;
         module.has_dynamic_trace = false;
-        populate_trace_facts(&mut module, context.commands(), false);
+        crate::command_binding::trace_registrations::populate_trace_facts(
+            &mut module,
+            context.commands(),
+            false,
+        );
         assert_eq!(
             module.top_level.statements[0].tokens().unwrap(),
             &original_tokens

@@ -88,8 +88,6 @@ use declarations::{
     declared_member_vars, parse_formal_param_names, parse_var_list_names, proc_body_namespace,
     qualify_proc_name, statement_words,
 };
-#[cfg(test)]
-use module_assembly::populate_trace_facts;
 use script_bodies::over_depth_script;
 #[cfg(test)]
 use script_bodies::{

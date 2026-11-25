@@ -153,7 +153,6 @@ rust/tcl-compiler/src/lowering/bytecode_entry.rs	source-reader	lower_native_targ
 rust/tcl-compiler/src/lowering/declarations/class_members.rs	source-walk	walk_for_oo_methods:walk_for_oo_methods	-	1
 rust/tcl-compiler/src/lowering/declarations/class_members.rs	source-walk	walk_segments_for_oo:walk_segments_for_oo	-	1
 rust/tcl-compiler/src/lowering/declarations/procedures.rs	name-resolution	resolve_dynamic_proc_name:resolve_dynamic_proc_name	-	1
-rust/tcl-compiler/src/lowering/module_assembly.rs	source-walk	walk_for_trace:walk_for_trace	-	1
 rust/tcl-compiler/src/lowering/script_bodies.rs	source-reader	segment_source:segment_commands_image_with_offset_and_config	-	1
 rust/tcl-compiler/src/lowering/script_bodies/body_units.rs	source-walk	walk_namespace_eval_body:walk_namespace_eval_body	-	1
 rust/tcl-compiler/src/lowering/script_bodies/static_eval.rs	source-reader	body_has_dynamic_barrier:segment_commands_image_with_offset_and_config	-	1

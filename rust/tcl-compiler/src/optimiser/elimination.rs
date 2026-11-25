@@ -443,11 +443,11 @@ impl<'a> RaiseProof<'a> {
             || self.fu.cfg.alias_observed_vars.contains(name)
             || self.fu.cfg.alias_observed_vars.contains(base)
             || self.module_traced.is_some_and(|t| {
-                crate::variable_observation_names::variable_name_may_be_observed(
+                crate::command_binding::trace_registrations::name_may_be_observed(
                     t,
                     base,
                     false,
-                    crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+                    crate::command_binding::trace_registrations::ObservationPolicy::Module,
                 )
             })
     }
@@ -1267,11 +1267,11 @@ fn dead_store_name_observed(
             || written.kind == crate::place::PlaceKind::InstanceVar
             || (!is_top_level && written.ns != crate::place::LOCAL_NS)
     }) || module_traced.is_some_and(|names| {
-        crate::variable_observation_names::variable_name_may_be_observed(
+        crate::command_binding::trace_registrations::name_may_be_observed(
             names,
             base,
             false,
-            crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+            crate::command_binding::trace_registrations::ObservationPolicy::Module,
         )
     }) || tcl_syntax::naming::is_absolute(var)
         || ctx.cross_event_vars.contains(var)
@@ -1282,11 +1282,11 @@ fn dead_store_name_observed(
         || is_top_level
             && ctx.ir_module.is_some_and(|module| {
                 module.deferred_writes.reads_any
-                    || crate::variable_observation_names::variable_name_may_be_observed(
+                    || crate::command_binding::trace_registrations::name_may_be_observed(
                         &module.deferred_writes.reads,
                         base,
                         false,
-                        crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+                        crate::command_binding::trace_registrations::ObservationPolicy::Module,
                     )
             })
 }

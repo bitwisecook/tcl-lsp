@@ -359,10 +359,10 @@ impl SourceScan<'_> {
             );
             self.out.reads_any |= reads.opaque;
             for name in &reads.read_names {
-                crate::variable_observation_names::record_variable_write_name(
+                crate::command_binding::trace_registrations::record_possible_write_name(
                     &mut self.out.reads,
                     name,
-                    crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
+                    crate::command_binding::trace_registrations::WriteNamePolicy::DeferredGlobal,
                 );
             }
         }

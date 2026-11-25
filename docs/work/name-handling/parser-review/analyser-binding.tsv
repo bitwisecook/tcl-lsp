@@ -847,6 +847,7 @@ rust/tcl-compiler/src/command_binding/source_walk/outcomes.rs::SourceOutcomes::c
 rust/tcl-compiler/src/command_binding/source_walk/substitution_walk.rs::original_variable_source	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/command_binding/source_walk/substitution_walk.rs::SourceCommandBindings::walk_substitutions	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/command_binding/source_walk/target_walk.rs::SourceCommandBindings::finish_native_source_completion	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-compiler/src/command_binding/trace_registrations.rs::ModuleTraceRegistrations::walk	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/command_binding/trusted_packages.rs::TrustedSourceModuleLoader::matches_selected_file	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/command_binding/try_bodies.rs::SourceCommandBindings::walk_try_finally	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/command_binding/try_bodies.rs::SourceCommandBindings::walk_try_route	delimiter and control flow	review structural reader	awaiting site review	—	—
@@ -1003,7 +1004,6 @@ rust/tcl-compiler/src/lowering/mod.rs::SourceBodyMode::is_read_only	delimiter an
 rust/tcl-compiler/src/lowering/mod.rs::seg_word_is_simple	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/lowering/mod.rs::seg_word_is_static_literal	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/lowering/mod.rs::seg_word_substitutes	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/lowering/module_assembly.rs::walk_for_trace	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/lowering/script_bodies.rs::Lowerer::guarded_body_text	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/lowering/script_bodies/static_eval.rs::eval_list_literal_body	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/lowering/script_bodies/static_eval.rs::parse_uplevel_level	delimiter and control flow	review structural reader	awaiting site review	—	—

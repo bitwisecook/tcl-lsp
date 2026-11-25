@@ -163,9 +163,9 @@ fn trace_possible(source: &str, analysis: &AnalysisResult, walk: &FrameWalk<'_>)
         source,
         analysis,
         &mut |command, _, _| {
-            traced |= walk.source_traits(source, command).is_some_and(|traits| {
-                traits.contains(tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE)
-            });
+            traced |= walk.source_traits(source, command).is_some_and(
+                tcl_compiler::command_binding::trace_registrations::traits_may_register_trace,
+            );
             false
         },
     );

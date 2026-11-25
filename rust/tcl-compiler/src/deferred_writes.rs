@@ -871,10 +871,10 @@ impl Scan<'_> {
     }
 
     fn note_name(out: &mut DeferredWrites, name: &str) {
-        crate::variable_observation_names::record_variable_write_name(
+        crate::command_binding::trace_registrations::record_possible_write_name(
             &mut out.names,
             name,
-            crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
+            crate::command_binding::trace_registrations::WriteNamePolicy::DeferredGlobal,
         );
     }
 }
