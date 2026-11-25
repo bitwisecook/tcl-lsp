@@ -13,6 +13,7 @@
 | Special and global variables | [special variables](special-variables-design.md) | `special-variables/` (20) |
 | Coroutines and `tailcall` | [coroutines](coroutines-design.md) | `coroutines/` (13) |
 | Event loop and deferred code | [event loop](event-loop-design.md) | `event-loop/` (17) |
+| Scripts passed to wrapper procedures | [script parameters](script-parameters-design.md) | `chan/c05`, `dynamic/` (planned) |
 | Errors and return codes | [error handling](error-handling-design.md) | `errors-returns/` (32) |
 | `unknown` and autoloading | [unknown and autoload](unknown-autoload-design.md) | `unknown-autoload/` (16) |
 | Multiple interpreters | [interpreters](interps-design.md) | `interps/` (16) |
