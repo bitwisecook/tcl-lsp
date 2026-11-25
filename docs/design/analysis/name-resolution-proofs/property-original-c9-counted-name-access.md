@@ -77,9 +77,9 @@ GetImplNamesForProperty(
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_property_counted_original](../../../../rust/tcl-registry/tests/data/native_property_counted_original)
-- [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20)
-- [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19)
-- [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18)
-- [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4)
-- [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_property_counted_original/tcl8.4](../../../../rust/tcl-registry/tests/data/native_property_counted_original/tcl8.4)
+- [rust/tcl-registry/tests/data/native_property_counted_original/tcl8.5](../../../../rust/tcl-registry/tests/data/native_property_counted_original/tcl8.5)
+- [rust/tcl-registry/tests/data/native_property_counted_original/tcl8.6](../../../../rust/tcl-registry/tests/data/native_property_counted_original/tcl8.6)
+- [rust/tcl-registry/tests/data/native_property_counted_original/tcl9.0](../../../../rust/tcl-registry/tests/data/native_property_counted_original/tcl9.0)
+- [rust/tcl-registry/tests/data/native_property_counted_original/tcl9.1](../../../../rust/tcl-registry/tests/data/native_property_counted_original/tcl9.1)
 - [rust/tcl-registry/tests/data/native_property_counted_original/jim](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim)

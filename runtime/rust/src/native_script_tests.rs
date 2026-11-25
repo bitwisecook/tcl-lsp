@@ -171,7 +171,7 @@ fn original_script_storage_matches_156_native_windows() {
             include_str!("../../../rust/tcl-syntax/testdata/native_jim_script_objects/inputs.tsv")
                 .lines()
         {
-            let (case, hex) = input.split_once('\t').unwrap();
+            let (case, hex) = tcl_test_support::fixture::tsv_split_once(input).unwrap();
             let context = NativeJimObjectContext::new(dialect).unwrap();
             let filename = Owned::fresh(obj::new_string_bytes(b"FILE"));
             let original = Owned::fresh(obj::new_string_bytes(&decode(hex)));

@@ -241,7 +241,7 @@ mod tests {
         for (version, fixture) in fixtures {
             let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let shape: usize = fields[0].parse().unwrap();
                 let stage: usize = fields[1].parse().unwrap();
                 if stage == 2 {

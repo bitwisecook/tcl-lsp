@@ -1315,7 +1315,7 @@ fn item_153_audit_rewrites_preserve_file_execution() {
         let profile = resolve_environment(dialect).analyser_profile();
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         for row in records.lines() {
-            let columns: Vec<_> = row.splitn(5, '\t').collect();
+            let columns: Vec<_> = tcl_test_support::fixture::tsv_fields_with_tail(row, 5).collect();
             let [_, area, fixture, release, ..] = columns.as_slice() else {
                 continue;
             };

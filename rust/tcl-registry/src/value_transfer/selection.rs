@@ -336,7 +336,7 @@ impl SwitchSemantics {
             if options.value_index != at
                 || !same_mode(options.mode, selection.mode)
                 || options.nocase != selection.nocase
-                || (!bounded_scan && !ended && member.bytes.first() == Some(&b'-'))
+                || (!bounded_scan && !ended && member.as_bytes().first() == Some(&b'-'))
             {
                 return Err(DeclineReason::Unsupported);
             }

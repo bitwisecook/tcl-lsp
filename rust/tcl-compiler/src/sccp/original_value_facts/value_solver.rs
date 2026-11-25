@@ -18,17 +18,16 @@
 
 //! The purpose-aware value solver: seeds, the fixpoint over the blocks, φ joins and the finished facts.
 
-use super::super::solver::{sccp_process_phis, seed_live_in_roots, seeded_values};
-use super::super::{
-    TraceInputs, cfg_order, compute_predecessors, incoming_executable_predecessors,
-    settle_reachability,
+use super::super::block_sweep::{
+    BlockSweepState, ExecutableBlock, seed_live_in_roots, seeded_values,
 };
+use super::super::{TraceInputs, branch_has_pending_operands, cfg_order, compute_predecessors};
 use super::block_transfer::{
     collect_constant_branches, sccp_process_statements, sccp_process_terminator,
 };
 use super::{
-    BranchFold, MathDependencies, SettledValueFactState, SolvedValueFacts, SolverPurpose,
-    StatementInputs, StoreInputs, TerminatorInputs, ValueFactInputs,
+    BranchFold, MathDependencies, SolvedValueFacts, SolverPurpose, StatementInputs, StoreInputs,
+    TerminatorInputs, ValueFactInputs,
 };
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction};
@@ -128,7 +127,7 @@ pub(super) fn solve_value_facts(
 fn solve_value_facts_once(
     (cfg, ssa): (&CfgFunction, &SsaFunction),
     (inputs, purpose): (&ValueFactInputs<'_>, SolverPurpose),
-    (preds, mut values, grammar): (
+    (preds, values, grammar): (
         &HashMap<BlockId, HashSet<BlockId>>,
         HashMap<ValueKey, LatticeValue>,
         tcl_dialect::LexerGrammar,
@@ -160,76 +159,55 @@ fn solve_value_facts_once(
         registry: trace.registry,
     };
 
-    let mut executable_blocks: HashSet<BlockId> = HashSet::new();
-    let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
-    if cfg.blocks.contains_key(&cfg.entry) {
-        executable_blocks.insert(cfg.entry);
-    }
     let order = cfg_order(cfg);
-
-    settle_reachability(|finalizing| {
-        let mut changed = false;
-        for bn in &order {
-            if !executable_blocks.contains(bn) {
-                continue;
-            }
-            let Some(ssa_block) = ssa.blocks.get(bn) else {
-                continue;
-            };
-
-            let incoming_exec = incoming_executable_predecessors(*bn, preds, &executable_edges);
-
-            // Phi nodes (not at entry, only when some predecessor is
-            // executable).
-            if bn != &cfg.entry {
-                changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
-            }
-
-            // Statements.
-            changed |= sccp_process_statements(
-                &mut values,
+    let mut state = BlockSweepState::new(cfg, values);
+    state.settle(
+        (cfg, ssa, preds),
+        &order,
+        || {},
+        |block, state| {
+            let ExecutableBlock {
+                id,
+                ssa: ssa_block,
+                finalizing,
+                ..
+            } = block;
+            let changed = sccp_process_statements(
+                &mut state.values,
                 ssa_block,
                 ssa,
                 StatementInputs {
                     store: &store_inputs,
-                    clobbers: ssa.value_clobbers.get(bn),
+                    clobbers: ssa.value_clobbers.get(&id),
                 },
             );
-
-            // Terminator.
             let inputs = TerminatorInputs {
                 math_dependencies: Some(&required_math_invocations),
                 cfg,
                 ssa,
-                values: &values,
+                values: &state.values,
                 policy,
                 grammar,
                 registry: trace.registry,
                 reference_config,
             };
-            if sccp_process_terminator(
-                *bn,
-                &inputs,
-                &mut executable_blocks,
-                &mut executable_edges,
-                finalizing,
-            ) {
-                changed = true;
-            }
-        }
-        changed
-    });
+            changed
+                | sccp_process_terminator(
+                    id,
+                    &inputs,
+                    &mut state.executable_blocks,
+                    &mut state.executable_edges,
+                    finalizing,
+                )
+        },
+    );
 
     finish_value_facts(
         (cfg, ssa),
         (inputs, purpose, grammar),
         (&order, escaping),
         required_math_invocations,
-        SettledValueFactState {
-            values,
-            executable_blocks,
-            executable_edges,
-        },
+        state,
     )
 }
 
@@ -242,7 +220,7 @@ fn finish_value_facts(
     ),
     (order, escaping): (&[BlockId], &HashSet<String>),
     required_math_invocations: MathDependencies,
-    state: SettledValueFactState,
+    state: BlockSweepState,
 ) -> SolvedValueFacts {
     let ValueFactInputs {
         policy,
@@ -250,7 +228,7 @@ fn finish_value_facts(
         folds,
         ..
     } = *inputs;
-    let SettledValueFactState {
+    let BlockSweepState {
         values,
         executable_blocks,
         executable_edges,
@@ -333,17 +311,7 @@ pub(super) fn compatibility_escaping(
     names
 }
 
-/// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.
-///
-/// Returns `true` when the condition *may still fold* on a later sweep:
-/// some operand defined in this function (SSA exit-version > 0) is still
-/// `Unknown` (not yet computed) and none is `Overdefined`. Such a branch
-/// opens neither arm until either the operand resolves to a constant or an
-/// `Overdefined` operand proves the condition genuinely non-constant.
-///
-/// Operands read at version 0 (proc parameters, globals, and other
-/// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
-/// `Overdefined`, so they are never "not yet computed".
+/// Defer only with the source proof view at the actual condition.
 pub(super) fn branch_deferrable(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
@@ -357,35 +325,5 @@ pub(super) fn branch_deferrable(
     } else {
         SsaSourceView::unpositioned(ssa)
     };
-    let mut any_operand = false;
-    let mut any_unknown = false;
-    for name in crate::var_refs::vars_in_expr(condition, grammar) {
-        let (sym, ver) = if lookup.is_positioned() {
-            let Some(read) = lookup.read_spelling(&name) else {
-                return false;
-            };
-            let Some(version) = read.version else {
-                return false;
-            };
-            (read.symbol, version)
-        } else {
-            let Some(symbol) = lookup.symbol(&name) else {
-                continue;
-            };
-            (
-                symbol,
-                ssa_block.exit_versions.get(&symbol).copied().unwrap_or(0),
-            )
-        };
-        if ver == 0 {
-            continue;
-        }
-        any_operand = true;
-        match values.get(&(sym, ver)) {
-            Some(LatticeValue::Overdefined) => return false,
-            Some(LatticeValue::Unknown) | None => any_unknown = true,
-            _ => {}
-        }
-    }
-    any_operand && any_unknown
+    branch_has_pending_operands(ssa_block, condition, values, lookup, grammar)
 }

@@ -76,25 +76,25 @@ fn apply_returns_original_counted_argument_objects() {
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/8.5.19/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
             ),
         ),
         (
@@ -133,19 +133,19 @@ fn apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler() {
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
             ),
         ),
     ] {
@@ -238,25 +238,25 @@ const LAMBDA_NAMESPACE_ROWS: [(&str, &str); 5] = [
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/8.5.19/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/8.6.18/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/9.0.4/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/9.1.0/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.1/stdout.tsv"
         ),
     ),
     (
@@ -390,25 +390,25 @@ const MISSING_LAMBDA_ROWS: [(&str, &str); 4] = [
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.5.19/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/8.6.18/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.0.4/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/9.1.0/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.1/stdout.tsv"
         ),
     ),
 ];

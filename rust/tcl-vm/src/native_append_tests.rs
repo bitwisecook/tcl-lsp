@@ -118,7 +118,7 @@ fn native_append_preserves_every_measured_primary_storage_and_identity_window() 
     let mut observations = 0;
     for (profile, fixture) in APPEND_FIXTURES {
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 17);
             let label = format!("{profile} {} {}", fields[0], fields[1]);
             let kinds = fields[0]
@@ -355,7 +355,7 @@ fn compare_cat_windows(fixtures: [(&str, &str); 2], kinds: &[[i32; 3]]) -> usize
         let protocol = dialect.native_object_cat_protocol().unwrap().recipe();
         let mut rows = fixture
             .lines()
-            .map(|line| line.split('\t').collect::<Vec<_>>())
+            .map(|line| tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>())
             .peekable();
         while let Some(row) = rows.peek() {
             let case = row[0].parse::<usize>().unwrap();

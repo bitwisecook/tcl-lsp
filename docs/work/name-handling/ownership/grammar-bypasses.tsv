@@ -82,13 +82,11 @@ rust/tcl-compiler/src/analyser/handlers/symbol_definitions.rs	encodings	MAX:char
 rust/tcl-compiler/src/analyser/handlers/symbol_definitions.rs	scripts	MAX:trim	-	2
 rust/tcl-compiler/src/analyser/handlers/written_variables.rs	scripts	try_fold_const_cmd_subst_rhs:trim	-	1
 rust/tcl-compiler/src/analyser/oo/unknown_proc.rs	scripts	extract_unknown_proc_info_at:trim	-	1
-rust/tcl-compiler/src/analyser/param_traits.rs	scripts	infer_param_traits:trim	-	1
+rust/tcl-compiler/src/analyser/param_traits.rs	scripts	shallow_param_traits:trim	-	1
 rust/tcl-compiler/src/analyser/param_traits.rs	scripts	infer_param_traits_deep_at_depth:trim	-	1
 rust/tcl-compiler/src/analyser/param_traits/body_scan.rs	scripts	scan_deep_body:trim	-	1
 rust/tcl-compiler/src/analyser/param_traits/body_scan.rs	scripts	scan_deep_lambda:trim	-	1
 rust/tcl-compiler/src/analyser/param_traits/body_scan.rs	scripts	scan_segment:trim	-	1
-rust/tcl-compiler/src/analyser/param_traits/caller_frame.rs	scripts	caller_frame_literal_targets_over:trim	-	1
-rust/tcl-compiler/src/analyser/param_traits/caller_frame.rs	scripts	caller_frame_upvar_params_over:trim	-	1
 rust/tcl-compiler/src/analyser/per_item/body_pass.rs	lists	body_needs_enclosing_context:split_whitespace	-	1
 rust/tcl-compiler/src/analyser/per_item/body_pass.rs	lists	body_sources_dynamic_path:split_whitespace	-	1
 rust/tcl-compiler/src/analyser/recovery.rs	scripts	detect_stolen_close_brace:trim	-	1

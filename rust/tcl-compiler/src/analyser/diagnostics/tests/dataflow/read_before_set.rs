@@ -936,7 +936,12 @@ fn w210_reports_required_read_of_an_allocated_but_unset_global_link() {
             .filter(|d| d.code == DiagCode::W210)
             .map(|d| d.span.as_range())
             .collect::<Vec<_>>();
-        assert_eq!(spans, std::slice::from_ref(&(read..read + 4)), "{dialect}");
+        let expected = read..read + 4;
+        assert_eq!(
+            spans.as_slice(),
+            std::slice::from_ref(&expected),
+            "{dialect}"
+        );
     }
 }
 

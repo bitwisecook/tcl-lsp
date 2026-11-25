@@ -19,7 +19,8 @@
 //! Literal parsing and Tcl-source rendering for the optimiser.
 
 use crate::analyses::ConstValue;
-use crate::tcl_expr_eval::{FoldPolicy, TclValue, format_tcl_value_with_policy};
+use crate::tcl_expr_eval::FoldPolicy;
+pub use crate::value_transfer::format_constant_with_policy;
 
 /// Grammar of a word that can be emitted into Tcl source without
 /// needing brace quoting:
@@ -150,18 +151,6 @@ pub fn render_static_string_word_in(value: &str, config: tcl_lexer::LexerConfig)
 #[must_use]
 pub fn format_constant(value: &ConstValue) -> Option<String> {
     format_constant_with_policy(value, FoldPolicy::default())
-}
-
-/// Render an SCCP value with its selected native string policy. An unproved
-/// mutable precision cannot be replaced by a preformatted floating string.
-#[must_use]
-pub fn format_constant_with_policy(value: &ConstValue, policy: FoldPolicy) -> Option<String> {
-    match value {
-        ConstValue::Bool(b) => Some(if *b { "1".into() } else { "0".into() }),
-        ConstValue::Int(i) => Some(i.to_string()),
-        ConstValue::Float(f) => format_tcl_value_with_policy(&TclValue::Float(*f), policy),
-        ConstValue::String(s) => Some(s.clone()),
-    }
 }
 
 // Decimal int parsing (kept private so the rest of the crate is

@@ -825,12 +825,13 @@ mod tests {
             let control = value(b"-code").unwrap();
             let level = value(b"-level").unwrap();
             let prefix = format!("{native}\tcapture\t");
-            let expected = observations
-                .lines()
-                .find(|row| row.starts_with(&prefix))
-                .unwrap()
-                .split('\t')
-                .collect::<Vec<_>>();
+            let expected = tcl_test_support::fixture::tsv_fields(
+                observations
+                    .lines()
+                    .find(|row| row.starts_with(&prefix))
+                    .unwrap(),
+            )
+            .collect::<Vec<_>>();
             assert_eq!(
                 info == message.as_ptr(),
                 expected[2] == "1",
@@ -852,12 +853,13 @@ mod tests {
                 assert!(interp.native_private_error_object(true).is_none());
                 assert!(interp.native_private_error_object(false).is_none());
                 let prefix = format!("{native}\tcapture-reset\t");
-                let expected = observations
-                    .lines()
-                    .find(|row| row.starts_with(&prefix))
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let expected = tcl_test_support::fixture::tsv_fields(
+                    observations
+                        .lines()
+                        .find(|row| row.starts_with(&prefix))
+                        .unwrap(),
+                )
+                .collect::<Vec<_>>();
                 assert_eq!(info == message.as_ptr(), expected[4] == "1");
                 assert_eq!(
                     unsafe { (*message.as_ptr()).ref_count },

@@ -95,7 +95,7 @@ fn a_rule_procedure_summary_returns_its_constant() {
         "proc p {a} {return 1.0}\nwhen HTTP_REQUEST { set y [call p 1]; log local0. $y }\n";
     assert_eq!(
         summary_of(source, IRULES, "::p").constant_return,
-        Some(ConstantReturn::Float(1.0))
+        Some(ConstantReturn::float(1.0))
     );
 }
 

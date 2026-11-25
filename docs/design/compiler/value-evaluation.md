@@ -352,15 +352,9 @@ struct ConstOps<'ctx> {
     cancel: &'ctx CancelToken,
 }
 
-/// A compile-time value: byte-exact, with the string rep derived on
-/// demand and the representation kept as separate evidence.
+/// The command-core view of an exact value with shareable byte storage.
 #[derive(Clone)]
-struct ConstValue {
-    bytes: Rc<[u8]>,
-    /// Representation evidence for the answer, never a coercion:
-    /// `String`, `ByteArray`, `List`, `Dict`, `Int`, `Double`.
-    repr: Representation,
-}
+struct ConstValue(ExactValue<Rc<[u8]>>);
 
 /// The target semantics one evaluation runs under. Every field is the
 /// answer of the release in force — the named one, or the dialect's
@@ -383,7 +377,7 @@ override, and why the default is wrong for a compile-time model:
 
 | `ValueOps` member | `ConstOps` behaviour |
 |---|---|
-| `type Value` | `ConstValue`, byte-exact; `Rc<str>` cannot hold a `binary format` result |
+| `type Value` | `ConstValue`, an exact value with reference-counted bytes. The representation describes the constructor that supplied the value. A published result gains a numeric reading after its bytes have been charged. |
 | `as_bytes` / `new_bytes` | the real bytes, both ways; the defaults round-trip through UTF-8 and are lossy |
 | `as_str` | the bytes decoded as UTF-8; invalid bytes record `DeclineReason::NotText` and poison, rather than substituting U+FFFD |
 | `char_len` | `StringCharacterModel::count` under the named release, else `count_for(None, s)`, whose `None` poisons with `ReleaseAmbiguous(Axis::CharacterModel)` |

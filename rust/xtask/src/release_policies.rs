@@ -137,7 +137,8 @@ fn observe(root: &Path, version: TclVersion) -> Result<Observations> {
     let text = std::str::from_utf8(&output.stdout)?;
     let mut rows = Observations::new();
     for line in text.lines() {
-        let (key, value) = line.split_once('\t').context("policy probe row")?;
+        let (key, value) =
+            tcl_test_support::fixture::tsv_split_once(line).context("policy probe row")?;
         ensure!(
             rows.insert(key.to_owned(), value.to_owned()).is_none(),
             "duplicate policy observation"
@@ -176,7 +177,7 @@ fn parse(data: &str) -> Result<BTreeMap<TclVersion, Observations>> {
         .lines()
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
     {
-        let fields: Vec<_> = line.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         ensure!(fields.len() == 3, "policy facts require three fields");
         let version =
             TclVersion::from_version_string(fields[0]).context("unknown policy release")?;

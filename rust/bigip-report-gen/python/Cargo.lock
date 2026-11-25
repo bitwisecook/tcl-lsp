@@ -1617,6 +1617,7 @@ name = "tcl-bigip-io"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "base64",
  "cfb-mode",
  "digest",
  "flate2",
@@ -1805,6 +1806,8 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "sha2",
  "smallvec",
  "tcl-cmd-core",

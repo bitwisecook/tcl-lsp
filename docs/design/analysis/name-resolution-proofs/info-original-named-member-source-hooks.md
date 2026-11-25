@@ -52,7 +52,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c`, function `subCmds`, lines 425–435. Retained reference `info-named-member-source-8.4.20`.
+tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.4/tclCmdIL.c`, function `subCmds`, lines 425–435. Retained reference `info-named-member-source-8.4.20`.
 
 ```text
     static CONST char *subCmds[] = {
@@ -69,7 +69,7 @@ tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/
 
 ```
 
-tcl8.5 8.5.19, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c`, function `defaultInfoMap`, lines 155–179. Retained reference `info-named-member-source-8.5.19`.
+tcl8.5 8.5.19, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.5/tclCmdIL.c`, function `defaultInfoMap`, lines 155–179. Retained reference `info-named-member-source-8.5.19`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -100,7 +100,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl8.6 8.6.18, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c`, function `defaultInfoMap`, lines 155–181. Retained reference `info-named-member-source-8.6.18`.
+tcl8.6 8.6.18, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.6/tclCmdIL.c`, function `defaultInfoMap`, lines 155–181. Retained reference `info-named-member-source-8.6.18`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -133,7 +133,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c`, function `defaultInfoMap`, lines 151–180. Retained reference `info-named-member-source-9.0.4`.
+tcl9.0 9.0.4, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.0/tclCmdIL.c`, function `defaultInfoMap`, lines 151–180. Retained reference `info-named-member-source-9.0.4`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -169,7 +169,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c`, function `tclInfoImplMap`, lines 152–181. Retained reference `info-named-member-source-9.1.0`.
+tcl9.1 9.1.0, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.1/tclCmdIL.c`, function `tclInfoImplMap`, lines 152–181. Retained reference `info-named-member-source-9.1.0`.
 
 ```text
 const EnsembleImplMap tclInfoImplMap[] = {
@@ -212,9 +212,9 @@ const EnsembleImplMap tclInfoImplMap[] = {
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c)
-- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c)
-- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c)
-- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c)
-- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.4/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.5/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.5/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.6/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.6/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.0/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.1/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.1/tclCmdIL.c)
 - [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs)

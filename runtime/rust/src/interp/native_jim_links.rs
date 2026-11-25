@@ -330,8 +330,8 @@ mod tests {
         for (engine, expected) in engines {
             assert_eq!(cases.lines().count(), expected.lines().count());
             for (case, result) in cases.lines().zip(expected.lines()) {
-                let (name, source) = case.split_once('\t').unwrap();
-                let fields: Vec<_> = result.split('\t').collect();
+                let (name, source) = tcl_test_support::fixture::tsv_split_once(case).unwrap();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(result).collect();
                 assert_eq!(fields[0], name);
                 let mut interp = Interp::with_native_core(
                     crate::interp::default_host(),

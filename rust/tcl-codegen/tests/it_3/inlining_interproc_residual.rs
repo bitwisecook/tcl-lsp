@@ -1121,7 +1121,7 @@ fn constant_return_float_literal() {
         .get(&fixture_id(&ia.procedures, "::f"))
         .unwrap();
     assert!(s.returns_constant);
-    assert_eq!(s.constant_return, Some(ConstantReturn::Float(3.5)));
+    assert_eq!(s.constant_return, Some(ConstantReturn::float(3.5)));
 }
 
 #[test]
@@ -1135,7 +1135,7 @@ fn constant_return_bool_literal() {
         .get(&fixture_id(&ia.procedures, "::f"))
         .unwrap();
     assert!(s.returns_constant);
-    assert_eq!(s.constant_return, Some(ConstantReturn::Bool(true)));
+    assert_eq!(s.constant_return, Some(ConstantReturn::boolean(true)));
 }
 
 #[test]
@@ -1148,7 +1148,10 @@ fn constant_return_string_literal() {
         .get(&fixture_id(&ia.procedures, "::f"))
         .unwrap();
     assert!(s.returns_constant);
-    assert_eq!(s.constant_return, Some(ConstantReturn::Str("hello".into())));
+    assert_eq!(
+        s.constant_return,
+        Some(ConstantReturn::string("hello".into()))
+    );
 }
 
 #[test]
@@ -1169,7 +1172,7 @@ fn constant_return_quoted_and_braced_multiword() {
         assert!(s.returns_constant, "constant for {src}");
         assert_eq!(
             s.constant_return,
-            Some(ConstantReturn::Str("a b c".into())),
+            Some(ConstantReturn::string("a b c".into())),
             "value for {src}"
         );
     }
@@ -1187,19 +1190,19 @@ fn the_shapes_read_a_literal_return_exactly() {
     let cases = [
         (
             "proc ::f {a} { return \" 5\" }\n",
-            Some(ConstantReturn::Str(" 5".into())),
+            Some(ConstantReturn::string(" 5".into())),
         ),
         (
             "proc ::f {a} { return 007 }\n",
-            Some(ConstantReturn::Str("007".into())),
+            Some(ConstantReturn::string("007".into())),
         ),
         (
             "proc ::f {a} { return {$a} }\n",
-            Some(ConstantReturn::Str("$a".into())),
+            Some(ConstantReturn::string("$a".into())),
         ),
         (
             "proc ::f {} { return [expr {5}] }\n",
-            Some(ConstantReturn::Int(5)),
+            Some(ConstantReturn::int(5)),
         ),
         ("proc ::f {} { return [expr {0x10}] }\n", None),
         ("proc ::f {} { return [expr {true}] }\n", None),
@@ -1355,33 +1358,33 @@ fn proc_arg_trait_wire_forms() {
 #[test]
 fn constant_return_kind_text_wire_forms() {
     assert_eq!(
-        ConstantReturn::Int(42).as_kind_text(),
+        ConstantReturn::int(42).as_kind_text(),
         ("int", "42".to_string())
     );
     assert_eq!(
-        ConstantReturn::Float(1.5).as_kind_text(),
+        ConstantReturn::float(1.5).as_kind_text(),
         ("float", "1.5".to_string())
     );
     // The text is the value as the procedure returns it, which a fold
     // spells: a double as Tcl prints it, a boolean as written.
     assert_eq!(
-        ConstantReturn::Float(1.0).as_kind_text(),
+        ConstantReturn::float(1.0).as_kind_text(),
         ("float", "1.0".to_string())
     );
     assert_eq!(
-        ConstantReturn::Float(1e301).as_kind_text(),
+        ConstantReturn::float(1e301).as_kind_text(),
         ("float", "1e+301".to_string())
     );
     assert_eq!(
-        ConstantReturn::Bool(true).as_kind_text(),
+        ConstantReturn::boolean(true).as_kind_text(),
         ("bool", "true".to_string())
     );
     assert_eq!(
-        ConstantReturn::Bool(false).as_kind_text(),
+        ConstantReturn::boolean(false).as_kind_text(),
         ("bool", "false".to_string())
     );
     assert_eq!(
-        ConstantReturn::Str("hi".into()).as_kind_text(),
+        ConstantReturn::string("hi".into()).as_kind_text(),
         ("str", "hi".to_string())
     );
 }
@@ -1424,7 +1427,7 @@ fn method_return_constant_and_arity_summarised() {
         .get(&fixture_id(&ia.methods, "::C::get"))
         .expect("method summary");
     assert!(m.base.returns_constant, "constant return summarised");
-    assert_eq!(m.base.constant_return, Some(ConstantReturn::Int(7)));
+    assert_eq!(m.base.constant_return, Some(ConstantReturn::int(7)));
     assert_eq!(m.base.arity, Arity::exact(2), "two-param arity");
     assert!(m.calls_my.is_empty(), "calls_my left empty (not tracked)");
     assert!(!m.calls_next, "calls_next left false (not tracked)");

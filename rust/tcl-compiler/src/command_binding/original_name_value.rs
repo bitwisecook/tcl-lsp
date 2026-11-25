@@ -291,15 +291,34 @@ impl OriginalProducedNameValue {
             }
             merge_origins(&mut result.origins, &element.origins)?;
         }
-        result.lineage_within(MAX_ORIGINS).then_some(())?;
         let values = elements.iter().map(Self::bytes).collect::<Vec<_>>();
+        result.with_list_bytes(&values)
+    }
+
+    /// Retain a list wrapping this script with generated header bytes.
+    pub(super) fn namespace_prefix_result(
+        &self,
+        operation: &Self,
+        [head, selector, namespace]: [&[u8]; 3],
+    ) -> Option<Self> {
+        if self.policy != operation.policy || self.contents_epoch != operation.contents_epoch {
+            return None;
+        }
+        let mut result = operation.clone();
+        result.evaluated_index = None;
+        merge_origins(&mut result.origins, &self.origins)?;
+        result.with_list_bytes(&[head, selector, namespace, self.bytes()])
+    }
+
+    fn with_list_bytes(mut self, elements: &[&[u8]]) -> Option<Self> {
+        self.lineage_within(MAX_ORIGINS).then_some(())?;
         let bytes = tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
-            first.policy.string_protocol(),
+            self.policy.string_protocol(),
         )
-        .render(&values);
+        .render(elements);
         (bytes.len() <= MAX_BYTES).then_some(())?;
-        result.bytes = bytes.into();
-        Some(result)
+        self.bytes = bytes.into();
+        Some(self)
     }
 
     /// Concatenate independently frozen components in evaluation order. No

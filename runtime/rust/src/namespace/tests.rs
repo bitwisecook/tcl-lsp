@@ -498,11 +498,7 @@ fn compiler_and_resolver_epochs_match_original_native_mutation_rows() {
         namespaces.bind(GLOBAL, b"set", cmd());
         let stock = namespaces.resolve_generation(GLOBAL, b"set").unwrap();
         namespaces.set_native_compiler_hook(stock, Hook::Present);
-        let baseline = rows
-            .lines()
-            .nth(1)
-            .unwrap()
-            .split('\t')
+        let baseline = tcl_test_support::fixture::tsv_fields(rows.lines().nth(1).unwrap())
             .nth(2)
             .unwrap()
             .parse::<u64>()
@@ -510,7 +506,7 @@ fn compiler_and_resolver_epochs_match_original_native_mutation_rows() {
         let mut local = None;
         let mut hidden = None;
         for row in rows.lines().skip(1) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let event = fields[0];
             match event {
                 "initial" => {}

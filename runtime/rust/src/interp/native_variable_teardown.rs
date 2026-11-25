@@ -369,35 +369,35 @@ mod tests {
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/",
                         $fixture,
-                        "/8.4.20/",
+                        "/tcl8.4/",
                         $case,
                         "/stdout"
                     )),
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/",
                         $fixture,
-                        "/8.5.19/",
+                        "/tcl8.5/",
                         $case,
                         "/stdout"
                     )),
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/",
                         $fixture,
-                        "/8.6.18/",
+                        "/tcl8.6/",
                         $case,
                         "/stdout"
                     )),
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/",
                         $fixture,
-                        "/9.0.4/",
+                        "/tcl9.0/",
                         $case,
                         "/stdout"
                     )),
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/",
                         $fixture,
-                        "/9.1.0/",
+                        "/tcl9.1/",
                         $case,
                         "/stdout"
                     )),

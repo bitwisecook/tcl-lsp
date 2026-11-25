@@ -26,11 +26,10 @@ use tcl_dialect::TclVersion;
 fn providers() -> Vec<(&'static str, &'static str, InvocationDialect)> {
     TclVersion::ALL
         .into_iter()
-        .zip(["8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0"])
-        .map(|(version, directory)| {
+        .map(|version| {
             (
-                directory,
-                directory,
+                version.dialect_profile_name(),
+                version.patchlevel(),
                 InvocationDialect::for_version(version),
             )
         })

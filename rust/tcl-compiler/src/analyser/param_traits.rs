@@ -104,11 +104,51 @@ pub fn infer_param_traits(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty()
-        || body_source.trim().is_empty()
-        || !env.matches_source(body_source)
-        || !env.matches_parameters(params)
-    {
+    if params.is_empty() || !env.matches_parameters(params) {
+        return HashMap::new();
+    }
+    shallow_param_traits(params, body_source, env, None)
+}
+
+/// Shallow parameter traits and direct caller-frame templates for one original body.
+pub struct ShallowProcedureTraits {
+    /// Traits inferred from the procedure arguments' use.
+    pub traits: HashMap<String, HashSet<ProcArgTrait>>,
+    /// Parameters naming variables in the immediate caller frame.
+    pub caller_frame_params: HashSet<String>,
+    /// Literal immediate caller targets and whether their aliases are written.
+    pub caller_frame_literals: HashMap<String, bool>,
+}
+
+/// Project parameter traits and direct caller-frame effects during the same scan.
+#[must_use]
+pub fn infer_param_traits_with_caller_frame(
+    params: &[&str],
+    body_source: &str,
+    env: TraitScanEnv<'_>,
+) -> ShallowProcedureTraits {
+    let params = if env.matches_parameters(params) {
+        params
+    } else {
+        &[]
+    };
+    let mut direct = crate::cfg_builder::frame_effects::DirectCallerEffects::default();
+    let traits = shallow_param_traits(params, body_source, env, Some(&mut direct));
+    let (caller_frame_params, caller_frame_literals) = direct.into_caller_template();
+    ShallowProcedureTraits {
+        traits,
+        caller_frame_params,
+        caller_frame_literals,
+    }
+}
+
+fn shallow_param_traits(
+    params: &[&str],
+    body_source: &str,
+    env: TraitScanEnv<'_>,
+    direct: Option<&mut crate::cfg_builder::frame_effects::DirectCallerEffects>,
+) -> HashMap<String, HashSet<ProcArgTrait>> {
+    if body_source.trim().is_empty() || !env.matches_source(body_source) {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -135,7 +175,7 @@ pub fn infer_param_traits(
                     .map(|body| body.scope().scope_body().content_span().start())
             }),
     };
-    scan_commands(body_source, &ctx, &mut traits, &mut aliases);
+    scan_commands(body_source, &ctx, &mut traits, &mut aliases, direct);
 
     finalise_traits(traits)
 }

@@ -1149,7 +1149,7 @@ fn measured_bigip_bare_matches_glob_discriminators_fold_only_under_authored_poli
             .lines()
             .enumerate()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let expression = fields[0];
         let expected = if fields[1] == "0" {
             Some(TclValue::Int(fields[2].parse().unwrap()))

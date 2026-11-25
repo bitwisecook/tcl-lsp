@@ -389,37 +389,33 @@ fn selected_alias_target(
     registry: &CommandRegistry,
     dialect: Option<tcl_registry::InvocationDialect>,
 ) -> SelectedAliasTarget {
-    let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, variable } = target else {
-        return SelectedAliasTarget::Other;
-    };
-    let tcl_registry::CallerFrameSelection::Explicit(level) = frame else {
-        return SelectedAliasTarget::Past(1);
-    };
-    let Some(level) = level.literal() else {
-        return SelectedAliasTarget::Unplaced;
-    };
-    let Some(level) = dialect.map_or_else(
-        || FrameLevel::parse_in(level, registry),
-        |dialect| FrameLevel::parse_for_dialect(level, dialect),
-    ) else {
-        // Tcl rejects the invocation before installing this pair.
-        return SelectedAliasTarget::Other;
-    };
-    match level {
-        FrameLevel::Relative(0) => {
-            variable
-                .literal()
-                .map_or(SelectedAliasTarget::SameOpaque, |name| {
-                    SelectedAliasTarget::SameExact(
-                        crate::naming::split_element_ref(name)
-                            .map_or(name, |(root, _)| root)
-                            .to_owned(),
-                    )
-                })
+    use crate::cfg_builder::frame_effects::{CallerAliasSelection, caller_alias_selection};
+    let selected = caller_alias_selection(target, |_, level| {
+        dialect.map_or_else(
+            || FrameLevel::parse_in(level, registry),
+            |dialect| FrameLevel::parse_for_dialect(level, dialect),
+        )
+    });
+    match selected {
+        CallerAliasSelection::Selected(FrameLevel::Relative(0), variable) => {
+            variable.map_or(SelectedAliasTarget::SameOpaque, |name| {
+                SelectedAliasTarget::SameExact(
+                    crate::naming::split_element_ref(name)
+                        .map_or(name, |(root, _)| root)
+                        .to_owned(),
+                )
+            })
         }
-        FrameLevel::Absolute(0) => SelectedAliasTarget::Other,
-        FrameLevel::Relative(levels) => SelectedAliasTarget::Past(levels),
-        FrameLevel::Absolute(_) | FrameLevel::Dynamic => SelectedAliasTarget::Unplaced,
+        CallerAliasSelection::Selected(FrameLevel::Relative(levels), _) => {
+            SelectedAliasTarget::Past(levels)
+        }
+        CallerAliasSelection::Dynamic
+        | CallerAliasSelection::Selected(FrameLevel::Dynamic | FrameLevel::Absolute(1..), _) => {
+            SelectedAliasTarget::Unplaced
+        }
+        CallerAliasSelection::Other
+        | CallerAliasSelection::Invalid(_)
+        | CallerAliasSelection::Selected(FrameLevel::Absolute(0), _) => SelectedAliasTarget::Other,
     }
 }
 

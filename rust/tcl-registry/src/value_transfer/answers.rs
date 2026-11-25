@@ -626,10 +626,10 @@ pub enum NumericValue {
 /// carried separately. Produced by the routes' value ingress; consumed by
 /// every value consumer.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExactValue {
+pub struct ExactValue<Bytes = Vec<u8>> {
     /// The value's bytes, exactly as computed: whitespace, NUL,
     /// backslashes, leading zeros, and signed zero included.
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
     /// The numeric classification, when the spelling has one.
     pub numeric: Option<NumericValue>,
     /// The representation evidence.
@@ -657,6 +657,27 @@ impl ExactValue {
         }
     }
 
+    /// A double in the canonical shortest spelling used by analysis views.
+    /// Native materialisation still needs the selected release and precision.
+    #[must_use]
+    pub fn shortest_double(value: f64) -> Self {
+        Self {
+            bytes: tcl_syntax::number::format_double(value).into_bytes(),
+            numeric: Some(NumericValue::Float(value)),
+            representation: RepresentationEvidence::Unknown,
+        }
+    }
+
+    /// A boolean in Tcl's canonical result spelling.
+    #[must_use]
+    pub fn boolean(value: bool) -> Self {
+        Self {
+            bytes: if value { b"1" } else { b"0" }.to_vec(),
+            numeric: Some(NumericValue::Bool(value)),
+            representation: RepresentationEvidence::Unknown,
+        }
+    }
+
     /// The value ingress for a literal: the text kept exactly, classified
     /// as an integer only when the canonical integer spelling round-trips
     /// (`str(int(s)) == s`). A leading-zero literal such as `08` or `010`
@@ -666,27 +687,68 @@ impl ExactValue {
     /// three-character string.
     #[must_use]
     pub fn from_literal(text: &str) -> Self {
-        let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
-        let is_decimal_int = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
-        let numeric = if is_decimal_int {
-            text.parse::<i64>()
-                .ok()
-                .filter(|i| i.to_string() == text)
-                .map(NumericValue::Int)
-        } else {
-            None
-        };
         Self {
             bytes: text.as_bytes().to_vec(),
-            numeric,
+            numeric: canonical_literal_integer(text),
             representation: RepresentationEvidence::Unknown,
+        }
+    }
+}
+
+fn canonical_literal_integer(text: &str) -> Option<NumericValue> {
+    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let value = text.parse::<i64>().ok()?;
+    (value.to_string() == text).then_some(NumericValue::Int(value))
+}
+
+impl<Bytes: AsRef<[u8]>> ExactValue<Bytes> {
+    /// Preserve command-core output bytes with the type its constructor supplies.
+    pub(super) fn constructed(bytes: Bytes, repr: TclType) -> Self {
+        Self {
+            bytes,
+            numeric: None,
+            representation: RepresentationEvidence::Constructed(repr),
+        }
+    }
+
+    /// Classify the published value after its output bytes have been charged.
+    pub(super) fn classify_constructed(mut self) -> Self {
+        let RepresentationEvidence::Constructed(repr) = self.representation else {
+            return self;
+        };
+        let text = self.as_str().ok();
+        self.numeric = match repr {
+            TclType::Int => text
+                .and_then(|text| text.parse().ok())
+                .map(NumericValue::Int),
+            TclType::Double => text
+                .and_then(|text| text.parse().ok())
+                .map(NumericValue::Float),
+            TclType::String => text.and_then(canonical_literal_integer),
+            _ => None,
+        };
+        self
+    }
+
+    /// Change byte storage while preserving the bytes and their evidence.
+    pub(super) fn map_bytes<Other>(
+        self,
+        convert: impl FnOnce(Bytes) -> Other,
+    ) -> ExactValue<Other> {
+        ExactValue {
+            bytes: convert(self.bytes),
+            numeric: self.numeric,
+            representation: self.representation,
         }
     }
 
     /// The bytes as text, or `NotText` when they are not UTF-8; never
     /// U+FFFD.
     pub fn as_str(&self) -> Result<&str, DeclineReason> {
-        std::str::from_utf8(&self.bytes).map_err(|_| DeclineReason::NotText)
+        std::str::from_utf8(self.bytes.as_ref()).map_err(|_| DeclineReason::NotText)
     }
 
     /// The integer classification, when the value has one.
@@ -696,6 +758,22 @@ impl ExactValue {
             Some(NumericValue::Int(i)) => Some(i),
             _ => None,
         }
+    }
+
+    /// Project a numeric reading only when the analysis view can reconstruct
+    /// the same bytes. Other spellings remain exact text in that view.
+    #[must_use]
+    pub fn canonical_numeric(&self) -> Option<NumericValue> {
+        let numeric = self.numeric?;
+        let bytes = self.bytes.as_ref();
+        let same = match numeric {
+            NumericValue::Int(value) => bytes == value.to_string().as_bytes(),
+            NumericValue::Float(value) => {
+                bytes == tcl_syntax::number::format_double(value).as_bytes()
+            }
+            NumericValue::Bool(value) => bytes == if value { b"1" } else { b"0" },
+        };
+        same.then_some(numeric)
     }
 }
 

@@ -379,7 +379,7 @@ mod physical_tests {
         fn check(&self, window: &str, root: Option<&Value>, words: &[Value], compared: &mut usize) {
             let Self { data, name, case } = *self;
             for line in data.lines() {
-                let row = line.split('\t').collect::<Vec<_>>();
+                let row = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
                 if row[0] != name || row[1].parse::<usize>().unwrap() != case || row[2] != window {
                     continue;
                 }
@@ -423,17 +423,18 @@ mod physical_tests {
                     key.resident_string_bytes()
                         .is_some_and(|bytes| bytes.as_ref() == b"-errorcode")
                 }) {
-                    let row = data
-                        .lines()
-                        .find(|line| {
-                            let fields = line.split('\t').collect::<Vec<_>>();
-                            fields[0] == name
-                                && fields[1].parse::<usize>().unwrap() == case
-                                && fields[2] == "retained-errorcode"
-                        })
-                        .unwrap()
-                        .split('\t')
-                        .collect::<Vec<_>>();
+                    let row = tcl_test_support::fixture::tsv_fields(
+                        data.lines()
+                            .find(|line| {
+                                let fields =
+                                    tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
+                                fields[0] == name
+                                    && fields[1].parse::<usize>().unwrap() == case
+                                    && fields[2] == "retained-errorcode"
+                            })
+                            .unwrap(),
+                    )
+                    .collect::<Vec<_>>();
                     let snapshot = value.native_object_snapshot();
                     assert_eq!(tag(value), row[4]);
                     assert_eq!(snapshot.resident.is_some(), row[5] == "1");
@@ -498,17 +499,18 @@ mod physical_tests {
                 windows.check("known-word", None, &originals, &mut compared);
                 let protocol = ops.dialect.return_options_protocol().unwrap();
                 let merged = native_return_merge::merge(&mut ops, protocol, &originals).unwrap();
-                let control = data
-                    .lines()
-                    .find(|line| {
-                        let fields = line.split('\t').collect::<Vec<_>>();
-                        fields[0] == name
-                            && fields[1].parse::<usize>().unwrap() == case
-                            && fields[2] == "controls"
-                    })
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let control = tcl_test_support::fixture::tsv_fields(
+                    data.lines()
+                        .find(|line| {
+                            let fields =
+                                tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
+                            fields[0] == name
+                                && fields[1].parse::<usize>().unwrap() == case
+                                && fields[2] == "controls"
+                        })
+                        .unwrap(),
+                )
+                .collect::<Vec<_>>();
                 assert_eq!(merged.code, control[3].parse::<i32>().unwrap());
                 assert_eq!(merged.level, control[4].parse::<i32>().unwrap());
                 assert_eq!(merged.size, control[5].parse::<usize>().unwrap());
@@ -547,7 +549,7 @@ mod execution_tests {
     fn registered_return_instructions_match_44_native_controls() {
         let mut compared = 0;
         for line in include_str!("../../tcl-registry/tests/data/registered-return44.tsv").lines() {
-            let fields = line.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
             let profile = tcl_dialect::DialectProfile::find(match fields[0] {
                 "8.5.19" => "tcl8.5",
                 "8.6.18" => "tcl8.6",

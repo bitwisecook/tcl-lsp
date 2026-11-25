@@ -371,7 +371,7 @@ mod tests {
         for line in
             include_str!("../testdata/native_jim_numeric_environment/observations.tsv").lines()
         {
-            let row: Vec<_> = line.split('\t').collect();
+            let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let case: usize = row[0].parse().unwrap();
             let seed = row[1] == "1";
             host.double(if seed { b"1e9999" } else { b"0" }, true)
@@ -420,7 +420,7 @@ mod tests {
             "../../tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/execute-live.stdout"
         );
         let field = |line: &str, key: &str| -> String {
-            line.split('\t')
+            tcl_test_support::fixture::tsv_fields(line)
                 .find_map(|part| {
                     let (name, value) = part.split_once('=')?;
                     (name == key).then(|| value.to_owned())

@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use tower_lsp_server::ls_types::{
     DidChangeWatchedFilesRegistrationOptions, FileOperationFilter, FileOperationPattern,
     FileOperationPatternOptions, FileOperationRegistrationOptions, FileSystemWatcher, GlobPattern,
-    MessageType, OneOf, Registration, RelativePattern, Unregistration, WatchKind,
+    MessageType, OneOf, Registration, RelativePattern, Unregistration, Uri, WatchKind,
 };
 
 use crate::Backend;
@@ -345,13 +345,62 @@ impl Backend {
 }
 
 fn external_pack_file_watcher(base: &Path, pattern: &str) -> Option<FileSystemWatcher> {
-    Some(FileSystemWatcher {
+    Some(relative_pack_file_watcher(
+        canonical_file_uri(base)?,
+        pattern,
+    ))
+}
+
+fn relative_pack_file_watcher(base_uri: Uri, pattern: &str) -> FileSystemWatcher {
+    FileSystemWatcher {
         glob_pattern: GlobPattern::Relative(RelativePattern {
-            base_uri: OneOf::Right(canonical_file_uri(base)?),
+            base_uri: OneOf::Right(base_uri),
             pattern: pattern.to_owned(),
         }),
         kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
-    })
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn windows_pack_uri_spelling_matches_did_open_document_key() {
+    use crate::uri_norm::{canonical_uri_string, normalise_uris_in_params};
+    use tcl_lsp_core::file_uri::vscode_document_spelling;
+    let pattern = "**/*.tclspec";
+
+    for (base, editor_uri) in [
+        (
+            r"C:\workspace\private pack",
+            "file:///c%3A/workspace/private%20pack",
+        ),
+        (
+            r"\\?\C:\workspace\private pack",
+            "file:///C%3a/workspace/private%20pack",
+        ),
+        (
+            r"\\?\UNC\server\share\private pack",
+            "file://server/share/private%20pack",
+        ),
+    ] {
+        let projected = vscode_document_spelling(base, true).unwrap();
+        let pack_uri = canonical_uri_string(&projected).parse().unwrap();
+        let watcher = relative_pack_file_watcher(pack_uri, pattern);
+        let mut opened = serde_json::json!({ "textDocument": { "uri": editor_uri } });
+        normalise_uris_in_params(&mut opened);
+        let document_uri: Uri = opened["textDocument"]["uri"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(
+            watcher.glob_pattern,
+            GlobPattern::Relative(RelativePattern {
+                base_uri: OneOf::Right(document_uri),
+                pattern: pattern.to_owned(),
+            }),
+            "{base}",
+        );
+    }
 }
 
 #[cfg(all(test, windows))]

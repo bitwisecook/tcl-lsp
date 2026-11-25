@@ -198,19 +198,19 @@ fn method_info_matches_original_counted_option_and_scope_controls() {
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1/stdout.tsv"
             ),
         ),
     ] {

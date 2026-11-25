@@ -19,10 +19,12 @@
 //! The walk over a procedure body: the shallow command scan, the bounded descent into substitutions and the deep scan through bodies and lambda literals.
 
 use super::super::types::ProcArgTrait;
+use super::caller_frame::record_direct_caller_effects;
 use super::command_traits::scan_command;
 use super::{
     Aliases, ArgumentValues, MAX_DEPTH, ScanCtx, TraitScanEnv, infer_param_traits_deep_at_depth,
 };
+use crate::cfg_builder::frame_effects::DirectCallerEffects;
 use crate::segmenter::segment_commands_with_offset_and_config;
 use std::collections::{HashMap, HashSet};
 use tcl_lexer::{LexerConfig, TokenType};
@@ -40,8 +42,9 @@ pub(super) fn scan_commands<'p>(
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
+    direct: Option<&mut DirectCallerEffects>,
 ) {
-    scan_commands_bounded(source, ctx, traits, aliases, 0);
+    scan_commands_bounded(source, ctx, traits, aliases, 0, direct);
 }
 
 /// [`scan_commands`] plus descent into `[...]` command substitutions, bounded
@@ -56,13 +59,21 @@ fn scan_commands_bounded<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
     depth: u8,
+    mut direct: Option<&mut DirectCallerEffects>,
 ) {
     let segments = segment_commands_with_offset_and_config(source, 0, ctx.config.nested());
     for seg in &segments {
         if seg.texts.is_empty() {
             continue;
         }
-        scan_segment(source, seg, ctx, traits, aliases, depth);
+        let view = if ctx.parameters.is_empty() {
+            ctx.body_assistance(source, seg)
+        } else {
+            scan_segment(source, seg, ctx, traits, aliases, depth).0
+        };
+        if let Some((direct, view)) = direct.as_deref_mut().zip(view.as_deref()) {
+            record_direct_caller_effects(direct, view, source, seg, ctx);
+        }
     }
 }
 
@@ -126,7 +137,7 @@ fn scan_segment<'p>(
                     };
                     if !inner.trim().is_empty() {
                         let nested = ctx.nested_at(Some(body.start()), inner);
-                        scan_commands_bounded(inner, &nested, traits, aliases, depth + 1);
+                        scan_commands_bounded(inner, &nested, traits, aliases, depth + 1, None);
                     }
                 }
             }

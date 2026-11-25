@@ -229,28 +229,28 @@ mod tests {
             (
                 "tcl8.6",
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.6/stdout.tsv"
                 ),
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/tcl8.6/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.0/stdout.tsv"
                 ),
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/tcl9.0/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.1/stdout.tsv"
                 ),
                 include_str!(
-                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/stdout.tsv"
+                    "../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/tcl9.1/stdout.tsv"
                 ),
             ),
         ] {

@@ -96,7 +96,7 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
     let mut compared = 0;
     let mut pattern_caches = 0;
     for row in WINDOWS.lines().skip(1) {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let case = ORIGINAL_INFO_COMMANDS_CASES[fields[1].parse::<usize>().unwrap()];
         let context = format!("{}: {}", fields[0], case.0);
         let mut interp = super::super::tests::interpreter(fields[0]);

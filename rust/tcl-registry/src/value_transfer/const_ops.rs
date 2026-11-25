@@ -203,42 +203,35 @@ impl Representation {
     }
 }
 
-/// A compile-time value: byte-exact, with the string rep derived on
-/// demand and the representation kept as separate evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstValue {
-    /// The value's bytes, exactly.
-    pub bytes: Rc<[u8]>,
-    /// How the value was constructed.
-    pub repr: Representation,
+/// The command-core view of an exact value with shareable byte storage.
+#[derive(Debug, Clone)]
+pub struct ConstValue(ExactValue<Rc<[u8]>>);
+
+impl PartialEq for ConstValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.bytes == other.0.bytes && self.0.representation == other.0.representation
+    }
 }
+
+impl Eq for ConstValue {}
 
 impl ConstValue {
     /// A string value.
     #[must_use]
     pub fn text(text: &str) -> Self {
-        Self {
-            bytes: Rc::from(text.as_bytes()),
-            repr: Representation::String,
-        }
+        Self::bytes(text.as_bytes(), Representation::String)
     }
 
     /// An integer value, spelled canonically.
     #[must_use]
     pub fn int(value: i64) -> Self {
-        Self {
-            bytes: Rc::from(value.to_string().as_bytes()),
-            repr: Representation::Int,
-        }
+        Self::bytes(value.to_string().as_bytes(), Representation::Int)
     }
 
     /// A value from raw bytes with its representation evidence.
     #[must_use]
     pub fn bytes(bytes: &[u8], repr: Representation) -> Self {
-        Self {
-            bytes: Rc::from(bytes),
-            repr,
-        }
+        Self(ExactValue::constructed(Rc::from(bytes), repr.tcl_type()))
     }
 
     /// The exact value's bytes with the representation its evidence or its
@@ -260,44 +253,25 @@ impl ConstValue {
                 None => Representation::String,
             },
         };
-        Self {
-            bytes: Rc::from(value.bytes.as_slice()),
-            repr,
-        }
+        Self::bytes(&value.bytes, repr)
     }
 
     /// The bytes as text, when they are UTF-8.
     #[must_use]
     pub fn as_utf8(&self) -> Option<&str> {
-        std::str::from_utf8(&self.bytes).ok()
+        self.0.as_str().ok()
     }
 
-    /// The exact value: the bytes carry over, the representation becomes
-    /// evidence, and the numeric classification is derived from the
-    /// spelling — an integer that fits a wide, a double, or the literal
-    /// rule for a string. A list, dict, or byte array carries no
-    /// classification: its spelling is not a numeral's.
+    pub(super) fn as_bytes(&self) -> &[u8] {
+        &self.0.bytes
+    }
+
+    /// The published exact value, including its numeric reading where known.
     #[must_use]
     pub fn into_exact(self) -> ExactValue {
-        let numeric = match self.repr {
-            Representation::Int => self
-                .as_utf8()
-                .and_then(|s| s.parse::<i64>().ok())
-                .map(NumericValue::Int),
-            Representation::Double => self
-                .as_utf8()
-                .and_then(|s| s.parse::<f64>().ok())
-                .map(NumericValue::Float),
-            Representation::String => self
-                .as_utf8()
-                .and_then(|s| ExactValue::from_literal(s).numeric),
-            Representation::List | Representation::Dict | Representation::ByteArray => None,
-        };
-        ExactValue {
-            bytes: self.bytes.to_vec(),
-            numeric,
-            representation: RepresentationEvidence::Constructed(self.repr.tcl_type()),
-        }
+        self.0
+            .classify_constructed()
+            .map_bytes(|bytes| bytes.to_vec())
     }
 }
 
@@ -879,10 +853,10 @@ impl<'ctx> ConstOps<'ctx> {
         values: &[ConstValue],
     ) -> Result<ConstValue, DeclineReason> {
         if !values.is_empty()
-            && current
-                .iter()
-                .chain(values)
-                .any(|value| value.repr == Representation::ByteArray && !value.bytes.is_ascii())
+            && current.iter().chain(values).any(|value| {
+                value.0.representation == RepresentationEvidence::Constructed(TclType::ByteArray)
+                    && !value.0.bytes.is_ascii()
+            })
         {
             self.poison(DeclineReason::Unsupported);
             return Err(self.fault.expect("recorded binary string-value refusal"));
@@ -925,7 +899,7 @@ impl<'ctx> ConstOps<'ctx> {
             return Err(fault);
         }
         self.budget
-            .charge_result(u64::try_from(value.bytes.len()).unwrap_or(u64::MAX))?;
+            .charge_result(u64::try_from(value.0.bytes.len()).unwrap_or(u64::MAX))?;
         Ok(value.into_exact())
     }
 
@@ -943,7 +917,7 @@ impl<'ctx> ConstOps<'ctx> {
         values
             .into_iter()
             .map(|value| {
-                budget.charge_result(u64::try_from(value.bytes.len()).unwrap_or(u64::MAX))?;
+                budget.charge_result(u64::try_from(value.0.bytes.len()).unwrap_or(u64::MAX))?;
                 Ok(value.into_exact())
             })
             .collect()
@@ -1149,7 +1123,7 @@ impl ValueOps for ConstOps<'_> {
         if items.iter().any(|item| item.as_utf8().is_none()) {
             self.poison(DeclineReason::NotText);
         }
-        let words: Vec<_> = items.iter().map(|item| item.bytes.as_ref()).collect();
+        let words: Vec<_> = items.iter().map(|item| item.0.bytes.as_ref()).collect();
         let rendered = self.target.render_list_bytes(&words).unwrap_or_else(|| {
             self.poison(DeclineReason::ReleaseAmbiguous(Axis::ListRendering));
             Vec::new()
@@ -1159,7 +1133,7 @@ impl ValueOps for ConstOps<'_> {
     }
 
     fn try_as_str(&mut self, v: &ConstValue) -> Result<Rc<str>, UnicodeAccessError> {
-        std::str::from_utf8(&v.bytes)
+        std::str::from_utf8(&v.0.bytes)
             .map(Rc::from)
             .map_err(|error| {
                 self.poison(DeclineReason::NotText);
@@ -1351,14 +1325,11 @@ impl ValueOps for ConstOps<'_> {
             items.push(value);
         }
         let rendered = self.new_list(items);
-        ConstValue {
-            bytes: rendered.bytes,
-            repr: Representation::Dict,
-        }
+        ConstValue(ExactValue::constructed(rendered.0.bytes, TclType::Dict))
     }
 
     fn as_bytes(&mut self, v: &ConstValue) -> Rc<[u8]> {
-        Rc::clone(&v.bytes)
+        Rc::clone(&v.0.bytes)
     }
 
     fn new_bytes(&mut self, bytes: &[u8]) -> ConstValue {

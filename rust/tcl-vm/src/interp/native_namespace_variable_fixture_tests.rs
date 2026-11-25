@@ -63,7 +63,7 @@ fn namespace_queries_match_660_fixed_native_original_and_short_results() {
         let jim = engine == "jim";
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         for row in expected.lines() {
-            let parts: Vec<_> = row.split('\t').collect();
+            let parts: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(parts.len(), 4);
             let (name, setup) = parts[0].split_once('/').unwrap();
             let spelling: &[u8] = match name {

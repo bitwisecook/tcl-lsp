@@ -653,6 +653,48 @@ impl SourceOutcomes {
             .map(|(_, value)| value)
     }
 
+    fn retain_native_normal_results(
+        &mut self,
+        before: &ModuleCommandBindings,
+        target: &SourceCommandTarget,
+        context: SourceExecutionContext<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        arguments: tcl_registry::InvocationArguments<'_>,
+        selection: NativeResultSelection,
+    ) {
+        if let Some(normal) = &self.normal {
+            if self.normal_name_value.is_none() {
+                self.normal_name_value = selected_name_result(
+                    selection,
+                    facts.operation,
+                    before,
+                    normal,
+                    target,
+                    context,
+                )
+                .or_else(|| {
+                    let argument = facts
+                        .native_result?
+                        .normal_scoped_prefix_operand(arguments, facts.argument_offset)?;
+                    selected_scoped_prefix_result(argument, before, normal, target, context)
+                })
+                .map(Arc::new);
+            }
+            if self.normal_value.is_none() {
+                self.normal_value =
+                    selected_result(selection, arguments, before, normal, context).map(Arc::new);
+            }
+            self.normal_representation = selected_result_representation(
+                selection, arguments, before, normal, target, context,
+            )
+            .map(Arc::new)
+            .or(self.normal_representation.take().filter(|receipt| {
+                receipt.is_current(&normal.source_variables)
+                    || receipt.is_immediate_created_result()
+            }));
+        }
+    }
+
     pub(super) fn retain_native_result(
         &mut self,
         before: &ModuleCommandBindings,
@@ -696,36 +738,14 @@ impl SourceOutcomes {
             return;
         };
         let selection = contract.select(invocation.arguments(), facts.argument_offset);
-        if self.normal_name_value.is_none()
-            && let Some(normal) = &self.normal
-        {
-            self.normal_name_value =
-                selected_name_result(selection, facts.operation, before, normal, target, context)
-                    .map(Arc::new);
-        }
-
-        if self.normal_value.is_none()
-            && let Some(normal) = &self.normal
-        {
-            self.normal_value =
-                selected_result(selection, invocation.arguments(), before, normal, context)
-                    .map(Arc::new);
-        }
-        if let Some(normal) = &self.normal {
-            self.normal_representation = selected_result_representation(
-                selection,
-                invocation.arguments(),
-                before,
-                normal,
-                target,
-                context,
-            )
-            .map(Arc::new)
-            .or(self.normal_representation.take().filter(|receipt| {
-                receipt.is_current(&normal.source_variables)
-                    || receipt.is_immediate_created_result()
-            }));
-        }
+        self.retain_native_normal_results(
+            before,
+            target,
+            context,
+            &facts,
+            invocation.arguments(),
+            selection,
+        );
         let returned_object = matches!(
             contract,
             tcl_registry::native_result::NativeResultContract::ReturnResult
@@ -758,6 +778,91 @@ impl SourceOutcomes {
             }
         }
     }
+}
+
+/// Exact result bytes of the selected namespace wrapper on its Normal route.
+fn selected_scoped_prefix_result(
+    argument: usize,
+    before: &ModuleCommandBindings,
+    after: &ModuleCommandBindings,
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) -> Option<super::original_name_value::OriginalProducedNameValue> {
+    if target.implementation_generation != 0
+        || numeric_call_arguments(context, target).is_none()
+        || before.source_step_observed()
+        || before.source_execution_observed(target.identity.as_ref())
+    {
+        return None;
+    }
+    let dialect = before.baseline.dialect?;
+    let handler = dialect.namespace_code_handler_policy(None)?;
+    let values = context.written_name_values?;
+    let exact_value = |index: usize| {
+        values
+            .get(index)
+            .and_then(Option::as_deref)
+            .filter(|value| value.is_current(&after.source_variables))
+    };
+    let script = exact_value(argument.checked_add(1)?)?;
+    if handler.preserves_argument(script.bytes()) {
+        return Some(script.clone());
+    }
+    let namespace = context.namespace_identity();
+    if before.source_variables.namespace_identity.as_ref() != Some(&namespace) {
+        return None;
+    }
+    let crate::signature_scan::scope::SignatureNamespaceScope::C(path) =
+        before.original_namespace_geometry(&namespace, script.policy())?
+    else {
+        return None;
+    };
+    let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
+        fresh_string_literals: [head, selector],
+    } = handler.construction()
+    else {
+        return None;
+    };
+    let namespace = tcl_syntax::naming::native_namespace_full_name_bytes(&path);
+    script.namespace_prefix_result(exact_value(0)?, [head, selector, &namespace])
+}
+
+/// The selected literal constructor uses the current namespace and the
+/// original script to build a result. Its deferred body remains data.
+pub(super) fn inline_scoped_prefix_preserves_world(
+    native: super::SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    before: &ModuleCommandBindings,
+    outcomes: &SourceOutcomes,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    if !matches!(
+        native.compilation_selection,
+        tcl_registry::native_compilation::NativeCompilationSelection::Inline {
+            operation: tcl_registry::SemanticOperationId::Intrinsic(
+                tcl_registry::IntrinsicId::NamespaceCode
+            ),
+            ..
+        }
+    ) || !native.target.registry_backed
+        || native.target.kind != super::BindingKind::Builtin
+        || facts.body_execution
+            != Some(tcl_registry::body_execution::BodyExecutionSpec::DeferredNamespaceScript)
+        || facts.effects.requires_world_barrier()
+        || !outcomes.abrupt.is_empty()
+    {
+        return false;
+    }
+    let Some(argument) = facts.native_result.and_then(|contract| {
+        contract.normal_scoped_prefix_operand(native.invocation.arguments(), facts.argument_offset)
+    }) else {
+        return false;
+    };
+    outcomes.normal.as_ref().is_some_and(|normal| {
+        !normal.has_opaque_domain()
+            && selected_scoped_prefix_result(argument, before, normal, native.target, context)
+                .is_some()
+    })
 }
 
 /// Independent byte correspondence for selected original result operations.

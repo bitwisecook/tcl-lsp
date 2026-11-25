@@ -283,35 +283,35 @@ fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() 
         (
             "tcl8.4",
             include_bytes!(
-                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stdout"
+                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl8.4/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl8.5",
             include_bytes!(
-                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.5.19/stdout"
+                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl8.5/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl8.6",
             include_bytes!(
-                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.6.18/stdout"
+                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl8.6/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl9.0",
             include_bytes!(
-                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/9.0.4/stdout"
+                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl9.0/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl9.1",
             include_bytes!(
-                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/9.1.0/stdout"
+                "../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl9.1/stdout"
             )
             .as_slice(),
         ),
@@ -378,11 +378,11 @@ fn child_alias_publication_matches_original_supported_provider_apis() {
         "../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/probe.tcl"
     );
     for (engine, native) in [
-            ("tcl8.4", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout").as_slice()),
-            ("tcl8.5", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout").as_slice()),
-            ("tcl8.6", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout").as_slice()),
-            ("tcl9.0", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout").as_slice()),
-            ("tcl9.1", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout").as_slice()),
+            ("tcl8.4", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/tcl8.4/stdout").as_slice()),
+            ("tcl8.5", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/tcl8.5/stdout").as_slice()),
+            ("tcl8.6", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/tcl8.6/stdout").as_slice()),
+            ("tcl9.0", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/tcl9.0/stdout").as_slice()),
+            ("tcl9.1", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/tcl9.1/stdout").as_slice()),
             ("jim", include_bytes!("../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stdout").as_slice()),
         ] {
             compare_alias_publication_fixture(engine, source, native);

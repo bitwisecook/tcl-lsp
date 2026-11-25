@@ -298,7 +298,7 @@ mod tests {
         for row in
             include_str!("../../../tcl-syntax/tests/data/native_jim_unset/windows.tsv").lines()
         {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             let completion = vm

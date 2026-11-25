@@ -220,7 +220,7 @@ fn native_core_root_cells_match_six_original_constructor_inventories() {
             let expected: Vec<_> = fixture
                 .lines()
                 .filter_map(|line| {
-                    let fields: Vec<_> = line.split('\t').collect();
+                    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                     (fields[0] == version && fields[2] == "1")
                         .then_some(fields[1].as_bytes().to_vec())
                 })
@@ -241,7 +241,7 @@ fn native_core_root_cells_match_six_original_constructor_inventories() {
                 .lines()
                 .filter(|line| line.starts_with(&format!("{version}\t")))
             {
-                let fields: Vec<_> = line.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 assert!(
                     table.has_native_namespace_cell(fields[1].as_bytes()),
                     "{profile_name}: {}",

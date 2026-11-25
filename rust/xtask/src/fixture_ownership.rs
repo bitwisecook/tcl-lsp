@@ -25,14 +25,6 @@ use anyhow::{Context as _, Result};
 use regex::Regex;
 use tcl_test_support::fixture::{oracle_release, tsv_fields, tsv_lines};
 
-// Direct tab splits in fixture-bearing Rust modules. Lower the limit when
-// readers move to tcl_test_support::fixture. Protocol readers outside those
-// modules and byte payloads inside oracle rows have separate owners.
-const MAX_DIRECT_TSV_SPLITS: usize = 245;
-// Native capture directories still use pinned patchlevels on work. The
-// release-key migration shrinks this count as their readers move together.
-const MAX_LEGACY_RELEASE_DIRECTORIES: usize = 1193;
-
 pub(crate) fn run() -> Result<ExitCode> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let crates = std::fs::read_dir(root.join("rust"))?
@@ -99,25 +91,18 @@ pub(crate) fn run() -> Result<ExitCode> {
         bad_keys.len(),
         legacy_directories.len()
     );
-    if direct_splits > MAX_DIRECT_TSV_SPLITS {
-        eprintln!(
-            "fixture TSV split count rose above {MAX_DIRECT_TSV_SPLITS}. Use tcl_test_support::fixture instead."
-        );
+    if direct_splits != 0 {
+        eprintln!("fixture TSV readers split tabs directly. Use tcl_test_support::fixture.");
     }
-    if legacy_directories.len() > MAX_LEGACY_RELEASE_DIRECTORIES {
-        eprintln!(
-            "legacy release directory count rose above {MAX_LEGACY_RELEASE_DIRECTORIES}. Use canonical Tcl release keys for new fixtures."
-        );
+    if !legacy_directories.is_empty() {
+        eprintln!("fixture directories use patchlevels. Use canonical Tcl release keys.");
         legacy_directories.sort_unstable();
         for path in legacy_directories.iter().take(10) {
             eprintln!("{}", path.display());
         }
     }
     Ok(
-        if bad_keys.is_empty()
-            && direct_splits <= MAX_DIRECT_TSV_SPLITS
-            && legacy_directories.len() <= MAX_LEGACY_RELEASE_DIRECTORIES
-        {
+        if bad_keys.is_empty() && direct_splits == 0 && legacy_directories.is_empty() {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE
@@ -136,7 +121,11 @@ fn noncanonical_release_key(key: &str) -> bool {
 }
 
 fn noncanonical_release_dir(key: &str) -> bool {
-    let release = key.strip_prefix("tcl").unwrap_or(key);
+    let release = match key.strip_prefix("tcl") {
+        Some(release) => release,
+        None if key.contains('.') => key,
+        None => return false,
+    };
     tcl_dialect::TclVersion::parse(release).is_some() && oracle_release(key).is_none()
 }
 
@@ -176,6 +165,8 @@ mod tests {
         assert!(!noncanonical_release_key("8.6.18"));
         assert!(noncanonical_release_dir("8.6.18"));
         assert!(noncanonical_release_dir("tcl8.6.18"));
+        assert!(noncanonical_release_dir("tcl9"));
+        assert!(!noncanonical_release_dir("9"));
         assert!(!noncanonical_release_dir("tcl8.6"));
     }
 }

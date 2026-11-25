@@ -53,4 +53,4 @@ No appliance observation for this question.
 - [rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v1](../../../../rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v1)
 - [rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2](../../../../rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2)
 - [rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v3](../../../../rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v3)
-- [rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2/9.0.4/compile.stderr](../../../../rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2/9.0.4/compile.stderr)
+- [rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2/tcl9.0/compile.stderr](../../../../rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v2/tcl9.0/compile.stderr)

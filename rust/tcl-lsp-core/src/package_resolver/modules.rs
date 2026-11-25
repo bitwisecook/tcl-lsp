@@ -24,6 +24,7 @@ use std::{
 use tcl_dialect::{TclVersion, validate_version_for};
 use tcl_syntax::native_string::NativeStringProtocol;
 
+use super::reachability::Conditions;
 use super::{PackageInfo, PackagePrefer, PackageResolver, candidate_package_infos, sorted_subdirs};
 use crate::vfs::SourceStore;
 
@@ -148,7 +149,7 @@ impl PackageResolver {
                         version,
                         source_files: vec![path.clone()],
                         pkg_index_path: path,
-                        conditions: super::reachability::Conditions::default(),
+                        conditions: Conditions::default(),
                     })
                 }));
             }

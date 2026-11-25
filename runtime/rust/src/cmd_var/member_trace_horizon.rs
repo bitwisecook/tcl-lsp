@@ -27,13 +27,13 @@ fn original_array_member_trace_horizons_match_six_native_source_results() {
     // Compare all original completions and complete public log values. Jim's
     // original unavailable trace API is retained as its own guest error.
     macro_rules! provider {
-        ($engine:literal, $version:literal) => {
+        ($engine:literal) => {
             ($engine, [
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
+                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $engine,
                     "/variable_array_unset_root_changes_original_member_trace_via_alias/stdout")),
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
+                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $engine,
                     "/variable_array_unset_first_member_changes_later_member_trace_via_alias/stdout")),
-                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $version,
+                include_str!(concat!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/", $engine,
                     "/variable_array_unset_captured_member_prefixes_ignore_recreated_root/stdout")),
             ])
         };
@@ -44,12 +44,12 @@ fn original_array_member_trace_horizons_match_six_native_source_results() {
         include_bytes!("../../../../rust/tcl-registry/tests/data/native_array_member_trace_horizon343/variable_array_unset_captured_member_prefixes_ignore_recreated_root.tcl").as_slice(),
     ];
     for (engine, outputs) in [
-        provider!("tcl8.4", "8.4.20"),
-        provider!("tcl8.5", "8.5.19"),
-        provider!("tcl8.6", "8.6.18"),
-        provider!("tcl9.0", "9.0.4"),
-        provider!("tcl9.1", "9.1.0"),
-        provider!("jim", "jim"),
+        provider!("tcl8.4"),
+        provider!("tcl8.5"),
+        provider!("tcl8.6"),
+        provider!("tcl9.0"),
+        provider!("tcl9.1"),
+        provider!("jim"),
     ] {
         for (source, stdout) in sources.iter().zip(outputs) {
             let (expected_code, original) = stdout

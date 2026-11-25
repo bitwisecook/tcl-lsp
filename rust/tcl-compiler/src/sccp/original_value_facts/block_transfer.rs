@@ -19,7 +19,12 @@
 //! One block of the value solver: its statements' stores and clobbers, its terminator's executable edges and the constant branches.
 
 use super::super::parse_literal_value;
-use super::super::{BuiltinFoldInputs, ConstantBranch, join, set_value};
+use super::super::statement_transfer::{
+    BarrierHistory, FreshClobber, transfer_fresh_clobbers, widen_barrier_values,
+};
+use super::super::{
+    BranchSelection, BuiltinFoldInputs, ConstantBranch, join, set_value, transfer_terminator,
+};
 use super::branch_decisions::branch_decision;
 use super::definition_values::evaluate_def_with_math;
 use super::math_expressions::{env_from_uses, fold_math_expression};
@@ -32,7 +37,7 @@ use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 use crate::math_function_binding::ExpressionMathBindings;
-use crate::ssa::{SsaFunction, SsaSourceView, SsaStatement, ValueKey};
+use crate::ssa::{SsaFunction, SsaSourceView, ValueKey};
 use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 
@@ -89,58 +94,14 @@ fn widen_registry_clobbers(
     index: usize,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> bool {
-    let mut changed = false;
-    for (&var, &(prior, fresh)) in clobbers
-        .and_then(|markers| markers.get(&index))
-        .into_iter()
-        .flatten()
-    {
-        let value = if folds.is_some_and(|f| f.proven_pure_parameters)
-            && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_)))
-        {
-            values
-                .get(&(var, prior))
-                .cloned()
-                .unwrap_or(LatticeValue::Unknown)
-        } else {
-            LatticeValue::Overdefined
-        };
-        changed |= set_value(values, (var, fresh), &value);
-    }
-    changed
-}
-
-fn widen_unrepresented_statement(
-    values: &mut HashMap<ValueKey, LatticeValue>,
-    stmt_ssa: &SsaStatement,
-    positioned: bool,
-) -> bool {
-    let mut changed = false;
-    let keys: Vec<ValueKey> = if positioned {
-        // Exact reads after an unrepresented store have no contents
-        // version. Earlier SSA versions remain immutable evidence.
-        Vec::new()
-    } else {
-        values.keys().copied().collect()
-    };
-    for k in keys {
-        if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
-            changed = true;
-        }
-    }
-    // A barrier also *defines* variables of its own (e.g. `dict for {x
-    // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
-    // set them to anything — so set each to `Overdefined`. Without this
-    // the def key is never inserted (the widen loop above only touches
-    // keys already present), so it stays `Unknown` and vanishes from a
-    // downstream phi join, letting a phi that merges a barrier-def with
-    // a constant fold to that constant and miscompile a following test.
-    for (&var, ver) in &stmt_ssa.defs {
-        if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
-            changed = true;
-        }
-    }
-    changed
+    transfer_fresh_clobbers(
+        values,
+        clobbers.and_then(|markers| markers.get(&index)),
+        FreshClobber::Reached {
+            protected_parameters: folds.is_some_and(|f| f.proven_pure_parameters),
+        },
+        |_, _| {},
+    )
 }
 
 pub(super) fn sccp_process_statements(
@@ -180,27 +141,17 @@ pub(super) fn sccp_process_statements(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. }
         ) {
-            // Executable barriers widen tracked values except version-0
-            // parameter seeds. Registry boundaries use fresh versions above,
-            // preserving every earlier proof. Ordinary barrier seeds hold the caller's
-            // literal and are immutable across the barrier (a barrier
-            // that mutates the var produces a fresh version), so a
-            // callee `dict with $param` still sees the interproc
-            // literal.
-            //
-            // `UpFrame` (the CFG shape for a literal-body `uplevel`)
-            // shares this treatment: `uplevel 1 {…}` / `uplevel #0 {…}`
-            // evaluates its body in a DIFFERENT frame — the caller's, or
-            // the absolute global one — so it can reassign any name
-            // visible there, exactly like an opaque barrier. Reproduced
-            // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
-            // puts [expr {$n + 1}]` prints `100`. The value before
-            // `uplevel` cannot justify folding that later expression.
             if stmt_ssa.statement.is_opaque_script_body() {
                 changed |= widen_registry_clobbers(values, clobbers, index, None);
             }
-            changed |=
-                widen_unrepresented_statement(values, stmt_ssa, ssa.point_contexts.is_some());
+            let history = if ssa.point_contexts.is_some() {
+                // Reads after an unrepresented store have no contents
+                // version. Earlier versions remain immutable source evidence.
+                BarrierHistory::Retain
+            } else {
+                BarrierHistory::WidenNonEntry
+            };
+            changed |= widen_barrier_values(values, &stmt_ssa.defs, history);
             continue;
         }
         let observed = observed_store_keys(ssa, block, index, &stmt_ssa.statement, registry);
@@ -289,33 +240,17 @@ pub(super) fn sccp_process_terminator(
         registry,
         reference_config,
     } = *inputs;
-    let mut changed = false;
-    let Some(block) = cfg.blocks.get(&bn) else {
-        return false;
-    };
-    let Some(term) = &block.terminator else {
-        return false;
-    };
-    match term {
-        Terminator::Goto { target, .. } => {
-            let edge = (bn, *target);
-            if !executable_edges.contains(&edge) {
-                executable_edges.insert(edge);
-                changed = true;
-            }
-            if cfg.blocks.contains_key(target) && executable_blocks.insert(*target) {
-                changed = true;
-            }
-        }
-        Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            ..
-        } => {
-            let Some(ssa_block) = ssa.blocks.get(&bn) else {
-                return changed;
-            };
+    // The source projection carries both exceptional and analysis routes of
+    // the original body. It does not consume the optimiser's throw observations.
+    let additional = cfg.exception_edges.iter().chain(&cfg.analysis_edges);
+    transfer_terminator(
+        cfg,
+        bn,
+        (executable_blocks, executable_edges),
+        true,
+        additional,
+        |condition, _, _| {
+            let ssa_block = ssa.blocks.get(&bn)?;
             let decision = branch_decision(
                 cfg,
                 ssa,
@@ -331,51 +266,11 @@ pub(super) fn sccp_process_terminator(
                     reference_config,
                 },
             );
-            let targets: Vec<BlockId> = match decision {
-                Some(true) => vec![*true_target],
-                Some(false) => vec![*false_target],
-                // Optimistic (Wegman–Zadeck): while the condition may still
-                // fold on a later sweep (a not-yet-computed operand, no
-                // `Overdefined` one), open neither arm and let the fixpoint
-                // retry — this is what detects loop-carried constant
-                // conditions instead of pessimistically opening both arms
-                // forever. The finalising pass forces both arms for any
-                // branch still stuck this way.
-                None if !finalizing
-                    && branch_deferrable(ssa_block, condition, values, ssa, grammar) =>
-                {
-                    Vec::new()
-                }
-                None => vec![*true_target, *false_target],
-            };
-            for tgt in targets {
-                let edge = (bn, tgt);
-                if !executable_edges.contains(&edge) {
-                    executable_edges.insert(edge);
-                    changed = true;
-                }
-                if cfg.blocks.contains_key(&tgt) && executable_blocks.insert(tgt) {
-                    changed = true;
-                }
-            }
-        }
-        Terminator::Return { .. } | Terminator::Complete { .. } => {}
-    }
-    // `try` exception edges sourced at `bn`: when `bn` is executable the
-    // handler is reachable (a throw can occur in the body).
-    for (from, to) in cfg.exception_edges.iter().chain(&cfg.analysis_edges) {
-        if *from != bn {
-            continue;
-        }
-        let edge = (bn, *to);
-        if executable_edges.insert(edge) {
-            changed = true;
-        }
-        if cfg.blocks.contains_key(to) && executable_blocks.insert(*to) {
-            changed = true;
-        }
-    }
-    changed
+            Some(BranchSelection::of(decision, finalizing, || {
+                branch_deferrable(ssa_block, condition, values, ssa, grammar)
+            }))
+        },
+    )
 }
 
 /// Post-fixpoint sweep that records every reachable branch whose

@@ -748,12 +748,11 @@ impl Backend {
         }
         let currentness = state.currentness;
         let mut projection = state.projection;
-        let original_index = state.original_index;
         let detached_db = Arc::clone(&projection.db);
         let detached_project = Arc::new(Mutex::new(Some(projection.project)));
         let detached_workspace_index = Arc::new(TrackedRwLock::new(
             "proposal_workspace_index",
-            original_index,
+            state.original_index,
         ));
         let selected_file = projection.selected;
         let projected_rehomed_source_seeds =

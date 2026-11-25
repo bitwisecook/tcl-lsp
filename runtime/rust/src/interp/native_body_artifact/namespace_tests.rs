@@ -38,7 +38,7 @@ fn original_c85_namespace_upvar_artifact_preserves_native_pools_and_locals() {
     .lines()
     .skip(1)
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let (label, body) = upvar_inputs::CASES[fields[0].parse::<usize>().unwrap()];
         let mut interp = interpreter("tcl8.5");
         let original = obj::Owned::fresh(new_string(body));
@@ -297,7 +297,7 @@ fn original_namespace_artifacts_match_native_instruction_and_local_matrix() {
     // docs/design/analysis/name-resolution-proofs/namespace-compiler.literal-expansion-and-empty-call.md
     for (profile, table) in MATRIX {
         for row in table.lines().skip(1) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let case: usize = fields[0].parse().unwrap();
             let mut interp = interpreter(profile);
             let prepared = prepare(&mut interp, MATRIX_BODIES[case]);
@@ -336,7 +336,7 @@ fn original_namespace_declined_attempt_retains_native_pool_order_and_private_hea
     // docs/design/analysis/name-resolution-proofs/namespace-compiler.qualified-variable-value-residual.md
     for (profile, table) in ATTEMPTS {
         for row in table.lines().skip(1) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let case: usize = fields[0].parse().unwrap();
             let mut interp = interpreter(profile);
             let artifact = prepare(&mut interp, ATTEMPT_BODIES[case])

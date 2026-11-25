@@ -33,8 +33,9 @@ use tcl_registry::value_transfer::{
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ssa::{SsaFunction, Symbol, ValueKey};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::expr_ast::ExprNode;
+use crate::ssa::{SsaBlock, SsaFunction, SsaSourceView, Symbol, ValueKey};
 use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
@@ -50,9 +51,13 @@ pub use original_value_facts::{
 #[cfg(test)]
 use original_value_facts::{evaluate_fixture_def, evaluate_fixture_def_with_folds};
 
+mod block_sweep;
 mod evaluation;
 mod solver;
+mod statement_transfer;
 
+#[cfg(test)]
+use block_sweep::sccp_process_phis;
 #[cfg(test)]
 use evaluation::resolve_simple_var_ref;
 pub(crate) use evaluation::{DefValues, RaisedDefs, with_whole_variable_operands};
@@ -63,7 +68,7 @@ pub use evaluation::{
 use solver::{Round, Solved, drive, typed_element_write_base};
 pub(crate) use solver::{SolveInputs, place_base, prior_version};
 #[cfg(test)]
-use solver::{StatementInputs, branch_deferrable, sccp_process_phis, sccp_process_statements};
+use solver::{StatementInputs, branch_deferrable, sccp_process_statements};
 use solver::{callback_writes_any, drive_escaping};
 
 // Public aliases
@@ -91,26 +96,119 @@ pub fn cfg_order(cfg: &CfgFunction) -> Vec<BlockId> {
     order
 }
 
-/// Sweep to the optimistic fixpoint, then reopen any branch still waiting
-/// on an unknown value and settle again with that conservative reachability.
-fn settle_reachability(mut sweep: impl FnMut(bool) -> bool) {
-    for finalizing in [false, true] {
-        while sweep(finalizing) {}
+enum BranchSelection {
+    Taken(bool),
+    Both,
+    Deferred,
+}
+
+impl BranchSelection {
+    /// An undecided condition may gain a value during the optimistic sweep.
+    /// The finalising sweep opens both arms of every remaining undecided branch.
+    fn of(decision: Option<bool>, finalizing: bool, pending: impl FnOnce() -> bool) -> Self {
+        match decision {
+            Some(taken) => Self::Taken(taken),
+            None if !finalizing && pending() => Self::Deferred,
+            None => Self::Both,
+        }
     }
 }
 
-fn incoming_executable_predecessors(
-    block: BlockId,
-    predecessors: &HashMap<BlockId, HashSet<BlockId>>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
-) -> Vec<BlockId> {
-    predecessors
-        .get(&block)
-        .into_iter()
-        .flatten()
-        .copied()
-        .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
-        .collect()
+/// Test whether a local operand is still pending and none is overdefined.
+/// For a positioned read, a missing cell or version cannot justify waiting.
+fn branch_has_pending_operands(
+    block: &SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+    source: SsaSourceView<'_>,
+    grammar: tcl_dialect::LexerGrammar,
+) -> bool {
+    let mut pending = false;
+    for name in crate::var_refs::vars_in_expr(condition, grammar) {
+        let (symbol, version) = if source.is_positioned() {
+            let Some(read) = source.read_spelling(&name) else {
+                return false;
+            };
+            let Some(version) = read.version else {
+                return false;
+            };
+            (read.symbol, version)
+        } else {
+            let Some(symbol) = source.symbol(&name) else {
+                continue;
+            };
+            (
+                symbol,
+                block.exit_versions.get(&symbol).copied().unwrap_or(0),
+            )
+        };
+        // Version-zero live-ins were settled when the solver entered the function.
+        if version == 0 {
+            continue;
+        }
+        match values.get(&(symbol, version)) {
+            Some(LatticeValue::Overdefined) => return false,
+            Some(LatticeValue::Unknown) | None => pending = true,
+            _ => {}
+        }
+    }
+    pending
+}
+
+/// Open the normal successors and the purpose's admitted additional edges.
+/// The evaluator supplies the branch choice, or declines the block when its
+/// branch has no matching SSA block.
+fn transfer_terminator<'a>(
+    cfg: &CfgFunction,
+    from: BlockId,
+    (blocks, edges): (&mut HashSet<BlockId>, &mut HashSet<(BlockId, BlockId)>),
+    completes: bool,
+    additional: impl Iterator<Item = &'a (BlockId, BlockId)>,
+    branch: impl FnOnce(&ExprNode, Option<tcl_lexer::Span>, Option<u32>) -> Option<BranchSelection>,
+) -> bool {
+    let Some(terminator) = cfg
+        .blocks
+        .get(&from)
+        .and_then(|block| block.terminator.as_ref())
+    else {
+        return false;
+    };
+    let mut open = |target| {
+        let new_edge = edges.insert((from, target));
+        let new_block = cfg.blocks.contains_key(&target) && blocks.insert(target);
+        new_edge || new_block
+    };
+    let mut changed = false;
+    if completes {
+        match terminator {
+            Terminator::Goto { target, .. } => changed |= open(*target),
+            Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                span,
+                condition_base,
+                ..
+            } => match branch(condition, *span, *condition_base) {
+                Some(BranchSelection::Taken(taken)) => {
+                    changed |= open(if taken { *true_target } else { *false_target });
+                }
+                Some(BranchSelection::Both) => {
+                    changed |= open(*true_target);
+                    changed |= open(*false_target);
+                }
+                Some(BranchSelection::Deferred) => {}
+                None => return false,
+            },
+            Terminator::Return { .. } | Terminator::Complete { .. } => {}
+        }
+    }
+    for &(source, target) in additional {
+        if source == from {
+            changed |= open(target);
+        }
+    }
+    changed
 }
 
 // Lattice join
@@ -942,16 +1040,6 @@ pub fn sccp_with_extra_escaping(
         trace,
         None,
     )
-}
-
-/// The blocks executable before the sweep starts: the entry, when the
-/// function has one.
-fn entry_block_set(cfg: &CfgFunction) -> HashSet<BlockId> {
-    cfg.blocks
-        .contains_key(&cfg.entry)
-        .then_some(cfg.entry)
-        .into_iter()
-        .collect()
 }
 
 /// Like [`sccp_with_extra_escaping`] but with the whole-module command-trust

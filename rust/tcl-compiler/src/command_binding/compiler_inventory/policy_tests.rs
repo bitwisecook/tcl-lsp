@@ -220,7 +220,7 @@ fn original_each_invocation_keeps_inline_generic_and_rejected_visits() {
 }
 
 fn assert_original_switch_preflight(name: &str, row: &str) {
-    let fields: Vec<_> = row.split('\t').collect();
+    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
     let case: usize = fields[0].parse().unwrap();
     let source = SWITCH_SOURCES[case];
     let (inventory, config, _owner) = namespace_analysis(source, name);

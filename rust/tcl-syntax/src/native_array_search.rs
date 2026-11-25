@@ -231,7 +231,7 @@ mod tests {
             )
             .unwrap();
             for line in capture.lines() {
-                let fields: Vec<_> = line.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 let bytes = inputs[fields[0].parse::<usize>().unwrap()];
                 let parsed = protocol.parse(bytes);
                 if protocol.caches_handle()

@@ -416,11 +416,11 @@ mod tests {
         for (engine, captured) in [
             (
                 "tcl9.0",
-                include_str!("../tests/data/native_property_counted_original/9.0.4/stdout.tsv"),
+                include_str!("../tests/data/native_property_counted_original/tcl9.0/stdout.tsv"),
             ),
             (
                 "tcl9.1",
-                include_str!("../tests/data/native_property_counted_original/9.1.0/stdout.tsv"),
+                include_str!("../tests/data/native_property_counted_original/tcl9.1/stdout.tsv"),
             ),
         ] {
             let dialect =
@@ -508,7 +508,7 @@ mod tests {
         let names = dialect.native_property_name_protocol().unwrap();
         let physical = dialect.native_property_lookup_protocol().unwrap();
         let captured =
-            include_str!("../tests/data/native_property_counted_original/9.1.0/stdout.tsv");
+            include_str!("../tests/data/native_property_counted_original/tcl9.1/stdout.tsv");
         for (label, original) in [
             ("FF", b"p\xff".as_slice()),
             ("D800", b"p\xed\xa0\x80"),

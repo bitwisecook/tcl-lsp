@@ -74,7 +74,7 @@ mod tests {
                 let native: Vec<Vec<u32>> = rows
                     .lines()
                     .map(|line| {
-                        line.split('\t')
+                        tcl_test_support::fixture::tsv_fields(line)
                             .skip(1)
                             .map(|n| n.parse().unwrap())
                             .collect()

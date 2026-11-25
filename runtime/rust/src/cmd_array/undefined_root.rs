@@ -27,12 +27,12 @@ fn original_traced_array_root_materialisation_matches_six_native_source_results(
     // Compare exact original completion and final values only. Jim's unavailable
     // trace API remains a guest error, without granting any entered callback.
     macro_rules! provider {
-        ($engine:literal, $version:literal) => {
+        ($engine:literal) => {
             (
                 $engine,
                 include_str!(concat!(
                     "../../../../rust/tcl-registry/tests/data/native_array_traced_root345/",
-                    $version,
+                    $engine,
                     "/original-traced-root-array-set/stdout"
                 )),
             )
@@ -42,12 +42,12 @@ fn original_traced_array_root_materialisation_matches_six_native_source_results(
         "../../../../rust/tcl-registry/tests/data/native_array_traced_root345/source.tcl"
     );
     for (engine, stdout) in [
-        provider!("tcl8.4", "8.4.20"),
-        provider!("tcl8.5", "8.5.19"),
-        provider!("tcl8.6", "8.6.18"),
-        provider!("tcl9.0", "9.0.4"),
-        provider!("tcl9.1", "9.1.0"),
-        provider!("jim", "jim"),
+        provider!("tcl8.4"),
+        provider!("tcl8.5"),
+        provider!("tcl8.6"),
+        provider!("tcl9.0"),
+        provider!("tcl9.1"),
+        provider!("jim"),
     ] {
         let (expected_code, original) = stdout
             .lines()

@@ -353,7 +353,7 @@ fn c84_procedure_parse_failures_match_7_native_original_object_completions() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
     let mut compared = 0;
     for row in include_str!("../../tests/data/native_procedure_parse_context/8.4.20.tsv").lines() {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         assert_eq!(fields.len(), 8);
         let mut vm = crate::native_fixture::interpreter(profile);
         let name = Value::new_native_string_bytes(decode(fields[3]));
@@ -444,7 +444,9 @@ fn procedure_body_capture_matches_58_native_definition_windows() {
     let mut compared = 0;
     for (engine, fixture) in engines {
         for row in fixture.lines() {
-            let expected = row.split('\t').map(str::to_owned).collect::<Vec<_>>();
+            let expected = tcl_test_support::fixture::tsv_fields(row)
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
             assert_eq!(expected.len(), 12);
             let kind = expected[0].parse::<usize>().unwrap();
             let refs = expected[1].parse::<usize>().unwrap();

@@ -145,9 +145,19 @@ impl Analyser {
     ) -> bool {
         // Prefer the source owner's executed lookup before advisory value
         // candidates or the diagnostic's object-usage heuristics.
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let lookup = self
+            .head_identities
+            .original_written_head_at_span_in_source(
+                &image,
+                site.cmd_span,
+                self.file_lexer_config(),
+            )
+            .filter(|(word, _)| word.group().expand)
+            .map_or(site.cmd_span.start(), |(_, site)| site.offset);
         if self
             .head_identities
-            .invocation_at_source("", site.cmd_span.start())
+            .invocation_at_source("", lookup)
             .selected_slot_presence()
             .knowledge
             == tcl_core_types::Knowledge::Proven(())

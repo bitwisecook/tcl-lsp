@@ -569,12 +569,12 @@ fn refined_value<'f>(
         LatticeValue::Const(constant) if loop_exit && !permits(constant) => LatticeValue::Unknown,
         LatticeValue::Overdefined => match allowed.as_slice() {
             [] => LatticeValue::Overdefined,
-            [one] => LatticeValue::Const(crate::value_transfer::exact_to_const(one)),
-            many => LatticeValue::constset(
-                many.iter()
-                    .map(|member| crate::value_transfer::exact_to_const(member))
-                    .collect(),
-            ),
+            [one] => crate::value_transfer::exact_to_lattice(one),
+            many => many
+                .iter()
+                .map(|member| crate::value_transfer::exact_to_const(member))
+                .collect::<Option<Vec<_>>>()
+                .map_or(LatticeValue::Overdefined, LatticeValue::constset),
         },
         LatticeValue::Unknown | LatticeValue::Const(_) => own.clone(),
     }

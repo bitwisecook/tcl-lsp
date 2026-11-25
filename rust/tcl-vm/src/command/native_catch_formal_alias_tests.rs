@@ -45,23 +45,23 @@ fn caught_callback_result_follows_replaced_formal_alias_native_controls() {
     for (engine, observed) in [
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_catch_formal_alias/8.4.20/stdout"),
+            include_str!("../../tests/data/native_catch_formal_alias/tcl8.4/stdout"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_catch_formal_alias/8.5.19/stdout"),
+            include_str!("../../tests/data/native_catch_formal_alias/tcl8.5/stdout"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_catch_formal_alias/8.6.18/stdout"),
+            include_str!("../../tests/data/native_catch_formal_alias/tcl8.6/stdout"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_catch_formal_alias/9.0.4/stdout"),
+            include_str!("../../tests/data/native_catch_formal_alias/tcl9.0/stdout"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_catch_formal_alias/9.1.0/stdout"),
+            include_str!("../../tests/data/native_catch_formal_alias/tcl9.1/stdout"),
         ),
         (
             "jim",

@@ -22,36 +22,36 @@ use super::*;
 
 const C_LIVE: [&str; 5] = [
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-live.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.5/execute-live.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.6/execute-live.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.0/execute-live.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.1/execute-live.stdout"
     ),
 ];
 const C_NULL: [&str; 5] = [
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-null.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-null.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.5/execute-null.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-null.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.6/execute-null.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-null.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.0/execute-null.stdout"
     ),
     include_str!(
-        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-null.stdout"
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.1/execute-null.stdout"
     ),
 ];
 const JIM: &str = include_str!(

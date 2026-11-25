@@ -66,11 +66,11 @@ fn private_query_and_opaque_original_bodies_match_native_c9_controls() {
     for (engine, rows) in [
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl9.1/stdout.tsv"),
         ),
     ] {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -129,15 +129,15 @@ fn method_option_layout_and_private_scope_match_original_native_controls() {
     for (engine, rows) in [
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_method_visibility/v2/8.6.18/stdout.tsv"),
+            include_str!("../../tests/data/native_method_visibility/v2/tcl8.6/stdout.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_method_visibility/v2/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_method_visibility/v2/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_method_visibility/v2/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_method_visibility/v2/tcl9.1/stdout.tsv"),
         ),
     ] {
         for (label, option) in [

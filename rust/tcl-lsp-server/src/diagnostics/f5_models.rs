@@ -30,7 +30,7 @@ use crate::configuration::PolicyLayers;
 use crate::current_diagnostics::DiagnosticUnavailable;
 use crate::dialects::IAPPS_DIALECT;
 use crate::documents::DocumentStore;
-use crate::uri_norm::DocumentPath as _;
+use crate::uri_norm::DocumentPath;
 use crate::{Backend, vfs};
 
 /// F5 dialect dispatch: BIG-IP config and iApp APL presentation documents are
@@ -252,7 +252,7 @@ pub(super) fn data_group_workspace_root(folders: &[Uri], uri: &Uri) -> Option<Pa
         .iter()
         .filter(|folder| crate::workspace::uri_under_folder(uri.as_str(), folder.as_str()))
         .max_by_key(|folder| folder.as_str().len())
-        .and_then(super::super::uri_norm::DocumentPath::document_path)
+        .and_then(DocumentPath::document_path)
         .map(std::borrow::Cow::into_owned)
 }
 

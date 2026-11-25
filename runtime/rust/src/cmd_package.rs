@@ -1606,7 +1606,7 @@ mod tests {
                 let held = obj::Owned::retain(interp.result_obj());
                 let rows: Vec<Vec<&str>> = fixture
                     .lines()
-                    .map(|row| row.split('\t').collect())
+                    .map(|row| tcl_test_support::fixture::tsv_fields(row).collect())
                     .collect();
                 assert_eq!(class(held.as_ptr()), rows[0][2]);
                 assert_eq!(
@@ -1674,7 +1674,7 @@ mod tests {
                 interp.end_package_loader_files(protocol);
                 let rows: Vec<Vec<&str>> = fixture
                     .lines()
-                    .map(|row| row.split('\t').collect())
+                    .map(|row| tcl_test_support::fixture::tsv_fields(row).collect())
                     .collect();
                 let pointer = interp.packages.borrow().files[b"probe".as_slice()].as_ptr();
                 assert_eq!(unsafe { (*pointer).ref_count }.to_string(), rows[0][2]);
@@ -1822,7 +1822,7 @@ mod tests {
         let mut compared = 0;
         for (engine, fixture) in FIXTURES.into_iter().enumerate() {
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields.len(), 4);
                 let name = fields[0];
                 let script = unhex(fields[1]);

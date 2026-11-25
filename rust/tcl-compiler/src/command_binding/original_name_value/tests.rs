@@ -108,6 +108,32 @@ fn original_content_joins_keep_every_origin_and_do_not_reuse_unknown_currency() 
 }
 
 #[test]
+fn namespace_prefix_result_preserves_counted_script_and_producer_origins() {
+    for version in tcl_dialect::TclVersion::ALL {
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        let mut context = ResolveContext::default();
+        context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
+        context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+        let operation = value(b"namespace", &context);
+        let script = value(b"{helper 3}", &context);
+        let result = script
+            .namespace_prefix_result(&operation, [b"::namespace", b"inscope", b"::lib"])
+            .unwrap();
+        assert_eq!(result.bytes(), b"::namespace inscope ::lib {helper 3}");
+        assert_eq!(result.original_origins().len(), 2);
+        assert!(result.is_current(&context));
+
+        context.invalidate_original_contents();
+        let newer_script = value(b"{helper 3}", &context);
+        assert!(
+            newer_script
+                .namespace_prefix_result(&operation, [b"::namespace", b"inscope", b"::lib"])
+                .is_none()
+        );
+    }
+}
+
+#[test]
 fn original_evaluated_index_keeps_its_exact_word_and_arena() {
     // Implementation contract: naming.source.original-content-currency (docs/design/analysis/name-resolution-proofs/original-content-currency.md).
     for version in tcl_dialect::TclVersion::ALL {

@@ -45,7 +45,7 @@ fn selected_double_updaters_match_all_native_nonfinite_payloads() {
     let mut observations = 0;
     for (protocol, fixture) in protocols.into_iter().zip(fixtures) {
         for row in fixture.lines() {
-            let (case, expected) = row.split_once('\t').unwrap();
+            let (case, expected) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
             let case: usize = case.parse().unwrap();
             let value = f64::from_bits(bits[case]);
             let object = obj::Owned::fresh(obj::new_double_obj(value));
@@ -74,8 +74,8 @@ fn list_backing_canonical_flags_match_original_native_operations() {
         let protocol = NativeStringProtocol::C(version);
         let rows: Vec<_> = fixture.lines().collect();
         for pair in rows.chunks_exact(2) {
-            let before_fields: Vec<_> = pair[0].split('\t').collect();
-            let after_fields: Vec<_> = pair[1].split('\t').collect();
+            let before_fields: Vec<_> = tcl_test_support::fixture::tsv_fields(pair[0]).collect();
+            let after_fields: Vec<_> = tcl_test_support::fixture::tsv_fields(pair[1]).collect();
             let mode: usize = before_fields[0].parse().unwrap();
             leak_free(|| {
                 let first = obj::Owned::fresh(obj::new_string_bytes(b"a"));
@@ -219,7 +219,7 @@ fn compound_updater_matches_all_six_native_original_object_fixtures() {
         });
 
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             rows += 1;
             if fields[1] == "unavailable" {
                 assert_eq!(protocol, protocols[0]);

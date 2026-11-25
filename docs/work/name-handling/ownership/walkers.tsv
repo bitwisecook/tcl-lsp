@@ -89,7 +89,6 @@ rust/tcl-compiler/src/analyser/original_members.rs	source-reader	wrapper_member:
 rust/tcl-compiler/src/analyser/param_traits.rs	source-reader	original_reference_components:native_script_words_in_with_purpose	-	1
 rust/tcl-compiler/src/analyser/param_traits/body_scan.rs	source-reader	scan_commands_bounded:segment_commands_with_offset_and_config	-	1
 rust/tcl-compiler/src/analyser/param_traits/body_scan.rs	source-reader	scan_deep:segment_commands_with_offset_and_config	-	1
-rust/tcl-compiler/src/analyser/param_traits/caller_frame.rs	source-reader	top_level_views:segment_commands_with_offset_and_config	-	1
 rust/tcl-compiler/src/analyser/per_item.rs	source-reader	per_item_setup:segment_commands_with_recovery_and_config	-	1
 rust/tcl-compiler/src/analyser/recovery.rs	source-reader	detect_stolen_close_brace:segment_commands_with_offset_and_config	-	1
 rust/tcl-compiler/src/analyser/scope.rs	source-walk	walk_scopes_from:walk_scopes_from	-	1
@@ -383,8 +382,8 @@ rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	capture:native_
 rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	extract_variable:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	logical_value_word:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/inline_proc.rs	source-reader	single_command_body:segment_commands_with_offset_and_config	-	1
-rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	capture:native_script_words_in	-	1
-rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	capture:native_script_words_in_with_purpose	-	1
+rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	checked_inline_postimage:native_script_words_in	-	1
+rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	checked_inline_postimage:native_script_words_in_with_purpose	-	1
 rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	interpolated_value_source:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	source_read_follows_setter:native_script_words_in_with_purpose	-	1
 rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-walk	walk_scopes:walk_scopes	-	1

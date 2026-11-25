@@ -23,8 +23,8 @@
 //! * [`ucs`] — UCS archive handling: a plain UCS is a gzip-tar of `/config`;
 //!   an encrypted UCS is an `OpenPGP` *symmetric* message (F5 KB K5437) whose
 //!   plaintext is that same gzip-tar.
-//! * [`openpgp`] — a minimal, dependency-free `OpenPGP` symmetric decryptor
-//!   (S2K + AES-CFB + SHA-1 MDC) — entirely pure Rust, no shelling out to `gpg`.
+//! * [`openpgp`] — pure-Rust `OpenPGP` symmetric decryption using S2K,
+//!   `RustCrypto` AES-CFB and SHA-1 integrity verification.
 //! * [`paths`] — the `read_path` / `load_paths` input resolver: read a path
 //!   (or stdin), transparently extract a `.ucs` (plain or encrypted) to SCF,
 //!   and hand back the source text (and parsed [`tcl_bigip::BigipConfig`]).

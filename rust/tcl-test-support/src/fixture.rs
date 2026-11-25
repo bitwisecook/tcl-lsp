@@ -95,10 +95,27 @@ pub fn tsv_lines(fixture: &str) -> impl Iterator<Item = (usize, &str)> {
     })
 }
 
-/// Split one row, preserving leading, internal and trailing empty cells.
+#[path = "fixture_fields.rs"]
+mod fields;
+
+pub use fields::tsv_fields;
+
+/// Split the first cell from the untouched remainder of a row.
 #[must_use]
-pub fn tsv_fields(row: &str) -> std::str::Split<'_, char> {
-    row.split('\t')
+pub fn tsv_split_once(row: &str) -> Option<(&str, &str)> {
+    row.split_once('\t')
+}
+
+/// Split the untouched beginning of a row from its last cell.
+#[must_use]
+pub fn tsv_split_last(row: &str) -> Option<(&str, &str)> {
+    row.rsplit_once('\t')
+}
+
+/// Split at most `columns` cells, leaving the final cell's tabs untouched.
+#[must_use]
+pub fn tsv_fields_with_tail(row: &str, columns: usize) -> std::str::SplitN<'_, char> {
+    row.splitn(columns, '\t')
 }
 
 /// Read fixed-width TSV fixture rows, preserving empty cells and row order.
@@ -173,6 +190,14 @@ mod tests {
         assert!(rows.next().is_none());
         assert_eq!(&fields[..2], &["name", ""]);
         assert_eq!(tsv_rows::<3>("\t\t\n").next(), Some((1, ["", "", ""])));
+        assert_eq!(tsv_split_once("\ta\\tb\t"), Some(("", "a\\tb\t")));
+        assert_eq!(tsv_split_once("single"), None);
+        assert_eq!(tsv_split_last("\ta\\tb\t"), Some(("\ta\\tb", "")));
+        assert_eq!(tsv_split_last("single"), None);
+        assert_eq!(
+            tsv_fields_with_tail("\ta\\tb\t\tmore\t", 3).collect::<Vec<_>>(),
+            ["", "a\\tb", "\tmore\t"],
+        );
         assert_eq!(decode_escaped_field(fields[2]), "a\tb\nc\\d");
         assert_eq!(decode_escaped_field(r"\q\"), r"\q\");
     }

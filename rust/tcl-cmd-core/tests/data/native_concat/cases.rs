@@ -100,12 +100,13 @@ fn rows(engine: &str) -> &'static str {
 }
 fn row(engine: &str, case: usize, window: &str) -> Vec<&'static str> {
     let prefix = format!("D\t{case}\t{window}\t");
-    rows(engine)
-        .lines()
-        .find(|row| row.starts_with(&prefix))
-        .unwrap()
-        .split('\t')
-        .collect()
+    tcl_test_support::fixture::tsv_fields(
+        rows(engine)
+            .lines()
+            .find(|row| row.starts_with(&prefix))
+            .unwrap(),
+    )
+    .collect()
 }
 const COMPILED_BODIES: [&[u8]; 8] = [
     b"concat",
@@ -119,10 +120,11 @@ const COMPILED_BODIES: [&[u8]; 8] = [
 ];
 fn compiled_row(engine: &str, case: usize) -> Vec<&'static str> {
     let prefix = format!("C\t{case}\tresult\t");
-    rows(engine)
-        .lines()
-        .find(|row| row.starts_with(&prefix))
-        .unwrap()
-        .split('\t')
-        .collect()
+    tcl_test_support::fixture::tsv_fields(
+        rows(engine)
+            .lines()
+            .find(|row| row.starts_with(&prefix))
+            .unwrap(),
+    )
+    .collect()
 }

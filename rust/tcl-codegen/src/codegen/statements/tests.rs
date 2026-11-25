@@ -446,7 +446,7 @@ fn compare_native_namespace_case(
     source: &[u8],
     row: &str,
 ) {
-    let columns = row.split('\t').collect::<Vec<_>>();
+    let columns = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
     let image = tcl_lexer::SourceImage::native(source);
     let script = tcl_lexer::native_script_words_in(
         image.clone(),

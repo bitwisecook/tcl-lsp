@@ -64,9 +64,9 @@ No appliance observation of these exact original lambda namespace constructors a
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_lambda_object_getter](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter)
-- [rust/tcl-registry/tests/data/native_lambda_object_getter/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/8.4.20/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_lambda_object_getter/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/8.5.19/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_lambda_object_getter/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/8.6.18/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_lambda_object_getter/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/9.0.4/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_lambda_object_getter/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/9.1.0/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.4/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.5/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.5/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.6/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/tcl8.6/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_lambda_object_getter/tcl9.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/tcl9.0/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_lambda_object_getter/tcl9.1/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/tcl9.1/stdout.tsv)
 - [rust/tcl-registry/tests/data/native_lambda_object_getter/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_lambda_object_getter/jim/stdout.tsv)

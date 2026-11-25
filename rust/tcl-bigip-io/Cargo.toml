@@ -43,6 +43,7 @@ tar = "0.4"
 # RustCrypto supplies AES and the CFB mode. Packet framing, S2K, and
 # integrity checks stay in the symmetric OpenPGP reader.
 aes = "0.9"
+base64 = "0.23"
 cfb-mode = "0.9.1"
 digest = "0.11"
 md-5 = "0.11"

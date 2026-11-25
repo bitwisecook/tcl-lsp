@@ -77,23 +77,23 @@ fn counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries() {
     for (engine, rows) in [
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv"),
+            include_str!("../../tests/data/native_formal_alpha/v2/tcl8.4/stdout.tsv"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv"),
+            include_str!("../../tests/data/native_formal_alpha/v2/tcl8.5/stdout.tsv"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv"),
+            include_str!("../../tests/data/native_formal_alpha/v2/tcl8.6/stdout.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_formal_alpha/v2/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_formal_alpha/v2/tcl9.1/stdout.tsv"),
         ),
         (
             "jimtcl",
@@ -151,23 +151,23 @@ fn counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries() {
 const FORMAL_OBSERVER_ROWS: [(&str, &str); 6] = [
     (
         "tcl8.4",
-        include_str!("../../tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv"),
+        include_str!("../../tests/data/native_formal_alpha/v2/tcl8.4/stdout.tsv"),
     ),
     (
         "tcl8.5",
-        include_str!("../../tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv"),
+        include_str!("../../tests/data/native_formal_alpha/v2/tcl8.5/stdout.tsv"),
     ),
     (
         "tcl8.6",
-        include_str!("../../tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv"),
+        include_str!("../../tests/data/native_formal_alpha/v2/tcl8.6/stdout.tsv"),
     ),
     (
         "tcl9.0",
-        include_str!("../../tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv"),
+        include_str!("../../tests/data/native_formal_alpha/v2/tcl9.0/stdout.tsv"),
     ),
     (
         "tcl9.1",
-        include_str!("../../tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv"),
+        include_str!("../../tests/data/native_formal_alpha/v2/tcl9.1/stdout.tsv"),
     ),
     (
         "jimtcl",

@@ -206,7 +206,7 @@ fn native_increment_commands_match_180_original_object_controls() {
             let selected_host = selected_increment_host(host.as_ref());
             let mut vm = crate::native_fixture::core_with_host(profile, selected_host);
             let dialect = vm.native_invocation_dialect();
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let index = fields[0].parse::<usize>().unwrap();
             let shared = fields[1] == "1";
             let case = format!("{index}/shared={shared}");
@@ -321,7 +321,7 @@ fn jim_safe_integer_expression_matches_54_original_native_objects() {
         include_str!("../../../tcl-syntax/testdata/native_jim_safe_expression/observations.tsv")
             .lines()
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let bytes = unhex(fields[9]);
         let original = Value::new_native_string_bytes(bytes.as_slice());
         original.bind_native_jim_context(&context).unwrap();

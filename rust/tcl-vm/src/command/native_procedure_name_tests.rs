@@ -42,7 +42,7 @@ fn original_procedure_colon_names_match_all_18_native_home_and_error_controls() 
     };
     let mut count = 0;
     for row in rows.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let mut vm = actual(fields[0]);
         let result = vm
             .eval_source(&String::from_utf8(decode(fields[4])).unwrap())

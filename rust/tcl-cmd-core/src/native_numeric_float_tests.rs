@@ -134,9 +134,9 @@ fn float_error_precedence_matches_thirty_native_diagnostics() {
         assert_eq!(original.len(), observed.len());
         assert_eq!(original.len(), post_lookup.len());
         for ((line, owner), old_owner) in original.into_iter().zip(observed).zip(post_lookup) {
-            let row: Vec<_> = line.split('\t').collect();
-            let owned: Vec<_> = owner.split('\t').collect();
-            let old: Vec<_> = old_owner.split('\t').collect();
+            let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
+            let owned: Vec<_> = tcl_test_support::fixture::tsv_fields(owner).collect();
+            let old: Vec<_> = tcl_test_support::fixture::tsv_fields(old_owner).collect();
             assert_eq!(owned.len(), 11, "{owner}");
             assert_eq!(old.len(), 8, "{old_owner}");
             // Preserve both original public diagnostics and the independently
@@ -184,7 +184,7 @@ fn c84_reached_nonfinite_matches_six_native_state_windows() {
         .lines()
         .filter(|line| line.starts_with("ENTER\t"))
     {
-        let row: Vec<_> = line.split('\t').collect();
+        let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         let index: usize = row[1].parse().unwrap();
         let environment = ObservedEnvironment {
             state: Ok(NumericErrorState {
@@ -240,7 +240,7 @@ fn c84_fresh_calls_reset_and_cached_observations_preserve_real_thread_state() {
         .lines()
         .filter(|line| line.starts_with("ENTER\t"))
     {
-        let row: Vec<_> = line.split('\t').collect();
+        let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         let index: usize = row[1].parse().unwrap();
         environment.double(b"1e9999", true).unwrap();
         let before = environment.state().unwrap();
@@ -337,7 +337,7 @@ fn assert_c84_fresh_boolean_fixture_rows(
     environment: &tcl_host_c_abi::NativeNumericEnvironment,
 ) -> usize {
     let field = |line: &str, key: &str| -> String {
-        line.split('\t')
+        tcl_test_support::fixture::tsv_fields(line)
             .find_map(|part| {
                 let (name, value) = part.split_once('=')?;
                 (name == key).then(|| value.to_owned())
@@ -425,10 +425,10 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
     // only after the reached native signed-long/double stages.
     let fixtures = [
         include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-live.stdout"
         ),
         include_str!(
-            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-null.stdout"
         ),
     ];
     let inputs: [&[u8]; 20] = [

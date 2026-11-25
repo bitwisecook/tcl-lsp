@@ -1334,7 +1334,7 @@ mod tests {
         ] {
             let original: Vec<_> = rows
                 .lines()
-                .map(|line| line.split('\t').collect::<Vec<_>>())
+                .map(|line| tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>())
                 .find(|fields| {
                     fields.first() == Some(&"RESULT") && fields.get(2) == Some(&"integer")
                 })

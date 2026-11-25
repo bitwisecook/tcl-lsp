@@ -341,16 +341,10 @@ impl Analyser {
         body_span: tcl_lexer::Span,
     ) -> ProcParamFacts {
         let Some(registry) = self.registry.as_deref() else {
-            return (
-                std::collections::HashMap::new(),
-                std::collections::HashSet::new(),
-                std::collections::HashMap::new(),
-            );
+            return ProcParamFacts::default();
         };
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        // One environment for all four scans, so the traits, the caller-frame
-        // params, and the caller-frame literals can never be derived from
-        // different views of the proc *or* of the document's command bindings.
+        // Use one document command surface for the shallow and deep scans.
         let input = self.resolved_analysis_input();
         let original_logical_body = self
             .head_identities
@@ -401,19 +395,21 @@ impl Analyser {
         let body_text = match env.executed_source {
             Some(source) => {
                 let Ok(text) = source.try_text() else {
-                    return (
-                        std::collections::HashMap::default(),
-                        std::collections::HashSet::default(),
-                        std::collections::HashMap::default(),
-                    );
+                    return ProcParamFacts::default();
                 };
                 text
             }
             None => body_text,
         };
-        let (caller_frame_params, caller_frame_literals) =
-            super::super::param_traits::caller_frame_facts(&param_names, body_text, env);
-        let shallow = super::super::param_traits::infer_param_traits(&param_names, body_text, env);
+        let super::super::param_traits::ShallowProcedureTraits {
+            traits: shallow,
+            caller_frame_params,
+            caller_frame_literals,
+        } = super::super::param_traits::infer_param_traits_with_caller_frame(
+            &param_names,
+            body_text,
+            env,
+        );
         let traits = if self.deep_param_traits {
             let deep = super::super::param_traits::infer_param_traits_deep_in_document(
                 &param_names,

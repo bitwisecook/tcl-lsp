@@ -1139,7 +1139,7 @@ mod tests {
             observer.extend_from_slice(b"]\nbinary scan $observed H* hex\nset hex");
             let completion = vm.try_eval_source_bytes(&observer).unwrap();
             assert_eq!(completion.code, crate::Code::Ok, "{version:?}");
-            let expected = row.split_once('\t').unwrap().1;
+            let expected = tcl_test_support::fixture::tsv_split_once(row).unwrap().1;
             assert_eq!(
                 vm.native_name_operand_bytes(&completion.result)
                     .unwrap()
@@ -1246,7 +1246,7 @@ mod tests {
         for (version, fixture) in fixtures {
             let rows: Vec<_> = fixture
                 .lines()
-                .map(|line| line.split('\t').collect::<Vec<_>>())
+                .map(|line| tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>())
                 .collect();
             assert_eq!(rows.len(), 12);
             for (case, absolute, data_first) in [

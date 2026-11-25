@@ -243,13 +243,13 @@ fn original_renamed_definition_matches_native_source_and_raw_return_boundaries()
     // identity follows. C8.4/8.5 stock TclOO is unavailable: their C API
     // settles top-level return to OK, while this raw evaluator retains RETURN.
     macro_rules! provider {
-        ($engine:literal, $version:literal, $raw_return:literal) => {
+        ($engine:literal, $raw_return:literal) => {
             (
                 $engine,
                 $raw_return,
                 include_str!(concat!(
                     "../../../../../rust/tcl-registry/tests/data/native_oo_renamed_definition321/",
-                    $version,
+                    $engine,
                     "/renamed-definition/stdout"
                 )),
             )
@@ -259,12 +259,12 @@ fn original_renamed_definition_matches_native_source_and_raw_return_boundaries()
         "../../../../../rust/tcl-registry/tests/data/native_oo_renamed_definition321/source.tcl"
     );
     for (engine, raw_return, stdout) in [
-        provider!("tcl8.4", "8.4.20", true),
-        provider!("tcl8.5", "8.5.19", true),
-        provider!("tcl8.6", "8.6.18", false),
-        provider!("tcl9.0", "9.0.4", false),
-        provider!("tcl9.1", "9.1.0", false),
-        provider!("jim", "jim", false),
+        provider!("tcl8.4", true),
+        provider!("tcl8.5", true),
+        provider!("tcl8.6", false),
+        provider!("tcl9.0", false),
+        provider!("tcl9.1", false),
+        provider!("jim", false),
     ] {
         let (expected_code, original) = stdout
             .lines()

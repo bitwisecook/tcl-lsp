@@ -62,5 +62,5 @@ No implementation binding is claimed by this observation record.
 - [rust/tcl-compiler/tests/data/native_brace_expression/v3/protocol](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v3/protocol)
 - [rust/tcl-compiler/tests/data/native_brace_expression/v4/capture](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v4/capture)
 - [rust/tcl-compiler/tests/data/native_brace_expression/v2/protocol](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v2/protocol)
-- [rust/tcl-compiler/tests/data/native_brace_expression/v1/capture/9.0.4](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v1/capture/9.0.4)
+- [rust/tcl-compiler/tests/data/native_brace_expression/v1/capture/tcl9.0](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v1/capture/tcl9.0)
 - [rust/tcl-compiler/tests/data/native_brace_expression/v2](../../../../rust/tcl-compiler/tests/data/native_brace_expression/v2)

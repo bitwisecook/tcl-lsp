@@ -696,7 +696,7 @@ mod tests {
                 .lines()
                 .skip(1)
                 .take(19)
-                .map(|row| row.split('\t').collect::<Vec<_>>())
+                .map(|row| tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>())
             {
                 crate::counters::reset();
                 {

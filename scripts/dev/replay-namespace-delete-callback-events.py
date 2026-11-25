@@ -10,7 +10,13 @@ import json
 import subprocess
 from pathlib import Path
 
-VERSIONS = ("8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0")
+FIXTURE_KEYS = {
+    "8.4.20": "tcl8.4",
+    "8.5.19": "tcl8.5",
+    "8.6.18": "tcl8.6",
+    "9.0.4": "tcl9.0",
+    "9.1.0": "tcl9.1",
+}
 CORPUS = Path("rust/tcl-syntax/tests/data/native_namespace_delete_callback_events")
 
 
@@ -19,7 +25,7 @@ def digest(path):
 
 
 def verify(corpus, version):
-    folder = corpus / version
+    folder = corpus / FIXTURE_KEYS[version]
     record = json.loads((folder / "receipt.json").read_text())
     if record["provider"] != version:
         raise ValueError("selected provider association differs")
@@ -40,20 +46,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, default=Path(__file__).resolve().parents[2] / CORPUS)
     parser.add_argument("--verify-only", action="store_true")
-    parser.add_argument("--provider", choices=VERSIONS)
+    parser.add_argument("--provider", choices=FIXTURE_KEYS)
     parser.add_argument("--tcl-root", type=Path, help="Selected configured C source/build root containing generic/ and unix/.")
     parser.add_argument("--compiler", default="cc")
     parser.add_argument("--output", type=Path, help="New output directory; existing paths are refused.")
     args = parser.parse_args()
     corpus = args.corpus.resolve()
     if args.verify_only:
-        for version in VERSIONS:
+        for version in FIXTURE_KEYS:
             verify(corpus, version)
-        print(json.dumps({"verified_original_provider_associations": len(VERSIONS), "native_launches": 0}))
+        print(json.dumps({"verified_original_provider_associations": len(FIXTURE_KEYS), "native_launches": 0}))
         return 0
     if not args.provider or not args.tcl_root or not args.output:
         parser.error("replay requires --provider, --tcl-root and a new --output")
     expected = verify(corpus, args.provider)
+    originals = corpus / FIXTURE_KEYS[args.provider]
     source = args.tcl_root.resolve()
     library = source / "unix" / ("libtcl" + ".".join(args.provider.split(".")[:2]) + ".a")
     required = [(source / "generic/tcl.h", expected["header_sha256"]),
@@ -85,8 +92,8 @@ def main():
                        stdout_sha256=hashlib.sha256(result.stdout).hexdigest(),
                        stderr_sha256=hashlib.sha256(result.stderr).hexdigest(),
                        matches_original=result.returncode == expected["process_exit"]
-                       and result.stdout == (corpus / args.provider / "stdout.tsv").read_bytes()
-                       and result.stderr == (corpus / args.provider / "stderr").read_bytes())
+                       and result.stdout == (originals / "stdout.tsv").read_bytes()
+                       and result.stderr == (originals / "stderr").read_bytes())
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt))
     return int(not receipt.get("matches_original", False))

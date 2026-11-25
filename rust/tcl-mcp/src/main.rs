@@ -252,6 +252,94 @@ mod protocol_tests {
     }
 
     #[test]
+    fn package_release_gates_survive_the_mcp_wire_on_the_pinned_ladder() {
+        use tcl_dialect::TclVersion;
+
+        // On the pinned Tcl interpreters, these commands first succeed on
+        // 8.5, 8.6 and 9.0 respectively. Tcl 8.4 provides Tcl 8.4 while its
+        // patchlevel is 8.4.20. Later interpreters provide their patchlevel.
+        let features = [
+            (1, "W200", TclVersion::V8_5),
+            (2, "W138", TclVersion::V8_6),
+            (3, "W138", TclVersion::V9_0),
+        ];
+        for release in TclVersion::ALL {
+            let provided = if release == TclVersion::V8_4 {
+                release.version_string()
+            } else {
+                release.patchlevel()
+            };
+            let source = format!(
+                "package require -exact Tcl {{{provided}}}\n\
+                 binary format cu 5\nformat %b 5\nformat %llu 5\n"
+            );
+            let (is_error, payload) = wire_payload(
+                "analyze",
+                &json!({"source": source, "dialect": release.dialect_profile_name()}),
+            );
+            assert!(!is_error, "{release:?}: {payload}");
+            let diagnostics = payload["diagnostics"].as_array().unwrap();
+            for (line, code, introduced) in features {
+                let requirement = format!("requires Tcl {}", introduced.version_string());
+                let count = diagnostics
+                    .iter()
+                    .filter(|finding| {
+                        finding["code"] == code
+                            && finding["range"]["start"]["line"] == line
+                            && finding["message"]
+                                .as_str()
+                                .is_some_and(|message| message.contains(&requirement))
+                    })
+                    .count();
+                assert_eq!(
+                    count,
+                    usize::from(release < introduced),
+                    "{release:?}: {payload}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn written_tcl_requirements_set_only_their_guaranteed_floor_on_the_wire() {
+        for (dialect, requirement, warns) in [
+            ("tcl8.4", "-exact Tcl {09.0b1}", true),
+            ("tcl8.6", "-exact Tcl {09.0b1}", false),
+            ("tcl8.6", r"-exact Tcl 9.\u0030b1", false),
+            ("tcl8.6", "Tcl {9.0-9.1} {9.1-}", false),
+            ("tcl8.6", "Tcl {9.0-9.1} {8.6}", true),
+            ("tcl8.6", "Tcl {9..0}", true),
+            ("tcl8.6", "Tcl $version", true),
+        ] {
+            let source = format!("package require {requirement}\nformat %llu 5\n");
+            let (is_error, payload) =
+                wire_payload("analyze", &json!({"source": source, "dialect": dialect}));
+            assert!(!is_error, "{requirement}: {payload}");
+            let diagnostics = payload["diagnostics"].as_array().unwrap();
+            let warnings: Vec<_> = diagnostics
+                .iter()
+                .filter(|finding| {
+                    finding["code"] == "W138"
+                        && finding["message"]
+                            .as_str()
+                            .is_some_and(|message| message.contains("requires Tcl 9.0"))
+                })
+                .collect();
+            assert_eq!(
+                warnings.len(),
+                usize::from(warns),
+                "{requirement}: {payload}"
+            );
+            if let Some(warning) = warnings.first() {
+                assert_eq!(
+                    warning["range"]["start"]["line"], 1,
+                    "{requirement}: {warning}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn tool_results_include_build_provenance() {
         let args = json!({"source": "set answer 42", "dialect": "tcl8.6"});
         let expected = tools::run_tool("analyze", &args).unwrap();

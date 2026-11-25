@@ -21,7 +21,7 @@
 use super::argument_words::{
     OperandSource, amount_word, call_arguments, typed_node_commands, view_of, word_of,
 };
-use super::lattice_inputs::{Words, exact_to_const};
+use super::lattice_inputs::Words;
 use super::{
     ArgWord, CatchEndRecord, DefAnswer, ExistenceStep, Lattice, LatticeDriver, LatticeInputs,
     named_defs, widened,
@@ -39,8 +39,8 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::LexerConfig;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::{
-    BinderName, BindingKind, CompletionOutcome, ExactValue, Existence, InvocationLayout,
-    IterableKind, LiftedAnswer, PlanAnswer,
+    BinderName, BindingKind, CompletionOutcome, Existence, InvocationLayout, IterableKind,
+    LiftedAnswer, PlanAnswer,
 };
 use tcl_registry::{InvocationWord, ResolvedInvocation};
 
@@ -479,7 +479,7 @@ impl LatticeDriver<'_> {
                         let element = items
                             .get(iteration * stride + position)
                             .map_or("", String::as_str);
-                        exact_to_const(&ExactValue::from_literal(element))
+                        crate::sccp::parse_literal_value(element)
                     })
                     .collect();
                 let value = match consts.as_slice() {

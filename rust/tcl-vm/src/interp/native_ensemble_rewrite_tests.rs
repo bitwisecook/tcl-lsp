@@ -48,7 +48,7 @@ fn array_default_usage_matches_sixteen_native_original_headers() {
     for row in
         include_str!("../../../../runtime/rust/tests/data/native_array_default/usage.tsv").lines()
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let engine = match fields[0] {
             "9.0.4" => "tcl9.0",
             "9.1.0" => "tcl9.1",

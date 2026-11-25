@@ -52,19 +52,19 @@ const SUBSTITUTION_OWNER_ROWS: [(&str, &str); 3] = [
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_substitution_owner/v6/8.6.18/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.0.4/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_substitution_owner/v6/9.1.0/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_substitution_owner/v6/tcl9.1/stdout.tsv"
         ),
     ),
 ];

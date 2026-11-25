@@ -217,7 +217,7 @@ mod tests {
                 Family::Tcl,
                 Release::TCL_8_4,
                 include_str!(
-                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.4.20/execute.stdout"
+                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/tcl8.4/execute.stdout"
                 ),
             ),
             (
@@ -225,7 +225,7 @@ mod tests {
                 Family::Tcl,
                 Release::TCL_8_5,
                 include_str!(
-                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.5.19/execute.stdout"
+                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/tcl8.5/execute.stdout"
                 ),
             ),
             (
@@ -233,7 +233,7 @@ mod tests {
                 Family::Tcl,
                 Release::TCL_8_6,
                 include_str!(
-                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/8.6.18/execute.stdout"
+                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/tcl8.6/execute.stdout"
                 ),
             ),
             (
@@ -241,7 +241,7 @@ mod tests {
                 Family::Tcl,
                 Release::TCL_9_0,
                 include_str!(
-                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/9.0.4/execute.stdout"
+                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/tcl9.0/execute.stdout"
                 ),
             ),
             (
@@ -249,7 +249,7 @@ mod tests {
                 Family::Tcl,
                 Release::TCL_9_1,
                 include_str!(
-                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/9.1.0/execute.stdout"
+                    "../../tcl-registry/tests/data/native_configured_script_completeness_original/capture/tcl9.1/execute.stdout"
                 ),
             ),
             (

@@ -1074,7 +1074,7 @@ mod tests {
             let dialect = crate::InvocationDialect::for_version(version);
             let slots = registry.stock_native_implementation_slots(dialect);
             for row in fixture.lines().skip(1) {
-                let (identity, raw_hook) = row.split_once('\t').unwrap();
+                let (identity, raw_hook) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
                 let hook: i32 = raw_hook.parse().unwrap();
                 if hook < 0 {
                     assert!(

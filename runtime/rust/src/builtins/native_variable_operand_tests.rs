@@ -27,31 +27,31 @@ const ORIGINALS: &[(&str, &str)] = &[
     (
         "tcl8.4",
         include_str!(
-            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stdout"
+            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/tcl8.4/execute.stdout"
         ),
     ),
     (
         "tcl8.5",
         include_str!(
-            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.stdout"
+            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/tcl8.5/execute.stdout"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.stdout"
+            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/tcl8.6/execute.stdout"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.stdout"
+            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/tcl9.0/execute.stdout"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.stdout"
+            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/tcl9.1/execute.stdout"
         ),
     ),
     (

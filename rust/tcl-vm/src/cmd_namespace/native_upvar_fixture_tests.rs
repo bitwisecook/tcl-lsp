@@ -65,11 +65,13 @@ fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         assert_eq!(CASES.lines().count(), expected.lines().count());
         for (input, expected) in CASES.lines().zip(expected.lines()) {
-            let (name, source) = input.split_once('\t').unwrap();
-            let mut wanted = expected.splitn(3, '\t');
-            assert_eq!(wanted.next().unwrap(), name);
-            let code: i64 = wanted.next().unwrap().parse().unwrap();
-            let result = bytes_from_hex(wanted.next().unwrap());
+            let (name, source) = tcl_test_support::fixture::tsv_split_once(input).unwrap();
+            let (expected_name, remainder) =
+                tcl_test_support::fixture::tsv_split_once(expected).unwrap();
+            assert_eq!(expected_name, name);
+            let (code, result) = tcl_test_support::fixture::tsv_split_once(remainder).unwrap();
+            let code: i64 = code.parse().unwrap();
+            let result = bytes_from_hex(result);
             let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
                     profile,
                     &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
@@ -91,7 +93,7 @@ fn namespace_upvar_original_vectors_match_eighteen_native_arity_windows() {
         include_str!("../../../tcl-registry/tests/data/native_namespace_upvar_arguments/rows.tsv");
     let mut compared = 0;
     for row in rows.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let profile = tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
         let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
             profile,

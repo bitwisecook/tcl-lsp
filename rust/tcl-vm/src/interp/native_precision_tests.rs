@@ -25,23 +25,23 @@ fn original_precision_unset_matches_all_six_native_sources() {
     // Exact public results only; these rows do not observe hidden cell
     // identities or establish a pointer-equivalence claim.
     macro_rules! provider {
-        ($engine:literal, $version:literal) => {
+        ($engine:literal) => {
             (
                 $engine,
                 [
                     include_str!(concat!(
                         "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
+                        $engine,
                         "/root/stdout"
                     )),
                     include_str!(concat!(
                         "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
+                        $engine,
                         "/linked/stdout"
                     )),
                     include_str!(concat!(
                         "../../../tcl-registry/tests/data/native_precision_unset319/",
-                        $version,
+                        $engine,
                         "/unrelated/stdout"
                     )),
                 ],
@@ -54,12 +54,12 @@ fn original_precision_unset_matches_all_six_native_sources() {
         include_str!("../../../tcl-registry/tests/data/native_precision_unset319/unrelated.tcl"),
     ];
     for (engine, outputs) in [
-        provider!("tcl8.4", "8.4.20"),
-        provider!("tcl8.5", "8.5.19"),
-        provider!("tcl8.6", "8.6.18"),
-        provider!("tcl9.0", "9.0.4"),
-        provider!("tcl9.1", "9.1.0"),
-        provider!("jim", "jim"),
+        provider!("tcl8.4"),
+        provider!("tcl8.5"),
+        provider!("tcl8.6"),
+        provider!("tcl9.0"),
+        provider!("tcl9.1"),
+        provider!("jim"),
     ] {
         for (source, stdout) in sources.iter().zip(outputs) {
             let original = stdout

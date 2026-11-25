@@ -73,6 +73,7 @@ fn package_fixtures_match_every_pinned_tcl_release() {
             ("01.2", "1.2", Equal),
             ("8.6", "8.6.18", Less),
             ("1.0", "1", Equal),
+            ("9", "9.0", Equal),
         ] {
             let can_compare =
                 validate_version_for(left, release) && validate_version_for(right, release);
@@ -129,6 +130,19 @@ fn package_fixtures_match_every_pinned_tcl_release() {
         .map(|index| versions[index]);
         assert_eq!(selected, modern.then_some("3.0"));
     }
+}
+
+#[test]
+fn omitted_package_minor_component_uses_release_zero() {
+    assert_eq!(
+        TclVersion::from_package_version("9"),
+        Some(TclVersion::V9_0)
+    );
+    assert_eq!(
+        TclVersion::from_package_version("9b1"),
+        Some(TclVersion::V9_0)
+    );
+    assert_eq!(TclVersion::from_package_version("8"), None);
 }
 
 /// The data rows of a pinned corpus: comment and blank lines dropped, each

@@ -62,7 +62,7 @@ fn file_worker_runtime_headers_match_all_190_original_native_snapshots() {
         let mut interp = Interp::new();
         interp.set_runtime_version(version);
         for row in fixture.lines().skip(1) {
-            let (identity, expected) = row.split_once('\t').unwrap();
+            let (identity, expected) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
             let namespaces = interp.namespaces();
             let actual = match namespaces
                 .resolve_generation(crate::namespace::GLOBAL, identity.as_bytes())

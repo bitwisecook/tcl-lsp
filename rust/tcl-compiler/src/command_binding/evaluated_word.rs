@@ -361,23 +361,23 @@ mod tests {
     const ORIGINAL_TEXT_SOURCE_CONTROLS: &[(&str, &str)] = &[
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_original_jim_text/8.4.20/stdout.tsv"),
+            include_str!("../../tests/data/native_original_jim_text/tcl8.4/stdout.tsv"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_original_jim_text/8.5.19/stdout.tsv"),
+            include_str!("../../tests/data/native_original_jim_text/tcl8.5/stdout.tsv"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_original_jim_text/8.6.18/stdout.tsv"),
+            include_str!("../../tests/data/native_original_jim_text/tcl8.6/stdout.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_original_jim_text/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_original_jim_text/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_original_jim_text/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_original_jim_text/tcl9.1/stdout.tsv"),
         ),
         (
             "jim",

@@ -100,19 +100,19 @@ mod tests {
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.1/stdout.tsv"
             ),
         ),
     ];

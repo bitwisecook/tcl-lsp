@@ -117,7 +117,7 @@ mod tests {
                 .lines()
                 .take(6)
             {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 let (subject, pattern) = fields[0].split_once(" matches ").unwrap();
                 assert_eq!(
                     scope.bare_matches().evaluate(

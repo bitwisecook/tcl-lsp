@@ -51,7 +51,7 @@ fn namespace_upvar_original_vectors_match_eighteen_native_arity_windows() {
     );
     let mut compared = 0;
     for row in rows.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let mut interp = actual(fields[0]);
         assert_eq!(interp.eval_str(b"namespace eval n {}"), Code::Ok);
         let mut words = vec![
@@ -113,8 +113,8 @@ fn namespace_upvar_grammar_and_target_cells_match_36_native_results() {
     for (engine, expected) in engines {
         assert_eq!(CASES.lines().count(), expected.lines().count());
         for (input, expected) in CASES.lines().zip(expected.lines()) {
-            let (case, source) = input.split_once('\t').unwrap();
-            let fields: Vec<_> = expected.split('\t').collect();
+            let (case, source) = tcl_test_support::fixture::tsv_split_once(input).unwrap();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(expected).collect();
             assert_eq!(fields[0], case);
             let mut interp = actual(engine);
             let code = interp.eval_str(&decode(source));

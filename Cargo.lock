@@ -4413,6 +4413,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sslictcl",
  "tcl-syntax",
+ "tcl-test-support",
  "thiserror 2.0.21",
 ]
 
@@ -4421,6 +4422,7 @@ name = "tcl-bigip-io"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "base64 0.23.1",
  "cfb-mode",
  "digest 0.11.3",
  "flate2",
@@ -4929,6 +4931,7 @@ dependencies = [
  "num-traits",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -4986,6 +4989,8 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "sha2 0.11.1",
  "smallvec",
  "tcl-cmd-core",
@@ -5030,6 +5035,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -5158,6 +5164,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-test-support",
 ]
 
 [[package]]

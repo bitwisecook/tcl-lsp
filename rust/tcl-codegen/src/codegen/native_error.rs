@@ -158,12 +158,9 @@ mod tests {
                     "{} / {index}",
                     profile.name
                 );
-                let row = rows
-                    .lines()
-                    .nth(index + 1)
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let row =
+                    tcl_test_support::fixture::tsv_fields(rows.lines().nth(index + 1).unwrap())
+                        .collect::<Vec<_>>();
                 let names = context
                     .lvt
                     .native_slot_names()

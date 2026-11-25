@@ -73,10 +73,10 @@ c15-upvar-proc.tcl	tcl8.6	analyser
 c15-upvar-proc.tcl	tcl8.6	folder	
 c15-upvar-proc.tcl	tcl9.0	analyser	
 c15-upvar-proc.tcl	tcl9.0	folder	
-c16-constant-in-callback.tcl	tcl8.6	analyser	W307@1
+c16-constant-in-callback.tcl	tcl8.6	analyser	
 c16-constant-in-callback.tcl	tcl8.6	folder	O116
 c16-constant-in-callback.tcl	tcl8.6	folded	same
-c16-constant-in-callback.tcl	tcl9.0	analyser	W307@1
+c16-constant-in-callback.tcl	tcl9.0	analyser	
 c16-constant-in-callback.tcl	tcl9.0	folder	O116
 c16-constant-in-callback.tcl	tcl9.0	folded	same
 c17-string-concat.tcl	tcl8.6	analyser	

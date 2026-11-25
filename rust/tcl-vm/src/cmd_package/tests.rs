@@ -714,7 +714,7 @@ fn provided_version_headers_match_all_native_30_windows() {
         let held = latest.result.clone();
         let rows: Vec<Vec<&str>> = fixture
             .lines()
-            .map(|row| row.split('\t').collect())
+            .map(|row| tcl_test_support::fixture::tsv_fields(row).collect())
             .collect();
         assert_eq!(class(&held), rows[0][2]);
         assert_eq!(held.native_object_reference_count().to_string(), rows[0][3]);
@@ -772,7 +772,7 @@ fn package_files_headers_match_all_native_10_windows_and_scope_lifetimes() {
         vm.end_package_loading(b"probe", b"1");
         let rows: Vec<Vec<&str>> = fixture
             .lines()
-            .map(|row| row.split('\t').collect())
+            .map(|row| tcl_test_support::fixture::tsv_fields(row).collect())
             .collect();
         vm.with_package_file_object(b"probe", |original| {
             assert!(matches!(
@@ -881,7 +881,7 @@ fn package_error_publication_matches_all_21_original_native_controls() {
     );
     let mut compared = 0;
     for row in fixture.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(fields.len(), 4);
         let profile = crate::environment::profile_for_dialect(fields[0]);
         let mut vm = crate::native_fixture::interpreter(profile);
@@ -986,7 +986,7 @@ fn package_completion_matches_all_six_native_84_controls() {
     let mut compared = 0;
     for (engine, fixture) in FIXTURES.into_iter().enumerate() {
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 4);
             let name = fields[0];
             let script = unhex(fields[1]);

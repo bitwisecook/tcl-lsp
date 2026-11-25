@@ -718,7 +718,9 @@ impl SourceCommandBindings {
                 .filter(|_| write_complete),
         );
         let reentry = requires_reentry_guard(facts);
-        if reentry
+        if !native_result::inline_scoped_prefix_preserves_world(
+            native, facts, incoming, outcomes, *context,
+        ) && (reentry
             || (outcomes.normal_completion.is_none()
                 && !command_world_closed_on_normal_return(native.target, facts)
                 && !source_command_world::namespace_body_world_closed_on_normal_return(
@@ -726,7 +728,7 @@ impl SourceCommandBindings {
                 )
                 && !original_delegated_script::world_closed_on_normal_return(
                     native, facts, incoming, outcomes, *context,
-                ))
+                )))
         {
             let modelled = (!reentry
                 && (walk

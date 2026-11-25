@@ -465,7 +465,7 @@ mod tests {
         for (version, fixture) in TclVersion::ALL.into_iter().zip(fixtures) {
             let protocol = NativeTclUtf::for_version(version);
             for line in fixture.lines() {
-                let columns: Vec<_> = line.split('\t').collect();
+                let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 let units: Vec<u32> = columns[1]
                     .split(',')
                     .map(|unit| unit.parse().unwrap())

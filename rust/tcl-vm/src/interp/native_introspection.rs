@@ -200,7 +200,7 @@ mod tests {
             );
             vm.try_eval_source("namespace eval ::N {}; namespace eval ::source {proc target {} {}; namespace export target}; namespace eval ::N {namespace import ::source::target}").unwrap();
             for row in table.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();
                 if if arrays {
                     case < 15

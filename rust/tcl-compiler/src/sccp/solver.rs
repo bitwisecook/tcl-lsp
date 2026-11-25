@@ -18,9 +18,10 @@
 
 //! The solver: its rounds, the sweep over the blocks, the existence rung, refinements, loop enumeration and the settled post-passes.
 
+use super::block_sweep::{BlockSweepState, seed_live_in_roots, seeded_values};
 use super::{
     BranchFold, BuiltinFoldInputs, EdgeRefinement, EnumeratedLoop, ModuleRun, SccpResult,
-    TraceInputs, cfg_order, compute_predecessors, entry_block_set,
+    TraceInputs, cfg_order, compute_predecessors,
 };
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction};
@@ -53,8 +54,6 @@ pub(crate) use statements::prior_version;
 pub(super) use statements::sccp_process_statements;
 #[cfg(test)]
 pub(super) use statements::typed_element_write_base;
-pub(super) use sweep::sccp_process_phis;
-pub(super) use sweep::{seed_live_in_roots, seeded_values};
 
 /// What a run must assume of the whole function when only the blocks an
 /// `executable` filter admits can run: the names it keeps overdefined
@@ -319,7 +318,6 @@ pub(super) fn solve(inputs: &SolveInputs<'_>, round: &Round, hazards: &RunHazard
     }
     let refinements = ordered_refinements(existence.as_mut(), others);
 
-    let executable_blocks = entry_block_set(cfg);
     let order = cfg_order(cfg);
     let regions = RegionShape::of(cfg);
     let sweep = SweepContext {
@@ -336,23 +334,19 @@ pub(super) fn solve(inputs: &SolveInputs<'_>, round: &Round, hazards: &RunHazard
         refinements: &refinements,
         external: &external,
     };
-    let mut state = SweepState {
-        values,
-        executable_blocks,
-        executable_edges: HashSet::new(),
+    let mut state = BlockSweepState::new(cfg, values);
+    let mut lifecycle = SweepLifecycle {
         existence,
         refined: RefinementFlow::new(cfg, &refinements),
     };
+    sweep.settle(&order, &mut state, &mut lifecycle);
 
-    sweep.settle(&order, &mut state);
-
-    let SweepState {
+    let BlockSweepState {
         mut values,
         executable_blocks,
         executable_edges,
-        existence,
-        refined,
     } = state;
+    let SweepLifecycle { existence, refined } = lifecycle;
     let refinements_at = refined.map_or_default(RefinementFlow::settled);
     if matches!(round, Round::Published(_)) {
         let ends = contradicted_exits(&refinements, &refinements_at, &values);
@@ -565,12 +559,8 @@ impl BlockExit {
     };
 }
 
-/// What the sweeps advance: the lattice values, the executable blocks and
-/// edges, and the existence rung when the run computes it.
-pub(super) struct SweepState {
-    pub(super) values: HashMap<ValueKey, LatticeValue>,
-    pub(super) executable_blocks: HashSet<BlockId>,
-    pub(super) executable_edges: HashSet<(BlockId, BlockId)>,
+/// The optimiser's existence and refinement state beside the shared value lattice.
+pub(super) struct SweepLifecycle {
     pub(super) existence: Option<ExistenceRun>,
     /// The refinements outside the existence domain as the sweep reads
     /// them, when the function has one.

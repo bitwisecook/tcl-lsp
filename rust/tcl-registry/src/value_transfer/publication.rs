@@ -397,12 +397,12 @@ impl Publication {
         revision: u64,
     ) -> EvalAnswer {
         let target_semantics = *ops.target();
-        let bytes = self.result.bytes.len()
+        let bytes = self.result.as_bytes().len()
             + self
                 .stores
                 .iter()
                 .filter_map(PendingStore::value)
-                .map(|value| value.bytes.len())
+                .map(|value| value.as_bytes().len())
                 .sum::<usize>();
         if let Err(reason) = ops.charge(u64::try_from(bytes).unwrap_or(u64::MAX)) {
             return EvalAnswer::Declined(reason);

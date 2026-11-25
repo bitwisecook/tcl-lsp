@@ -80,7 +80,10 @@ pub fn from_path_for_vscode_document(path: &Path) -> Option<String> {
     vscode_document_spelling(path.to_str()?, cfg!(windows))
 }
 
-fn vscode_document_spelling(path: &str, windows: bool) -> Option<String> {
+/// Render the VS Code document key for a rooted spelling under the selected
+/// platform geometry. This projection performs no native path admission.
+#[must_use]
+pub fn vscode_document_spelling(path: &str, windows: bool) -> Option<String> {
     let ordinary = from_rooted_spelling(path, windows, FileUriEscaping::Unreserved)?;
     if !windows && let Some(remote) = path.strip_prefix("//") {
         let (authority, tail) = remote.split_once('/').unwrap_or((remote, ""));

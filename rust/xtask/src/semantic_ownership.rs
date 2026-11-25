@@ -179,7 +179,9 @@ fn run(gate: Gate, report: bool) -> Result<ExitCode> {
     }
     if gate == Gate::Walker {
         for key in actual.keys() {
-            let fact = key.split('\t').nth(1).context("missing walker fact")?;
+            let fact = tcl_test_support::fixture::tsv_fields(key)
+                .nth(1)
+                .context("missing walker fact")?;
             if !facts.contains_key(fact) {
                 bail!("walker fact {fact} has no owner");
             }
@@ -260,16 +262,21 @@ fn owns_path(reference: &str, path: &str) -> bool {
 fn compare(actual: &BTreeMap<String, Vec<usize>>, ledger: &str) -> Result<Vec<String>> {
     let mut expected = BTreeMap::new();
     for row in tsv::rows(ledger) {
-        let (key, count) = row.rsplit_once('\t').context("ratchet row needs a count")?;
+        let (key, count) =
+            tcl_test_support::fixture::tsv_split_last(row).context("ratchet row needs a count")?;
         let count: usize = count.parse()?;
-        if count == 0 || key.split('\t').count() != 4 || expected.insert(key, count).is_some() {
+        if count == 0
+            || tcl_test_support::fixture::tsv_fields(key).count() != 4
+            || expected.insert(key, count).is_some()
+        {
             bail!("invalid or duplicate ratchet entry: {row}");
         }
     }
     let mut problems = Vec::new();
     for (key, lines) in actual {
         let count = expected.remove(key.as_str()).unwrap_or_default();
-        let (path, site) = key.split_once('\t').context("missing source path")?;
+        let (path, site) =
+            tcl_test_support::fixture::tsv_split_once(key).context("missing source path")?;
         if lines.len() > count {
             problems.push(format!(
                 "{path}: {:?}: {site} has {} site(s), allowed {count}",

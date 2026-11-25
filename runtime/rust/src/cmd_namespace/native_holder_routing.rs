@@ -139,11 +139,11 @@ fn original_command_holder_source_controls_match_all_native_providers() {
     // identity is inferred from reported command spellings or enumeration.
     crate::counters::reset();
     for (engine, rows) in [
-        ("tcl8.4", rows!("8.4.20")),
-        ("tcl8.5", rows!("8.5.19")),
-        ("tcl8.6", rows!("8.6.18")),
-        ("tcl9.0", rows!("9.0.4")),
-        ("tcl9.1", rows!("9.1.0")),
+        ("tcl8.4", rows!("tcl8.4")),
+        ("tcl8.5", rows!("tcl8.5")),
+        ("tcl8.6", rows!("tcl8.6")),
+        ("tcl9.0", rows!("tcl9.0")),
+        ("tcl9.1", rows!("tcl9.1")),
         ("jim", rows!("jim")),
     ] {
         for (index, (control, rows)) in CONTROLS.iter().zip(rows).enumerate() {
@@ -218,11 +218,11 @@ fn original_ensemble_holder_source_controls_match_all_native_providers() {
         ensemble_source!("relative-retained-parent.tcl"),
     ];
     for (engine, rows) in [
-        ("tcl8.4", ensemble_rows!("8.4.20")),
-        ("tcl8.5", ensemble_rows!("8.5.19")),
-        ("tcl8.6", ensemble_rows!("8.6.18")),
-        ("tcl9.0", ensemble_rows!("9.0.4")),
-        ("tcl9.1", ensemble_rows!("9.1.0")),
+        ("tcl8.4", ensemble_rows!("tcl8.4")),
+        ("tcl8.5", ensemble_rows!("tcl8.5")),
+        ("tcl8.6", ensemble_rows!("tcl8.6")),
+        ("tcl9.0", ensemble_rows!("tcl9.0")),
+        ("tcl9.1", ensemble_rows!("tcl9.1")),
         ("jim", ensemble_rows!("jim")),
     ] {
         for (index, (source, rows)) in sources.iter().zip(rows).enumerate() {
@@ -306,11 +306,11 @@ fn original_jim_namespace_library_sources_match_all_native_provider_results() {
         jim_library_source!("original-unsupported-and-arity.tcl"),
     ];
     for (engine, rows) in [
-        ("tcl8.4", jim_library_rows!("8.4.20")),
-        ("tcl8.5", jim_library_rows!("8.5.19")),
-        ("tcl8.6", jim_library_rows!("8.6.18")),
-        ("tcl9.0", jim_library_rows!("9.0.4")),
-        ("tcl9.1", jim_library_rows!("9.1.0")),
+        ("tcl8.4", jim_library_rows!("tcl8.4")),
+        ("tcl8.5", jim_library_rows!("tcl8.5")),
+        ("tcl8.6", jim_library_rows!("tcl8.6")),
+        ("tcl9.0", jim_library_rows!("tcl9.0")),
+        ("tcl9.1", jim_library_rows!("tcl9.1")),
         ("jim", jim_library_rows!("jim")),
     ] {
         for (index, (source, rows)) in sources.iter().zip(rows).enumerate() {
@@ -380,11 +380,11 @@ fn original_jim_ensemble_sources_match_all_native_rooted_public_results() {
         rooted_factory_source!("exact-create-and-option-selection.tcl"),
     ];
     for (engine, rows) in [
-        ("tcl8.4", rooted_factory_rows!("8.4.20")),
-        ("tcl8.5", rooted_factory_rows!("8.5.19")),
-        ("tcl8.6", rooted_factory_rows!("8.6.18")),
-        ("tcl9.0", rooted_factory_rows!("9.0.4")),
-        ("tcl9.1", rooted_factory_rows!("9.1.0")),
+        ("tcl8.4", rooted_factory_rows!("tcl8.4")),
+        ("tcl8.5", rooted_factory_rows!("tcl8.5")),
+        ("tcl8.6", rooted_factory_rows!("tcl8.6")),
+        ("tcl9.0", rooted_factory_rows!("tcl9.0")),
+        ("tcl9.1", rooted_factory_rows!("tcl9.1")),
         ("jim", rooted_factory_rows!("jim")),
     ] {
         for (index, (source, rows)) in sources.iter().zip(rows).enumerate() {

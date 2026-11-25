@@ -118,10 +118,7 @@ pub(super) fn enumerate_loops(
                         });
                     }
                 }
-                left.push((
-                    name.clone(),
-                    LatticeValue::Const(crate::value_transfer::exact_to_const(value)),
-                ));
+                left.push((name.clone(), crate::value_transfer::exact_to_lattice(value)));
             }
         }
         records.push(EnumeratedLoop {
@@ -264,10 +261,7 @@ pub(super) fn catch_body_answer(
                 (true, Some(Slot::Value(value))) => Some(DefAnswer {
                     stated: true,
                     existence: ExistenceStep::Set(Existence::Bound(BindingKind::Scalar)),
-                    ..DefAnswer::untyped(
-                        key,
-                        LatticeValue::Const(crate::value_transfer::exact_to_const(value)),
-                    )
+                    ..DefAnswer::untyped(key, crate::value_transfer::exact_to_lattice(value))
                 }),
                 (true, Some(Slot::Unbound)) => Some(DefAnswer {
                     stated: true,

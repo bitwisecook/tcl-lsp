@@ -33,7 +33,7 @@ fn native_detail(version: &str, purpose: &str, stage: &str, field: &str) -> usiz
     include_str!("../../tests/data/native_call_argv/observations.tsv")
         .lines()
         .find_map(|row| {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             if fields.first() == Some(&release)
                 && fields.get(1) == Some(&purpose)
                 && fields.get(2) == Some(&stage)
@@ -222,7 +222,7 @@ fn native_destructor_frame_has_no_original_call_arguments_or_call_stack_entry() 
         OBSERVED.with(|observed| observed.borrow_mut().clear());
         assert_eq!(interp.dispatch(&pointers), Code::Error);
         OBSERVED.with(|observed| {
-            assert_eq!(observed.borrow().as_slice(), &[Vec::new()]);
+            assert_eq!(observed.borrow().as_slice(), &[Vec::<usize>::new()]);
         });
         assert_eq!(native_detail(version, "destructor", "frame", "objc="), 0);
         let protocol = interp.invocation_string_protocol().unwrap();

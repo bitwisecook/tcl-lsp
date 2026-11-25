@@ -18,9 +18,7 @@
 
 //! Deciding a branch condition: the math bindings it is evaluated under and the static-loop summary at a loop exit.
 
-use super::math_expressions::{
-    FoldedExpressionContents, const_to_env_value, env_from_uses, fold_math_expression,
-};
+use super::math_expressions::{FoldedExpressionContents, env_from_uses, fold_math_expression};
 use super::{BranchFold, ExpressionEvaluationPoint, MathFoldContext, SolverPurpose};
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -28,7 +26,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::math_function_binding::ExpressionMathBindings;
 use crate::ssa::{SsaFunction, SsaSourceView, ValueKey};
-use crate::tcl_expr_eval::{FoldPolicy, TclValue};
+use crate::tcl_expr_eval::{FoldPolicy, TclValue, const_to_env_value};
 use std::collections::HashMap;
 
 pub(super) fn branch_decision(
@@ -138,7 +136,7 @@ fn loop_summary_decision(
                 continue;
             };
             if let Some(LatticeValue::Const(value)) = values.get(&(reference.symbol, version)) {
-                start_env.insert(name.to_owned(), value.clone().into());
+                start_env.insert(name.to_owned(), value.clone());
             }
         }
     } else {
@@ -147,7 +145,7 @@ fn loop_summary_decision(
                 continue;
             };
             if let Some(LatticeValue::Const(value)) = values.get(&(symbol, *version)) {
-                start_env.insert(name.to_owned(), value.clone().into());
+                start_env.insert(name.to_owned(), value.clone());
             }
         }
     }
@@ -219,7 +217,7 @@ fn semantic_loop_summary_decision(
     let environment = analysis
         .values
         .iter()
-        .map(|(name, value)| (name.clone(), value.to_env_value()))
+        .map(|(name, value)| (name.clone(), const_to_env_value(value)))
         .collect();
     let FoldedExpressionContents::Numeric(value) = fold_math_expression(
         condition,

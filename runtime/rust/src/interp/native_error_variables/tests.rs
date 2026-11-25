@@ -105,7 +105,7 @@ fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
             .lines()
             .find(|row| row.starts_with(version))
             .unwrap();
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         counters::reset();
         {
             let mut interp = Interp::with_native_core(
@@ -140,7 +140,7 @@ fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
                 );
                 assert_eq!(
                     unsafe { (*original.as_ptr()).ref_count },
-                    fields[4].parse().unwrap()
+                    fields[4].parse::<isize>().unwrap()
                 );
                 assert!(!interp.exc.borrow().native.legacy_copy);
                 assert_eq!(interp.exc.borrow().native.info_len, 0);
@@ -157,7 +157,7 @@ fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
             );
             assert_eq!(
                 unsafe { (*original.as_ptr()).ref_count },
-                fields[7].parse().unwrap(),
+                fields[7].parse::<isize>().unwrap(),
                 "{profile}"
             );
             check_repeated_error_episode(&mut interp, &head, &original, &fields, profile);
@@ -234,7 +234,7 @@ fn c84_global_error_code_publication_matches_five_original_callback_controls() {
         ),
     ];
     for row in controls.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let source = sources
             .iter()
             .find(|(name, _)| *name == fields[0])
@@ -275,7 +275,7 @@ fn c84_nonempty_error_info_publication_matches_original_callback_controls() {
         ),
     ];
     for row in controls.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let source = sources
             .iter()
             .find(|(name, _)| *name == fields[0])
@@ -601,7 +601,7 @@ fn producer_reference_counts(profile: &str) -> (usize, usize) {
             .lines()
             .find(|line| line.starts_with(label))
             .unwrap();
-        line.split('\t')
+        tcl_test_support::fixture::tsv_fields(line)
             .find_map(|field| field.strip_prefix("info_refs="))
             .unwrap()
             .parse::<usize>()

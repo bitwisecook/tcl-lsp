@@ -17,7 +17,15 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 FIXTURE = (
     REPOSITORY / "rust/tcl-registry/tests/data/native_array_and_oo_source_controls"
 )
-VERSIONS = ["8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0", "jim"]
+PROVIDERS = {
+    "8.4.20": "tcl8.4",
+    "8.5.19": "tcl8.5",
+    "8.6.18": "tcl8.6",
+    "9.0.4": "tcl9.0",
+    "9.1.0": "tcl9.1",
+    "jim": "jim",
+}
+VERSIONS = list(PROVIDERS)
 
 
 def digest(path):
@@ -49,7 +57,7 @@ def retained_inputs():
     if len(rows) != 6:
         raise ValueError("the retained corpus must include all six provider receipts")
     for version, row in zip(VERSIONS, rows):
-        directory = FIXTURE / version
+        directory = FIXTURE / PROVIDERS[version]
         if json.loads((directory / "receipt.json").read_text()) != row:
             raise ValueError(f"provider receipt differs from aggregate: {version}")
         for field, leaf in [("probe_sha256", "probe.c")]:
@@ -94,7 +102,7 @@ def replay(args, originals):
             raise ValueError(
                 f"selected build differs from the captured header/library: {version}"
             )
-        directory = destination / version
+        directory = destination / PROVIDERS[version]
         directory.mkdir()
         executable = directory / "probe"
         command = [

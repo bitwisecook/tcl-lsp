@@ -100,6 +100,7 @@ pub(crate) use expressions::{
 };
 pub use folded_type::FoldedType;
 use lattice_inputs::Words;
+pub use lattice_inputs::format_constant_with_policy;
 pub(crate) use lattice_inputs::{
     const_into_exact, const_text, const_to_exact, exact_to_const, exact_to_lattice, variable_name,
 };
@@ -1161,9 +1162,7 @@ pub(crate) fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::Buil
     let sym = ssa.var_symbol(name)?;
     let ver = uses.get(&sym)?;
     match values.get(&(sym, *ver))? {
-        LatticeValue::Const(c) => {
-            Some(String::from_utf8_lossy(&const_to_exact(c).bytes).into_owned())
-        }
+        LatticeValue::Const(c) => const_text(c),
         _ => None,
     }
 }

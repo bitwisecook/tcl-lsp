@@ -209,7 +209,7 @@ impl Matrix<'_> {
             lane.key()
         );
         for line in lines {
-            let fields: Vec<_> = line.splitn(6, '\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields_with_tail(line, 6).collect();
             let (command, sub, count, reference, message) = match fields.as_slice() {
                 ["C", command, present @ ("0" | "1")] => (*command, "", 0, *present, ""),
                 ["P", command, sub, count, reference, message] => {
@@ -484,7 +484,7 @@ fn check_definition_reports(root: &Path, jobs: &[Reference]) {
     .lines()
     .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
     .flat_map(|line| {
-        let fields: Vec<_> = line.splitn(7, '\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields_with_tail(line, 7).collect();
         let &[lane, patch, command, sub, counts, kind, reason] = fields.as_slice() else {
             panic!("invalid allow-list row {line:?}");
         };
@@ -497,7 +497,7 @@ fn check_definition_reports(root: &Path, jobs: &[Reference]) {
     .collect();
     let regressions: Vec<_> = report
         .lines()
-        .map(|line| line.rsplit_once('\t').unwrap().0)
+        .map(|line| tcl_test_support::fixture::tsv_split_last(line).unwrap().0)
         .filter(|key| !allowed.contains(*key))
         .collect();
     assert!(
@@ -517,7 +517,7 @@ fn confirmed_command_definitions() {
     );
     let mut failures = Vec::new();
     for line in CASES.lines().filter(|line| !line.starts_with('#')) {
-        let fields: Vec<_> = line.splitn(4, '\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields_with_tail(line, 4).collect();
         let [first, last, expected, call] = fields.as_slice() else {
             panic!("invalid confirmation row {line:?}");
         };

@@ -61,9 +61,9 @@ Current source linkage supplies no execution or assertion credit.
 ## Evidence
 
 - [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject)
-- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20)
-- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19)
-- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18)
-- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4)
-- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.4](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.4)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.5](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.5)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.6](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.6)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.0](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.0)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.1](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.1)
 - [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim)

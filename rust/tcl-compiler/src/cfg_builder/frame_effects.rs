@@ -18,21 +18,23 @@
 
 //! The one owner of a procedure's frame effects: which frames its `upvar`,
 //! `uplevel`, `global` and evaluated bodies reach ([`FrameContext`],
-//! [`FrameTarget`]), the procedure call edges, and the two summaries built
-//! from them in one pass: the caller-frame summary ([`UpvarInfo`], projected
-//! by [`super::upvar_info`]) and the global-frame summary
-//! ([`GlobalWriteInfo`], projected by [`super::global_write_info`]).
+//! [`FrameTarget`]) and the procedure call edges. The CFG projects these into
+//! caller ([`UpvarInfo`]) and global ([`GlobalWriteInfo`]) may-effects in one
+//! pass. Navigation projects the ordered direct source effects through
+//! [`DirectCallerEffects`].
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use tcl_registry::CommandRegistry;
 use tcl_registry::frame_effect::FrameLevel;
+use tcl_registry::{CallerFrameSelection, CommandRegistry, VariableAliasTarget};
 
 use super::OriginalProcedureSummaryOwners;
 use super::global_write_info::{self, GlobalWriteInfo};
 use super::upvar_info::{self, UpvarInfo};
 use crate::command_binding::{ModuleCommandBindings, ResolvedFrameBodySelection};
 use crate::ir::{Module, ProcedureId};
+
+pub(crate) mod escape;
 
 /// A frame past a procedure's direct caller that its `upvar` / `uplevel`
 /// effects reach.
@@ -147,6 +149,39 @@ impl FrameContext {
     }
 }
 
+/// Selected frame and original source name from one registry alias transition.
+/// An unplaced explicit operand retains its distinct unknown or invalid cause
+/// for consumers with different conservatism on error and unknown paths.
+pub(super) enum CallerAliasSelection<'a> {
+    Selected(FrameLevel, Option<&'a str>),
+    Dynamic,
+    Invalid(Option<&'a str>),
+    Other,
+}
+
+pub(super) fn caller_alias_selection(
+    target: &VariableAliasTarget,
+    parse_level: impl FnOnce(&CallerFrameSelection, &str) -> Option<FrameLevel>,
+) -> CallerAliasSelection<'_> {
+    let VariableAliasTarget::CallerSelectedFrame { frame, variable } = target else {
+        return CallerAliasSelection::Other;
+    };
+    match frame {
+        CallerFrameSelection::DefaultCaller => {
+            CallerAliasSelection::Selected(FrameLevel::DEFAULT, variable.literal())
+        }
+        CallerFrameSelection::Explicit(level) => {
+            let Some(level) = level.literal() else {
+                return CallerAliasSelection::Dynamic;
+            };
+            parse_level(frame, level)
+                .map_or(CallerAliasSelection::Invalid(variable.literal()), |level| {
+                    CallerAliasSelection::Selected(level, variable.literal())
+                })
+        }
+    }
+}
+
 /// Each retained body's ordinary call targets, and whether it may call a
 /// procedure the edges cannot name.
 pub(super) type CallEdges = HashMap<ProcedureId, (BTreeSet<ProcedureId>, bool)>;
@@ -165,6 +200,41 @@ fn call_edges(
             )
         })
         .collect()
+}
+
+/// Authored direct-command effects conditional on entry to one original body.
+/// Ordering distinguishes a write through an alias from a later relink, which
+/// is lost in the conservative interprocedural may-effect summary.
+#[derive(Default)]
+pub(crate) struct DirectCallerEffects {
+    parameters: HashSet<String>,
+    literal_targets: HashMap<String, bool>,
+    aliases: HashMap<String, String>,
+}
+
+impl DirectCallerEffects {
+    pub(crate) fn record_parameter(&mut self, parameter: &str) {
+        self.parameters.insert(parameter.to_owned());
+    }
+
+    pub(crate) fn record_literal_alias(&mut self, local: String, target: String) {
+        self.literal_targets.entry(target.clone()).or_insert(false);
+        self.aliases.insert(local, target);
+    }
+
+    pub(crate) fn record_write(&mut self, local: &str) {
+        if let Some(written) = self
+            .aliases
+            .get(local)
+            .and_then(|target| self.literal_targets.get_mut(target))
+        {
+            *written = true;
+        }
+    }
+
+    pub(crate) fn into_caller_template(self) -> (HashSet<String>, HashMap<String, bool>) {
+        (self.parameters, self.literal_targets)
+    }
 }
 
 /// Both frame-effect summaries of every retained body.

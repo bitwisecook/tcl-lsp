@@ -13,8 +13,6 @@ rust/tcl-compiler/src/analyser/diagnostics/validity/expr_operators.rs	analysis-m
 rust/tcl-compiler/src/analyser/handlers/definition_warnings.rs	analysis-memo	SET:OnceLock	-	1
 rust/tcl-compiler/src/analyser/handlers/finite_foreach_source.rs	analysis-memo	FiniteForeachReportingState:OnceLock	-	1
 rust/tcl-compiler/src/analyser/irules_event_checks.rs	analysis-memo	REGISTRY:OnceLock	-	2
-rust/tcl-compiler/src/analyser/param_traits/caller_frame.rs	analysis-memo	caller_frame_literal_targets_over:OnceCell	-	1
-rust/tcl-compiler/src/analyser/param_traits/caller_frame.rs	analysis-memo	caller_frame_upvar_params_over:OnceCell	-	1
 rust/tcl-compiler/src/analyser/types/result_caches.rs	analysis-memo	HierarchyCache:OnceLock	-	1
 rust/tcl-compiler/src/analyser/types/result_caches.rs	analysis-memo	SourceWordsMemo:Mutex	-	1
 rust/tcl-compiler/src/analysis_control.rs	analysis-memo	Active:thread_local	-	1

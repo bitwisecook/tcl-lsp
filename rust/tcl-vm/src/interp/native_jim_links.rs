@@ -572,8 +572,8 @@ mod tests {
         for (engine, expected) in engines {
             assert_eq!(cases.lines().count(), expected.lines().count());
             for (case, result) in cases.lines().zip(expected.lines()) {
-                let (name, source) = case.split_once('\t').unwrap();
-                let fields: Vec<_> = result.split('\t').collect();
+                let (name, source) = tcl_test_support::fixture::tsv_split_once(case).unwrap();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(result).collect();
                 assert_eq!(fields[0], name);
                 let profile =
                     tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -681,31 +681,31 @@ mod alias_publication_tests {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/original-upvar-errors/stdout"
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/tcl8.4/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/original-upvar-errors/stdout"
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/tcl8.5/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/original-upvar-errors/stdout"
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/tcl8.6/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/original-upvar-errors/stdout"
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/tcl9.0/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/original-upvar-errors/stdout"
+                    "../../../tcl-registry/tests/data/native_upvar_error_publication307/tcl9.1/original-upvar-errors/stdout"
                 ),
             ),
             (

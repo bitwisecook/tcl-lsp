@@ -165,6 +165,18 @@ pub enum EnvValue {
     Str(String),
 }
 
+/// Project lattice contents into expression bindings without an object proof.
+pub(crate) fn const_to_env_value(c: &crate::analyses::ConstValue) -> EnvValue {
+    use crate::analyses::ConstValue;
+
+    match c {
+        ConstValue::Int(i) => EnvValue::Int(*i),
+        ConstValue::Float(f) => EnvValue::Float(*f),
+        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
+        ConstValue::String(s) => EnvValue::Str(s.clone()),
+    }
+}
+
 /// Variable environment for evaluation.
 pub type Env = HashMap<String, EnvValue>;
 

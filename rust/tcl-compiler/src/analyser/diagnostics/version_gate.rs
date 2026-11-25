@@ -67,6 +67,7 @@ use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
+use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
 
 /// A lifecycle-bearing registry use, recorded during the walk and checked
@@ -1314,14 +1315,40 @@ impl Analyser {
     /// `package require Tcl` floor in the file. `None` = permissive
     /// (the unknown-dialect fallback / non-Tcl profiles) — every DSL
     /// check abstains.
-    pub(in crate::analyser) fn effective_dsl_version(&self) -> Option<tcl_dialect::TclVersion> {
+    pub(in crate::analyser) fn effective_dsl_version(&self) -> Option<TclVersion> {
+        let base = self.profile.runtime_base?;
         let tcl_floor = self
             .result
             .package_requires
             .iter()
-            .filter(|r| r.name == "Tcl" && !r.conditional)
-            .filter_map(crate::signature_scan::types::SignaturePackageRequire::written_lower_bound)
-            .filter_map(tcl_dialect::TclVersion::from_package_version)
+            .filter(|requirement| {
+                requirement.matches_package_descriptor("Tcl") && !requirement.conditional
+            })
+            .filter_map(|requirement| {
+                let (bound, grammar) = if let Some(name) = &requirement.original_name {
+                    let tcl_syntax::naming::NativeNameProtocol::C(grammar) =
+                        name.key().policy().recipe()
+                    else {
+                        return None;
+                    };
+                    let alternatives = requirement.original_requirements.iter().map(|operand| {
+                        let bytes = operand.as_ref()?.bytes();
+                        (!bytes.contains(&0)).then_some(())?;
+                        std::str::from_utf8(bytes).ok()
+                    });
+                    let bound = tcl_registry::version::alternatives_lower_bound_for(
+                        alternatives,
+                        requirement.exact,
+                        grammar,
+                    )?;
+                    (bound, grammar)
+                } else {
+                    (requirement.written_lower_bound_for(base)?, base)
+                };
+                TclVersion::from_package_version(tcl_dialect::package_version_prefix_for(
+                    bound, grammar,
+                ))
+            })
             .max();
         self.profile.effective_tcl_version(tcl_floor)
     }

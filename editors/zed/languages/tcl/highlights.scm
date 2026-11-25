@@ -85,11 +85,13 @@
     "lsearch" "lseq" "lset" "lsort" "modf" "oo::copy"
     "open" "parray" "pid" "pkg::create" "pkg_compareExtension" "pkg_mkIndex"
     "puts" "pwd" "read" "readFile" "regexp" "regsub"
-    "remquo" "scan" "seek" "socket" "split" "string"
-    "subst" "tclLdAout" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
-    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
-    "time" "timer" "trace" "unicode" "unknown" "unload"
-    "unset" "update" "vwait" "writeFile" "zipfs" "zlib"))
+    "remquo" "safe::interpAddToAccessPath" "safe::interpConfigure" "safe::interpCreate" "safe::interpDelete" "safe::interpFindInAccessPath"
+    "safe::interpInit" "safe::setLogCmd" "safe::setSyncMode" "scan" "seek" "socket"
+    "split" "string" "subst" "tclLdAout" "tclLog" "tclPkgSetup"
+    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
+    "tcl_wordBreakBefore" "tell" "time" "timer" "trace" "unicode"
+    "unknown" "unload" "unset" "update" "vwait" "writeFile"
+    "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

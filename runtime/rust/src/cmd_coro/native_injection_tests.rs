@@ -20,7 +20,7 @@
 use super::*;
 use crate::interp::obj_bytes;
 const ROWS: &str = include_str!(
-    "../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv"
+    "../../../../rust/tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stdout.tsv"
 );
 type Original = obj::Owned;
 type Call = Code;

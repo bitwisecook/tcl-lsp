@@ -100,7 +100,7 @@ fn level_reference_reselects_current_frames_in_thirty_native_windows() {
 }
 
 fn compare(interp: &mut Interp, value: &Owned, record: &str) {
-    let fields: Vec<_> = record.split('\t').collect();
+    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(record).collect();
     let dialect = interp.eval_frame_dialect();
     let mut original = OriginalLevel::selected(interp, value.as_ptr()).unwrap();
     let result = dialect

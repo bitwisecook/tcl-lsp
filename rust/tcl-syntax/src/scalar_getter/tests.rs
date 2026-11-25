@@ -208,7 +208,10 @@ fn fresh_native_getter_grammar_value_and_cache_match_all_six_engines() {
     ] {
         for (index, fixture) in fixtures.iter().enumerate() {
             for line in fixture.lines() {
-                let input = line.split_once('\t').unwrap().0.as_bytes();
+                let input = tcl_test_support::fixture::tsv_split_once(line)
+                    .unwrap()
+                    .0
+                    .as_bytes();
                 // The pinned sequential Jim Wide probe retained ERANGE after
                 // the preceding unsigned-overflow cases before its MIN case.
                 let conversion = protocol(index)
@@ -234,7 +237,7 @@ fn fixture_fresh_conversion(
 ) -> Option<NativeScalarGetterConversion> {
     if recipe.tcl_version() == Some(TclVersion::V8_4) && kind == NativeScalarGetterKind::Boolean {
         let fixture = include_str!(
-            "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+            "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-live.stdout"
         );
         let abi = fixture
             .lines()
@@ -500,7 +503,7 @@ fn assert_primitive_int_row(
     row: &str,
     inputs: &[&[u8]],
 ) {
-    let fields: Vec<_> = row.split('\t').collect();
+    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
     let case: usize = fields[0].parse().unwrap();
     let prior = match case {
         11 => Some(NativeScalarCache::Number(Number::Double(1.0))),
@@ -664,7 +667,7 @@ fn jim_decimal_string_switch_keeps_its_own_native_stage() {
     for row in
         include_str!("../../tests/data/native_scalar_getters/decimal-switch/jim0.84.txt").lines()
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let case: usize = fields[0].parse().unwrap();
         let outcome = protocol.jim_decimal_wide_probe(inputs[case]).unwrap();
         if fields[2] == "0" {
@@ -691,7 +694,7 @@ fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
     let fixture = include_str!("../../tests/data/native_scalar_getters/long84/8.4.20.tsv");
     let mut count = 0;
     for line in fixture.lines().filter(|line| line.starts_with("ROW\t")) {
-        let fields: Vec<_> = line.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         let case = fields[1].parse::<usize>().unwrap();
         let kind = match fields[2] {
             "0" => NativeScalarGetterKind::Int,

@@ -125,11 +125,11 @@ fn interp_subcommand_words_resolve_like_original_native_option_tables() {
         source!("child-hi-prefix"),
     ];
     for (engine, rows) in [
-        ("tcl8.4", rows!("8.4.20")),
-        ("tcl8.5", rows!("8.5.19")),
-        ("tcl8.6", rows!("8.6.18")),
-        ("tcl9.0", rows!("9.0.4")),
-        ("tcl9.1", rows!("9.1.0")),
+        ("tcl8.4", rows!("tcl8.4")),
+        ("tcl8.5", rows!("tcl8.5")),
+        ("tcl8.6", rows!("tcl8.6")),
+        ("tcl9.0", rows!("tcl9.0")),
+        ("tcl9.1", rows!("tcl9.1")),
         ("jim", rows!("jim")),
     ] {
         for (index, (source, rows)) in sources.iter().zip(rows).enumerate() {

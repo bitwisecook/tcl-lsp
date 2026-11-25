@@ -311,7 +311,7 @@ mod tests {
         let mut compared = 0;
         for row in include_str!("../../../tcl-registry/tests/data/registered-switch56.tsv").lines()
         {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let profile = tcl_dialect::DialectProfile::find(match fields[0] {
                 "8.5.19" => "tcl8.5",
                 "8.6.18" => "tcl8.6",

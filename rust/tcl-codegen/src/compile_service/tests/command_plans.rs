@@ -38,7 +38,7 @@ fn fatal_tail_preserves_distinct_native_runtime_and_compilation_extents() {
         include_str!("../../../../tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv")
             .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         if fields[1] == "0" {
             continue;
         }

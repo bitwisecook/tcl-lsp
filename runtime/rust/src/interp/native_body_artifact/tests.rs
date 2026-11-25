@@ -75,7 +75,7 @@ fn original_body_word_parts_match_native_concatenation_windows() {
                 let expected = rows
                     .lines()
                     .skip(1)
-                    .map(|row| row.split('\t').collect::<Vec<_>>())
+                    .map(|row| tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>())
                     .find(|row| {
                         row[0] == version
                             && row[1] == kind.to_string()
@@ -319,7 +319,7 @@ fn registered_append_artifacts_match_43_native_callback_controls() {
     }
     let mut count = 0;
     for row in include_str!("../../../tests/data/native_registered_append.tsv").lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(fields.len(), 7);
         let profile = fields[0];
         let mut interp = interpreter(profile);
@@ -603,7 +603,7 @@ fn registered_return_artifacts_match_44_native_controls() {
     for line in
         include_str!("../../../../../rust/tcl-registry/tests/data/registered-return44.tsv").lines()
     {
-        let fields = line.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
         let mut interp = interpreter(match fields[0] {
             "8.5.19" => "tcl8.5",
             "8.6.18" => "tcl8.6",

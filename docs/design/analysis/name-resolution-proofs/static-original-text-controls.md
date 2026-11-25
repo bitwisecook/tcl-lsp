@@ -197,10 +197,10 @@ A named selector is a coverage binding, not a claim that it executed.
 ## Evidence
 
 - [rust/tcl-compiler/tests/data/native_original_jim_text](../../../../rust/tcl-compiler/tests/data/native_original_jim_text)
-- [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20)
-- [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19)
-- [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18)
-- [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4)
-- [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.4](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.4)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.5](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.5)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.6](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/tcl8.6)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/tcl9.0](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/tcl9.0)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/tcl9.1](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/tcl9.1)
 - [rust/tcl-compiler/tests/data/native_original_jim_text/jim](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim)
 - [rust/tcl-compiler/tests/data/native_original_jim_text/source](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source)

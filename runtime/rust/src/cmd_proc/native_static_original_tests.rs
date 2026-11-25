@@ -97,31 +97,31 @@ fn original_static_member_objects_match_native_counted_names_and_value_capture()
         (
             "tcl8.4",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.4.20/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.5.19/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.6.18/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/9.0.4/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/9.1.0/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_procedure_static_original/tcl9.1/stdout.tsv"
             ),
         ),
         (
@@ -262,31 +262,31 @@ fn original_jim_static_links_match_native_frame_storage_reuse_boundaries() {
         (
             "tcl8.4",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/8.4.20/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/8.5.19/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/8.6.18/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/9.0.4/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/9.1.0/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/tcl9.1/stdout.tsv"
             ),
         ),
         (

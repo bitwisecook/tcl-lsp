@@ -130,31 +130,31 @@ fn trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand
         (
             TclVersion::V8_4,
             include_str!(
-                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/8.4.20/stdout.tsv"
+                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/tcl8.4/stdout.tsv"
             ),
         ),
         (
             TclVersion::V8_5,
             include_str!(
-                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/8.5.19/stdout.tsv"
+                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/tcl8.5/stdout.tsv"
             ),
         ),
         (
             TclVersion::V8_6,
             include_str!(
-                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/8.6.18/stdout.tsv"
+                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/tcl8.6/stdout.tsv"
             ),
         ),
         (
             TclVersion::V9_0,
             include_str!(
-                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/9.0.4/stdout.tsv"
+                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/tcl9.0/stdout.tsv"
             ),
         ),
         (
             TclVersion::V9_1,
             include_str!(
-                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/9.1.0/stdout.tsv"
+                "../../../tcl-cmd-core/tests/data/native_trace_selected_type/tcl9.1/stdout.tsv"
             ),
         ),
     ] {
@@ -205,23 +205,23 @@ fn legacy_operation_objects_match_native_counted_and_cstring_controls() {
     for (engine, rows) in [
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/8.4.20/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl8.4/stdout.tsv"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/8.5.19/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl8.5/stdout.tsv"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/8.6.18/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl8.6/stdout.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_private_legacy_trace/v3/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_private_legacy_trace/v3/tcl9.1/stdout.tsv"),
         ),
     ] {
         for (label, operations) in cases {

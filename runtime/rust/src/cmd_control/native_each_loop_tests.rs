@@ -357,7 +357,7 @@ fn run(physical: bool) -> (usize, usize) {
                     .lines()
                     .find(|row| row.starts_with(&prefix))
                     .unwrap();
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 assert_eq!(
                     code.as_int(),
                     fields[2].parse::<i64>().unwrap(),

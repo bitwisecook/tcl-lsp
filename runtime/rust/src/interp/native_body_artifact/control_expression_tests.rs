@@ -56,7 +56,7 @@ fn call(interp: &mut Interp, argument: &[u8]) -> (Code, Vec<obj::Owned>) {
 fn run_outputs(table: &str, expected: usize) {
     let mut compared = 0;
     for row in table.lines() {
-        let f = row.split('\t').collect::<Vec<_>>();
+        let f = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut interp = interpreter(profile(f[0]));
         let _definition = define(&mut interp, &decode(f[2]));
         if f[0] != "8.4.20" {
@@ -134,7 +134,7 @@ fn storage(original: *mut TclObj) -> String {
 fn run_expression_storage(table: &str, expected_count: usize) {
     let mut compared = 0;
     for row in table.lines() {
-        let f = row.split('\t').collect::<Vec<_>>();
+        let f = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut interp = interpreter(profile(f[0]));
         let _definition = define(&mut interp, &decode(f[2]));
         assert_eq!(f[3], "0", "native definition");
@@ -241,17 +241,16 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
             );
         }
         for line in table.lines().filter(|line| line.starts_with("CTX\t5\t")) {
-            let fields = line.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
             let index = fields[2].parse::<usize>().unwrap();
             let original = members[index];
             if index == 0 {
                 let name = obj::native_instruction_name::cache(original)
                     .expect("actual instname descriptor");
-                let opcodes = table
+                let opcodes = tcl_test_support::fixture::tsv_fields(table
                     .lines()
                     .find(|line| line.starts_with("OPCODES\t"))
-                    .unwrap()
-                    .split('\t')
+                    .unwrap())
                     .collect::<Vec<_>>();
                 assert_eq!(name.opcode(), opcodes[1].parse::<u8>().unwrap());
                 assert_eq!(storage(original), "instname,0,1");
@@ -338,11 +337,10 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
             assert_eq!(code, Code::Error, "{version}/{case}");
             let procedure = interp.proc_def(b"p").expect("original declaration");
             let artifact = cache(procedure.body.as_ptr()).expect("original Bytecode");
-            let native = table
+            let native = tcl_test_support::fixture::tsv_fields(table
                 .lines()
                 .find(|line| line.starts_with(&format!("CASE\t{case}\t")))
-                .unwrap()
-                .split('\t')
+                .unwrap())
                 .collect::<Vec<_>>();
             assert_eq!(storage(interp.result_obj()), native[4], "{version}/{case}");
             let context = interp
@@ -359,17 +357,16 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                 .lines()
                 .filter(|line| line.starts_with(&format!("CTX\t{case}\t")))
             {
-                let fields = line.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
                 let index = fields[2].parse::<usize>().unwrap();
                 let original = members[index];
                 if index == 0 {
                     assert_eq!(storage(original), "instname,0,1");
                     let name = obj::native_instruction_name::cache(original).unwrap();
-                    let native = table
+                    let native = tcl_test_support::fixture::tsv_fields(table
                         .lines()
                         .find(|line| line.starts_with(&format!("INST\t{case}\t")))
-                        .unwrap()
-                        .split('\t')
+                        .unwrap())
                         .collect::<Vec<_>>();
                     assert_eq!(name.opcode(), native[2].parse::<u8>().unwrap());
                     assert_eq!(name.string_bytes(), decode(native[3]));
@@ -404,7 +401,7 @@ fn compiled_catch_store_order_matches_four_native_alias_controls() {
     )
     .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut interp = interpreter(profile(fields[0]));
         let body = decode(fields[1]);
         let definition = [b"proc".as_slice(), b"p", b"", body.as_slice()]
@@ -445,7 +442,7 @@ fn catch_publication_and_store_order_match_six_native_engines() {
     )
     .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut interp = if fields[0] == "jim" {
             Interp::with_native_core(
                 default_host(),

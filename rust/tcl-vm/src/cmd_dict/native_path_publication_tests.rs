@@ -46,23 +46,23 @@ fn original_path_missing_variable_publication_matches_all_15_available_native_wi
     // C84's three original NA rows are retained independently: this test
     // checks absent purpose, without normalising a raw Return to C API Ok.
     let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
-    let cases = [("missing-root-failed-path-unset", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stdout"),
+    let cases = [("missing-root-failed-path-unset", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.4/missing-root-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.5/missing-root-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.6/missing-root-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.0/missing-root-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.1/missing-root-failed-path-unset/stdout"),
 include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stdout")]),
-("missing-member-failed-path-unset", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stdout"),
+("missing-member-failed-path-unset", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.4/missing-member-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.5/missing-member-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.6/missing-member-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.0/missing-member-failed-path-unset/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.1/missing-member-failed-path-unset/stdout"),
 include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stdout")]),
-("linked-root-path-set", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stdout"),
-include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stdout"),
+("linked-root-path-set", include_bytes!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.4/linked-root-path-set/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.5/linked-root-path-set/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl8.6/linked-root-path-set/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.0/linked-root-path-set/stdout"),
+include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/tcl9.1/linked-root-path-set/stdout"),
 include_str!("../../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stdout")])];
     let mut compared = 0;
     let mut unsupported = 0;

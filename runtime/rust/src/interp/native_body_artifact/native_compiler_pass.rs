@@ -352,7 +352,7 @@ mod tests {
                 ),
             ),
         ] {
-            let native: Vec<_> = native.trim_end().split('\t').collect();
+            let native: Vec<_> = tcl_test_support::fixture::tsv_fields(native.trim_end()).collect();
             let mut interp = super::super::tests::interpreter(engine);
             assert_eq!(
                 interp.eval_str(b"proc p {} {array set a {k V}}; p"),

@@ -264,4 +264,23 @@ mod original_package_advice_tests {
         assert!(!advice.advises_package("Tk"));
         assert_eq!(advice.for_spec(spec), Some("8.6"));
     }
+
+    #[test]
+    fn prerelease_floor_obeys_the_retained_package_grammar() {
+        let source = "package require -exact Tk {9.0b1}\n";
+        for (dialect, caller, expected) in [
+            ("tcl8.4", "tcl9.1", None),
+            ("tcl8.5", "tcl8.4", Some("9.0b1")),
+        ] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let caller = tcl_dialect::DialectProfile::find(caller).unwrap();
+            let requirement = &analysis.package_requires[0];
+            assert!(requirement.original_name.is_some(), "{dialect}");
+            assert_eq!(
+                DocumentFloor::new(&analysis, caller).requirement_floor(requirement),
+                expected,
+                "{dialect}"
+            );
+        }
+    }
 }

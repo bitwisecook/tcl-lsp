@@ -62,7 +62,7 @@ fn define(vm: &mut Vm, bytes: &[u8]) -> (Value, Vec<Value>) {
 fn run_outputs(table: &str, expected: usize) {
     let mut compared = 0;
     for row in table.lines() {
-        let f = row.split('\t').collect::<Vec<_>>();
+        let f = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut vm = interpreter(f[0]);
         let _definition = define(&mut vm, &decode(f[2]));
         if f[0] != "8.4.20" {
@@ -152,7 +152,7 @@ fn storage(value: &Value, version: &str) -> String {
 fn run_expression_storage(table: &str, expected_count: usize) {
     let mut compared = 0;
     for row in table.lines() {
-        let f = row.split('\t').collect::<Vec<_>>();
+        let f = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut vm = interpreter(f[0]);
         let _definition = define(&mut vm, &decode(f[2]));
         assert_eq!(f[3], "0", "native definition");
@@ -310,19 +310,20 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
             );
         }
         for line in table.lines().filter(|line| line.starts_with("CTX\t5\t")) {
-            let fields = line.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
             let index = fields[2].parse::<usize>().unwrap();
             let original = &members[index];
             if index == 0 {
                 let name = original
                     .native_instruction_name()
                     .expect("actual instname primary");
-                let opcodes = table
-                    .lines()
-                    .find(|line| line.starts_with("OPCODES\t"))
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let opcodes = tcl_test_support::fixture::tsv_fields(
+                    table
+                        .lines()
+                        .find(|line| line.starts_with("OPCODES\t"))
+                        .unwrap(),
+                )
+                .collect::<Vec<_>>();
                 assert_eq!(name.opcode(), opcodes[1].parse::<u8>().unwrap());
                 assert_eq!(original.native_object_type_name(), "instname");
                 assert!(original.resident_string_bytes().is_none());
@@ -434,12 +435,12 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                     "original Return has no Error annotation"
                 );
             }
-            let native = table
+            let case_marker = format!("CASE\t{case}\t");
+            let row = table
                 .lines()
-                .find(|line| line.starts_with(&format!("CASE\t{case}\t")))
-                .unwrap()
-                .split('\t')
-                .collect::<Vec<_>>();
+                .find(|line| line.starts_with(&case_marker))
+                .unwrap();
+            let native: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(
                 vm.with_native_interp_result(|result| storage(result, version))
                     .unwrap(),
@@ -457,7 +458,7 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                 .lines()
                 .filter(|line| line.starts_with(&format!("CTX\t{case}\t")))
             {
-                let fields = line.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>();
                 let index = fields[2].parse::<usize>().unwrap();
                 let original = &members[index];
                 if index == 0 {
@@ -465,12 +466,13 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                     assert!(original.resident_string_bytes().is_none());
                     assert_eq!(original.native_object_reference_count(), 1);
                     let name = original.native_instruction_name().unwrap();
-                    let native = table
-                        .lines()
-                        .find(|line| line.starts_with(&format!("INST\t{case}\t")))
-                        .unwrap()
-                        .split('\t')
-                        .collect::<Vec<_>>();
+                    let native = tcl_test_support::fixture::tsv_fields(
+                        table
+                            .lines()
+                            .find(|line| line.starts_with(&format!("INST\t{case}\t")))
+                            .unwrap(),
+                    )
+                    .collect::<Vec<_>>();
                     assert_eq!(name.opcode(), native[2].parse::<u8>().unwrap());
                     assert_eq!(name.string_bytes(), decode(native[3]));
                 } else {
@@ -509,7 +511,7 @@ fn compiled_catch_store_order_matches_four_native_alias_controls() {
     for row in include_str!("../../../tcl-registry/tests/data/native_control_expression/catch4.tsv")
         .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mut vm = interpreter(fields[0]);
         let head = Value::new_native_string_bytes(b"proc".as_slice());
         let definition = [
@@ -549,7 +551,7 @@ fn catch_publication_and_store_order_match_six_native_engines() {
     )
     .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let selected = if fields[0] == "jim" {
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile()
         } else {

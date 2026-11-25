@@ -30,44 +30,69 @@ async fn a_workspace_data_group_promotes_a_standalone_irule_signed_scan_hint() {
 
     let rule = Uri::from_str("file:///signed-scan/sample.irule").unwrap();
     let config = Uri::from_str("file:///signed-scan/bigip.conf").unwrap();
+    let duplicate = Uri::from_str("file:///signed-scan/bigip_local.conf").unwrap();
     let rule_text = "when CLIENT_DATA {\n binary scan [TCP::payload] c item\n class match -- $item equals int_dg\n}";
-    let config_text =
-        "ltm data-group internal /Common/int_dg { type integer\n records { 129 { data hit } } }";
-    for (uri, path, text, dialect) in [
-        (&rule, "/signed-scan/sample.irule", rule_text, "f5-irules"),
-        (&config, "/signed-scan/bigip.conf", config_text, "f5-bigip"),
+    let configuration = |key| {
+        format!(
+            "ltm data-group internal /Common/int_dg {{ type integer\n records {{ {key} {{ data hit }} }} }}"
+        )
+    };
+    let config_text = configuration(129);
+    let duplicate_text = configuration(130);
+    let edited_text = configuration(127);
+    for (uri, path, text) in [
+        (&rule, "/signed-scan/sample.irule", rule_text),
+        (&config, "/signed-scan/bigip.conf", config_text.as_str()),
+        (
+            &duplicate,
+            "/signed-scan/bigip_local.conf",
+            duplicate_text.as_str(),
+        ),
     ] {
         store.upsert_uri(uri.as_str(), path, text.as_bytes().to_vec());
-        let admission =
-            Arc::new(crate::DocumentPathAdmission::capture(uri, store.as_ref()).unwrap());
-        let state = DocumentState::with_version(text.to_owned(), dialect.to_owned(), 1)
-            .with_path_admission(admission);
-        backend
-            .documents
-            .lock("workspace_signed_scan")
-            .await
-            .insert(uri.clone(), state);
     }
+    let admission =
+        |uri| Arc::new(crate::DocumentPathAdmission::capture(uri, store.as_ref()).unwrap());
+    let rule_state = DocumentState::with_version(rule_text.to_owned(), "f5-irules".to_owned(), 1)
+        .with_path_admission(admission(&rule));
+    backend
+        .documents
+        .lock("workspace_signed_scan")
+        .await
+        .insert(rule.clone(), rule_state);
     backend
         .db_set_source(&rule, rule_text, "f5-irules".to_owned())
         .await
         .unwrap();
-    for expected in [DiagnosticSeverity::WARNING, DiagnosticSeverity::HINT] {
-        let report = backend
-            .produce_direct_diagnostic_report(&rule)
-            .await
-            .unwrap();
-        let signed = report.diagnostics.iter().find(|diagnostic| {
-            matches!(&diagnostic.code, Some(NumberOrString::String(code)) if code == "W156")
-        }).expect("signed data-group finding");
-        assert_eq!(signed.severity, Some(expected));
-        if expected == DiagnosticSeverity::WARNING {
-            assert!(signed.message.contains("Configured key 129"));
-            backend
+    let mut previous = None;
+    let primary = (&config, admission(&config));
+    let conflict = (&duplicate, admission(&duplicate));
+    let (hint, warning) = (DiagnosticSeverity::HINT, DiagnosticSeverity::WARNING);
+    for ((uri, path_admission), replacement, expected) in [
+        (&primary, Some((&config_text, 1)), warning),
+        (&conflict, Some((&duplicate_text, 1)), hint),
+        (&conflict, None, warning),
+        (&primary, Some((&edited_text, 2)), hint),
+        (&primary, Some((&config_text, 3)), warning),
+        (&primary, None, hint),
+    ] {
+        let uri = *uri;
+        {
+            let mut documents = backend
                 .documents
-                .lock("close_workspace_configuration")
-                .await
-                .remove(&config);
+                .lock("workspace_configuration_revision")
+                .await;
+            if let Some((text, version)) = replacement {
+                documents.insert(
+                    uri.clone(),
+                    DocumentState::with_version(text.clone(), "f5-bigip".to_owned(), version)
+                        .with_path_admission(Arc::clone(path_admission)),
+                );
+            } else {
+                documents.remove(uri);
+            }
+        }
+        if let Some(report) = previous.take() {
             assert!(matches!(
                 backend
                     .publish_direct_diagnostic_report(&rule, report)
@@ -76,6 +101,23 @@ async fn a_workspace_data_group_promotes_a_standalone_irule_signed_scan_hint() {
                 Err(DiagnosticUnavailable::Stale)
             ));
         }
+        let report = backend
+            .produce_direct_diagnostic_report(&rule)
+            .await
+            .unwrap();
+        let signed = report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| {
+                matches!(&diagnostic.code, Some(NumberOrString::String(code)) if code == "W156")
+            })
+            .expect("signed data-group finding");
+        assert_eq!(signed.severity, Some(expected), "{uri:?}: {replacement:?}");
+        assert_eq!(
+            signed.message.contains("Configured key 129"),
+            expected == warning,
+        );
+        previous = Some(report);
     }
 }
 

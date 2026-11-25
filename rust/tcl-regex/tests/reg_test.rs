@@ -117,7 +117,7 @@ fn parse_cases() -> Vec<Case> {
         if line.trim().is_empty() {
             continue;
         }
-        let f: Vec<&str> = line.split('\t').collect();
+        let f: Vec<&str> = tcl_test_support::fixture::tsv_fields(line).collect();
         // id flags reCp hasTarget targetCp status nsub info matched pairs
         let id = f[0].to_string();
         let flags = f[1].to_string();

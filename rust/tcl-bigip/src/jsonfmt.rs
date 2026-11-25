@@ -16,39 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Minimal JSON helpers for the hand-built reports (graph / stats / cleanup),
-//! matching a 2-space-indented JSON encoding exactly — including
-//! full ASCII-escaping, which escapes every non-ASCII char as `\uXXXX`
-//! (surrogate pairs for astral code points). `serde_json` emits raw UTF-8, so a
-//! bespoke escaper is needed to emit byte-exact ASCII-escaped output.
+//! JSON string output for the byte-stable graph, stats, and cleanup reports.
 
-/// An ASCII-escaped, double-quoted JSON string literal.
+/// A double-quoted JSON string, escaping non-ASCII and preserving ASCII DEL.
 #[must_use]
 pub fn json_string(s: &str) -> String {
     use std::fmt::Write as _;
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", c as u32);
-            }
-            c if c.is_ascii() => out.push(c),
-            c => {
-                let mut buf = [0u16; 2];
-                for unit in c.encode_utf16(&mut buf) {
-                    let _ = write!(out, "\\u{unit:04x}");
-                }
+
+    let json = serde_json::to_string(s).expect("serialise JSON string");
+    if s.is_ascii() {
+        return json;
+    }
+    let mut ascii = String::with_capacity(json.len());
+    for ch in json.chars() {
+        if ch.is_ascii() {
+            ascii.push(ch);
+        } else {
+            for unit in ch.encode_utf16(&mut [0; 2]) {
+                let _ = write!(ascii, "\\u{unit:04x}");
             }
         }
     }
-    out.push('"');
-    out
+    ascii
 }

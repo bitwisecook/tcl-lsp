@@ -40,19 +40,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-eacute/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-eacute/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-eacute/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-eacute/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-eacute/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-eacute/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-eacute/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-eacute/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-eacute/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-eacute/stdout"
             ),
         ],
     },
@@ -61,19 +61,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-modified-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-modified-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-modified-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-modified-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-modified-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-modified-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-modified-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-modified-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-modified-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-modified-zero/stdout"
             ),
         ],
     },
@@ -82,19 +82,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-literal-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-literal-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-literal-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-literal-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-literal-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-literal-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-literal-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-literal-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-literal-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-literal-zero/stdout"
             ),
         ],
     },
@@ -103,19 +103,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-ff/stdout"
             ),
         ],
     },
@@ -124,19 +124,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: true,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/byte-array-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/byte-array-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/byte-array-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/byte-array-ff/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-ff/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/byte-array-ff/stdout"
             ),
         ],
     },
@@ -145,19 +145,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: true,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/byte-array-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/byte-array-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/byte-array-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/byte-array-zero/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-zero/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/byte-array-zero/stdout"
             ),
         ],
     },
@@ -166,19 +166,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-surrogate-pair/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-surrogate-pair/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-surrogate-pair/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-surrogate-pair/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-surrogate-pair/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-surrogate-pair/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-surrogate-pair/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-surrogate-pair/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-surrogate-pair/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-surrogate-pair/stdout"
             ),
         ],
     },
@@ -187,19 +187,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-single-high-surrogate/stdout"
             ),
         ],
     },
@@ -208,19 +208,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-astral/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/string-astral/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-astral/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/string-astral/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-astral/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/string-astral/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-astral/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/string-astral/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-astral/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/string-astral/stdout"
             ),
         ],
     },
@@ -229,19 +229,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: true,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-utf8-eacute-octets/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.4/byte-array-utf8-eacute-octets/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-utf8-eacute-octets/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.5/byte-array-utf8-eacute-octets/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-utf8-eacute-octets/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl8.6/byte-array-utf8-eacute-octets/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-utf8-eacute-octets/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.0/byte-array-utf8-eacute-octets/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-utf8-eacute-octets/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_object306/tcl9.1/byte-array-utf8-eacute-octets/stdout"
             ),
         ],
     },
@@ -250,19 +250,19 @@ pub const CONTROLS: &[Utf8EncodingControl] = &[
         binary: false,
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/string-eacute-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/tcl8.4/string-eacute-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/string-eacute-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/tcl8.5/string-eacute-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/string-eacute-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/tcl8.6/string-eacute-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/string-eacute-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/tcl9.0/string-eacute-single-high-surrogate/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/string-eacute-single-high-surrogate/stdout"
+                "../../tcl-registry/tests/data/native_encoding_utf8_offset307/tcl9.1/string-eacute-single-high-surrogate/stdout"
             ),
         ],
     },

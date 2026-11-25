@@ -22,7 +22,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 
 const ORIGINAL: &str = include_str!(
-    "../../../tests/data/native_property_slot_reference_order_original/509b/providers/9.1.0/execute.stdout"
+    "../../../tests/data/native_property_slot_reference_order_original/509b/providers/tcl9.1/execute.stdout"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -204,7 +204,7 @@ fn members() -> [obj::Owned; 4] {
 }
 
 fn original_fields(line: &str) -> BTreeMap<&str, &str> {
-    line.split('\t')
+    tcl_test_support::fixture::tsv_fields(line)
         .skip(1)
         .filter_map(|field| field.split_once('='))
         .collect()

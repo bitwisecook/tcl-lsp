@@ -82,19 +82,19 @@ fn explicit_variable_links_and_varname_match_original_counted_controls() {
         (
             "tcl8.6",
             include_str!(
-                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/8.6.18/stdout.tsv"
+                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/9.0.4/stdout.tsv"
+                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/9.1.0/stdout.tsv"
+                "../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/v2/tcl9.1/stdout.tsv"
             ),
         ),
     ] {

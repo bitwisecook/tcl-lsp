@@ -38,6 +38,7 @@
 //! aggregate containing it) as unavailable.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use crate::bigip::{BigipPropertySpec, default_registry};
 use crate::lifecycle::Lifecycle;
@@ -48,7 +49,8 @@ use crate::profiles::ProfileRegistry;
 ///
 /// Object keys are always emitted in sorted (byte-wise) order. The
 /// serialiser escapes non-ASCII as `\uXXXX` (ASCII-only output).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(untagged)]
 pub enum Json {
     /// JSON `null`.
     Null,
@@ -83,109 +85,25 @@ impl Json {
     /// alphabetically (no trailing newline).
     #[must_use]
     pub fn dumps_indent2(&self) -> String {
-        let mut out = String::new();
-        self.write(&mut out, 0);
-        out
-    }
-
-    fn write(&self, out: &mut String, indent: usize) {
-        match self {
-            Json::Null => out.push_str("null"),
-            Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-            Json::Int(n) => out.push_str(&n.to_string()),
-            Json::Str(s) => write_json_string(out, s),
-            Json::Array(items) => {
-                if items.is_empty() {
-                    out.push_str("[]");
-                    return;
-                }
-                out.push('[');
-                let child = indent + 2;
-                for (i, item) in items.iter().enumerate() {
-                    if i > 0 {
-                        out.push(',');
-                    }
-                    out.push('\n');
-                    push_spaces(out, child);
-                    item.write(out, child);
-                }
-                out.push('\n');
-                push_spaces(out, indent);
-                out.push(']');
-            }
-            Json::Object(map) => {
-                if map.is_empty() {
-                    out.push_str("{}");
-                    return;
-                }
-                out.push('{');
-                let child = indent + 2;
-                // BTreeMap already iterates in sorted key order.
-                for (i, (key, value)) in map.iter().enumerate() {
-                    if i > 0 {
-                        out.push(',');
-                    }
-                    out.push('\n');
-                    push_spaces(out, child);
-                    write_json_string(out, key);
-                    out.push_str(": ");
-                    value.write(out, child);
-                }
-                out.push('\n');
-                push_spaces(out, indent);
-                out.push('}');
-            }
+        let json = serde_json::to_string_pretty(self).expect("serialise snapshot JSON");
+        if json.bytes().all(|byte| byte < 0x7f) {
+            return json;
         }
-    }
-}
 
-fn push_spaces(out: &mut String, n: usize) {
-    for _ in 0..n {
-        out.push(' ');
-    }
-}
-
-/// Escape `value` as a JSON string literal with ASCII-only output
-/// (escape non-ASCII as `\uXXXX`): the standard short escapes, `\uXXXX`
-/// for every other control character, and `\uXXXX` (with surrogate pairs for
-/// astral code points) for every non-ASCII character.
-fn write_json_string(out: &mut String, value: &str) {
-    out.push('"');
-    for ch in value.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 => {
-                push_u_escape(out, c as u32);
-            }
-            c if (c as u32) < 0x7f => out.push(c),
-            c => {
-                // ASCII-only output: emit \uXXXX, surrogate-pairing astral
-                // code points.
-                let cp = c as u32;
-                if cp <= 0xffff {
-                    push_u_escape(out, cp);
-                } else {
-                    let v = cp - 0x1_0000;
-                    let high = 0xd800 + (v >> 10);
-                    let low = 0xdc00 + (v & 0x3ff);
-                    push_u_escape(out, high);
-                    push_u_escape(out, low);
+        // JSON syntax and its control escapes are ASCII. A remaining DEL or
+        // non-ASCII scalar can only be part of an already quoted string.
+        let mut escaped = String::with_capacity(json.len());
+        for ch in json.chars() {
+            if ch < '\u{7f}' {
+                escaped.push(ch);
+            } else {
+                for unit in ch.encode_utf16(&mut [0; 2]) {
+                    let _ = write!(escaped, "\\u{unit:04x}");
                 }
             }
         }
+        escaped
     }
-    out.push('"');
-}
-
-fn push_u_escape(out: &mut String, code: u32) {
-    use std::fmt::Write;
-    let _ = write!(out, "\\u{code:04x}");
 }
 
 /// Snapshot of the protocol profile graph and protocol-namespace map.

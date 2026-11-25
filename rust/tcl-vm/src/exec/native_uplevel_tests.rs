@@ -79,7 +79,7 @@ fn level_reference_reselects_current_frames_in_thirty_native_windows() {
 }
 
 fn compare_level_reference(vm: &mut Vm, level: &Value, record: &str) {
-    let fields: Vec<_> = record.split('\t').collect();
+    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(record).collect();
     let target = crate::command::runtime_explicit_frame_selection(vm, level);
     assert_eq!(
         target.as_ref().map_or(-1, |_| 1),
@@ -168,7 +168,7 @@ fn explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows() {
         ),
     ] {
         for row in rows.lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let case = fields[0].parse::<usize>().unwrap();
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
             let mut vm = crate::native_fixture::interpreter(profile);

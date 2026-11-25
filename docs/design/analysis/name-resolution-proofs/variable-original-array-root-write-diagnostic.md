@@ -56,9 +56,9 @@ No BIG-IP attempt or corresponding source-file CLI answer is attached.
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_variable_array_write](../../../../rust/tcl-registry/tests/data/native_variable_array_write)
-- [rust/tcl-registry/tests/data/native_variable_array_write/8.4.20](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.4.20)
-- [rust/tcl-registry/tests/data/native_variable_array_write/8.5.19](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.5.19)
-- [rust/tcl-registry/tests/data/native_variable_array_write/8.6.18](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.6.18)
-- [rust/tcl-registry/tests/data/native_variable_array_write/9.0.4](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.0.4)
-- [rust/tcl-registry/tests/data/native_variable_array_write/9.1.0](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.1.0)
+- [rust/tcl-registry/tests/data/native_variable_array_write/tcl8.4](../../../../rust/tcl-registry/tests/data/native_variable_array_write/tcl8.4)
+- [rust/tcl-registry/tests/data/native_variable_array_write/tcl8.5](../../../../rust/tcl-registry/tests/data/native_variable_array_write/tcl8.5)
+- [rust/tcl-registry/tests/data/native_variable_array_write/tcl8.6](../../../../rust/tcl-registry/tests/data/native_variable_array_write/tcl8.6)
+- [rust/tcl-registry/tests/data/native_variable_array_write/tcl9.0](../../../../rust/tcl-registry/tests/data/native_variable_array_write/tcl9.0)
+- [rust/tcl-registry/tests/data/native_variable_array_write/tcl9.1](../../../../rust/tcl-registry/tests/data/native_variable_array_write/tcl9.1)
 - [rust/tcl-registry/tests/data/native_variable_array_write/jim](../../../../rust/tcl-registry/tests/data/native_variable_array_write/jim)

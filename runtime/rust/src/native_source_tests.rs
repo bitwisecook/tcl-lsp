@@ -74,7 +74,7 @@ fn source_owned_list_conversion_matches_222_native_windows() {
                 include_str!("../../../rust/tcl-syntax/testdata/native_jim_source_list/inputs.tsv")
                     .lines()
             {
-                let (case, encoded) = row.split_once('\t').unwrap();
+                let (case, encoded) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
                 let filename = Owned::fresh(if mode == 2 {
                     obj::new_wide_int_obj(17)
                 } else {
@@ -141,7 +141,7 @@ fn source_owned_list_conversion_matches_222_native_windows() {
             "../../../rust/tcl-syntax/testdata/native_jim_source_list/observations.tsv"
         )
         .lines()
-        .filter(|row| row.split('\t').nth(1) != Some("0"))
+        .filter(|row| tcl_test_support::fixture::tsv_fields(row).nth(1) != Some("0"))
         .collect::<Vec<_>>();
         assert_eq!(expected.len(), 222);
         assert_eq!(observed.lines().collect::<Vec<_>>(), expected);

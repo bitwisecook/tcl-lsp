@@ -59,23 +59,23 @@ fn original_forward_layout_matches_captured_registration_boundaries() {
     let captures = [
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_tcloo_forward_registration/8.4.20/stdout.tsv"),
+            include_str!("../../tests/data/native_tcloo_forward_registration/tcl8.4/stdout.tsv"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_tcloo_forward_registration/8.5.19/stdout.tsv"),
+            include_str!("../../tests/data/native_tcloo_forward_registration/tcl8.5/stdout.tsv"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_tcloo_forward_registration/8.6.18/stdout.tsv"),
+            include_str!("../../tests/data/native_tcloo_forward_registration/tcl8.6/stdout.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_tcloo_forward_registration/9.0.4/stdout.tsv"),
+            include_str!("../../tests/data/native_tcloo_forward_registration/tcl9.0/stdout.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_tcloo_forward_registration/9.1.0/stdout.tsv"),
+            include_str!("../../tests/data/native_tcloo_forward_registration/tcl9.1/stdout.tsv"),
         ),
         (
             "jim",

@@ -259,7 +259,7 @@ fn lattice_text(value: LatticeValue) -> Option<String> {
 fn seeded(text: &str) -> StaticValue {
     tcl_registry::value_transfer::ExactValue::from_literal(text)
         .as_int()
-        .map_or_else(|| StaticValue::Str(text.to_owned()), StaticValue::Int)
+        .map_or_else(|| StaticValue::String(text.to_owned()), StaticValue::Int)
 }
 
 /// Serialises the tests that publish a hook plan: the published plan is the
