@@ -111,7 +111,7 @@ fn native_jim_scripted_dictionary_completion_and_forwarding_observations() {
     let rows = include_str!("../../tests/data/native_jim_dictionary/observations.tsv");
     let mut compared = 0;
     for row in rows.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let [name, code, result, source] = fields.as_slice() else {
             panic!("native observation columns")
         };

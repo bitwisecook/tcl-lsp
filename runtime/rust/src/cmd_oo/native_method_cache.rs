@@ -1039,9 +1039,9 @@ mod original_ownership_tests {
     }
     fn original_record_was_retired(version: &str, case: u8, stage: &str) -> bool {
         let stream = match version {
-            "tcl8.6" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/8.6.18/execute.stdout"),
-            "tcl9.0" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/9.0.4/execute.stdout"),
-            "tcl9.1" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/9.1.0/execute.stdout"),
+            "tcl8.6" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/tcl8.6/execute.stdout"),
+            "tcl9.0" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/tcl9.0/execute.stdout"),
+            "tcl9.1" => include_str!("../../tests/data/native_method_cache_active_call_lifetime_original/506b/providers/tcl9.1/execute.stdout"),
             _ => panic!("fixed original supported provider"),
         };
         let case_key = case.to_string();
@@ -1049,7 +1049,7 @@ mod original_ownership_tests {
             .lines()
             .filter(|row| row.starts_with("ROW\t"))
             .map(|row| {
-                row.split('\t')
+                tcl_test_support::fixture::tsv_fields(row)
                     .skip(1)
                     .filter_map(|field| field.split_once('='))
                     .collect::<BTreeMap<_, _>>()

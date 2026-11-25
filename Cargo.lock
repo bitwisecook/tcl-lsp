@@ -4413,6 +4413,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sslictcl",
  "tcl-syntax",
+ "tcl-test-support",
  "thiserror 2.0.21",
 ]
 
@@ -4929,6 +4930,7 @@ dependencies = [
  "num-traits",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -5030,6 +5032,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -5158,6 +5161,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-test-support",
 ]
 
 [[package]]

@@ -41,7 +41,7 @@ fn array_entry_ledgers_match_all_320_native_table_controls() {
         );
         let mut controls = 0;
         for line in fixture.lines().filter(|line| !line.starts_with('#')) {
-            let row: Vec<_> = line.split('\t').collect();
+            let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let version = match row[0] {
                 "8.4.20" => TclVersion::V8_4,
                 "8.5.19" => TclVersion::V8_5,

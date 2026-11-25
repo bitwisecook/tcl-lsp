@@ -75,7 +75,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
         .lines()
         .filter(|line| line.starts_with("ENTER\t"))
     {
-        let row: Vec<_> = line.split('\t').collect();
+        let row: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         let index: usize = row[1].parse().unwrap();
         let environment = RecordedNumericEnvironment::with_c_integer_abi(
             Ok(NumericErrorState {

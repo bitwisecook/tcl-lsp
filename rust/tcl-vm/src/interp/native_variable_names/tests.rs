@@ -518,7 +518,7 @@ fn original_unset_options_match_66_native_results() {
         ),
     ] {
         for row in rows.lines() {
-            let columns: Vec<_> = row.split('\t').collect();
+            let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let source = String::from_utf8(decode(columns[1])).unwrap();
             // Match the native probe's same-interpreter binary observer.
             let observed = format!(
@@ -596,7 +596,7 @@ fn original_unset_traces_and_operand_order_match_36_native_results() {
         ),
     ] {
         for row in rows.lines() {
-            let columns: Vec<_> = row.split('\t').collect();
+            let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             let completion = vm.try_eval_source_bytes(&decode(columns[1])).unwrap();

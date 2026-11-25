@@ -296,7 +296,7 @@ mod tests {
         for row in
             include_str!("../../../../runtime/rust/tests/data/native_registered_append.tsv").lines()
         {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 7);
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();

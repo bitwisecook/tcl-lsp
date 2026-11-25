@@ -127,31 +127,31 @@ fn fixtures() -> [(&'static str, &'static str); 6] {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/execute.stdout"
+                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/tcl8.4/execute.stdout"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/execute.stdout"
+                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/tcl8.5/execute.stdout"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/execute.stdout"
+                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/tcl8.6/execute.stdout"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/execute.stdout"
+                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/tcl9.0/execute.stdout"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/execute.stdout"
+                    "../../tests/data/native_alias_object_prefix_capture_original/415/providers/tcl9.1/execute.stdout"
                 ),
             ),
             (

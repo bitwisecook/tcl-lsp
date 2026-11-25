@@ -904,7 +904,7 @@ mod tests {
         let mut rows = 0;
         for (dialect, capture) in captures {
             for line in capture.lines() {
-                let fields: Vec<_> = line.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 leak_free_native(
                     tcl_registry::model::resolve_environment(dialect).unit_profile(),
                     |interp| {
@@ -1026,7 +1026,7 @@ mod tests {
         };
         let mut count = 0;
         for row in include_str!("../tests/data/native_array_default/controls.tsv").lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let dialect = match fields[0] {
                 "9.0.4" => "tcl9.0",
                 "9.1.0" => "tcl9.1",
@@ -1056,7 +1056,7 @@ mod tests {
         };
         let mut count = 0;
         for row in include_str!("../tests/data/native_array_default/usage.tsv").lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let dialect = match fields[0] {
                 "9.0.4" => "tcl9.0",
                 "9.1.0" => "tcl9.1",

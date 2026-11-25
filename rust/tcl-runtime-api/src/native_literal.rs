@@ -599,7 +599,7 @@ mod source_literal_tests {
             .lines()
             .skip(1)
         {
-            let columns: Vec<_> = line.split('\t').collect();
+            let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             assert_eq!(columns.len(), 5);
             let version = match columns[0] {
                 "8.4.20" => TclVersion::V8_4,

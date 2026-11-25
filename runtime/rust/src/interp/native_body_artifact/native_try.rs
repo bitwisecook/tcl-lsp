@@ -783,7 +783,7 @@ mod tests {
         ] {
             assert_eq!(observations.lines().count(), 41);
             for (index, case) in cases.lines().enumerate().skip(19) {
-                let (label, source) = case.split_once('\t').unwrap();
+                let (label, source) = tcl_test_support::fixture::tsv_split_once(case).unwrap();
                 let source = bytes(source);
                 let mut interp = super::super::tests::interpreter(profile);
                 let mut declaration = b"proc p {} {".to_vec();
@@ -794,12 +794,10 @@ mod tests {
                     Code::Ok,
                     "{profile} {label}: declaration"
                 );
-                let row = observations
-                    .lines()
-                    .nth(index + 1)
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let row = tcl_test_support::fixture::tsv_fields(
+                    observations.lines().nth(index + 1).unwrap(),
+                )
+                .collect::<Vec<_>>();
                 assert_eq!(row[0].parse::<usize>().unwrap(), index);
                 let code = interp.eval_str(b"p");
                 assert!(

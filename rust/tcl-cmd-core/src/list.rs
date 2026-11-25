@@ -1145,7 +1145,7 @@ mod c86_split_plan_tests {
         let rows = include_str!("../tests/data/native_split_c86/rows.tsv");
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let source = hex(fields[3]);
             let characters = if fields[4] == "DEFAULT" {
                 b" \n\t\r".to_vec()

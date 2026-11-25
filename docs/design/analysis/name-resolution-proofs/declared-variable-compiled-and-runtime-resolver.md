@@ -648,9 +648,9 @@ Current source linkage supplies no execution or assertion credit.
 ## Evidence
 
 - [rust/tcl-vm/tests/data/native_oo_variable_resolver](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver)
-- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20)
-- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19)
-- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18)
-- [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4)
-- [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.4](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.4)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.5](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.5)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.6](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl8.6)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.0](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.0)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.1](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/tcl9.1)
 - [rust/tcl-vm/tests/data/native_oo_variable_resolver/jim](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/jim)

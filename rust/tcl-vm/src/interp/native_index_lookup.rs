@@ -741,7 +741,7 @@ mod tests {
             let original = Value::new_native_string_bytes(b"pro".as_slice());
             let bytes = original.resident_string_bytes().unwrap();
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields.len(), 6);
                 let stage = fields[0];
                 let mut duplicate = None;
@@ -902,7 +902,7 @@ mod tests {
                 original_index_tables(FIELDS, FLAGS_WORDS);
             let mut original = Value::new_native_string_bytes(b"present".as_slice());
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields.len(), 6);
                 let stage = fields[0];
                 let mut flags = Flags::default();

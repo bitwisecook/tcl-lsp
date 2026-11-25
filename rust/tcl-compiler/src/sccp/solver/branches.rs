@@ -20,7 +20,8 @@
 
 use super::super::evaluation::evaluate_branch_under;
 use super::super::{
-    BranchFactKind, BranchFold, ConstantBranch, SelectionRecord, TemplatePlanRecord,
+    BranchFactKind, BranchFold, BranchSelection, ConstantBranch, SelectionRecord,
+    TemplatePlanRecord, branch_has_pending_operands, transfer_terminator,
 };
 use super::TerminatorInputs;
 use super::refinements::{Narrowing, restore_values};
@@ -28,22 +29,12 @@ use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, SsaSourceView, ValueKey};
 use crate::value_transfer::LatticeDriver;
 use std::collections::{HashMap, HashSet};
 use tcl_registry::value_transfer::Existence;
 
-/// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.
-///
-/// Returns `true` when the condition *may still fold* on a later sweep:
-/// some operand defined in this function (SSA exit-version > 0) is still
-/// `Unknown` (not yet computed) and none is `Overdefined`. Such a branch
-/// opens neither arm until either the operand resolves to a constant or an
-/// `Overdefined` operand proves the condition genuinely non-constant.
-///
-/// Operands read at version 0 (proc parameters, globals, and other
-/// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
-/// `Overdefined`, so they are never "not yet computed".
+/// Defer using the optimiser's compatibility-wide SSA read view.
 pub(in super::super) fn branch_deferrable(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
@@ -51,24 +42,13 @@ pub(in super::super) fn branch_deferrable(
     ssa: &SsaFunction,
     grammar: tcl_dialect::LexerGrammar,
 ) -> bool {
-    let mut any_operand = false;
-    let mut any_unknown = false;
-    for name in crate::var_refs::vars_in_expr(condition, grammar) {
-        let Some(sym) = ssa.var_symbol(&name) else {
-            continue;
-        };
-        let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
-        if ver == 0 {
-            continue;
-        }
-        any_operand = true;
-        match values.get(&(sym, ver)) {
-            Some(LatticeValue::Overdefined) => return false,
-            Some(LatticeValue::Unknown) | None => any_unknown = true,
-            _ => {}
-        }
-    }
-    any_operand && any_unknown
+    branch_has_pending_operands(
+        ssa_block,
+        condition,
+        values,
+        SsaSourceView::unpositioned(ssa),
+        grammar,
+    )
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -90,115 +70,41 @@ pub(in super::super) fn sccp_process_terminator(
         exit,
         entry_edges,
     } = *inputs;
-    let mut changed = false;
-    let Some(block) = cfg.blocks.get(&bn) else {
-        return false;
-    };
-    let Some(term) = &block.terminator else {
-        return false;
-    };
-    // A block that certainly raises never reaches its successors: only its
-    // exception edges leave it.
-    match term {
-        _ if !exit.completes => {}
-        Terminator::Goto { target, .. } => {
-            let edge = (bn, *target);
-            if !executable_edges.contains(&edge) {
-                executable_edges.insert(edge);
-                changed = true;
-            }
-            if cfg.blocks.contains_key(target) && executable_blocks.insert(*target) {
-                changed = true;
-            }
-        }
-        Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            span,
-            condition_base,
-            ..
-        } => {
-            let Some(ssa_block) = ssa.blocks.get(&bn) else {
-                return changed;
-            };
-            driver.explaining(*span);
+    // Analysis edges include a loop leaving an exhausted list. Like normal
+    // successors, they are unavailable when the block certainly raises.
+    let analysis = exit
+        .completes
+        .then_some(&cfg.analysis_edges)
+        .into_iter()
+        .flatten();
+    // Entry exceptions open separately when the body can throw before a store.
+    let exceptions = cfg
+        .exception_edges
+        .iter()
+        .filter(|edge| edge.0 == bn && !entry_edges.contains(edge));
+    transfer_terminator(
+        cfg,
+        bn,
+        (executable_blocks, executable_edges),
+        exit.completes,
+        analysis.chain(exceptions),
+        |condition, span, base| {
+            let ssa_block = ssa.blocks.get(&bn)?;
+            driver.explaining(span);
             let decision = evaluate_branch_under(
                 ssa_block,
                 condition,
                 values,
                 ssa,
                 BranchFold { driver },
-                cfg.source_tokens_at(bn, usize::MAX).zip(*condition_base),
+                cfg.source_tokens_at(bn, usize::MAX).zip(base),
             );
             driver.explaining(None);
-            let targets: Vec<BlockId> = match decision {
-                Some(true) => vec![*true_target],
-                Some(false) => vec![*false_target],
-                // Optimistic (Wegman–Zadeck): while the condition may still
-                // fold on a later sweep (a not-yet-computed operand, no
-                // `Overdefined` one), open neither arm and let the fixpoint
-                // retry — this is what detects loop-carried constant
-                // conditions instead of pessimistically opening both arms
-                // forever. The finalising pass forces both arms for any
-                // branch still stuck this way.
-                None if !finalizing
-                    && branch_deferrable(ssa_block, condition, values, ssa, grammar) =>
-                {
-                    Vec::new()
-                }
-                None => vec![*true_target, *false_target],
-            };
-            for tgt in targets {
-                let edge = (bn, tgt);
-                if !executable_edges.contains(&edge) {
-                    executable_edges.insert(edge);
-                    changed = true;
-                }
-                if cfg.blocks.contains_key(&tgt) && executable_blocks.insert(tgt) {
-                    changed = true;
-                }
-            }
-        }
-        // Observed completion has no normal successor and performs no second
-        // operand evaluation. Original block exception edges remain below.
-        Terminator::Return { .. } | Terminator::Complete { .. } => {}
-    }
-    // An analysis edge leaves a block that completes normally for a target
-    // its terminator does not name: the exit of a possible body region, which
-    // a loop leaves when its list is exhausted and a wrapper reaches when its
-    // handler declines the body. Without it, `puts $n` after `foreach v [incr
-    // n] {}` was unreachable and O107 deleted it (tclsh 8.4.20 prints `2`).
-    if exit.completes {
-        for &(from, to) in &cfg.analysis_edges {
-            if from != bn {
-                continue;
-            }
-            if executable_edges.insert((bn, to)) {
-                changed = true;
-            }
-            if cfg.blocks.contains_key(&to) && executable_blocks.insert(to) {
-                changed = true;
-            }
-        }
-    }
-    // `try` exception edges sourced at `bn`: when `bn` is executable the
-    // handler is reachable (a throw can occur in the body).
-    for (from, to) in &cfg.exception_edges {
-        // The edge from the block before a body opens with the body's first
-        // command, which says whether the state before it can be thrown from.
-        if *from != bn || entry_edges.contains(&(bn, *to)) {
-            continue;
-        }
-        let edge = (bn, *to);
-        if executable_edges.insert(edge) {
-            changed = true;
-        }
-        if cfg.blocks.contains_key(to) && executable_blocks.insert(*to) {
-            changed = true;
-        }
-    }
-    changed
+            Some(BranchSelection::of(decision, finalizing, || {
+                branch_deferrable(ssa_block, condition, values, ssa, grammar)
+            }))
+        },
+    )
 }
 
 /// Post-fixpoint sweep that records every reachable branch whose

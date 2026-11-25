@@ -393,7 +393,7 @@ mod tests {
         for (protocol, fixture) in fixtures {
             for row in fixture.lines() {
                 rows += 1;
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 if fields[1] == "unavailable" {
                     assert_eq!(protocol, NativeStringProtocol::C(TclVersion::V8_4));
                     continue;

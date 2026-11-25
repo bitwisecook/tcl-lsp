@@ -2059,5 +2059,5 @@ TclCreateObjCommandInNs(
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources)
 - [rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/original-inputs](../../../../rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/original-inputs)
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request)
-- [rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.4.20](../../../../rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.4.20)
-- [rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.5.19](../../../../rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.5.19)
+- [rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/tcl8.4](../../../../rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/tcl8.4)
+- [rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/tcl8.5](../../../../rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/tcl8.5)

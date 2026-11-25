@@ -23,6 +23,7 @@ use super::{LatticeInputs, place_named, record_binding};
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::expr_ast::ExprNode;
 use crate::ssa::ValueKey;
+use crate::tcl_expr_eval::{FoldPolicy, TclValue, format_tcl_value_with_policy};
 use std::cell::RefCell;
 use tcl_lexer::{LexerConfig, Span};
 use tcl_registry::value_transfer::{
@@ -74,6 +75,16 @@ pub(crate) fn const_into_exact(c: ConstValue) -> ExactValue {
 /// The text a lattice constant renders as, when it is text.
 pub(crate) fn const_text(c: &ConstValue) -> Option<String> {
     String::from_utf8(const_to_exact(c).bytes).ok()
+}
+
+/// Render a lattice constant under the selected native string policy.
+/// Only proved floating precision permits materialising a float's bytes.
+#[must_use]
+pub fn format_constant_with_policy(c: &ConstValue, policy: FoldPolicy) -> Option<String> {
+    if let ConstValue::Float(value) = c {
+        return format_tcl_value_with_policy(&TclValue::Float(*value), policy);
+    }
+    const_text(c)
 }
 
 /// An exact value as a lattice constant: the classification when it has

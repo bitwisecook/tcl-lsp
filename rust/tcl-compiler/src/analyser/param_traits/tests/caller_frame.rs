@@ -76,6 +76,30 @@ fn caller_frame_literal_targets_records_written_and_read_only() {
     assert!(!got.contains_key("mine"));
 }
 
+#[test]
+fn caller_frame_literal_targets_keep_direct_write_order() {
+    for (body, expected) in [
+        (
+            "upvar 1 x v; upvar 1 y v; set v value",
+            HashMap::from([("x".to_owned(), false), ("y".to_owned(), true)]),
+        ),
+        (
+            "upvar 1 x v; set v value; upvar 1 y v",
+            HashMap::from([("x".to_owned(), true), ("y".to_owned(), false)]),
+        ),
+        (
+            "upvar 1 x v; return [set v value]",
+            HashMap::from([("x".to_owned(), false)]),
+        ),
+        ("if {1} {upvar 1 x v; set v value}", HashMap::new()),
+    ] {
+        with_receipt(&[], body, |env| {
+            let facts = infer_param_traits_with_caller_frame(&[], body, env);
+            assert_eq!(facts.caller_frame_literals, expected, "{body}");
+        });
+    }
+}
+
 /// The exclusions: non-caller levels, `::`-qualified cells, array
 /// elements, substituted sources, dynamic locals, `namespace upvar`.
 #[test]

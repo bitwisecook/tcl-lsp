@@ -132,7 +132,7 @@ mod tests {
         };
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(fields[0]),
@@ -179,7 +179,7 @@ mod tests {
         };
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(fields[0]),

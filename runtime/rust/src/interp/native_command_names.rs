@@ -931,7 +931,7 @@ mod tests {
             observer.extend_from_slice(source.trim_ascii());
             observer.extend_from_slice(b"]\nbinary scan $observed H* hex\nset hex");
             assert_eq!(interp.eval_str(&observer), Code::Ok, "{version:?}");
-            let expected = row.split_once('\t').unwrap().1;
+            let expected = tcl_test_support::fixture::tsv_split_once(row).unwrap().1;
             assert_eq!(interp.result_bytes(), expected.as_bytes(), "{version:?}");
             let result = interp
                 .native_namespace_origin_result(b"::selected")

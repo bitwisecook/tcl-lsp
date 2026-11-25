@@ -49,7 +49,7 @@ No observation for this question.
 
 - [rust/tcl-registry/tests/data/native_coroutine_publication/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/probe.c)
 - [rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c)
-- [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr)
-- [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv)
-- [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr)
+- [rust/tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stderr)
+- [rust/tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.1/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.1/stdout.tsv)
+- [rust/tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.1/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/tcl9.1/stderr)

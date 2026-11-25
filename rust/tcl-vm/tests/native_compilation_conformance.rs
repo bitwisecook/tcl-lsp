@@ -722,27 +722,27 @@ fn alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api() 
     for (engine, native) in [
         (
             "tcl8.4",
-            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.4.20/stdout")
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/tcl8.4/stdout")
                 .as_slice(),
         ),
         (
             "tcl8.5",
-            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.5.19/stdout")
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/tcl8.5/stdout")
                 .as_slice(),
         ),
         (
             "tcl8.6",
-            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/8.6.18/stdout")
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/tcl8.6/stdout")
                 .as_slice(),
         ),
         (
             "tcl9.0",
-            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/9.0.4/stdout")
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/tcl9.0/stdout")
                 .as_slice(),
         ),
         (
             "tcl9.1",
-            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/9.1.0/stdout")
+            include_bytes!("../../tcl-registry/tests/data/native_c_alias_holder197/tcl9.1/stdout")
                 .as_slice(),
         ),
         (
@@ -765,35 +765,35 @@ fn child_alias_publication_matches_original_supported_provider_apis() {
         (
             "tcl8.4",
             include_bytes!(
-                "../../tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout"
+                "../../tcl-registry/tests/data/native_child_alias_publication199/tcl8.4/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl8.5",
             include_bytes!(
-                "../../tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout"
+                "../../tcl-registry/tests/data/native_child_alias_publication199/tcl8.5/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl8.6",
             include_bytes!(
-                "../../tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout"
+                "../../tcl-registry/tests/data/native_child_alias_publication199/tcl8.6/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl9.0",
             include_bytes!(
-                "../../tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout"
+                "../../tcl-registry/tests/data/native_child_alias_publication199/tcl9.0/stdout"
             )
             .as_slice(),
         ),
         (
             "tcl9.1",
             include_bytes!(
-                "../../tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout"
+                "../../tcl-registry/tests/data/native_child_alias_publication199/tcl9.1/stdout"
             )
             .as_slice(),
         ),

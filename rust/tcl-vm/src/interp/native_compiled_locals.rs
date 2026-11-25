@@ -1018,7 +1018,7 @@ mod tests {
         include_str!("../../tests/data/native_borrowed_frame_slots/names.tsv")
             .lines()
             .map(|row| {
-                let mut fields = row.split('\t');
+                let mut fields = tcl_test_support::fixture::tsv_fields(row);
                 (
                     fields.next().unwrap(),
                     (unhex(fields.next().unwrap()), unhex(fields.next().unwrap())),
@@ -1035,7 +1035,7 @@ mod tests {
         row: &str,
         actual: &tcl_runtime_api::Completion<Value>,
     ) {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let case = fields[..3].join("/");
         assert_eq!(
             actual.code.as_int(),
@@ -1115,7 +1115,7 @@ mod tests {
             assert_eq!(rows.len(), 40);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             for pair in rows.as_chunks::<2>().0 {
-                let fields = pair[0].split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(pair[0]).collect::<Vec<_>>();
                 let (first, second) = &names[fields[0]];
                 let duplicate = fields[1] == "two-original-formals";
                 let case = format!("{}/{}", fields[0], fields[1]);
@@ -1548,7 +1548,7 @@ mod tests {
 
     fn check_compiled_dictionary_epilogue(engine: &str, row: &str) {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let (family, action) = fields[0].split_once('-').unwrap();
         let body = match action {
             "normal" => "set ignored OK",
@@ -1679,7 +1679,7 @@ mod tests {
         let mut compared = 0;
         for (engine, expected) in engines {
             for row in expected.lines() {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 check_compiled_dictionary_epilogue(engine, row);
                 compared += 1;
                 tcl_test_support::oracle_row_progress(

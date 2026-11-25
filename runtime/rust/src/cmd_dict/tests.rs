@@ -67,7 +67,7 @@ fn dictionary_receiver_and_defaults_match_original_native_scripts() {
     }
     let mut measured = 0;
     for row in include_str!("../../tests/data/native_dictionary_receiver/controls.tsv").lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(fields.len(), 4);
         let version = match fields[0] {
             "8.5.19" => tcl_dialect::TclVersion::V8_5,

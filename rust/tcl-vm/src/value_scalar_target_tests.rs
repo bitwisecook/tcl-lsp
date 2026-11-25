@@ -203,30 +203,30 @@ fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fiel
         (
             tcl_dialect::TclVersion::V8_5,
             include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.5/execute-live.stdout"
             ),
         ),
         (
             tcl_dialect::TclVersion::V8_6,
             include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.6/execute-live.stdout"
             ),
         ),
         (
             tcl_dialect::TclVersion::V9_0,
             include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.0/execute-live.stdout"
             ),
         ),
         (
             tcl_dialect::TclVersion::V9_1,
             include_str!(
-                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
+                "../../tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.1/execute-live.stdout"
             ),
         ),
     ];
     fn field<'a>(row: &'a str, key: &str) -> &'a str {
-        row.split('\t')
+        tcl_test_support::fixture::tsv_fields(row)
             .find_map(|part| {
                 let (name, value) = part.split_once('=')?;
                 (name == key).then_some(value)

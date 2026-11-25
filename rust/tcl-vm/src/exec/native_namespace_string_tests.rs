@@ -572,31 +572,31 @@ fn tail_windows() -> [(&'static str, &'static str); 5] {
         (
             "tcl8.4",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.4.20/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.5.19/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl9.1/stdout.tsv"
             ),
         ),
     ]
@@ -607,31 +607,31 @@ fn qualifiers_windows() -> [(&'static str, &'static str); 6] {
         (
             "tcl8.4",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.1/stdout.tsv"
             ),
         ),
         (
@@ -648,31 +648,31 @@ fn empty_append_windows() -> [(&'static str, &'static str); 5] {
         (
             "tcl8.4",
             include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.4.20/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_empty_counted_append/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.5.19/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_empty_counted_append/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_empty_counted_append/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_empty_counted_append/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_empty_counted_append/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_empty_counted_append/tcl9.1/stdout.tsv"
             ),
         ),
     ]

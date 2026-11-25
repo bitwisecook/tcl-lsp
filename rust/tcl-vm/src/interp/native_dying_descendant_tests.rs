@@ -136,31 +136,31 @@ const DYING_DESCENDANT_ROWS: [(tcl_dialect::TclVersion, &str); 5] = [
     (
         tcl_dialect::TclVersion::V8_4,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.4.20/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.4/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V8_5,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.5.19/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.5/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V8_6,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/8.6.18/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.6/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V9_0,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.0.4/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.0/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V9_1,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/9.1.0/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.1/stdout.tsv"
         ),
     ),
 ];

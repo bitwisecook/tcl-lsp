@@ -334,7 +334,7 @@ fn fixture_row(fixture: &str, case: usize, getter: usize) -> BTreeMap<&str, &str
         .lines()
         .filter(|row| row.starts_with("ROW\t"))
         .map(|row| {
-            row.split('\t')
+            tcl_test_support::fixture::tsv_fields(row)
                 .skip(1)
                 .filter_map(|field| field.split_once('='))
                 .collect::<BTreeMap<_, _>>()
@@ -479,46 +479,46 @@ fn scalar_public_facade_matches_recorded_live_and_null_c_primitives() {
         (
             "tcl8.4",
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-live.stdout"
             ),
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.4/execute-null.stdout"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-live.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.5/execute-live.stdout"
             ),
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.5.19/execute-null.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.5/execute-null.stdout"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-live.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.6/execute-live.stdout"
             ),
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/8.6.18/execute-null.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl8.6/execute-null.stdout"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-live.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.0/execute-live.stdout"
             ),
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.0.4/execute-null.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.0/execute-null.stdout"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-live.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.1/execute-live.stdout"
             ),
             include_str!(
-                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/9.1.0/execute-null.stdout"
+                "../../../../../rust/tcl-registry/tests/data/native_capi_scalar_publication_original/tcl9.1/execute-null.stdout"
             ),
         ),
     ];

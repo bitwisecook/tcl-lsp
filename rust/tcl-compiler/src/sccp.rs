@@ -33,8 +33,9 @@ use tcl_registry::value_transfer::{
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ssa::{SsaFunction, Symbol, ValueKey};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::expr_ast::ExprNode;
+use crate::ssa::{SsaBlock, SsaFunction, SsaSourceView, Symbol, ValueKey};
 use crate::tcl_expr_eval::FoldPolicy;
 use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
@@ -111,6 +112,121 @@ fn incoming_executable_predecessors(
         .copied()
         .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
         .collect()
+}
+
+enum BranchSelection {
+    Taken(bool),
+    Both,
+    Deferred,
+}
+
+impl BranchSelection {
+    /// An undecided condition may gain a value during the optimistic sweep.
+    /// The finalising sweep opens both arms of every remaining undecided branch.
+    fn of(decision: Option<bool>, finalizing: bool, pending: impl FnOnce() -> bool) -> Self {
+        match decision {
+            Some(taken) => Self::Taken(taken),
+            None if !finalizing && pending() => Self::Deferred,
+            None => Self::Both,
+        }
+    }
+}
+
+/// Test whether a local operand is still pending and none is overdefined.
+/// For a positioned read, a missing cell or version cannot justify waiting.
+fn branch_has_pending_operands(
+    block: &SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+    source: SsaSourceView<'_>,
+    grammar: tcl_dialect::LexerGrammar,
+) -> bool {
+    let mut pending = false;
+    for name in crate::var_refs::vars_in_expr(condition, grammar) {
+        let (symbol, version) = if source.is_positioned() {
+            let Some(read) = source.read_spelling(&name) else {
+                return false;
+            };
+            let Some(version) = read.version else {
+                return false;
+            };
+            (read.symbol, version)
+        } else {
+            let Some(symbol) = source.symbol(&name) else {
+                continue;
+            };
+            (
+                symbol,
+                block.exit_versions.get(&symbol).copied().unwrap_or(0),
+            )
+        };
+        // Version-zero live-ins were settled when the solver entered the function.
+        if version == 0 {
+            continue;
+        }
+        match values.get(&(symbol, version)) {
+            Some(LatticeValue::Overdefined) => return false,
+            Some(LatticeValue::Unknown) | None => pending = true,
+            _ => {}
+        }
+    }
+    pending
+}
+
+/// Open the normal successors and the purpose's admitted additional edges.
+/// The evaluator supplies the branch choice, or declines the block when its
+/// branch has no matching SSA block.
+fn transfer_terminator<'a>(
+    cfg: &CfgFunction,
+    from: BlockId,
+    (blocks, edges): (&mut HashSet<BlockId>, &mut HashSet<(BlockId, BlockId)>),
+    completes: bool,
+    additional: impl Iterator<Item = &'a (BlockId, BlockId)>,
+    branch: impl FnOnce(&ExprNode, Option<tcl_lexer::Span>, Option<u32>) -> Option<BranchSelection>,
+) -> bool {
+    let Some(terminator) = cfg
+        .blocks
+        .get(&from)
+        .and_then(|block| block.terminator.as_ref())
+    else {
+        return false;
+    };
+    let mut open = |target| {
+        let new_edge = edges.insert((from, target));
+        let new_block = cfg.blocks.contains_key(&target) && blocks.insert(target);
+        new_edge || new_block
+    };
+    let mut changed = false;
+    if completes {
+        match terminator {
+            Terminator::Goto { target, .. } => changed |= open(*target),
+            Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                span,
+                condition_base,
+                ..
+            } => match branch(condition, *span, *condition_base) {
+                Some(BranchSelection::Taken(taken)) => {
+                    changed |= open(if taken { *true_target } else { *false_target });
+                }
+                Some(BranchSelection::Both) => {
+                    changed |= open(*true_target);
+                    changed |= open(*false_target);
+                }
+                Some(BranchSelection::Deferred) => {}
+                None => return false,
+            },
+            Terminator::Return { .. } | Terminator::Complete { .. } => {}
+        }
+    }
+    for &(source, target) in additional {
+        if source == from {
+            changed |= open(target);
+        }
+    }
+    changed
 }
 
 // Lattice join

@@ -1068,7 +1068,7 @@ mod tests {
                 .lines()
                 .find(|row| row.starts_with(version))
                 .unwrap();
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let mut vm = native_vm(profile);
             assert_eq!(
                 vm.eval_source("proc p {} {error FIRST_ERROR_LONG}")
@@ -1131,13 +1131,12 @@ mod tests {
 
     #[test]
     fn syntax_compiler_reset_publishes_original_without_a_global_literal_owner() {
-        let native = include_str!(
+        let native = tcl_test_support::fixture::tsv_fields(include_str!(
             "../../../tcl-registry/tests/data/native_control_expression/syntax-lifecycle-9.1.0.tsv"
         )
         .lines()
         .find(|line| line.starts_with("0\tcompiled\t"))
-        .unwrap()
-        .split('\t')
+        .unwrap())
         .collect::<Vec<_>>();
         let mut vm = native_vm("tcl9.1");
         let mut literals = tcl_bytecode::LiteralTable::new();
@@ -1432,7 +1431,7 @@ mod tests {
 
     fn check_c84_code_controls(controls: &str, sources: &[(&str, &str)]) {
         for row in controls.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let source = sources
                 .iter()
                 .find(|(name, _)| *name == fields[0])
@@ -1719,7 +1718,7 @@ mod tests {
                 .lines()
                 .find(|line| line.starts_with(label))
                 .unwrap();
-            line.split('\t')
+            tcl_test_support::fixture::tsv_fields(line)
                 .find_map(|field| field.strip_prefix("info_refs="))
                 .unwrap()
                 .parse::<usize>()

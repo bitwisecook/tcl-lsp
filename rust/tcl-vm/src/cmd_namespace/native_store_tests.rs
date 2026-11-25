@@ -33,31 +33,31 @@ const NAMESPACE_STORE_ROWS: [(&str, &str); 6] = [
     (
         "tcl8.4",
         include_str!(
-            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stdout"
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.4/namespace.stdout"
         ),
     ),
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stdout"
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.5/namespace.stdout"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stdout"
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.6/namespace.stdout"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stdout"
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.0/namespace.stdout"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stdout"
+            "../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.1/namespace.stdout"
         ),
     ),
     (

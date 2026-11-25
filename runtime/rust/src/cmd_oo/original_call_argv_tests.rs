@@ -33,7 +33,7 @@ fn native_detail(version: &str, purpose: &str, stage: &str, field: &str) -> usiz
     include_str!("../../tests/data/native_call_argv/observations.tsv")
         .lines()
         .find_map(|row| {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             if fields.first() == Some(&release)
                 && fields.get(1) == Some(&purpose)
                 && fields.get(2) == Some(&stage)

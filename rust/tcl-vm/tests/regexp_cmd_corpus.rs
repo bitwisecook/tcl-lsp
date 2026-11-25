@@ -95,7 +95,7 @@ fn parse_corpus() -> Vec<Case> {
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| {
-            let f: Vec<&str> = l.split('\t').collect();
+            let f: Vec<&str> = tcl_test_support::fixture::tsv_fields(l).collect();
             Case {
                 name: f[0].to_string(),
                 constraints: f.get(1).unwrap_or(&"").to_string(),

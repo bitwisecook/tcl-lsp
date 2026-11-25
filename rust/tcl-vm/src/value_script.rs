@@ -452,7 +452,7 @@ mod tests {
         for input in
             include_str!("../../tcl-syntax/testdata/native_jim_script_objects/inputs.tsv").lines()
         {
-            let (case, hex) = input.split_once('\t').unwrap();
+            let (case, hex) = tcl_test_support::fixture::tsv_split_once(input).unwrap();
             observe_script_input(case, hex, dialect, config, &mut observed);
         }
         let context = NativeJimObjectContext::new(dialect).unwrap();

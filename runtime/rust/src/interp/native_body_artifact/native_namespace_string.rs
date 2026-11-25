@@ -142,31 +142,31 @@ mod tests {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/8.4.20/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/tcl8.4/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/8.5.19/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/tcl8.5/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/8.6.18/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/tcl8.6/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/9.0.4/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/tcl9.0/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/9.1.0/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_string_compilation/tcl9.1/stdout.tsv"
                 ),
             ),
         ] {
@@ -276,31 +276,31 @@ mod tests {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.4/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.5/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.6/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.0/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv"
+                    "../../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.1/stdout.tsv"
                 ),
             ),
             (

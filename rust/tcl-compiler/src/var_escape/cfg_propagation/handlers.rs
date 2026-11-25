@@ -30,8 +30,9 @@
 use std::collections::HashMap;
 use tcl_registry::InvocationFacts;
 
-use tcl_registry::{ArgRole, CallerFrameSelection, OwnedSubcommandResolution, VariableAliasTarget};
+use tcl_registry::{ArgRole, OwnedSubcommandResolution};
 
+use crate::cfg_builder::frame_effects::escape::{AliasEscape, CallerSource};
 use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
 #[cfg(test)]
@@ -55,23 +56,13 @@ pub(crate) fn handle_normal_variable_aliases(
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) -> bool {
-    apply_variable_aliases(normal.variable_alias_transitions(), state, defs, |level| {
-        normal.variable_alias_frame_level(&CallerFrameSelection::Explicit(
-            tcl_registry::TransitionSubject::Literal(level.to_owned()),
-        ))
-    })
-}
-
-fn apply_variable_aliases<'a>(
-    aliases: impl Iterator<Item = &'a tcl_registry::VariableCellAliasTransition>,
-    state: &mut CfgState,
-    defs: &HashMap<String, Version>,
-    parse_level: impl Fn(&str) -> Option<tcl_registry::FrameLevel>,
-) -> bool {
+    let aliases = normal.variable_alias_transitions().map(|alias| {
+        AliasEscape::from_transition(alias, |frame, _| normal.variable_alias_frame_level(frame))
+    });
     let mut handled = false;
     for alias in aliases {
         handled = true;
-        let Some(local) = alias.local.literal() else {
+        let Some(local) = alias.local else {
             state.escape_all_known(defs);
             continue;
         };
@@ -83,30 +74,17 @@ fn apply_variable_aliases<'a>(
                 format!("variable alias binds {local}"),
             ),
         );
-        let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
-            continue;
-        };
-        let targets_caller = match frame {
-            CallerFrameSelection::DefaultCaller => true,
-            CallerFrameSelection::Explicit(level) => {
-                let Some(level) = level.literal() else {
-                    state.record_barrier(Barrier::with_detail(
-                        BarrierKind::Upvar,
-                        "variable alias has dynamic frame selection",
-                    ));
-                    state.record_unbounded_upvar();
-                    continue;
-                };
-                parse_level(level)
-                    .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
-            }
-        };
-        if targets_caller {
-            if let Some(variable) = variable.literal() {
-                state.record_upvar_source(variable);
-            } else {
+        match alias.source {
+            CallerSource::None => {}
+            CallerSource::DynamicFrame => {
+                state.record_barrier(Barrier::with_detail(
+                    BarrierKind::Upvar,
+                    "variable alias has dynamic frame selection",
+                ));
                 state.record_unbounded_upvar();
             }
+            CallerSource::DynamicName => state.record_unbounded_upvar(),
+            CallerSource::Literal(name) => state.record_upvar_source(name),
         }
     }
     handled

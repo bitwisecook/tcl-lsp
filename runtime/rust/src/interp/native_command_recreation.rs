@@ -101,35 +101,35 @@ mod tests {
             "tcl8.4",
             "8.4.20",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.stdout"
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/tcl8.4/execute.stdout"
             ),
         ),
         (
             "tcl8.5",
             "8.5.19",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.stdout"
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/tcl8.5/execute.stdout"
             ),
         ),
         (
             "tcl8.6",
             "8.6.18",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.stdout"
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/tcl8.6/execute.stdout"
             ),
         ),
         (
             "tcl9.0",
             "9.0.4",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.stdout"
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/tcl9.0/execute.stdout"
             ),
         ),
         (
             "tcl9.1",
             "9.1.0",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.stdout"
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/tcl9.1/execute.stdout"
             ),
         ),
         (
@@ -286,7 +286,7 @@ mod tests {
         let prefix = format!("ROW\tcase={case}\tstage={stage}\t");
         let row = rows.lines().find(|row| row.starts_with(&prefix)).unwrap();
         let field = |name: &str| {
-            row.split('\t')
+            tcl_test_support::fixture::tsv_fields(row)
                 .find_map(|field| field.strip_prefix(name))
                 .unwrap()
                 .parse::<u64>()

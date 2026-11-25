@@ -119,7 +119,7 @@ pub fn inline_variable(
     let new_text = if ctx.word_is_single {
         value_text.to_owned()
     } else {
-        interpolated_value_source(value_word, &ctx.word, ctx.reference)?
+        interpolated_value_source(value_word, ctx.word(), ctx.reference)?
     };
 
     let replace = RefactorEdit {
@@ -135,14 +135,15 @@ pub fn inline_variable(
         data_group: None,
         disabled: None,
     };
+    let postimage = checked_inline_postimage(source, &action, &ctx, current.config())?;
     if analysis.allows_lexical_declaration_advice() {
         return LogicalVariableInliningRecipe::capture(
             source,
             analysis,
             &cmd,
             &var_name,
-            (ref_span, value_word, &ctx.word),
-            action,
+            (ref_span, value_word, ctx.word()),
+            (action, postimage),
         )?
         .into_source_action(source, analysis);
     }
@@ -185,9 +186,10 @@ impl LogicalVariableInliningRecipe {
         command: &SegmentedCommand,
         name: &str,
         substitution: (Span, &tcl_lexer::NativeWord, &tcl_lexer::NativeWord),
-        action: Refactoring,
+        checked: (Refactoring, tcl_lexer::SourceImage),
     ) -> Option<Self> {
         let (reference, rhs, receiver) = substitution;
+        let (action, postimage) = checked;
         let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
         let input = analysis.resolved_input.as_ref()?;
         if !input.has_logical_source_name_context() {
@@ -197,7 +199,7 @@ impl LogicalVariableInliningRecipe {
         let walk = super::FrameWalk::new(source, analysis)?;
         let setter = walk.source_words(source, command)?;
         let actual_read = reference_context(source, reference.start(), name, analysis, &walk)?;
-        if &actual_read.word != receiver {
+        if actual_read.word() != receiver {
             return None;
         }
         let replacement = actual_read.reference;
@@ -230,54 +232,12 @@ impl LogicalVariableInliningRecipe {
         // The authored recipe does not move RHS evaluation across another
         // source statement or earlier dynamic operand in the receiver call.
         // The actual original region/word owners supply both inventories.
-        let read_command = super::find_original_command_at(source, reference.start(), analysis)?;
-        let (read_start, _) = walk.command_span_offsets(source, &read_command)?;
-        source_read_follows_setter(source, analysis, &walk, command, &read_command)?;
-        let read_words = walk.native_words(source, &read_command)?;
-        let receiver_index = read_words.iter().position(|word| word == receiver)?;
-        require_static_receiver_prefix(&read_words, receiver_index)?;
+        source_read_follows_setter(source, analysis, &walk, command, &actual_read.command)?;
+        require_static_receiver_prefix(&actual_read.words, actual_read.receiver_index)?;
         // A source-history gate, not a proof that no runtime observer exists:
         // require complete selected command inventory and refuse authored
         // reflection, trace, scope-alias and dynamic-evaluation operations.
         require_supported_inline_source_history(source, analysis, &walk)?;
-        // Validate the exact proposed receiver invocation in its original
-        // nested grammar. A complete document alone would not parse script
-        // text inside a braced procedure body. Preserve the whole argv topology
-        // and every unedited original word; offsets here are presentation only.
-        let (_, read_end) = walk.command_span_offsets(source, &read_command)?;
-        let replace = action
-            .edits
-            .iter()
-            .find(|edit| edit.start == replacement.start() && edit.end == replacement.end())?;
-        let mut proposed_call = source
-            .get(usize::try_from(read_start).ok()?..usize::try_from(read_end).ok()?)?
-            .to_owned();
-        let local_start = usize::try_from(replacement.start().checked_sub(read_start)?).ok()?;
-        let local_end = usize::try_from(replacement.end().checked_sub(read_start)?).ok()?;
-        proposed_call.replace_range(local_start..local_end, &replace.new_text);
-        let call_image = tcl_lexer::SourceImage::document(&proposed_call);
-        let call_plan = tcl_lexer::native_script_words_in_with_purpose(
-            call_image,
-            Span::new(0, u32::try_from(proposed_call.len()).ok()?),
-            current.config(),
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        )
-        .ok()?;
-        validate_inline_receiver_postimage(&call_plan, &read_words, receiver_index)?;
-        // This is the complete actual proposed source, not an evaluated value.
-        // Shared lexer/group/word ownership validates all enclosing grammar,
-        // including delimiters around the replacement and removed statement.
-        let proposed = action.try_apply(source).ok()?;
-        let postimage = tcl_lexer::SourceImage::document(&proposed);
-        let post = tcl_lexer::native_script_words_in(
-            postimage.clone(),
-            Span::new(0, u32::try_from(proposed.len()).ok()?),
-            current.config(),
-        )
-        .ok()?;
-        if post.fatal_tail.is_some() || action.edits.len() != 2 {
-            return None;
-        }
         Some(Self {
             image,
             input: input.clone(),
@@ -665,7 +625,15 @@ fn value_read_binding(
 struct RefContext {
     reference: Span,
     word_is_single: bool,
-    word: tcl_lexer::NativeWord,
+    command: SegmentedCommand,
+    words: Vec<tcl_lexer::NativeWord>,
+    receiver_index: usize,
+}
+
+impl RefContext {
+    fn word(&self) -> &tcl_lexer::NativeWord {
+        &self.words[self.receiver_index]
+    }
 }
 
 /// Reborrow the single original reference and containing whole word. Child
@@ -709,11 +677,14 @@ fn reference_context(
     }) {
         return None;
     }
+    let word_is_single =
+        command.single_token_word.get(index).copied()? && word.span() == reference.span;
     Some(RefContext {
         reference: reference.span,
-        word_is_single: command.single_token_word.get(index).copied()?
-            && word.span() == reference.span,
-        word: word.clone(),
+        word_is_single,
+        command,
+        words,
+        receiver_index: index,
     })
 }
 
@@ -880,6 +851,59 @@ fn require_static_receiver_prefix(
         return None;
     }
     Some(())
+}
+
+/// Retain the complete applied source and reparse the substituted command
+/// separately so a braced containing script cannot hide malformed syntax.
+fn checked_inline_postimage(
+    source: &str,
+    action: &Refactoring,
+    receiver: &RefContext,
+    config: LexerConfig,
+) -> Option<tcl_lexer::SourceImage> {
+    let [delete, replace] = action.edits.as_slice() else {
+        return None;
+    };
+    let read_start = receiver.words.first()?.span().start();
+    let read_end = receiver.words.last()?.span().end();
+    if !delete.new_text.is_empty()
+        || replace.start != receiver.reference.start()
+        || replace.end != receiver.reference.end()
+        || replace.start < read_start
+        || read_end < replace.end
+    {
+        return None;
+    }
+    let proposed = action.try_apply(source).ok()?;
+    let erased_before = if delete.end <= read_start {
+        delete.end - delete.start
+    } else if read_end <= delete.start {
+        0
+    } else {
+        return None;
+    };
+    let start = read_start.checked_sub(erased_before)?;
+    let replaced = replace.end - replace.start;
+    let end = read_end
+        .checked_sub(erased_before)?
+        .checked_sub(replaced)?
+        .checked_add(u32::try_from(replace.new_text.len()).ok()?)?;
+    let postimage = tcl_lexer::SourceImage::document(&proposed);
+    let call_plan = tcl_lexer::native_script_words_in_with_purpose(
+        postimage.clone(),
+        Span::new(start, end),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    validate_inline_receiver_postimage(&call_plan, &receiver.words, receiver.receiver_index)?;
+    let post = tcl_lexer::native_script_words_in(
+        postimage.clone(),
+        Span::new(0, u32::try_from(proposed.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    post.fatal_tail.is_none().then_some(postimage)
 }
 
 fn validate_inline_receiver_postimage(
@@ -1384,6 +1408,27 @@ mod logical_inline_source_intent_tests {
             authored(source).unwrap().try_apply(source).unwrap(),
             "puts pre-VALUE-post"
         );
+    }
+
+    #[test]
+    fn inline_postimage_refuses_malformed_or_changed_receiver_words() {
+        let source = "set held VALUE\nputs $held";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let offset = u32::try_from(source.find("$held").unwrap()).unwrap();
+        let receiver = reference_context(source, offset, "held", &analysis, &walk).unwrap();
+        let action = authored(source).unwrap();
+        assert!(checked_inline_postimage(source, &action, &receiver, walk.config).is_some());
+
+        for replacement in ["VALUE extra", "{*}{VALUE}", "\"unterminated"] {
+            let mut malformed = action.clone();
+            malformed.edits[1].new_text = replacement.to_owned();
+            assert!(malformed.try_apply(source).is_ok());
+            assert!(
+                checked_inline_postimage(source, &malformed, &receiver, walk.config).is_none(),
+                "{replacement}"
+            );
+        }
     }
 
     #[test]

@@ -1428,11 +1428,13 @@ mod native_fixture_tests {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             assert_eq!(CASES.lines().count(), expected.lines().count());
             for (input, expected) in CASES.lines().zip(expected.lines()) {
-                let (name, source) = input.split_once('\t').unwrap();
-                let mut wanted = expected.splitn(3, '\t');
-                assert_eq!(wanted.next().unwrap(), name);
-                let code: i64 = wanted.next().unwrap().parse().unwrap();
-                let result = bytes_from_hex(wanted.next().unwrap());
+                let (name, source) = tcl_test_support::fixture::tsv_split_once(input).unwrap();
+                let (expected_name, remainder) =
+                    tcl_test_support::fixture::tsv_split_once(expected).unwrap();
+                assert_eq!(expected_name, name);
+                let (code, result) = tcl_test_support::fixture::tsv_split_once(remainder).unwrap();
+                let code: i64 = code.parse().unwrap();
+                let result = bytes_from_hex(result);
                 let source = bytes_from_hex(source);
                 // Retain genuine core/bootstrap and compiler owners for this native expectation.
                 let mut vm = crate::native_fixture::interpreter(profile);

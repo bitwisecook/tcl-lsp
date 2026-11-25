@@ -46,7 +46,7 @@ fn actual_native_c86_split_preserves_18_raw_rows_and_result_ownership() {
             include_str!("../../../../rust/tcl-cmd-core/tests/data/native_split_c86/rows.tsv");
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let mut interp = native();
             let original_bytes = hex(fields[2]);
             let input = obj::Owned::fresh(if fields[1] == "binary" {

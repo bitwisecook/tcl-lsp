@@ -33,10 +33,13 @@
 //!
 //! `unbounded_upvar_source` propagates the same way.
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 use std::hash::BuildHasher;
 
+use crate::cfg_builder::frame_effects::escape::{
+    EscapeFrameSources, transitive_escape_frame_sources,
+};
 use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
 
 /// Exact retained source-call edges; labels carry no body-selection authority.
@@ -210,8 +213,21 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         })
         .collect();
 
-    let (transitive_sources, transitive_unbounded) =
-        propagate_transitive_sources(summaries, &resolved_callees);
+    let mut transitive_sources = transitive_escape_frame_sources(
+        summaries
+            .iter()
+            .map(|(&id, summary)| {
+                (
+                    id,
+                    EscapeFrameSources {
+                        names: summary.upvar_source_names.clone(),
+                        unbounded: summary.unbounded_upvar_source(),
+                    },
+                )
+            })
+            .collect(),
+        &resolved_callees,
+    );
 
     // Final `has_fallback` = intraproc has_fallback | (has_call_fallback &
     // not all-callees-resolve).
@@ -224,14 +240,15 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
     // Materialise the final per-proc summary.
     let mut result: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> = HashMap::new();
     for (qname, summary) in summaries {
-        let sources = transitive_sources[qname].clone();
-        let unbounded = transitive_unbounded[qname];
-        let pessimistic = unbounded && !summary.dynamic_barrier();
-        let mut new_summary = summary.with_escapes(sources.iter().cloned(), pessimistic);
-        new_summary.upvar_source_names = sources.into_iter().collect::<BTreeSet<_>>();
+        let sources = transitive_sources
+            .remove(qname)
+            .expect("source effects for every summary");
+        let pessimistic = sources.unbounded && !summary.dynamic_barrier();
+        let mut new_summary = summary.with_escapes(sources.names.iter().cloned(), pessimistic);
+        new_summary.upvar_source_names = sources.names;
         new_summary
             .flags
-            .set(EscapeFlags::UNBOUNDED_UPVAR_SOURCE, unbounded);
+            .set(EscapeFlags::UNBOUNDED_UPVAR_SOURCE, sources.unbounded);
         new_summary
             .flags
             .set(EscapeFlags::HAS_FALLBACK, downgraded_fallback[qname]);
@@ -240,69 +257,6 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
 
     downgrade_non_pure_leaf_callers(&mut result, graph);
     result
-}
-
-/// Worklist fixpoint that flows each proc's `upvar` source set (and the
-/// unbounded-source flag) up to every transitive caller. Returns the
-/// per-proc transitive source set and unbounded flag.
-fn propagate_transitive_sources<S: BuildHasher>(
-    summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
-    resolved_callees: &HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>>,
-) -> (
-    HashMap<tcl_core_types::BodyFrameId, HashSet<String>>,
-    HashMap<tcl_core_types::BodyFrameId, bool>,
-) {
-    let mut transitive_sources: HashMap<tcl_core_types::BodyFrameId, HashSet<String>> = summaries
-        .iter()
-        .map(|(k, s)| (*k, s.upvar_source_names.iter().cloned().collect()))
-        .collect();
-    let mut transitive_unbounded: HashMap<tcl_core_types::BodyFrameId, bool> = summaries
-        .iter()
-        .map(|(k, s)| (*k, s.unbounded_upvar_source()))
-        .collect();
-
-    // Reverse edges: qname → set of qnames that call it.
-    let mut callers_of: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>> =
-        summaries.keys().map(|k| (*k, HashSet::new())).collect();
-    for (qname, callees) in resolved_callees {
-        for callee in callees {
-            callers_of.entry(*callee).or_default().insert(*qname);
-        }
-    }
-
-    let mut worklist: VecDeque<tcl_core_types::BodyFrameId> = summaries.keys().copied().collect();
-    let mut in_worklist: HashSet<tcl_core_types::BodyFrameId> = summaries.keys().copied().collect();
-    while let Some(qname) = worklist.pop_front() {
-        in_worklist.remove(&qname);
-        let current_sources = transitive_sources[&qname].clone();
-        let current_unbounded = transitive_unbounded[&qname];
-        let callers = callers_of.get(&qname).cloned().unwrap_or_default();
-        for caller in callers {
-            let mut changed = false;
-            let caller_set = transitive_sources
-                .get_mut(&caller)
-                .expect("caller in summaries");
-            for s in &current_sources {
-                if caller_set.insert(s.clone()) {
-                    changed = true;
-                }
-            }
-            if current_unbounded {
-                let cu = transitive_unbounded
-                    .get_mut(&caller)
-                    .expect("caller in summaries");
-                if !*cu {
-                    *cu = true;
-                    changed = true;
-                }
-            }
-            if changed && !in_worklist.contains(&caller) {
-                worklist.push_back(caller);
-                in_worklist.insert(caller);
-            }
-        }
-    }
-    (transitive_sources, transitive_unbounded)
 }
 
 /// Transitive `pure_leaf` fixpoint. A proc stays `pure_leaf` only
@@ -443,6 +397,26 @@ mod tests {
         let r = fixture_solve(&s);
         assert!(r["::a"].upvar_source_names.contains("x"));
         assert!(r["::b"].upvar_source_names.contains("x"));
+    }
+
+    #[test]
+    fn named_and_unbounded_sources_survive_the_same_transitive_cycle() {
+        let first = summary(&["::second"], &["named"]);
+        let mut second = summary(&["::first"], &[]);
+        second.flags.insert(EscapeFlags::UNBOUNDED_UPVAR_SOURCE);
+        let summaries = HashMap::from([
+            ("::caller".to_owned(), summary(&["::first"], &[])),
+            ("::first".to_owned(), first),
+            ("::second".to_owned(), second),
+            ("::unrelated".to_owned(), summary(&[], &[])),
+        ]);
+        let result = fixture_solve(&summaries);
+        for body in ["::caller", "::first", "::second"] {
+            assert!(result[body].upvar_source_names.contains("named"), "{body}");
+            assert!(result[body].unbounded_upvar_source(), "{body}");
+        }
+        assert!(result["::unrelated"].upvar_source_names.is_empty());
+        assert!(!result["::unrelated"].unbounded_upvar_source());
     }
 
     #[test]

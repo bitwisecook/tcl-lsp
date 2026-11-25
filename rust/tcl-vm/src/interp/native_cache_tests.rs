@@ -40,11 +40,7 @@ fn invoke(vm: &mut Vm, command: &str, arguments: &[&str]) -> Code {
 }
 
 fn native_epoch_baseline(reports: &str) -> u64 {
-    reports
-        .lines()
-        .nth(1)
-        .unwrap()
-        .split('\t')
+    tcl_test_support::fixture::tsv_fields(reports.lines().nth(1).unwrap())
         .nth(2)
         .unwrap()
         .parse::<u64>()
@@ -156,7 +152,7 @@ fn file_worker_runtime_headers_match_all_190_original_native_snapshots() {
     for (engine, fixture) in fixtures {
         let vm = native_vm(engine);
         for row in fixture.lines().skip(1) {
-            let (identity, native_hook) = row.split_once('\t').unwrap();
+            let (identity, native_hook) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
             assert_eq!(
                 raw_hook(&vm, identity.trim_start_matches("::")),
                 native_hook.parse::<i32>().unwrap(),
@@ -296,7 +292,7 @@ fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
         let mut baseline = None;
         let native_baseline = native_epoch_baseline(reports);
         for row in reports.lines().skip(1) {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let event = fields[0];
             let code = match event {
                 "import_absent" | "import_present" => {
@@ -827,7 +823,7 @@ fn compiler_and_resolver_epochs_match_all_87_original_native_mutation_rows() {
         let native_baseline = native_epoch_baseline(reports);
         let mut namespace = None;
         for row in reports.lines().skip(1) {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let event = fields[0];
             let code = apply_compiler_epoch_event(&mut vm, &mut namespace, event);
             assert_eq!(

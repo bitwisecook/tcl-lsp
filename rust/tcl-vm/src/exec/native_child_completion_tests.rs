@@ -59,7 +59,7 @@ fn entered_child_completions_match_forty_eight_real_engine_controls() {
         ),
     ] {
         for row in table.lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             if engine == "jim" {
@@ -219,7 +219,7 @@ fn original_coroutine_execution_matches_seventy_eight_engine_controls() {
         ),
     ] {
         for row in table.lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
             let source = String::from_utf8(unhex(fields[1])).unwrap();

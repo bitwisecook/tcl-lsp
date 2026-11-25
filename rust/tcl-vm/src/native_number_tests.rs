@@ -166,7 +166,7 @@ fn original_number_bignum_and_increment_match_all_192_native_windows() {
         let protocol = NativeStringProtocol::C(version);
         let ops = VmIncrementObjects::selected(dialect).unwrap();
         for row in fixture.lines() {
-            let cells: Vec<_> = row.split('\t').collect();
+            let cells: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let index: usize = cells[0].parse().unwrap();
             let stage: usize = cells[1].parse().unwrap();
             let value = shape(index, dialect);

@@ -390,7 +390,7 @@ mod tests {
         for (profile, fixture) in engines {
             let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
             for row in fixture.lines().skip(1).take(19) {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 let index = fields[0].parse::<usize>().unwrap();
                 let (label, original) = inputs::CASES[index];
                 let mut vm = crate::native_fixture::interpreter(profile);

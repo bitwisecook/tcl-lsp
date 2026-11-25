@@ -411,9 +411,15 @@ impl Analyser {
             }
             None => body_text,
         };
-        let (caller_frame_params, caller_frame_literals) =
-            super::super::param_traits::caller_frame_facts(&param_names, body_text, env);
-        let shallow = super::super::param_traits::infer_param_traits(&param_names, body_text, env);
+        let super::super::param_traits::ShallowProcedureTraits {
+            traits: shallow,
+            caller_frame_params,
+            caller_frame_literals,
+        } = super::super::param_traits::infer_param_traits_with_caller_frame(
+            &param_names,
+            body_text,
+            env,
+        );
         let traits = if self.deep_param_traits {
             let deep = super::super::param_traits::infer_param_traits_deep_in_document(
                 &param_names,

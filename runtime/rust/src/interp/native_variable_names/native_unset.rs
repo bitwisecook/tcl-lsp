@@ -570,7 +570,7 @@ mod tests {
             ),
         ] {
             for row in rows.lines() {
-                let columns: Vec<_> = row.split('\t').collect();
+                let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let mut interp = interpreter(engine);
                 let code = interp.eval_str(&decode(columns[1]));
                 assert_eq!(
@@ -639,7 +639,7 @@ mod tests {
             ),
         ] {
             for row in rows.lines() {
-                let columns: Vec<_> = row.split('\t').collect();
+                let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let source = String::from_utf8(decode(columns[1])).unwrap();
                 // Match the native probe's same-interpreter binary observer.
                 let observed = format!(

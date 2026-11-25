@@ -109,12 +109,11 @@ fn original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_ord
                 row("NAMESPACE_BEFORE", &phase)[2] == "1"
             );
             assert!(interp.namespaces().jim_namespace_bytes(current).is_none());
-            assert!(interp
-                .namespace_variable_name_bytes_checked(
-                    tcl_runtime_api::NsId(current as u32),
-                    b"absent"
-                )
-                .is_err());
+            let lookup = interp.namespace_variable_name_bytes_checked(
+                tcl_runtime_api::NsId(current as u32),
+                b"absent",
+            );
+            assert!(lookup.is_err());
             assert!(!obj::has_string_rep(namespace.as_ptr()));
             WHICH_NAME_OBSERVATIONS.with(|observations| observations.borrow_mut().clear());
             assert_eq!(

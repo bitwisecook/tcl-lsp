@@ -742,7 +742,7 @@ mod tests {
                     let expected = rows
                         .lines()
                         .skip(1)
-                        .map(|row| row.split('\t').collect::<Vec<_>>())
+                        .map(|row| tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>())
                         .find(|row| {
                             row[0] == version
                                 && row[1] == kind.to_string()

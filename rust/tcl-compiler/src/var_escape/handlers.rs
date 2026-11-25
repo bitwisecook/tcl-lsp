@@ -21,6 +21,7 @@
 //! Each function inspects a single `Statement::Call` shape and
 //! mutates the supplied `EscapeState`.
 
+use crate::cfg_builder::frame_effects::escape::{AliasEscape, CallerSource};
 use crate::ir::CommandTokens;
 #[cfg(test)]
 use crate::var_escape::helpers::is_name_first_command;
@@ -31,10 +32,7 @@ use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonK
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
-use tcl_registry::{
-    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, StateTransition,
-    VariableAliasTarget,
-};
+use tcl_registry::{ArgRole, InvocationFacts, OwnedSubcommandResolution, StateTransition};
 
 /// True if any word in *tokens* is `{*}`-expanded.
 #[must_use]
@@ -60,9 +58,12 @@ pub fn handle_variable_aliases(
             StateTransition::VariableCellAlias(alias) => Some(alias),
             _ => None,
         });
-    apply_variable_aliases(aliases, state, |level| {
-        tcl_registry::FrameLevel::parse_in(level, registry)
-    })
+    let projected = aliases.map(|alias| {
+        AliasEscape::from_transition(alias, |_, level| {
+            tcl_registry::FrameLevel::parse_in(level, registry)
+        })
+    });
+    apply_variable_aliases(projected, state)
 }
 
 /// Apply the purpose-limited normal alias projection without requiring a compiler hook.
@@ -70,22 +71,20 @@ pub fn handle_normal_variable_aliases(
     normal: &crate::registry_invocation::NormalTransferInvocation,
     state: &mut EscapeState,
 ) -> bool {
-    apply_variable_aliases(normal.variable_alias_transitions(), state, |level| {
-        normal.variable_alias_frame_level(&CallerFrameSelection::Explicit(
-            tcl_registry::TransitionSubject::Literal(level.to_owned()),
-        ))
-    })
+    let aliases = normal.variable_alias_transitions().map(|alias| {
+        AliasEscape::from_transition(alias, |frame, _| normal.variable_alias_frame_level(frame))
+    });
+    apply_variable_aliases(aliases, state)
 }
 
 fn apply_variable_aliases<'a>(
-    aliases: impl Iterator<Item = &'a tcl_registry::VariableCellAliasTransition>,
+    aliases: impl Iterator<Item = AliasEscape<'a>>,
     state: &mut EscapeState,
-    parse_level: impl Fn(&str) -> Option<tcl_registry::FrameLevel>,
 ) -> bool {
     let mut handled = false;
     for alias in aliases {
         handled = true;
-        let Some(local) = alias.local.literal() else {
+        let Some(local) = alias.local else {
             state.escape_all_known();
             continue;
         };
@@ -96,30 +95,17 @@ fn apply_variable_aliases<'a>(
                 format!("variable alias binds {local}"),
             ),
         );
-        let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
-            continue;
-        };
-        let targets_caller = match frame {
-            CallerFrameSelection::DefaultCaller => true,
-            CallerFrameSelection::Explicit(level) => {
-                let Some(level) = level.literal() else {
-                    state.record_barrier(Barrier::with_detail(
-                        BarrierKind::Upvar,
-                        "variable alias has dynamic frame selection",
-                    ));
-                    state.record_unbounded_upvar();
-                    continue;
-                };
-                parse_level(level)
-                    .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
-            }
-        };
-        if targets_caller {
-            if let Some(variable) = variable.literal() {
-                state.record_upvar_source(variable);
-            } else {
+        match alias.source {
+            CallerSource::None => {}
+            CallerSource::DynamicFrame => {
+                state.record_barrier(Barrier::with_detail(
+                    BarrierKind::Upvar,
+                    "variable alias has dynamic frame selection",
+                ));
                 state.record_unbounded_upvar();
             }
+            CallerSource::DynamicName => state.record_unbounded_upvar(),
+            CallerSource::Literal(name) => state.record_upvar_source(name),
         }
     }
     handled

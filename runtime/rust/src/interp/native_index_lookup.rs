@@ -346,7 +346,7 @@ mod tests {
             let original = obj::Owned::fresh(obj::new_string_bytes(b"pro"));
             let bytes = unsafe { (*original.as_ptr()).bytes };
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields.len(), 6);
                 let stage = fields[0];
                 let mut duplicate = None;
@@ -436,7 +436,7 @@ mod tests {
             let ordinary_table = NativeStaticIndexTable::supported_backend(FLAGS_WORDS);
             let mut original = obj::Owned::fresh(obj::new_string_bytes(b"present"));
             for row in fixture.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields.len(), 6);
                 let stage = fields[0];
                 let mut flags = Flags::default();

@@ -73,7 +73,7 @@ fn source_owned_list_conversion_matches_222_native_windows() {
         for row in
             include_str!("../../tcl-syntax/testdata/native_jim_source_list/inputs.tsv").lines()
         {
-            let (case, encoded) = row.split_once('\t').unwrap();
+            let (case, encoded) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
             let filename = if mode == 2 {
                 Value::int(17)
             } else {
@@ -142,7 +142,7 @@ fn source_owned_list_conversion_matches_222_native_windows() {
     let expected =
         include_str!("../../tcl-syntax/testdata/native_jim_source_list/observations.tsv")
             .lines()
-            .filter(|row| row.split('\t').nth(1) != Some("0"))
+            .filter(|row| tcl_test_support::fixture::tsv_fields(row).nth(1) != Some("0"))
             .collect::<Vec<_>>();
     assert_eq!(expected.len(), 222);
     assert_eq!(observed.lines().collect::<Vec<_>>(), expected);
@@ -397,11 +397,11 @@ fn original_source_length_and_concat_channels_match_all_native_providers() {
     ];
     let mut compared = 0;
     for (engine, native) in [
-        ("tcl8.4", rows!("8.4.20")),
-        ("tcl8.5", rows!("8.5.19")),
-        ("tcl8.6", rows!("8.6.18")),
-        ("tcl9.0", rows!("9.0.4")),
-        ("tcl9.1", rows!("9.1.0")),
+        ("tcl8.4", rows!("tcl8.4")),
+        ("tcl8.5", rows!("tcl8.5")),
+        ("tcl8.6", rows!("tcl8.6")),
+        ("tcl9.0", rows!("tcl9.0")),
+        ("tcl9.1", rows!("tcl9.1")),
         ("jim", rows!("jim")),
     ] {
         // Original241 executes these three unchanged inputs in one selected

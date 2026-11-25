@@ -50,7 +50,7 @@ fn source_values_match_actual_c84_through_c91_and_current_jim() {
     let vectors = include_str!("../../test-data/native-source-bytes.tsv");
     let mut count = 0;
     for row in vectors.lines().filter(|row| !row.starts_with('#')) {
-        let columns: Vec<_> = row.split('\t').collect();
+        let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(columns.len(), 8);
         let original = unhex(columns[0]);
         for (index, protocol) in protocols.into_iter().enumerate() {

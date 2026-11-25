@@ -602,7 +602,7 @@ fn scan_self_method_body<'a>(
     out: &mut Vec<CallerFrameBinding>,
 ) {
     use tcl_compiler::analyser::param_traits::{
-        TraitScanEnv, caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits,
+        ShallowProcedureTraits, TraitScanEnv, infer_param_traits_with_caller_frame,
     };
     let Some(head) = cmd.argv.first() else {
         return;
@@ -618,7 +618,11 @@ fn scan_self_method_body<'a>(
         executed_source: Some(script),
         original_logical_body: None,
     };
-    let targets = caller_frame_literal_targets(body, env);
+    let ShallowProcedureTraits {
+        traits,
+        caller_frame_params,
+        caller_frame_literals: targets,
+    } = infer_param_traits_with_caller_frame(param_names, body, env);
     #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
         eprintln!(
@@ -636,14 +640,9 @@ fn scan_self_method_body<'a>(
             read_only: !written,
         });
     }
-    if param_names.is_empty() {
-        return;
-    }
-    let caller_frame_params = caller_frame_upvar_params(param_names, body, env);
     if caller_frame_params.is_empty() {
         return;
     }
-    let traits = infer_param_traits(param_names, body, env);
     for (i, param) in param_names.iter().enumerate() {
         // `my <method> <arg>…` — the actual arguments start one word later
         // than a plain call's, because the method name is itself a word.

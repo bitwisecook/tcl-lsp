@@ -174,7 +174,7 @@ fn direct_object_vector_errors_observe_original_words_at_the_native_frontier() {
     let mut compared = 0;
     for (engine, rows) in observations {
         for row in rows.lines().filter(|row| row.starts_with("0\t")) {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             tcl_test_support::oracle_row_progress("objectvector24", engine, fields[1], None);
             let mut vm = crate::native_fixture::core(
                 tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
@@ -357,7 +357,7 @@ fn namespace_introspection_instructions_use_original_native_command_objects() {
     for (version, fixture) in tcl_dialect::TclVersion::ALL.into_iter().zip(fixtures) {
         assert_eq!(fixture.lines().count(), 6);
         for row in fixture.lines() {
-            let columns = row.split('\t').collect::<Vec<_>>();
+            let columns = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             assert_eq!(columns.len(), 6);
             let op = match columns[0] {
                 "which" => Op::RESOLVE_CMD,

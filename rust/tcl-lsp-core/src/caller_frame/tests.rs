@@ -693,6 +693,29 @@ fn a_mixin_method_reached_by_my_dispatch_binds_its_literal_target() {
     assert_eq!(&MIXIN_SRC[bindings[0].arg_span.as_range()], "my");
 }
 
+#[test]
+fn a_mixin_method_projects_direct_alias_write_order() {
+    for (method, read_only) in [
+        ("upvar name name; upvar other name; set name $object", true),
+        ("upvar name name; set name $object; upvar other name", false),
+        ("upvar name name; return [set name $object]", true),
+    ] {
+        let source = MIXIN_SRC.replace("upvar name name\n        set name $object", method);
+        let analysis = analyse(&source);
+        let read = offset_of(&source, "$name\"") + 1;
+        let bindings = caller_frame_bindings(
+            &analysis,
+            &source,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "name",
+        );
+        assert_eq!(bindings.len(), 1, "{method}: {bindings:?}");
+        assert_eq!(bindings[0].read_only, read_only, "{method}");
+    }
+}
+
 /// TP control — the abstention is per-name: a name the resolved method
 /// never binds gets no binding, so the read keeps abstaining.
 #[test]

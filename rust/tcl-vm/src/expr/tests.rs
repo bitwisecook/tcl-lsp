@@ -75,7 +75,7 @@ fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() 
         .lines()
         .take(6)
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let result = vm.eval_expr(fields[0]);
         if fields[1] == "0" {
             assert_eq!(
@@ -112,7 +112,8 @@ fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() 
             include_str!("../../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv").lines()
         {
             assert!(
-                vm.eval_expr(row.split('\t').next().unwrap()).is_err(),
+                vm.eval_expr(tcl_test_support::fixture::tsv_fields(row).next().unwrap())
+                    .is_err(),
                 "{name}: {row}"
             );
         }
@@ -142,7 +143,7 @@ fn c84_reached_expression_matches_seven_original_cache_controls() {
     )
     .lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         let mode = fields[0].parse::<usize>().unwrap();
         let original = match mode {
             2 => Value::double(2.0),

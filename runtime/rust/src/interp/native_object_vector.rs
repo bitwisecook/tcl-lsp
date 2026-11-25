@@ -405,7 +405,7 @@ mod tests {
         for (environment, observations) in fixtures {
             let mut interp = interpreter(environment);
             for row in observations.lines().take(2) {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 interp.set_result(obj::new_wide_int_obj(17));
                 let original = interp.get_obj_result();
                 let retained = (fields[0] == "1").then(|| Owned::retain(original));
@@ -491,7 +491,7 @@ mod tests {
         let mut windows = 0;
         for (environment, fixture) in FIXTURES {
             for row in fixture.lines() {
-                let expected: Vec<_> = row.split('\t').collect();
+                let expected: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case: usize = expected[0].parse().unwrap();
                 let mut interp = interpreter(environment);
                 interp.register_builtin(b"fail_original", fail);

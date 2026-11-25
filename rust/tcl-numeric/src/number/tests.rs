@@ -57,7 +57,7 @@ fn nonfinite_double_spelling_matches_every_native_engine() {
     let mut observations = 0;
     for (policy, fixture) in fixtures {
         for row in fixture.lines() {
-            let (case, expected) = row.split_once('\t').unwrap();
+            let (case, expected) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
             let value = f64::from_bits(bits[case.parse::<usize>().unwrap()]);
             let rendered = super::format_double_native_selected(
                 value,

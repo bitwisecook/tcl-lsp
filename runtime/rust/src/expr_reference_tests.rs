@@ -87,11 +87,11 @@ fn original_expression_source_matches_48_public_reference_boundaries() {
         "../../../rust/tcl-registry/tests/data/native_expression_reference_root341/probe.tcl"
     );
     let providers = [
-        ("tcl8.4", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/8.4.20/stdout")),
-        ("tcl8.5", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/8.5.19/stdout")),
-        ("tcl8.6", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/8.6.18/stdout")),
-        ("tcl9.0", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/9.0.4/stdout")),
-        ("tcl9.1", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/9.1.0/stdout")),
+        ("tcl8.4", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/tcl8.4/stdout")),
+        ("tcl8.5", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/tcl8.5/stdout")),
+        ("tcl8.6", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/tcl8.6/stdout")),
+        ("tcl9.0", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/tcl9.0/stdout")),
+        ("tcl9.1", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/tcl9.1/stdout")),
         ("jim", include_str!("../../../rust/tcl-registry/tests/data/native_expression_reference_root341/jim/stdout")),
     ];
     let mut compared = 0;

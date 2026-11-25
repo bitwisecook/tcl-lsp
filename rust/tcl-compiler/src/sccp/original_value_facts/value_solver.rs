@@ -20,8 +20,8 @@
 
 use super::super::solver::{sccp_process_phis, seed_live_in_roots, seeded_values};
 use super::super::{
-    TraceInputs, cfg_order, compute_predecessors, incoming_executable_predecessors,
-    settle_reachability,
+    TraceInputs, branch_has_pending_operands, cfg_order, compute_predecessors,
+    incoming_executable_predecessors, settle_reachability,
 };
 use super::block_transfer::{
     collect_constant_branches, sccp_process_statements, sccp_process_terminator,
@@ -333,17 +333,7 @@ pub(super) fn compatibility_escaping(
     names
 }
 
-/// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.
-///
-/// Returns `true` when the condition *may still fold* on a later sweep:
-/// some operand defined in this function (SSA exit-version > 0) is still
-/// `Unknown` (not yet computed) and none is `Overdefined`. Such a branch
-/// opens neither arm until either the operand resolves to a constant or an
-/// `Overdefined` operand proves the condition genuinely non-constant.
-///
-/// Operands read at version 0 (proc parameters, globals, and other
-/// live-in roots) are excluded: [`seed_live_in_roots`] already seeds them
-/// `Overdefined`, so they are never "not yet computed".
+/// Defer only with the source proof view at the actual condition.
 pub(super) fn branch_deferrable(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
@@ -357,35 +347,5 @@ pub(super) fn branch_deferrable(
     } else {
         SsaSourceView::unpositioned(ssa)
     };
-    let mut any_operand = false;
-    let mut any_unknown = false;
-    for name in crate::var_refs::vars_in_expr(condition, grammar) {
-        let (sym, ver) = if lookup.is_positioned() {
-            let Some(read) = lookup.read_spelling(&name) else {
-                return false;
-            };
-            let Some(version) = read.version else {
-                return false;
-            };
-            (read.symbol, version)
-        } else {
-            let Some(symbol) = lookup.symbol(&name) else {
-                continue;
-            };
-            (
-                symbol,
-                ssa_block.exit_versions.get(&symbol).copied().unwrap_or(0),
-            )
-        };
-        if ver == 0 {
-            continue;
-        }
-        any_operand = true;
-        match values.get(&(sym, ver)) {
-            Some(LatticeValue::Overdefined) => return false,
-            Some(LatticeValue::Unknown) | None => any_unknown = true,
-            _ => {}
-        }
-    }
-    any_operand && any_unknown
+    branch_has_pending_operands(ssa_block, condition, values, lookup, grammar)
 }

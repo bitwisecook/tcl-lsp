@@ -35,16 +35,16 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         case: "create-relative-raw-nul",
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.5/create-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.6/create-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.0/create-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.1/create-relative-raw-nul/stdout"
             ),
         ],
     },
@@ -53,16 +53,16 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         case: "create-rooted-raw-nul",
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.5/create-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.6/create-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.0/create-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.1/create-rooted-raw-nul/stdout"
             ),
         ],
     },
@@ -71,16 +71,16 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         case: "configure-relative-raw-nul",
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.5/configure-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.6/configure-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.0/configure-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.1/configure-relative-raw-nul/stdout"
             ),
         ],
     },
@@ -89,16 +89,16 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         case: "configure-rooted-raw-nul",
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.5/configure-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.6/configure-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.0/configure-rooted-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.1/configure-rooted-raw-nul/stdout"
             ),
         ],
     },
@@ -107,16 +107,16 @@ pub const CONTROLS: &[EnsembleMapPrefixControl] = &[
         case: "create-global-relative-raw-nul",
         columns: [
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.5/create-global-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl8.6/create-global-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.0/create-global-relative-raw-nul/stdout"
             ),
             include_str!(
-                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout"
+                "../../tcl-registry/tests/data/native_ensemble_map_prefix312/tcl9.1/create-global-relative-raw-nul/stdout"
             ),
         ],
     },

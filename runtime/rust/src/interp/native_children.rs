@@ -877,31 +877,31 @@ mod tests {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../tests/data/native_child_command_lifetime/v2/capture/8.4.20/stdout.tsv"
+                    "../../tests/data/native_child_command_lifetime/v2/capture/tcl8.4/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../tests/data/native_child_command_lifetime/v2/capture/8.5.19/stdout.tsv"
+                    "../../tests/data/native_child_command_lifetime/v2/capture/tcl8.5/stdout.tsv"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../tests/data/native_child_command_lifetime/v2/capture/8.6.18/stdout.tsv"
+                    "../../tests/data/native_child_command_lifetime/v2/capture/tcl8.6/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../tests/data/native_child_command_lifetime/v2/capture/9.0.4/stdout.tsv"
+                    "../../tests/data/native_child_command_lifetime/v2/capture/tcl9.0/stdout.tsv"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../tests/data/native_child_command_lifetime/v2/capture/9.1.0/stdout.tsv"
+                    "../../tests/data/native_child_command_lifetime/v2/capture/tcl9.1/stdout.tsv"
                 ),
             ),
         ];

@@ -64,7 +64,7 @@ fn original_each_emission_matches_85_native_auxiliary_and_local_windows() {
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let (_owner, entry) = crate::test_support::captured_native_entry_with_owner(profile);
         for row in fixture.lines().skip(1).take(19) {
-            let columns = row.split('\t').collect::<Vec<_>>();
+            let columns = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let index = columns[0].parse::<usize>().unwrap();
             if matches!(index, 13 | 14) {
                 continue;
@@ -187,8 +187,7 @@ fn compile_service_visits_original_each_values_before_body_locals() {
             .skip(1)
             .find(|row| row.starts_with("10\t"))
             .unwrap();
-        let native_names = row
-            .split('\t')
+        let native_names = tcl_test_support::fixture::tsv_fields(row)
             .nth(3)
             .unwrap()
             .split(',')

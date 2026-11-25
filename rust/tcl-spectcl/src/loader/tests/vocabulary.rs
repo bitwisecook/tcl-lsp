@@ -66,6 +66,37 @@ fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
     );
 }
 
+#[test]
+fn replay_orders_prerelease_and_numbered_vocabulary_versions() {
+    for (declared, newer) in [
+        ("2.3a1", false),
+        ("2.3b1", false),
+        ("02.3.0", false),
+        ("2.10", true),
+    ] {
+        let pack = evaluate_pack(&format!(
+            "speclib probe {declared} {{\n command demo {{ arity 1 }}\n}}"
+        ));
+        assert!(
+            pack.command("demo").is_some(),
+            "{declared}: {:?}",
+            pack.notices
+        );
+        assert_eq!(pack.load_error, None);
+        let notice = &pack.notices[0].message;
+        assert_eq!(
+            notice.contains("newer words may be dropped"),
+            newer,
+            "{declared}: {notice}"
+        );
+        assert_eq!(
+            notice.contains("is not a SpecTcl vocabulary version"),
+            !newer,
+            "{declared}: {notice}"
+        );
+    }
+}
+
 /// A 1.1-only word under a 1.0 declaration draws one notice per site:
 /// this loader reads the word fine (additions never gate), but a
 /// genuinely-1.0 loader drops it silently, so the declaration must say

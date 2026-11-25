@@ -96,31 +96,31 @@ const PROPERTY_COUNTED_ROWS: [(&str, &str); 6] = [
     (
         "tcl8.4",
         include_str!(
-            "../../../tcl-registry/tests/data/native_property_counted_original/8.4.20/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_property_counted_original/tcl8.4/stdout.tsv"
         ),
     ),
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-registry/tests/data/native_property_counted_original/8.5.19/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_property_counted_original/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_property_counted_original/8.6.18/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_property_counted_original/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_property_counted_original/9.0.4/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_property_counted_original/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_property_counted_original/9.1.0/stdout.tsv"
+            "../../../tcl-registry/tests/data/native_property_counted_original/tcl9.1/stdout.tsv"
         ),
     ),
     (
@@ -310,31 +310,31 @@ fn original_configurable_availability_matches_native_counted_argv_without_source
         (
             "tcl8.4",
             include_str!(
-                "../../../tcl-registry/tests/data/native_property_availability_original/8.4.20/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_property_availability_original/tcl8.4/stdout.tsv"
             ),
         ),
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_property_availability_original/8.5.19/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_property_availability_original/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_property_availability_original/8.6.18/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_property_availability_original/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_property_availability_original/9.0.4/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_property_availability_original/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_property_availability_original/9.1.0/stdout.tsv"
+                "../../../tcl-registry/tests/data/native_property_availability_original/tcl9.1/stdout.tsv"
             ),
         ),
         (

@@ -92,7 +92,7 @@ fn command_cache_getters_match_all_native_original_object_rows() {
             .numeric_environment()
             .expect("actual fixture Host numeric environment");
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 8);
             let stage: u8 = fields[0].parse().unwrap();
             let case: usize = fields[1].parse().unwrap();
@@ -231,7 +231,7 @@ fn command_cache_priming_matches_every_native_original_object_row() {
         let mut second = command_cache(version, b"B");
         second.token = 9;
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 7);
             let case: u8 = fields[0].parse().unwrap();
             let value = obj::Owned::fresh(if case == 2 {
@@ -394,7 +394,10 @@ fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
         for (index, fixture) in fixtures.iter().enumerate() {
             for line in fixture.lines() {
                 count += 1;
-                let input = line.split_once('\t').unwrap().0.as_bytes();
+                let input = tcl_test_support::fixture::tsv_split_once(line)
+                    .unwrap()
+                    .0
+                    .as_bytes();
                 let value = obj::Owned::fresh(obj::new_string_bytes(input));
                 let result = native_scalar_getter(
                     value.as_ptr(),
@@ -615,7 +618,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
             version,
         ));
         for line in fixture.lines() {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             assert_eq!(fields.len(), 6, "{line}");
             let case: usize = fields[0].parse().unwrap();
             let value = obj::Owned::fresh(match case {

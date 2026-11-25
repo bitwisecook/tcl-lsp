@@ -79,8 +79,7 @@ fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
             interp.register_builtin(b"regexp", twice);
         }
         CALLBACKS.with(|callbacks| callbacks.borrow_mut().clear());
-        let originals: Vec<_> = lines[1]
-            .split('\t')
+        let originals: Vec<_> = tcl_test_support::fixture::tsv_fields(lines[1])
             .skip(1)
             .map(|word| obj::Owned::fresh(obj::new_string_bytes(&hex(word))))
             .collect();
@@ -97,12 +96,13 @@ fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
             .unwrap();
         assert_eq!(code.as_int(), i64::from(expected_code), "case {case}");
         let value = interp.get_obj_result();
-        let expected: Vec<_> = lines
-            .iter()
-            .find_map(|line| line.strip_prefix("result\t"))
-            .unwrap()
-            .split('\t')
-            .collect();
+        let expected: Vec<_> = tcl_test_support::fixture::tsv_fields(
+            lines
+                .iter()
+                .find_map(|line| line.strip_prefix("result\t"))
+                .unwrap(),
+        )
+        .collect();
         assert_eq!(kind(value), expected[0], "case {case}");
         assert_eq!(
             obj::has_string_rep(value),
@@ -119,7 +119,7 @@ fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
             .iter()
             .filter_map(|line| line.strip_prefix("argument\t"))
         {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let value = originals[fields[0].parse::<usize>().unwrap() - 1].as_ptr();
             assert_eq!(kind(value), fields[1], "case {case} argument {}", fields[0]);
             assert_eq!(
@@ -140,7 +140,7 @@ fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
             .iter()
             .filter_map(|line| line.strip_prefix("callback\t"))
             .map(|line| {
-                line.split('\t')
+                tcl_test_support::fixture::tsv_fields(line)
                     .skip(1)
                     .map(|field| {
                         let (kind, refs) = field.split_once(':').unwrap();

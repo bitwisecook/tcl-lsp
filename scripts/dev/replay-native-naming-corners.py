@@ -22,6 +22,7 @@ PROVIDERS = {
     "tcl9.1": "9.1.0",
     "jim": "Jim",
 }
+FIXTURE_KEYS = {engine: provider for provider, engine in PROVIDERS.items() if provider != "jim"}
 
 
 def sha256(data: bytes) -> str:
@@ -40,22 +41,25 @@ def assignments(values: list[str]) -> dict[str, Path]:
     return selected
 
 
-def original_file(corpus: Path, row: dict, field: str) -> bytes:
+def original_file(corpus: Path, row: dict, field: str) -> tuple[Path, bytes]:
     relative = Path(row[field])
+    # The original manifest retains its captured coordinates and hash.
+    if relative.parts and (key := FIXTURE_KEYS.get(relative.parts[0])) is not None:
+        relative = Path(key, *relative.parts[1:])
     path = (corpus / relative).resolve(strict=True)
     if relative.is_absolute() or not path.is_relative_to(corpus.resolve()):
         raise ValueError(f"fixture outside corpus: {relative}")
     data = path.read_bytes()
     if sha256(data) != row[field + "_sha256"]:
         raise ValueError(f"retained {field} hash mismatch: {path}")
-    return data
+    return path, data
 
 
 def execute(binary: Path, corpus: Path, row: dict, environment: dict[str, str]) -> dict:
-    source = original_file(corpus, row, "source")
-    expected_stdout = original_file(corpus, row, "stdout")
-    expected_stderr = original_file(corpus, row, "stderr")
-    command = [str(binary), str(corpus / row["source"])]
+    source_path, source = original_file(corpus, row, "source")
+    _, expected_stdout = original_file(corpus, row, "stdout")
+    _, expected_stderr = original_file(corpus, row, "stderr")
+    command = [str(binary), str(source_path)]
     started = time.monotonic()
     timed_out = False
     try:

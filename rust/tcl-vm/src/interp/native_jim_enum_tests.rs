@@ -123,7 +123,7 @@ fn original_jim_enum_matches_all_native_14_windows() {
     for row in
         include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/Jim.tsv").lines()
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(fields.len(), 9);
         let stage = fields[0];
         let target = original_enum_target(stage);
@@ -223,7 +223,7 @@ fn original_interpreter_two_table_errors_match_all_native_15_windows() {
                 || row.starts_with("root-h\t")
                 || row.starts_with("root-bogus\t")
         }) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             assert_eq!(fields.len(), 9);
             let original =
                 Value::new_native_string_bytes(fields[0].strip_prefix("root-").unwrap().as_bytes());

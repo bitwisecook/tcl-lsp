@@ -26,7 +26,8 @@ use super::definition_values::{
 use super::math_expressions::{env_from_uses, env_from_uses_numeric, tcl_value_to_const};
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::ssa::{SsaSourceView, Symbol, ValueKey};
-use crate::tcl_expr_eval::{FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::{FoldPolicy, eval_tcl_expr_with_policy};
+use crate::value_transfer::format_constant_with_policy;
 use std::collections::HashMap;
 use tcl_dialect::StringCharacterModel;
 
@@ -191,12 +192,7 @@ pub(super) fn lattice_const_text<'a, S1: std::hash::BuildHasher, S2: std::hash::
     let ssa = ssa.into();
     let key = source_read_key(name, uses, ssa)?;
     match values.get(&key)? {
-        LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
-        LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-        LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-        LatticeValue::Const(ConstValue::Float(f)) => {
-            crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)
-        }
+        LatticeValue::Const(value) => format_constant_with_policy(value, policy),
         _ => None,
     }
 }
@@ -230,16 +226,7 @@ pub(super) fn resolve_const_string<'a, S1: std::hash::BuildHasher, S2: std::hash
     if arg.starts_with('$') {
         let name =
             tcl_syntax::naming::whole_scalar_variable_reference_name(arg, reference_config?)?;
-        let key = source_read_key(name, uses, ssa)?;
-        return match values.get(&key)? {
-            LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
-            LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-            LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-            LatticeValue::Const(ConstValue::Float(f)) => {
-                crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)
-            }
-            _ => None,
-        };
+        return lattice_const_text(name, uses, values, ssa, policy);
     }
     // A literal word with no interpolation or command substitution.
     if !arg.contains('$') && !arg.contains('[') {

@@ -613,8 +613,7 @@ mod tests {
             .lines()
             .find(|line| line.starts_with(&prefix))
             .expect("original public ExprBool row");
-        let fields = row
-            .split('\t')
+        let fields = tcl_test_support::fixture::tsv_fields(row)
             .skip(1)
             .map(|field| field.split_once('=').unwrap())
             .collect::<std::collections::HashMap<_, _>>();

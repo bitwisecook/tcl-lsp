@@ -808,12 +808,13 @@ mod tests {
             "case {case}"
         );
         assert!(vm.refused_completion().is_none(), "case {case}");
-        let expected: Vec<_> = lines
-            .iter()
-            .find_map(|line| line.strip_prefix("result\t"))
-            .unwrap()
-            .split('\t')
-            .collect();
+        let expected: Vec<_> = tcl_test_support::fixture::tsv_fields(
+            lines
+                .iter()
+                .find_map(|line| line.strip_prefix("result\t"))
+                .unwrap(),
+        )
+        .collect();
         assert_eq!(
             result.result.native_object_type_name(),
             expected[0],
@@ -841,7 +842,7 @@ mod tests {
             .iter()
             .filter_map(|line| line.strip_prefix("argument\t"))
         {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let value = &originals[fields[0].parse::<usize>().unwrap() - 1];
             assert_eq!(
                 value.native_object_type_name(),
@@ -866,7 +867,7 @@ mod tests {
             .iter()
             .filter_map(|line| line.strip_prefix("callback\t"))
             .map(|line| {
-                line.split('\t')
+                tcl_test_support::fixture::tsv_fields(line)
                     .skip(2)
                     .map(|field| {
                         let (kind, refs) = field.split_once(':').unwrap();
@@ -926,8 +927,7 @@ mod tests {
                 )
                 .unwrap();
             }
-            let originals: Vec<_> = lines[1]
-                .split('\t')
+            let originals: Vec<_> = tcl_test_support::fixture::tsv_fields(lines[1])
                 .skip(1)
                 .map(|word| Value::new_native_string_bytes(lsearch_fixture_bytes(word)))
                 .collect();

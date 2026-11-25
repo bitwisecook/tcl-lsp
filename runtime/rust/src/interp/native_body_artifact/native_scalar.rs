@@ -303,7 +303,7 @@ mod tests {
         ] {
             let mut interp = super::super::tests::interpreter(engine);
             for row in table.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 if !fields[9]
                     .split(',')
                     .any(|op| matches!(op, "streq" | "strlen" | "listlength" | "listLength"))

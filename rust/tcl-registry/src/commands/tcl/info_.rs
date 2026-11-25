@@ -1464,19 +1464,19 @@ mod tests {
         // Source rows prove declarations; actual installed tokens remain separate.
         let sources = [
             include_str!(
-                "../../../tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c"
+                "../../../tests/data/native_info_inventory_original/sources/tcl8.4/tclCmdIL.c"
             ),
             include_str!(
-                "../../../tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c"
+                "../../../tests/data/native_info_inventory_original/sources/tcl8.5/tclCmdIL.c"
             ),
             include_str!(
-                "../../../tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+                "../../../tests/data/native_info_inventory_original/sources/tcl8.6/tclCmdIL.c"
             ),
             include_str!(
-                "../../../tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+                "../../../tests/data/native_info_inventory_original/sources/tcl9.0/tclCmdIL.c"
             ),
             include_str!(
-                "../../../tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+                "../../../tests/data/native_info_inventory_original/sources/tcl9.1/tclCmdIL.c"
             ),
         ];
         let registry = crate::default_registry();
@@ -1522,19 +1522,19 @@ mod tests {
             (
                 TclVersion::V8_6,
                 include_str!(
-                    "../../../tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c"
+                    "../../../tests/data/native_info_inventory_original/sources/tcl8.6/tclCmdIL.c"
                 ),
             ),
             (
                 TclVersion::V9_0,
                 include_str!(
-                    "../../../tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c"
+                    "../../../tests/data/native_info_inventory_original/sources/tcl9.0/tclCmdIL.c"
                 ),
             ),
             (
                 TclVersion::V9_1,
                 include_str!(
-                    "../../../tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c"
+                    "../../../tests/data/native_info_inventory_original/sources/tcl9.1/tclCmdIL.c"
                 ),
             ),
         ] {

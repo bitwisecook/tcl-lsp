@@ -545,7 +545,7 @@ mod original_object_tests {
         let mut cases = 0;
         for record in rows.split("case\t").skip(1) {
             let lines: Vec<_> = record.lines().collect();
-            let (case, source) = lines[0].split_once('\t').unwrap();
+            let (case, source) = tcl_test_support::fixture::tsv_split_once(lines[0]).unwrap();
             let source: Vec<u8> = source
                 .as_bytes()
                 .as_chunks::<2>()
@@ -553,15 +553,26 @@ mod original_object_tests {
                 .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
-            let code = lines[1].split_once('\t').unwrap().1.parse::<i32>().unwrap();
-            let index = lines[2].split_once('\t').unwrap().1.parse::<i32>().unwrap();
-            let expected_kind = lines[3].split('\t').nth(1).unwrap();
-            let expected_physical: Vec<_> = lines
-                .iter()
-                .find_map(|line| line.strip_prefix("result_object\t"))
+            let code = tcl_test_support::fixture::tsv_split_once(lines[1])
                 .unwrap()
-                .split('\t')
-                .collect();
+                .1
+                .parse::<i32>()
+                .unwrap();
+            let index = tcl_test_support::fixture::tsv_split_once(lines[2])
+                .unwrap()
+                .1
+                .parse::<i32>()
+                .unwrap();
+            let expected_kind = tcl_test_support::fixture::tsv_fields(lines[3])
+                .nth(1)
+                .unwrap();
+            let expected_physical: Vec<_> = tcl_test_support::fixture::tsv_fields(
+                lines
+                    .iter()
+                    .find_map(|line| line.strip_prefix("result_object\t"))
+                    .unwrap(),
+            )
+            .collect();
             let expected_result: Vec<u8> = lines
                 .iter()
                 .find_map(|line| line.strip_prefix("result\t"))
@@ -694,7 +705,7 @@ mod original_object_tests {
         let mut case = 0usize;
         let mut expected = Vec::new();
         for line in rows.lines() {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             if fields[0] == "case" {
                 case = fields[1].parse().unwrap();
             }

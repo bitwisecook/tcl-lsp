@@ -366,7 +366,7 @@ mod tests {
             include_str!("../../../../../rust/tcl-registry/tests/data/registered-switch56.tsv")
                 .lines()
         {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(match fields[0] {
@@ -413,7 +413,7 @@ mod tests {
         )
         .lines()
         {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let mut interp = Interp::with_native_core(
                 crate::interp::default_host(),
                 crate::environment::profile_for_dialect(match fields[0] {

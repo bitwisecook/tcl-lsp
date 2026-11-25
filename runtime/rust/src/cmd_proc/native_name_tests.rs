@@ -48,7 +48,7 @@ fn original_procedure_colon_names_match_all_18_native_home_and_error_controls() 
     };
     let mut count = 0;
     for row in rows.lines() {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let mut interp = actual(fields[0]);
         let code = interp.eval_str(&decode(fields[4]));
         assert_eq!(

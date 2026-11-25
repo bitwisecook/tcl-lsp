@@ -153,7 +153,7 @@ fn c84_reached_expression_matches_seven_original_cache_controls() {
     let words = [b"2".as_slice(), b"2.0", b"2", b"2", b"2", b"0x10", b"010"];
     let mut compared = 0;
     for row in include_str!("../../../../rust/tcl-syntax/tests/data/native_numeric_operand_conversions/expression84-reached.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let mode = fields[0].parse::<usize>().unwrap();
             let original = Owned::fresh(match mode {
                 2 => obj::new_double_obj(2.0),

@@ -147,9 +147,9 @@ fn owner(
 }
 fn stream(version: &str) -> &'static str {
     match version {
-        "tcl8.6" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/8.6.18/execute.stdout"),
-        "tcl9.0" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/9.0.4/execute.stdout"),
-        "tcl9.1" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/9.1.0/execute.stdout"),
+        "tcl8.6" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/tcl8.6/execute.stdout"),
+        "tcl9.0" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/tcl9.0/execute.stdout"),
+        "tcl9.1" => include_str!("../../tests/data/native_method_rename_operands_records_original/510b/providers/tcl9.1/execute.stdout"),
         _ => panic!("fixed supported original worker"),
     }
 }
@@ -162,9 +162,9 @@ fn original_fields(
     let key = case.to_string();
     stream(version)
         .lines()
-        .filter(|line| line.split('\t').next() == Some(kind))
+        .filter(|line| tcl_test_support::fixture::tsv_fields(line).next() == Some(kind))
         .map(|line| {
-            line.split('\t')
+            tcl_test_support::fixture::tsv_fields(line)
                 .skip(1)
                 .filter_map(|field| field.split_once('='))
                 .collect::<BTreeMap<_, _>>()

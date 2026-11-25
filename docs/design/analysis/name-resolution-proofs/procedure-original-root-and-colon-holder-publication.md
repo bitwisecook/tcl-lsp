@@ -182,9 +182,9 @@ tcl9.1 9.1.0, revision `Retained release source; VCS revision not recorded. Exac
 ## Evidence
 
 - [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
-- [rust/tcl-registry/tests/data/native_child_colon_publication/8.6.18](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/8.6.18)
-- [rust/tcl-registry/tests/data/native_child_colon_publication/9.1.0](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/9.1.0)
-- [rust/tcl-registry/tests/data/native_child_colon_publication/8.4.20](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/8.4.20)
-- [rust/tcl-registry/tests/data/native_child_colon_publication/9.0.4](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/9.0.4)
-- [rust/tcl-registry/tests/data/native_child_colon_publication/8.5.19](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/8.5.19)
+- [rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.6](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.6)
+- [rust/tcl-registry/tests/data/native_child_colon_publication/tcl9.1](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/tcl9.1)
+- [rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.4](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.4)
+- [rust/tcl-registry/tests/data/native_child_colon_publication/tcl9.0](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/tcl9.0)
+- [rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.5](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/tcl8.5)
 - [rust/tcl-registry/tests/data/native_child_colon_publication/jim](../../../../rust/tcl-registry/tests/data/native_child_colon_publication/jim)

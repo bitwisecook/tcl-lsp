@@ -51,10 +51,10 @@ No appliance execution answers these exact original standalone callback-scope co
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20)
-- [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19)
-- [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18)
-- [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4)
-- [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0)
+- [rust/tcl-registry/tests/data/native_callback_scope240/tcl8.4](../../../../rust/tcl-registry/tests/data/native_callback_scope240/tcl8.4)
+- [rust/tcl-registry/tests/data/native_callback_scope240/tcl8.5](../../../../rust/tcl-registry/tests/data/native_callback_scope240/tcl8.5)
+- [rust/tcl-registry/tests/data/native_callback_scope240/tcl8.6](../../../../rust/tcl-registry/tests/data/native_callback_scope240/tcl8.6)
+- [rust/tcl-registry/tests/data/native_callback_scope240/tcl9.0](../../../../rust/tcl-registry/tests/data/native_callback_scope240/tcl9.0)
+- [rust/tcl-registry/tests/data/native_callback_scope240/tcl9.1](../../../../rust/tcl-registry/tests/data/native_callback_scope240/tcl9.1)
 - [rust/tcl-registry/tests/data/native_callback_scope240/jim](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim)
 - [rust/tcl-registry/tests/data/native_callback_scope240](../../../../rust/tcl-registry/tests/data/native_callback_scope240)

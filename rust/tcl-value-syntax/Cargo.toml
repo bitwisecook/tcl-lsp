@@ -32,5 +32,8 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-core-types = { path = "../tcl-core-types" }
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [lints]
 workspace = true

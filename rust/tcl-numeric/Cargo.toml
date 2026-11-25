@@ -37,5 +37,8 @@ num-traits = { version = "0.2", optional = true }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [lints]
 workspace = true

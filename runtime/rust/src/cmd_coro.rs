@@ -1208,8 +1208,8 @@ mod tests {
         macro_rules! original_case {
             ($directory:literal, $case:literal) => {
                 (include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/", $case, ".tcl")), [
-                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.0.4/", $case, "/stdout")),
-                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/9.1.0/", $case, "/stdout")),
+                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/tcl9.0/", $case, "/stdout")),
+                    include_str!(concat!("../../../rust/tcl-registry/tests/data/native_coroutine_public_injection255/", $directory, "/tcl9.1/", $case, "/stdout")),
                 ])
             };
         }

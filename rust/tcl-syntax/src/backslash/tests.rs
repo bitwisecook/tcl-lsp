@@ -105,7 +105,7 @@ fn ingress_observed_bytes(
     let row = include_str!("../../tests/data/native_source_ingress/observations.tsv")
         .lines()
         .filter(|line| !line.starts_with('#'))
-        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .map(|line| tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>())
         .find(|row| row[..3] == [release, path, operation])
         .expect("actual native row");
     row[3]

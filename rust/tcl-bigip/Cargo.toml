@@ -44,5 +44,8 @@ sha2 = "0.11"
 indexmap = "2"
 thiserror = "2"
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [lints]
 workspace = true

@@ -106,12 +106,13 @@ fn relocation_retains_native_binding_and_declaration_with_separate_active_namesp
     ] {
         for (case, destination) in DESTINATIONS.iter().enumerate() {
             let prefix = format!("{native}\t{case}\t");
-            let fields: Vec<_> = OBSERVATIONS
-                .lines()
-                .find(|row| row.starts_with(&prefix))
-                .unwrap()
-                .split('\t')
-                .collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(
+                OBSERVATIONS
+                    .lines()
+                    .find(|row| row.starts_with(&prefix))
+                    .unwrap(),
+            )
+            .collect();
             let mut interp = Interp::with_native_core(
                 default_host(),
                 crate::environment::profile_for_dialect(profile),
@@ -245,12 +246,13 @@ fn relocation_of_original_counted_names_matches_native_binding_identity() {
     ] {
         for case in 0..original_names.len() {
             let prefix = format!("{native}\t{case}\t");
-            let fields = observations
-                .lines()
-                .find(|line| line.starts_with(&prefix))
-                .unwrap()
-                .split('\t')
-                .collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(
+                observations
+                    .lines()
+                    .find(|line| line.starts_with(&prefix))
+                    .unwrap(),
+            )
+            .collect::<Vec<_>>();
             let mut interp = Interp::with_native_core(
                 default_host(),
                 crate::environment::profile_for_dialect(profile),

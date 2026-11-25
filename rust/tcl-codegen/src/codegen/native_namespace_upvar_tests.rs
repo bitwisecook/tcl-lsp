@@ -135,7 +135,7 @@ fn original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback() {
     .lines()
     .skip(1)
     {
-        let fields: Vec<_> = row.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         let index = fields[0].parse::<usize>().unwrap();
         let (label, source) = inputs::CASES[index];
         let parsed = tcl_lexer::native_script_words_in(
@@ -222,14 +222,15 @@ fn compile_service_preserves_original_namespace_upvar_preparation() {
                 ProcedureDispatch::Optimised,
             )
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        let row = include_str!(
-            "../../../tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv"
+        let row = tcl_test_support::fixture::tsv_fields(
+            include_str!(
+                "../../../tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv"
+            )
+            .lines()
+            .skip(1)
+            .nth(index)
+            .unwrap(),
         )
-        .lines()
-        .skip(1)
-        .nth(index)
-        .unwrap()
-        .split('\t')
         .collect::<Vec<_>>();
         let locals = module
             .top_level_body

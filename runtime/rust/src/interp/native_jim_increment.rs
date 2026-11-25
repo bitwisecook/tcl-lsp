@@ -1009,7 +1009,7 @@ mod tests {
             include_str!("../../../../rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv")
                 .lines()
         {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let mut interp = Interp::with_native_core(
                 super::super::default_host(),
                 crate::environment::profile_for_dialect("jim"),

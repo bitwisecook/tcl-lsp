@@ -2260,4 +2260,4 @@ These source bindings establish no executed assertion result; exact software out
 - [rust/tcl-registry/tests/data/native_child_bootstrap_context303/source](../../../../rust/tcl-registry/tests/data/native_child_bootstrap_context303/source)
 - [rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim](../../../../rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim)
 - [rust/tcl-registry/tests/data/native_jim_class_source269](../../../../rust/tcl-registry/tests/data/native_jim_class_source269)
-- [rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20](../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/8.4.20)
+- [rust/tcl-registry/tests/data/native_c_alias_holder197/tcl8.4](../../../../rust/tcl-registry/tests/data/native_c_alias_holder197/tcl8.4)

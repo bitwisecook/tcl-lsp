@@ -393,7 +393,9 @@ mod tests {
         );
         let mut count = 0;
         for line in inputs.lines().skip(1) {
-            let [id, group, input, _] = line.splitn(4, '\t').collect::<Vec<_>>()[..] else {
+            let [id, group, input, _] =
+                tcl_test_support::fixture::tsv_fields_with_tail(line, 4).collect::<Vec<_>>()[..]
+            else {
                 continue;
             };
             if group != "names" {

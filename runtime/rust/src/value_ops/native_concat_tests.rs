@@ -251,12 +251,11 @@ fn concat_uses_original_abstract_index_before_element_materialisation() {
                 obj::Owned::fresh(crate::native_arithseries::new_series(series, protocol).unwrap());
             let expected = |window: &str| {
                 let prefix = format!("A\t{case}\t{window}\t");
-                rows.lines()
-                    .find(|row| row.starts_with(&prefix))
-                    .unwrap()
-                    .split('\t')
-                    .nth(3)
-                    .unwrap()
+                tcl_test_support::fixture::tsv_fields(
+                    rows.lines().find(|row| row.starts_with(&prefix)).unwrap(),
+                )
+                .nth(3)
+                .unwrap()
             };
             assert_eq!(abstract_state(original.as_ptr()), expected("before"));
             if case == 0 {

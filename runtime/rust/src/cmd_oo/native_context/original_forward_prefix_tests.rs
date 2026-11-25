@@ -123,9 +123,9 @@ fn define(interpreter: &mut Interp, member: *mut TclObj) -> OoId {
 }
 fn stream(version: &str) -> &'static str {
     match version {
-            "tcl8.6" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/8.6.18/execute.stdout"),
-            "tcl9.0" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.0.4/execute.stdout"),
-            "tcl9.1" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/9.1.0/execute.stdout"),
+            "tcl8.6" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/tcl8.6/execute.stdout"),
+            "tcl9.0" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/tcl9.0/execute.stdout"),
+            "tcl9.1" => include_str!("../../../../../rust/tcl-registry/tests/data/native_oo_operand_stages_original/capture/tcl9.1/execute.stdout"),
             _ => unreachable!(),
         }
 }
@@ -134,7 +134,7 @@ fn fields(version: &str, case: usize, stage: &str) -> Vec<(&'static str, &'stati
         .lines()
         .filter(|line| line.starts_with("ROW\t"))
         .map(|line| {
-            line.split('\t')
+            tcl_test_support::fixture::tsv_fields(line)
                 .skip(1)
                 .filter_map(|field| field.split_once('='))
                 .collect::<Vec<_>>()

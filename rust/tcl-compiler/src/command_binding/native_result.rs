@@ -701,6 +701,13 @@ impl SourceOutcomes {
         {
             self.normal_name_value =
                 selected_name_result(selection, facts.operation, before, normal, target, context)
+                    .or_else(|| {
+                        let argument = contract.normal_scoped_prefix_operand(
+                            invocation.arguments(),
+                            facts.argument_offset,
+                        )?;
+                        selected_scoped_prefix_result(argument, before, normal, target, context)
+                    })
                     .map(Arc::new);
         }
 
@@ -758,6 +765,49 @@ impl SourceOutcomes {
             }
         }
     }
+}
+
+/// Exact result bytes of the selected namespace wrapper on its Normal route.
+fn selected_scoped_prefix_result(
+    argument: usize,
+    before: &ModuleCommandBindings,
+    after: &ModuleCommandBindings,
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) -> Option<super::original_name_value::OriginalProducedNameValue> {
+    if target.implementation_generation != 0
+        || numeric_call_arguments(context, target).is_none()
+        || before.source_step_observed()
+        || before.source_execution_observed(target.identity.as_ref())
+    {
+        return None;
+    }
+    let dialect = before.baseline.dialect?;
+    let handler = dialect.namespace_code_handler_policy(None)?;
+    let values = context.written_name_values?;
+    let exact_value = |index: usize| {
+        values
+            .get(index)
+            .and_then(Option::as_deref)
+            .filter(|value| value.is_current(&after.source_variables))
+    };
+    let script = exact_value(argument.checked_add(1)?)?;
+    if handler.preserves_argument(script.bytes()) {
+        return Some(script.clone());
+    }
+    let namespace = context.namespace_identity();
+    if before.source_variables.namespace_identity.as_ref() != Some(&namespace) {
+        return None;
+    }
+    let path = namespace.exact_native_path()?;
+    let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
+        fresh_string_literals: [head, selector],
+    } = handler.construction()
+    else {
+        return None;
+    };
+    let namespace = tcl_syntax::naming::native_namespace_full_name_bytes(path);
+    script.namespace_prefix_result(exact_value(0)?, [head, selector, &namespace])
 }
 
 /// Independent byte correspondence for selected original result operations.

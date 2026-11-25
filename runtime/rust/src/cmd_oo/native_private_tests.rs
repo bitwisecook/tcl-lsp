@@ -87,19 +87,19 @@ fn method_option_layout_and_private_scope_match_original_native_controls() {
         (
             "tcl8.6",
             include_str!(
-                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/stdout.tsv"
+                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/stdout.tsv"
+                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/stdout.tsv"
+                "../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/tcl9.1/stdout.tsv"
             ),
         ),
     ] {

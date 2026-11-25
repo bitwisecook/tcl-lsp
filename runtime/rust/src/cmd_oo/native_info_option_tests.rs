@@ -113,19 +113,19 @@ fn variable_info_matches_original_native_option_and_target_failures() {
         (
             "tcl8.6",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stdout.tsv"
+                "../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/tcl9.1/stdout.tsv"
             ),
         ),
     ] {

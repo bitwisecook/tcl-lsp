@@ -163,7 +163,7 @@ mod tests {
         };
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
             let libraries = if fields[0] == "jim" {
@@ -220,7 +220,7 @@ mod tests {
         };
         let mut count = 0;
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let profile =
                 tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
             let libraries = if fields[0] == "jim" {

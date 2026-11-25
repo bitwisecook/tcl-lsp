@@ -147,10 +147,10 @@ Jim_Cmd *Jim_RegisterCommand(Jim_Interp *interp, Jim_Obj *cmdNameObj,
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_jim_alias_publication194](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194)
-- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20)
-- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19)
-- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18)
-- [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4)
-- [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.4](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.4)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.5](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.5)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.6](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl8.6)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl9.0](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl9.0)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl9.1](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/tcl9.1)
 - [rust/tcl-registry/tests/data/native_jim_alias_publication194/jim](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim)
 - [rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors)

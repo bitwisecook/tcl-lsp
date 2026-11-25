@@ -384,5 +384,5 @@ Tcl_SetByteArrayObj(
 ## Evidence
 
 - [runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c)
-- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout)
-- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/tcl9.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/tcl9.0/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/tcl9.1/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/tcl9.1/same-library-version/execute.stdout)

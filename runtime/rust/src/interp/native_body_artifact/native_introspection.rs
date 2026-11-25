@@ -308,7 +308,7 @@ mod tests {
             let mut interp = super::super::tests::interpreter(engine);
             assert_eq!(interp.eval_str(b"namespace eval ::N {}; namespace eval ::source {proc target {} {}; namespace export target}; namespace eval ::N {namespace import ::source::target}"),Code::Ok);
             for row in table.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();
                 let selected = match kind {
                     WindowKind::Introspection => {

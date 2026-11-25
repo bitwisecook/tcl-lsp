@@ -163,7 +163,7 @@ fn array_name_mode_validation_boundaries_match_original_oracles() {
         ),
     ] {
         for row in original.lines() {
-            let (input, expected) = row.split_once('\t').expect("retained oracle vector");
+            let (input, expected) = tcl_test_support::fixture::tsv_split_once(row).expect("retained oracle vector");
             // These adapter admission questions remain separately recorded gaps.
             if matches!(environment, "tcl8.4" | "tcl8.5")
                 && matches!(

@@ -289,52 +289,52 @@ const PROVIDERS: &[Provider] = &[
     Provider {
         profile: "tcl8.4",
         source: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar379/8.4.20/stdout"
+            "../../../tests/data/native_return_option_pair_grammar379/tcl8.4/stdout"
         ),
         extension: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar380/8.4.20/stdout"
+            "../../../tests/data/native_return_option_pair_grammar380/tcl8.4/stdout"
         ),
-        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/8.4.20/stdout"),
+        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/tcl8.4/stdout"),
     },
     Provider {
         profile: "tcl8.5",
         source: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar379/8.5.19/stdout"
+            "../../../tests/data/native_return_option_pair_grammar379/tcl8.5/stdout"
         ),
         extension: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar380/8.5.19/stdout"
+            "../../../tests/data/native_return_option_pair_grammar380/tcl8.5/stdout"
         ),
-        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/8.5.19/stdout"),
+        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/tcl8.5/stdout"),
     },
     Provider {
         profile: "tcl8.6",
         source: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar379/8.6.18/stdout"
+            "../../../tests/data/native_return_option_pair_grammar379/tcl8.6/stdout"
         ),
         extension: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar380/8.6.18/stdout"
+            "../../../tests/data/native_return_option_pair_grammar380/tcl8.6/stdout"
         ),
-        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/8.6.18/stdout"),
+        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/tcl8.6/stdout"),
     },
     Provider {
         profile: "tcl9.0",
         source: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar379/9.0.4/stdout"
+            "../../../tests/data/native_return_option_pair_grammar379/tcl9.0/stdout"
         ),
         extension: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar380/9.0.4/stdout"
+            "../../../tests/data/native_return_option_pair_grammar380/tcl9.0/stdout"
         ),
-        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/9.0.4/stdout"),
+        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/tcl9.0/stdout"),
     },
     Provider {
         profile: "tcl9.1",
         source: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar379/9.1.0/stdout"
+            "../../../tests/data/native_return_option_pair_grammar379/tcl9.1/stdout"
         ),
         extension: include_str!(
-            "../../../tests/data/native_return_option_pair_grammar380/9.1.0/stdout"
+            "../../../tests/data/native_return_option_pair_grammar380/tcl9.1/stdout"
         ),
-        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/9.1.0/stdout"),
+        worker: include_str!("../../../tests/data/native_return_evaluated_worker383/tcl9.1/stdout"),
     },
     Provider {
         profile: "jim",

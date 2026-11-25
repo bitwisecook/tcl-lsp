@@ -351,7 +351,7 @@ mod tests {
             ),
         ] {
             for row in table.lines() {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 let mut interp = super::super::tests::interpreter(profile);
                 let code = interp.eval_str(&unhex(fields[1]));
                 assert_eq!(

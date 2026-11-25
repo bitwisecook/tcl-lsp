@@ -166,7 +166,7 @@ mod tests {
             include_str!("../../../../rust/tcl-syntax/tests/data/native_jim_local/behaviour.tsv");
         let mut checked = 0;
         for row in fixture.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let script = fields[2];
             let expected: Vec<u8> = fields[1]
                 .as_bytes()

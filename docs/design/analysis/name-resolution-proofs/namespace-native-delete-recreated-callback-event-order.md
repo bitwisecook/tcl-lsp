@@ -61,8 +61,8 @@ No implementation binding is claimed by this observation record.
 
 - [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/probe.c](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/probe.c)
 - [scripts/dev/replay-namespace-delete-callback-events.py](../../../../scripts/dev/replay-namespace-delete-callback-events.py)
-- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.4.20)
-- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.5.19)
-- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/8.6.18)
-- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.0.4)
-- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/9.1.0)
+- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.4](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.4)
+- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.5](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.5)
+- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.6](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl8.6)
+- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl9.0](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl9.0)
+- [rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl9.1](../../../../rust/tcl-syntax/tests/data/native_namespace_delete_callback_events/tcl9.1)

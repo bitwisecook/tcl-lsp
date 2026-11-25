@@ -19,7 +19,9 @@
 //! One block of the value solver: its statements' stores and clobbers, its terminator's executable edges and the constant branches.
 
 use super::super::parse_literal_value;
-use super::super::{BuiltinFoldInputs, ConstantBranch, join, set_value};
+use super::super::{
+    BranchSelection, BuiltinFoldInputs, ConstantBranch, join, set_value, transfer_terminator,
+};
 use super::branch_decisions::branch_decision;
 use super::definition_values::evaluate_def_with_math;
 use super::math_expressions::{env_from_uses, fold_math_expression};
@@ -289,33 +291,17 @@ pub(super) fn sccp_process_terminator(
         registry,
         reference_config,
     } = *inputs;
-    let mut changed = false;
-    let Some(block) = cfg.blocks.get(&bn) else {
-        return false;
-    };
-    let Some(term) = &block.terminator else {
-        return false;
-    };
-    match term {
-        Terminator::Goto { target, .. } => {
-            let edge = (bn, *target);
-            if !executable_edges.contains(&edge) {
-                executable_edges.insert(edge);
-                changed = true;
-            }
-            if cfg.blocks.contains_key(target) && executable_blocks.insert(*target) {
-                changed = true;
-            }
-        }
-        Terminator::Branch {
-            condition,
-            true_target,
-            false_target,
-            ..
-        } => {
-            let Some(ssa_block) = ssa.blocks.get(&bn) else {
-                return changed;
-            };
+    // The source projection carries both exceptional and analysis routes of
+    // the original body. It does not consume the optimiser's throw observations.
+    let additional = cfg.exception_edges.iter().chain(&cfg.analysis_edges);
+    transfer_terminator(
+        cfg,
+        bn,
+        (executable_blocks, executable_edges),
+        true,
+        additional,
+        |condition, _, _| {
+            let ssa_block = ssa.blocks.get(&bn)?;
             let decision = branch_decision(
                 cfg,
                 ssa,
@@ -331,51 +317,11 @@ pub(super) fn sccp_process_terminator(
                     reference_config,
                 },
             );
-            let targets: Vec<BlockId> = match decision {
-                Some(true) => vec![*true_target],
-                Some(false) => vec![*false_target],
-                // Optimistic (Wegman–Zadeck): while the condition may still
-                // fold on a later sweep (a not-yet-computed operand, no
-                // `Overdefined` one), open neither arm and let the fixpoint
-                // retry — this is what detects loop-carried constant
-                // conditions instead of pessimistically opening both arms
-                // forever. The finalising pass forces both arms for any
-                // branch still stuck this way.
-                None if !finalizing
-                    && branch_deferrable(ssa_block, condition, values, ssa, grammar) =>
-                {
-                    Vec::new()
-                }
-                None => vec![*true_target, *false_target],
-            };
-            for tgt in targets {
-                let edge = (bn, tgt);
-                if !executable_edges.contains(&edge) {
-                    executable_edges.insert(edge);
-                    changed = true;
-                }
-                if cfg.blocks.contains_key(&tgt) && executable_blocks.insert(tgt) {
-                    changed = true;
-                }
-            }
-        }
-        Terminator::Return { .. } | Terminator::Complete { .. } => {}
-    }
-    // `try` exception edges sourced at `bn`: when `bn` is executable the
-    // handler is reachable (a throw can occur in the body).
-    for (from, to) in cfg.exception_edges.iter().chain(&cfg.analysis_edges) {
-        if *from != bn {
-            continue;
-        }
-        let edge = (bn, *to);
-        if executable_edges.insert(edge) {
-            changed = true;
-        }
-        if cfg.blocks.contains_key(to) && executable_blocks.insert(*to) {
-            changed = true;
-        }
-    }
-    changed
+            Some(BranchSelection::of(decision, finalizing, || {
+                branch_deferrable(ssa_block, condition, values, ssa, grammar)
+            }))
+        },
+    )
 }
 
 /// Post-fixpoint sweep that records every reachable branch whose

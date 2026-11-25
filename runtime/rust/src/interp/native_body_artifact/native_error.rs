@@ -206,12 +206,10 @@ mod tests {
                 declaration.push(b'}');
                 assert_eq!(interp.eval_str(&declaration), Code::Ok, "{profile}/{index}");
                 assert_eq!(interp.eval_str(b"p"), Code::Error, "{profile}/{index}");
-                let row = observations
-                    .lines()
-                    .nth(index + 1)
-                    .unwrap()
-                    .split('\t')
-                    .collect::<Vec<_>>();
+                let row = tcl_test_support::fixture::tsv_fields(
+                    observations.lines().nth(index + 1).unwrap(),
+                )
+                .collect::<Vec<_>>();
                 assert_eq!(row[1], "1");
                 assert_eq!(interp.result_bytes(), b"BODY", "{profile}/{index}");
                 assert_eq!(row[2], "424f4459");

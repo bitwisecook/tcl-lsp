@@ -21,7 +21,7 @@ use super::*;
 use std::cell::RefCell;
 use tcl_syntax::value::ValueOps;
 const ROWS: &str =
-    include_str!("../../../tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv");
+    include_str!("../../../tcl-registry/tests/data/native_coroutine_publication/tcl9.1/stdout.tsv");
 type Original = Value;
 type Call = Completion<Value>;
 #[derive(Default)]

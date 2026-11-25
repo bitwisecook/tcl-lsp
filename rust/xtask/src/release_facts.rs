@@ -141,7 +141,8 @@ fn observe(tree: &TclSourceTree, version: TclVersion) -> Result<Observation> {
     let mut observation = Observation::default();
     let mut patchlevel = None;
     for line in output.lines() {
-        let (kind, value) = line.split_once('\t').context("invalid release probe row")?;
+        let (kind, value) =
+            tcl_test_support::fixture::tsv_split_once(line).context("invalid release probe row")?;
         match kind {
             "patchlevel" => patchlevel = Some(value),
             "math" => {
@@ -154,7 +155,7 @@ fn observe(tree: &TclSourceTree, version: TclVersion) -> Result<Observation> {
                 observation.commands.insert(value.to_owned());
             }
             "provided" => {
-                let fields: Vec<_> = value.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(value).collect();
                 ensure!(
                     fields.len() == 3 && matches!(fields[2], "0" | "1"),
                     "invalid package observation"
@@ -171,8 +172,7 @@ fn observe(tree: &TclSourceTree, version: TclVersion) -> Result<Observation> {
                 );
             }
             "oo" => {
-                let (version, patchlevel) = value
-                    .split_once('\t')
+                let (version, patchlevel) = tcl_test_support::fixture::tsv_split_once(value)
                     .context("TclOO version observation")?;
                 ensure!(
                     observation
@@ -254,7 +254,7 @@ fn extract(root: &Path) -> Result<String> {
         "missing release manifest row"
     );
     for (count, line) in lines.into_iter().enumerate() {
-        let fields: Vec<_> = line.split('\t').collect();
+        let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
         ensure!(
             fields.len() == 3,
             "reference-toolchain row requires three columns"
@@ -307,7 +307,7 @@ fn fact_rows(data: &str) -> Result<Vec<Vec<&str>>> {
     let rows: Vec<_> = data
         .lines()
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .map(|line| tcl_test_support::fixture::tsv_fields(line).collect::<Vec<_>>())
         .collect();
     for row in &rows {
         ensure!(

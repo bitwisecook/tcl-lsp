@@ -142,7 +142,7 @@ mod tests {
         ] {
             let mut interp = super::super::tests::interpreter(profile);
             for row in table.lines().skip(1) {
-                let fields = row.split('\t').collect::<Vec<_>>();
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                 if fields[0] != version {
                     continue;
                 }

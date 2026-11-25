@@ -64,7 +64,7 @@ fn original_try_vectors_keep_native_handler_bindings_and_finally_completion() {
     for (name, fixture) in engines {
         let profile = tcl_dialect::DialectProfile::find(name).unwrap();
         for row in fixture.lines().skip(20) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let index = fields[0].parse::<usize>().unwrap();
             let (label, original) = inputs::CASES[index];
             let mut vm = Vm::with_native_core(

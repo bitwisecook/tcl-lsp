@@ -346,7 +346,7 @@ mod tests {
         let fixture = include_str!("../tests/data/native_jim_lookup/observations.tsv");
         let mut checked = 0;
         for line in fixture.lines() {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let label = fields[0];
             let get = |key: &str| {
                 fields

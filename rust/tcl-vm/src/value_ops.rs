@@ -1724,7 +1724,9 @@ mod native_equality_fixture_tests {
                 for left_rep in 0..reps {
                     for right_rep in 0..reps {
                         for same in 0..2 {
-                            let row: Vec<_> = rows.next().unwrap().split('\t').collect();
+                            let row: Vec<_> =
+                                tcl_test_support::fixture::tsv_fields(rows.next().unwrap())
+                                    .collect();
                             let case = format!("{name}-L{left_rep}-R{right_rep}-same{same}");
                             assert_eq!(row[0], case);
                             let mut vm = crate::native_fixture::core(profile);

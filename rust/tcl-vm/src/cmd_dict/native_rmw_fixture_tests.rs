@@ -154,7 +154,7 @@ fn dictionary_body_writeback_compares_original_native_observation_windows() {
     // not defined storage, runtime completion or effect guarantees.
     let sources = include_str!("../../tests/data/native_dictionary_body/cases.tsv")
         .lines()
-        .map(|row| row.split_once('\t').unwrap())
+        .map(|row| tcl_test_support::fixture::tsv_split_once(row).unwrap())
         .collect::<std::collections::BTreeMap<_, _>>();
     let engines = [
         (
@@ -195,10 +195,10 @@ fn dictionary_body_writeback_compares_original_native_observation_windows() {
         assert_eq!(expected.lines().count(), count);
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         for row in expected.lines() {
-            let mut fields = row.splitn(3, '\t');
-            let name = fields.next().unwrap();
-            let code: i64 = fields.next().unwrap().parse().unwrap();
-            let result = unhex(fields.next().unwrap());
+            let (name, remainder) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
+            let (code, result) = tcl_test_support::fixture::tsv_split_once(remainder).unwrap();
+            let code: i64 = code.parse().unwrap();
+            let result = unhex(result);
             let source = unhex(sources[name]);
             let result_window = if matches!(engine, "tcl8.5" | "tcl8.6")
                 && name == "compiled-update-dict-write-error"
@@ -312,24 +312,24 @@ fn c86_dictionary_write_error_retains_its_own_defined_host_storage() {
     // Neither native freed contents nor original compiled frame ownership
     // are reconstructed from this software header/member control.
     let baseline = include_bytes!(
-        "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.stdout"
+        "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/tcl8.6/baseline-case9.stdout"
     );
     let observed = include_bytes!(
-        "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stdout"
+        "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/tcl8.6/observed-case9.stdout"
     );
     assert_eq!(baseline, observed);
     assert_eq!(
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stderr"
+            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/tcl8.6/observed-case9.stderr"
         ),
         "DICT_RELEASE_OBSERVER|errors=1|refcount_before_release=1|same_cell=1|defined_scalar=1|final_free=1\n",
     );
     for control in [
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case0.stderr"
+            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/tcl8.6/observed-case0.stderr"
         ),
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case19.stderr"
+            "../../../tcl-registry/tests/data/native_dict_update_write_error_lifetime398/tcl8.6/observed-case19.stderr"
         ),
     ] {
         assert_eq!(
@@ -373,15 +373,15 @@ fn c86_dictionary_with_write_error_retains_independent_defined_host_storage() {
     // public fields are process observations; the VM's retained live storage
     // is an independent software policy, never native freed-content identity.
     let baseline = include_bytes!(
-        "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/8.6.18/baseline-case19.stdout"
+        "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/tcl8.6/baseline-case19.stdout"
     );
     let observed = include_bytes!(
-        "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/8.6.18/observed-case19.stdout"
+        "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/tcl8.6/observed-case19.stdout"
     );
     assert_eq!(baseline, observed);
     assert_eq!(
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/8.6.18/observed-case19.stderr"
+            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/tcl8.6/observed-case19.stderr"
         ),
         concat!(
             "WITH_BEFORE_SET|refcount=0|allocated=1\n",
@@ -392,7 +392,7 @@ fn c86_dictionary_with_write_error_retains_independent_defined_host_storage() {
     );
     assert_eq!(
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/8.6.18/observed-case10.stderr"
+            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/tcl8.6/observed-case10.stderr"
         ),
         concat!(
             "WITH_BEFORE_SET|refcount=0|allocated=1\n",
@@ -402,7 +402,7 @@ fn c86_dictionary_with_write_error_retains_independent_defined_host_storage() {
     );
     assert_eq!(
         include_str!(
-            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/8.6.18/observed-case9.stderr"
+            "../../../tcl-registry/tests/data/native_dict_with_write_error_lifetime405/tcl8.6/observed-case9.stderr"
         ),
         "WITH_BODY_RETURN|entered=0|before_refcount=-1|allocated=-1|failed=0|same_cell=-1|defined_scalar=-1|final_free=0\n",
     );
@@ -440,7 +440,7 @@ fn dictionary_command_and_local_cell_publication_match_345_complete_native_proce
     const CASES: &str = include_str!("../../tests/data/native_dictionary_rmw/cases.tsv");
     let sources = CASES
         .lines()
-        .map(|row| row.split_once('\t').unwrap())
+        .map(|row| tcl_test_support::fixture::tsv_split_once(row).unwrap())
         .collect::<std::collections::BTreeMap<_, _>>();
     let engines = [
         (
@@ -479,10 +479,10 @@ fn dictionary_command_and_local_cell_publication_match_345_complete_native_proce
         assert_eq!(expected.lines().count(), count);
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
         for row in expected.lines() {
-            let mut fields = row.splitn(3, '\t');
-            let name = fields.next().unwrap();
-            let code: i64 = fields.next().unwrap().parse().unwrap();
-            let result = unhex(fields.next().unwrap());
+            let (name, remainder) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
+            let (code, result) = tcl_test_support::fixture::tsv_split_once(remainder).unwrap();
+            let code: i64 = code.parse().unwrap();
+            let result = unhex(result);
             let source = unhex(sources[name]);
             compare_dictionary_process(
                 "dictionary-rmw345",

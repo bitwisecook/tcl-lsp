@@ -396,6 +396,14 @@ impl NativeEntryLedger {
 mod tests {
     use super::*;
 
+    // Share the pure fixture reader without a dependency on a higher crate.
+    mod fixture_fields {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tcl-test-support/src/fixture_fields.rs"
+        ));
+    }
+
     fn bytes(hex: &str) -> Vec<u8> {
         hex.as_bytes()
             .as_chunks::<2>()
@@ -420,7 +428,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/variable-table-original-opaque-key-extents.md
         let mut controls = 0;
         for line in include_str!("../tests/data/native_variable_tables/array-order.tsv").lines() {
-            let row: Vec<_> = line.split('\t').collect();
+            let row: Vec<_> = fixture_fields::tsv_fields(line).collect();
             let version = row[0];
             let signed = matches!(version, "8.4.20" | "8.5.19");
             let recipe = NativeHashRecipe::Tcl {

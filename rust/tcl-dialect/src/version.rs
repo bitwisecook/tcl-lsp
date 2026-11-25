@@ -145,7 +145,7 @@ impl TclVersion {
     }
 
     /// Read a supported release line from a package version, including alpha,
-    /// beta and patch versions. Package version validation owns the grammar.
+    /// beta and patch versions. An absent minor component compares as zero.
     #[must_use]
     pub fn parse(version: &str) -> Option<Self> {
         if !validate_version(version) {
@@ -154,7 +154,7 @@ impl TclVersion {
         let prefix = version.split(['a', 'b']).next()?;
         let mut parts = prefix.split('.');
         let major = parts.next()?.parse::<u32>().ok()?;
-        let minor = parts.next()?.parse::<u32>().ok()?;
+        let minor = parts.next().map_or(Some(0), |part| part.parse().ok())?;
         Self::ALL.into_iter().find(|release| {
             let mut expected = release.version_string().split('.');
             expected.next().and_then(|part| part.parse::<u32>().ok()) == Some(major)

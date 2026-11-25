@@ -39,7 +39,7 @@ fn measured_bare_matches_runtime_requires_independent_authored_policy() {
             crate::environment::profile_for_dialect("tcl9.0"),
         ));
         for row in fixture.lines().take(6) {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             assert_eq!(
                 super::eval_expr_prepared_source(interp, None, fields[0].as_bytes()),
                 Code::Ok,
@@ -69,7 +69,7 @@ fn measured_bare_matches_runtime_requires_independent_authored_policy() {
         leak_free(|interp| {
             interp.set_dialect_profile(crate::environment::profile_for_dialect(name));
             for row in fixture.lines() {
-                let expression = row.split('\t').next().unwrap();
+                let expression = tcl_test_support::fixture::tsv_fields(row).next().unwrap();
                 assert_eq!(
                     super::eval_expr_prepared_source(interp, None, expression.as_bytes()),
                     Code::Error,
@@ -240,7 +240,7 @@ fn jim_safe_integer_expression_matches_54_original_native_objects() {
         )
         .lines()
         {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let bytes = unhex(fields[9]);
             let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(&bytes));
             crate::native_source::bind_context(original.as_ptr(), &context).unwrap();

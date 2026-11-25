@@ -418,31 +418,31 @@ fn original_upvar_error_publication_matches_all_six_native_sources() {
             (
                 "tcl8.4",
                 include_str!(
-                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.4.20/original-upvar-errors/stdout"
+                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/tcl8.4/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl8.5",
                 include_str!(
-                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.5.19/original-upvar-errors/stdout"
+                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/tcl8.5/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl8.6",
                 include_str!(
-                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/8.6.18/original-upvar-errors/stdout"
+                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/tcl8.6/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl9.0",
                 include_str!(
-                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.0.4/original-upvar-errors/stdout"
+                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/tcl9.0/original-upvar-errors/stdout"
                 ),
             ),
             (
                 "tcl9.1",
                 include_str!(
-                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/9.1.0/original-upvar-errors/stdout"
+                    "../../../../rust/tcl-registry/tests/data/native_upvar_error_publication307/tcl9.1/original-upvar-errors/stdout"
                 ),
             ),
             (
@@ -523,18 +523,18 @@ fn original_array_read_destruction_matches_six_native_source_results() {
     // Exact completion/value/trace-log observations only. Jim's original
     // unavailable trace setup is independent of C's entered callbacks.
     macro_rules! provider {
-        ($engine:literal, $version:literal) => {
+        ($engine:literal) => {
             (
                 $engine,
                 [
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
-                        $version,
+                        $engine,
                         "/variable_array_unset_live_member_read_trace_fires/stdout"
                     )),
                     include_str!(concat!(
                         "../../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
-                        $version,
+                        $engine,
                         "/variable_array_unset_active_member_read_guard_survives/stdout"
                     )),
                 ],
@@ -546,12 +546,12 @@ fn original_array_read_destruction_matches_six_native_source_results() {
             include_bytes!("../../../../rust/tcl-registry/tests/data/native_array_read_destruction324/variable_array_unset_active_member_read_guard_survives.tcl").as_slice(),
         ];
     for (engine, outputs) in [
-        provider!("tcl8.4", "8.4.20"),
-        provider!("tcl8.5", "8.5.19"),
-        provider!("tcl8.6", "8.6.18"),
-        provider!("tcl9.0", "9.0.4"),
-        provider!("tcl9.1", "9.1.0"),
-        provider!("jim", "jim"),
+        provider!("tcl8.4"),
+        provider!("tcl8.5"),
+        provider!("tcl8.6"),
+        provider!("tcl9.0"),
+        provider!("tcl9.1"),
+        provider!("jim"),
     ] {
         for (source, stdout) in sources.iter().zip(outputs) {
             let (expected_code, original) = stdout

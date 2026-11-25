@@ -48,7 +48,7 @@ fn dictionary_scope_reads_match_64_native_callback_windows() {
     let mut compared = 0;
     for row in include_str!("../../tests/data/native_dictionary_scope_traces/controls.tsv").lines()
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
         assert_eq!(fields.len(), 5);
         let profile = match fields[0] {
             "8.5.19" => "tcl8.5",

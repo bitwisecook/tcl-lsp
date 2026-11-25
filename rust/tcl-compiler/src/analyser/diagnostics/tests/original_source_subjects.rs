@@ -1192,46 +1192,46 @@ fn w216_public_value_capture_keeps_whole_provider_rows() {
         (
             "8.4.20",
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.4.20/stdout"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.4/stdout"
             ),
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.4.20/stderr"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.4/stderr"
             ),
         ),
         (
             "8.5.19",
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.5.19/stdout"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.5/stdout"
             ),
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.5.19/stderr"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.5/stderr"
             ),
         ),
         (
             "8.6.18",
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.6.18/stdout"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.6/stdout"
             ),
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/8.6.18/stderr"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl8.6/stderr"
             ),
         ),
         (
             "9.0.4",
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/9.0.4/stdout"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl9.0/stdout"
             ),
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/9.0.4/stderr"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl9.0/stderr"
             ),
         ),
         (
             "9.1.0",
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/9.1.0/stdout"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl9.1/stdout"
             ),
             include_str!(
-                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/9.1.0/stderr"
+                "../../../../../tcl-registry/tests/data/native_w216_literal_replacement_value325/tcl9.1/stderr"
             ),
         ),
         (

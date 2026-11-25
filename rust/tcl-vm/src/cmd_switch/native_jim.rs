@@ -254,9 +254,11 @@ mod tests {
                 .filter(|line| line.starts_with("RESULT\t"))
                 .enumerate()
             {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 assert_eq!(fields[1].parse::<usize>().unwrap(), index);
-                let case: Vec<_> = cases.lines().nth(index).unwrap().split('\t').collect();
+                let case: Vec<_> =
+                    tcl_test_support::fixture::tsv_fields(cases.lines().nth(index).unwrap())
+                        .collect();
                 let profile_axis =
                     tcl_registry::model::ingress::resolve_environment(profile).unit_profile();
                 let mut vm = crate::native_fixture::interpreter(profile_axis);
@@ -319,7 +321,7 @@ mod tests {
             .lines()
             .filter(|line| line.starts_with(&format!("OBJECT\t{index}\t")))
         {
-            let object: Vec<_> = object.split('\t').collect();
+            let object: Vec<_> = tcl_test_support::fixture::tsv_fields(object).collect();
             let value = &original[object[2].parse::<usize>().unwrap()];
             let expected = if object[3] == "NULL" {
                 "none"
