@@ -15,7 +15,7 @@ e07-open-pipe.tcl	tcl8.6	W103@2 W103@6 W103@12 W103@15	review
 e07-open-pipe.tcl	tcl9.0	W103@2 W103@6 W103@12 W103@15	review
 e08-quoting.tcl	tcl8.6	-	review
 e08-quoting.tcl	tcl9.0	-	review
-e09-auto-execok.tcl	tcl8.6	-	review
-e09-auto-execok.tcl	tcl9.0	-	review
+e09-auto-execok.tcl	tcl8.6	W123@5 W123@6	review
+e09-auto-execok.tcl	tcl9.0	W123@5 W123@6	review
 e10-chan-pipe.tcl	tcl8.6	-	review
 e10-chan-pipe.tcl	tcl9.0	-	review

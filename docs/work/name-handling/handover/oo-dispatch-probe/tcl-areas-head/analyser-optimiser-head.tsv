@@ -447,9 +447,9 @@ D	exec-pipes	e08-quoting.tcl	tcl8.6
 O	exec-pipes	e08-quoting.tcl	tcl8.6	
 D	exec-pipes	e08-quoting.tcl	tcl9.0	
 O	exec-pipes	e08-quoting.tcl	tcl9.0	
-D	exec-pipes	e09-auto-execok.tcl	tcl8.6	
+D	exec-pipes	e09-auto-execok.tcl	tcl8.6	W123@5:Unresolved command 'no-such-program-xyz' at this source point | W123@6:Unresolved command 'echo' at this source point
 O	exec-pipes	e09-auto-execok.tcl	tcl8.6	
-D	exec-pipes	e09-auto-execok.tcl	tcl9.0	
+D	exec-pipes	e09-auto-execok.tcl	tcl9.0	W123@5:Unresolved command 'no-such-program-xyz' at this source point | W123@6:Unresolved command 'echo' at this source point
 O	exec-pipes	e09-auto-execok.tcl	tcl9.0	
 D	exec-pipes	e10-chan-pipe.tcl	tcl8.6	
 O	exec-pipes	e10-chan-pipe.tcl	tcl8.6	
@@ -671,7 +671,7 @@ D	special-variables	sv19-auto-path-write.tcl	tcl8.6
 O	special-variables	sv19-auto-path-write.tcl	tcl8.6	
 D	special-variables	sv19-auto-path-write.tcl	tcl9.0	
 O	special-variables	sv19-auto-path-write.tcl	tcl9.0	
-D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar. | W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar. | W148@8:Numeral '08' is not accepted by the resolved Tcl numeral grammar.
+D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl numeral grammar. | W148@8:Numeral '08' is not accepted by the resolved Tcl numeral grammar.
 O	tcl9-changes	t01-octal-literals.tcl	tcl8.6	hint:O110,O129
 D	tcl9-changes	t01-octal-literals.tcl	tcl9.0	W230@4:Index '010' resolves to 10 (list has 10 elements); lindex silently returns empty string.
 O	tcl9-changes	t01-octal-literals.tcl	tcl9.0	hint:O110,O129
@@ -855,9 +855,9 @@ D	threads-subsystems	t08-timerate.tcl	tcl8.6	W307@4:Non-literal command name —
 O	threads-subsystems	t08-timerate.tcl	tcl8.6	
 D	threads-subsystems	t08-timerate.tcl	tcl9.0	W307@4:Non-literal command name — cannot statically analyse
 O	threads-subsystems	t08-timerate.tcl	tcl9.0	
-D	threads-subsystems	t09-thread-without-require.tcl	tcl8.6	
+D	threads-subsystems	t09-thread-without-require.tcl	tcl8.6	W120@4:"thread::id" requires `package require Thread`
 O	threads-subsystems	t09-thread-without-require.tcl	tcl8.6	
-D	threads-subsystems	t09-thread-without-require.tcl	tcl9.0	
+D	threads-subsystems	t09-thread-without-require.tcl	tcl9.0	W120@4:"thread::id" requires `package require Thread`
 O	threads-subsystems	t09-thread-without-require.tcl	tcl9.0	
 D	threads-subsystems	t10-thread-builtin.tcl	tcl8.6	
 O	threads-subsystems	t10-thread-builtin.tcl	tcl8.6	
@@ -991,9 +991,9 @@ D	unknown-autoload	u06-auto-execok.tcl	tcl8.6	W155@2:'ne' binds tighter than '?:
 O	unknown-autoload	u06-auto-execok.tcl	tcl8.6	
 D	unknown-autoload	u06-auto-execok.tcl	tcl9.0	W155@2:'ne' binds tighter than '?:', so this parses as `([auto_execok sh] ne {}) ? {found} : {missing}`; if you meant `[auto_execok sh] ne ({} ? {found} : {missing})`, add parentheses.
 O	unknown-autoload	u06-auto-execok.tcl	tcl9.0	
-D	unknown-autoload	u07-interactive-exec.tcl	tcl8.6	
+D	unknown-autoload	u07-interactive-exec.tcl	tcl8.6	W123@4:Unresolved command 'echo' at this source point | W123@5:Unresolved command 'stri' at this source point
 O	unknown-autoload	u07-interactive-exec.tcl	tcl8.6	
-D	unknown-autoload	u07-interactive-exec.tcl	tcl9.0	
+D	unknown-autoload	u07-interactive-exec.tcl	tcl9.0	W123@4:Unresolved command 'echo' at this source point | W123@5:Unresolved command 'stri' at this source point
 O	unknown-autoload	u07-interactive-exec.tcl	tcl9.0	
 D	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl8.6	
 O	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl8.6	
@@ -1023,9 +1023,9 @@ D	unknown-autoload	u14-auto-reset.tcl	tcl8.6	W123@3:Unresolved command 'rp' at t
 O	unknown-autoload	u14-auto-reset.tcl	tcl8.6	
 D	unknown-autoload	u14-auto-reset.tcl	tcl9.0	W123@3:Unresolved command 'rp' at this source point
 O	unknown-autoload	u14-auto-reset.tcl	tcl9.0	
-D	unknown-autoload	u15-unknown-recursion.tcl	tcl8.6	
+D	unknown-autoload	u15-unknown-recursion.tcl	tcl8.6	W123@3:Unresolved command 'selfref' at this source point
 O	unknown-autoload	u15-unknown-recursion.tcl	tcl8.6	
-D	unknown-autoload	u15-unknown-recursion.tcl	tcl9.0	
+D	unknown-autoload	u15-unknown-recursion.tcl	tcl9.0	W123@3:Unresolved command 'selfref' at this source point
 O	unknown-autoload	u15-unknown-recursion.tcl	tcl9.0	
 D	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl8.6	
 O	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl8.6	
