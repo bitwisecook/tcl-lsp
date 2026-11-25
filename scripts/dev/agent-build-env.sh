@@ -50,6 +50,13 @@
 #   CARGO_PROFILE_DEV_DEBUG=0 -> keeps a dev target dir ~3-4 GB, not ~15 GB
 #   CARGO_PROFILE_TEST_DEBUG=0 -> drops the test profile's line tables too, so a
 #                               full local test build fits on a laptop
+#   CARGO_PROFILE_TEST_OPT_LEVEL=1
+#                            -> matches CI's test shards: tests run ~4x faster
+#                               (tcl-compiler unit harness 1,902 s -> 439 s)
+#                               and the stack-budget tests see CI's frame sizes;
+#                               at opt-level 0 depth_guard's budget test
+#                               overflows and aborts its whole harness.
+#                               TCL_LSP_AGENT_TEST_OPT_LEVEL overrides it.
 #
 # CARGO_HOME (the registry/git dependency cache) is deliberately left alone:
 # sharing it across worktrees is safe — only workspace-member artefacts
@@ -69,6 +76,7 @@ agent_build_env__main() {
 
     local target_dir="${worktree_root}/target"
     local test_incremental=true
+    local test_opt_level="${TCL_LSP_AGENT_TEST_OPT_LEVEL:-1}"
     if [ "${TCL_LSP_AGENT_INCREMENTAL:-1}" = 0 ]; then
         test_incremental=false
     fi
@@ -81,6 +89,7 @@ agent_build_env__main() {
             printf 'export CARGO_PROFILE_DEV_INCREMENTAL=false\n'
             printf 'export CARGO_PROFILE_DEV_DEBUG=0\n'
             printf 'export CARGO_PROFILE_TEST_DEBUG=0\n'
+            printf 'export CARGO_PROFILE_TEST_OPT_LEVEL=%q\n' "${test_opt_level}"
             ;;
         --check)
             echo "worktree root:            ${worktree_root}"
@@ -89,6 +98,7 @@ agent_build_env__main() {
             echo "CARGO_PROFILE_DEV_INCREMENTAL:  false"
             echo "CARGO_PROFILE_DEV_DEBUG:  0"
             echo "CARGO_PROFILE_TEST_DEBUG: 0"
+            echo "CARGO_PROFILE_TEST_OPT_LEVEL: ${test_opt_level}"
             if [ -n "${CARGO_TARGET_DIR:-}" ] \
                 && [ "${CARGO_TARGET_DIR}" != "${target_dir}" ]; then
                 echo "WARNING: CARGO_TARGET_DIR is currently" \
@@ -103,6 +113,7 @@ agent_build_env__main() {
             export CARGO_PROFILE_DEV_INCREMENTAL=false
             export CARGO_PROFILE_DEV_DEBUG=0
             export CARGO_PROFILE_TEST_DEBUG=0
+            export CARGO_PROFILE_TEST_OPT_LEVEL="${test_opt_level}"
             ;;
         *)
             echo "usage: source agent-build-env.sh | agent-build-env.sh --print | --check" >&2
