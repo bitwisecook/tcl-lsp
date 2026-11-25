@@ -975,6 +975,28 @@ struct DseEntry {
 /// dead SSA def in `fu.def_use`. Returns the set of SSA value
 /// keys that were reported — the ADCE pass uses it as the
 /// "already eliminated" seed for its fixpoint.
+/// The runtime consumes a write to `tcl_precision` (8.x), `auto_path`,
+/// `env` and kin even when the script never reads it back.
+fn store_is_externally_read(
+    unit: &CompilationUnit,
+    ctx: &PassContext<'_>,
+    fu: &FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+) -> bool {
+    fu.def_use
+        .symbol(&fu.ssa, chain.key.0)
+        .and_then(|symbol| fu.ssa.cell_key(symbol))
+        .is_some_and(|cell| {
+            crate::analyser::diagnostics::writes_externally_read_special_variable(
+                fu,
+                &chain.definition,
+                cell,
+                unit.ir_module.resolved_registry(),
+                ctx.dialect.map(tcl_dialect::DialectProfile::surface_query),
+            )
+        })
+}
+
 fn emit_dead_stores_and_unused(
     unit: &CompilationUnit,
     ctx: &mut PassContext<'_>,
@@ -1095,6 +1117,9 @@ fn emit_dead_stores_and_unused(
             continue;
         }
         if dead_store_name_observed(ctx, var, module_traced, is_top_level, &bound_writes) {
+            continue;
+        }
+        if store_is_externally_read(unit, ctx, fu, chain) {
             continue;
         }
         let Some((code, msg)) = dead_chain_code(fu, chain, is_top_level, &textually_referenced)

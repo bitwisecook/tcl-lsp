@@ -660,6 +660,27 @@ fn couple_const_dead_stores_in_function(
 /// Decide whether one def-use `chain` is a const dead store fully consumed by
 /// propagation, returning the O109 removal to emit when so. Extracted from
 /// [`couple_const_dead_stores_in_function`].
+/// The runtime consumes the store even when every script read was
+/// propagated (`tcl_precision` on 8.x formats later doubles).
+fn store_is_externally_read(
+    fu: &crate::compilation_unit::FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    symbol: crate::ssa::Symbol,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    fu.ssa.cell_key(symbol).is_some_and(|cell| {
+        crate::analyser::diagnostics::writes_externally_read_special_variable(
+            fu,
+            &chain.definition,
+            cell,
+            registry,
+            registry
+                .profile()
+                .map(tcl_dialect::DialectProfile::surface_query),
+        )
+    })
+}
+
 fn couple_const_dead_store_chain(
     ctx: &CoupleCtx<'_>,
     chain: &crate::def_use::DefUseChain,
@@ -685,6 +706,9 @@ fn couple_const_dead_store_chain(
     }
     let symbol = fu.def_use.symbol(&fu.ssa, chain.key.0)?;
     let var = fu.ssa.var_name(symbol);
+    if store_is_externally_read(fu, chain, symbol, registry) {
+        return None;
+    }
     // Single constant scalar def, never aliased / global / RMW-hidden /
     // traced. The whole-module trace fact stores the canonical
     // (`::`-stripped) spelling, so an unqualified store still

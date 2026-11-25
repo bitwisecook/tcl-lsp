@@ -185,7 +185,8 @@ impl CfgBuilder<'_> {
                             .position(|candidate| candidate == argument)
                     })
                     .map_or(&header, |index| &entries[index]);
-                self.loop_stack.push((exit.clone(), continuation.clone()));
+                self.loop_stack
+                    .push((exit.clone(), Some(continuation.clone())));
                 self.lower_possible_sequence(region, repeated, &entries, &header, &header);
                 self.loop_stack.pop();
             }

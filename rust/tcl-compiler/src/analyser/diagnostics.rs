@@ -1900,3 +1900,17 @@ fn executable_opaque_callee_name_args(
         &|block| executable.contains(block),
     )
 }
+
+/// Whether the store at `definition` writes a special variable whose value
+/// the runtime consumes (`tcl_precision` on 8.x, `auto_path`, `env`, …), so
+/// it is never dead even when the script never reads it back.
+pub(crate) fn writes_externally_read_special_variable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    definition: &crate::def_use::DefSite,
+    cell: &crate::var_resolve::VariableCellKey,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<tcl_dialect::model::SurfaceQuery<'_>>,
+) -> bool {
+    helpers::special_variable_definition(fu, definition, cell, registry)
+        .is_some_and(|simple| tcl_registry::special_vars::is_externally_read(&simple, dialect))
+}

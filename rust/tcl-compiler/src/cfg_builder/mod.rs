@@ -262,7 +262,9 @@ pub(crate) struct CfgBuilder<'a> {
     /// enclosing loops, so `break` / `continue` in a body lower to a CFG
     /// edge.  Without this a `while 1 { … break }` exit block is
     /// unreachable and O107 false-fires on the code after the loop.
-    loop_stack: Vec<(String, String)>,
+    /// The continue target is `None` in a `for` step, where `continue`
+    /// leaves the loop with its own completion code, as outside a loop.
+    loop_stack: Vec<(String, Option<String>)>,
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
     analysis_edges: Vec<(String, String)>,

@@ -776,3 +776,49 @@ fn original_definition_guard_declines_foreign_source_registry_and_missing_carrie
     }
     assert_eq!(elim_target_vars(&stale, registry, span, false), None);
 }
+
+/// `tcl_precision` formats every later double on 8.x, so its store survives
+/// even when the script's own read of it is propagated; 9.0 ignores it.
+#[test]
+fn a_tcl_precision_store_is_kept_where_the_release_formats_with_it() {
+    let src = "set tcl_precision 3\nputs [expr {1/3.0}]\nputs $tcl_precision\n";
+    for (dialect, kept) in [("tcl8.6", true), ("tcl9.0", false)] {
+        let context =
+            tcl_registry::model::ingress::resolve_environment(dialect).default_context_registry();
+        let opts = optimise_with_dialect(
+            src,
+            context.commands(),
+            tcl_dialect::DialectProfile::find(dialect),
+        );
+        let deletes_store = opts
+            .iter()
+            .any(|o| !o.hint_only && o.code == DiagCode::O109 && o.span.start() == 0);
+        assert_eq!(!deletes_store, kept, "{dialect}: {opts:?}");
+        let folds_double = opts
+            .iter()
+            .any(|o| !o.hint_only && o.replacement == "0.3333333333333333");
+        assert_eq!(!folds_double, kept, "{dialect}: {opts:?}");
+    }
+}
+
+/// `break` in a `for` step ends the loop after one body run (tclsh
+/// 8.4–9.1 print `z=0 i=0`), so the loop is not infinite and nothing after
+/// it is unreachable or dead.
+#[test]
+fn a_break_in_a_for_step_leaves_the_code_after_the_loop_live() {
+    let src = "for {set i 0} {$i < 3} {break} { set z $i }\nputs \"z=$z i=$i\"\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let context =
+            tcl_registry::model::ingress::resolve_environment(dialect).default_context_registry();
+        let opts = optimise_with_dialect(
+            src,
+            context.commands(),
+            tcl_dialect::DialectProfile::find(dialect),
+        );
+        let deletions: Vec<_> = opts
+            .iter()
+            .filter(|o| !o.hint_only && o.replacement.is_empty())
+            .collect();
+        assert!(deletions.is_empty(), "{dialect}: {deletions:?}");
+    }
+}

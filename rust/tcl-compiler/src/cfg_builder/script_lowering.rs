@@ -48,7 +48,9 @@ impl CfgBuilder<'_> {
         let Some((brk, cont)) = self.loop_stack.last().cloned() else {
             return false;
         };
-        let target_name = if is_break { brk } else { cont };
+        let Some(target_name) = (if is_break { Some(brk) } else { cont }) else {
+            return false;
+        };
         let target = self.bid(&target_name);
         self.push_statement(current, stmt.clone());
         self.set_terminator(
@@ -94,9 +96,14 @@ impl CfgBuilder<'_> {
                 }
                 match self.command_classes.completion_route(stmt) {
                     Some(tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                        tcl_registry::CompletionCode::Break
-                        | tcl_registry::CompletionCode::Continue,
+                        tcl_registry::CompletionCode::Break,
                     )) => !self.loop_stack.is_empty(),
+                    Some(tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                        tcl_registry::CompletionCode::Continue,
+                    )) => self
+                        .loop_stack
+                        .last()
+                        .is_some_and(|(_, cont)| cont.is_some()),
                     Some(route) => !route.normal_possible(),
                     None => false,
                 }

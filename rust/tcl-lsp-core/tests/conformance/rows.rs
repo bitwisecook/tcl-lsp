@@ -120,14 +120,7 @@ fn line_of(source: &str, offset: usize) -> usize {
         .count()
 }
 
-fn dialect_columns(
-    fixture: &Fixture,
-    source: &str,
-    exact: bool,
-    name: &'static str,
-    interpreters: &Interpreters,
-    root: &Path,
-) -> Dialect {
+fn analyser_diagnostics(source: &str, name: &'static str) -> (AnalysisResult, Vec<Diag>) {
     let analysis = Analyser::new().analyse(source, name);
     let mut diagnostics: Vec<Diag> = analysis
         .diagnostics
@@ -146,6 +139,18 @@ fn dialect_columns(
         })
         .collect();
     diagnostics.sort_by(|a, b| (a.line, &a.code, &a.message).cmp(&(b.line, &b.code, &b.message)));
+    (analysis, diagnostics)
+}
+
+fn dialect_columns(
+    fixture: &Fixture,
+    source: &str,
+    exact: bool,
+    name: &'static str,
+    interpreters: &Interpreters,
+    root: &Path,
+) -> Dialect {
+    let (analysis, diagnostics) = analyser_diagnostics(source, name);
 
     // Jim has an analyser environment but no dialect profile for the folder
     // or the editor features.
@@ -160,12 +165,25 @@ fn dialect_columns(
     };
     let environment = tcl_registry::model::ingress::resolve_environment(name);
     let context = environment.default_context_registry();
-    let optimisations =
+    let proposals =
         tcl_compiler::optimiser::optimise_with_dialect(source, context.commands(), Some(profile));
-    let folds = optimisations
+    // Hints carry no replacement and are never applied; the executed file
+    // takes every applicable rewrite, as `minify` does.
+    let folds = proposals
         .iter()
-        .map(|rewrite| rewrite.code.as_str().to_owned())
+        .map(|rewrite| {
+            let code = rewrite.code.as_str();
+            if rewrite.hint_only {
+                format!("hint:{code}")
+            } else {
+                code.to_owned()
+            }
+        })
         .collect::<Vec<_>>();
+    let optimisations: Vec<_> = proposals
+        .iter()
+        .filter(|rewrite| !rewrite.hint_only)
+        .collect();
     let release = TclVersion::from_version_string(name.trim_start_matches("tcl"));
     let invalid = optimisations.iter().find(|rewrite| {
         let range = rewrite.span.as_range();
@@ -179,7 +197,12 @@ fn dialect_columns(
         .collect();
     ranges.sort_by_key(|range| (range.start, range.end));
     let overlap = ranges.windows(2).find(|pair| pair[1].start < pair[0].end);
-    let folded_execution = match (folds.is_empty() || !exact, release, invalid, overlap) {
+    let folded_execution = match (
+        optimisations.is_empty() || !exact,
+        release,
+        invalid,
+        overlap,
+    ) {
         (true, _, _, _) | (_, None, _, _) => None,
         (false, Some(_), Some(rewrite), _) => Some(format!(
             "invalid rewrite span {}..{} for {} bytes",
@@ -193,7 +216,7 @@ fn dialect_columns(
         )),
         (false, Some(release), None, None) => {
             let mut folded = source.to_owned();
-            let mut ordered: Vec<_> = optimisations.iter().collect();
+            let mut ordered = optimisations.clone();
             ordered.sort_by_key(|rewrite| std::cmp::Reverse(rewrite.span.as_range().start));
             for rewrite in ordered {
                 folded.replace_range(rewrite.span.as_range(), &rewrite.replacement);

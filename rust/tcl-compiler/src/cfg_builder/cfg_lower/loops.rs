@@ -304,7 +304,7 @@ impl CfgBuilder<'_> {
 
         // `break` exits to `end_block`; `continue` runs the step at `step_block`.
         self.loop_stack
-            .push((end_block.clone(), step_block.clone()));
+            .push((end_block.clone(), Some(step_block.clone())));
         let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
@@ -327,7 +327,11 @@ impl CfgBuilder<'_> {
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
         // the solver enumerates the loop from the same state.
         let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
+        // `break` in the step ends the loop normally; `continue` there leaves
+        // with code 4, as outside a loop (tclsh 8.4–9.1).
+        self.loop_stack.push((end_block.clone(), None));
         let step_tail = self.lower_body(owner.as_ref(), next, &step_block);
+        self.loop_stack.pop();
         if let Some(step_tail) = step_tail {
             if rotate {
                 self.condition_binding_sites.remove(&header);
@@ -455,7 +459,8 @@ impl CfgBuilder<'_> {
         );
 
         // `break` exits to `end_block`; `continue` re-tests at `header`.
-        self.loop_stack.push((end_block.clone(), header.clone()));
+        self.loop_stack
+            .push((end_block.clone(), Some(header.clone())));
         let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
@@ -507,8 +512,10 @@ impl CfgBuilder<'_> {
             unreachable!("lower_foreach called with non-Foreach");
         };
         let frame = self.open_foreach_loop(stmt, block_name);
-        self.loop_stack
-            .push((frame.end_block.clone(), frame.continue_target().to_owned()));
+        self.loop_stack.push((
+            frame.end_block.clone(),
+            Some(frame.continue_target().to_owned()),
+        ));
         let body_tail = self.lower_body(frame.owner.as_ref(), body, &frame.body_block);
         self.loop_stack.pop();
         self.close_foreach_loop(stmt, block_name, frame, body_tail)

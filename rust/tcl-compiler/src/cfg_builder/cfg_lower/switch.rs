@@ -230,14 +230,30 @@ impl CfgBuilder<'_> {
         // An arm's `break`/`continue` targets the enclosing loop, even when no
         // arm completes normally: such a switch is a loop jump, not a
         // procedure exit (tclsh: `while 1 {switch a {a {break}}}` returns).
-        let loop_escape = self.loop_stack.last().cloned().and_then(|targets| {
-            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps_with_classes(
-                stmt,
-                0,
-                &self.command_classes,
-            );
-            (can_break || can_continue).then_some((targets, can_break, can_continue))
-        });
+        let loop_escape =
+            self.loop_stack
+                .last()
+                .cloned()
+                .and_then(|(break_target, continue_target)| {
+                    let (can_break, can_continue) =
+                        crate::cfg_builder::switch_escaping_jumps_with_classes(
+                            stmt,
+                            0,
+                            &self.command_classes,
+                        );
+                    // A `for` step has no continue target: such an arm leaves
+                    // with its own code, so the switch keeps its plain lowering.
+                    let continue_target = match (continue_target, can_continue) {
+                        (Some(target), _) => target,
+                        (None, false) => break_target.clone(),
+                        (None, true) => return None,
+                    };
+                    (can_break || can_continue).then_some((
+                        (break_target, continue_target),
+                        can_break,
+                        can_continue,
+                    ))
+                });
         if let Some(((break_target, continue_target), can_break, can_continue)) = loop_escape {
             let escape = SwitchEscape {
                 can_break,
