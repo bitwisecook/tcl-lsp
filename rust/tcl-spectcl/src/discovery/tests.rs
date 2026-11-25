@@ -144,7 +144,7 @@ fn configured_discovery_retains_exact_native_sources_and_missing_entry() {
         receipt.configured_sources[0],
         vec![normalise(&root.join("packs/one.tclspec"))]
     );
-    assert!(receipt.configured_sources[1].is_empty());
+    assert_eq!(receipt.configured_sources[1], [] as [std::path::PathBuf; 0]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -256,7 +256,7 @@ fn discovery_of_nothing_is_empty_not_an_error() {
         skip_user_tier: false,
         workspace_trust: WorkspaceTrust::Trusted,
     });
-    assert!(found.is_empty());
+    assert_eq!(found, [] as [crate::discovery::PackFile; 0]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -825,7 +825,7 @@ fn a_listed_pack_that_is_missing_is_reported_by_the_load() {
     let found = discover_workspace(&root);
     assert_eq!(names(&found), vec!["gone.tclspec"], "{found:#?}");
     let (sources, notices) = crate::pack::read_sources(&NativeStore, &found);
-    assert!(sources.is_empty());
+    assert_eq!(sources, [] as [(crate::discovery::PackFile, String); 0]);
     assert_eq!(notices.len(), 1, "{notices:#?}");
     assert!(
         notices[0].message.contains("cannot read pack file"),

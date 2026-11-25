@@ -38,7 +38,8 @@ impl Write for Capture {
 }
 
 fn physical_vm(version: TclVersion, output: Capture) -> Vm {
-    let profile = tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile();
+    let profile =
+        tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile();
     let mut vm = Vm::with_native_core(
         Box::new(output),
         Rc::new(crate::host_native::NativeHost::new()),

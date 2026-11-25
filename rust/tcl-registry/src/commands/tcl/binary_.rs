@@ -568,6 +568,7 @@ fn binary_scan_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(

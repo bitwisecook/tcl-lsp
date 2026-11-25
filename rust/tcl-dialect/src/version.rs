@@ -54,9 +54,6 @@ pub use package_versions::{
     version_satisfies_bytes_for, version_satisfies_for,
 };
 
-const TCLOO_8_6: (&str, &str) = ("1.1.0", "1.1.0");
-const TCLOO_9: (&str, &str) = ("1.3", "1.3.1");
-
 /// Semantic subject of a core package row, independent of its spelling and
 /// pinned reference-build version. This classifies an explicit hypothetical
 /// release survey, never a current interpreter's provision database.
@@ -85,29 +82,6 @@ pub struct CorePackage {
     /// TclOO 1.3.1` is `# Already present, OK?` on `tclsh9.0` while
     /// `package versions Tcl` is empty on every release (oo-0.9).
     pub ifneeded_stub: bool,
-}
-
-impl CorePackage {
-    /// A core entry C provides but registers no `ifneeded` stub for
-    /// (`Tcl`, `tcl`).
-    const fn core(name: &'static str, version: &'static str) -> Self {
-        Self {
-            name,
-            version,
-            ifneeded_stub: false,
-            role: CorePackageRole::InterpreterRelease,
-        }
-    }
-
-    /// A `TclOO` entry, which C's `initScript` also gives an `ifneeded` stub.
-    const fn tcloo(name: &'static str, version: &'static str) -> Self {
-        Self {
-            name,
-            version,
-            ifneeded_stub: true,
-            role: CorePackageRole::ObjectSystem,
-        }
-    }
 }
 
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
@@ -169,23 +143,28 @@ impl TclVersion {
         profile.evaluation_point()
     }
 
-    /// Map a `package require Tcl` version string (`"8.6"`, `"9.0"`,
-    /// `"8.6.10"`) to the release enum, or `None` for anything the enum
-    /// does not model — callers treat `None` as "no floor", never as an
-    /// error.
+    /// Read a supported release line from a package version, including alpha,
+    /// beta and patch versions. Package version validation owns the grammar.
+    #[must_use]
+    pub fn parse(version: &str) -> Option<Self> {
+        if !validate_version(version) {
+            return None;
+        }
+        let prefix = version.split(['a', 'b']).next()?;
+        let mut parts = prefix.split('.');
+        let major = parts.next()?.parse::<u32>().ok()?;
+        let minor = parts.next()?.parse::<u32>().ok()?;
+        Self::ALL.into_iter().find(|release| {
+            let mut expected = release.version_string().split('.');
+            expected.next().and_then(|part| part.parse::<u32>().ok()) == Some(major)
+                && expected.next().and_then(|part| part.parse::<u32>().ok()) == Some(minor)
+        })
+    }
+
+    /// The release floor named by a `package require Tcl` version.
     #[must_use]
     pub fn from_package_version(version: &str) -> Option<Self> {
-        let mut parts = version.split('.');
-        let major = parts.next()?.parse::<u32>().ok()?;
-        let minor = parts.next().and_then(|m| m.parse::<u32>().ok())?;
-        match (major, minor) {
-            (8, 4) => Some(Self::V8_4),
-            (8, 5) => Some(Self::V8_5),
-            (8, 6) => Some(Self::V8_6),
-            (9, 0) => Some(Self::V9_0),
-            (9, 1) => Some(Self::V9_1),
-            _ => None,
-        }
+        Self::parse(version)
     }
 
     /// The `major.minor` string this release reports as
@@ -196,14 +175,8 @@ impl TclVersion {
     /// form answers identically for any requirement that does not name a patch
     /// level — and the enum models no patch levels to name.
     #[must_use]
-    pub fn version_string(self) -> &'static str {
-        match self {
-            Self::V8_4 => "8.4",
-            Self::V8_5 => "8.5",
-            Self::V8_6 => "8.6",
-            Self::V9_0 => "9.0",
-            Self::V9_1 => "9.1",
-        }
+    pub const fn version_string(self) -> &'static str {
+        self.release_facts().version_string
     }
 
     /// The release line `text` spells, if it is one of the ladder's own.
@@ -225,13 +198,7 @@ impl TclVersion {
     /// dialect name when it needs registry data.
     #[must_use]
     pub const fn dialect_profile_name(self) -> &'static str {
-        match self {
-            Self::V8_4 => "tcl8.4",
-            Self::V8_5 => "tcl8.5",
-            Self::V8_6 => "tcl8.6",
-            Self::V9_0 => "tcl9.0",
-            Self::V9_1 => "tcl9.1",
-        }
+        self.release_facts().profile_name
     }
 
     /// The full `major.minor.patch` string an engine emulating this release
@@ -271,118 +238,26 @@ impl TclVersion {
         REFERENCE_SOURCE_TAGS[self.reference_index()]
     }
 
-    /// The core packages a bare interpreter of this release pre-provides —
-    /// restricted to the ones this project's engines actually implement,
-    /// because `package provide` is a promise that `package require` will
-    /// hand back a working command surface.
-    ///
-    /// Measured on the reference interpreters (`package names` in a fresh
-    /// `tclsh`, then `package provide`/`package ifneeded` for each):
-    ///
-    /// | release | `Tcl` | `tcl` | `TclOO` | `tcl::oo` |
-    /// |---|---|---|---|---|
-    /// | 8.4.20 | `8.4` | — | — | — |
-    /// | 8.5.19 | `8.5.19` | — | — | — |
-    /// | 8.6.14 | `8.6.14` | — | `1.1.0` | — |
-    /// | 9.0.4 | `9.0.4` | `9.0.4` | `1.3.1` | `1.3.1` |
-    /// | 9.1.0 | `9.1.0` | `9.1.0` | `1.3.1` | `1.3.1` |
-    ///
-    /// Three release facts sit in that table, and every one of them changes
-    /// what a script sees:
-    ///
-    /// - The lowercase `tcl` spelling arrives with Tcl 9 (TIP 590's
-    ///   all-lowercase naming). Library code such as `tm.tcl` reads
-    ///   `[package provide tcl]`, so an 8.x engine that provides it takes a
-    ///   different branch than `tclsh8.6` does.
-    /// - Tcl 8.4 provides `TCL_VERSION`, not `TCL_PATCH_LEVEL`
-    ///   (`Tcl_CreateInterp` passes `TCL_VERSION` to `Tcl_PkgProvideEx`), so
-    ///   `tclsh8.4` answers `package provide Tcl` with the two-component
-    ///   `8.4`. Every later release answers with the patch level.
-    /// - `TclOO` is a separate 8.5-era extension: it is not pre-provided
-    ///   before 8.6, and 8.6 carries `1.1.0` against 9.x's `1.3.1`, with no
-    ///   lowercase `tcl::oo` co-provide before 9.
-    ///
-    /// The `tcl::tommath`, `zlib`, and `tcl::zlib` entries the reference
-    /// interpreters also pre-provide are deliberately absent: neither engine
-    /// implements those surfaces, and claiming them would turn a
-    /// `package require` failure into a later `invalid command name`.
-    ///
-    /// The `Tcl` version below is always [`Self::patchlevel`] (8.4 aside),
-    /// which is the engines' *pinned* build, while the 8.6
-    /// interpreter the row above was measured on is 8.6.14. The patch digit
-    /// is the one thing in the table that names a build rather than a
-    /// release rule; `core_package_tracks_the_patch_level` pins the
-    /// relationship so the two cannot drift apart.
+    /// Source-observed core package provisions implemented by both engines.
+    /// The generated reference roster supplies versions, aliases and ifneeded
+    /// stubs. The projection retains interpreter and `TclOO` subjects; tommath
+    /// and zlib provisions require independent engine backing.
     #[must_use]
     pub const fn core_provided_packages(self) -> &'static [CorePackage] {
-        const TCL_8_4: &[CorePackage] = &[CorePackage::core("Tcl", "8.4")];
-        const TCL_8_5: &[CorePackage] = &[CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[1])];
-        const TCL_8_6: &[CorePackage] = &[
-            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[2]),
-            CorePackage::tcloo("TclOO", TCLOO_8_6.1),
-        ];
-        const TCL_9_0: &[CorePackage] = &[
-            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[3]),
-            CorePackage::core("tcl", REFERENCE_PATCHLEVELS[3]),
-            CorePackage::tcloo("TclOO", TCLOO_9.1),
-            CorePackage::tcloo("tcl::oo", TCLOO_9.1),
-        ];
-        const TCL_9_1: &[CorePackage] = &[
-            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[4]),
-            CorePackage::core("tcl", REFERENCE_PATCHLEVELS[4]),
-            CorePackage::tcloo("TclOO", TCLOO_9.1),
-            CorePackage::tcloo("tcl::oo", TCLOO_9.1),
-        ];
-        match self {
-            Self::V8_4 => TCL_8_4,
-            Self::V8_5 => TCL_8_5,
-            Self::V8_6 => TCL_8_6,
-            Self::V9_0 => TCL_9_0,
-            Self::V9_1 => TCL_9_1,
-        }
+        self.release_facts().core_packages
     }
 
-    /// The core's `TCLOO_VERSION` and `TCLOO_PATCHLEVEL` (`tclOO.h`), which
-    /// seed `::oo::version` and `::oo::patchlevel`; `None` before `TclOO`
-    /// joined the core in 8.6. 8.6 spells both `1.1.0`; 9.x has `1.3` and
-    /// `1.3.1`.
+    /// `TclOO`'s header- and oracle-checked version and patchlevel, absent before
+    /// it joined the core. These seed the namespace's version variables.
     #[must_use]
     pub const fn tcloo_version(self) -> Option<(&'static str, &'static str)> {
-        match self {
-            Self::V8_4 | Self::V8_5 => None,
-            Self::V8_6 => Some(TCLOO_8_6),
-            Self::V9_0 | Self::V9_1 => Some(TCLOO_9),
-        }
+        self.release_facts().tcloo_version
     }
 
     /// The release-defined unit used by `string length` and character indices.
     #[must_use]
     pub const fn string_character_model(self) -> StringCharacterModel {
-        match self {
-            // 8.4/8.5 cap a character at three UTF-8 bytes, so a
-            // supplementary code point is never assembled and counts as its
-            // four bytes — measured 4, where the 8.6 surrogate model says 2.
-            Self::V8_4 | Self::V8_5 => StringCharacterModel::BmpCharsElseUtf8Bytes,
-            Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
-            Self::V9_0 | Self::V9_1 => StringCharacterModel::UnicodeScalars,
-        }
-    }
-
-    /// The canonical dialect-profile name for this release (`"tcl8.6"`), the
-    /// inverse of [`Self::from_dialect`].
-    ///
-    /// Lets an embedder that selected a release (a `--tcl-version` flag) name
-    /// the same dialect to the *compiler*, so codegen targets the release the
-    /// runtime was built for instead of defaulting to the permissive profile.
-    #[must_use]
-    pub const fn dialect_name(self) -> &'static str {
-        match self {
-            Self::V8_4 => "tcl8.4",
-            Self::V8_5 => "tcl8.5",
-            Self::V8_6 => "tcl8.6",
-            Self::V9_0 => "tcl9.0",
-            Self::V9_1 => "tcl9.1",
-        }
+        self.release_policy().characters
     }
 
     /// The release's numeric-literal grammar — the single mapping every
@@ -395,11 +270,7 @@ impl TclVersion {
     /// per-release evidence.
     #[must_use]
     pub const fn number_syntax(self) -> crate::NumberSyntax {
-        match self {
-            Self::V8_4 => crate::NumberSyntax::Tcl84,
-            Self::V8_5 | Self::V8_6 => crate::NumberSyntax::Tcl85,
-            Self::V9_0 | Self::V9_1 => crate::NumberSyntax::Tcl90,
-        }
+        self.release_policy().numbers
     }
 }
 

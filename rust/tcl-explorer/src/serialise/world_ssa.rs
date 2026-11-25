@@ -214,6 +214,7 @@ pub(super) fn registry_world_domain_name(domain: tcl_registry::WorldStateDomain)
         tcl_registry::WorldStateDomain::PackageState => "package-state".to_owned(),
         tcl_registry::WorldStateDomain::HostCapabilities => "host-capabilities".to_owned(),
         tcl_registry::WorldStateDomain::VariableStore => "variable-store".to_owned(),
+        tcl_registry::WorldStateDomain::ThreadSharedStore => "thread-shared-store".to_owned(),
         tcl_registry::WorldStateDomain::InterpreterResult => "interpreter-result".to_owned(),
         tcl_registry::WorldStateDomain::CompletionState => "completion-state".to_owned(),
         tcl_registry::WorldStateDomain::LegacyExternal(target) => {

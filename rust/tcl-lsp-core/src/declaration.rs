@@ -710,14 +710,14 @@ mod tests {
         let expected =
             u32::try_from(source.find("global ::ns::foo").unwrap() + "global ".len()).unwrap();
         for version in tcl_dialect::TclVersion::ALL {
-            let analysis = Analyser::new().analyse(source, version.dialect_name());
+            let analysis = Analyser::new().analyse(source, version.dialect_profile_name());
             for reference in ["$foo", "$::ns::foo"] {
                 let locations = declaration_at_read(source, &analysis, reference);
                 assert_eq!(
                     locations.len(),
                     1,
                     "{} {reference}: {locations:?}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
                 assert_eq!(locations[0].start_character, expected);
             }

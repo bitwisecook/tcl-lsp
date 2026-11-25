@@ -128,6 +128,7 @@ fn unset_layout_roles(
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
         completion: crate::knowledge::Knowledge::Partial(

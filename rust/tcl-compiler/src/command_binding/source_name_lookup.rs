@@ -36,7 +36,7 @@ pub struct OriginalCommandLookup {
     naming_scope: Option<SignatureNamespaceScope>,
     observations: Vec<super::declaration_layout::DeclarationLayoutObservation>,
     callback_scope: Option<tcl_registry::ScriptLookupScope>,
-    receiver_family: Option<tcl_registry::definer::DefinerFamily>,
+    receiver_commands: Option<&'static [&'static str]>,
 }
 
 impl OriginalCommandLookup {
@@ -82,8 +82,7 @@ impl OriginalCommandLookup {
     /// prove no other command reaches it.
     #[must_use]
     pub fn receiver_namespace_commands(&self) -> Option<&'static [&'static str]> {
-        self.receiver_family
-            .map(tcl_registry::definer::DefinerFamily::receiver_namespace_commands)
+        self.receiver_commands
     }
 
     pub(super) fn source_observations(
@@ -824,8 +823,7 @@ impl SourceInvocationBinding {
             original_receiver_candidates(input.bytes(), input.policy(), receiver.path)?;
         let receiver_command = local
             && receiver
-                .family
-                .receiver_namespace_commands()
+                .commands
                 .iter()
                 .any(|name| name.as_bytes() == input.bytes());
         if receiver_command {
@@ -847,7 +845,7 @@ impl SourceInvocationBinding {
             naming_scope: None,
             observations: rows.into_iter().cloned().collect(),
             callback_scope: None,
-            receiver_family: local.then_some(receiver.family),
+            receiver_commands: local.then_some(receiver.commands),
         })
     }
 
@@ -892,11 +890,7 @@ impl SourceInvocationBinding {
             .baseline
             .execution_name_policy?
             .native_recipe()?;
-        Some(
-            original_receiver_namespace(&rows, policy)?
-                .family
-                .receiver_namespace_commands(),
-        )
+        Some(original_receiver_namespace(&rows, policy)?.commands)
     }
 
     pub(super) fn original_lookup_from_rows(
@@ -995,7 +989,7 @@ impl SourceInvocationBinding {
             naming_scope: naming_scope_available.then_some(naming_scope).flatten(),
             observations: rows.into_iter().cloned().collect(),
             callback_scope: None,
-            receiver_family: None,
+            receiver_commands: None,
         })
     }
 
@@ -1045,7 +1039,7 @@ impl SourceInvocationBinding {
                     naming_scope: (scope == ScriptLookupScope::GlobalFrame).then_some(root),
                     observations: rows.into_iter().cloned().collect(),
                     callback_scope: None,
-                    receiver_family: None,
+                    receiver_commands: None,
                 }
             }
             ScriptLookupScope::InvokingFrame => {
@@ -1403,7 +1397,8 @@ mod tests {
             let dialect = tcl_registry::InvocationDialect::for_version(version);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
             let registry =
-                tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+                tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                    .commands();
             let policy = dialect.authored_name_policy().unwrap();
             for (source, head, expected, registration_from) in cases {
                 let image = SourceImage::document(source);

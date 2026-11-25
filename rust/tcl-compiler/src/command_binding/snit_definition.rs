@@ -307,7 +307,7 @@ fn bounded_installation_member_name(
     values: &[crate::registry_invocation::EffectiveInvocationWord],
     declarations: &mut super::BTreeSet<String>,
 ) -> bool {
-    if grammar.family != tcl_registry::definer::DefinerFamily::Itcl {
+    if !grammar.profile.class_procedures_are_qualified() {
         return true;
     }
     // registry-axis-ok: definition_body — snit member keywords that define a callable; until the snit definition grammar marks callable members

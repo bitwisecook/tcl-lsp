@@ -749,7 +749,8 @@ mod tests {
         version: tcl_dialect::TclVersion,
     ) -> (ModuleCommandBindings, SignatureSourceNameInput) {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let bindings = super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -767,11 +768,11 @@ mod tests {
         let point = bindings.invocation_at_source("namespace", 0);
         let input = point
             .original_retained_written_name_input(2)
-            .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+            .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
         let state = point
             .lookup_state
             .as_ref()
-            .unwrap_or_else(|| panic!("{}", version.dialect_name()))
+            .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()))
             .state
             .clone();
         (state, input)
@@ -786,7 +787,8 @@ mod tests {
         tcl_lexer::LexerConfig,
     ) {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let bindings = super::super::SourceCommandBindings::analyse_with_options(
@@ -946,7 +948,8 @@ mod tests {
         for version in tcl_dialect::TclVersion::ALL {
             let source = r"namespace eval N\uD800 {namespace eval child {proc p {} {}; namespace export p}; set insideCheckpoint READY}; set checkpoint READY";
             let registry =
-                tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+                tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                    .commands();
             let dialect = tcl_registry::InvocationDialect::for_version(version);
             let bindings = super::super::SourceCommandBindings::analyse_with_options(
                 source,
@@ -962,11 +965,11 @@ mod tests {
             let state = &point
                 .lookup_state
                 .as_ref()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()))
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()))
                 .state;
             let namespace = state
                 .variable_frame_namespace_key()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let SourceNamespaceKey::Allocated { path, .. } = &namespace else {
                 panic!("original allocated parent frame")
             };

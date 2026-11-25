@@ -589,7 +589,7 @@ mod tests {
             ".include /missing/openssl.cnf\n[ssl]\nCertificate = $ENV::CERT_PATH\n",
         )
         .expect("configuration is structurally valid");
-        assert!(imported.endpoint.certificate_chain.is_empty());
+        assert_eq!(imported.endpoint.certificate_chain, [] as [String; 0]);
         assert!(
             imported
                 .notices
@@ -607,7 +607,10 @@ mod tests {
         let imported =
             import_openssl_config("[ssl]\nMinProtocol = $ENV::MIN_TLS\nMaxProtocol = TLSv1.3\n")
                 .expect("configuration is structurally valid");
-        assert!(imported.endpoint.protocols.is_empty());
+        assert_eq!(
+            imported.endpoint.protocols,
+            [] as [crate::model::ProtocolVersion; 0]
+        );
         assert!(
             imported
                 .notices

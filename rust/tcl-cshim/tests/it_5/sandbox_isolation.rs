@@ -147,5 +147,5 @@ fn only_the_interpreter_that_loaded_the_extension_has_it() {
         error.script_message_bytes() == Some("invalid command name \"host_only\"".as_bytes()),
         "{error:?}"
     );
-    assert!(other.commands().is_empty());
+    assert_eq!(other.commands(), [] as [tcl_core_types::NameBytes; 0]);
 }

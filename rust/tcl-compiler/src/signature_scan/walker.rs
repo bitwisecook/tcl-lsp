@@ -48,7 +48,7 @@ use tcl_lexer::{Token, TokenType};
 use tcl_registry::ClausePlan;
 use tcl_registry::Traits;
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::definer::DefinerFamily;
+use tcl_registry::definer::{DefinitionDispatcher, DefinitionShape};
 use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
 
 use super::ctx::ScanCtx;
@@ -626,46 +626,35 @@ fn dispatch_definer(
 ) -> bool {
     if let Some(grammar) = dispatch.definition_body {
         let mut definitions = super::types::SignatureScanResult::default();
-        let handled = match grammar.family {
-            // Every stock `TclOO` metaclass creates a class via the same
-            // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
-            // (property-bearing), `oo::abstract`, and `oo::singleton`
-            // included, so a `[Pin new]` on an `oo::configurable` class is
-            // typed as an object like any other.
-            DefinerFamily::TclOo if dispatch.traits.contains(Traits::IS_OO_METACLASS) => {
+        let handled = match grammar.profile.definition_shape {
+            DefinitionShape::MetaclassScript
+                if dispatch.traits.contains(Traits::IS_OO_METACLASS) =>
+            {
                 if let Some(method) = &dispatch.manufacturer {
                     handlers::handle_oo_class(texts, argv, method, ns_prefix, &mut definitions);
                 }
                 true
             }
-            // `oo::define` / `oo::objdefine` share the `TclOO` grammar but
-            // extend an existing class rather than create one — and the
-            // declaration-only families manufacture nothing at all: a
-            // `.tclspec` body describes commands and a `.sslictcl` body
-            // describes TLS facts, neither creating anything. None records a
-            // definition here; the ordinary scan continues past them.
-            DefinerFamily::TclOo
-            | DefinerFamily::Clay
-            | DefinerFamily::SpecTcl
-            | DefinerFamily::SslicTcl => false,
-            // snit types/widgets create instances via `Name create obj` /
-            // `Name %AUTO%` / a widget's `Name .path`, so record them as
-            // classes to type those constructors' receivers (same shape as
-            // itcl).
-            DefinerFamily::Snit => {
-                handlers::handle_snit_type(texts, argv, ns_prefix, &mut definitions);
-                true
+            DefinitionShape::NamedScript => {
+                match grammar.command_installation().map(|row| row.dispatcher) {
+                    Some(DefinitionDispatcher::SnitType) => {
+                        handlers::handle_snit_type(texts, argv, ns_prefix, &mut definitions);
+                        true
+                    }
+                    Some(DefinitionDispatcher::ItclClass) => {
+                        handlers::handle_itcl_class(texts, argv, ns_prefix, &mut definitions);
+                        true
+                    }
+                    None => false,
+                }
             }
-            DefinerFamily::Itcl => {
-                handlers::handle_itcl_class(texts, argv, ns_prefix, &mut definitions);
-                true
-            }
-            // `class NAME ?BASES? VARS` — the variable dictionary is the last
-            // word, whether or not base classes are named.
-            DefinerFamily::JimClass => {
+            DefinitionShape::VariableDictionary => {
                 handlers::handle_jim_class(texts, argv, ns_prefix, &mut definitions);
                 true
             }
+            DefinitionShape::MetaclassScript
+            | DefinitionShape::ConditionalScript
+            | DefinitionShape::Declaration => false,
         };
         if let Some(scope) = ctx.current_namespace(ns_prefix) {
             for mut declaration in definitions.classes.into_values() {
@@ -683,7 +672,7 @@ fn dispatch_definer(
                 let Some((qualified, source_name)) = ctx.publication_name(
                     &scope,
                     &texts[index],
-                    if grammar.family == DefinerFamily::TclOo {
+                    if grammar.profile.has_native_definition_workers() {
                         tcl_syntax::naming::NativeNamePurpose::OoObjectPublication
                     } else {
                         tcl_syntax::naming::NativeNamePurpose::CommandPublication

@@ -171,6 +171,16 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
     } else {
         Traits::empty()
     } | sub.map_or_else(Traits::empty, SubCommand::semantic_traits);
+    let body_execution = sub
+        .and_then(|sub| sub.body_execution)
+        .or(spec.body_execution);
+    let deferred =
+        body_execution.and_then(crate::body_execution::BodyExecutionSpec::deferred_contract);
+    let inherited_traits = if deferred.is_some() {
+        inherited_traits.union(Traits::DEFERS_BODY)
+    } else {
+        inherited_traits
+    };
     let inherited_side_effects = sub
         .filter(|sub| !sub.side_effects.is_unknown())
         .map_or_else(
@@ -252,9 +262,16 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
         arg_types: form
             .and_then(|form| form.arg_types)
             .unwrap_or_else(|| sub.map_or(spec.arg_types, |sub| sub.arg_types)),
-        traits: form
-            .and_then(|form| form.traits)
-            .unwrap_or(inherited_traits),
+        traits: {
+            let traits = form
+                .and_then(|form| form.traits)
+                .unwrap_or(inherited_traits);
+            if deferred.is_some() {
+                traits.union(Traits::DEFERS_BODY)
+            } else {
+                traits
+            }
+        },
         taint_source: inherit_command.then_some(spec.taint_source).flatten(),
         taint_transform: crate::taint::SelectedTaintTransform::for_descriptors(
             spec,
@@ -344,10 +361,12 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
             .and_then(|form| form.var_elements_effect)
             .unwrap_or_else(|| sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect)),
         frame_effect: inherit_command.then_some(spec.frame_effect).flatten(),
-        body_kind: sub.map_or(spec.body_kind, |sub| sub.body_kind),
-        body_execution: sub
-            .and_then(|sub| sub.body_execution)
-            .or(spec.body_execution),
+        body_kind: if deferred.is_some() {
+            crate::BodyKind::Structural
+        } else {
+            sub.map_or(spec.body_kind, |sub| sub.body_kind)
+        },
+        body_execution,
         body_interpreter: sub.map_or(spec.body_interpreter, |sub| sub.body_interpreter),
         analyser_hook: sub
             .and_then(|sub| sub.analyser_hook)

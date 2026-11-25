@@ -479,6 +479,11 @@ pub(super) fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unre
         )
     };
     d.insert("versioned_arg_values".into(), versioned_arg_values);
+    command_execution(d, spec, lost);
+}
+
+/// Script bodies and their execution contracts.
+fn command_execution(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "body_kind".into(),
         json!(catalogue::variant_name(&spec.body_kind)),
@@ -487,6 +492,13 @@ pub(super) fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unre
         "script_lookup_scope".into(),
         spec.script_lookup_scope
             .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
+    );
+    super::field_values::evaluation_contract_fields(
+        d,
+        spec.evaluation_contexts,
+        spec.completion,
+        spec.body_execution,
+        lost,
     );
     d.insert(
         "body_execution".into(),

@@ -441,7 +441,7 @@ impl OriginalForeignFactoryBody {
             return None;
         }
         let grammar = descriptor.definition_body?;
-        (grammar.family == tcl_registry::definer::DefinerFamily::TclOo).then_some(())?;
+        (grammar.profile.has_native_definition_workers()).then_some(())?;
         Some(grammar)
     }
 

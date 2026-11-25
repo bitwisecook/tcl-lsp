@@ -447,7 +447,6 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         tcl_unsupported_representation::spec(),
         tcl_unsupported_representation::spec_qualified(),
         tcl_zipfs::spec(),
-        tcl_zipfs::spec_qualified(),
         tell_::spec(),
         throw_::spec(),
         time::spec(),

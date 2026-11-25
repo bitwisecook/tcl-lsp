@@ -24,7 +24,8 @@ fn original_initial_table_selects_the_registered_handler() {
     for version in tcl_dialect::TclVersion::ALL {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let state = ModuleCommandBindings::initial_with_options(
             registry,
@@ -351,7 +352,7 @@ fn catalogue_state(
 ) {
     let dialect = tcl_registry::InvocationDialect::for_version(version);
     let registry =
-        tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     (
         ModuleCommandBindings::initial_with_options(
@@ -644,7 +645,8 @@ fn original_default_factory_dependencies_use_the_current_exact_registry_cells() 
     ] {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let state = ModuleCommandBindings::initial_with_options(
             registry,
@@ -684,7 +686,8 @@ fn original_registry_metadata_target_requires_the_current_exact_cell() {
     for version in tcl_dialect::TclVersion::ALL {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let mut state = ModuleCommandBindings::initial_with_options(
             registry,

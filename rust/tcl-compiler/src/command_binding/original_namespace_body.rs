@@ -444,7 +444,8 @@ mod tests {
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -470,7 +471,7 @@ mod tests {
             let bindings = analyse(source, version);
             let world = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let entries = world.declarations().collect::<Vec<_>>();
             let [entry] = entries.as_slice() else {
                 panic!("one nested declaration")

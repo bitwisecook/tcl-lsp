@@ -181,10 +181,11 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         repeated_args: _,
         frame_effect: _,
         clause_shape_check: _,
-        command_prefixes: _,
+        command_prefixes: _, callback_protocols: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
         script_lookup_scope: _,
+        evaluation_contexts: _,
         callback_taint_inputs: _,
         return_type: _,
         return_type_hook: _,
@@ -344,6 +345,12 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("clause_shape_check", Surface::Key("clause_shape_check")),
     f("command_prefixes", Surface::Key("command_prefixes")),
     f(
+        "callback_protocols",
+        Surface::Excluded(
+            "Host protocol authoring is tracked by the callback_protocols SpecTcl GAPS entry.",
+        ),
+    ),
+    f(
         "callback_taint_inputs",
         Surface::Key("callback_taint_inputs"),
     ),
@@ -356,6 +363,12 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("script_timing_resolver"),
     ),
     f("script_lookup_scope", Surface::Key("script_lookup_scope")),
+    f(
+        "evaluation_contexts",
+        Surface::Excluded(
+            "Per-argument context authoring remains the explicit evaluation_contexts SpecTcl loader gap; seeding retains an export loss.",
+        ),
+    ),
     f("return_type", Surface::Key("return_type")),
     f("return_type_hook", Surface::Key("return_type_hook")),
     f("var_write_typing", Surface::Key("var_write_typing")),
@@ -596,10 +609,9 @@ pub const COMMAND_SPEC: &[Field] = &[
 
 /// Compile-time witness that [`SUB_COMMAND`] accounts for every
 /// [`SubCommand`] field — see [`witness_command_spec`] for what to do when it
-/// stops compiling.
-pub fn witness_sub_command(sub: &SubCommand) {
-    // THE GATE — see `witness_command_spec`. No `..`, ever.
-    let SubCommand {
+/// stops compiling. The parameter pattern stays exhaustive, with no `..` rest.
+pub fn witness_sub_command(
+    SubCommand {
         name: _,
         traits: _,
         arity: _,
@@ -616,9 +628,11 @@ pub fn witness_sub_command(sub: &SubCommand) {
         arg_domains: _,
         repeated_args: _,
         command_prefixes: _,
+        callback_protocols: _,
         command_prefix_resolver: _,
         script_timing_resolver: _,
         script_lookup_scope: _,
+        evaluation_contexts: _,
         callback_taint_inputs: _,
         return_type: _,
         var_write_typing: _,
@@ -697,7 +711,8 @@ pub fn witness_sub_command(sub: &SubCommand) {
         sub_subcommands: _,
         defines_command_at: _,
         max_leading_option_words: _,
-    } = sub;
+    }: &SubCommand,
+) {
 }
 
 /// Where the studio surfaces each [`SubCommand`] field, in
@@ -729,6 +744,12 @@ pub const SUB_COMMAND: &[Field] = &[
     f("repeated_args", Surface::Key("repeated_args")),
     f("command_prefixes", Surface::Key("command_prefixes")),
     f(
+        "callback_protocols",
+        Surface::Excluded(
+            "Host protocol authoring is tracked by the callback_protocols SpecTcl GAPS entry.",
+        ),
+    ),
+    f(
         "callback_taint_inputs",
         Surface::Key("callback_taint_inputs"),
     ),
@@ -741,6 +762,12 @@ pub const SUB_COMMAND: &[Field] = &[
         Surface::Key("script_timing_resolver"),
     ),
     f("script_lookup_scope", Surface::Key("script_lookup_scope")),
+    f(
+        "evaluation_contexts",
+        Surface::Excluded(
+            "Per-argument context authoring remains the explicit evaluation_contexts SpecTcl loader gap; seeding retains an export loss.",
+        ),
+    ),
     f("return_type", Surface::Key("return_type")),
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
@@ -964,6 +991,7 @@ pub fn witness_option_arg(arg: &OptionArg) {
         integer: _,
         hint: _,
         appended_arity: _,
+        callback_protocol: _,
         taints_var_write: _,
         variable_scope: _,
     } = arg;
@@ -986,6 +1014,12 @@ pub const OPTION_ARG: &[Field] = &[
     f("integer", Surface::Key("integer")),
     f("hint", Surface::Key("hint")),
     f("appended_arity", Surface::Key("appended_arity")),
+    f(
+        "callback_protocol",
+        Surface::Excluded(
+            "Host protocol authoring is tracked by the callback_protocol SpecTcl GAPS entry.",
+        ),
+    ),
     f("taints_var_write", Surface::Key("taints_var_write")),
     f("variable_scope", Surface::Key("variable_scope")),
 ];
@@ -1302,6 +1336,7 @@ pub const VERSIONED_ARG_VALUE: &[Field] = &[
 pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
     let DefinitionBodyGrammar {
         family: _,
+        profile: _,
         members: _,
         implicit_vars: _,
         implicit_receiver_vars: _,
@@ -1325,6 +1360,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
 /// function pointer, so its key records only whether one is set.
 pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f("family", Surface::Key("family")),
+    f("profile", Surface::Key("profile")),
     f("members", Surface::Key("members")),
     f("implicit_vars", Surface::Key("implicit_vars")),
     f(

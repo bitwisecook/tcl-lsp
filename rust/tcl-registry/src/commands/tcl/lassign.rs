@@ -50,6 +50,7 @@ const REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarWr
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
         completion: crate::knowledge::Knowledge::Partial(

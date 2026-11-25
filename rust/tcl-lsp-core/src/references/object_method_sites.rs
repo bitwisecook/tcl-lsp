@@ -22,7 +22,7 @@ use super::dispatch_regions::{
     MAX_DISPATCH_SCAN_DEPTH, frame_shifted_dispatch_regions, nested_dispatch_regions,
     strip_outer_braces,
 };
-use crate::definition::class_definer_family;
+use crate::definition::class_definition_grammar;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 
@@ -280,8 +280,8 @@ fn dispatch_receivers(
     };
     if let Some(class) = analysis.all_classes.get(class_q) {
         if is_classmethod
-            && class_definer_family(analysis, class)
-                .is_some_and(|family| family != tcl_registry::definer::DefinerFamily::Itcl)
+            && class_definition_grammar(analysis, class)
+                .is_some_and(|grammar| !grammar.profile.class_procedures_are_qualified())
         {
             if let Some(member) = class.class_methods.get(method) {
                 receivers.add_class_target(
@@ -342,7 +342,8 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // edges from one place.
     let mut out: Vec<tcl_lexer::Span> = if is_classmethod
         && analysis.all_classes.get(class_q).is_some_and(|cd| {
-            class_definer_family(analysis, cd) == Some(tcl_registry::definer::DefinerFamily::Itcl)
+            class_definition_grammar(analysis, cd)
+                .is_some_and(|grammar| grammar.profile.class_procedures_are_qualified())
         }) {
         itcl_class_proc_call_sites(source, analysis, dialect, class_q, method)
     } else {

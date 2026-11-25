@@ -135,7 +135,7 @@ fn regexp_command_corpus() {
 /// `-command` option only exists from 9.0, so its refusal needs a VM that is
 /// not 9.0.
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String) {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm =

@@ -1035,7 +1035,7 @@ mod retained_unreadable_loader_phase_tests {
                 .iter()
                 .any(|notice| notice.path == missing.path)
         );
-        assert!(inputs.retained_paths().is_empty());
+        assert_eq!(inputs.retained_paths(), [] as [std::path::PathBuf; 0]);
         assert!(inputs.selected(&inputs.retained_paths()).is_none());
     }
 }

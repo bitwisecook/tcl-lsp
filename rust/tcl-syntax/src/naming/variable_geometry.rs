@@ -344,7 +344,7 @@ mod tests {
                 .unwrap();
             assert_eq!(query.purpose(), NativeNamePurpose::NamespaceVariableQuery);
             assert_eq!(query.simple().as_bytes(), b"v");
-            assert!(query.qualifiers().is_empty());
+            assert_eq!(query.qualifiers(), [] as [NameBytes; 0]);
             let expected = if version.namespace_var_global_fallback() {
                 vec![VariableLookupBase::Context(9), VariableLookupBase::Root]
             } else {

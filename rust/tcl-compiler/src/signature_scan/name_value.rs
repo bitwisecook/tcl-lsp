@@ -1442,7 +1442,8 @@ mod variable_operand_root_tests {
         // This uses its compound-word root boundary, not its SET handler,
         // local-slot admission, successful index evaluation or Normal claims.
         for version in tcl_dialect::TclVersion::ALL {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
             let policy = NamePolicyProtocol::authored_tcl(version);
             let source = tcl_lexer::SourceImage::document("upvar ::N::array($index) local");

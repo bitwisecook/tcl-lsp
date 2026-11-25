@@ -73,6 +73,12 @@ pub enum BodyInterpreter {
     Current,
     /// The evaluated value at this argument index selects the interpreter.
     Argument(u8),
+    /// Main interpreter of the thread named by this argument, not a child-interpreter path.
+    ThreadArgument(u8),
+    /// A process-wide shared store outside interpreter variable worlds.
+    ProcessShared,
+    /// An interpreter whose identity has not been established, including a new thread.
+    Unknown,
 }
 
 impl BodyInterpreter {
@@ -87,6 +93,7 @@ impl BodyInterpreter {
     ) -> InterpreterScope {
         match self {
             Self::Current => InterpreterScope::Current,
+            Self::ThreadArgument(_) | Self::ProcessShared | Self::Unknown => InterpreterScope::Any,
             Self::Argument(index) => match literal_at(usize::from(index)) {
                 Some("") => InterpreterScope::Current,
                 Some(path) => InterpreterScope::named(path),

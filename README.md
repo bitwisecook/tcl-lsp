@@ -1372,10 +1372,12 @@ or a Tcl dialect stub.  Live at
 [bitwisecook.github.io/tcl-lsp/spec-studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/),
 or build it locally with `make spec-studio-wasm`.
 
-The form is generated from a schema the registry itself reports, so it covers
-every field of `CommandSpec` and `SubCommand` — a field added to the registry
-appears in the studio without a front-end change, and a drift test fails if
-one is ever missed.
+The form is generated from the schema the registry reports. Supported fields
+appear without a front-end change; structured descriptors awaiting authoring
+support are listed in the [native-spec parity contract](docs/design/contracts/command-spec-studio.md#parity-with-native-specs).
+The registry owns argument evaluation contexts, object-system profiles, and
+[channel option and callback contracts](docs/design/registry/channel-facts.md);
+release catalogues and policies are generated from the pinned reference builds.
 
 **Import a package** takes a package's own `.tcl` files, runs the real
 analyser over them, and infers a starting spec for each `proc` it finds:

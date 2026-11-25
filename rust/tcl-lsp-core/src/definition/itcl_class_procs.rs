@@ -102,8 +102,10 @@ pub(super) fn itcl_class_proc_at_in_registry<'a>(
         return None;
     }
     let (class_q, class_def) = analysis.all_classes.get_key_value(parent)?;
-    (definer_family_in_registry(class_def, registry)
-        == Some(tcl_registry::definer::DefinerFamily::Itcl)
+    (registry
+        .get(&class_def.metaclass)
+        .and_then(|spec| spec.definition_body)
+        .is_some_and(|grammar| grammar.profile.class_procedures_are_qualified())
         && class_def.class_methods.contains_key(member))
     .then(|| (class_q, member.to_owned()))
 }
@@ -177,7 +179,8 @@ pub(super) fn itcl_self_qualified_candidate(
     word: &str,
 ) -> Option<String> {
     let class_def = analysis.all_classes.get(namespace)?;
-    if class_definer_family(analysis, class_def) != Some(tcl_registry::definer::DefinerFamily::Itcl)
+    if class_definition_grammar(analysis, class_def)
+        .is_none_or(|grammar| !grammar.profile.class_procedures_are_qualified())
     {
         return None;
     }

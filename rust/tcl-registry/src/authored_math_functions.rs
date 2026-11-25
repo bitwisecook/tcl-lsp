@@ -53,7 +53,7 @@ pub fn arity(selected: AuthoredMathFunctionProvider, name: &str) -> Option<usize
     match selected {
         AuthoredMathFunctionProvider::Tcl84Core => {
             let spec = tcl_syntax::expr::mathfunc::spec(name)?;
-            (spec.since == tcl_syntax::expr::mathfunc::MathFuncSince::Tcl84
+            (spec.since == tcl_syntax::expr::mathfunc::MathFuncSince::V8_4
                 && spec.arity.max == Some(spec.arity.min))
             .then_some(usize::from(spec.arity.min))
         }

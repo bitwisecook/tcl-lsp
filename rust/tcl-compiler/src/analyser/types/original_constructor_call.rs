@@ -131,7 +131,7 @@ impl OriginalConstructorArityCall {
         let grammar = declaration.grammar(&context)?;
         // This consumer asks TclOO lifecycle signature questions. Provider
         // bare-name syntax remains a distinct selected source construction role.
-        if grammar.family != tcl_registry::definer::DefinerFamily::TclOo {
+        if !grammar.profile.has_native_definition_workers() {
             return None;
         }
         let class = declaration.source_class(analysis)?;
@@ -165,7 +165,7 @@ impl OriginalConstructorArityCall {
                     source, analysis, provider,
                 )?;
             let provider_grammar = provider_declaration.grammar(&context)?;
-            if provider_grammar.family != tcl_registry::definer::DefinerFamily::TclOo {
+            if !provider_grammar.profile.has_native_definition_workers() {
                 return None;
             }
             let policy = provider.name().policy();

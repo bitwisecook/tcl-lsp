@@ -926,7 +926,7 @@ mod tests {
         let src = "net self /Common/self_rd { address 192.0.2.53%2/24 }";
         let config = crate::parser::parse_bigip_conf(src, "Common");
         let index = build_name_index(&config, Some(src));
-        assert!(index.lookup("192.0.2.53").is_empty());
+        assert_eq!(index.lookup("192.0.2.53"), [] as [String; 0]);
         assert_eq!(
             index.lookup("192.0.2.53%2"),
             ["self-common-self-rd", "net-common-self-rd"]

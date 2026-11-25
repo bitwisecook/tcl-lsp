@@ -973,7 +973,7 @@ mod tests {
             &[b"p"],
         );
         ops.target = None;
-        assert!(
+        assert_eq!(
             super::qualified_listing_bytes(
                 &mut ops,
                 b"selected",
@@ -982,8 +982,8 @@ mod tests {
                 Namespaces::commands_in_bytes,
                 |_, _| unreachable!(),
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [Vec<u8>; 0]
         );
         assert_eq!(*ops.events.borrow(), ["lookup"]);
         ops.events.borrow_mut().clear();

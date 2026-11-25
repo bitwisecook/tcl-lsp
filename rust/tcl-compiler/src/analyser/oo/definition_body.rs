@@ -274,11 +274,8 @@ impl Analyser {
         };
         // A Clay class is a fresh TclOO class whose relation members reach
         // `oo::define` as TclOO's do.
-        if matches!(
-            grammar.family,
-            tcl_registry::definer::DefinerFamily::TclOo
-                | tcl_registry::definer::DefinerFamily::Clay
-        ) && class_def.source_name.is_some()
+        if grammar.profile.members_use_receiver_methods()
+            && class_def.source_name.is_some()
             && !class_def.source_name_ambiguous.is_observed()
         {
             class_def.original_relations.begin_declaration();
@@ -481,7 +478,7 @@ impl Analyser {
                     rules: self.word_rules(),
                 },
             );
-            self.retain_class_relation_lookups(texts, class_def, scope_path);
+            self.retain_class_relation_lookups(grammar, texts, class_def, scope_path);
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
                 grammar,
@@ -552,7 +549,7 @@ pub(in super::super) fn parse_oo_define_inline_in(
             rules: analyser.word_rules(),
         },
     );
-    analyser.retain_class_relation_lookups(args, class_def, scope_path);
+    analyser.retain_class_relation_lookups(grammar, args, class_def, scope_path);
 }
 
 /// Collect the two class-level (non-method) body kinds a definition body

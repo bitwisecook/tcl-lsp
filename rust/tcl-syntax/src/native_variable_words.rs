@@ -407,7 +407,7 @@ mod tests {
     fn capture(source: &[u8], channel: SourceChannel, version: TclVersion) -> NativeWord {
         let image = SourceImage::from_bytes(source, channel);
         let config = LexerConfig::from_grammar(
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
+            tcl_dialect::DialectProfile::find(version.dialect_profile_name())
                 .unwrap()
                 .grammar,
         );

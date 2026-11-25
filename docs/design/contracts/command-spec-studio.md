@@ -1057,3 +1057,19 @@ artefact holds all four (see `.github/workflows/github-pages.yml`).
 the report generator: binaryen mis-rebinds `__wbindgen_externrefs` onto the
 fixed-size funcref table, breaking `Table.grow` at run time. The build
 verifies the externref table is growable instead.
+
+
+Native argument evaluation coordinates, nested completion boundaries and
+trigger-bearing deferred body contracts are recorded as `LoaderGap` entries
+`evaluation_contexts`, `completion_body_boundary` and `deferred_execution`.
+Their reserved spellings are `evaluation_context`, `completion -body-boundary`
+and `body_execution -entry-scope -trigger -family`. Draft seeding marks these
+facts unrecovered, and SpecTcl rendering emits an explicit omission. The
+existing `body_execution` exclusion remains in force: a loadable declaration
+cannot establish a native implementation or entered body. Arbitrary object
+system profiles have a separate `definition_body.profile` loader gap; the
+legacy family spelling continues to select the shipped defaults.
+
+The `body_interpreter` loader gap also covers `ThreadArgument`, `ProcessShared`
+and `Unknown` selectors. The Rust draft renderer preserves those enum values;
+the SpecTcl renderer reports the unsupported authoring spelling.

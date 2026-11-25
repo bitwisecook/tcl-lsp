@@ -145,7 +145,7 @@ fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
         tcl_registry::state_transition::StateTransitionComposition::Replace
     );
     let effects = spec.world_effects.stated().unwrap();
-    assert!(effects.static_footprint.accesses.is_empty());
+    assert_eq!(effects.static_footprint.accesses, []);
     assert_eq!(
         effects.static_footprint.callback,
         WorldEffectDescriptor::EMPTY.static_footprint.callback

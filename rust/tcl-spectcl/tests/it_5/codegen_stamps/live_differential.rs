@@ -321,7 +321,7 @@ fn report(version: TclVersion, call: &str) -> String {
 /// the pack's bodies and which holds the pack's facts: the call's completion as
 /// a list of its code and its result, which is what tclsh prints for the same.
 fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> Outcome {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     // Installs the packs' overlay for the release, which the service reads.
     let _registry = tcl_spectcl::bundled::registry_for_dialect_from(dialect, set);
     let profile = tcl_spectcl::environment::profile_for_dialect(dialect);

@@ -289,6 +289,11 @@ pub(super) fn body_interpreter(value: BodyInterpreter) -> Value {
     match value {
         BodyInterpreter::Current => json!({ "kind": "Current" }),
         BodyInterpreter::Argument(index) => json!({ "kind": "Argument", "index": index }),
+        BodyInterpreter::ThreadArgument(index) => {
+            json!({ "kind": "ThreadArgument", "index": index })
+        }
+        BodyInterpreter::ProcessShared => json!({ "kind": "ProcessShared" }),
+        BodyInterpreter::Unknown => json!({ "kind": "Unknown" }),
     }
 }
 
@@ -591,4 +596,35 @@ fn declared_semantics_json(declared: &DeclaredSemantics) -> Value {
         "iterate": iterate,
         "evaluation": evaluation,
     })
+}
+
+pub(super) fn evaluation_contract_fields(
+    draft: &mut super::Draft,
+    contexts: Option<tcl_registry::evaluation_context::EvaluationContextSpec>,
+    completion: tcl_registry::knowledge::Knowledge<tcl_registry::completion::CompletionDescriptor>,
+    execution: Option<tcl_registry::body_execution::BodyExecutionSpec>,
+    lost: &mut Unrecovered,
+) {
+    draft.insert(
+        "evaluation_contexts".into(),
+        lost.expr("evaluation_contexts", contexts.is_some()),
+    );
+    draft.insert(
+        "completion_body_boundary".into(),
+        lost.expr(
+            "completion_body_boundary",
+            completion
+                .stated()
+                .is_some_and(|completion| completion.body_boundary.is_some()),
+        ),
+    );
+    draft.insert(
+        "deferred_execution".into(),
+        lost.expr(
+            "deferred_execution",
+            execution
+                .and_then(tcl_registry::body_execution::BodyExecutionSpec::deferred_contract)
+                .is_some(),
+        ),
+    );
 }

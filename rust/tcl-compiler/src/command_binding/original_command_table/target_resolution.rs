@@ -216,8 +216,8 @@ impl ModuleCommandBindings {
             helper_path,
         )?;
         if local
-            && tcl_registry::definer::DefinerFamily::TclOo
-                .receiver_namespace_commands()
+            && tcl_registry::definer::TCLOO_PROFILE
+                .receiver_namespace_commands
                 .iter()
                 .any(|name| name.as_bytes() == input.bytes())
         {

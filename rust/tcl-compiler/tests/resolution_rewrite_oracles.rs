@@ -174,7 +174,7 @@ fn source_rewrites_preserve_all_available_c_tcl_observations() {
     let references = available_tclshs();
     assert!(!references.is_empty(), "configure the C Tcl oracle matrix");
     for reference in references {
-        let dialect = format!("tcl{}", reference.version.version_string());
+        let dialect = reference.version.dialect_profile_name().to_owned();
         for case in rewrite_cases() {
             assert_fixture(case, &reference.path, &dialect, false);
         }
@@ -208,7 +208,7 @@ fn proved_constant_rewrite_changes_source_and_preserves_native_result() {
     let mut references: Vec<_> = available_tclshs()
         .into_iter()
         .map(|reference| {
-            let dialect = format!("tcl{}", reference.version.version_string());
+            let dialect = reference.version.dialect_profile_name().to_owned();
             (reference.path, dialect)
         })
         .collect();

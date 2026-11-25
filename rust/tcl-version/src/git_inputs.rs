@@ -178,7 +178,7 @@ mod tests {
         std::fs::create_dir_all(&manifest_dir).expect("create nested manifest directory");
 
         let paths = dependency_paths(&manifest_dir);
-        assert!(!paths.is_empty());
+        assert_ne!(paths, [] as [std::path::PathBuf; 0]);
         assert!(
             paths.iter().all(|candidate| candidate.exists()),
             "all emitted Cargo dependencies must exist: {paths:#?}"

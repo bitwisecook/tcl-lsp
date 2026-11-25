@@ -19,7 +19,7 @@
 //! How a class command installs and names what it manufactures: dispatchers, manufacturer methods and factory initialisers.
 
 use super::member_effect::MemberVisibility;
-use super::{DefinerFamily, DefinitionBodyGrammar, MemberSpec};
+use super::{DefinitionBodyGrammar, MemberSpec};
 use tcl_dialect::model::SpecSurface;
 
 /// Authored finite source presentation hints for an instance-name operand.
@@ -180,7 +180,7 @@ impl DefinitionBodyGrammar {
         let (Family::Jim, Some(_)) = query.core.nearest()? else {
             return None;
         };
-        if self.family != DefinerFamily::JimClass
+        if !self.profile.members_are_two_word_commands()
             || !SpecSurface::core_in(Family::Jim, &[("0.76", None)]).admits(&query)
         {
             return None;
@@ -223,21 +223,7 @@ impl DefinitionBodyGrammar {
     /// Actual handler/provider identity and callback effects remain required.
     #[must_use]
     pub const fn command_installation(&self) -> Option<DefinitionCommandInstallation> {
-        match self.family {
-            DefinerFamily::Snit => Some(DefinitionCommandInstallation {
-                name_at: 0,
-                body_at: 1,
-                dispatcher: DefinitionDispatcher::SnitType,
-                construction_result: ConstructionNameResult::QualifiedInstanceName,
-            }),
-            DefinerFamily::Itcl => Some(DefinitionCommandInstallation {
-                name_at: 0,
-                body_at: 1,
-                dispatcher: DefinitionDispatcher::ItclClass,
-                construction_result: ConstructionNameResult::WrittenInstanceName,
-            }),
-            _ => None,
-        }
+        self.profile.installation
     }
 
     /// Members that install a procedure body without running it during the
@@ -245,44 +231,22 @@ impl DefinitionBodyGrammar {
     /// remain unknown. This grants no instance-constructor closure.
     #[must_use]
     pub fn installation_member_is_deferred(&self, member: &MemberSpec) -> bool {
-        matches!(self.family, DefinerFamily::Snit | DefinerFamily::Itcl)
+        self.profile
+            .deferred_installation_members
+            .contains(&member.keyword)
             && self
                 .member(member.keyword)
                 .is_some_and(|known| std::ptr::eq(known, member))
-            && match self.family {
-                DefinerFamily::Itcl => {
-                    matches!(
-                        member.keyword,
-                        "method" | "proc" | "constructor" | "destructor"
-                    )
-                }
-                DefinerFamily::Snit => matches!(
-                    member.keyword,
-                    "method"
-                        | "typemethod"
-                        | "proc"
-                        | "constructor"
-                        | "destructor"
-                        | "onconfigure"
-                        | "oncget"
-                ),
-                _ => false,
-            }
     }
 
     /// Name operand of a deferred declaration that changes type dispatch.
     /// The selected member must belong to this exact installation grammar.
     #[must_use]
     pub fn installation_dispatch_method_name_at(&self, member: &MemberSpec) -> Option<u8> {
-        (matches!(self.family, DefinerFamily::Snit | DefinerFamily::Itcl)
+        (self.profile.installation_dispatch_member == Some(member.keyword)
             && self
                 .member(member.keyword)
-                .is_some_and(|known| std::ptr::eq(known, member))
-            && match self.family {
-                DefinerFamily::Snit => member.keyword == "typemethod",
-                DefinerFamily::Itcl => member.keyword == "proc",
-                _ => false,
-            })
+                .is_some_and(|known| std::ptr::eq(known, member)))
         .then_some(0)
     }
 
@@ -298,7 +262,7 @@ impl DefinitionBodyGrammar {
     ) -> Option<usize> {
         // Itcl class commands construct even when the first word also names
         // a class-scoped proc; that proc lives at Class::procName instead.
-        if self.family == DefinerFamily::Itcl {
+        if self.profile.class_procedures_are_qualified() {
             return Some(0);
         }
         if let Some(method) = self.manufacturer(first) {

@@ -375,16 +375,22 @@ impl Analyser {
 
     pub(in super::super) fn retain_class_relation_lookups(
         &self,
+        grammar: &DefinitionBodyGrammar,
         texts: &[String],
         class: &mut ClassDef,
         scope_path: &[usize],
     ) {
         // These are the same analyser-local field routes as apply_oo_subcommand_in.
-        let names = match texts.first().map(String::as_str) {
-            // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
-            Some("superclass" | "inherit") => &class.superclasses,
-            // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
-            Some("mixin") => &class.mixins,
+        let Some(member) = texts.first().and_then(|keyword| grammar.member(keyword)) else {
+            return;
+        };
+        let names = match member.effect {
+            MemberEffect::Relation {
+                slot: tcl_registry::definer::RelationSlot::Superclass,
+            } => &class.superclasses,
+            MemberEffect::Relation {
+                slot: tcl_registry::definer::RelationSlot::Mixin,
+            } => &class.mixins,
             _ => return,
         };
         for written in names.iter().filter(|name| texts[1..].contains(name)) {

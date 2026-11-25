@@ -34,7 +34,7 @@ impl DialectProfile {
     #[must_use]
     pub fn namespace_var_global_fallback(&self) -> bool {
         self.runtime_base
-            .is_some_and(|base| base < crate::version::TclVersion::V9_0)
+            .is_some_and(TclVersion::namespace_var_global_fallback)
     }
 
     /// The point this profile asks surface questions at — which core

@@ -302,7 +302,7 @@ impl ResolvedInvocation<'_, '_> {
         let grammar = selected.command.definition_body?;
         if selected.subcommand.is_some()
             || self.semantics.argument_offset != 0
-            || grammar.family != crate::definer::DefinerFamily::JimClass
+            || !grammar.profile.members_are_two_word_commands()
         {
             return None;
         }

@@ -39,32 +39,18 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// `close`'s optional direction argument (position 1), Tcl 8.6+ only. Real
-/// tclsh accepts any unique abbreviation of `read`/`write` down to a bare
-/// `r`/`w` (confirmed empirically against tclsh 8.6: `close $chan re` and
-/// `close $chan wri` both succeed; `close $chan R`, `close $chan READ`, and
-/// `close $chan rd` all raise `bad direction "...": must be read or
-/// write`). These rows remain completion/hover data only: `close` currently
-/// leaves this position out of `closed_value_args`, like `open`'s
-/// `ACCESS_VALUES`. The command-level prefix-policy facet does not itself
-/// close a previously open value vocabulary.
-/// `min_tcl` therefore never reaches W137 (which only inspects closed value
-/// sets), so the 8.6 introduction is also stated as a [`Lifecycle`] — the
-/// general version-gate rung, which matches any literal value word.
-/// `chan close`'s twin subcommand spec already pairs its closed values with
-/// `arg_values_accept_prefix`; this descriptor's open-value policy is unchanged.
-const DIRECTION_VALUES: &[ArgValue] = &[
+/// Half-close directions share one prefix vocabulary and lifecycle gate with
+/// `chan close`. The generic lifecycle diagnostic owns the release restriction.
+pub(super) const DIRECTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "read",
         detail: "Half-close only the read side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to \"r\" is also accepted.",
-        min_tcl: Some(TclVersion::V8_6),
         lifecycle: Lifecycle::introduced_in("8.6"),
         ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "write",
         detail: "Half-close only the write side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to \"w\" is also accepted.",
-        min_tcl: Some(TclVersion::V8_6),
         lifecycle: Lifecycle::introduced_in("8.6"),
         ..ArgValue::DEFAULT
     },
@@ -125,6 +111,8 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }]),
         arg_values: &[(1, DIRECTION_VALUES)],
+        closed_value_args: &[1],
+        arg_values_accept_prefix: true,
         hover: Some(HoverSnippet {
             summary: "Close, or half-close, an open channel.",
             synopsis: &["close channelId", "close channelId ?r(ead)|w(rite)?"],

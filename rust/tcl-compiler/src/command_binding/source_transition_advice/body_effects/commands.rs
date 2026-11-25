@@ -333,9 +333,7 @@ impl BodyWalk<'_, '_> {
             // of withdrawing every namespace's path and export advice.
             if schema
                 .authored_source_definition_body_grammar()
-                .is_some_and(|grammar| {
-                    grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                })
+                .is_some_and(|grammar| grammar.profile.has_native_definition_workers())
             {
                 graph.record_uncertainty(&native.words);
             } else {
@@ -705,7 +703,7 @@ impl BodyWalk<'_, '_> {
                         .ok()?;
                     let contextual_self = body
                         .receiver_grammar(self.context.context)
-                        .is_some_and(|grammar| grammar.family.members_are_tcloo_methods())
+                        .is_some_and(|grammar| grammar.profile.members_use_receiver_methods())
                         && schema
                             .semantics
                             .traits

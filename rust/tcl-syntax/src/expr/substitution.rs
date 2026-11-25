@@ -671,7 +671,7 @@ mod original_source_topology_tests {
         assert_eq!(context.native_syntax, NativeExprSyntax::Unknown);
         let source = "![\u{feff}match λ λ out] || [right]";
         let substitutions = checked_source_expression_substitutions(source, &context).unwrap();
-        assert!(substitutions.variables.is_empty());
+        assert_eq!(substitutions.variables, [] as [tcl_lexer::Span; 0]);
         assert_eq!(
             substitutions
                 .commands

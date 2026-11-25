@@ -168,7 +168,7 @@ fn without_inventory_export(module: &[u8]) -> Vec<u8> {
                     kept.push(before[..before.len() - exports.len()].to_vec());
                 }
             }
-            assert!(exports.is_empty());
+            assert_eq!(exports, []);
             let mut result = Vec::new();
             append_number(&mut result, kept.len());
             for export in kept {

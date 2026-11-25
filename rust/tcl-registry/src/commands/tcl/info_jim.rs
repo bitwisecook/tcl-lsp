@@ -773,6 +773,7 @@ impl NativeJimInfoReport {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         surface: Some(tcl_dialect::surface![SpecSurface::core_in(
             Family::Jim,
             &[("0.84", None)]

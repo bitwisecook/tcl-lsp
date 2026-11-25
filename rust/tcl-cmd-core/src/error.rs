@@ -661,7 +661,7 @@ mod execution_transport_tests {
             for transported in [question_mark, converted] {
                 assert_eq!(transported.native_execution_refusal(), Some(&first));
                 assert_eq!(transported.message_bytes(), delegated.message_bytes());
-                assert!(transported.message_bytes().is_empty());
+                assert_eq!(transported.message_bytes(), []);
                 assert_eq!(
                     transported.error_code_update(),
                     delegated.error_code_update()

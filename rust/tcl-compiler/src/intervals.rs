@@ -41,8 +41,12 @@
 
 use std::collections::{HashMap, HashSet};
 
+#[cfg(test)]
+use tcl_cmd_core::partial_value::{mul, negate, sub};
 use tcl_dialect::NumberSyntax;
-use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
+#[cfg(test)]
+use tcl_syntax::expr::ast::UnaryOp;
+use tcl_syntax::expr::ast::{BinOp, ExprNode};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
@@ -52,183 +56,8 @@ use crate::ssa::{SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};
 use tcl_registry::TclType;
 
-/// A bound is an `i64`, or `None` for an infinity (sign given by position).
-pub type Bound = Option<i64>;
-
-/// A closed integer interval `[lo, hi]`; `None` bound = ±infinity.
-///
-/// `lo is None` → -inf, `hi is None` → +inf.  The empty/unreached value is
-/// `BOTTOM` (lo > hi sentinel, detected via [`Interval::is_bottom`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Interval {
-    /// Lower bound (`None` = -inf).
-    pub lo: Bound,
-    /// Upper bound (`None` = +inf).
-    pub hi: Bound,
-}
-
-/// The unbounded interval `[-inf, +inf]`.
-pub const TOP: Interval = Interval { lo: None, hi: None };
-/// The canonical empty interval (`lo > hi`).
-pub const BOTTOM: Interval = Interval {
-    lo: Some(1),
-    hi: Some(0),
-};
-
-/// The single-point interval `[n, n]`.
-#[must_use]
-pub fn constant(n: i64) -> Interval {
-    Interval {
-        lo: Some(n),
-        hi: Some(n),
-    }
-}
-
-impl Interval {
-    /// True when both bounds are infinite.
-    #[must_use]
-    pub fn is_top(self) -> bool {
-        self.lo.is_none() && self.hi.is_none()
-    }
-
-    /// True when the interval is the empty `lo > hi` sentinel.
-    #[must_use]
-    pub fn is_bottom(self) -> bool {
-        matches!((self.lo, self.hi), (Some(l), Some(h)) if l > h)
-    }
-}
-
-/// Least upper bound: the smallest interval containing both.
-#[must_use]
-fn join(a: Interval, b: Interval) -> Interval {
-    if a.is_bottom() {
-        return b;
-    }
-    if b.is_bottom() {
-        return a;
-    }
-    // lo = min(lo) treating None as -inf; hi = max(hi) treating None as +inf.
-    let lo = match (a.lo, b.lo) {
-        (Some(x), Some(y)) => Some(x.min(y)),
-        _ => None,
-    };
-    let hi = match (a.hi, b.hi) {
-        (Some(x), Some(y)) => Some(x.max(y)),
-        _ => None,
-    };
-    Interval { lo, hi }
-}
-
-/// Standard interval widening: any bound that moved outward jumps to ±inf.
-/// Guarantees termination of the loop fixpoint.
-#[must_use]
-fn widen(old: Interval, new: Interval) -> Interval {
-    if old.is_bottom() {
-        return new;
-    }
-    if new.is_bottom() {
-        return old;
-    }
-    let lo = match (old.lo, new.lo) {
-        (Some(o), Some(n)) if n >= o => Some(o),
-        _ => None,
-    };
-    let hi = match (old.hi, new.hi) {
-        (Some(o), Some(n)) if n <= o => Some(o),
-        _ => None,
-    };
-    Interval { lo, hi }
-}
-
-#[must_use]
-fn add(a: Interval, b: Interval) -> Interval {
-    if a.is_bottom() || b.is_bottom() {
-        return BOTTOM;
-    }
-    let lo = match (a.lo, b.lo) {
-        (Some(x), Some(y)) => x.checked_add(y),
-        _ => None,
-    };
-    let hi = match (a.hi, b.hi) {
-        (Some(x), Some(y)) => x.checked_add(y),
-        _ => None,
-    };
-    Interval { lo, hi }
-}
-
-#[must_use]
-fn sub(a: Interval, b: Interval) -> Interval {
-    if a.is_bottom() || b.is_bottom() {
-        return BOTTOM;
-    }
-    // a - b = [a.lo - b.hi, a.hi - b.lo]
-    let lo = match (a.lo, b.hi) {
-        (Some(x), Some(y)) => x.checked_sub(y),
-        _ => None,
-    };
-    let hi = match (a.hi, b.lo) {
-        (Some(x), Some(y)) => x.checked_sub(y),
-        _ => None,
-    };
-    Interval { lo, hi }
-}
-
-#[must_use]
-fn mul(a: Interval, b: Interval) -> Interval {
-    if a.is_bottom() || b.is_bottom() {
-        return BOTTOM;
-    }
-    // Only attempt when fully bounded; otherwise TOP (sound).
-    let (Some(alo), Some(ahi), Some(blo), Some(bhi)) = (a.lo, a.hi, b.lo, b.hi) else {
-        return TOP;
-    };
-    let corners = [
-        alo.checked_mul(blo),
-        alo.checked_mul(bhi),
-        ahi.checked_mul(blo),
-        ahi.checked_mul(bhi),
-    ];
-    // Any overflow → fall back to TOP (sound).
-    if corners.iter().any(Option::is_none) {
-        return TOP;
-    }
-    let vals: Vec<i64> = corners.into_iter().flatten().collect();
-    Interval {
-        lo: vals.iter().copied().min(),
-        hi: vals.iter().copied().max(),
-    }
-}
-
-#[must_use]
-fn negate(a: Interval) -> Interval {
-    if a.is_bottom() {
-        return BOTTOM;
-    }
-    Interval {
-        lo: a.hi.map(|h| -h),
-        hi: a.lo.map(|l| -l),
-    }
-}
-
-/// Greatest lower bound: the largest interval contained in both.  Here `None`
-/// is the *identity* (-inf for a lower bound, +inf for an upper), the opposite
-/// of [`join`] where it is absorbing.
-#[must_use]
-fn intersect(a: Interval, b: Interval) -> Interval {
-    if a.is_bottom() || b.is_bottom() {
-        return BOTTOM;
-    }
-    let lo = match (a.lo, b.lo) {
-        (None, x) | (x, None) => x,
-        (Some(x), Some(y)) => Some(x.max(y)),
-    };
-    let hi = match (a.hi, b.hi) {
-        (None, x) | (x, None) => x,
-        (Some(x), Some(y)) => Some(x.min(y)),
-    };
-    Interval { lo, hi }
-}
-
+pub use tcl_cmd_core::partial_value::{BOTTOM, Bound, Interval, TOP, constant};
+use tcl_cmd_core::partial_value::{add, intersect, join, widen};
 /// The integer value of an `ExprNode::Literal` (incl. bool keyword) under the
 /// target release's numeral grammar, else `None`.
 #[must_use]
@@ -364,33 +193,12 @@ fn eval_expr_at(
         ExprNode::Var { .. } => read(expr),
         ExprNode::Unary { op, operand } => {
             let inner = eval_expr_at(operand, read, depth + 1, numbers);
-            match op {
-                UnaryOp::Neg => negate(inner),
-                UnaryOp::Pos => inner,
-                _ => TOP,
-            }
+            tcl_cmd_core::partial_value::unary(*op, inner)
         }
         ExprNode::Binary { op, left, right } => {
             let la = eval_expr_at(left, read, depth + 1, numbers);
             let ra = eval_expr_at(right, read, depth + 1, numbers);
-            match op {
-                BinOp::Add => add(la, ra),
-                BinOp::Sub => sub(la, ra),
-                BinOp::Mul => mul(la, ra),
-                // Comparisons / logicals yield a boolean 0/1.
-                BinOp::Eq
-                | BinOp::Ne
-                | BinOp::Lt
-                | BinOp::Le
-                | BinOp::Gt
-                | BinOp::Ge
-                | BinOp::And
-                | BinOp::Or => Interval {
-                    lo: Some(0),
-                    hi: Some(1),
-                },
-                _ => TOP,
-            }
+            tcl_cmd_core::partial_value::binary(*op, la, ra)
         }
         _ => TOP,
     }
@@ -767,17 +575,28 @@ fn proved_integer<S: std::hash::BuildHasher>(
         })
 }
 
-/// Seed a `[c, c]` interval from a constant-integer SCCP value, else `None`.
+/// Seed integer bounds from exact or finite SCCP values through the shared domain.
 #[must_use]
 fn seed_const<S: std::hash::BuildHasher>(
     key: ValueKey,
     values: &HashMap<ValueKey, LatticeValue, S>,
 ) -> Option<Interval> {
-    match values.get(&key) {
-        Some(LatticeValue::Const(ConstValue::Int(n))) => Some(constant(*n)),
-        Some(LatticeValue::Const(ConstValue::Bool(b))) => Some(constant(i64::from(*b))),
-        _ => None,
-    }
+    use tcl_registry::value_transfer::{FactView, partial::integer_bounds};
+    let exact = crate::value_transfer::const_to_exact;
+    let fact = match values.get(&key)? {
+        LatticeValue::Const(value @ (ConstValue::Int(_) | ConstValue::Bool(_))) => {
+            FactView::Exact(exact(value), None)
+        }
+        LatticeValue::ConstSet(members)
+            if members
+                .iter()
+                .all(|value| matches!(value, ConstValue::Int(_) | ConstValue::Bool(_))) =>
+        {
+            FactView::Finite(members.iter().map(exact).collect(), None)
+        }
+        _ => return None,
+    };
+    Some(integer_bounds(&fact))
 }
 
 /// Interval produced by `stmt` for its def `name`.

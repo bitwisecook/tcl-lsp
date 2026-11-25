@@ -62,6 +62,7 @@ const JIM_COMMAND_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandF
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
         ),

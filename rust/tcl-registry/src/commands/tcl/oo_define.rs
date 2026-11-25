@@ -468,9 +468,73 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
         .collect()
 }
 
+pub(crate) fn definition_body_evaluation_context(
+    args: crate::InvocationArguments<'_>,
+    index: usize,
+    namespace: &'static str,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    use crate::definer::{InitTiming, MemberEffect};
+    use crate::evaluation_context::{EvaluationContext, EvaluationFrame};
+    use crate::hover::ScriptTiming;
+    let count = args.exact_argv_len()?;
+    let selector = args.literal_at(1)?;
+    let grammar = &crate::definer::TCLOO_GRAMMAR;
+    if count == 2 && grammar.member(selector).is_none() && index == 1 {
+        return Some(EvaluationContext {
+            frame: EvaluationFrame::NamedNamespace(namespace),
+            ..EvaluationContext::INVOKING
+        });
+    }
+    let source_bodies =
+        grammar.source_member_script_layout_arguments(selector.as_bytes(), args.slice_from(2))?;
+    let source_body = source_bodies
+        .iter()
+        .find(|body| body.argument() + 2 == index)?;
+    if source_body.retains_definition_grammar() {
+        return None;
+    }
+    let member = grammar.member_row(1, args, None)?;
+    if member.body?.0 != index {
+        return None;
+    }
+    let timing = match member.effect {
+        MemberEffect::Callable { .. }
+        | MemberEffect::InitScript {
+            timing: InitTiming::AtConstruction,
+            ..
+        } => ScriptTiming::Deferred,
+        MemberEffect::InitScript {
+            timing: InitTiming::AtDefinition,
+            ..
+        } => ScriptTiming::SameInvocation,
+        _ => return None,
+    };
+    Some(EvaluationContext {
+        frame: EvaluationFrame::ObjectReceiver,
+        timing,
+        ..EvaluationContext::INVOKING
+    })
+}
+
+fn oo_define_evaluation_context(
+    args: crate::InvocationArguments<'_>,
+    index: usize,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    definition_body_evaluation_context(
+        args,
+        index,
+        crate::definer::TCLOO_PROFILE.native_definition_namespace?,
+    )
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            resolver: Some(oo_define_evaluation_context),
+            resolver_roles: &[ArgRole::Body],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::define"),
         traits: Traits::NOT_PROC_FACTORY

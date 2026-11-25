@@ -324,7 +324,14 @@ impl<'r> ResolvedInvocation<'r, '_> {
             .dialect()
             .is_some_and(|actual| actual != source_dialect)
             || self.semantics.frame_effect.is_some()
-            || self.semantics.body_kind != crate::BodyKind::Plain
+            || match self.semantics.body_kind {
+                crate::BodyKind::Plain => false,
+                crate::BodyKind::Structural => self
+                    .semantics
+                    .body_execution
+                    .and_then(crate::body_execution::BodyExecutionSpec::deferred_contract)
+                    .is_none(),
+            }
             || self.semantics.body_interpreter != crate::BodyInterpreter::Current
             || !self
                 .semantics

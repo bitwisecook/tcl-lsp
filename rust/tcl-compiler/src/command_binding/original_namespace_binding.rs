@@ -865,7 +865,8 @@ mod tests {
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -898,7 +899,7 @@ mod tests {
             let state = &point
                 .lookup_state
                 .as_ref()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()))
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()))
                 .state;
             let namespace = super::super::SourceNamespaceKey::authored("::A");
             assert_eq!(
@@ -922,7 +923,7 @@ mod tests {
             let bindings = analyse(source, version);
             let world = bindings
                 .original_completed_command_world()
-                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+                .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()));
             let publications = world.declarations().collect::<Vec<_>>();
             let imports = publications
                 .iter()

@@ -270,14 +270,14 @@
       "location": "option -command value",
       "kind": "command-prefix",
       "timing": "deferred",
-      "appended_arity": "at least 1",
+      "appended_arity": "one of [1, 2]",
       "dialects": [
         "tcl8.5",
         "tcl8.6",
         "tcl9.0",
         "tcl9.1"
       ],
-      "source": "Tcl chan(n) copy: \"identical to fcopy\" \u2014 the callback takes the count, plus an error message when the copy failed",
+      "source": "Tcl chan(n) copy: \"identical to fcopy\"; Tcl fcopy(n) specifies exactly the byte count on success and the byte count plus an error message on failure",
       "oracle": "tclsh9.0: `chan copy $in $out -command cb` calls `cb 197`",
       "imprecision": null,
       "notes": "The other half of the #1706 parity control; `chan` itself is 8.5+, so the floor differs from `fcopy` while the contract does not."
@@ -289,20 +289,20 @@
       "location": "arg[1]",
       "kind": "command-prefix",
       "timing": "same-invocation",
-      "appended_arity": "at least 2",
+      "appended_arity": "one of [2, 3]",
       "dialects": [
         "tcl8.5",
         "tcl8.6",
         "tcl9.0",
         "tcl9.1"
       ],
-      "source": "Tcl refchan(n): the handler synopsis is `cmdPrefix subcommand channel ?args?` for every method (`cmdPrefix cgetall channel` is the shortest), so at least the subcommand and the channel are appended",
-      "oracle": null,
+      "source": "Tcl refchan(n): required initialize and watch methods append selector, channel and mode/events (3); finalize appends selector and channel (2). Direction-required read/write append 3. Optional methods retain independent signatures, including seek/configure at 4.",
+      "oracle": "evidence/tcl/channel-callback-protocols.md: the retained reflected-channel script under C Tcl 8.5.19, 8.6.18, 9.0.4 and 9.1.0 records initialize 3, read/write 3 and finalize 2; optional seek/configure record 4. C Tcl 8.4.20 reports chan unavailable.",
       "imprecision": {
         "issue": "#1706",
-        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+        "reason": "positional command prefixes carry no per-method timing axis, so the row reports the command-wide answer; initialize runs immediately and later method calls use the retained prefix"
       },
-      "notes": "Reflected-channel handler: the prefix is stored on the channel and invoked for every operation on it."
+      "notes": "Required handler counts only; optional advertised methods are checked through their separate channel protocol signatures. The prefix is called immediately for initialize and retained for later channel operations."
     },
     {
       "id": "tcl/chan-event/script",
@@ -330,19 +330,19 @@
       "location": "arg[1]",
       "kind": "command-prefix",
       "timing": "same-invocation",
-      "appended_arity": "at least 2",
+      "appended_arity": "one of [2, 3]",
       "dialects": [
         "tcl8.6",
         "tcl9.0",
         "tcl9.1"
       ],
-      "source": "Tcl transchan(n): the handler synopsis is `cmdPrefix subcommand handle ?args?` for every method (`cmdPrefix clear handle` is the shortest)",
-      "oracle": null,
+      "source": "Tcl transchan(n): required initialize appends selector, handle and mode (3); finalize appends selector and handle (2). Direction-required read/write append selector, handle and data (3); optional methods retain independent signatures.",
+      "oracle": "evidence/tcl/channel-callback-protocols.md: the retained transform script under C Tcl 8.6.18, 9.0.4 and 9.1.0 records initialize, clear, write, drain, flush, finalize for write and pop; refchan/transchan signatures determine the appended counts.",
       "imprecision": {
         "issue": "#1706",
-        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+        "reason": "positional command prefixes carry no per-method timing axis, so the row reports the command-wide answer; initialize runs immediately and later method calls use the retained prefix"
       },
-      "notes": "Version-gated control: `chan push` arrived in 8.6, so this row must not reach 8.4/8.5 even though `chan` itself is 8.5+."
+      "notes": "Required handler counts only; optional advertised methods are checked separately. chan push starts in Tcl 8.6; initialize runs immediately and the prefix is retained for later operations."
     },
     {
       "id": "tcl/coroinject/prefix",
@@ -406,7 +406,7 @@
       "location": "option -command value",
       "kind": "command-prefix",
       "timing": "deferred",
-      "appended_arity": "at least 1",
+      "appended_arity": "one of [1, 2]",
       "dialects": [
         "tcl8.4",
         "tcl8.5",
@@ -414,7 +414,7 @@
         "tcl9.0",
         "tcl9.1"
       ],
-      "source": "Tcl fcopy(n): \"callback ... is called with the number of bytes written ... If an error occurred ... the error string is passed as a second argument\"",
+      "source": "Tcl fcopy(n): \"callback ... is called with the number of bytes written ... If an error occurred ... the error string is passed as a second argument\"; these are the two callback forms, not an open argument range",
       "oracle": "tclsh8.4/8.6: `fcopy $in $out -command cb` calls `cb 206`; copying /dev/zero to /dev/full on 8.6 calls `cb 0 {error writing \"file4\": no space left on device}`",
       "imprecision": null,
       "notes": "Parity control for issue #1706: this row and `chan copy -command` must stay identical in kind, timing, and appended arity."

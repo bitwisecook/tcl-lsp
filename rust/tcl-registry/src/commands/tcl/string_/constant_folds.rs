@@ -19,7 +19,7 @@
 //! Compile-time folds of the pure `string` subcommands.
 
 use super::TclVersion;
-use crate::const_fold::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
+use crate::literal_folds::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
 use tcl_syntax::number::Numbers;
 
 /// Compile-time folds for pure `string`
@@ -99,7 +99,7 @@ pub(crate) fn fold_repeat_versioned(args: &[&str], version: Option<TclVersion>) 
     let numbers = version.map_or(Numbers::Unknown, |version| {
         Numbers::Target(version.number_syntax())
     });
-    let n = crate::const_fold::repetition_count(count, numbers)?;
+    let n = crate::literal_folds::repetition_count(count, numbers)?;
     if n > 10_000 {
         return None;
     }
@@ -418,7 +418,7 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
     if !mapping_str.is_ascii() || !s.is_ascii() {
         return None;
     }
-    let pairs = crate::const_fold::split_list(mapping_str)?;
+    let pairs = crate::literal_folds::split_list(mapping_str)?;
     if pairs.len() % 2 != 0 {
         return None;
     }

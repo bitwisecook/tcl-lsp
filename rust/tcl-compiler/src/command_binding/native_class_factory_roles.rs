@@ -488,7 +488,8 @@ mod tests {
     ) -> ModuleCommandBindings {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         ModuleCommandBindings::initial_with_options(
             registry,
             super::super::SourceAnalysisOptions {
@@ -537,7 +538,8 @@ mod tests {
         let raw = state.original_registry_metadata_target(&root, command, policy)?;
         let target = source_target(&raw, &state);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let recipe = registry.native_class_factory_recipe(
             target.registry_identity()?,
             tcl_registry::InvocationDialect::for_version(version),

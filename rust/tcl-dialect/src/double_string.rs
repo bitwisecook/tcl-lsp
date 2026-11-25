@@ -46,11 +46,7 @@ impl DoubleStringPolicy {
     /// Policy of a known C Tcl release.
     #[must_use]
     pub const fn for_tcl_version(version: crate::TclVersion) -> Self {
-        match version {
-            crate::TclVersion::V8_4 => Self::Tcl84Precision,
-            crate::TclVersion::V8_5 | crate::TclVersion::V8_6 => Self::TclPrecision,
-            crate::TclVersion::V9_0 | crate::TclVersion::V9_1 => Self::Shortest,
-        }
+        version.release_policy().double_string
     }
 
     /// Whether Tcl's linked precision variable controls string conversion.

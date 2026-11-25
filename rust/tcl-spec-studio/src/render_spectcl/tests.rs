@@ -26,6 +26,39 @@ fn drafted(name: &str) -> Draft {
 }
 
 #[test]
+fn independent_profile_facts_are_retained_or_reported_as_an_explicit_loss() {
+    use tcl_registry::definer::{DefinitionBodyGrammar, ITCL_GRAMMAR, SNIT_PROFILE};
+    const CUSTOM: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        profile: SNIT_PROFILE,
+        ..ITCL_GRAMMAR
+    };
+    let seeded = draft::from_command_spec(&tcl_registry::CommandSpec {
+        name: "custom_profile",
+        definition_body: Some(&CUSTOM),
+        ..tcl_registry::CommandSpec::DEFAULT
+    });
+    assert_eq!(seeded["definition_body"]["profile"], json!("SNIT_PROFILE"));
+    let rust = crate::render_rs::render(&seeded);
+    assert!(rust.contains("profile: crate::definer::SNIT_PROFILE"));
+    let (text, losses) = render_pack_reporting(&[seeded], "profile");
+    assert!(
+        losses
+            .iter()
+            .any(|loss| loss.key == "definition_body.profile")
+    );
+    assert!(text.contains("independent") || text.contains("object_system"));
+    let loaded = crate::spectcl::evaluate_pack(&text);
+    assert!(
+        loaded
+            .command("custom_profile")
+            .unwrap()
+            .spec
+            .definition_body
+            .is_none()
+    );
+}
+
+#[test]
 fn original_abstract_grammar_roundtrip_keeps_created_class_and_factory_visibilities() {
     // naming.tcloo.original-abstract-manufacturer-public-visibility
     // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
@@ -762,7 +795,7 @@ fn multi_command_reporting_keeps_each_loss_with_its_command() {
     let (_, reports) = render_pack_reporting_by_command(&[clean, lossy], "probe");
     assert_eq!(reports.len(), 2);
     assert_eq!(reports[0].command, "clean");
-    assert!(reports[0].losses.is_empty());
+    assert_eq!(reports[0].losses, [] as [crate::render_spectcl::Loss; 0]);
     assert_eq!(reports[1].command, "lossy");
     assert_eq!(reports[1].losses.len(), 1);
     assert_eq!(reports[1].losses[0].key, "frame_effect");
@@ -1219,7 +1252,7 @@ fn source_flow_grammar_survives_rust_dsl_loader_and_snapshot_round_trip() {
             "irules_source_flow ImaginedFlow",
         );
         let pack = crate::spectcl::evaluate_pack(&invalid);
-        assert!(!pack.notices.is_empty());
+        assert_ne!(pack.notices, [] as [tcl_spectcl::Notice; 0]);
         assert_eq!(
             pack.command("probe::flow").unwrap().spec.irules_source_flow,
             None
@@ -1267,7 +1300,7 @@ fn executable_lookup_scope_survives_rust_and_dsl_round_trip() {
         "script_lookup_scope ImaginedFrame",
     );
     let pack = crate::spectcl::evaluate_pack(&invalid);
-    assert!(!pack.notices.is_empty());
+    assert_ne!(pack.notices, [] as [tcl_spectcl::Notice; 0]);
     assert_eq!(
         pack.command("probe::callback")
             .unwrap()
@@ -1450,7 +1483,7 @@ fn trace_subject_receiver_drafts_reject_invalid_forms_and_positions_without_defa
         let text = render_pack(std::slice::from_ref(&invalid), "probe");
         assert!(text.contains("invalid-receiver-form"));
         let loaded = crate::spectcl::evaluate_pack(&text);
-        assert!(!loaded.notices.is_empty());
+        assert_ne!(loaded.notices, [] as [tcl_spectcl::Notice; 0]);
     }
 }
 
@@ -1549,7 +1582,7 @@ fn authored_source_path_operations_survive_render_load_and_draft() {
         "source_path_operation Unknown",
     );
     let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
-    assert!(!invalid_pack.notices.is_empty());
+    assert_ne!(invalid_pack.notices, [] as [tcl_spectcl::Notice; 0]);
     assert_eq!(
         invalid_pack
             .command("probe::paths")
@@ -1674,7 +1707,7 @@ fn authored_source_configuration_reference_survives_render_load_and_draft() {
         "source_configuration_reference Unknown",
     );
     let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
-    assert!(!invalid_pack.notices.is_empty());
+    assert_ne!(invalid_pack.notices, [] as [tcl_spectcl::Notice; 0]);
     assert!(
         invalid_pack
             .command("probe::references")
@@ -1731,7 +1764,7 @@ fn authored_channel_configuration_survives_render_load_and_draft() {
         "channel_configuration EncodingTranslation",
         "channel_configuration Unknown",
     ));
-    assert!(!invalid.notices.is_empty());
+    assert_ne!(invalid.notices, [] as [tcl_spectcl::Notice; 0]);
     let rejected = invalid.command("probe::configure").unwrap().spec;
     assert!(rejected.channel_configuration.is_none());
     assert!(rejected.subcommands[0].channel_configuration.is_none());
@@ -1774,7 +1807,7 @@ fn authored_source_index_bounds_survive_render_load_and_draft() {
         "source_index_bounds StringInsert",
         "source_index_bounds Unknown",
     ));
-    assert!(!invalid.notices.is_empty());
+    assert_ne!(invalid.notices, [] as [tcl_spectcl::Notice; 0]);
     assert_eq!(
         invalid.command("probe::indices").unwrap().spec.subcommands[0].source_index_bounds,
         None
@@ -1867,8 +1900,42 @@ fn caller_alias_transition_survives_native_draft_both_renderers_and_reload() {
         "command_table_effect CreatesCallerAliases",
         "command_table_effect Unknown",
     ));
-    assert!(!invalid.notices.is_empty());
+    assert_ne!(invalid.notices, [] as [tcl_spectcl::Notice; 0]);
     let rejected = invalid.command("probe::aliases").unwrap().spec;
     assert!(rejected.command_table_effect.is_none());
     assert!(rejected.subcommands[0].command_table_effect.is_none());
+}
+
+#[test]
+fn native_context_and_boundary_facts_are_visible_export_losses() {
+    use tcl_registry::body_execution::{BodyExecutionSpec, DeferredExecutionSpec, DeferredTrigger};
+    use tcl_registry::completion::{CompletionBoundary, CompletionDescriptor};
+    use tcl_registry::evaluation_context::EvaluationContextSpec;
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::context",
+        evaluation_contexts: Some(EvaluationContextSpec::CALLER),
+        completion: tcl_registry::knowledge::Knowledge::Partial(
+            CompletionDescriptor::CONSERVATIVE.with_body_boundary(CompletionBoundary::LOOP),
+        ),
+        body_execution: Some(BodyExecutionSpec::Deferred(DeferredExecutionSpec::global(
+            DeferredTrigger::Channel,
+        ))),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let seeded = draft::from_command_spec(&spec);
+    let rendered = render_pack(std::slice::from_ref(&seeded), "probe");
+    for key in [
+        "evaluation_contexts",
+        "completion_body_boundary",
+        "deferred_execution",
+    ] {
+        assert!(
+            rendered.contains(&format!("TODO(spectcl): `{key}`")),
+            "{rendered}"
+        );
+        assert!(
+            GAPS.iter()
+                .any(|gap| gap.key == key && gap.kind == GapKind::LoaderGap)
+        );
+    }
 }

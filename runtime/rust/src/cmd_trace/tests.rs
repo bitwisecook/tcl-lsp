@@ -75,7 +75,7 @@ fn execution_trace_epochs_follow_only_native_hook_boundaries() {
             || {
                 Interp::with_native_core(
                     crate::interp::default_host(),
-                    crate::environment::profile_for_dialect(version.dialect_name()),
+                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
                     tcl_registry::special_vars::NativeBootstrapInputs::default(),
                 )
                 .unwrap()

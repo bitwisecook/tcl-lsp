@@ -224,13 +224,16 @@ fn irules_follow_tmm_scan_truncation() {
             diagnostic.message
         );
     }
-    assert!(w156("f5-irules", &wrap("%ld")).is_empty());
-    assert!(
+    assert_eq!(
+        w156("f5-irules", &wrap("%ld")),
+        [] as [crate::analyser::Diagnostic; 0]
+    );
+    assert_eq!(
         w156(
             "tcl8.4",
             "set text x\nscan $text %lx id\nif {$id == 0xffffffff} { puts max }"
-        )
-        .is_empty()
+        ),
+        [] as [crate::analyser::Diagnostic; 0]
     );
 }
 
@@ -384,7 +387,10 @@ fn interpolated_addresses_report_signed_octets() {
     let spans: Vec<&str> = found.iter().map(|(span, _)| span.as_str()).collect();
     assert_eq!(spans, ["$a", "$b", "$c", "$d", "$c", "$d"], "{found:?}");
     let quiet = "when CLIENT_DATA {\n  binary scan [TCP::payload] cccc a b c d\n  log local0. \"$a.$b\"\n  log local0. \"v=$a.$b.$c.$d.x\"\n}";
-    assert!(w156("f5-irules", quiet).is_empty());
+    assert_eq!(
+        w156("f5-irules", quiet),
+        [] as [crate::analyser::Diagnostic; 0]
+    );
 }
 
 /// In a procedure body, a command after one the module cannot prove stays

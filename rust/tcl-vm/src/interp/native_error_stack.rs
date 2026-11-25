@@ -376,7 +376,7 @@ mod tests {
             vec![Value::string("foreign")],
             NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
         );
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let captures: [fn(&mut super::super::Vm, Value); 3] = [
             super::super::Vm::begin_error_stack_context,
             super::super::Vm::error_stack_log_value,

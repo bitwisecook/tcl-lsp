@@ -61,6 +61,21 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "nextto",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[
+                    ArgRole::Body,
+                    ArgRole::VarWrite,
+                    ArgRole::VarRead,
+                    ArgRole::VarCell,
+                ],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::ObjectReceiver,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::TclOoHelper(
                 crate::native_tcloo_compilation::NativeTclOoHelper::NextTo,

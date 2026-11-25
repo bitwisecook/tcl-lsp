@@ -76,7 +76,7 @@ fn original_and_rewritten_print(source: &str, expected: &str) {
     for oracle in
         tcl_test_support::required_tclshs(&TclVersion::ALL).expect("original C Tcl matrix")
     {
-        let dialect = oracle.version.dialect_name();
+        let dialect = oracle.version.dialect_profile_name();
         let registry = static_context_for(dialect).commands();
         let (rewritten, _) = optimise_source_multipass(
             source,
@@ -97,7 +97,7 @@ fn original_and_rewritten_print(source: &str, expected: &str) {
 #[test]
 fn root_and_a_procedure_named_top_have_independent_trace_versions() {
     for version in TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         let registry = static_context_for(dialect).commands();
         let unit = CompilationUnit::build_for_dialect(ROOT_BODY, registry, false, dialect);
         assert_eq!(unit.procedures.len(), 1);
@@ -109,13 +109,13 @@ fn root_and_a_procedure_named_top_have_independent_trace_versions() {
 #[test]
 fn a_computed_array_key_reads_its_variable() {
     for version in TclVersion::ALL {
-        let reported = diagnostics(ARRAY_KEY, version.dialect_name());
+        let reported = diagnostics(ARRAY_KEY, version.dialect_profile_name());
         assert!(
             !reported
                 .iter()
                 .any(|(code, message)| *code == DiagCode::W220 && message.contains("'k'")),
             "{}: {reported:?}",
-            version.dialect_name()
+            version.dialect_profile_name()
         );
     }
     original_and_rewritten_print(ARRAY_KEY, "1");
@@ -124,7 +124,7 @@ fn a_computed_array_key_reads_its_variable() {
 #[test]
 fn an_unknown_array_key_observes_possible_elements() {
     for version in TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         let reported = diagnostics(ARRAY_EXISTS, dialect);
         assert!(
             !reported
@@ -153,7 +153,7 @@ fn a_called_creator_publishes_its_original_child_interpreter() {
         .next()
         .expect("creation prefix");
     for version in TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         let reported = diagnostics(created, dialect);
         assert!(
             !reported.iter().any(|(code, _)| *code == DiagCode::W140),
@@ -188,7 +188,7 @@ fn materialised_factory_commands_are_visible_to_unknown_command_checks() {
     let without_call = FACTORY.replacen("Configure port 8080 {the port}\n", "", 1);
     assert_ne!(without_call, FACTORY);
     for version in TclVersion::ALL {
-        let dialect = version.dialect_name();
+        let dialect = version.dialect_profile_name();
         let reported = diagnostics(FACTORY, dialect);
         assert!(
             !reported

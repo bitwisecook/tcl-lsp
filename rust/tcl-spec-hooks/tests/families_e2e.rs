@@ -413,7 +413,7 @@ on_both_engines! {
         let folder = pack_hooks::const_fold_fn(slot).expect("a fold thunk");
         assert_eq!(
             folder(&["a b", "c"]),
-            tcl_registry::const_fold::fold_list(&["a b", "c"])
+            tcl_registry::literal_folds::fold_list(&["a b", "c"])
         );
         pack_hooks::clear_host();
     }

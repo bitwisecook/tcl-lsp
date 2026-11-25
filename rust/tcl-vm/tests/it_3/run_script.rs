@@ -60,7 +60,7 @@ const RELEASE: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
 /// Compile `src` for the release it runs on, and a VM of that release.
 fn compiled_for_release(src: &str, out: Box<dyn Write>) -> (tcl_bytecode::ModuleAsm, tcl_vm::Vm) {
     // A unit compiled without a Tcl version selects no native plan.
-    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_profile_name())
         .analyser_profile();
     let service = BytecodeCompileService::for_profile(profile);
     let asm = tcl_vm::CompileService::compile_for_profile(&service, src, profile)

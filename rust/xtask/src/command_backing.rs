@@ -127,10 +127,6 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "Tcl 9.1.0 grapheme-cluster ensemble; requires UAX #29 segmentation tables absent from runtime/rust",
     ),
     (
-        "tcl::zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
-    ),
-    (
         "timer",
         "Tcl 9.1 timer command; unsupported in runtime/rust",
     ),

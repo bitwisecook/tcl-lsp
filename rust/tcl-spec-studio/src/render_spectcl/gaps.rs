@@ -77,6 +77,36 @@ pub struct Gap {
 /// a failure.
 pub const GAPS: &[Gap] = &[
     Gap {
+        key: "callback_protocols",
+        spelling: "callback_protocol (command/subcommand operand)",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "callback_protocol",
+        spelling: "option -callback-protocol",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "definition_body.profile",
+        spelling: "object_system / definition_body profile",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "evaluation_contexts",
+        spelling: "evaluation_context (command/subcommand/form)",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "completion_body_boundary",
+        spelling: "completion -body-boundary",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
+        key: "deferred_execution",
+        spelling: "body_execution -entry-scope -trigger -family",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
         key: "source_arity_with_option",
         spelling: "",
         kind: GapKind::Excluded,
@@ -308,7 +338,7 @@ pub const GAPS: &[Gap] = &[
     },
     Gap {
         key: "body_interpreter",
-        spelling: "body_interpreter Current|{Argument INDEX}",
+        spelling: "body_interpreter Current|{Argument INDEX}|{ThreadArgument INDEX}|ProcessShared|Unknown",
         kind: GapKind::LoaderGap,
     },
     // Excluded by design.

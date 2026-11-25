@@ -240,7 +240,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         runtime_backing: RuntimeBacking::shipped("tcl::build-info"),
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: tcl_dialect::release_facts::reference_command_surface("tcl::build-info"),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),

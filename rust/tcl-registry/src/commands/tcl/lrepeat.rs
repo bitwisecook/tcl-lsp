@@ -114,7 +114,7 @@ pub fn spec() -> CommandSpec {
         }),
         native_result: Some(crate::native_result::NativeResultContract::ListRepeat { count_at: 0 }),
         runtime_backing: RuntimeBacking::shipped("lrepeat"),
-        const_fold: Some(crate::const_fold::fold_lrepeat),
+        const_fold: Some(crate::literal_folds::fold_lrepeat),
         // `lrepeat count {a b} {c d}` — a call with exactly two element
         // arguments, both braced — is a `HEAD NAME BRACED BRACED`
         // invocation shape, so `NOT_PROC_FACTORY` keeps the proc-factory

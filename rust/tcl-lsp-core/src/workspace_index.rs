@@ -221,6 +221,8 @@ pub struct WorkspaceClass {
     /// Descriptor family selected from this record's actual analysis input and
     /// Registry at publication. This is metadata, not native class identity.
     definer_family: Option<tcl_registry::definer::DefinerFamily>,
+    /// Semantic facts selected independently of the family's display identity.
+    definer_profile: Option<tcl_registry::definer::ObjectSystemProfile>,
     /// Whether this class's **own command** constructs an instance from a
     /// bare unrecognised word and yields its name — see
     /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (Tk's
@@ -241,13 +243,19 @@ impl WorkspaceClass {
     /// Whether this record's definer dispatches its class-scoped members as
     /// a single `::`-qualified identifier (`Factory::make`) rather than the
     /// two-word `Factory make` shape — true for [incr Tcl] only.  Registry
-    /// data (`DefinerFamily`), not a hardcoded command-name check.
+    /// facts retained from the actual definition grammar.
     #[must_use]
     pub const fn is_itcl(&self, _dialect: &'static tcl_dialect::DialectProfile) -> bool {
-        matches!(
-            self.definer_family,
-            Some(tcl_registry::definer::DefinerFamily::Itcl)
-        )
+        match self.definer_profile {
+            Some(profile) => profile.class_procedures_are_qualified(),
+            None => false,
+        }
+    }
+
+    /// Retained semantic profile, independently of callable class identity.
+    #[must_use]
+    pub const fn definer_profile(&self) -> Option<tcl_registry::definer::ObjectSystemProfile> {
+        self.definer_profile
     }
 
     /// Retained descriptor family, independently of callable class or method

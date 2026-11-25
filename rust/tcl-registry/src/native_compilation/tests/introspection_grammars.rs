@@ -321,8 +321,7 @@ fn installed_info_commands_worker_keeps_original_selector_arity() {
     let registry = crate::CommandRegistry::build_default();
     for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
         let dialect = InvocationDialect::for_version(version);
-        let profile =
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let spec = registry
             .native_compilation_for_registration("::tcl::info::commands", dialect)
             .unwrap();

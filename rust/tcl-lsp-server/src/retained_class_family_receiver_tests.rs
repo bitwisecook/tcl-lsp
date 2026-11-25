@@ -23,6 +23,7 @@ use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, ITCL_GRAMMAR};
 
 const OTHER_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
+    profile: tcl_registry::definer::SNIT_PROFILE,
     ..ITCL_GRAMMAR
 };
 

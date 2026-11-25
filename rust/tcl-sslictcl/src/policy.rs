@@ -296,7 +296,7 @@ mod tests {
     fn require_protocols_passes_when_present() {
         let mut rule = check("modern");
         rule.require_protocols = vec![ProtocolVersion::Tls12];
-        assert!(evaluate(rule).is_empty());
+        assert_eq!(evaluate(rule), [] as [crate::policy::PolicyFinding; 0]);
     }
 
     #[test]
@@ -321,7 +321,7 @@ mod tests {
 
         let mut miss = check("weak");
         miss.forbid_ciphers = vec!["RC4*".to_owned()];
-        assert!(evaluate(miss).is_empty());
+        assert_eq!(evaluate(miss), [] as [crate::policy::PolicyFinding; 0]);
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
 
         let mut off = check("fs");
         off.require_forward_secrecy = Some(false);
-        assert!(evaluate(off).is_empty());
+        assert_eq!(evaluate(off), [] as [crate::policy::PolicyFinding; 0]);
     }
 
     /// A declared `forward-secrecy` fact overrides the suite-name heuristic in
@@ -360,7 +360,10 @@ mod tests {
         let mut allowed = check("fs");
         allowed.require_forward_secrecy = Some(true);
         let facts = facts_with_cipher("AES128-SHA", true);
-        assert!(evaluate_with_facts(allowed, Some(&facts)).is_empty());
+        assert_eq!(
+            evaluate_with_facts(allowed, Some(&facts)),
+            [] as [crate::policy::PolicyFinding; 0]
+        );
     }
 
     #[test]
@@ -384,7 +387,7 @@ mod tests {
     fn hsts_rules_read_the_declared_policy() {
         let mut required = check("hsts");
         required.require_hsts = Some(true);
-        assert!(evaluate(required).is_empty());
+        assert_eq!(evaluate(required), [] as [crate::policy::PolicyFinding; 0]);
 
         let mut age = check("hsts-age");
         age.min_hsts_max_age = Some(15_552_000);
@@ -409,7 +412,7 @@ mod tests {
     fn predicate_is_retained_and_ignored() {
         let mut rule = check("scripted");
         rule.predicate = Some("expr {1 == 2}".to_owned());
-        assert!(evaluate(rule).is_empty());
+        assert_eq!(evaluate(rule), [] as [crate::policy::PolicyFinding; 0]);
     }
 
     #[test]
@@ -423,15 +426,15 @@ mod tests {
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].check_id, "grade");
         assert_eq!(findings[0].code, "SSLICTL-POLICY-grade");
-        assert!(
+        assert_eq!(
             evaluate_policy(
                 &policy,
                 &endpoint(),
                 &[],
                 &estimate_with(Grade::APlus),
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::policy::PolicyFinding; 0]
         );
     }
 

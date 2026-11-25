@@ -390,7 +390,8 @@ mod tests {
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -434,7 +435,7 @@ mod tests {
                         .original_completed_command_world()
                         .is_none(),
                     "{}: {source}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
             }
         }

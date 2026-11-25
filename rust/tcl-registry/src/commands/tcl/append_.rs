@@ -55,6 +55,7 @@ const COMMAND_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::VariableStringAppend,
         ),

@@ -72,7 +72,8 @@ mod tests {
     use tcl_dialect::TclVersion;
 
     fn analyse(source: &str, version: TclVersion) -> SourceCommandBindings {
-        let context = tcl_registry::model::ingress::static_context_for(version.dialect_name());
+        let context =
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         SourceCommandBindings::analyse_with_options(
             source,

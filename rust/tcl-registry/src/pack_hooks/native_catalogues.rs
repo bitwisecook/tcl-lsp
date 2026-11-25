@@ -72,66 +72,72 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
     ),
     ("regsub::const_fold", crate::commands::tcl::fold_regsub),
     ("scan::const_fold", crate::commands::tcl::fold_scan),
-    ("list::const_fold", crate::const_fold::fold_list),
-    ("lindex::const_fold", crate::const_fold::fold_lindex),
+    ("list::const_fold", crate::literal_folds::fold_list),
+    ("lindex::const_fold", crate::literal_folds::fold_lindex),
     ("concat::const_fold", |args| {
-        Some(crate::const_fold::fold_concat(args))
+        Some(crate::literal_folds::fold_concat(args))
     }),
-    ("llength::const_fold", crate::const_fold::fold_llength),
-    ("lreverse::const_fold", crate::const_fold::fold_lreverse),
-    ("join::const_fold", crate::const_fold::fold_join),
-    ("split::const_fold", crate::const_fold::fold_split),
-    ("lrepeat::const_fold", crate::const_fold::fold_lrepeat),
-    ("lrange::const_fold", crate::const_fold::fold_lrange),
-    ("lsort::const_fold", crate::const_fold::fold_lsort),
-    ("dict::get::const_fold", crate::const_fold::fold_dict_get),
+    ("llength::const_fold", crate::literal_folds::fold_llength),
+    ("lreverse::const_fold", crate::literal_folds::fold_lreverse),
+    ("join::const_fold", crate::literal_folds::fold_join),
+    ("split::const_fold", crate::literal_folds::fold_split),
+    ("lrepeat::const_fold", crate::literal_folds::fold_lrepeat),
+    ("lrange::const_fold", crate::literal_folds::fold_lrange),
+    ("lsort::const_fold", crate::literal_folds::fold_lsort),
+    ("dict::get::const_fold", crate::literal_folds::fold_dict_get),
     (
         "dict::exists::const_fold",
-        crate::const_fold::fold_dict_exists,
+        crate::literal_folds::fold_dict_exists,
     ),
-    ("dict::size::const_fold", crate::const_fold::fold_dict_size),
-    ("dict::keys::const_fold", crate::const_fold::fold_dict_keys),
+    (
+        "dict::size::const_fold",
+        crate::literal_folds::fold_dict_size,
+    ),
+    (
+        "dict::keys::const_fold",
+        crate::literal_folds::fold_dict_keys,
+    ),
     (
         "dict::values::const_fold",
-        crate::const_fold::fold_dict_values,
+        crate::literal_folds::fold_dict_values,
     ),
     (
         "dict::create::const_fold",
-        crate::const_fold::fold_dict_create,
+        crate::literal_folds::fold_dict_create,
     ),
     (
         "dict::merge::const_fold",
-        crate::const_fold::fold_dict_merge,
+        crate::literal_folds::fold_dict_merge,
     ),
     // The `::tcl::dict::` spellings are commands of their own
     // (`qualified_specs()`), each carrying its subcommand's folder.
     (
         "::tcl::dict::get::const_fold",
-        crate::const_fold::fold_dict_get,
+        crate::literal_folds::fold_dict_get,
     ),
     (
         "::tcl::dict::exists::const_fold",
-        crate::const_fold::fold_dict_exists,
+        crate::literal_folds::fold_dict_exists,
     ),
     (
         "::tcl::dict::size::const_fold",
-        crate::const_fold::fold_dict_size,
+        crate::literal_folds::fold_dict_size,
     ),
     (
         "::tcl::dict::keys::const_fold",
-        crate::const_fold::fold_dict_keys,
+        crate::literal_folds::fold_dict_keys,
     ),
     (
         "::tcl::dict::values::const_fold",
-        crate::const_fold::fold_dict_values,
+        crate::literal_folds::fold_dict_values,
     ),
     (
         "::tcl::dict::create::const_fold",
-        crate::const_fold::fold_dict_create,
+        crate::literal_folds::fold_dict_create,
     ),
     (
         "::tcl::dict::merge::const_fold",
-        crate::const_fold::fold_dict_merge,
+        crate::literal_folds::fold_dict_merge,
     ),
     ("string::cat::const_fold", crate::commands::tcl::fold_cat),
     (
@@ -208,7 +214,7 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
 pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
     (
         "dict::merge::const_fold_versioned",
-        crate::const_fold::fold_dict_merge_versioned,
+        crate::literal_folds::fold_dict_merge_versioned,
     ),
     (
         "string::trimright::const_fold_versioned",
@@ -228,7 +234,7 @@ pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
     ),
     (
         "split::const_fold_versioned",
-        crate::const_fold::fold_split_versioned,
+        crate::literal_folds::fold_split_versioned,
     ),
     (
         "string::compare::const_fold_versioned",

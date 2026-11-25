@@ -41,7 +41,7 @@ impl Write for Capture {
 }
 
 fn run_for_version(src: &str, version: TclVersion) -> (bool, String) {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
         .analyser_profile();
     let service = BytecodeCompileService::for_profile(profile);
     let asm = service

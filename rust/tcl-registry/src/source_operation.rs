@@ -255,6 +255,22 @@ mod tests {
                 .authored_source_operation_continuation(dialect)
                 .is_some()
         );
+        assert_eq!(selected.semantics.body_kind, crate::BodyKind::Structural);
+        let deferred = selected.semantics.body_execution;
+        for body_execution in [
+            None,
+            Some(crate::body_execution::BodyExecutionSpec::CallerFrameSequence),
+            Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript),
+        ] {
+            selected.semantics.body_execution = body_execution;
+            assert!(
+                selected
+                    .authored_source_operation_continuation(dialect)
+                    .is_none(),
+                "structural bodies require an authored deferred contract"
+            );
+        }
+        selected.semantics.body_execution = deferred;
         let original = selected
             .semantics
             .world_effects

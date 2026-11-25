@@ -45,8 +45,7 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
-use tcl_dialect::model::SpecSurface;
-use tcl_syntax::expr::mathfunc::{self, MathFuncSince};
+use tcl_syntax::expr::mathfunc;
 
 /// All `tcl::mathfunc` math-function command specs (both qualified
 /// spellings).
@@ -73,7 +72,6 @@ pub fn specs() -> Vec<CommandSpec> {
 const PREFIXES: [&str; 2] = ["tcl::mathfunc::", "::tcl::mathfunc::"];
 
 fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
-    let surface = Some(since_to_surface(spec.since));
     let arity = to_registry_arity(spec.arity);
     for prefix in PREFIXES {
         let name = leak(format!("{prefix}{}", spec.name));
@@ -90,7 +88,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
         out.push(CommandSpec {
             name,
             runtime_backing: RuntimeBacking::shipped(name),
-            surface,
+            surface: tcl_dialect::release_facts::reference_command_surface(name),
             // Selected native scalar conversion contracts; other functions
             // require their own result and completion descriptors.
             native_result: scalar_operation
@@ -138,17 +136,6 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
             }),
             ..CommandSpec::DEFAULT
         });
-    }
-}
-
-/// The command-table gate for a function first recognised in `since`'s
-/// `expr` grammar release — see the module docs for why this is never
-/// looser than `TCL85_PLUS` regardless of `since`.
-fn since_to_surface(since: MathFuncSince) -> &'static [SpecSurface] {
-    match since {
-        MathFuncSince::Tcl84 | MathFuncSince::Tcl85 => SpecSurface::TCL85_PLUS,
-        MathFuncSince::Tcl90 => SpecSurface::TCL90_PLUS,
-        MathFuncSince::Tcl91 => SpecSurface::TCL91,
     }
 }
 

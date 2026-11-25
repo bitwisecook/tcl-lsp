@@ -581,9 +581,9 @@ ltm rule /Common/r {
                 .iter()
                 .any(|a| a.title.contains("/Common/second"))
         );
-        assert!(
-            crate::code_actions::bigip_code_actions(source, range(4), "file:///bigip.conf", None)
-                .is_empty()
+        assert_eq!(
+            crate::code_actions::bigip_code_actions(source, range(4), "file:///bigip.conf", None),
+            [] as [crate::code_actions::CodeAction; 0]
         );
     }
 

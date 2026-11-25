@@ -50,7 +50,7 @@ const RELEASE: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
 fn run(src: &str) -> (bool, String, String) {
     // A unit compiled without a Tcl version selects no native plan, so the
     // script is compiled for the release it runs on.
-    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_name())
+    let profile = tcl_registry::model::ingress::resolve_environment(RELEASE.dialect_profile_name())
         .analyser_profile();
     let service = BytecodeCompileService::for_profile(profile);
     let asm = tcl_vm::CompileService::compile_for_profile(&service, src, profile)

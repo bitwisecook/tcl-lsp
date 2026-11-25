@@ -442,7 +442,8 @@ mod tests {
         source: &str,
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
-        let owner = tcl_registry::model::ingress::static_context_for(version.dialect_name());
+        let owner =
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
@@ -471,12 +472,12 @@ mod tests {
                 let bindings = analyse(source, version);
                 let world = bindings
                     .original_completed_command_world()
-                    .unwrap_or_else(|| panic!("{}: {source}", version.dialect_name()));
+                    .unwrap_or_else(|| panic!("{}: {source}", version.dialect_profile_name()));
                 assert_eq!(
                     world.declarations().count(),
                     0,
                     "{}: {source}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
             }
         }
@@ -501,7 +502,7 @@ mod tests {
                         .original_completed_command_world()
                         .is_none(),
                     "{}: {source}",
-                    version.dialect_name()
+                    version.dialect_profile_name()
                 );
             }
         }

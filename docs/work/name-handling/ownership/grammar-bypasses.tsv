@@ -202,7 +202,7 @@ rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	reso
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	resolve_foreach_list_via_lattice:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	split_head:trim_start	-	2
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	strip_one_level:trim	-	1
-rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	try_fold_cmd_subst:trim	-	5
+rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	try_fold_cmd_subst:trim	-	4
 rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs	scripts	evaluate_def_with_math:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs	scripts	fold_iteration_value:trim	-	1
 rust/tcl-compiler/src/sccp/solver/frame_clobbers.rs	scripts	expr:trim	-	1

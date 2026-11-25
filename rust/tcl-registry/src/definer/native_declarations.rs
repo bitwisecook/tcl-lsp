@@ -19,9 +19,7 @@
 //! How the native `TclOO` definition workers treat a selected member: lookup, receiver layout, deferred setters, inheritance, constructors and lifecycle bodies.
 
 use super::member_effect::DeclaredMemberVisibility;
-use super::{
-    DefinerFamily, DefinitionBodyGrammar, DefinitionSpecialMemberKind, MemberKind, MemberSpec,
-};
+use super::{DefinitionBodyGrammar, DefinitionSpecialMemberKind, MemberKind, MemberSpec};
 use crate::arg_role::ArgRole;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
@@ -190,7 +188,7 @@ impl DefinitionBodyGrammar {
         member: &MemberSpec,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<DefinitionMemberLookup> {
-        if self.family != DefinerFamily::TclOo
+        if !self.profile.has_native_definition_workers()
             || !self
                 .member(member.keyword)
                 .is_some_and(|admitted| std::ptr::eq(admitted, member))
@@ -200,9 +198,10 @@ impl DefinitionBodyGrammar {
         {
             return None;
         }
+        let namespace = self.profile.native_definition_namespace?;
         Some(DefinitionMemberLookup {
-            namespace: "::oo::define",
-            implementation: format!("::oo::define::{}", member.keyword),
+            namespace,
+            implementation: tcl_syntax::naming::rooted_member_key(namespace, member.keyword),
         })
     }
 
@@ -224,7 +223,8 @@ impl DefinitionBodyGrammar {
                 return None;
             }
             lookup.namespace = "::oo::objdefine";
-            lookup.implementation = format!("::oo::objdefine::{}", member.keyword);
+            lookup.implementation =
+                tcl_syntax::naming::rooted_member_key(lookup.namespace, member.keyword);
         }
         Some(lookup)
     }
@@ -233,7 +233,7 @@ impl DefinitionBodyGrammar {
     /// This is declaration metadata only, not default manufacture preservation.
     #[must_use]
     pub fn is_class_receiver_wrapper(&self, member: &MemberSpec) -> bool {
-        self.family == DefinerFamily::TclOo
+        self.profile.has_native_definition_workers()
             && member.keyword == "self"
             && self
                 .member(member.keyword)
@@ -255,14 +255,7 @@ impl DefinitionBodyGrammar {
         {
             return None;
         }
-        match (self.family, member.keyword) {
-            (DefinerFamily::TclOo | DefinerFamily::Itcl, "private") => {
-                Some(DeclaredMemberVisibility::Private)
-            }
-            (DefinerFamily::Itcl, "protected") => Some(DeclaredMemberVisibility::Unexported),
-            (DefinerFamily::Itcl, "public") => Some(DeclaredMemberVisibility::Public),
-            _ => None,
-        }
+        member.wrapper_shift.and_then(|shift| shift.visibility)
     }
 
     /// Direct or prefix-wrapper method declaration in original written words.
@@ -334,7 +327,7 @@ impl DefinitionBodyGrammar {
         member: &MemberSpec,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> bool {
-        self.family == DefinerFamily::TclOo
+        self.profile.has_native_definition_workers()
             && member.keyword == "classmethod"
             && dialect.is_some_and(|query| {
                 query.core.nearest().is_some_and(|point| {
@@ -382,7 +375,7 @@ impl DefinitionBodyGrammar {
     /// The separate single-superclass shape query grants no construction proof.
     #[must_use]
     pub fn construction_member_effect(&self, member: &MemberSpec) -> MemberConstructionEffect {
-        if self.family == DefinerFamily::TclOo
+        if self.profile.has_native_definition_workers()
             && member.keyword == "method"
             && self
                 .member(member.keyword)
@@ -454,7 +447,7 @@ impl DefinitionBodyGrammar {
         // naming.tcloo.original-forward-registration-prefix
         // docs/design/analysis/name-resolution-proofs/tcloo-original-forward-registration-prefix.md
         let protocol = dialect.native_name_protocol()?;
-        if self.family != DefinerFamily::TclOo
+        if !self.profile.has_native_definition_workers()
             || !matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
                 if version >= TclVersion::V8_6)
             || !self
@@ -500,7 +493,7 @@ impl DefinitionBodyGrammar {
             "mixin" => NativeInheritedClassKind::Mixin,
             _ => return None,
         };
-        if self.family != DefinerFamily::TclOo
+        if !self.profile.has_native_definition_workers()
             || !self
                 .member(member.keyword)
                 .is_some_and(|known| std::ptr::eq(known, member))
@@ -519,7 +512,7 @@ impl DefinitionBodyGrammar {
     /// from its callback effects and the manufactured object's eventual class.
     #[must_use]
     pub fn is_instance_constructor(&self, member: &MemberSpec) -> bool {
-        self.family == DefinerFamily::TclOo
+        self.profile.has_native_definition_workers()
             && member.keyword == "constructor"
             && self
                 .member(member.keyword)
@@ -529,7 +522,7 @@ impl DefinitionBodyGrammar {
     /// Original instance destructor declaration, distinct from ordinary methods.
     #[must_use]
     pub fn is_instance_destructor(&self, member: &MemberSpec) -> bool {
-        self.family == DefinerFamily::TclOo
+        self.profile.has_native_definition_workers()
             && member.keyword == "destructor"
             && self
                 .member(member.keyword)
@@ -614,7 +607,7 @@ impl DefinitionBodyGrammar {
         &self,
         dialect: crate::InvocationDialect,
     ) -> Option<NativeConstructorBoundary> {
-        (self.family == DefinerFamily::TclOo
+        (self.profile.has_native_definition_workers()
             && dialect.native_bootstrap_protocol()?.initializes_tcl_oo())
         .then_some(NativeConstructorBoundary::TclOo)
     }
@@ -624,7 +617,7 @@ impl DefinitionBodyGrammar {
     /// entry proofs and cannot borrow the local constructor inventory.
     #[must_use]
     pub fn preserves_local_constructor_entry(&self, member: &MemberSpec) -> bool {
-        self.family == DefinerFamily::TclOo
+        self.profile.has_native_definition_workers()
             && self
                 .member(member.keyword)
                 .is_some_and(|known| std::ptr::eq(known, member))
@@ -644,7 +637,7 @@ impl DefinitionBodyGrammar {
         &self,
         member: &MemberSpec,
     ) -> MemberManufactureDispatchEffect {
-        if self.family == DefinerFamily::TclOo
+        if self.profile.has_native_definition_workers()
             && self
                 .member(member.keyword)
                 .is_some_and(|admitted| std::ptr::eq(admitted, member))

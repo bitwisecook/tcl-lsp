@@ -254,6 +254,7 @@ const WORLD_STATE_DOMAINS: &[WorldStateDomain] = &[
     WorldStateDomain::CompletionState,
     WorldStateDomain::PackageState,
     WorldStateDomain::HostCapabilities,
+    WorldStateDomain::ThreadSharedStore,
 ];
 
 /// The sides a `side_switch_target` may select.

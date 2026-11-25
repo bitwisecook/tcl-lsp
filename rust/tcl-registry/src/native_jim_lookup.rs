@@ -387,7 +387,8 @@ mod namespace_helper_source_tests {
         assert!(source.contains(&declaration));
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Which)
@@ -415,7 +416,8 @@ mod namespace_helper_source_tests {
         assert_eq!(helper.usage(), "arg");
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Code)
@@ -443,7 +445,8 @@ mod namespace_helper_source_tests {
         assert_eq!(helper.usage(), "name");
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Origin)
@@ -473,7 +476,8 @@ mod namespace_helper_source_tests {
         assert_eq!(helper.usage(), "name arg ?arg ...?");
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Inscope)
@@ -501,7 +505,8 @@ mod namespace_helper_source_tests {
         assert!(super::NativeJimNamespaceHelperKind::ALL.contains(&helper.kind()));
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Info)
@@ -530,7 +535,8 @@ mod namespace_helper_source_tests {
         assert!(super::NativeJimNamespaceHelperKind::ALL.contains(&helper.kind()));
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Delete)
@@ -560,7 +566,8 @@ mod namespace_helper_source_tests {
         assert!(super::NativeJimNamespaceHelperKind::ALL.contains(&helper.kind()));
         for version in tcl_dialect::TclVersion::ALL {
             let environment =
-                crate::model::ingress::resolve_known_environment(version.dialect_name()).unwrap();
+                crate::model::ingress::resolve_known_environment(version.dialect_profile_name())
+                    .unwrap();
             assert!(
                 crate::InvocationDialect::of_profile(environment.unit_profile())
                     .native_jim_namespace_helper(super::NativeJimNamespaceHelperKind::Upvar)

@@ -213,16 +213,21 @@ fn command_prefixes_cover_deferred_core_commands() {
         vec![(1, AppendedArity::Unknown)],
     );
 
-    // `chan create mode cmdPrefix` / `chan push channelId cmdPrefix` — the
-    // reflected-channel/transform handler is invoked as `cmdPrefix
-    // subcommand handle ?args...?` ⇒ AtLeast(2).
+    // Required reflected-channel and transform methods append exactly two
+    // or three words. Optional methods have independently selected signatures.
     assert_eq!(
         reg.command_prefixes("chan", &["create", "rw", "handler"]),
-        vec![(2, AppendedArity::AtLeast(2))],
+        vec![(
+            2,
+            AppendedArity::OneOf(crate::AppendedAritySet::from_sorted_unique(&[2, 3]))
+        )],
     );
     assert_eq!(
         reg.command_prefixes("chan", &["push", "$ch", "xform"]),
-        vec![(2, AppendedArity::AtLeast(2))],
+        vec![(
+            2,
+            AppendedArity::OneOf(crate::AppendedAritySet::from_sorted_unique(&[2, 3]))
+        )],
     );
 }
 

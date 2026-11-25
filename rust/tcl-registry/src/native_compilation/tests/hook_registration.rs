@@ -113,8 +113,7 @@ fn selected_no_hook_registration_keeps_generic_argv_under_unknown_mode() {
 fn namespace_no_hook_registration_keeps_public_and_terminal_body_policy() {
     for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
         let dialect = InvocationDialect::for_version(version);
-        let profile =
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let registry = crate::CommandRegistry::build_default().project_for_profile(profile);
         let namespace = registry.get("namespace").unwrap();
         for (member, body) in [
@@ -155,7 +154,7 @@ fn original_namespace_no_hook_members_select_monolithic_and_private_registration
         ..NativeCompilationContext::default()
     };
     for version in TclVersion::ALL {
-        let owner = crate::model::ingress::static_context_for(version.dialect_name());
+        let owner = crate::model::ingress::static_context_for(version.dialect_profile_name());
         let dialect = InvocationDialect::for_version(version);
         let registry = owner.commands();
         let namespace = registry.get("namespace").unwrap();

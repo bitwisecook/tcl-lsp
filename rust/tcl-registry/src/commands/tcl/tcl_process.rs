@@ -33,7 +33,6 @@
 //! qualified spellings.
 
 use crate::prelude::*;
-use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::process subcommand ?arg ...?",
@@ -73,7 +72,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // of its own. That gap predates this spec and spans more than one
         // command, so it is left alone here rather than narrowed unilaterally
         // for `tcl::process` alone.
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: tcl_dialect::release_facts::reference_command_surface(name),
         // BYTE_COMPILED follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not
         // literal bytecode compilation of the ensemble head itself. Its

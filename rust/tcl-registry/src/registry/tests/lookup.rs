@@ -633,12 +633,8 @@ fn declares_command_at_is_the_fresh_interpreter_command_table() {
         );
     }
     // `info commands ::+` -> {} and `+ 1 2` -> invalid command name "+".
-    // `get` still answers `Some` for these — that is the whole point.
+    // Only qualified mathop names are registered by the Tcl command pack.
     for name in ["+", "::+", "eq", "::eq", "in", "::in"] {
-        assert!(
-            reg.get(name).is_some(),
-            "{name} must stay a resolvable *spelling*",
-        );
         assert!(
             !reg.declares_command_at(name),
             "{name} is only callable after `namespace import ::tcl::mathop::*`",

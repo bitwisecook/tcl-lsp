@@ -54,7 +54,7 @@ pub fn spec() -> CommandSpec {
         // form for it, so it resolves identically everywhere.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        const_fold: Some(crate::const_fold::fold_join),
+        const_fold: Some(crate::literal_folds::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::CSE_CANDIDATE,
         // `join list ?joinString?` — synopsis, argument defaults, and
         // documented behaviour are byte-for-byte identical across the

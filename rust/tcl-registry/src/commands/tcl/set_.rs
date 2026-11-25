@@ -123,6 +123,7 @@ const COMMAND_FORMS: &[CommandForm] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::VariableLoadStore,
             operation: crate::SemanticOperationId::StructuredLowering(

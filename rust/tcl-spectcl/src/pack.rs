@@ -1387,7 +1387,10 @@ mod tests {
             origin: crate::discovery::Origin::DotDir,
             dependency_tier: None,
         };
-        assert!(check_buffer(file.clone(), pack, WorkspaceTrust::Trusted).is_empty());
+        assert_eq!(
+            check_buffer(file.clone(), pack, WorkspaceTrust::Trusted),
+            [] as [crate::pack::PackNotice; 0]
+        );
         let notices = check_buffer(file, &edited, WorkspaceTrust::Trusted);
         let [notice] = notices.as_slice() else {
             panic!("{notices:#?}");
@@ -1750,7 +1753,10 @@ mod complete_retained_loader_input_tests {
         let missing = selected_file("/packs/missing.tclspec");
         let read = read_sources_with_inputs(&store, &[missing]);
         assert_eq!(read.notices.len(), 1);
-        assert!(read.sources.is_empty());
+        assert_eq!(
+            read.sources,
+            [] as [(crate::discovery::PackFile, String); 0]
+        );
         assert!(
             read.inputs
                 .selected(&read.inputs.retained_paths())

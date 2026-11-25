@@ -314,7 +314,7 @@ pub(crate) fn fold_math_ceiling(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> tcl_syntax::expr::mathfunc::MathFuncSince {
     math_func_ceiling_for_dialect(profile)
-        .unwrap_or(tcl_syntax::expr::mathfunc::MathFuncSince::Tcl84)
+        .unwrap_or(tcl_syntax::expr::mathfunc::MathFuncSince::V8_4)
 }
 
 /// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,
@@ -338,7 +338,7 @@ pub fn is_known_mathfunc_in_dialect(
 /// Whether `dialect` exposes math functions as literal `::tcl::mathfunc::*`
 /// **commands** — TIP 232's own wrapper mechanism, landed in 8.5 alongside
 /// `bool`/`entier`/`isqrt`/`min`/`max` (see
-/// [`tcl_syntax::expr::mathfunc::MathFuncSince::Tcl85`]'s doc comment). This
+/// [`tcl_syntax::expr::mathfunc::MathFuncSince::V8_5`]'s doc comment). This
 /// is a coarser, single fact than [`is_known_mathfunc_in_dialect`]: it does
 /// not vary per function name, because every wrapper command — even one
 /// backing an 8.4-vintage function like `sin` — only exists from 8.5

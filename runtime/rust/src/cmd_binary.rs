@@ -643,7 +643,7 @@ mod tests {
     fn binary_objects_and_decoders_follow_actual_native_input_policies() {
         use tcl_test_support::binary_values::{BINARY_DECODER_SCRIPTS, BINARY_VALUE_SCRIPTS};
         for reference in tcl_test_support::available_tclshs() {
-            let dialect = format!("tcl{}", reference.version.version_string());
+            let dialect = reference.version.dialect_profile_name().to_owned();
             compare_native_binary(&reference.path, &dialect, BINARY_VALUE_SCRIPTS);
             if tcl_registry::InvocationDialect::for_version(reference.version)
                 .binary_root_dispatch()

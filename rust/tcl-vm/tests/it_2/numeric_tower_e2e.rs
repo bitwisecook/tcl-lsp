@@ -209,7 +209,7 @@ fn run(src: &str) -> String {
 /// dialect-blind compile bakes in the newest grammar and the VM refuses to run
 /// it under a pinned older release.
 fn run_at(src: &str, version: tcl_dialect::TclVersion) -> String {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir_with_dialect(

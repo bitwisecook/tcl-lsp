@@ -100,7 +100,7 @@ impl Interp {
         // name is a dialect *name*, so it resolves through the one ingress
         // seam (`crate::environment`) rather than through `by_name`.
         self.set_dialect_profile(crate::environment::profile_for_dialect(
-            version.dialect_name(),
+            version.dialect_profile_name(),
         ));
     }
 

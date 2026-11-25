@@ -70,7 +70,7 @@ impl std::io::Write for Capture {
 /// `puts "v: [expr {0755 + 1}]"` would fold to 756 and then run on an 8.4
 /// interpreter. The dialect is a compile target, not a runtime switch.
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir(
@@ -364,7 +364,7 @@ fn vectors_match_real_tclsh_when_available() {
 
 /// Build a VM configured for `version`, ready to evaluate.
 fn build_vm(version: TclVersion) -> (Vm, Capture, &'static str) {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     let cap = Capture::default();
     let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(cap.clone()));
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();

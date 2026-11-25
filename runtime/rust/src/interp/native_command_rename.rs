@@ -169,8 +169,8 @@ mod tests {
     #[test]
     fn alias_rename_diagnostic_matches_all_five_original_native_bindings() {
         for version in tcl_dialect::TclVersion::ALL {
-            let profile =
-                tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile();
+            let profile = tcl_registry::model::resolve_environment(version.dialect_profile_name())
+                .unit_profile();
             let mut interp = Interp::with_native_core(
                 Rc::new(tcl_host_native::NativeHost::new()),
                 profile,

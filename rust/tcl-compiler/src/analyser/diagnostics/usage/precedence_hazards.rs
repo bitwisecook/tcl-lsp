@@ -156,8 +156,14 @@ mod tests {
 
     #[test]
     fn explicit_or_unbraced_groupings_are_quiet() {
-        assert!(w154("tcl8.6", "if {($c & 0xff) == 0x81} {puts hit}").is_empty());
-        assert!(w154("tcl8.6", "set x [expr {$a + $b == 3}]").is_empty());
+        assert_eq!(
+            w154("tcl8.6", "if {($c & 0xff) == 0x81} {puts hit}"),
+            [] as [crate::analyser::Diagnostic; 0]
+        );
+        assert_eq!(
+            w154("tcl8.6", "set x [expr {$a + $b == 3}]"),
+            [] as [crate::analyser::Diagnostic; 0]
+        );
     }
 
     #[test]
@@ -311,7 +317,10 @@ mod coverage {
             .find(|d| d.code == DiagCode::W154)
             .unwrap();
         assert_eq!(&"expr 1 & 1 == 1"[diagnostic.span.as_range()], "1 & 1 == 1");
-        assert!(diagnostic.fixes.is_empty());
-        assert!(codes("tcl8.6", "if \"$a & 1 == 1\" {puts x}").is_empty());
+        assert_eq!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
+        assert_eq!(
+            codes("tcl8.6", "if \"$a & 1 == 1\" {puts x}"),
+            [] as [(tcl_core_types::DiagCode, String); 0]
+        );
     }
 }

@@ -745,8 +745,7 @@ fn increment_entry(version: tcl_dialect::TclVersion) -> tcl_runtime_api::NativeC
     use tcl_runtime_api::native_compilation::{
         NativeCompilationFrame, NativeInterpreterIdentity, NativeVariableObserverPresence,
     };
-    let profile =
-        tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     let point = tcl_dialect::model::DialectPoint::for_tcl_version(version);
     let dialect = tcl_registry::InvocationDialect::of_point(point);
     tcl_runtime_api::NativeCompilationEntry {

@@ -71,7 +71,7 @@ impl Lowerer<'_> {
             .unwrap_or(self.invocation_realm);
         invocation.with_metadata_schema(self.registry, context, realm, |selected| {
             let grammar = selected.authored_source_definition_body_grammar()?;
-            if !grammar.family.manufactures_runtime_commands()
+            if !grammar.profile.manufactures_runtime_commands()
                 || !selected
                     .authored_source_script_arguments()?
                     .contains(&(body_idx - 1))
@@ -143,7 +143,7 @@ impl Lowerer<'_> {
                 return true;
             };
             spec.definition_body.is_some_and(|grammar| {
-                grammar.family.manufactures_runtime_commands()
+                grammar.profile.manufactures_runtime_commands()
                     && (!candidate.roles_complete
                         || candidate
                             .roles

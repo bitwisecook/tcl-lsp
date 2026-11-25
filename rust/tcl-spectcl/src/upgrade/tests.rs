@@ -516,7 +516,10 @@ fn a_file_extension_dialect_row_moves_into_the_environment_block() {
     );
     let before = evaluate_pack(source);
     let after = evaluate_pack(&outcome.source);
-    assert!(after.file_extensions.is_empty());
+    assert_eq!(
+        after.file_extensions,
+        [] as [crate::loader::FileExtension; 0]
+    );
     assert_eq!(
         super::environment_effect_snapshot(&before),
         super::environment_effect_snapshot(&after),

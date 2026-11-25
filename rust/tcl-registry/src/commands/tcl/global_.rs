@@ -51,6 +51,16 @@ const GLOBAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor 
     commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
 };
 
+fn global_evaluation_context(
+    arguments: crate::InvocationArguments<'_>,
+    index: usize,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    crate::evaluation_context::variable_alias_target_context(
+        &global_state_transitions(arguments),
+        index,
+    )
+}
+
 fn global_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
     for argument_index in 0..arguments.len() {
@@ -121,6 +131,11 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarW
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            resolver: Some(global_evaluation_context),
+            resolver_roles: &[ArgRole::VarWrite],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_result: Some(crate::native_result::NativeResultContract::EmptyString),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

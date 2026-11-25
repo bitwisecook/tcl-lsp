@@ -46,7 +46,7 @@ pub const SANDBOX_COMMANDS: &[&str] = &[
 /// list must re-quote its elements exactly as the shipped `list` fold does, or
 /// the optimiser splices a value that re-parses differently. It is not merely
 /// *equivalent* to the shipped folder, it **is** it
-/// ([`tcl_registry::const_fold::fold_list`]), so the two cannot drift.
+/// ([`tcl_registry::literal_folds::fold_list`]), so the two cannot drift.
 ///
 /// `list` itself is on the whitelist and does the same job inside the body;
 /// `foldlist` exists for the value a body is about to `fold`, where the engine
@@ -66,7 +66,7 @@ impl HostCommand for FoldList {
             })
             .collect::<Result<_, _>>()?;
         let borrowed: Vec<&str> = words.iter().map(String::as_str).collect();
-        tcl_registry::const_fold::fold_list(&borrowed).map_or_else(
+        tcl_registry::literal_folds::fold_list(&borrowed).map_or_else(
             || {
                 Err(EngineError::Script {
                     message: "foldlist: not a foldable list".to_owned(),
@@ -125,7 +125,7 @@ mod tests {
             .expect("folds");
         assert_eq!(
             folded.value.as_str(),
-            tcl_registry::const_fold::fold_list(&["a b", "c"]).as_deref(),
+            tcl_registry::literal_folds::fold_list(&["a b", "c"]).as_deref(),
         );
     }
 }

@@ -61,7 +61,7 @@ fn invalid_filename_layout_matches_full_registration_vectors() {
     let source = "set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]]\nset auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n";
     let directory = Path::new("/library");
     for version in tcl_dialect::TclVersion::ALL {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let config = LexerConfig::from_grammar(profile.grammar);
         let policy = NamePolicyProtocol::authored_tcl(version);
         let full = survey_index_entries_with(

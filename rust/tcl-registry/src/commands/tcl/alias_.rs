@@ -23,6 +23,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "alias",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::Invoke,

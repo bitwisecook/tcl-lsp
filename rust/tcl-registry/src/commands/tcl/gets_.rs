@@ -63,6 +63,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
         completion: crate::knowledge::Knowledge::Partial(

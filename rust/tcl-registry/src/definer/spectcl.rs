@@ -374,6 +374,7 @@ pub(super) const SPECTCL_OBJECT_CLASS_MEMBERS: &[MemberSpec] =
 pub(super) const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGrammar {
     DefinitionBodyGrammar {
         family: DefinerFamily::SpecTcl,
+        profile: super::DECLARATION_PROFILE,
         members,
         implicit_vars: &[],
         implicit_receiver_vars: &[],

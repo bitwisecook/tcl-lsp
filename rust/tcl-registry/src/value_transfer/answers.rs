@@ -385,6 +385,13 @@ pub struct TemplateWordPlan {
 /// The registry-described operation the interval domain interprets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeModel {
+    /// Conditional integer bounds already computed by the shared domain kernel.
+    Bounds {
+        /// Lower bound, if known.
+        lo: Option<i64>,
+        /// Upper bound, if known.
+        hi: Option<i64>,
+    },
     /// An integer add under the target's overflow rules.
     IntegerAdd,
     /// A non-negative length.

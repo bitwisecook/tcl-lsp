@@ -404,6 +404,7 @@ fn world_state_domain(text: &str) -> Option<WorldStateDomain> {
         WorldStateDomain::InterpreterPolicy,
         WorldStateDomain::PackageState,
         WorldStateDomain::HostCapabilities,
+        WorldStateDomain::ThreadSharedStore,
         WorldStateDomain::VariableStore,
     ];
     let words = crate::loader::value_parsers::strict_pack_list(text).ok()?;

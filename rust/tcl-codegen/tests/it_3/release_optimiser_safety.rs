@@ -887,7 +887,7 @@ fn issue_2384_loop_execution() {
             .filter_map(tcl_test_support::witness_tclsh)
             .map(|oracle| {
                 (
-                    format!("tcl{}", oracle.version.version_string()),
+                    oracle.version.dialect_profile_name().to_owned(),
                     oracle.path,
                 )
             })
@@ -1002,7 +1002,7 @@ foreach p {inc exc add sub shf asg} {puts "$p: [$p]"}
             String::from_utf8_lossy(&original.stdout).contains("inc: a"),
             "{original:?}"
         );
-        let (rewritten, _) = optimise(&source, &format!("tcl{}", version.version_string()));
+        let (rewritten, _) = optimise(&source, version.dialect_profile_name());
         assert_eq!(original, observed(&tclsh.path, &rewritten), "{rewritten}");
     }
 }
@@ -1114,7 +1114,7 @@ fn issue_2218_unknown_future_target_preserves_execution() {
         let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
             continue;
         };
-        let (rewritten, applied) = optimise(source, &format!("tcl{}", version.version_string()));
+        let (rewritten, applied) = optimise(source, version.dialect_profile_name());
         assert!(
             applied
                 .iter()

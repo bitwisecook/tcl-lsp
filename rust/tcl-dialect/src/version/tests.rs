@@ -809,3 +809,22 @@ fn structured_error_stacks_begin_at_tcl_eight_six() {
     assert!(TclVersion::V9_0.has_error_stack());
     assert!(TclVersion::V9_1.has_error_stack());
 }
+
+#[test]
+fn release_parser_reads_package_prereleases_and_rejects_invalid_versions() {
+    for (text, expected) in [
+        ("8.6b1", Some(TclVersion::V8_6)),
+        ("9.1b0", Some(TclVersion::V9_1)),
+        ("8.5a4", Some(TclVersion::V8_5)),
+        ("8.6.18", Some(TclVersion::V8_6)),
+        ("08.06.18", Some(TclVersion::V8_6)),
+        ("8.6b", None),
+        ("8.6bogus", None),
+        ("8.6.1.2garbage", None),
+        ("8", None),
+        ("8.7", None),
+    ] {
+        assert_eq!(TclVersion::parse(text), expected, "{text}");
+        assert_eq!(TclVersion::from_package_version(text), expected, "{text}");
+    }
+}

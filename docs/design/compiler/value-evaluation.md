@@ -57,6 +57,30 @@ and before promising that two implementations agree.
 > (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), and `tclsh9.1`
 > (9.1b0).
 
+
+## Partial values and literal kernels
+
+`tcl-cmd-core::partial_value` owns integer interval arithmetic, joins,
+widening, intersection and bounded finite-input admission. Compiler interval
+analysis reads SSA and traverses expressions, then delegates the operations to
+that owner. An overflowing wide bound becomes unknown; unreached values remain
+bottom. The registry projects `FactView` and list-shape facts through
+`value_transfer::partial` without introducing another exact-value type.
+These are conditional value facts, with no completion or native-object proof.
+
+Finite evaluation admits one distinct identity, pins every repeated read to the
+same member, and retains pending and decline outcomes. Independent finite
+identities are refused rather than multiplied together. List-length transfers
+can retain a known shape even when the list's element values are unknown.
+
+`tcl-cmd-core::literal_value` owns literal list/dictionary algorithms and their
+release-independent agreement checks. `literal_folds` supplies registry callback
+signatures and projects the actual invocation grammar and native result producer
+into `LiteralContext`. Native result-selection evidence remains registry-owned.
+The exact list, length and join routes use the same command kernels as runtimes.
+SCCP's tokenless compatibility path dispatches ordinary exact command values
+through registry folds; it has no private list-length evaluator.
+
 ## Three routes, declared on the spec
 
 ```mermaid
@@ -2105,11 +2129,11 @@ worked example:
 | `format::const_fold_versioned` | `fold_format` | `commands/tcl/format_.rs` |
 | `regsub::const_fold` | `fold_regsub` | `commands/tcl/regsub_.rs` |
 | `scan::const_fold` | `fold_scan` | `commands/tcl/scan_.rs` |
-| `list::const_fold` | `const_fold::fold_list` | `rust/tcl-registry/src/const_fold.rs` |
-| `lindex::const_fold` | `const_fold::fold_lindex` | the same file |
-| `dict::get::const_fold` | `const_fold::fold_dict_get` | the same file |
+| `list::const_fold` | `literal_folds::fold_list` | `rust/tcl-registry/src/literal_folds.rs` |
+| `lindex::const_fold` | `literal_folds::fold_lindex` | the same file |
+| `dict::get::const_fold` | `literal_folds::fold_dict_get` | the same file |
 
-The remaining shipped folders — the `const_fold::fold_*` list and dict
+The remaining shipped folders — the `literal_folds::fold_*` list and dict
 functions (`fold_concat`, `fold_llength`, `fold_lreverse`, `fold_join`,
 `fold_split`, `fold_lrepeat`, `fold_lrange`, `fold_dict_exists`,
 `fold_dict_size`, `fold_dict_keys`, `fold_dict_values`,
@@ -2191,7 +2215,7 @@ implementation against the library's real behaviour.
 - `rust/tcl-cmd-core/src/clock.rs`, `platform.rs`, `channel.rs`, `trace.rs`, `array.rs`, `namespace.rs`, `info.rs` — the cores the direct route never calls, and the `Needs` bits that keep it that way
 - `rust/tcl-dialect/src/version.rs`, `grammar.rs`, `profile.rs` — `TclVersion::from_profile`, `string_character_model`, `number_syntax`, `byte_string_encoding`, `StringCharacterModel`, `ByteStringEncoding`, `NumberSyntax`, `const_fold_version`
 - `rust/tcl-vm/src/value_ops.rs`, `runtime/rust/src/value_ops.rs` — the two runtime implementations of the seam
-- `rust/tcl-registry/src/const_fold.rs`, `commands/tcl/string_.rs`, `commands/tcl/format_.rs`, `commands/tcl/regsub_.rs` — the shipped folders: the core calls and the hand-written ones
+- `rust/tcl-registry/src/literal_folds.rs`, `commands/tcl/string_.rs`, `commands/tcl/format_.rs`, `commands/tcl/regsub_.rs` — the shipped folders: the core calls and the hand-written ones
 - `rust/tcl-codegen/src/codegen/values.rs` — `try_emit_constant_fold`, codegen's guarded fold over the engine
 - `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-expr/src/expr/eval.rs`, `rust/tcl-expr/src/expr/mathfunc.rs`, `rust/tcl-expr/src/expr/rand.rs` — `FoldOps`, `eval_with_config`, `ExprOps`, `MathFuncSpec`, `MathFuncSince`, the generator model
 - `rust/tcl-compiler/src/type_infer.rs` — `expr_call_type`, which reads `MathFuncSpec::result_class`

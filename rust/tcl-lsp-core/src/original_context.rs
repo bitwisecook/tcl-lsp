@@ -471,11 +471,17 @@ mod variable_end_affinity_tests {
                 u32::try_from(end).unwrap(),
                 "literal tail remains in the original word"
             );
-            assert!(crate::definition::definition(source, line, character, &analysis).is_empty());
+            assert_eq!(
+                crate::definition::definition(source, line, character, &analysis),
+                [] as [crate::definition::LspRange; 0]
+            );
         }
         let source = "set x 42\nputs $x\n";
         let analysis = analyse(source);
-        assert!(crate::definition::definition(source, 2, 0, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(source, 2, 0, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         assert!(crate::hover::hover(source, 2, 0, &analysis, None).is_none());
     }
 
@@ -490,7 +496,10 @@ mod variable_end_affinity_tests {
                 CurrentSourcePosition::capture_variable(source, &analysis, line, character)
                     .is_none()
             );
-            assert!(crate::definition::definition(source, line, character, &analysis).is_empty());
+            assert_eq!(
+                crate::definition::definition(source, line, character, &analysis),
+                [] as [crate::definition::LspRange; 0]
+            );
             assert!(crate::hover::hover(source, line, character, &analysis, None).is_none());
         }
         let changed = source.replace("42", "43");
@@ -499,7 +508,10 @@ mod variable_end_affinity_tests {
         assert!(
             CurrentSourcePosition::capture_variable(&changed, &analysis, line, character).is_none()
         );
-        assert!(crate::definition::definition(&changed, line, character, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(&changed, line, character, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         assert!(crate::hover::hover(&changed, line, character, &analysis, None).is_none());
     }
 
@@ -515,7 +527,10 @@ mod variable_end_affinity_tests {
             projected.offset() < u32::try_from(end).unwrap(),
             "real root geometry is not a declaration"
         );
-        assert!(crate::definition::definition(source, line, character, &analysis).is_empty());
+        assert_eq!(
+            crate::definition::definition(source, line, character, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
         assert!(crate::hover::hover(source, line, character, &analysis, None).is_none());
         for (source, read) in [
             ("set x 42\nputs \"$x", "$x"),
@@ -530,7 +545,10 @@ mod variable_end_affinity_tests {
                     .is_none_or(|position| position.offset() == u32::try_from(end).unwrap()),
                 "no original complete variable word: {source}"
             );
-            assert!(crate::definition::definition(source, line, character, &analysis).is_empty());
+            assert_eq!(
+                crate::definition::definition(source, line, character, &analysis),
+                [] as [crate::definition::LspRange; 0]
+            );
         }
     }
 }

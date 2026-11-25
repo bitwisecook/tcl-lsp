@@ -96,6 +96,7 @@ mod diagnostic_presentation;
 mod dialect_drift;
 mod editor_extensions;
 mod environment;
+mod evaluation_contexts;
 mod f5query_builtins_doc;
 mod file_sizes;
 mod fp_sweep;
@@ -123,6 +124,8 @@ mod parser_ownership;
 mod plan_rows;
 mod registry_axes;
 mod registry_oracle;
+mod release_facts;
+mod release_operators;
 mod resolution_drift;
 mod retired_api_gate;
 mod runtime_stdlib;
@@ -197,6 +200,23 @@ enum Command {
         /// Run the audit↔registry drift guard instead of probing tclsh: every
         /// audited option must be declared by the registry's `OptionSpec`
         /// tables. Exits non-zero on a disagreement.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Regenerate source- and oracle-backed Tcl release tables.
+    ReleaseFacts {
+        /// Verify generated Rust against the committed extracted fact dataset.
+        #[arg(long)]
+        check: bool,
+        /// Also check or refresh the dataset from pinned sources and interpreters.
+        #[arg(long)]
+        verify_sources: bool,
+    },
+
+    /// Verify or refresh the exact inventory of unknown evaluation-context declarations.
+    EvaluationContexts {
+        /// Fail when the committed unknown-context ratchet changes.
         #[arg(long)]
         check: bool,
     },
@@ -717,7 +737,15 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects { check } => audit_option_dialects::run(check),
+        Command::ReleaseFacts {
+            check,
+            verify_sources,
+        } => {
+            release_operators::run(check, verify_sources)?;
+            release_facts::run(check, verify_sources)
+        }
         Command::CallbackInventory { check } => callback_inventory::run(check),
+        Command::EvaluationContexts { check } => evaluation_contexts::run(check),
         Command::WasmBacking { check } => command_backing::run(check),
         Command::F5QueryBuiltinsDoc { check } => f5query_builtins_doc::run(check),
         Command::BigipDataSchema { check } => bigip_data_schema::run(check),

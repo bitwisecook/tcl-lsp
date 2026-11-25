@@ -355,6 +355,9 @@ mod original_completion_tests {
         let action = serde_json::json!({"kind":"action", "command":"drop", "label":"drop"});
         assert_eq!(builder.render(&action, Vec::new()).len(), 1);
         let action = serde_json::json!({"kind":"action", "command":"counterfactual", "label":"continued", "completion":"terminal"});
-        assert!(builder.render(&action, Vec::new()).is_empty());
+        assert_eq!(
+            builder.render(&action, Vec::new()),
+            [] as [(String, String); 0]
+        );
     }
 }

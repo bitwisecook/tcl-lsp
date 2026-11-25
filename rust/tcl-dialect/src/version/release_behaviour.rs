@@ -33,7 +33,7 @@ impl TclVersion {
     /// comparison beside their variable resolver.
     #[must_use]
     pub const fn namespace_var_global_fallback(self) -> bool {
-        matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
+        self.release_policy().namespace_var_global_fallback
     }
 
     /// Whether variable traces recover an array element the access spelling
@@ -61,7 +61,7 @@ impl TclVersion {
     /// sequence`.
     #[must_use]
     pub const fn regex_z_anchor(self) -> bool {
-        matches!(self, Self::V9_1)
+        self.release_policy().regex_z_anchor
     }
 
     /// The prefix `CompileRegexp` (`tclRegexp.c`) puts before a regex compile
@@ -104,28 +104,23 @@ impl TclVersion {
     /// The optional-level presence grammar of `upvar`.
     #[must_use]
     pub const fn upvar_level_presence(self) -> FrameLevelPresence {
-        if self.upvar_uses_argument_parity() {
-            FrameLevelPresence::ArgumentParity
-        } else {
-            FrameLevelPresence::DigitOrHash
-        }
+        self.release_policy().upvar_level_presence
     }
 
     /// The optional-level presence grammar of `uplevel`.
     #[must_use]
     pub const fn uplevel_level_presence(self) -> FrameLevelPresence {
-        match self {
-            Self::V8_4 | Self::V8_5 => FrameLevelPresence::DigitOrHash,
-            Self::V8_6 => FrameLevelPresence::DigitOrNonNegativeInteger,
-            Self::V9_0 | Self::V9_1 => FrameLevelPresence::IntegerOrHash,
-        }
+        self.release_policy().uplevel_level_presence
     }
 
     /// Whether `upvar` chooses its optional level by argument-count parity.
     /// Tcl 8.4 and 8.5 instead probe the leading word before checking pairs.
     #[must_use]
     pub const fn upvar_uses_argument_parity(self) -> bool {
-        !matches!(self, Self::V8_4 | Self::V8_5)
+        matches!(
+            self.release_policy().upvar_level_presence,
+            FrameLevelPresence::ArgumentParity
+        )
     }
 
     /// Whether this release accepts a `+` suffix on package versions.

@@ -69,6 +69,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_findLibrary",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            arguments: &[(
+                5,
+                crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::Global,
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            )],
+            ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
         // filesystem/process bans), and under the explicit-per-spec model that

@@ -355,7 +355,8 @@ fn original_namespace_delete_roles_require_cardinality_without_requiring_text_va
     use crate::{ArgRole, InvocationWord, InvocationWords};
     for version in tcl_dialect::TclVersion::ALL {
         let dialect = crate::InvocationDialect::for_version(version);
-        let registry = crate::model::ingress::static_context_for(version.dialect_name()).commands();
+        let registry =
+            crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let exact = [
             InvocationWord::Literal("delete"),
             InvocationWord::KnownBytes(b"N\xed\xa0\x80"),
@@ -391,7 +392,8 @@ fn original_namespace_delete_effects_hand_only_legacy_state_to_the_recursive_tra
     // docs/design/analysis/name-resolution-proofs/namespace-original-fresh-deletion.md
     for version in tcl_dialect::TclVersion::ALL {
         let dialect = crate::InvocationDialect::for_version(version);
-        let registry = crate::model::ingress::static_context_for(version.dialect_name()).commands();
+        let registry =
+            crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let arguments = ["delete", "N"];
         let selected = registry.resolve_structured_invocation(
             crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),

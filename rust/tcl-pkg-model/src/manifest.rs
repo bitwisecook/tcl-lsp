@@ -967,7 +967,7 @@ dev-require {test name} 1.0\n";
         );
         let (edited, count) = original.remove("test name").unwrap();
         assert_eq!(count, 1);
-        assert!(load(&edited).unwrap().dev_requires.is_empty());
+        assert_eq!(load(&edited).unwrap().dev_requires, [] as [Requirement; 0]);
     }
 
     #[test]
@@ -1063,8 +1063,8 @@ dev-require {test name} 1.0\n";
             let ast = load(&source).unwrap();
             assert_eq!(ast.name, name);
             assert_eq!(ast.license, "MIT OR Apache-2.0");
-            assert!(ast.requires.is_empty());
-            assert!(ast.dev_requires.is_empty());
+            assert_eq!(ast.requires, [] as [Requirement; 0]);
+            assert_eq!(ast.dev_requires, [] as [Requirement; 0]);
         }
         assert!(
             render_manifest_header("demo", "1.0; require injected 9.0", "MIT", ">=8.6", None)
@@ -1094,7 +1094,7 @@ dev-require {test name} 1.0\n";
             render_manifest_requirement(name, "1.0", Some(url), RequirementKind::Development, None)
                 .unwrap();
         let ast = load(&format!("{header}{declaration}\n")).unwrap();
-        assert!(ast.requires.is_empty());
+        assert_eq!(ast.requires, [] as [Requirement; 0]);
         assert_eq!(ast.dev_requires.len(), 1);
         assert_eq!(ast.dev_requires[0].name, name);
         assert_eq!(ast.dev_requires[0].source_url.as_deref(), Some(url));

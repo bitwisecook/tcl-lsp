@@ -97,6 +97,7 @@ const LSET_FLAT_PATH: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lset",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
         completion: crate::knowledge::Knowledge::Partial(

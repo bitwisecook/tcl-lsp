@@ -55,8 +55,14 @@ fn definition_uses_the_complete_original_command_name() {
         let ranges = definition(&source, 1, cursor, &analysis);
         assert_eq!(ranges.len(), 1, "{source:?} {ranges:?}");
         assert_eq!(ranges[0].start_line, 0);
-        assert!(definition(&source, 2, 5 + cursor, &analysis).is_empty());
-        assert!(definition(&source.replace("proc", "puts"), 1, cursor, &analysis).is_empty());
+        assert_eq!(
+            definition(&source, 2, 5 + cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
+        assert_eq!(
+            definition(&source.replace("proc", "puts"), 1, cursor, &analysis),
+            [] as [crate::definition::LspRange; 0]
+        );
     }
 }
 

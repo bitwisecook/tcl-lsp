@@ -121,6 +121,20 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::FORWARD),
+        ),
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::LevelSelected,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             // TclCompileUplevelCmd first appears in pinned C9.1 tclCompCmdsSZ.c;
             // it compiles original argv and selects UPLEVEL, without public dispatch.

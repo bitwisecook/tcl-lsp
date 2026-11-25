@@ -760,8 +760,9 @@ impl InfoOoSubcommands {
 /// before prefix uniqueness or error rendering is decided.
 #[must_use]
 pub fn info_oo_subcommands(kind: InfoOoEnsembleKind, version: TclVersion) -> InfoOoSubcommands {
-    let dialect =
-        Some(crate::model::static_document_context_for(version.dialect_name()).authoring_query());
+    let dialect = Some(
+        crate::model::static_document_context_for(version.dialect_profile_name()).authoring_query(),
+    );
     let info = spec();
     let parent = info
         .subcommands
@@ -1357,6 +1358,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(

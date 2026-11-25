@@ -1473,7 +1473,7 @@ mod original_apply_frame_tests {
         FIRST.with(|first| first.borrow_mut().take());
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
-            tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile(),
+            tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile(),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();

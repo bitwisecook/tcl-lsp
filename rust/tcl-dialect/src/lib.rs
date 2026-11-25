@@ -52,6 +52,8 @@ mod grammar;
 mod library;
 pub mod model;
 mod profile;
+pub mod release_facts;
+pub mod release_policy;
 pub mod trace_env;
 mod version;
 

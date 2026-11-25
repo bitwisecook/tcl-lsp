@@ -693,7 +693,10 @@ mod tests {
 
         let mut admitted = command(spec(Some("string")));
         let before = admitted.spec;
-        assert!(admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()).is_empty());
+        assert_eq!(
+            admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()),
+            [] as [crate::stamps::StampRefusal; 0]
+        );
         assert!(
             std::ptr::eq(admitted.spec, before),
             "an admitted stamp keeps its spec"
@@ -832,7 +835,10 @@ mod tests {
         // `lassign`'s own stamp, in a window, from a bundled pack.
         let mut kept = command(windowed(Some("lassign"), None));
         let before = kept.spec;
-        assert!(admit_codegen_stamps(&mut kept, Provenance::BundledPack, shipped()).is_empty());
+        assert_eq!(
+            admit_codegen_stamps(&mut kept, Provenance::BundledPack, shipped()),
+            [] as [crate::stamps::StampRefusal; 0]
+        );
         assert!(
             std::ptr::eq(kept.spec, before),
             "an admitted stamp keeps its spec"
@@ -849,7 +855,7 @@ mod tests {
                 .all(|refusal| refusal.reason == RefusalReason::TierGate)
         );
         assert_eq!(tiered.spec.codegen_hook, None);
-        assert!(tiered.spec.codegen_hook_windows.is_empty());
+        assert_eq!(tiered.spec.codegen_hook_windows, []);
         assert!(!carries_stamp(tiered.spec));
 
         // A bundled pack's plain stamp that is not its target's own goes, and
@@ -887,7 +893,7 @@ mod tests {
             Some(CodegenHookId::Lassign),
             "the plain stamp is the target's own and stays"
         );
-        assert!(mixed.spec.codegen_hook_windows.is_empty());
+        assert_eq!(mixed.spec.codegen_hook_windows, []);
 
         // A windowed stamp is not the target's own where the target is not the
         // builtin that carries it.
@@ -895,13 +901,13 @@ mod tests {
         let refusals = admit_codegen_stamps(&mut foreign, Provenance::BundledPack, shipped());
         assert_eq!(refusals.len(), 1);
         assert_eq!(refusals[0].reason, RefusalReason::NotTheTargetsOwn("lsort"));
-        assert!(foreign.spec.codegen_hook_windows.is_empty());
+        assert_eq!(foreign.spec.codegen_hook_windows, []);
 
         // And none at all without an `alias_of`.
         let mut bare = command(windowed(None, None));
         let refusals = admit_codegen_stamps(&mut bare, Provenance::BundledPack, shipped());
         assert_eq!(refusals[0].reason, RefusalReason::NoAliasOf);
-        assert!(bare.spec.codegen_hook_windows.is_empty());
+        assert_eq!(bare.spec.codegen_hook_windows, []);
     }
 
     /// A subcommand's windows are the same stamps at the subcommand's site.
@@ -959,7 +965,10 @@ mod tests {
             }])),
             ..CommandSpec::DEFAULT
         });
-        assert!(admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()).is_empty());
+        assert_eq!(
+            admit_codegen_stamps(&mut admitted, Provenance::BundledPack, shipped()),
+            [] as [crate::stamps::StampRefusal; 0]
+        );
         assert_eq!(
             admitted.spec.subcommands[0].semantic_operation_windows,
             LENGTH_FROM_9
@@ -1062,9 +1071,15 @@ mod tests {
             Declaration::AliasOf("lassign"),
             Declaration::RuntimeBacking(RuntimeBacking::shipped("lassign")),
         ];
-        assert!(refused(None).is_empty());
-        assert!(refused(Some(DependencyTier::Root)).is_empty());
-        assert!(refused(Some(DependencyTier::Direct)).is_empty());
+        assert_eq!(refused(None), [] as [crate::stamps::Declaration; 0]);
+        assert_eq!(
+            refused(Some(DependencyTier::Root)),
+            [] as [crate::stamps::Declaration; 0]
+        );
+        assert_eq!(
+            refused(Some(DependencyTier::Direct)),
+            [] as [crate::stamps::Declaration; 0]
+        );
         assert_eq!(refused(Some(DependencyTier::Transitive)), both);
         assert_eq!(refused(Some(DependencyTier::Development)), both);
 
@@ -1073,7 +1088,10 @@ mod tests {
             name: "vendor::bare",
             ..CommandSpec::DEFAULT
         };
-        assert!(declaration_refusals(&bare, Some(DependencyTier::Transitive)).is_empty());
+        assert_eq!(
+            declaration_refusals(&bare, Some(DependencyTier::Transitive)),
+            [] as [crate::stamps::DeclarationRefusal; 0]
+        );
     }
 
     /// The remedy the messages give ("only the workspace's own package and its
@@ -1122,12 +1140,18 @@ mod tests {
             command
         };
         let mut shipped_by_no_package = body();
-        assert!(admit_declarations(&mut shipped_by_no_package).is_empty());
+        assert_eq!(
+            admit_declarations(&mut shipped_by_no_package),
+            [] as [crate::stamps::DeclarationRefusal; 0]
+        );
         assert_eq!(shipped_by_no_package.spec.runtime_backing, tcl_body());
 
         let mut root = body();
         root.dependency_tier = Some(DependencyTier::Root);
-        assert!(admit_declarations(&mut root).is_empty());
+        assert_eq!(
+            admit_declarations(&mut root),
+            [] as [crate::stamps::DeclarationRefusal; 0]
+        );
         assert_eq!(root.spec.runtime_backing, tcl_body());
 
         let mut direct = body();
@@ -1164,7 +1188,10 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         host.dependency_tier = Some(DependencyTier::Direct);
-        assert!(admit_declarations(&mut host).is_empty());
+        assert_eq!(
+            admit_declarations(&mut host),
+            [] as [crate::stamps::DeclarationRefusal; 0]
+        );
     }
 
     #[test]
@@ -1195,7 +1222,10 @@ mod tests {
     fn a_dropped_declaration_costs_no_other_fact() {
         let mut direct = shipped_by(Some(DependencyTier::Direct));
         let before = direct.spec;
-        assert!(admit_declarations(&mut direct).is_empty());
+        assert_eq!(
+            admit_declarations(&mut direct),
+            [] as [crate::stamps::DeclarationRefusal; 0]
+        );
         assert!(
             std::ptr::eq(direct.spec, before),
             "nothing dropped, nothing cloned"

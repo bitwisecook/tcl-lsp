@@ -373,8 +373,12 @@ fn package_recovery_names(
     providers.sort_by(|left, right| {
         left.path.cmp(&right.path).then_with(|| {
             left.target
-                .map(tcl_dialect::TclVersion::dialect_name)
-                .cmp(&right.target.map(tcl_dialect::TclVersion::dialect_name))
+                .map(tcl_dialect::TclVersion::dialect_profile_name)
+                .cmp(
+                    &right
+                        .target
+                        .map(tcl_dialect::TclVersion::dialect_profile_name),
+                )
         })
     });
     providers.dedup();

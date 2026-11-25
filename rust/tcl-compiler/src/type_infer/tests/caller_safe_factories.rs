@@ -114,7 +114,8 @@ fn original_caller_safe_factory_keeps_selected_layout_and_withdraws_changed_owne
         ));
         // Actual availability without complete source input does not become
         // the explicitly tagged standalone carrier used above.
-        let availability = tcl_registry::model::ingress::static_context_for(version.dialect_name());
+        let availability =
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
         assert!(!caller_safe_factory_invocation(
             TypePropagationMetadata {
                 context: Some(availability.into()),

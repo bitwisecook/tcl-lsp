@@ -890,7 +890,7 @@ mod tests {
         let mut findings = Vec::new();
         apply_testssl(&imported, &mut grade, &mut caps, &mut findings);
         assert_eq!(grade, Grade::A);
-        assert!(caps.is_empty());
+        assert_eq!(caps, [] as [String; 0]);
         assert_eq!(findings[0].code, "TESTSSL-HEARTBLEED");
     }
 }

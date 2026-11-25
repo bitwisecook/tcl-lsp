@@ -24,7 +24,7 @@ fn original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom() 
     // docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md
     // Loader filename syntax and counted original name only; no loading or variable value claim.
     let version = tcl_dialect::TclVersion::V9_1;
-    let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     let policy = NamePolicyProtocol::authored_tcl(version);
     let config = LexerConfig {
         leading_bom: tcl_lexer::LeadingBom::Skip,

@@ -63,7 +63,7 @@ fn complete_no_spec_selection_retains_actual_manifest_source_dependency() {
     let mut inputs = ManifestSelectionInputs::default();
     collect_beside_manifests_observed(&store, Path::new("/project"), &mut found, &mut inputs);
     assert!(found.is_empty());
-    assert!(inputs.issues.is_empty());
+    assert_eq!(inputs.issues, [] as [(std::path::PathBuf, String); 0]);
     assert_eq!(inputs.sources, vec![(path.clone(), source.to_owned())]);
     let mut loaded = crate::pack::LoadedSourceInputs::default();
     loaded.retain_manifest_selection(&store, &inputs);

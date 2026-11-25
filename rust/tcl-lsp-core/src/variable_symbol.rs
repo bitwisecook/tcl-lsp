@@ -1019,7 +1019,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-alias-source-template.md
         let source = "proc p {i} {upvar ::n::a($i) data; lappend data value; puts $data}; proc sibling {} {puts $data}";
         for version in tcl_dialect::TclVersion::ALL {
-            let mut analysis = Analyser::new().analyse(source, version.dialect_name());
+            let mut analysis = Analyser::new().analyse(source, version.dialect_profile_name());
             analysis.all_variables.clear();
             analysis.all_procs.clear();
             analysis.global_scope.variables.clear();
@@ -1045,7 +1045,7 @@ mod tests {
                 let ControlFlow::Break(Some(NavigationVariable::Alias(template))) = selected else {
                     panic!(
                         "{}: readonly alias source selection at {offset}",
-                        version.dialect_name()
+                        version.dialect_profile_name()
                     );
                 };
                 assert_eq!(

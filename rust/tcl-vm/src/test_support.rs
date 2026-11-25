@@ -68,7 +68,7 @@ pub fn native_vm_with_output(out: Box<dyn Write>) -> Vm {
 /// [`Vm::set_runtime_version`] pins it) writing `puts` output to `out`.
 #[must_use]
 pub fn native_vm_for_release(release: tcl_dialect::TclVersion, out: Box<dyn Write>) -> Vm {
-    native_vm_for_profile(profile(release.dialect_name()), out)
+    native_vm_for_profile(profile(release.dialect_profile_name()), out)
 }
 
 /// A native-core VM of `environment` (a dialect name such as `"tcl8.6"`)

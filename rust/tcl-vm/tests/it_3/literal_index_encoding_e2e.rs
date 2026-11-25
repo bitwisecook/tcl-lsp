@@ -69,7 +69,8 @@ enum Entry {
 /// Run `src` on a VM configured as `tclvm --tcl-version` configures one, and
 /// as it runs the script file or its stdin.
 fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
-    let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
+    let profile =
+        tcl_registry::model::resolve_environment(release.dialect_profile_name()).unit_profile();
     let capture = Capture::default();
     // `tclvm` runs a native-core interpreter of the release (work's entry).
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(capture.clone()));

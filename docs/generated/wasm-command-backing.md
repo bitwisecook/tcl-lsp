@@ -25,13 +25,13 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | --- | --- | --- |
 | none | absent | 12 |
 | none | unsupported | 5 |
-| shipped-builtin | absent (known gap) | 17 |
+| shipped-builtin | absent (known gap) | 16 |
 | shipped-builtin | builtin | 303 |
 | shipped-builtin | object | 6 |
 | tcl-body init.tcl | stdlib init.tcl | 7 |
 | tcl-body package.tcl | stdlib package.tcl | 3 |
 | tcl-body parray.tcl | stdlib parray.tcl | 1 |
-| **total** | | 354 |
+| **total** | | 353 |
 
 | command | release | backing | wasm | vm | note |
 | --- | --- | --- | --- | --- | --- |
@@ -146,7 +146,6 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `::tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `::tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
 | `::tcl::unsupported::representation` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `::tcl::zipfs` | 9.0 | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `after` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `append` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `apply` | 9.0 | shipped-builtin | builtin | builtin |  |

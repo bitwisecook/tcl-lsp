@@ -1225,6 +1225,7 @@ const fn namespace_named_compilation(
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(0, Arity::new(0, 2))),
         arity: Arity::new(0, 2),
         detail: "Returns a list of all child namespaces.",
@@ -1239,6 +1240,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "code",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::Unknown,
+                    timing: crate::hover::ScriptTiming::Deferred,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }], ..crate::evaluation_context::EvaluationContextSpec::EMPTY
+        }),
         // TclCompileNamespaceCodeCmd builds only a SIMPLE_WORD; dynamic and
         // already-scoped scripts retain the original private handler rewrite.
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::NamespaceCode),
@@ -1276,6 +1287,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "current",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::NamespaceCurrent),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceCurrent,
@@ -1294,6 +1306,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "delete",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(1, Arity::any())),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::any(),
@@ -1362,6 +1375,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "eval",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body, ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::NamespaceArgument(0),
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(namespace_no_hook_compiler!(
             "eval",
             crate::SemanticOperationId::StructuredLowering(
@@ -1415,6 +1438,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(2, Arity::exact(1))),
         arity: Arity::exact(1),
         detail: "Test whether a namespace exists.",
@@ -1429,6 +1453,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "export",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(3, Arity::any())),
         arity: Arity::any(),
         detail: "Specifies which commands are exported from a namespace; with no patterns and no -clear, returns the namespace's current export list.",
@@ -1455,6 +1480,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "forget",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(4, Arity::any())),
         // Removes imported commands matched by spelled name / pattern.
         traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::REFLECTS_COMMAND_NAMES),
@@ -1479,6 +1505,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "import",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(5, Arity::any())),
         // Imports commands by their spelled names / patterns.
         traits: Traits::REFLECTS_COMMAND_NAMES,
@@ -1517,6 +1544,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "inscope",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body, ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::NamespaceArgument(0),
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(namespace_no_hook_compiler!(
             "inscope",
             crate::SemanticOperationId::Invoke,
@@ -1547,6 +1584,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "origin",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // C8.6+ registers TclCompileNamespaceOriginCmd on this exact worker;
         // the original visit accepts one operand and emits ORIGIN_COMMAND.
         // Registration metadata remains separate from normal worker effects.
@@ -1570,6 +1608,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "parent",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(6, Arity::new(0, 1))),
         arity: Arity::new(0, 1),
         detail: "Returns the fully-qualified name of the parent namespace.",
@@ -1582,6 +1621,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "path",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(namespace_named_compilation(7, Arity::new(0, 1))),
         arity: Arity::new(0, 1),
         detail: "Returns the command resolution path of the current namespace.",
@@ -1595,6 +1635,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "qualifiers",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceString(
                 crate::native_namespace_string_compilation::NativeNamespaceStringOperation::Qualifiers,
@@ -1620,6 +1661,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tail",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceString(
                 crate::native_namespace_string_compilation::NativeNamespaceStringOperation::Tail,
@@ -1645,6 +1687,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::CommandPrefix],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::Trigger,
+                    timing: crate::hover::ScriptTiming::Deferred,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }], ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(namespace_named_compilation(8, Arity::new(0, 1))),
         // Installs a handler that receives unresolved command names.
         traits: Traits::REFLECTS_COMMAND_NAMES,
@@ -1673,6 +1725,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "upvar",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::VarCell],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::NamespaceArgument(0),
+                    ..crate::evaluation_context::EvaluationContext::REFERENCE
+                },
+            }], ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceUpvarBindings,
             operation: crate::SemanticOperationId::Invoke,
@@ -1734,6 +1795,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "which",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceWhich,
             operation: crate::SemanticOperationId::Invoke,

@@ -87,7 +87,7 @@ fn matches_original(source: &str, expected: &str, versions: &[TclVersion]) {
             oracle.patchlevel
         );
         assert_eq!(
-            common::vm_output(source, oracle.version.dialect_name()),
+            common::vm_output(source, oracle.version.dialect_profile_name()),
             expected,
             "{}: compiled",
             oracle.patchlevel

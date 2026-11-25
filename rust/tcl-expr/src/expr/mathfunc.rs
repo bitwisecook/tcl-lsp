@@ -749,56 +749,19 @@ pub fn expects_floating_operand_error(name: &str) -> bool {
     )
 }
 
-/// The Tcl core release an `expr` math function first appeared in.
-///
-/// `expr` functions gate by the *expr grammar* base version — the same axis
-/// the relational operators (`in`/`lt`/…) do — so a vendor shell running on an
-/// 8.5 core has the 8.5 set even though its dialect tag isn't a plain Tcl
-/// version.  The variants are ordered oldest-first, so a caller checks
-/// availability with `added_in(name) <= base_version`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MathFuncSince {
-    /// The fixed 8.4 C function table (`tclExecute.c`).
-    Tcl84,
-    /// TIP 232 introduced the `::tcl::mathfunc` command scheme and added
-    /// `bool` / `entier` / `isqrt` / `min` / `max`.
-    Tcl85,
-    /// TIP 521 added the floating-point classification functions
-    /// (`isinf` / `isnan` / `isnormal` / `issubnormal` / `isfinite` /
-    /// `isunordered`).
-    Tcl90,
-    /// TIP 745 added the C99 batch (`acosh` / `cbrt` / `fma` / `log2` / …).
-    Tcl91,
-}
+/// The introducing C Tcl release, on the shared release axis.
+pub type MathFuncSince = tcl_dialect::TclVersion;
 
-/// The release a math function named `name` first became available in, or
-/// `None` when `name` is not a built-in `expr` function in any release.
-///
-/// This is the single source of truth for *which* names are `expr` functions
-/// and *when* each appeared, shared by the const-folder, the runtime, and the
-/// dialect-availability diagnostic.  Names are matched verbatim (mathfunc
-/// lookup is case-sensitive).
+/// The first reference release whose source and oracle ship this function.
 #[must_use]
 pub fn added_in(name: &str) -> Option<MathFuncSince> {
-    let since = match name {
-        // The 8.4 fixed C table (`wide` landed in 8.4.0).
-        "abs" | "acos" | "asin" | "atan" | "atan2" | "ceil" | "cos" | "cosh" | "double" | "exp"
-        | "floor" | "fmod" | "hypot" | "int" | "log" | "log10" | "pow" | "rand" | "round"
-        | "sin" | "sinh" | "sqrt" | "srand" | "tan" | "tanh" | "wide" => MathFuncSince::Tcl84,
-        // TIP 232 (8.5).
-        "bool" | "entier" | "isqrt" | "max" | "min" => MathFuncSince::Tcl85,
-        // TIP 521 (9.0).
-        "isfinite" | "isinf" | "isnan" | "isnormal" | "issubnormal" | "isunordered" => {
-            MathFuncSince::Tcl90
-        }
-        // TIP 745 (9.1) C99 batch; the multi-value C99 functions land as the
-        // `divmod` / `frexp` / `modf` / `remquo` *commands* instead.
-        "acosh" | "asinh" | "atanh" | "cbrt" | "copysign" | "dim" | "erf" | "erfc" | "exp2"
-        | "expm1" | "fma" | "gamma" | "ldexp" | "lgamma" | "log1p" | "log2" | "logb"
-        | "nextafter" | "remainder" | "signbit" | "trunc" => MathFuncSince::Tcl91,
-        _ => return None,
-    };
-    Some(since)
+    tcl_dialect::TclVersion::ALL.into_iter().find(|version| {
+        version
+            .release_facts()
+            .math_functions
+            .binary_search(&name)
+            .is_ok()
+    })
 }
 
 /// What a math function returns: the one table every consumer that types
@@ -877,8 +840,8 @@ fn class_of(name: &str) -> MathResultClass {
 /// Static metadata for math function `name`, or `None` when `name` isn't a
 /// built-in `expr` function in any release — the single source layer 2
 /// (`mathfunc_generated.rs`) reads to build hover/completion `CommandSpec`s.
-/// Split into one helper per release (mirroring [`added_in`]'s own grouping)
-/// purely to stay under clippy's function-length lint.
+/// Metadata groups keep each helper small; release introductions come from
+/// the generated catalogue through [`added_in`].
 #[must_use]
 pub fn spec(name: &str) -> Option<MathFuncSpec> {
     spec_tcl84(name)
@@ -887,79 +850,18 @@ pub fn spec(name: &str) -> Option<MathFuncSpec> {
         .or_else(|| spec_tcl91(name))
 }
 
-/// All built-in `expr` math functions, in a fixed (declaration) order —
+/// All built-in `expr` math functions, in generated alphabetical order —
 /// the completeness anchor for consumers that need to enumerate every
 /// function (layer 2's generator, completion, editor-generator sweeps).
 #[must_use]
 pub fn all() -> Vec<MathFuncSpec> {
-    ALL_NAMES
+    tcl_dialect::TclVersion::V9_1
+        .release_facts()
+        .math_functions
         .iter()
-        .map(|&n| spec(n).expect("name is in spec()'s own tables"))
+        .map(|&name| spec(name).expect("source-derived function has evaluation metadata"))
         .collect()
 }
-
-/// Every name [`spec`] recognises, in declaration order — kept in one place
-/// so [`all`] can't drift from the four `spec_tcl8x`/`spec_tcl9x` helpers.
-const ALL_NAMES: &[&str] = &[
-    "abs",
-    "acos",
-    "asin",
-    "atan",
-    "atan2",
-    "ceil",
-    "cos",
-    "cosh",
-    "double",
-    "exp",
-    "floor",
-    "fmod",
-    "hypot",
-    "int",
-    "log",
-    "log10",
-    "pow",
-    "rand",
-    "round",
-    "sin",
-    "sinh",
-    "sqrt",
-    "srand",
-    "tan",
-    "tanh",
-    "wide",
-    "bool",
-    "entier",
-    "isqrt",
-    "max",
-    "min",
-    "isfinite",
-    "isinf",
-    "isnan",
-    "isnormal",
-    "issubnormal",
-    "isunordered",
-    "acosh",
-    "asinh",
-    "atanh",
-    "cbrt",
-    "copysign",
-    "dim",
-    "erf",
-    "erfc",
-    "exp2",
-    "expm1",
-    "fma",
-    "gamma",
-    "ldexp",
-    "lgamma",
-    "log1p",
-    "log2",
-    "logb",
-    "nextafter",
-    "remainder",
-    "signbit",
-    "trunc",
-];
 
 /// The 8.4 fixed C function table (`tclExecute.c`).
 fn spec_tcl84(name: &str) -> Option<MathFuncSpec> {
@@ -1003,7 +905,7 @@ fn spec_tcl84(name: &str) -> Option<MathFuncSpec> {
     };
     Some(MathFuncSpec {
         name,
-        since: MathFuncSince::Tcl84,
+        since: added_in(name)?,
         arity,
         accepts_boolean_operand: false,
         result_class: class_of(name),
@@ -1029,7 +931,7 @@ fn spec_tcl85(name: &str) -> Option<MathFuncSpec> {
     };
     Some(MathFuncSpec {
         name,
-        since: MathFuncSince::Tcl85,
+        since: added_in(name)?,
         arity,
         accepts_boolean_operand: name == "bool",
         result_class: class_of(name),
@@ -1071,7 +973,7 @@ fn spec_tcl90(name: &str) -> Option<MathFuncSpec> {
     };
     Some(MathFuncSpec {
         name,
-        since: MathFuncSince::Tcl90,
+        since: added_in(name)?,
         arity,
         accepts_boolean_operand: false,
         result_class: class_of(name),
@@ -1132,7 +1034,7 @@ fn spec_tcl91(name: &str) -> Option<MathFuncSpec> {
     };
     Some(MathFuncSpec {
         name,
-        since: MathFuncSince::Tcl91,
+        since: added_in(name)?,
         arity,
         accepts_boolean_operand: false,
         result_class: class_of(name),

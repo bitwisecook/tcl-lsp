@@ -30,14 +30,13 @@
 
 use std::fmt::Write as _;
 use std::fs;
-use std::io::Write as _;
-use std::process::{Command, ExitCode, Stdio};
+use std::process::ExitCode;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use tcl_dialect::model::Placement;
 use tcl_spectcl::PackEnvironment;
 
-use crate::util::{repo_root, write_if_changed};
+use crate::util::{format_rust, repo_root, write_if_changed};
 
 const OUTPUT: &str = "rust/tcl-dialect/src/model/bundled_environments.rs";
 
@@ -182,28 +181,7 @@ fn render() -> Result<String> {
         "  {rows} bundled environment block(s) across {} pack(s)",
         set.packs.len()
     );
-    rustfmt(&text)
-}
-
-fn rustfmt(text: &str) -> Result<String> {
-    let mut child = Command::new("rustfmt")
-        .args(["--edition", "2024", "--emit", "stdout"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .context("spawning rustfmt (part of the pinned Rust toolchain)")?;
-    child
-        .stdin
-        .take()
-        .context("rustfmt stdin")?
-        .write_all(text.as_bytes())
-        .context("writing to rustfmt")?;
-    let output = child.wait_with_output().context("waiting for rustfmt")?;
-    if !output.status.success() {
-        bail!("rustfmt rejected the generated module: {}", output.status);
-    }
-    String::from_utf8(output.stdout).context("rustfmt output is not UTF-8")
+    format_rust(&text)
 }
 
 pub fn run(check: bool) -> Result<ExitCode> {

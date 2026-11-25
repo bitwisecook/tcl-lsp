@@ -30,7 +30,7 @@ fn release_profile(name: &str) -> &'static tcl_dialect::DialectProfile {
 
 /// The release's own engine and source compiler.
 fn release_vm(version: tcl_dialect::TclVersion) -> Vm {
-    crate::native_fixture::interpreter(release_profile(version.dialect_name()))
+    crate::native_fixture::interpreter(release_profile(version.dialect_profile_name()))
 }
 
 /// Re-select both the actual engine and the logical profile of `name`.

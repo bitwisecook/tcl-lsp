@@ -1283,12 +1283,12 @@ mod tests {
         ];
         let code = "set items {a b}\nset n [mypkg::count $items]";
         let carrier = DocumentationCarrier::new(1, "mypkg::count");
-        assert!(
+        assert_eq!(
             documentation_example_errors(
                 DocumentationExample::with_carrier(code, carrier, IN_ORDER),
                 "pack"
-            )
-            .is_empty()
+            ),
+            [] as [String; 0]
         );
         assert!(
             !documentation_example_errors(

@@ -163,7 +163,7 @@ mod tests {
     fn implicit_channel_source_envelope_keeps_actual_unknown_effects_and_all_callback_conditions() {
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);
-            let context = crate::model::ingress::static_context_for(version.dialect_name());
+            let context = crate::model::ingress::static_context_for(version.dialect_profile_name());
             let arguments = [InvocationWord::Dynamic];
             let resolution =
                 crate::model::assembly::resolve_structured_invocation_in_resolved_context(

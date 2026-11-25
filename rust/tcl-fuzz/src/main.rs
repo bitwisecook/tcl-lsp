@@ -1624,7 +1624,7 @@ fn pair_findings_dir(
         base.join(format!("{}-vs-{}", subject.label(), reference.label()))
     };
     tcl_version.map_or(pair_dir.clone(), |tcl_version| {
-        pair_dir.join(format!("tcl{}", tcl_version.version_string()))
+        pair_dir.join(tcl_version.dialect_profile_name())
     })
 }
 

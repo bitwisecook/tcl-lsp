@@ -434,7 +434,7 @@ fn a_stamp_window_with_an_impossible_lifecycle_is_dropped_and_not_widened() {
     );
     let spec = pack.command("demo").expect("demo loads").spec;
     assert_eq!(spec.codegen_hook, None, "not the plain stamp");
-    assert!(spec.codegen_hook_windows.is_empty());
+    assert_eq!(spec.codegen_hook_windows, []);
     let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
     assert!(said("codegen hook window"), "{:?}", pack.notices);
     assert!(said("dropped"), "{:?}", pack.notices);

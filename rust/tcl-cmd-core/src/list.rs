@@ -1168,6 +1168,9 @@ mod c86_split_plan_tests {
                 .native_access_refusal()
                 .is_some()
         );
-        assert!(plan_c86_split(b"", b"\0").unwrap().is_empty());
+        assert_eq!(
+            plan_c86_split(b"", b"\0").unwrap(),
+            [] as [super::C86SplitPart; 0]
+        );
     }
 }

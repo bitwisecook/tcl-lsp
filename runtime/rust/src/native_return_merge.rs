@@ -198,8 +198,7 @@ mod physical_tests {
         for name in ["8.5.19", "8.6.18", "9.0.4", "9.1.0"] {
             let version = version(name);
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let source =
                 b"return -level 0 -options {-custom A -options {-custom B} -custom C} BODY";
             let image = tcl_lexer::SourceImage::native(source.as_slice());
@@ -257,8 +256,7 @@ mod physical_tests {
         for name in ["8.5.19", "8.6.18", "9.0.4", "9.1.0"] {
             let version = version(name);
             let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string()))
-                    .unwrap();
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (case, source) in sources.iter().enumerate() {
                 let image = tcl_lexer::SourceImage::native(*source);
                 let script = tcl_lexer::native_script_words_in(

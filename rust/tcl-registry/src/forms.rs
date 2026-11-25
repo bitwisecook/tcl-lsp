@@ -127,6 +127,9 @@ pub struct CommandForm {
     /// resolution is positional).
     pub arg_roles: &'static [(u8, ArgRole)],
 
+    /// Per-argument evaluation contexts overriding the parent descriptor.
+    pub evaluation_contexts: Option<crate::evaluation_context::EvaluationContextSpec>,
+
     /// Options recognised on this form.
     pub options: &'static [OptionSpec],
 
@@ -263,6 +266,7 @@ impl CommandForm {
         arity: Arity::any(),
         literal_argument_prefix: None,
         arg_roles: &[],
+        evaluation_contexts: None,
         options: &[],
         option_relations: &[],
         surface: None,

@@ -1136,7 +1136,7 @@ mod tests {
             }
             let version = TclVersion::ALL
                 .into_iter()
-                .find(|version| version.dialect_name() == format!("tcl{}", row[0]))
+                .find(|version| version.dialect_profile_name() == format!("tcl{}", row[0]))
                 .unwrap();
             let context = context(version);
             let source = bytes(row[2]);

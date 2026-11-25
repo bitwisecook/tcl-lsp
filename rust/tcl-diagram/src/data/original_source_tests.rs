@@ -77,7 +77,7 @@ fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_
             .all(|row| row["flow"].is_null()),
         "{data}"
     );
-    assert!(
+    assert_eq!(
         diagram_data_for_analysis(
             &format!("#changed\n{source}"),
             &analysis,
@@ -86,7 +86,8 @@ fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_
         )["procedures"]
             .as_array()
             .unwrap()
-            .is_empty()
+            .as_slice(),
+        [] as [serde_json::Value; 0]
     );
     let mut wrong_config = analysis.clone();
     wrong_config
@@ -94,18 +95,19 @@ fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_
         .as_mut()
         .unwrap()
         .strict_quoting = !analysis.body_lexer_config.unwrap().strict_quoting;
-    assert!(
+    assert_eq!(
         diagram_data_for_analysis(source, &wrong_config, &unit.ir_module, &context)["procedures"]
             .as_array()
             .unwrap()
-            .is_empty()
+            .as_slice(),
+        [] as [serde_json::Value; 0]
     );
     let foreign = tcl_registry::model::ingress::context_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
     let changed_registry = context.with_command_store(foreign.commands().clone());
-    assert!(diagram_data_for_analysis(source, &analysis, &unit.ir_module, &changed_registry)
-            ["procedures"].as_array().unwrap().is_empty());
+    assert_eq!(diagram_data_for_analysis(source, &analysis, &unit.ir_module, &changed_registry)
+            ["procedures"].as_array().unwrap().as_slice(), [] as [serde_json::Value; 0]);
 }
 
 #[test]
@@ -350,11 +352,12 @@ fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labe
     assert_eq!(data["events"].as_array().unwrap().len(), 1, "{data}");
     assert_eq!(data["events"][0]["name"], "HTTP_REQUEST");
     unit.ir_module.irules_event_bodies.clear();
-    assert!(
+    assert_eq!(
         diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context)["events"]
             .as_array()
             .unwrap()
-            .is_empty()
+            .as_slice(),
+        [] as [serde_json::Value; 0]
     );
 }
 #[test]
@@ -402,7 +405,13 @@ fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
             &availability,
         );
         assert_eq!(stale["unavailable"], "current-source");
-        assert!(stale["events"].as_array().unwrap().is_empty());
-        assert!(stale["procedures"].as_array().unwrap().is_empty());
+        assert_eq!(
+            stale["events"].as_array().unwrap().as_slice(),
+            [] as [serde_json::Value; 0]
+        );
+        assert_eq!(
+            stale["procedures"].as_array().unwrap().as_slice(),
+            [] as [serde_json::Value; 0]
+        );
     }
 }

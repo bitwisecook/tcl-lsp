@@ -573,6 +573,8 @@ impl DocumentRecords {
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
                 definer_family: crate::definition::class_definer_family(analysis, class_def),
+                definer_profile: crate::definition::class_definition_grammar(analysis, class_def)
+                    .map(|grammar| grammar.profile),
                 bare_word_construction: class_def
                     .class_command_fallback
                     .constructs_named_instance(),

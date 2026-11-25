@@ -541,7 +541,7 @@ mod tests {
             panic!("actual hosted source purpose");
         };
         assert!(metadata.authored_barriers().has_unknown_transitions());
-        assert!(!metadata.obligations().is_empty());
+        assert_ne!(metadata.obligations(), []);
         let reach = attach_reach_for_source_context(source, &context);
         assert_eq!(reach.pools.len(), 1);
         assert!(
@@ -604,26 +604,39 @@ mod tests {
             proc_call_refs_for_analysis(source, &analysis, &context),
             vec!["Lib", "/Common/Other"]
         );
-        assert!(
+        assert_eq!(
             proc_call_refs_for_analysis(
                 &format!("# different complete image\n{source}"),
                 &analysis,
                 &context
-            )
-            .is_empty()
+            ),
+            [] as [String; 0]
         );
         let mut changed = analysis.clone();
         changed.body_lexer_config.as_mut().unwrap().strict_quoting =
             !analysis.body_lexer_config.unwrap().strict_quoting;
-        assert!(proc_call_refs_for_analysis(source, &changed, &context).is_empty());
+        assert_eq!(
+            proc_call_refs_for_analysis(source, &changed, &context),
+            [] as [String; 0]
+        );
         let other = tcl_registry::model::ingress::context_for_profile(
             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
-        assert!(proc_call_refs_for_analysis(source, &analysis, &other).is_empty());
-        assert!(
-            proc_call_refs("proc call {args} {}\nwhen HTTP_REQUEST {call Lib::one}").is_empty()
+        assert_eq!(
+            proc_call_refs_for_analysis(source, &analysis, &other),
+            [] as [String; 0]
         );
-        assert!(proc_call_refs(r"when HTTP_REQUEST {call L\uD800::one}").is_empty());
-        assert!(proc_call_refs("when HTTP_REQUEST {puts Lib::one; call $unknown}").is_empty());
+        assert_eq!(
+            proc_call_refs("proc call {args} {}\nwhen HTTP_REQUEST {call Lib::one}"),
+            [] as [String; 0]
+        );
+        assert_eq!(
+            proc_call_refs(r"when HTTP_REQUEST {call L\uD800::one}"),
+            [] as [String; 0]
+        );
+        assert_eq!(
+            proc_call_refs("when HTTP_REQUEST {puts Lib::one; call $unknown}"),
+            [] as [String; 0]
+        );
     }
 }

@@ -410,7 +410,7 @@ impl Parser<'_> {
                     self.start = saved_start;
                     self.lexeme = saved_lexeme;
                 } else if super::mathfunc::added_in(&name)
-                    == Some(super::mathfunc::MathFuncSince::Tcl84)
+                    == Some(super::mathfunc::MathFuncSince::V8_4)
                 {
                     return Err(
                         self.syntax_error("expected parenthesis enclosing function arguments")
@@ -513,7 +513,7 @@ fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
 /// and nested scripts by.
 fn lexer_config() -> tcl_lexer::LexerConfig {
     // dialect-drift-ok: the 8.4 expression syntax reads 8.4's own word grammar
-    tcl_lexer::LexerConfig::for_dialect(tcl_dialect::TclVersion::V8_4.dialect_name())
+    tcl_lexer::LexerConfig::for_dialect(tcl_dialect::TclVersion::V8_4.dialect_profile_name())
 }
 
 /// `Tcl_ParseVarName` from the `$` at `dollar`: the byte after the variable

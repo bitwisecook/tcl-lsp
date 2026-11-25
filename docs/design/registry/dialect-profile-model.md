@@ -545,6 +545,92 @@ owners kept in sync by test rather than by construction.
 
 ---
 
+### 3.2 Extracted reference-release facts
+
+`TclVersion::release_facts()` returns the immutable catalogue of each pinned
+reference distribution: version and profile spellings, math functions, encoding
+names, bundled-package documentation mappings and qualified startup commands.
+The reference manifest pins C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0.
+`TclVersion::parse` uses the package-version grammar for release floors, including
+alpha and beta spellings; consumers use `dialect_profile_name()` for profile
+identity instead of constructing a name from display text. The profile's TIP 278
+query delegates to its runtime release, and an unknown runtime release supplies
+no global-variable fallback.
+
+Three compact extracted datasets under `rust/tcl-dialect/data/` own the generated
+Rust tables. `cargo xtask release-facts --check` regenerates from those datasets
+offline and fails on drift. `cargo xtask release-facts --check --verify-sources`
+also re-extracts the facts from the pinned trees and executes their interpreters;
+missing trees, tags, binaries and mismatches fail that explicit check. To refresh
+the dataset and Rust together, run `cargo xtask release-facts --verify-sources`.
+The normal xtask batch includes the offline check.
+
+Expression precedence comes from C Tcl's `prec[]` table and `Precedence` enum.
+Tcl 8.4 predates that table, so its recursive-descent productions in
+`tclParseExpr.c` supply the operator groups and call order. Jim binding powers
+and associativity come from `Jim_ExprOperators` at every upstream tag from
+0.76 to 0.84, read from the local oracle repository. Adjacent identical tables
+share a generated row set, giving four distinct sets. These are source
+extractions, with execution coverage kept separately. `ExprGrammar` consumes
+the generated binding powers and the extracted Tcl math-function introduction
+rows. F5 extension binding choices and Jim math-function build guards retain
+their existing, separately evidenced owners.
+
+The C Tcl catalogue checks `BuiltinFuncTable` (8.4's `tclBuiltinFuncTable`) and
+scripted library math functions against `info functions`, encoding files and
+builtins against `encoding names`, and the source header against the binary's
+patchlevel. Command names come from recursive `info commands` after ordinary
+startup, without loading optional packages. `pkgs/package.list.txt` maps source
+directories to documentation names, not installed package provisions; releases
+without that file have an empty mapping. The command roster records the default
+Linux reference build, including library implementation commands. Its absence
+is not evidence that another platform or optional build lacks a command.
+Generated command surfaces are bounded by the surveyed release ladder.
+
+`TclVersion::release_policy()` projects the third dataset into numeric and
+backslash grammars, character units, double-string precision, expression
+comments, namespace fallback, regex anchors and optional-level selection. The
+execution fixture is `rust/tcl-dialect/data/release-policies.tcl`; it records the
+literal discriminating scripts and their result values, rather than a table
+assigned by version comparisons. Unknown observation combinations fail
+generation. C source checks separately establish the counted local-scalar token
+path, whether scalar preparation reserves an array base before declining and
+whether `TclFindCompiledLocal` can borrow the current frame's local cache.
+`CompiledLocalPolicy` groups those three compiler facts independently of any
+entered frame or local-slot receipt. Version, lexer-profile, float-string and
+compiled-variable consumers read the generated projections.
+
+Math-function introduction is a `TclVersion` on this same axis; `MathFuncSince`
+is a type alias, with neither a parallel release enum nor a handwritten
+name-to-introduction table. Source-derived names drive the metadata inventory.
+The observed command surfaces supply qualified math-command, process, zipfs and
+build-info availability. Startup-roster absence does not erase Tcl 8.6's
+`timerate` autoload entry: `library/tclIndex` imports the unsupported command on
+first use. `::tcl::zipfs` is an implementation namespace, so the registry offers
+only the genuine global `zipfs` command, also callable as `::zipfs`.
+
+The startup package survey separately records each non-empty `package provide`
+answer and whether it has an `ifneeded` stub. `core_provided_packages()` projects
+only the existing interpreter and TclOO semantic subjects; it does not promise
+runtime backing for the reference distribution's tommath or zlib packages.
+`::oo::version` and `::oo::patchlevel` are checked against `TCLOO_VERSION` and
+`TCLOO_PATCHLEVEL`, including their C string concatenation, before generating
+`tcloo_version()`. These methods have no parallel handwritten release roster.
+
+Usage and arity-window extraction has no complete source-owned schema in this
+generator. The registry's authored windows, option-dependent shapes and native
+handler usage protocols remain authoritative, with their existing targeted
+conformance tests. The release-facts gate does not certify them as generated
+facts. General extraction would have to represent subcommand selection,
+option/value branches, irregular count progressions and original invocation
+prefixes; a man-page synopsis or a zero-argument error alone is insufficient.
+
+These catalogues grant no live interpreter authority: commands can be renamed,
+packages loaded and encoding search paths changed. Runtime codec capabilities
+remain smaller than the distribution's encoding catalogue. Behaviour rules,
+usage lines and arity descriptors that are still authored elsewhere are not
+silently certified by this source-extraction gate.
+
 ## 4. Adding a dialect is additive
 
 Availability is rows and a point (§1.4), so there is no width to exhaust

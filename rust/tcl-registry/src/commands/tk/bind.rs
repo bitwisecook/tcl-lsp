@@ -38,6 +38,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bind",
+        evaluation_contexts: Some(
+            crate::evaluation_context::EvaluationContextSpec::DEFERRED_GLOBAL,
+        ),
         surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::new(1, 3),
         // The `bind tag sequence script` form's trailing script is a
@@ -49,6 +52,11 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(2, ArgRole::Body)],
         callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::Deferred(
+            crate::body_execution::DeferredExecutionSpec::global(
+                crate::body_execution::DeferredTrigger::TkEvent,
+            ),
+        )),
         // `DEFERS_BODY` — the "deferred event-handler body" above, said where
         // a consumer asking "can this body stop control reaching my next
         // statement?" can read it. Documentary rather

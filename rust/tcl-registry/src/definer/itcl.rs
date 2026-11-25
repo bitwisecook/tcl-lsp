@@ -114,6 +114,7 @@ pub(super) const ITCL_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
 /// variables and `this` in scope.
 pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Itcl,
+    profile: super::ITCL_PROFILE,
     members: ITCL_MEMBERS,
     implicit_vars: &["this"],
     implicit_receiver_vars: &["this"],

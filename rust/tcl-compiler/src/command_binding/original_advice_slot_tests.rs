@@ -29,7 +29,7 @@ fn state(
 ) -> (ModuleCommandBindings, LexerConfig, NamePolicyProtocol) {
     let dialect = tcl_registry::InvocationDialect::for_version(version);
     let registry =
-        tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let config = LexerConfig::from_grammar(dialect.lexer_grammar);
     (
         ModuleCommandBindings::initial_with_options(

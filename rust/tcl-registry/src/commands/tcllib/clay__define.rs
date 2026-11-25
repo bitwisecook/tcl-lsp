@@ -91,7 +91,10 @@ mod tests {
             let schema = registry
                 .resolve_invocation("clay::define", &arguments, None)
                 .unwrap();
-            assert!(schema.authored_source_argument_roles().0.is_empty());
+            assert_eq!(
+                schema.authored_source_argument_roles().0,
+                [] as [(u8, crate::arg_role::ArgRole); 0]
+            );
         }
     }
 }

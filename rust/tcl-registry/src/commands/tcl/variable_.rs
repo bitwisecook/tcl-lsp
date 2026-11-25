@@ -68,6 +68,16 @@ const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescripto
     commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
 };
 
+fn variable_evaluation_context(
+    arguments: crate::InvocationArguments<'_>,
+    index: usize,
+) -> Option<crate::evaluation_context::EvaluationContext> {
+    crate::evaluation_context::variable_alias_target_context(
+        &variable_state_transitions(arguments),
+        index,
+    )
+}
+
 fn variable_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
     for argument_index in (0..arguments.len()).step_by(2) {
@@ -165,6 +175,11 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            resolver: Some(variable_evaluation_context),
+            resolver_roles: &[ArgRole::VarWrite],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         // The actual procedure compiler interleaves namespace links and stores.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceVariableBindings,

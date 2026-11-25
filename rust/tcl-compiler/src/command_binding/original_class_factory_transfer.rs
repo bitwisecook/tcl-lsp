@@ -408,7 +408,8 @@ mod tests {
     ) -> super::super::SourceCommandBindings {
         let dialect = tcl_registry::InvocationDialect::for_version(version);
         let registry =
-            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+                .commands();
         super::super::SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),

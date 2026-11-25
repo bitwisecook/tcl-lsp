@@ -409,6 +409,13 @@ fn subcommand_execution_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrec
         sub.script_lookup_scope
             .map_or(Value::Null, |scope| json!(catalogue::variant_name(&scope))),
     );
+    super::field_values::evaluation_contract_fields(
+        d,
+        sub.evaluation_contexts,
+        sub.completion,
+        sub.body_execution,
+        lost,
+    );
     d.insert(
         "body_execution".into(),
         lost.expr("body_execution", sub.body_execution.is_some()),

@@ -34,6 +34,25 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::configurable",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[
+                    ArgRole::Body,
+                    ArgRole::VarWrite,
+                    ArgRole::VarRead,
+                    ArgRole::VarCell,
+                ],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: const {
+                        crate::evaluation_context::EvaluationFrame::for_definition_profile(
+                            &crate::definer::TCLOO_PROFILE,
+                        )
+                    },
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::configurable"),
         // `oo::configurable create Name { … }` is a four-token `HEAD NAME

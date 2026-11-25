@@ -361,8 +361,9 @@ mod tests {
     use tcl_dialect::TclVersion;
 
     fn analysis(source: &str, version: TclVersion) -> AnalysisResult {
-        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
-        let registry = tcl_registry::model::ingress::static_context_for(version.dialect_name());
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let registry =
+            tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
         crate::source_structure::analyse_document(
             source,
             profile,
@@ -457,7 +458,8 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
         let source = "package ifneeded P 1.0 {source actual.tcl}";
         for version in TclVersion::ALL {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let config = LexerConfig::for_file_grammar(profile.grammar);
             let entries = super::super::original_package_entries(
                 source,

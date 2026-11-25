@@ -65,7 +65,7 @@ pub fn spec() -> CommandSpec {
         }),
         runtime_backing: RuntimeBacking::shipped("llength"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        const_fold: Some(crate::const_fold::fold_llength),
+        const_fold: Some(crate::literal_folds::fold_llength),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::LIST_LENGTH),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::exact(1),

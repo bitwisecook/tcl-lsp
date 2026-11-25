@@ -48,6 +48,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreachLine",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // The installed library implementation is an ordinary scripted proc;
         // its body invokes uplevel rather than an enclosing native loop compiler.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

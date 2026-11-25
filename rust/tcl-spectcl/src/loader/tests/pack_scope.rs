@@ -94,7 +94,7 @@ fn special_var_rows_build_registry_rows_and_an_incomplete_one_is_dropped() {
     assert!(!opts.spec.available_in(tcl90));
     // A read trace is readable at startup, but not bound.
     assert!(lazy.spec.readable_at_startup_in(tcl90));
-    assert!(lazy.spec.initially_bound.is_empty());
+    assert_eq!(lazy.spec.initially_bound, []);
 
     let incomplete = evaluate_pack(
         "speclib probe 2.1 {\n \

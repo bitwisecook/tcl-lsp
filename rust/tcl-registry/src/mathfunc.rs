@@ -317,13 +317,7 @@ pub fn is_in_mathfunc_namespace(qualified: &str) -> bool {
 /// version.
 #[must_use]
 pub fn expr_grammar_ceiling(profile: &'static DialectProfile) -> Option<MathFuncSince> {
-    Some(match profile.expr_grammar_base? {
-        TclVersion::V8_4 => MathFuncSince::Tcl84,
-        // TIP 232 landed in 8.5; 8.6 added no math functions over 8.5.
-        TclVersion::V8_5 | TclVersion::V8_6 => MathFuncSince::Tcl85,
-        TclVersion::V9_0 => MathFuncSince::Tcl90,
-        TclVersion::V9_1 => MathFuncSince::Tcl91,
-    })
+    profile.expr_grammar_base
 }
 
 /// Whether `bare` is a genuine built-in `expr` math function available under
@@ -353,7 +347,7 @@ pub fn command_wrappers_available(profile: &'static DialectProfile) -> bool {
     {
         return false;
     }
-    expr_grammar_ceiling(profile).is_none_or(|ceiling| ceiling >= MathFuncSince::Tcl85)
+    expr_grammar_ceiling(profile).is_none_or(|ceiling| ceiling >= MathFuncSince::V8_5)
 }
 
 /// Fixed native functions measured in the current math-enabled Jim build.
@@ -384,7 +378,7 @@ pub fn fresh_fixed_function_presence(
         // Tcl_CreateInterp registers tclBuiltinFuncTable (tclExecute.c)
         // through Tcl_CreateMathFunc before any source is evaluated.
         tcl_dialect::model::Family::Tcl => {
-            Some(tcl_syntax::expr::mathfunc::added_in(name) == Some(MathFuncSince::Tcl84))
+            Some(tcl_syntax::expr::mathfunc::added_in(name) == Some(MathFuncSince::V8_4))
         }
         tcl_dialect::model::Family::Jim => {
             jim_fixed_math_function_names(dialect).map(|names| names.contains(&name))

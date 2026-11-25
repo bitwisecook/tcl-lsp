@@ -372,7 +372,7 @@ mod tests {
             .into_iter()
             .map(|interpreter| {
                 (
-                    format!("tcl{}", interpreter.version.version_string()),
+                    interpreter.version.dialect_profile_name().to_owned(),
                     interpreter.path,
                 )
             })

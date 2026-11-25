@@ -62,6 +62,11 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lmap",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::LOOP),
+        ),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::Foreach,
             operation: crate::SemanticOperationId::StructuredLowering(

@@ -1609,7 +1609,7 @@ mod owner_vocabulary_controls {
             catalogue_label("new-unlabelled-native", &[v("foreign", "foreign prose")]),
             "new-unlabelled-native"
         );
-        assert!(ARG_ROLE_RESOLVER_NATIVE.is_empty());
+        assert_eq!(ARG_ROLE_RESOLVER_NATIVE, []);
     }
 
     #[test]

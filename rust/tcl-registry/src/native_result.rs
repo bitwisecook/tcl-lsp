@@ -1365,7 +1365,7 @@ impl NativeResultSelection {
         let words = (options_from..=list_at)
             .map(|at| arguments.literal_at(at))
             .collect::<Option<Vec<_>>>()?;
-        crate::const_fold::fold_lsort_in(&words, arguments.dialect())
+        crate::literal_folds::fold_lsort_in(&words, arguments.dialect())
     }
 
     /// Bytes of a result that C Tcl builds as a fresh stock string object.
@@ -1494,7 +1494,7 @@ impl NativeResultSelection {
             crate::representation::OrdinaryContainerRepresentation::List,
             elements.len(),
         )?;
-        let Some((first, last)) = crate::const_fold::clamp_range(first, last, elements.len())
+        let Some((first, last)) = crate::literal_folds::clamp_range(first, last, elements.len())
         else {
             return Some(String::new());
         };
@@ -1513,7 +1513,7 @@ impl NativeResultSelection {
         length: usize,
     ) -> Option<(usize, usize)> {
         let (first, last) = self.ordinary_range_indices(arguments, input, length)?;
-        crate::const_fold::clamp_range(first, last, length)
+        crate::literal_folds::clamp_range(first, last, length)
     }
 
     fn ordinary_range_indices(
@@ -1568,10 +1568,10 @@ impl NativeResultSelection {
                     .map(|index| arguments.literal_at(index))
                     .collect::<Option<Vec<_>>>()?;
                 let Some(dialect) = arguments.dialect() else {
-                    return crate::const_fold::fold_dict_create(&operands);
+                    return crate::literal_folds::fold_dict_create(&operands);
                 };
                 let layout = dialect.native_dictionary_layout()?;
-                let pairs = crate::const_fold::dictionary_argument_pairs(&operands)?;
+                let pairs = crate::literal_folds::dictionary_argument_pairs(&operands)?;
                 String::from_utf8(layout.render(&pairs)).ok()
             }
             Self::DictionaryValue {
@@ -1730,7 +1730,7 @@ impl NativeResultContract {
                 });
                 let len = args
                     .literal_at(list_at)
-                    .and_then(crate::const_fold::split_list)
+                    .and_then(crate::literal_folds::split_list)
                     .map(|elements| elements.len());
                 match len {
                     Some(len) if plain => NativeResultSelection::ListSort {

@@ -202,7 +202,7 @@ pub(super) fn is_tcloo_source_class(analyser: &Analyser, class: &super::types::C
     if analysis.allows_retained_logical_declaration_advice() {
         return analyser
             .retained_logical_class_definer_grammar(&class.qualified_name)
-            .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo);
+            .is_some_and(|grammar| grammar.profile.has_native_definition_workers());
     }
     let source = &analyser.source;
     let Some(publication) = class.source_name.as_ref() else {
@@ -222,7 +222,7 @@ pub(super) fn is_tcloo_source_class(analyser: &Analyser, class: &super::types::C
     };
     crate::command_binding::OriginalSourceClassDeclaration::from_class(source, analysis, record)
         .and_then(|declaration| declaration.grammar(&input.context_registry()))
-        .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo)
+        .is_some_and(|grammar| grammar.profile.has_native_definition_workers())
 }
 
 #[cfg(test)]

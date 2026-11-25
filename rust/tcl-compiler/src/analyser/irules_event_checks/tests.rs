@@ -931,7 +931,10 @@ fn irule1001_warns_for_http_header_in_rule_init() {
     let diags = irule1001("when RULE_INIT { HTTP::header Host }");
     assert_eq!(diags.len(), 1);
     assert_eq!(diags[0].0, Severity::Warning);
-    assert!(irule1001("when HTTP_REQUEST { HTTP::header Host }").is_empty());
+    assert_eq!(
+        irule1001("when HTTP_REQUEST { HTTP::header Host }"),
+        [] as [(tcl_core_types::Severity, String); 0]
+    );
 }
 
 #[test]

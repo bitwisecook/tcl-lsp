@@ -26,7 +26,9 @@ use super::{Arc, CommandAllocation, ExecutedScriptSource, SourceCommandBindings}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceReceiverNamespace {
     pub(crate) path: &'static [&'static str],
+    /// Declaration identity retained by observation joins, not semantic dispatch.
     pub(crate) family: tcl_registry::definer::DefinerFamily,
+    pub(crate) commands: &'static [&'static str],
 }
 
 /// A native receiver-body declaration's original local scope. Its source

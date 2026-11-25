@@ -56,6 +56,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "eval",
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::CONSERVATIVE
+                .with_body_boundary(crate::completion::CompletionBoundary::FORWARD),
+        ),
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,

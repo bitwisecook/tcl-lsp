@@ -114,6 +114,7 @@ same way.
 | `arg_roles` / `arg_role_resolver` | Where script bodies, variables, channels, and patterns live. Feeds the call-graph scanner, the variable-usage analyser, and semantic highlighting. |
 | `arity` | Arity diagnostics. |
 | `side_effects` | Purity propagation, dead-store elimination, iRule taint flow. |
+| `evaluation_contexts` | The interpreter, frame and timing for script and identity operands; missing facts remain unknown. |
 | `binds_handle` | Object-handle binding (see step 4). |
 | `required_package` | Gates the command on a matching `package require`. |
 
@@ -125,6 +126,16 @@ same-interpreter one.
 
 The full field reference is in the [command registry design
 doc](../design/compiler/command-registry.md).
+
+For a command that defines classes or structured declarations, select the
+definition grammar's [object-system profile](../GLOSSARY.md#object-system-profile)
+facts for its body namespace, member storage and visibility. Changing the
+family label does not select those rules. Check the
+[definer grammar contract](../design/contracts/tcloo-implementation.md#registry-driven-definer-grammar-tcl-registry)
+before adding a new behaviour.
+
+For channel commands, use the shared [option and callback contracts](../design/registry/channel-facts.md)
+instead of copying option names or callback argument counts.
 
 ### 6. Add tests
 

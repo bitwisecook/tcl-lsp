@@ -50,7 +50,8 @@ fn original_namespace_patterns_close_only_their_represented_byte_ordinals() {
     // Implementation contract: naming.namespace.original-byte-pattern-transfers
     // docs/design/analysis/name-resolution-proofs/namespace-original-byte-pattern-transfers.md
     for version in tcl_dialect::TclVersion::ALL {
-        let registry = crate::model::ingress::static_context_for(version.dialect_name()).commands();
+        let registry =
+            crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let namespace = registry.get("namespace").unwrap();
         let dialect = crate::InvocationDialect::for_version(version);
         for operation in ["export", "import", "forget"] {

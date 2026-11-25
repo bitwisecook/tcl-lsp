@@ -364,7 +364,7 @@ fn reached_operand_error_codes_follow_the_actual_expression_release() {
         let arithmetic =
             arith_in(dialect, BinOp::Add, &value, &Value::int(1)).expect_err("non-numeric operand");
         let mut original = crate::native_fixture::interpreter(
-            crate::environment::profile_for_dialect(version.dialect_name()),
+            crate::environment::profile_for_dialect(version.dialect_profile_name()),
         );
         let boolean = boolean_for_vm(
             &mut original,

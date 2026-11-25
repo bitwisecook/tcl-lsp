@@ -213,6 +213,25 @@ pub(crate) fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::class",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[
+                    ArgRole::Body,
+                    ArgRole::VarWrite,
+                    ArgRole::VarRead,
+                    ArgRole::VarCell,
+                ],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: const {
+                        crate::evaluation_context::EvaluationFrame::for_definition_profile(
+                            &crate::definer::TCLOO_PROFILE,
+                        )
+                    },
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(OO_NATIVE_COMPILATION),
         runtime_backing: RuntimeBacking::shipped("oo::class"),
         traits: Traits::NOT_PROC_FACTORY

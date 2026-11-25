@@ -490,8 +490,7 @@ mod tests {
     fn words_for_version(source: &[u8], version: TclVersion) -> Vec<NativeWord> {
         let image = SourceImage::native(source);
         let end = u32::try_from(image.len()).unwrap();
-        let profile =
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         native_script_words_in(
             image,
             Span::new(0, end),
@@ -511,7 +510,8 @@ mod tests {
         let observations =
             include_str!("../../tcl-syntax/tests/data/native_source_ingress/observations.tsv");
         for version in TclVersion::ALL {
-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for channel in [
                 tcl_lexer::SourceChannel::Document,
                 tcl_lexer::SourceChannel::NativeValue,

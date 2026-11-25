@@ -459,7 +459,7 @@ fn compiled_loop_variables_with(
         .into_iter()
         .filter_map(|text| {
             version.map_or_else(
-                || crate::const_fold::split_list(text),
+                || crate::literal_folds::split_list(text),
                 |release| {
                     crate::InvocationDialect::for_version(release)
                         .read_list(text)

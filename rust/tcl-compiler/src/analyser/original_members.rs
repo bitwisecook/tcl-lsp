@@ -45,8 +45,7 @@ use tcl_lexer::{NativeWord, SourceImage, SourceMap, Token};
 use tcl_registry::{
     arg_role::ArgRole,
     definer::{
-        DeclaredMemberVisibility, DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberSpec,
-        MemberVisibility,
+        DeclaredMemberVisibility, DefinitionBodyGrammar, MemberKind, MemberSpec, MemberVisibility,
     },
 };
 
@@ -99,7 +98,7 @@ impl Analyser {
             return None;
         }
         let grammar = declaration.grammar(&context)?;
-        (grammar.family == DefinerFamily::TclOo).then_some(())?;
+        (grammar.profile.has_native_definition_workers()).then_some(())?;
         let factory = declaration.factory();
         let descriptor = context
             .context()
@@ -542,7 +541,7 @@ impl Analyser {
         let registry = self.registry.as_deref()?;
         let policy = self.declaration_name_policy()?;
         let grammar = registry.get(registry_identity)?.definition_body?;
-        if grammar.family != DefinerFamily::TclOo {
+        if !grammar.profile.has_native_definition_workers() {
             return None;
         }
         let binding = self
@@ -1274,13 +1273,15 @@ impl Producer<'_> {
             // These are the analyser's class-field routes. The selected
             // Registry member owns layout and slot behavior; keyword reports
             // never select or reconstruct an operand's bytes.
-            let relation = match member.keyword {
-                // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
-                "superclass" if side == MemberSide::Instance => {
+            let relation = match member.effect {
+                tcl_registry::definer::MemberEffect::Relation {
+                    slot: tcl_registry::definer::RelationSlot::Superclass,
+                } if side == MemberSide::Instance => {
                     Some(OriginalSourceClassRelationKind::Superclass)
                 }
-                // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
-                "mixin" => Some(OriginalSourceClassRelationKind::Mixin),
+                tcl_registry::definer::MemberEffect::Relation {
+                    slot: tcl_registry::definer::RelationSlot::Mixin,
+                } => Some(OriginalSourceClassRelationKind::Mixin),
                 _ => None,
             };
             if let Some(kind) = relation {
@@ -1504,7 +1505,7 @@ impl Producer<'_> {
             .native_classmethod_declaration(member, self.dialect.surface);
         // Registry type-object methods live in the class object's own table.
         // Itcl class-scoped procs remain reachable only through `Class::proc`.
-        let type_object_method = self.grammar.family != DefinerFamily::Itcl
+        let type_object_method = !self.grammar.profile.class_procedures_are_qualified()
             && matches!(
                 member.effect,
                 tcl_registry::definer::MemberEffect::Callable {

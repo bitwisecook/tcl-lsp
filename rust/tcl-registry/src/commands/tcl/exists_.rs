@@ -103,6 +103,7 @@ fn argument_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
 pub(super) fn spec() -> CommandSpec {
     CommandSpec {
         name: "exists",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         hover: Some(HoverSnippet {
             summary: "Check whether a Jim variable, command, procedure, alias or channel exists.",
             synopsis: &["exists ?-command|-proc|-alias|-channel|-var? name"],

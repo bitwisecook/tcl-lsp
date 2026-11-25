@@ -50,8 +50,7 @@ fn project_with_selection(
     NativeCompilationSelection,
     Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>,
 ) {
-    let profile =
-        tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+    let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     let image = SourceImage::native(source);
     let end = u32::try_from(image.len()).unwrap();
     let script = native_script_words_in(
@@ -160,7 +159,7 @@ mod concat_expansion_controls {
             .into_iter()
             .filter(|v| *v >= TclVersion::V8_5)
         {
-            let engine = format!("tcl{}", version.version_string());
+            let engine = version.dialect_profile_name().to_owned();
             let profile = tcl_dialect::DialectProfile::find(&engine).unwrap();
             for (case, source) in EXPANSION_BODIES.iter().enumerate() {
                 let prefix = format!("OP\t{case}\t");
@@ -304,8 +303,7 @@ fn installed_named_worker_uses_original_post_selector_operands() {
         let spec = registry
             .native_compilation_for_registration("::tcl::info::locals", dialect)
             .unwrap();
-        let profile =
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         for (source, operand_count, accepted) in [
             (b"info locals".as_slice(), 0, true),
             (b"info loc $pattern".as_slice(), 1, true),

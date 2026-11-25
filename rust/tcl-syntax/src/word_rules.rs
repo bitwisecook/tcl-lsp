@@ -1252,7 +1252,7 @@ mod original_metadata_tests {
             let original = word(SourceImage::document(source), config);
             let geometry = original_variable_name_word_geometry(&original).unwrap();
             assert_eq!(geometry.form(), &OriginalVariableNameWordForm::Dynamic);
-            assert!(geometry.literal_spans().is_empty());
+            assert_eq!(geometry.literal_spans(), []);
         }
         let original = word(SourceImage::native(b"a($index)".to_vec()), config);
         assert!(original_variable_name_word_geometry(&original).is_none());

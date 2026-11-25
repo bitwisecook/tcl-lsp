@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn empty_maps_produce_no_btf() {
-        assert!(build_btf(&[]).unwrap().is_empty());
+        assert_eq!(build_btf(&[]).unwrap(), [] as [u8; 0]);
     }
 
     #[test]

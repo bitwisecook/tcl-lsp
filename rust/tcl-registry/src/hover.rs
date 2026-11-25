@@ -317,6 +317,8 @@ pub struct OptionArg {
     /// callback-arity check.  [`AppendedArity::Unknown`] (the default) for
     /// every other role and for prefixes whose count is indeterminate.
     pub appended_arity: AppendedArity,
+    /// Fixed host callback protocol, whose required arities override the fallback.
+    pub callback_protocol: Option<crate::channel_protocols::ChannelCallbackProtocol>,
 }
 
 impl OptionArg {
@@ -335,6 +337,7 @@ impl OptionArg {
         integer: None,
         hint: "",
         appended_arity: AppendedArity::Unknown,
+        callback_protocol: None,
     };
 }
 
@@ -762,7 +765,10 @@ impl OptionSpec {
     pub const fn value_appended_arity(&self) -> AppendedArity {
         match self.value {
             OptionValue::Flag => AppendedArity::Unknown,
-            OptionValue::Takes(arg) => arg.appended_arity,
+            OptionValue::Takes(arg) => match arg.callback_protocol {
+                Some(protocol) => protocol.appended_arity(),
+                None => arg.appended_arity,
+            },
         }
     }
 

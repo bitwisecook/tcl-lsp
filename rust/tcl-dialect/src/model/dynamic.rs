@@ -588,7 +588,7 @@ mod tests {
         assert_ne!(DynamicFamilyId::from_components("a%2Fb", "c"), left.id);
         let outcome = register_dynamic_families(vec![left.clone(), right.clone()], Vec::new());
         assert_eq!(outcome.families, 2);
-        assert!(outcome.rejected.is_empty());
+        assert_eq!(outcome.rejected, []);
         assert_eq!(resolve_dynamic_family("c").unwrap().id, left.id);
         assert_eq!(resolve_dynamic_family("b/c").unwrap().id, right.id);
         assert_eq!(

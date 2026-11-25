@@ -54,10 +54,14 @@ impl NativeCompiledVariableRecipe {
         let Self::C(version) = self else {
             return None;
         };
-        let original = if version == TclVersion::V8_4 {
-            c_string_extent(original)
-        } else {
+        let original = if version
+            .release_policy()
+            .compiled_locals
+            .counted_scalar_tokens
+        {
             original
+        } else {
+            c_string_extent(original)
         };
         let array = original
             .last()
@@ -66,7 +70,9 @@ impl NativeCompiledVariableRecipe {
         let base = array.map_or(original, |open| &original[..open]);
         let qualified = base.windows(2).any(|bytes| bytes == b"::");
         Some(NativeCompiledScalarName {
-            declaration: (!qualified && (array.is_none() || version > TclVersion::V8_4))
+            declaration: (!qualified
+                && (array.is_none()
+                    || version.release_policy().compiled_locals.reserves_array_base))
                 .then_some(base),
             scalar: !qualified && array.is_none(),
         })
@@ -287,12 +293,12 @@ impl NativeCompiledVariableProtocol {
         match environment {
             NativeCompiledVariableEnvironment::None => false,
             NativeCompiledVariableEnvironment::DeclareProcedure => self.has_indexed_locals(),
-            NativeCompiledVariableEnvironment::BorrowFrameSlots => matches!(
-                self.recipe,
-                NativeCompiledVariableRecipe::C(
-                    TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
-                )
-            ),
+            NativeCompiledVariableEnvironment::BorrowFrameSlots => match self.recipe {
+                NativeCompiledVariableRecipe::C(version) => {
+                    version.release_policy().compiled_locals.borrow_frame_slots
+                }
+                NativeCompiledVariableRecipe::Jim084 => false,
+            },
         }
     }
 }

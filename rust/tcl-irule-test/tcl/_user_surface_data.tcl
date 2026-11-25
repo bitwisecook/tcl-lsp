@@ -209,7 +209,6 @@ namespace eval ::tmm {
         ::tcl::unsupported::corotype
         ::tcl::unsupported::grapheme
         ::tcl::unsupported::representation
-        ::tcl::zipfs
         ::throw
         ::timer
         ::timerate

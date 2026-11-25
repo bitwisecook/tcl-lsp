@@ -58,6 +58,7 @@ pub mod keyed_update;
 pub mod lift;
 pub mod list_update;
 pub mod literal;
+pub mod partial;
 pub mod path;
 mod publication;
 pub mod reference_body;

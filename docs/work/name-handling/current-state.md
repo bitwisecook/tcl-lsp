@@ -1,5 +1,71 @@
 # Current LSP naming migration state
 
+## Registry facts verification
+
+Snapshot: 25 November 2026. The shallow `work` checkout contains the
+requested release-fact, descriptor, value-kernel, object-profile and channel
+fact foundations. Engine implementations and later binding/body-unit/editor
+migrations retain their existing owners.
+
+Verified focused results:
+
+- Release policies: 211 dialect tests and seven extractor tests; the actual
+  `release-facts --check --verify-sources` command also passed against all
+  five pinned C Tcl references and the historical Jim operator sources.
+- Evaluation contexts and completion boundaries: 14 tests; body execution
+  and Thread: 14 tests. Native execution evidence covers the interpreter
+  limit callback, TclOO activations, Thread coordinates and procedure
+  completion order under the releases recorded in each note.
+- Existing object-system profiles: 51 registry tests, three Studio tests and
+  five core tests and the focused server test passed.
+- Value kernel: 14 literal adapters, one registry bridge, four lower-kernel
+  tests and 20 interval tests passed. The SCCP filter passed 17 of 18; its
+  remaining materialised-condition failure is recorded in the existing
+  [test-scrub ledger](../test-scrub/ledger/dataflow-optimiser.tsv).
+- Channel options and protocols passed all 23 tests, including direction-mask,
+  empty-mode and strict-boolean corrections and all five native interpreter
+  witnesses. Both source-operation continuation tests passed with negative
+  controls for absent and synchronous execution contracts.
+
+The initial registry run and a separate clean `work` checkout each passed
+2,057 tests and failed the same 12 tests. The final registry run, with required
+native Tcl witnesses, passed 2,099 tests and failed eight; all eight also fail
+on the clean branch. The final rebuilt registry binary reproduced that result
+after the catalogue-alias and upstream-conformance integration. No new registry
+failures remain.
+
+`make rust-check` passed, including all 49 drift gates, and `make prep-pr`
+passed with 31 smoke tests across 16 targets. The final Tcl source checks,
+callback inventory, pack snapshots and command-backing reports agree; the
+backing report has zero disagreements for 353 core commands.
+
+The upstream conformance harness keeps its dedicated oracle workflow. The
+shard manifest now verifies its workflow, bootstrap script and test command;
+its selected job and step must run unconditionally and report failures. The
+plan-row gate verifies the existing conformance rows for all 25 active or
+implemented migration items.
+Local check output is under `/tmp/*-work.log`, not committed as evidence.
+Reproducible Tcl observations are indexed from
+[the evidence collection](../../../evidence/tcl/README.md).
+
+The remaining registry baseline failures are `format_folds_fixed_float`,
+`string_value_folds_match_tcl`,
+`normal_case_source_layout_keeps_native_compiler_decline_and_error_residuals`,
+`source_aware_pattern_layouts_accept_proven_options_and_terminators`,
+`resolve_invocation_exposes_subcommand_effects_through_one_semantic_view`,
+`original_logical_case_role_projection_keeps_selected_options_and_body_residuals`,
+`source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection`
+and `authored_source_patterns_keep_payload_unknown_and_refuse_uncertain_layout`.
+
+The evaluation-context ratchet records 560 undeclared rows, including 13
+core rows; it prevents new gaps rather than asserting catalogue completeness.
+Remaining source-generation obligations include full usage/arity extraction,
+specialised release-enum migrations and Jim math build guards. Protocol-aware
+completion, hover and W214 consumers, channel-instance checks, package
+activation, binding transitions and engine migrations are not supplied by
+these metadata foundations. No numbered item is marked complete until its
+own completion tests pass.
+
 ## Item 93 verification
 
 The annotated-command probe passed all 48 frame cases under C Tcl 8.6.18,

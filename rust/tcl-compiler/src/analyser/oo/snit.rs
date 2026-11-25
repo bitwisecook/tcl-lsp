@@ -91,7 +91,11 @@ impl Analyser {
         let Some(grammar) = original
             .map(super::super::original_definer::OriginalClassDefinerSource::grammar)
             .or_else(|| self.definition_grammar(cmd_name))
-            .filter(|g| g.family == tcl_registry::definer::DefinerFamily::Snit)
+            .filter(|g| {
+                g.profile.installation.is_some_and(|installation| {
+                    installation.dispatcher == tcl_registry::definer::DefinitionDispatcher::SnitType
+                })
+            })
         else {
             return false;
         };

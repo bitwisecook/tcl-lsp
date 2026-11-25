@@ -40,6 +40,7 @@ pub(in super::super) fn definition_body_block(
 ) -> DefinitionBodyGrammar {
     let mut grammar = DefinitionBodyGrammar {
         family: DefinerFamily::TclOo,
+        profile: tcl_registry::definer::TCLOO_PROFILE,
         members: &[],
         implicit_vars: &[],
         implicit_receiver_vars: &[],
@@ -79,6 +80,16 @@ pub(in super::super) fn definition_body_block(
                     enum_by_name(FAMILIES, &value, "definer family", stmt.line, log)
                 {
                     grammar.family = family;
+                    grammar.profile = match family {
+                        DefinerFamily::TclOo => tcl_registry::definer::TCLOO_PROFILE,
+                        DefinerFamily::Snit => tcl_registry::definer::SNIT_PROFILE,
+                        DefinerFamily::Itcl => tcl_registry::definer::ITCL_PROFILE,
+                        DefinerFamily::Clay => tcl_registry::definer::CLAY_PROFILE,
+                        DefinerFamily::JimClass => tcl_registry::definer::JIM_PROFILE,
+                        DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => {
+                            tcl_registry::definer::DECLARATION_PROFILE
+                        }
+                    };
                 }
             }
             "member" => members.extend(member_row(stmt, log)),

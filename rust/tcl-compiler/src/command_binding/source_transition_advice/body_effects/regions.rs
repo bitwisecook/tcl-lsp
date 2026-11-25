@@ -164,7 +164,7 @@ impl BodyWalk<'_, '_> {
     ) -> bool {
         if schema
             .authored_source_definition_body_grammar()
-            .is_none_or(|grammar| grammar.family != tcl_registry::definer::DefinerFamily::TclOo)
+            .is_none_or(|grammar| !grammar.profile.has_native_definition_workers())
             || !original_operand_effects(invocation.native).is_empty()
         {
             return false;
@@ -214,7 +214,7 @@ impl BodyWalk<'_, '_> {
         else {
             return false;
         };
-        members.grammar().family == tcl_registry::definer::DefinerFamily::TclOo
+        members.grammar().profile.has_native_definition_workers()
             && members
                 .complete_original_commands()
                 .is_some_and(|commands| {

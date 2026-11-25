@@ -68,7 +68,7 @@ impl Analyser {
         let Some(grammar) = original
             .map(super::super::original_definer::OriginalClassDefinerSource::grammar)
             .or_else(|| self.definition_grammar(cmd_name))
-            .filter(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+            .filter(|g| g.profile.class_procedures_are_qualified())
         else {
             return false;
         };

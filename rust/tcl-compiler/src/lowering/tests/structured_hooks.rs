@@ -23,7 +23,7 @@ use super::*;
 #[test]
 fn catch_options_specialisation_requires_the_selected_completion_grammar() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = format!("tcl{}", version.version_string());
+        let dialect = version.dialect_profile_name().to_owned();
         let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
         let module = lower_to_ir("catch {set x executed} result options", registry);
         if version == tcl_dialect::TclVersion::V8_4 {

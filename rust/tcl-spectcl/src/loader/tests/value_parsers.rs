@@ -36,7 +36,7 @@ fn dialect_shorthands_close_over_the_right_versions() {
         parse_dialects("tcl8.x", 1, &mut log),
         Some(SpecSurface::TCL8X)
     );
-    assert!(log.notices.is_empty());
+    assert_eq!(log.notices, [] as [crate::loader::notices::Notice; 0]);
 }
 
 /// Jim's rows: a bare `jim` is every Jim release, `jimX.Y+` the row
@@ -127,7 +127,7 @@ fn an_object_class_may_be_a_bare_name() {
         .expect("the object_class is read");
     assert_eq!(class.class_name, "::probe::Opaque");
     assert!(class.instance_methods.is_empty());
-    assert!(class.superclasses.is_empty());
+    assert_eq!(class.superclasses, [] as [&str; 0]);
     assert!(!class.allow_unknown_methods);
     assert_eq!(class.method_prefix_matching, PrefixMatching::Strict);
 }
@@ -191,9 +191,9 @@ fn retired_purity_spellings_say_where_purity_went() {
         "{messages:?}"
     );
     let spec = pack.command("demo").expect("demo loads").spec;
-    assert!(
+    assert_eq!(
         tcl_registry::purity::PurityDomains::of_command(spec)
-            .pure_releases(tcl_dialect::model::Family::Tcl)
-            .is_empty()
+            .pure_releases(tcl_dialect::model::Family::Tcl),
+        [] as [&str; 0]
     );
 }

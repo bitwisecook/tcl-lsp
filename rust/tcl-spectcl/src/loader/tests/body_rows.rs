@@ -168,7 +168,7 @@ fn contradictory_option_and_callback_properties_are_not_installed() {
 }",
     );
     let spec = &pack.command("bad").expect("command survives").spec;
-    assert!(spec.callback_taint_inputs.is_empty());
+    assert_eq!(spec.callback_taint_inputs, []);
     let OptionValue::Takes(timing) = spec.options[0].value else {
         panic!("option takes a value")
     };
@@ -176,7 +176,7 @@ fn contradictory_option_and_callback_properties_are_not_installed() {
     let OptionValue::Takes(input) = spec.options[1].value else {
         panic!("option takes a value")
     };
-    assert!(input.callback_taint_inputs.is_empty());
+    assert_eq!(input.callback_taint_inputs, []);
     let OptionValue::Takes(scope) = spec.options[2].value else {
         panic!("option takes a value")
     };
@@ -185,7 +185,7 @@ fn contradictory_option_and_callback_properties_are_not_installed() {
         panic!("option takes a value")
     };
     assert!(!taint.taints_var_write);
-    assert!(spec.subcommands[0].callback_taint_inputs.is_empty());
+    assert_eq!(spec.subcommands[0].callback_taint_inputs, []);
 
     for fragment in [
         "non-executable value",

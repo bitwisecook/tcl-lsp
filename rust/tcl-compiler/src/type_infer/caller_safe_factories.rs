@@ -41,7 +41,10 @@ pub(super) fn empty_source_class(
         .context()
         .resolve_spec(metadata.registry, &selected.facts.canonical_command)?;
     if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
-        || spec.definition_body?.family != tcl_registry::definer::DefinerFamily::TclOo
+        || !spec
+            .definition_body?
+            .profile
+            .has_native_definition_workers()
     {
         return None;
     }

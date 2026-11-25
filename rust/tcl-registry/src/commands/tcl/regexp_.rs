@@ -277,6 +277,7 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec::CALLER),
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::ConditionalVariableOperands(

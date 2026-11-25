@@ -57,6 +57,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
+        evaluation_contexts: Some(crate::evaluation_context::EvaluationContextSpec {
+            roles: &[crate::evaluation_context::RoleEvaluationContext {
+                roles: &[ArgRole::Body, ArgRole::ParamList, ArgRole::StaticVarList],
+                context: crate::evaluation_context::EvaluationContext {
+                    frame: crate::evaluation_context::EvaluationFrame::Procedure,
+                    timing: crate::hover::ScriptTiming::Deferred,
+                    ..crate::evaluation_context::EvaluationContext::INVOKING
+                },
+            }],
+            ..crate::evaluation_context::EvaluationContextSpec::CALLER
+        }),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
             operation: crate::SemanticOperationId::StructuredLowering(
@@ -100,7 +111,8 @@ pub fn spec() -> CommandSpec {
             crate::completion::CompletionDescriptor::exact(&[
                 crate::completion::CompletionCode::Ok,
                 crate::completion::CompletionCode::Error,
-            ]),
+            ])
+            .with_body_boundary(crate::completion::CompletionBoundary::PROCEDURE),
         ),
         lowering_hook: Some(LoweringHookId::Proc),
         native_lowering: Some(NativeLowering::Definition),

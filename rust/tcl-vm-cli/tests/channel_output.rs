@@ -207,7 +207,7 @@ fn c_locale_bootstrap_and_stderr_defaults_match_tcl_9() {
         "C.UTF-8",
     );
     assert!(stderr.status.success(), "{:?}", stderr.stderr);
-    assert!(stderr.stdout.is_empty());
+    assert_eq!(stderr.stdout, [] as [u8; 0]);
     assert_eq!(stderr.stderr, b"A?B");
 }
 
@@ -218,7 +218,7 @@ fn cli_errors_observe_mutated_standard_error_translation() {
         "C.UTF-8",
     );
     assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
+    assert_eq!(output.stdout, [] as [u8; 0]);
     assert_eq!(output.stderr, b"bad\r\nthing\r\n");
 }
 
@@ -230,7 +230,7 @@ fn cli_strict_stderr_conversion_reports_tcl_fallback_marker() {
         "C.UTF-8",
     );
     assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
+    assert_eq!(output.stdout, [] as [u8; 0]);
     assert_eq!(output.stderr, b"A\r\n\t(encoding error in stderr)\r\n");
 }
 
@@ -272,6 +272,6 @@ fn background_strict_stderr_conversion_reports_tcl_fallback_marker() {
         "C.UTF-8",
     );
     assert!(output.status.success(), "{:?}", output.stderr);
-    assert!(output.stdout.is_empty());
+    assert_eq!(output.stdout, [] as [u8; 0]);
     assert_eq!(output.stderr, b"A\r\n\t(encoding error in stderr)\r\n");
 }

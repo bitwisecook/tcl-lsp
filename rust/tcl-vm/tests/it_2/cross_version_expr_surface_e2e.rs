@@ -79,7 +79,7 @@ impl std::io::Write for Capture {
 /// the operator gate is a codegen decision, so a dialect-blind compile bakes in
 /// the newest grammar's answer and `set_runtime_version` cannot undo it.
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let dialect = version.dialect_name();
+    let dialect = version.dialect_profile_name();
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir(
