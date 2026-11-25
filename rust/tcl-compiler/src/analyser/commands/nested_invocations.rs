@@ -104,6 +104,16 @@ impl Analyser {
                 if expr_indices.contains(&(i - 1)) {
                     self.record_invocations_from_expr_token(*arg_tok, scope_path);
                 }
+            } else if self
+                .cmd_fragments(*arg_tok, self.file_lexer_config())
+                .iter()
+                .all(|fragment| fragment.kind == TokenType::Cmd)
+            {
+                // `Esc` (bareword / quoted) holding `[…]` substitutions: walk
+                // each one as a bare substitution is walked, so a body word of
+                // a nested command (`puts "[catch {thread::id} m]"`) is
+                // reached too, not only the substitution's head.
+                self.record_invocations_from_cmd_token(*arg_tok, scope_path);
             } else {
                 // `Esc` (bareword / quoted): substitutions are active, so
                 // scan.  Clone the slice into an owned ``String`` so the

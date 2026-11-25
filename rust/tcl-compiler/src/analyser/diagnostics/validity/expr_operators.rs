@@ -57,11 +57,17 @@ impl Analyser {
                 continue;
             }
             let offset = content_span.start();
+            let span = tcl_lexer::Span::new(offset + token.start, offset + token.end + 1);
+            // A whole-word numeral (`expr {0d10}`) is already reported where
+            // the command's words are.
+            if token.start == 0 && token.end as usize + 1 == expr_text.len() {
+                continue;
+            }
             self.result
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W148,
-                    tcl_lexer::Span::new(offset + token.start, offset + token.end + 1),
+                    span,
                     format!(
                         "Numeral '{}' is not accepted by the resolved Tcl numeral grammar.",
                         token.text

@@ -1428,4 +1428,29 @@ fn a_tcl9_numeral_inside_an_expression_reports_w148_before_9_0() {
     };
     assert_eq!(w148("tcl8.6"), 1);
     assert_eq!(w148("tcl9.0"), 0);
+    // A braced whole-word numeral is reported once, not by both checks.
+    let whole = Analyser::new()
+        .analyse("set r [expr {0d10}]\n", "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W148)
+        .count();
+    assert_eq!(whole, 1);
+}
+#[test]
+fn a_body_inside_a_quoted_substitution_is_analysed() {
+    // Item 184, `threads-subsystems/t09`: the `catch` body inside a quoted
+    // word's `[…]` substitution is a script like any other.
+    for source in [
+        "puts \"call=[catch {thread::id} m] $m\"\n",
+        "puts [catch {thread::id} m]\n",
+    ] {
+        let codes: Vec<_> = Analyser::new()
+            .analyse(source, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect();
+        assert_eq!(codes, [DiagCode::W120], "{source:?}");
+    }
 }
