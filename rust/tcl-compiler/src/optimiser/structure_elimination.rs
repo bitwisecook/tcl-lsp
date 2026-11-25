@@ -56,7 +56,7 @@
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 
-use crate::analyses::LatticeValue;
+use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement, SwitchArm};
@@ -655,7 +655,6 @@ fn resolve_subject(
 
 #[cfg(test)]
 mod tests {
-    use crate::analyses::ConstValue;
     use crate::interprocedural::test_body_identity::fixture_id;
 
     use super::*;
