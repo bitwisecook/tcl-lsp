@@ -613,13 +613,10 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let name = std::str::from_utf8(
-            native
-                .original_variable_operands
-                .input(index, &state.source_variables)?
-                .bytes(),
-        )
-        .ok()?;
+        let operand = native
+            .original_variable_operands
+            .input(index, &state.source_variables)?;
+        let name = std::str::from_utf8(operand.bytes()).ok()?;
         let receiver = native.original_variable_operands.access(
             index,
             &state.source_variables,
