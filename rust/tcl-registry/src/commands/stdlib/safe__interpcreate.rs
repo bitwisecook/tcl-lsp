@@ -38,7 +38,8 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        required_package: Some("safe"),
+        // Autoloaded from `tclIndex` like `parray`: tclsh 8.4.20-9.1.0 run
+        // `safe::interpCreate` with no `package require` (`interps/i09`).
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }

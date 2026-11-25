@@ -453,19 +453,15 @@ impl Analyser {
                 if let Some((transitions, _, _)) = self.original_registry_state_transitions(
                     cmd_name, args, arg_tokens, words, cmd_tok, scope_path,
                 ) {
-                    self.handle_interp_create_command(&transitions);
+                    if let Some(path) = self.handle_interp_create_command(&transitions) {
+                        self.retain_interp_visibility_declaration(&path, cmd_tok, arg_tokens);
+                    }
                 } else {
                     // The binding owner refused this creation (an open glob
                     // import may rebind the head), so which children exist
                     // is unknowable and W140 must abstain rather than treat
                     // the child as never created.
                     self.dynamic_interp_ops = true;
-                }
-                if let Some(path) = args
-                    .get(1..)
-                    .and_then(super::super::handlers::parse_interp_create_path)
-                {
-                    self.retain_interp_visibility_declaration(path, cmd_tok, arg_tokens);
                 }
                 false
             }

@@ -75,7 +75,6 @@ use classes::{
     join_parameterised_class_observations, original_class_definition_body_in_analysis,
     prologue_pieces, resolve_factory_member, substitute_bound_words,
 };
-pub(super) use interpreters::parse_interp_create_path;
 
 /// Build a fully-qualified Tcl proc / class name from a namespace
 /// prefix and a possibly-relative name.

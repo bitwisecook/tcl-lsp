@@ -1352,3 +1352,24 @@ fn w120_fires_for_a_thread_command_without_require() {
         );
     }
 }
+
+#[test]
+fn safe_commands_autoload_without_require() {
+    // Item 179, `interps/i09`: `safe::*` loads from `tclIndex`, so tclsh
+    // 8.4.20-9.1.0 run `safe::interpCreate` with no `package require`.
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let codes: Vec<_> = Analyser::new()
+            .analyse(
+                "set s [safe::interpCreate]\nsafe::interpDelete $s\n",
+                dialect,
+            )
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect();
+        assert!(
+            !codes.contains(&DiagCode::W120) && !codes.contains(&DiagCode::W123),
+            "{dialect}: {codes:?}"
+        );
+    }
+}

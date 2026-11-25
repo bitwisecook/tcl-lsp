@@ -21,73 +21,6 @@
 use super::super::state::Analyser;
 use tcl_lexer::Token;
 
-/// Normalise a literal `interp` path word to the interpreter-domain map
-/// key: the path is a Tcl *list* naming a descent through child
-/// interpreters (`{s t}` = child `t` of child `s`), so whitespace runs
-/// collapse to one separator.  A single-element path (`s`) keys as
-/// itself.
-pub(in super::super) fn interp_path_key(path: &str) -> String {
-    path.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Parse `interp create`'s `?-safe? ?--? ?path?` words:
-/// returns `(safe, path)`, where `path` is the sole non-flag word (or
-/// `None` for a bare, uncaptured `interp create -safe`). Shared by
-/// `Analyser::handle_interp_create_command` and the `set VAR [interp
-/// create ...]` value-flow detector in `Analyser::handle_set_command`, so
-/// both parse the flag/path shape identically.
-///
-/// Mirrors C Tcl's own loop (`Tcl_InterpObjCmd`, the `create` arm): every
-/// word is examined, and a `-`-prefixed word is a *flag* until `--` is
-/// seen, whether or not the path has already been read. The scan does not
-/// stop at the path.
-///
-/// Oracle (tclsh8.6 and tclsh9.0):
-///
-/// * `interp create x -safe` — path `x`, and it **is** safe.
-/// * `interp create -safe -- z` — path `z`, safe.
-/// * `interp create -- -safe` — path is the literal `-safe`, not safe.
-/// * `interp create n -bogus` — `bad option "-bogus"`, so flags really are
-///   still being parsed after the path.
-/// * `interp create a b` — `wrong # args`; a second path word is an error
-///   shape, not a rebinding, so no path is reported rather than the wrong
-///   one.
-pub(in super::super) fn parse_interp_create_path(words: &[String]) -> Option<&str> {
-    let args = words.iter().map(String::as_str).collect::<Vec<_>>();
-    parse_interp_create_words(&args).1
-}
-
-fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
-    let mut safe = false;
-    let mut path: Option<&str> = None;
-    let mut past_flags = false;
-    let mut too_many_paths = false;
-    for &word in words {
-        if !past_flags && word.starts_with('-') {
-            // registry-axis-ok: options — the interp create flag run; until the option table carries the safe-interpreter flag
-            if word == "--" {
-                past_flags = true;
-            // registry-axis-ok: options — the interp create flag run; until the option table carries the safe-interpreter flag
-            } else if word == "-safe" {
-                safe = true;
-            }
-            // Any other `-` word is a bad option in real Tcl. Skipping it
-            // keeps the path reading unaffected, which is the conservative
-            // choice for a command that will fail anyway.
-            continue;
-        }
-        if path.is_none() {
-            path = Some(word);
-        } else {
-            too_many_paths = true;
-        }
-    }
-    if too_many_paths {
-        return (safe, None);
-    }
-    (safe, path)
-}
-
 /// The child an invocation's transitions create: its path (`None` for an
 /// auto-named child) and whether it starts safe — `None` when the call states
 /// no creation (another command, or a shape Tcl rejects). A child whose
@@ -463,7 +396,12 @@ impl Analyser {
     /// `interp eval s {…}` names `s t`.  A dynamic operand is returned
     /// key-normalised only (its stack context cannot make it literal).
     pub(in super::super) fn qualified_interp_key(&self, path: &str) -> String {
-        let local = interp_path_key(path);
+        // The path is a Tcl list naming a descent through children (`{s t}`
+        // is child `t` of child `s`); its canonical list form is the key.
+        let local = tcl_syntax::list::split_list(path).map_or_else(
+            |_| path.to_owned(),
+            |elements| tcl_syntax::list::join_list(elements.iter()),
+        );
         match self.interp_path_stack.last() {
             Some(enclosing) if !local.is_empty() => format!("{} {local}", enclosing.key),
             _ => local,
@@ -543,8 +481,15 @@ impl Analyser {
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`],
     /// with the transitions the call states over its source words.
-    pub fn handle_interp_create_command(&mut self, transitions: &tcl_registry::StateTransitions) {
-        if let Some((Some(subject), safe)) = created_interpreter(transitions) {
+    /// Returns the literal path the call created, for visibility capture.
+    pub fn handle_interp_create_command(
+        &mut self,
+        transitions: &tcl_registry::StateTransitions,
+    ) -> Option<String> {
+        let (Some(subject), safe) = created_interpreter(transitions)? else {
+            return None;
+        };
+        {
             let path = subject.literal().or_else(|| {
                 subject
                     .native_bytes()
@@ -552,7 +497,7 @@ impl Analyser {
             });
             let Some(path) = path else {
                 self.dynamic_interp_ops = true;
-                return;
+                return None;
             };
             let state = super::super::state::InterpState {
                 safe,
@@ -560,6 +505,7 @@ impl Analyser {
             };
             let key = self.qualified_interp_key(path);
             self.interpreters.insert(key, state);
+            Some(path.to_owned())
         }
     }
 
