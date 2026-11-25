@@ -398,10 +398,7 @@ mod tests {
 
     // Share the pure fixture reader without a dependency on a higher crate.
     mod fixture_fields {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../tcl-test-support/src/fixture_fields.rs"
-        ));
+        include!("../../tcl-test-support/src/fixture_fields.rs");
     }
 
     fn bytes(hex: &str) -> Vec<u8> {

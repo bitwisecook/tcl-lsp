@@ -71,10 +71,10 @@ pub(crate) fn transitive_escape_frame_sources(
     mut effects: HashMap<BodyFrameId, EscapeFrameSources>,
     callees: &HashMap<BodyFrameId, HashSet<BodyFrameId>>,
 ) -> HashMap<BodyFrameId, EscapeFrameSources> {
-    let mut callers: HashMap<_, Vec<_>> = HashMap::new();
+    let mut reverse_edges: HashMap<_, Vec<_>> = HashMap::new();
     for (&caller, targets) in callees {
         for &callee in targets {
-            callers.entry(callee).or_default().push(caller);
+            reverse_edges.entry(callee).or_default().push(caller);
         }
     }
     let mut worklist: VecDeque<_> = effects.keys().copied().collect();
@@ -82,7 +82,7 @@ pub(crate) fn transitive_escape_frame_sources(
     while let Some(id) = worklist.pop_front() {
         queued.remove(&id);
         let current = effects[&id].clone();
-        for caller in callers.get(&id).into_iter().flatten() {
+        for caller in reverse_edges.get(&id).into_iter().flatten() {
             let next = effects.get_mut(caller).expect("caller in summaries");
             let prior = (next.names.len(), next.unbounded);
             next.names.extend(current.names.iter().cloned());

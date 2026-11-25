@@ -22,7 +22,9 @@ PROVIDERS = {
     "tcl9.1": "9.1.0",
     "jim": "Jim",
 }
-FIXTURE_KEYS = {engine: provider for provider, engine in PROVIDERS.items() if provider != "jim"}
+FIXTURE_KEYS = {
+    engine: provider for provider, engine in PROVIDERS.items() if provider != "jim"
+}
 
 
 def sha256(data: bytes) -> str:

@@ -286,6 +286,35 @@ impl Analyser {
             .collect()
     }
 
+    /// A selected authored class call supplies conditional source evidence.
+    fn jim_call_has_source_evidence(
+        &self,
+        invocation: &crate::signature_scan::types::SignatureCommandInvocation,
+    ) -> bool {
+        use crate::registry_invocation::source_structure::{
+            source_authored_jim_call_at, trace_jim_source_option,
+        };
+
+        if invocation.lookup != SignatureCommandLookup::InvocationHead {
+            return false;
+        }
+        let offset = invocation.range.start();
+        trace_jim_source_option(
+            "jim.diagnostic.call",
+            source_authored_jim_call_at(&self.source, &self.result, offset),
+        )
+        .is_some_and(|call| {
+            #[cfg(debug_assertions)]
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+                eprintln!(
+                    "JIM_SOURCE_OWNER stage=jim.diagnostic.obligations offset={offset} obligations={:?}",
+                    call.obligations()
+                );
+            }
+            !call.has_earlier_unknown_mutations()
+        })
+    }
+
     /// Walk every recorded command invocation, record the ones the oracle
     /// proves `Absent` as call sites, and (when `emit_w123`) push a W123
     /// with a "did you mean…?" suggestion.  Restores
@@ -332,21 +361,7 @@ impl Analyser {
             {
                 continue;
             }
-            // A genuine selected authored class call is conditional source evidence;
-            // it does not assert successful execution or issue callable identity.
-            if inv.lookup == SignatureCommandLookup::InvocationHead && crate::registry_invocation::source_structure::trace_jim_source_option("jim.diagnostic.call", crate::registry_invocation::source_structure::source_authored_jim_call_at(
-                &self.source,
-                &self.result,
-                inv.range.start(),
-            ))
-            .is_some_and(|call| {
-                #[cfg(debug_assertions)]
-                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
-                    eprintln!("JIM_SOURCE_OWNER stage=jim.diagnostic.obligations offset={} obligations={:?}", inv.range.start(), call.obligations());
-                }
-                !call.has_earlier_unknown_mutations()
-            })
-            {
+            if self.jim_call_has_source_evidence(inv) {
                 continue;
             }
             if emit_w123 {

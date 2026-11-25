@@ -696,29 +696,30 @@ impl SourceOutcomes {
             return;
         };
         let selection = contract.select(invocation.arguments(), facts.argument_offset);
-        if self.normal_name_value.is_none()
-            && let Some(normal) = &self.normal
-        {
-            self.normal_name_value =
-                selected_name_result(selection, facts.operation, before, normal, target, context)
-                    .or_else(|| {
-                        let argument = contract.normal_scoped_prefix_operand(
-                            invocation.arguments(),
-                            facts.argument_offset,
-                        )?;
-                        selected_scoped_prefix_result(argument, before, normal, target, context)
-                    })
-                    .map(Arc::new);
-        }
-
-        if self.normal_value.is_none()
-            && let Some(normal) = &self.normal
-        {
-            self.normal_value =
-                selected_result(selection, invocation.arguments(), before, normal, context)
-                    .map(Arc::new);
-        }
         if let Some(normal) = &self.normal {
+            if self.normal_name_value.is_none() {
+                self.normal_name_value = selected_name_result(
+                    selection,
+                    facts.operation,
+                    before,
+                    normal,
+                    target,
+                    context,
+                )
+                .or_else(|| {
+                    let argument = contract.normal_scoped_prefix_operand(
+                        invocation.arguments(),
+                        facts.argument_offset,
+                    )?;
+                    selected_scoped_prefix_result(argument, before, normal, target, context)
+                })
+                .map(Arc::new);
+            }
+            if self.normal_value.is_none() {
+                self.normal_value =
+                    selected_result(selection, invocation.arguments(), before, normal, context)
+                        .map(Arc::new);
+            }
             self.normal_representation = selected_result_representation(
                 selection,
                 invocation.arguments(),

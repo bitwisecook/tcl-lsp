@@ -159,10 +159,10 @@ pub(super) enum CallerAliasSelection<'a> {
     Other,
 }
 
-pub(super) fn caller_alias_selection<'a>(
-    target: &'a VariableAliasTarget,
+pub(super) fn caller_alias_selection(
+    target: &VariableAliasTarget,
     parse_level: impl FnOnce(&CallerFrameSelection, &str) -> Option<FrameLevel>,
-) -> CallerAliasSelection<'a> {
+) -> CallerAliasSelection<'_> {
     let VariableAliasTarget::CallerSelectedFrame { frame, variable } = target else {
         return CallerAliasSelection::Other;
     };
