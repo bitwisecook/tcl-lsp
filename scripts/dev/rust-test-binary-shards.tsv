@@ -177,6 +177,7 @@
 4	tcl-vm-it::native_compilation_conformance	test	tcl-vm-it	native_compilation_conformance
 4	tcl-vm-it::regexp_cmd_corpus	test	tcl-vm-it	regexp_cmd_corpus
 4	xtask::bin/xtask	bin	xtask	xtask
+4	xtask-backing::bin/xtask-backing	bin	xtask-backing	xtask-backing
 5	bigip-report-gen-rust::architecture	test	bigip-report-gen-rust	architecture
 5	bigip-report-gen-rust::firewall	test	bigip-report-gen-rust	firewall
 5	bigip-report-gen-rust::report	test	bigip-report-gen-rust	report

@@ -16,11 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod native_child_completion_tests;
 mod native_each;
 mod native_limit_error_tests;
 mod native_list_index_tests;
 mod native_list_operations_tests;
 mod native_missing_command_result_tests;
+mod native_namespace_string_tests;
+mod native_scalar;
 mod native_string_result_effect_tests;
 mod native_string_trim_tests;
 mod native_try_tests;
+mod native_uplevel_tests;
+mod original_name_dispatch_tests;
+mod tests;

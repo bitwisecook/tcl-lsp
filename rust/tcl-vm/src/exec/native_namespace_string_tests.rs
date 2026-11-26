@@ -20,18 +20,7 @@
 
 use super::*;
 use tcl_syntax::value::ValueOps;
-const INPUTS: [&[u8]; 10] = [
-    b"a::tail",
-    b"no_separator",
-    b"a:::tail",
-    b"a::",
-    b"a::\xed\xa0\x80",
-    b"a::\xed\xa0\x81",
-    b"a::\xff",
-    b"a\0::tail",
-    b"",
-    b":",
-];
+
 fn unhex(bytes: &str) -> Vec<u8> {
     bytes
         .as_bytes()
@@ -40,214 +29,6 @@ fn unhex(bytes: &str) -> Vec<u8> {
         .iter()
         .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
-}
-
-#[test]
-// Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
-// docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
-fn original_namespace_tail_matches_one_hundred_counted_native_windows() {
-    let mut windows = 0;
-    for (engine, table) in tail_windows() {
-        let mut vm =
-            crate::native_fixture::interpreter(tcl_dialect::DialectProfile::find(engine).unwrap());
-        vm.try_eval_source("proc originalTail {value} {namespace tail $value}")
-            .unwrap();
-        for row in table.lines().filter(|row| row.starts_with("R|")) {
-            let fields: Vec<_> = row.split('|').collect();
-            let form = fields[1];
-            let case = fields[2].parse::<usize>().unwrap();
-            let input = Value::new_native_string_bytes(INPUTS[case]);
-            let head = Value::new_native_string_bytes(if form == "1" {
-                b"originalTail".as_slice()
-            } else {
-                b"namespace".as_slice()
-            });
-            let args = if form == "1" {
-                vec![input.clone()]
-            } else {
-                vec![
-                    Value::new_native_string_bytes(b"tail".as_slice()),
-                    input.clone(),
-                ]
-            };
-            let completion = vm.invoke_host_original_object_vector(&head, &args);
-            assert!(
-                vm.execution_refusal.is_none(),
-                "{engine}/{form}/{case}: {:?}",
-                vm.execution_refusal
-            );
-            assert_eq!(
-                completion.code.as_int().to_string(),
-                fields[3],
-                "{engine}/{form}/{case}"
-            );
-            let kind = completion.result.native_object_type_name();
-            let kind = if kind == "none" { "NULL" } else { kind };
-            assert_eq!(kind, fields[4], "{engine}/{form}/{case}: result primary");
-            assert_eq!(
-                usize::from(completion.result.is_same_object(&input)).to_string(),
-                fields[5],
-                "{engine}/{form}/{case}: result identity"
-            );
-            let bytes = vm.native_string_bytes(&completion.result).unwrap();
-            assert_eq!(
-                bytes.as_ref(),
-                unhex(fields[7]),
-                "{engine}/{form}/{case}: counted result"
-            );
-            let original = table
-                .lines()
-                .find(|row| row.starts_with(&format!("I|{form}|{case}|")))
-                .unwrap()
-                .split('|')
-                .collect::<Vec<_>>();
-            let kind = input.native_object_type_name();
-            let kind = if kind == "none" { "NULL" } else { kind };
-            assert_eq!(
-                kind, original[3],
-                "{engine}/{form}/{case}: original primary"
-            );
-            assert_eq!(
-                vm.native_string_bytes(&input).unwrap().as_ref(),
-                unhex(original[5]),
-                "{engine}/{form}/{case}: original counted bytes"
-            );
-            windows += 1;
-        }
-    }
-    assert_eq!(windows, 100);
-}
-
-#[test]
-fn original_compiled_tail_declines_foreign_policy_and_unreached_unicode_range() {
-    // naming.namespace.original-counted-tail-compiler-and-runtime
-    // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
-    let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
-    let subject = Value::new_native_string_bytes(b"a::tail".as_slice());
-    let separator = Value::new_native_string_bytes(b"::".as_slice());
-    assert!(
-        tcl_cmd_core::string::compiled_tail(
-            &mut vm,
-            &subject,
-            &separator,
-            tcl_dialect::TclVersion::V9_0
-        )
-        .is_err()
-    );
-    assert_eq!(subject.native_object_type_name(), "none");
-    let first = Value::new_native_string_bytes(b"0".as_slice());
-    let last = Value::new_native_string_bytes(b"end".as_slice());
-    assert!(
-        tcl_cmd_core::string::compiled_range(
-            &mut vm,
-            &subject,
-            &first,
-            &last,
-            tcl_dialect::TclVersion::V8_6
-        )
-        .is_err()
-    );
-}
-
-const QUALIFIERS_INPUTS: [&[u8]; 20] = [
-    b"a::tail",
-    b"no_separator",
-    b"a:::tail",
-    b"a::",
-    b"a::\xed\xa0\x80",
-    b"a::\xed\xa0\x81",
-    b"a::\xff",
-    b"a\0::tail",
-    b"",
-    b":",
-    b"::a",
-    b":::a",
-    b"::::",
-    b"a::::b",
-    b"a::b::c",
-    b"::a::b",
-    b"\xff::tail",
-    b"\xed\xa0\x80::tail",
-    b"\xed\xa0\x81::tail",
-    b"a::b\0::tail",
-];
-
-#[test]
-// Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
-// docs/design/analysis/name-resolution-proofs/original-counted-qualifiers-compiler-and-runtime.md
-fn original_namespace_qualifiers_matches_two_hundred_forty_counted_native_windows() {
-    // naming.namespace.original-counted-qualifiers-compiler-and-runtime
-    // docs/design/analysis/name-resolution-proofs/original-counted-qualifiers-compiler-and-runtime.md
-    let mut windows = 0;
-    for (engine, table) in qualifiers_windows() {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
-        vm.try_eval_source("proc originalQualifiers {value} {namespace qualifiers $value}")
-            .unwrap();
-        for row in table.lines().filter(|row| row.starts_with("R|")) {
-            let fields: Vec<_> = row.split('|').collect();
-            let form = fields[1];
-            let case = fields[2].parse::<usize>().unwrap();
-            let input = Value::new_native_string_bytes(QUALIFIERS_INPUTS[case]);
-            let head = Value::new_native_string_bytes(if form == "1" {
-                b"originalQualifiers".as_slice()
-            } else {
-                b"namespace".as_slice()
-            });
-            let args = if form == "1" {
-                vec![input.clone()]
-            } else {
-                vec![
-                    Value::new_native_string_bytes(b"qualifiers".as_slice()),
-                    input.clone(),
-                ]
-            };
-            let completion = vm.invoke_host_original_object_vector(&head, &args);
-            assert!(
-                vm.execution_refusal.is_none(),
-                "{engine}/{form}/{case}: {:?}",
-                vm.execution_refusal
-            );
-            assert_eq!(
-                completion.code.as_int().to_string(),
-                fields[3],
-                "{engine}/{form}/{case}"
-            );
-            let kind = completion.result.native_object_type_name();
-            let kind = if kind == "none" { "NULL" } else { kind };
-            assert_eq!(kind, fields[4], "{engine}/{form}/{case}: result primary");
-            assert_eq!(
-                usize::from(completion.result.is_same_object(&input)).to_string(),
-                fields[5],
-                "{engine}/{form}/{case}: result identity"
-            );
-            let bytes = vm.native_string_bytes(&completion.result).unwrap();
-            assert_eq!(
-                bytes.as_ref(),
-                unhex(fields[7]),
-                "{engine}/{form}/{case}: counted result"
-            );
-            let original = table
-                .lines()
-                .find(|row| row.starts_with(&format!("I|{form}|{case}|")))
-                .unwrap()
-                .split('|')
-                .collect::<Vec<_>>();
-            let kind = input.native_object_type_name();
-            let kind = if kind == "none" { "NULL" } else { kind };
-            assert_eq!(
-                kind, original[3],
-                "{engine}/{form}/{case}: original primary"
-            );
-            assert_eq!(
-                vm.native_string_bytes(&input).unwrap().as_ref(),
-                unhex(original[5]),
-                "{engine}/{form}/{case}: original counted bytes"
-            );
-            windows += 1;
-        }
-    }
-    assert_eq!(windows, 240);
 }
 
 #[test]
@@ -306,6 +87,37 @@ fn original_compiled_index_preserves_counted_single_bytes_and_native_units() {
 }
 
 #[test]
+fn original_compiled_tail_declines_foreign_policy_and_unreached_unicode_range() {
+    // naming.namespace.original-counted-tail-compiler-and-runtime
+    // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
+    let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+    let subject = Value::new_native_string_bytes(b"a::tail".as_slice());
+    let separator = Value::new_native_string_bytes(b"::".as_slice());
+    assert!(
+        tcl_cmd_core::string::compiled_tail(
+            &mut vm,
+            &subject,
+            &separator,
+            tcl_dialect::TclVersion::V9_0
+        )
+        .is_err()
+    );
+    assert_eq!(subject.native_object_type_name(), "none");
+    let first = Value::new_native_string_bytes(b"0".as_slice());
+    let last = Value::new_native_string_bytes(b"end".as_slice());
+    assert!(
+        tcl_cmd_core::string::compiled_range(
+            &mut vm,
+            &subject,
+            &first,
+            &last,
+            tcl_dialect::TclVersion::V8_6
+        )
+        .is_err()
+    );
+}
+
+#[test]
 // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
 fn original_empty_counted_append_preserves_the_reached_release_conversion() {
@@ -321,8 +133,7 @@ fn original_empty_counted_append_preserves_the_reached_release_conversion() {
         ("tcl9.0", TclVersion::V9_0, false),
         ("tcl9.1", TclVersion::V9_1, false),
     ] {
-        let vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+        let vm = crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
         let dialect = vm.native_scalar_carrier_dialect();
         let protocol = dialect
             .native_object_append_protocol(None)
@@ -370,8 +181,7 @@ fn original_empty_counted_append_matches_thirty_native_constructor_windows() {
 
     let mut windows = 0;
     for (engine, fixture) in empty_append_windows() {
-        let vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+        let vm = crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
         let dialect = vm.native_scalar_carrier_dialect();
         let protocol = dialect
             .native_object_append_protocol(None)
@@ -565,82 +375,6 @@ fn registered_string_index_keeps_c86_reached_surrogate_pair_instruction_behavior
         assert_eq!(result.native_object_type_name(), "none");
         assert_eq!(vm.native_string_bytes(&result).unwrap().as_ref(), expected);
     }
-}
-
-fn tail_windows() -> [(&'static str, &'static str); 5] {
-    [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.5/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl8.6/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl9.0/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_string_compilation/tcl9.1/stdout.tsv"
-            ),
-        ),
-    ]
-}
-
-fn qualifiers_windows() -> [(&'static str, &'static str); 6] {
-    [
-        (
-            "tcl8.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.4/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.5",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.5/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl8.6",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl8.6/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.0/stdout.tsv"
-            ),
-        ),
-        (
-            "tcl9.1",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/tcl9.1/stdout.tsv"
-            ),
-        ),
-        (
-            "jim",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv"
-            ),
-        ),
-    ]
 }
 
 fn empty_append_windows() -> [(&'static str, &'static str); 5] {

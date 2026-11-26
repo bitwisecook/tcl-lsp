@@ -661,3 +661,35 @@ failed. No new failure; the two `native_list_operations_tests` C rows now
 pass, having failed only on object headers. Left: 575 tests in 130 files,
 which name private types (`NativeOperationScope`, `Command`, `BinOp`,
 `OriginalNameConsumerScope` and others) and need rewriting by hand.
+
+**Known VM gap (found in batch 1).** An exceeded `interp limit` reports one
+frame fewer in `-errorinfo` than tclsh 8.6.18 and 9.0.4: the last
+`invoked from within "c eval budget_loop"`. `exec::native_limit_error_tests`
+checks the frames both report.
+
+**Batch 2, `exec` (26 November 2026).** 25 tests in 7 files.
+- Moved to `tcl-vm-it` against the public API: `native_scalar` (1),
+  `native_namespace_string_tests`'s tail and qualifiers rows (2),
+  `native_uplevel_tests`'s uplevel rows (1), `native_child_completion_tests`
+  (4), `original_name_dispatch_tests` (7 of 11), and one trace test from
+  `exec::tests`, whose result is now checked against tclsh 9.0.4.
+- Stay in `tcl-vm` on the compiler-free core: the two empty-append tests of
+  `native_namespace_string_tests` and the invocation-reference test of
+  `exec::tests`, which needed only a dialect or a placeholder unit.
+- Cut from rows: object headers and identity. The uplevel test drops rows
+  3-9, which handed a C probe a non-level word; `uplevel`'s level is
+  optional, so there that word starts the script. The Jim rows of
+  `native_child_completion_tests` that call `binary` are skipped: jimsh's
+  `binary` is a C extension the VM installs only through a private
+  registration.
+- Deleted, with no script-visible behaviour: all 6 of
+  `original_activation_cleanup_tests` (native callbacks switching the
+  selected interpreter and seeding pending leave records through private
+  hooks); `original_name_dispatch_tests`' retired-head test and two
+  hand-built-bytecode return-code tests (return-code branching stays covered
+  by `tcl-vm-it::it_3::return_code_boundary_e2e`); and
+  `native_uplevel_tests::uplevel_opcode_keeps_nonlevel_operand_out_of_the_original_script`
+  (it ticks the `UPLEVEL` opcode on a hand-built frame).
+- Parity: 3140 passed, 80 failed; no new or fixed failure against batch 1.
+- `scripts/dev/rust-test-binary-shards.tsv` gains the `xtask-backing` binary
+  that item 298 left out.

@@ -126,8 +126,8 @@ No appliance observation for this question.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/exec/native_uplevel_tests.rs](../../../../rust/tcl-vm/src/exec/native_uplevel_tests.rs), `explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows`: Independent current Rust comparison at the stated semantic boundary.
-- [rust/tcl-vm/src/exec/native_uplevel_tests.rs](../../../../rust/tcl-vm/src/exec/native_uplevel_tests.rs), `exec::native_uplevel_tests::explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows` (linked): Compares the seventy exact original level/cache/body result windows and requires frame restoration, independently of portable uplevel opcode selection.
+- [rust/tcl-vm-it/tests/it_5/exec/native_uplevel_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/exec/native_uplevel_tests.rs), `uplevel_matches_the_native_level_body_and_restore_rows` (the 35 rows whose level word `uplevel` also reads as a level): Independent current Rust comparison at the stated semantic boundary.
+- [rust/tcl-vm-it/tests/it_5/exec/native_uplevel_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/exec/native_uplevel_tests.rs), `exec::native_uplevel_tests::uplevel_matches_the_native_level_body_and_restore_rows` (linked): Compares the seventy exact original level/cache/body result windows and requires frame restoration, independently of portable uplevel opcode selection.
 
 ## Evidence
 

@@ -89,7 +89,7 @@ fn procedure_activation_retains_original_invocation_references_until_exit() {
     // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
     // This checks VM ownership, independently of native public stack bytes.
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
-    let mut vm = crate::native_fixture::interpreter(profile);
+    let mut vm = crate::native_fixture::core(profile);
     let invoked = Value::new_native_string_bytes(b"original-head".as_slice());
     let argument = Value::new_native_string_bytes(b"original-argument".as_slice());
     let head_loan = invoked.native_lifetime_lease();
@@ -106,35 +106,6 @@ fn procedure_activation_retains_original_invocation_references_until_exit() {
     drop(frame);
     assert!(!head_loan.value().native_object_is_live());
     assert!(!argument_loan.value().native_object_is_live());
-}
-
-#[test]
-fn original_trace_procedure_heads_remain_live_during_their_actual_activation() {
-    // Source contract: naming.error.original-invocation-context-capture
-    // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
-    // The guest source is a software lifetime control, not a native fixture.
-    struct Inspect(std::rc::Rc<std::cell::Cell<usize>>);
-    impl crate::command::NativeCommand for Inspect {
-        fn invoke(&self, vm: &mut Vm, _: &[Value]) -> tcl_runtime_api::Completion<Value> {
-            let words = vm.frame_argv(vm.current_level()).unwrap();
-            let head = &words[0];
-            assert!(head.native_object_is_live());
-            assert!(head.native_object_reference_count() > 1);
-            self.0.set(self.0.get() + 1);
-            crate::interp::ok(Value::empty())
-        }
-    }
-    for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
-        let count = std::rc::Rc::new(std::cell::Cell::new(0));
-        vm.register_native_command("inspect", std::rc::Rc::new(Inspect(count.clone())));
-        let completion = vm.try_eval_source(
-                "proc observer {n1 n2 op} {inspect; error READ_FAIL}; proc work {} {set d {k 3}; trace add variable d read observer; catch {dict lappend d k Y Z} m; trace remove variable d read observer; return $m}; work",
-            ).unwrap();
-        assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{engine}");
-        assert_eq!(count.get(), 1, "{engine}");
-    }
 }
 
 #[test]

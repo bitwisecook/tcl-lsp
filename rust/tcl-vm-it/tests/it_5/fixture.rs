@@ -124,3 +124,24 @@ pub fn root_compilation_entry(vm: &mut Vm) -> tcl_runtime_api::NativeCompilation
         .take()
         .expect("a global-level script reaches the compiler with its entry")
 }
+
+/// Bytes from the hex text the tclsh and jimsh captures record.
+pub fn unhex(hex: &str) -> Vec<u8> {
+    hex.as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+/// Invoke `name` with `arguments` as object words, as a host does; a host
+/// refusal fails the test.
+pub fn call(
+    vm: &mut Vm,
+    name: &str,
+    arguments: &[tcl_vm::Value],
+) -> tcl_runtime_api::Completion<tcl_vm::Value> {
+    vm.try_invoke_command(name, arguments)
+        .unwrap_or_else(|refusal| panic!("{name}: {refusal:?}"))
+}

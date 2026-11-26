@@ -26,10 +26,6 @@
 //! (→ `Ok`), `Error`/`Break`/`Continue` propagate to the top of this `run`
 //! (where `catch`, which invoked us via `eval_source`, observes them).
 
-#[cfg(test)]
-#[path = "exec/native_child_completion_tests.rs"]
-mod native_child_completion_tests;
-
 #[path = "exec/native_jim_script.rs"]
 mod native_script;
 
@@ -50,14 +46,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
-#[cfg(test)]
-use tcl_bytecode::Instruction;
 use tcl_bytecode::{FunctionAsm, ModuleAsm, Op};
 use tcl_runtime_api::{Code, Completion, FatalTail};
 
 use crate::command::Command;
-#[cfg(test)]
-use crate::interp::ok;
 use crate::interp::{CmdTraceEntry, CommandSidecarHandle, CommandSidecarKey, Vm, err};
 use crate::value::Value;
 
@@ -1288,12 +1280,6 @@ impl Vm {
         completion
     }
 }
-
-#[cfg(test)]
-mod original_name_dispatch_tests;
-
-#[cfg(test)]
-mod original_activation_cleanup_tests;
 
 #[cfg(test)]
 mod tests;
