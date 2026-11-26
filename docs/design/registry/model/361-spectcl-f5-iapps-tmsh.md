@@ -119,11 +119,11 @@ flowchart LR
   apl["presentation: pool.addr, basic.addr"] --> vars["implementation: dollar pool__addr"]
   vars --> create["tmsh::create ltm virtual app_vs profiles tcp http clientssl rules route_rule"]
   create --> eff["ConfigEffect create ltm_virtual"]
-  eff --> graph["symbolic config graph"]
-  scf["bigip.conf: tcl-bigip parser"] --> graph
-  graph --> binding["HostBinding for route_rule: profiles CLIENTSSL HTTP TCP"]
+  eff --> cgraph["symbolic config graph"]
+  scf["bigip.conf: tcl-bigip parser"] --> cgraph
+  cgraph --> binding["HostBinding for route_rule: profiles CLIENTSSL HTTP TCP"]
   binding --> irules["360: iRule events and commands checked"]
-  graph --> refs["references: pool, profiles, rules"]
+  cgraph --> refs["references: pool, profiles, rules"]
   refs --> rename["rename and missing-reference checks"]
 ```
 

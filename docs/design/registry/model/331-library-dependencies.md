@@ -42,18 +42,18 @@ dotted: lazy or optional, thick: identity or provided name):
 
 ```mermaid
 flowchart LR
-  op["struct::graph::op 0.11.4"] --> graph["struct::graph 2.4.4"]
+  op["struct::graph::op 0.11.4"] --> sgraph["struct::graph 2.4.4"]
   op --> dset["struct::disjointset 1.2"]
   op --> pq["struct::prioqueue 1.5"]
   op --> queue["struct::queue 1.4.6"]
   op --> stack["struct::stack 1.5.4"]
   op --> tree["struct::tree 2.1.3"]
-  graph --> slist["struct::list 1.9"]
-  graph --> sset["struct::set 2.2.5"]
+  sgraph --> slist["struct::list 1.9"]
+  sgraph --> sset["struct::set 2.2.5"]
   tree --> slist
   slist --> cmdline["cmdline 1.5.3"]
   queue -.-> tclOO["TclOO"]
-  graph -.-> tcllibc["tcllibc"]
+  sgraph -.-> tcllibc["tcllibc"]
   fetcher["map::slippy::fetcher 0.7"] --> tk["Tk"]
   fetcher --> slippy["map::slippy 0.10"]
   fetcher --> snit["snit 2.3.4"]
