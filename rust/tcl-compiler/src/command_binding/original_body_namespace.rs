@@ -263,8 +263,7 @@ pub(crate) fn original_logical_frame_body_namespace_for_module(
         }
         _ => return None,
     };
-    tcl_syntax::naming::checked_namespace_path_key(selected.namespace_recipe())
-        .map(SourceNamespaceKey::authored)
+    SourceNamespaceKey::authored_path(selected.namespace_recipe())
 }
 
 #[cfg(test)]

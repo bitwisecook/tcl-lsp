@@ -229,9 +229,7 @@ impl super::SourceInvocationBinding {
             let parameters_text = std::str::from_utf8(&parameters_text).ok()?.to_owned();
             let parameters =
                 super::logical_definition::static_formals(&parameters_text, config.list_parse)?;
-            let namespace = super::SourceNamespaceKey::authored(
-                tcl_syntax::naming::checked_namespace_path_key(&declaration.namespace)?,
-            );
+            let namespace = super::SourceNamespaceKey::authored_path(&declaration.namespace)?;
             let body_word = declaration.body.original_container().clone();
             let geometry = OriginalAuthoredProcedureSourceGeometry {
                 header: tokens.clone(),

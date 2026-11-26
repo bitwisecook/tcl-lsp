@@ -354,9 +354,9 @@ impl OriginalNativeProcedureBody {
             OriginalNativeProcedureRecipe::Source(source) => source.site(),
         }
     }
-    pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
+    pub(crate) fn namespace(&self) -> Option<&super::SourceNamespaceKey> {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow(flow) => &flow.read_flow.header.namespace,
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => Some(&flow.read_flow.header.namespace),
             OriginalNativeProcedureRecipe::Source(source) => source.namespace(),
         }
     }
@@ -565,7 +565,8 @@ impl OriginalNativeProcedureBody {
                 .iter()
                 .map(String::as_str)
                 .eq(self.parameters().iter().map(|p| p.name.as_str()))
-            && procedure.body.namespace_context.as_deref() == Some(self.namespace())
+            && self.namespace().is_some()
+            && procedure.body.namespace_context.as_deref() == self.namespace()
             && procedure.body.executed_source.is_none()
             && procedure.body.native_compilation_failure.is_none()
             && procedure.body.native_compilation_admission.is_none()

@@ -25,7 +25,7 @@ use super::{
     SourceCommandBindings,
 };
 use crate::analyser::ResolvedAnalysisInput;
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameKey};
+use crate::signature_scan::scope::SignatureSourceNameKey;
 use tcl_lexer::{LexerConfig, NativeWord};
 use tcl_registry::CommandRegistry;
 use tcl_syntax::naming::{
@@ -120,9 +120,7 @@ impl OriginalJimWrapperBody {
         let namespace = NativeNameProtocol::Jim084
             .jim_procedure_namespace(published.simple.as_bytes())
             .ok()?;
-        Some(super::SourceNamespaceKey::authored(
-            SignatureNamespaceScope::Jim(namespace.into()).display()?,
-        ))
+        super::SourceNamespaceKey::authored_jim_namespace(&namespace.into())
     }
 
     fn capture(

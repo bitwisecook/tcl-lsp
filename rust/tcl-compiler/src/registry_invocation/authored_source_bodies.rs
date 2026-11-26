@@ -97,9 +97,7 @@ pub(crate) fn original_authored_procedure_body(
         &tcl_core_types::ByteNamespacePath::root(),
         &name,
     )?;
-    let namespace = SourceNamespaceKey::authored(tcl_syntax::naming::checked_namespace_path_key(
-        &coordinate.namespace,
-    )?);
+    let namespace = SourceNamespaceKey::authored_path(&coordinate.namespace)?;
     let parameters_text = grammar.argument_literal(positions.parameters)?;
     let parameters = tcl_syntax::formal_params::parse_formal_parameters(&parameters_text).ok()?;
     let body_word = grammar.original_body_word(positions.body)?.clone();

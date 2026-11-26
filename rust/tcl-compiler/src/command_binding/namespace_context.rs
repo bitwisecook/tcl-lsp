@@ -51,6 +51,37 @@ impl SourceNamespaceKey {
         Self::Authored(namespace.into())
     }
 
+    /// Authored context for retained C namespace components. `None` when a
+    /// component is not UTF-8 or would not survive the authored splitter; the
+    /// key comes from the components, never from a rendered presentation.
+    #[must_use]
+    pub fn authored_path(path: &ByteNamespacePath) -> Option<Self> {
+        tcl_syntax::naming::checked_namespace_path_key(path).map(Self::Authored)
+    }
+
+    /// Authored context for Jim's counted flat namespace value. `None` when
+    /// the value is not UTF-8.
+    #[must_use]
+    pub fn authored_jim_namespace(value: &NameBytes) -> Option<Self> {
+        Some(Self::Authored(tcl_syntax::naming::root_unrooted_key(
+            value.try_utf8().ok()?,
+        )))
+    }
+
+    /// Authored context for a structured signature scope, built from its
+    /// retained components or counted bytes rather than its display text.
+    #[must_use]
+    pub(crate) fn authored_scope(
+        scope: &crate::signature_scan::scope::SignatureNamespaceScope,
+    ) -> Option<Self> {
+        use crate::signature_scan::scope::SignatureNamespaceScope;
+        match scope {
+            SignatureNamespaceScope::Symbolic(key) => Some(Self::authored(key.clone())),
+            SignatureNamespaceScope::C(path) => Self::authored_path(path),
+            SignatureNamespaceScope::Jim(value) => Self::authored_jim_namespace(value),
+        }
+    }
+
     /// Retain the actual current namespace from an immutable runtime entry.
     ///
     /// # Errors

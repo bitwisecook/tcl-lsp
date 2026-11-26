@@ -121,9 +121,7 @@ impl SourceOriginalVariableFrame {
         let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = namespace else {
             return None;
         };
-        let namespace = super::super::SourceNamespaceKey::authored(
-            tcl_syntax::naming::checked_namespace_path_key(&path)?,
-        );
+        let namespace = super::super::SourceNamespaceKey::authored_path(&path)?;
         let text = origin
             .source_image()
             .try_text()
