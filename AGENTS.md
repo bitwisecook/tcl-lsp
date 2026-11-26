@@ -257,6 +257,27 @@ the config); UK spelling in identifiers and comments; plain minimal comments,
 no banners; the AGPL header on our own source only — never on vendored code,
 generated files, fixtures, or `.github/workflows/*`.
 
+### What tests test
+
+Owner rule, 26 November 2026. Tests test public boundaries, contracts and
+truth against an oracle (real `tclsh` 8.4–9.1, `jimsh`, BIG-IP evidence),
+not internal implementation detail.
+
+- **Prefer, in order:**
+  1. oracle and conformance rows that compare our answer with the real
+     interpreter;
+  2. contract tests on a crate's public API, or on a documented contract
+     (`docs/design/contracts/`);
+  3. end-to-end behaviour through the CLI, LSP or MCP.
+- **Assertions on private state, field layouts or pass internals** are a last
+  resort, and only for invariants with no public observation. They stay
+  unit tests inside the owning crate, under `#[cfg(test)]`.
+- **Moving a test out of a crate:** rewrite it against that crate's public
+  API. Don't widen visibility for tests, and don't put test bodies in `src`
+  behind a `test-support` feature.
+- **A test that breaks on a behaviour-preserving refactor** is testing the
+  implementation. Rewrite it against the boundary it should guard.
+
 ## Documentation
 
 Two kinds: **KCS notes** (`docs/kcs/`, one plain-English answer per question;
