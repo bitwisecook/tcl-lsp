@@ -28,7 +28,7 @@ from `tmp/` and run under `tclsh8.5`–`tclsh9.1`:
 | optional edge | `catch {package require tcllibc}`; `struct::queue` tries `TclOO 0.6.1-` | `struct/graph.tcl:36`, `queue.tcl:43` |
 | identity chain | `Itcl` is `package require -exact itcl V`; Tk 9 loads as `tk`, and `Tk` chains to it | Itcl 4.3.5 `pkgIndex.tcl:14`; `tk9.0.4/unix/Makefile.in:812`, `tkWindow.c:3461-3465` |
 | virtual package | Tk 8.5+ provides `tile 0.8.6`; tcllib's index provides `file::home 1` on Tcl 9 with no code | `ttk/ttk.tcl:49`; `try/pkgIndex.tcl` |
-| extension | `file::home` adds `home` and `tildeexpand` to core `file` on 8.x; `oo::util` adds `classmethod` to `oo::define` and three helpers to `oo::Helpers` on 8.6 | `try/fhome.tcl`; `ooutil/ooutil.tcl:18-172` |
+| extension | `file::home` adds `home` and `tildeexpand` to core `file` on 8.x; `oo::util` adds `classmethod` to `oo::define` (core from 9.0, and `oo::util` redefines it there too) and three helpers to `oo::Helpers` | `try/fhome.tcl`; `ooutil/ooutil.tcl:18-172` |
 | conflict | a dependency already present at the wrong train | `struct.tcl:2` needs `struct::graph 2.0` |
 
 Two more facts shape the design. tclsh never backtracks: it picks the newest
@@ -146,8 +146,8 @@ own `available` naming the extending library.
 speclib tcllib-struct 3 {
 library struct::graph::op {
     versions 0.11.4
-    compatible struct::graph::op 0- {tcl 8.5-9.2}         ;# struct/pkgIndex.tcl guard
-    requires struct::graph::op 0- {core 8.6-9.2}          ;# graphops.tcl:16
+    compatible struct::graph::op 0- {tcl {8.5 9}}         ;# struct/pkgIndex.tcl:1, vsatisfies … 8.5 9
+    requires struct::graph::op 0- {core tcl {8.6 9}}      ;# graphops.tcl:16, package require Tcl 8.6 9
     requires struct::graph::op 0- {struct::graph 0-}      ;# graphops.tcl:22, bare
     requires struct::graph::op 0- {struct::tree 0-}       ;# :23; four more rows like it
 }
@@ -160,18 +160,18 @@ library Tk {
 library itcl {
     versions 4.3.5
     alias Itcl                                            ;# pkgIndex.tcl:14
-    requires itcl 4- {Tk 8.6-9} -mode lazy -trigger {itcl::widget itcl::widgetadaptor}
+    requires itcl 4- {Tk {8.6 9}} -mode lazy -trigger {itcl::widget itcl::widgetadaptor}   ;# itclWidget.tcl:15
 }
 library file::home {
     versions 1
     provides file::home 1 file::home same -when {dialect tcl 9.0-}  ;# index only, no code
 }
 extend command file {
-    subcommand home { available file::home 1- -dialect {tcl 8.5-8.6} ; arity 0..1 }
-    subcommand tildeexpand { available file::home 1- -dialect {tcl 8.5-8.6} ; arity 1 }
+    subcommand home { available file::home 1- -dialect {tcl 8.5-9} ; arity 0..1 }       ;# try/pkgIndex.tcl: 8.x only
+    subcommand tildeexpand { available file::home 1- -dialect {tcl 8.5-9} ; arity 1 }
 }
 extend namespace oo::define {
-    command classmethod { available oo::util 1.2- -dialect {tcl 8.5-8.6} }
+    command classmethod { available oo::util 1.2- -dialect {tcl {8.5 9}} }   ;# ooutil.tcl:69, unguarded
 }
 }
 ```
@@ -181,15 +181,15 @@ extend namespace oo::define {
 ```rust
 // design sketch: these types are proposed in 331
 Library { id: "struct::graph::op", trains: [Train { name: "0", versions: {0.11.4} }],
-  compatible: [CompatibilityRow { library: 0-, dialect: tcl 8.5-9.2 }],
+  compatible: [CompatibilityRow { library: 0-, dialect: tcl {8.5 9} }],
   requires: [
-    Dependency { from: 0-, need: One(Core, 8.6-9.2), mode: Load, when: None, evidence: "graphops.tcl:16" },
+    Dependency { from: 0-, need: One(Core, {8.6 9}), mode: Load, when: None, evidence: "graphops.tcl:16" },
     Dependency { from: 0-, need: One(Library("struct::graph"), 0-), mode: Load, .. },
     Dependency { from: 0-, need: One(Library("struct::tree"), 0-), mode: Load, .. } ],
   provides: [], conflicts: [], provides_early: ∅ }
 ItemPath::Subcommand("file", "home") => Availability { providers: [
     ProviderRow { library: None, window: 9.0-, dialect: None },                    // core, file_.rs:350
-    ProviderRow { library: Some("file::home"), window: 1-, dialect: Some(tcl 8.5-8.6) } ] }
+    ProviderRow { library: Some("file::home"), window: 1-, dialect: Some(tcl 8.5-9) } ] }
 ```
 
 ### Resolution (302's steps 1, 2 and 4 change)
@@ -271,7 +271,7 @@ Codes are assigned with item 331c. Each message quotes the chain.
 | dependency conflict | a present version misses a `Load` range | `version conflict for package "B": have V, need R`, plus `L requires B R (evidence)` and the line that made B present |
 | circular dependency | a cycle without `provides-early` | `circular package dependency: attempt to provide L V requires L` |
 | guard below source | a guard admits a release the source's `requires core` rejects | catalogue lint at generation (struct::graph::op on 8.5) |
-| lazy target unavailable | a trigger is used where the environment cannot place the target | `itcl::widget needs Tk 8.6-9, which this environment cannot load` |
+| lazy target unavailable | a trigger is used where the environment cannot place the target | `itcl::widget needs Tk 8.6 9, which this environment cannot load` |
 | declared conflict | a `conflicts` row holds | the row's `-message` |
 | stale train (hint) | a bare dependency is met by an older train | `struct::graph::op loaded with struct::graph 1.2.2; tcllib ships 2.4.4` |
 
@@ -443,3 +443,9 @@ answer differently (`~` against the expanded path), which hover shows as a
 - **Rust comment:** `tcl-registry/src/model/tcllib.rs:968` says
   `struct::graph::op` "requires the 2.x train specifically". Its require is
   bare (`graphops.tcl:22`), and tclsh loads it with 1.2.2.
+
+## Review fixes (26 November 2026)
+
+- **G8.** Ranges translate the sources' requirement lists unchanged: `{tcl {8.5 9}}` (struct guard), `{core tcl {8.6 9}}` (graphops), `{Tk {8.6 9}}` (`itclWidget.tcl:15`, so Tk 9.0.4 satisfies it, matching the run below), `{tcl 8.5-9}` for `file::home`'s 8.x provider (its index provides an empty package on `9-`), and `{tcl {8.5 9}}` for `oo::util`'s `classmethod`, which `ooutil.tcl:69` defines on every release it loads on. `tcl spec check`'s whole-line lint (R1) flags rows like the old `8.5-8.6`.
+- **G10.** Facets select per `ProviderRow`; the two `file home` providers give a `Differs` hover, and a diagnostic needs failure under both (chapter 3).
+- **G2.** `extend namespace` holds `command` rows (chapter 2), so the `oo::define` block parses.

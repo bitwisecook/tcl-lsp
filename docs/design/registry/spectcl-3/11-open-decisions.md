@@ -14,13 +14,13 @@ decisions in chapter 1 are not reopened here.
 | D2 | The registry's consumer API: a `SpecRef<'r>` view, or a per-surface arena that materialises a `CommandSpec` on first lookup? (333 #2) | 333: owner | the arena first: 271 files outside the registry name `CommandSpec` today, and an arena keeps them compiling; a view type can replace it surface by surface once 307 is done | 406 |
 | D3 | Are the native-contract rows (`successful_handler`, `native_compilation`, `procedure_definition`) accepted from bundled images? (333 #3) | 333: yes, as `-native ID` from BuiltIn and BundledPack only | yes: without it iRules (8 files) and the stdlib cannot move to images | 403, 307 |
 | D4 | One lowering path: every pack an image? (333 #13) | 333: one path | one path; the in-memory image costs one compile per pack per process | 406 |
-| D5 | Vocabulary minors and forward reading (333 #15) | 333: `speclib NAME 3.N`; each word carries `since` and a `VocabularyClass` | as chapter 2: unknown newer words classified as in 2.x; a major other than 3 refused | 400 |
+| D5 | Vocabulary minors and forward reading (333 #15) | 333: `speclib NAME 3.N`; each word carries `since` and a `VocabularyClass` | as chapter 2: unknown newer words classified by scope and name as in 2.x; new flags take exactly one word; a minor never changes a word's meaning; a major other than 3 refused | 400 |
 | D6 | The equivalence and parity scope (333 #16, 332) | 332: every manifest word, over fixed points plus every bound a row names | 332's | 405, 309 |
 | D7 | Which facts are facetable (333 #7) | 333: the manifest marks them; the reader refuses the rest inside `versions` | chapter 3's list; identity rows (`alias_of`, `runtime_backing`, `implementation`) not facetable | 400 |
 | D8 | Which fields stay Rust-only, and so which libraries stay native under 307 (333 #8) | 333: spell each or mark it Rust-only and block that library's move | spell them all tier-gated (332b); Rust-only only for `native_lowering` and `dispatch_dependencies`, which only the Tcl core sets | 403, 307 |
 | D9 | The pack code spelling and its registration (333 #9, 319 Q2) | 333: `PACK/ID`, registered as `DiagCode::Pack(PackCodeId)` with a default severity and category | 333's; BuiltIn packs may keep stable built-in codes (`BPF001` as an alias of `bpf/unbounded-loop`) | 413 |
 | D10 | Is the `check` atom set closed after 337's additions? (333 #10) | 333: yes; a new atom needs a design note | yes | 413 |
-| D11 | The merge table per fact kind, and library ownership (333 #11) | 333: library rows from the owner only, prose by precedence, security by the floor, facets prepended | chapter 3's table, which is 333's plus "roles and arity need `-override`" | 409 |
+| D11 | The merge table per fact kind, and library ownership (333 #11) | 333: library rows from the owner only, prose by precedence, security by the floor, facets prepended | chapter 3's order-free table: the pack declaring `library L` owns it; set-valued facts select per pack and union; single-valued facts need `-override`; `extend` is additive; no `extend library` (R57, R61) | 409 |
 | D12 | Image tier-neutrality, and which images are trusted from disk (333 #12) | 333: tier-neutral, filtered at install; only bundled images from disk | 333's | 407 |
 | D13 | Is SpecTcl 3's reader the same component as 365's generic declaration reader? (365, and this task) | 365: settled by comparing 333's productions with the reader's checks | one component with two front tables: both read Tcl words with no substitution against a closed grammar and emit coded notices with spans; SpecTcl 3's own grammar becomes the first `document` the generic reader checks. Keep them separate only if the comparison shows a production the document model cannot state | 400, 453 |
 | D14 | `SSLICTL` codes into `DiagCode`, and Oracle Java folded into `openjdk`? (365) | 365: owner | `SSLICTL` codes become pack codes of the `sslictcl` library (D9); keep Oracle Java folded until a separate trust program is published | 455 |
@@ -29,10 +29,14 @@ decisions in chapter 1 are not reopened here.
 | D17 | When do the 1.x and 2.x shims start warning? (309) | 309: owner; not scheduled | no warning while any bundled or test pack is below 3; then warn on 1.x from the next minor release, and keep 2.x silent while programmed packs exist in the wild | 309 |
 | D18 | Does reader3 decode backslash escapes in quoted words, so any prose has a spelling? (332) | 332: settled by the 37 `hover` losses printing and reading back equal | decode in quoted words, keep braced words verbatim; the printer quotes prose that needs it | 400, 404 |
 | D19 | Wire `bpf-tcl-ir`'s semantic bridge, or delete it? (380) | 380: settled by whether its audit catches anything the recipe policy does not, over `tcl-fuzz`'s `bpf_diff` corpus | measure, and delete if it finds nothing | 464 |
-| D20 | 370's implied questions: the f5-tcl character model; whether a build overrides any grammar value; the tmsh build (Q11) | 370 has no open-questions section; it marks the f5-tcl `chars` column unmeasured, and says no build overrides a value today | keep `chars` unmeasured and abstaining until a probe; decide Q11 by 301's wordSize probe | 417, 427 |
+| D20 | 370's implied questions: the f5-tcl character model; whether a build overrides any grammar value; the tmsh build (Q11) | 370 had marked the f5-tcl `chars` column unmeasured | **resolved**: `chars` is `bmp-else-bytes`, measured under `tmm`, and a build override exists (`scan int_width tmm-long32 -build tmm`); Q11 is still decided by 301's wordSize probe | 417, 427 |
 | D21 | The iRules lab probes of 360: both-leg event order (Q13), the event set per release (Q14), the command × event matrix (Q15), what `drop`, `discard`, `reject` end (Q16), field lifetimes (Q17), profiles admitting HTTP events (Q18), implicit `tcp` (Q19) | 360: lab probes on 17.1, 17.5 and 21.1 | run them in that order; Q16 first, because the registry and the simulator disagree on `discard` | 442–447 |
 | D22 | The iApps and tmsh probes of 361: inventory (Q20), transactions (Q21), `f5.iapp` versions (Q22), return shapes (Q23), `tmsh mv` (Q24), `.app` folders (Q25) | 361: lab probes | Q20 and Q22 with Q12 in one session; until then mocks stay labelled unmeasured | 448–451 |
 | D23 | Error codes in iRules (Q26) | 392: lab probe | probe before 392d's f5-tcl forms | 392d |
+| D24 | Version-gate findings over a declared target range (review G11) | 392, 09: warn when a code test or form misses some release in the range | a separate **portability** class, opt-in, keyed to declared targets; warnings over uncertainty need every case to fail (chapter 3, R51) | 392c, 413 |
+| D25 | Error-code field types (review G15) | 09: argument roles; 392: types | a closed `FIELD-TYPE` set: `command`, `variable`, `integer`, `path`, `text` (R55) | 392a |
+| D26 | How a validator stays sound per switch (review A7) | 393: none | `refines … -switches LIST` allow-lists the switches; no list means no switch; refinement only for the call, `!call` and decomposed `&&`/`||` | 393e |
+| D27 | The origin of argument references (review G12) | three conventions in use | 0-based after the `CMDPATH`, options included; `NAME` for positional arguments after options; `argc` the same (R52) | 400, 413 |
 
 ## Other questions carried from the sources
 
@@ -133,3 +137,10 @@ flowchart LR
   d15["D15 f5 default"] --> f5items["427 to 435"]
   d21["D21 iRules probes"] --> f5irules["442 to 447"]
 ```
+
+## Review fixes (26 November 2026)
+
+- **G9, G15.** D11 records the order-free merge table and library ownership.
+- **G14.** D5 records the forward-reading rules.
+- **G11, G12, G15, A7.** D24–D27 record the decisions this review applied with the recommended option.
+- **Dialect fixer handoff (399f9915).** D20 resolved.

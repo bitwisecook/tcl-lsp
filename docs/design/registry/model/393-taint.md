@@ -127,7 +127,7 @@ Where origins attach:
 | result of the zero-argument form | `form get { result -origin client -colour path-prefixed }` | `TAINT_SOURCE_ZERO_ARGS`, the `only_flags` rule (`taint.rs:436-445`) |
 | a variable a command writes | `arg varName -writes -origin channel` | `TAINTS_VAR_WRITES` |
 | a callback substitution | `option -validatecommand -callback-origin {%P user}` | `callback_taint_inputs` (`spec.rs:483`) |
-| special variable | `variable env -origin env ; variable argv -origin argv` | `read_taint` (`special_vars.rs:348`) |
+| special variable | `variable env -kind Array -access ReadWrite -provider Environment -origin env` (and `argv` the same with `-kind Scalar -provider Interpreter -origin argv`) | `read_taint` (`special_vars.rs:348`) |
 | iRules connection field | `field http.request.uri … -origin client` (360) | `IRULES_TAINT_SOURCE_PREFIXES`, `TAINTED_REFS` |
 | channel read | `arg channelId -handle channel -reads` (391) | `gets`, `read` and `chan gets` source rows |
 | secret | `option -password -secret`, `header-class sensitive {authorization …}` | `credential_options`, `sensitive_headers`, `SENSITIVE_HTTP_HEADERS` (`taint.rs:593`) |
@@ -148,7 +148,7 @@ sink interp   { -origins any     -safe list-canonical -code T105 -severity warni
 sink regex    { -origins any     -safe regex-literal  -code T103 -severity info }
 sink numeric  { -origins any     -safe {}             -code T100 -severity warning }
 sink output   { -origins any     -safe crlf-free      -code T101 -severity warning -discloses }
-sink log      { -origins any     -safe crlf-free      -code {T101 iRules IRULE3003} -discloses }
+sink log      { -origins any     -safe crlf-free      -code {T101 f5-tcl IRULE3003} -discloses }
 sink header   { -origins any     -safe crlf-free      -code IRULE3002 -discloses }
 sink html     { -origins any     -safe html-escaped   -code IRULE3001 -discloses }
 sink redirect { -origins any     -safe {path-prefixed path-normalised} -code IRULE3004 }
@@ -157,20 +157,20 @@ sink sql      { -origins any     -safe sql.bound      -code T107 -severity warni
 
 - **`-safe`** lists colours, any one of which makes the value safe. It replaces the three masks and the `DiagCode` match. A pack can widen a core sink's `-safe` only by a colour that implies one already there, which keeps `security_floor` meaningful.
 - **`-discloses`** makes the sink fire on the `secret` origin with T108 ("secret reaches output"), whatever the colours.
-- **Severity and code** are per sink and per dialect (`-code {T101 iRules IRULE3003}` picks by dialect family), so the four iRules codes stop being strings on commands.
+- **Severity and code** are per sink and per dialect (`-code {T101 f5-tcl IRULE3003}` picks by dialect family; the first code is the default), so the four iRules codes stop being strings on commands.
 
 A command names the kind on the word that reaches it:
 
 ```spectcl
-command exec   { arg * -sink shell ; versions {core 8.4-} { } }
+command exec   { arg * -sink shell }
 command eval   { arg * -sink code }
 command apply  { arg func -sink code }                         ;# taint_code_sink_args {0}
 command socket { arg host -sink network ; arg port -sink network }
 command puts   { arg string -sink output }
 command {HTTP::header} { subcommand insert { arg name -sink header -safe+ irules.header-safe ; arg value -sink header } }
 command {interp eval} { arg * -sink interp }
-command {switch} { versions {core 9.1-} { arg string -sink numeric -when {present -integer} } }
-command {db eval} { arg sql -embedded sql -sink sql }           ;# 390 area D
+command {switch} { versions {core tcl 9.1-} { arg string -sink numeric -when {present -integer} } }
+handle sqlite3-db { kind command ; subcommand eval { arg sql -embedded sql -dialect sqlite -sink sql } }   ;# 390 area D
 ```
 
 ### Sanitisers, transforms and validators
@@ -180,21 +180,26 @@ command {uri::encode} { result -adds url-encoded ; arg 0 -double-encodes url-enc
 command {file join}   { result -adds path-joined }
 command {string map}  { result -adds crlf-free -when {native MappingDeletesCrlf} }
 command regsub        { result -adds regex-literal -when {native RegsubQuotesRegexMetacharacters} }
-command {string is}   { refines {arg end} -adds {shell-atom non-dash-prefixed crlf-free}
-                        -when {value {arg 1} in {integer digit alnum}} -on true }
-command regexp        { refines {arg 1} -adds-from-pattern {arg 0} -on true }
+command {string is}   { refines {arg end} -adds {shell-atom non-dash-prefixed crlf-free} \
+                            -when {all {present -strict} {value {arg 0} in {digit alnum}}} \
+                            -switches {-strict -failindex} -on true }
+command regexp        { arg exp ; arg string
+                        refines {arg string} -adds-from-pattern {arg exp} -switches {-nocase --} -on true }
 command {string length} { result -clean }                       ;# replaces is_sanitiser's Int rule
 ```
 
 - **`-adds`** is `taint_transform`; `-when {native ID}` is `taint_transform_when`. `native` is a new `check` atom that names a member of a closed Rust catalogue (`TaintTransformCondition::ALL`, `taint.rs:825`), so the two conditions keep their proofs and need no Tcl body.
-- **`refines … -on true|false`** is new: a validator adds colours to the named word's variable on the branch where the call returned true (or false). The analyser applies it at the `Terminator::Branch` that reads the call (`sink_warnings/branch_conditions.rs:45`), so `if {![regexp {^[a-z]+$} $x]} { error bad }` colours `$x` on the fall-through.
-- **`-adds-from-pattern`** reads a literal anchored pattern and maps its class to colours: `^[a-z]+$` gives `shell-atom crlf-free non-dash-prefixed`, `^[0-9]+$` the same, and an unanchored pattern gives nothing. The map is one table in the registry.
+- **`refines … -on true|false`** is new: a validator adds colours to the named word's variable on the branch where the call returned true (or false). The analyser applies it at the `Terminator::Branch` that reads the call (`sink_warnings/branch_conditions.rs:45`), so `if {![regexp {^[a-z]+$} $x]} { error bad }` colours `$x` on the fall-through. A validator is sound in three ways, each checked by worked example 7:
+  - **per class.** `string is integer -strict` is true for `-5`, ` 5`, `"5\n"` and `"\n5\n"` (and `1_000` on 9.1), so `integer` adds no colour. `digit` and `alnum` with `-strict` accept only letters or digits, so they add the three colours; without `-strict` the empty string passes, so the `-when` requires `-strict`.
+  - **per switch.** `-switches LIST` lists the switches with which the refinement holds; at a call with any other switch the refinement does not apply. `regexp -line {^[a-z]+$} "abc\nrm -rf"` returns 1 (and `-lineanchor` on Tcl), so `regexp` allows only `-nocase` and `--`. A row with no `-switches` applies only to calls with no switch.
+  - **per condition shape.** `Terminator::Branch` carries the whole condition. The refinement applies only when the condition is the call or `![call]`, or decomposes: the true arm of `A && B` refines by both A's and B's true results, and the false arm of `A || B` by both false results. Any other shape refines nothing, so `if {[string is digit -strict $x] || $force} {exec sleep $x}` keeps its T100, as Tcl runs that arm with `x="1; touch …"`.
+- **`-adds-from-pattern`** reads a literal pattern anchored with `^` and `$` and maps its class to colours: `^[a-z]+$` gives `shell-atom crlf-free non-dash-prefixed`, `^[0-9]+$` the same, and an unanchored pattern gives nothing. Without `-line` or `-lineanchor`, `$` matches only at the end of the string (`regexp {^[a-z]+$} "abc\nrm -rf"` is 0). The map is one table in the registry.
 - **`result -clean`** names fixed-width results. `is_sanitiser` stays only as the default for a row with no taint facts and a numeric `returns`.
 - **Numeric coercion** is the `numeric` sink, so `taint_numeric_coercion` becomes `arg … -sink numeric -when {present -integer}`.
 
 ```mermaid
 flowchart LR
-  src["x from gets stdin, origins channel"] --> test{"string is integer -strict x"}
+  src["x from gets stdin, origins channel"] --> test{"string is digit -strict x"}
   test -- "true" --> refined["x with shell-atom, crlf-free, non-dash-prefixed"]
   test -- "false" --> raw["x with no colour"]
   refined --> sink1["exec sleep x: shell sink, safe"]
@@ -215,9 +220,12 @@ its arguments' origins and keeps no colour (`shape_unproven`,
 | `set`, `return`, `upvar` targets | identity | built in |
 | `strcat`, `append`, `string cat`, `format` | per-colour `concat` | built in, reads `concat` |
 | `list`, `lappend`, `dict create` | element facts kept; the whole gains `list-canonical` | `result -elements-from {arg *} -adds list-canonical` |
-| `lindex`, `dict get`, `lassign`, `foreach` vars | the element's facts, or the container's when the key is unknown | `result -element-of {arg 0}` |
+| `lindex`, `dict get`, `lassign` | the element's facts, or the container's when the key is unknown | `result -element-of {arg 0}` |
+| `foreach` and `lmap` variables, any stride and any number of lists | each variable gets the join (origins union, colours intersect) over every element of the lists it iterates, or the container's fact when element facts are unknown; `lmap`'s result is a list of the body's results and gains `list-canonical` | built in |
+| `dict for {k v}` | `k` gets the join over the dict's keys and `v` over its values, or the container's fact | built in |
 | arrays | per literal key, else the array's join (391's bounded rule) | built in |
-| `subst` | origins of the template and of every variable it can read; colours by `concat`, then drop `crlf-free` if backslashes are on | `result -from {arg end} -unescapes` |
+| `subst` of a literal template | origins of every variable and command it reads; colours by `concat`, then drop `crlf-free` if backslashes are on | `result -from {arg end} -unescapes` |
+| `subst` of a non-literal template | origins of the template and of every variable in the frame; **no colour**, whatever the switches: the template can name any variable, whose value can hold a newline (worked example 7) | built in |
 | handle reads | origin from the handle type (391) | `arg channelId -reads` |
 | error messages | `catch`'s message variable gets the origins of the words the raising command saw | `errors -message-from {arg *}` (392) |
 
@@ -228,7 +236,7 @@ The last row matters: `catch {open $userPath} m` puts `$userPath` into `m`, and
 
 `ProcTaintSummary` (`taint_interproc.rs:185`) runs the body once per parameter
 per `TaintBasis`, 17 runs each. With an open set that does not scale. The
-summary becomes a gen/kill transfer per parameter:
+summary becomes a gen/kill transfer per parameter, and per parameter and sink:
 
 ```rust
 // design sketch: proposed in this doc
@@ -236,22 +244,30 @@ ProcTaintSummary {
     returns: TaintTransfer { base: TaintFact::CLEAN,
         from_params: &[ParamTransfer { param: 0, passes_origins: true,
                                        keeps: ColourSet::ALL, adds: ColourSet::of(&["crlf-free"]) }] },
-    param_sinks: &[(0, SinkKindId::SHELL)],                 // entry taint reaching a sink unsanitised
+    param_sinks: &[ParamSink { param: 0, sink: SinkKindId::SHELL,       // the transfer from entry to the sink
+                               keeps: ColourSet::ALL, adds: ColourSet::EMPTY }],
     validates: &[(0, OnResult::True, ColourSet::of(&["shell-atom"]))],   // a predicate proc
 }
 ```
 
-`keeps` and `adds` are computed by seeding the parameter with "all colours"
-and with "no colour" (two runs, not 17). The same shape is a pack row, so a
-library proc the analyser can't read is declared:
+`keeps` and `adds` come from **one walk**. The walk carries, for each
+parameter, a transfer `x ↦ (x ∩ K) ∪ G` in place of a fact, with `K` and `G`
+closed under `implies` (so the result of a closed `x` stays closed). Transfers
+compose, and the join of two transfers is a transfer:
+`(x∩K1 ∪ G1) ∩ (x∩K2 ∪ G2) = x∩((K1∩K2) ∪ (K1∩G2) ∪ (G1∩K2)) ∪ (G1∩G2)`.
+So a body visit is one walk, as the integration design's one-walk rule
+requires, and the summary is the transfer at the return and at each sink.
+`param_sinks` keeps the transfer to the sink, not only its kind, so a caller
+applies it to the argument's own colours and checks the sink's `-safe`: a
+caller passing a `shell-atom` value into `p` draws no T100. The same shape is
+a pack row, so a library proc the analyser can't read is declared:
 `command mylib::clean { result -from {arg 0} -adds crlf-free }`.
 
 ```mermaid
 flowchart LR
-  callee["proc oneline s: return string map CRLF s"] --> run1["seed s with all colours"]
-  callee --> run2["seed s with no colour"]
-  run1 --> keeps["keeps: every colour"]
-  run2 --> adds["adds: crlf-free"]
+  callee["proc oneline s: return string map CRLF s"] --> walk["one walk: s carries the transfer x to x"]
+  walk --> keeps["keeps: every colour"]
+  walk --> adds["adds: crlf-free"]
   keeps --> summary["ParamTransfer for s"]
   adds --> summary
   summary --> caller["caller: puts oneline x"]
@@ -267,7 +283,7 @@ wired at `:347`). It becomes a `-when` predicate on the sink row:
 ```spectcl
 command subst {
     arg string -sink code -when {not {all {present -nocommands} {present -novariables}}}
-    versions {core 9.1-} {
+    versions {core tcl 9.1-} {
         arg string -sink code -when {any {present -commands} {present -variables}
                                          {not {any {present -backslashes} {present -nocommands}}}}
     }
@@ -564,6 +580,48 @@ The warning is right for the wrong reason. Under this design, `variable env
 element the `secret` origin, and `puts` is `-discloses`, so T108 reads "secret
 from `env(API_TOKEN)` reaches `puts`".
 
+### 7. Validators that are not
+
+**Source:**
+```tcl
+foreach v [list -5 " 5" "5\n" "\n5\n" "12\n" 0x1F 1_000 +3 "" 007] {
+  set i [string is integer -strict $v]; set d [string is digit -strict $v]; set a [string is alnum -strict $v]
+  puts [format "%-8s integer=%s digit=%s alnum=%s" [string map {"\n" \\n} "<$v>"] $i $d $a]
+}
+puts "regexp -line: [regexp -line {^[a-z]+$} "abc\nrm -rf"]"
+puts "regexp -lineanchor: [catch {regexp -lineanchor {^[a-z]+$} "abc\nrm -rf"} r] $r"
+puts "regexp plain: [regexp {^[a-z]+$} "abc\nrm -rf"]"
+set x "1; touch /tmp/g1-pwn"; set force 1
+if {[string is integer -strict $x] || $force} { puts "or-branch ran with x=<$x>" }
+set t [string map {"\r" "" "\n" ""} {$x}]
+set x "A\nB"
+puts "subst: [string map {"\n" \\n} [subst -nobackslashes -nocommands $t]]"
+```
+
+**Result:**
+```text
+$ tclsh8.6 validate.tcl      (tclsh9.1 the same, except 1_000 is an integer there)
+<-5>     integer=1 digit=0 alnum=0
+< 5>     integer=1 digit=0 alnum=0
+<5\n>    integer=1 digit=0 alnum=0
+<\n5\n>  integer=1 digit=0 alnum=0
+<12\n>   integer=1 digit=0 alnum=0
+<0x1F>   integer=1 digit=0 alnum=1
+<1_000>  integer=0 digit=0 alnum=0
+<+3>     integer=1 digit=0 alnum=0
+<>       integer=0 digit=0 alnum=0
+<007>    integer=1 digit=1 alnum=1
+regexp -line: 1
+regexp -lineanchor: 0 1
+regexp plain: 0
+or-branch ran with x=<1; touch /tmp/g1-pwn>
+subst: A\nB
+$ tmp/jimtcl-oracle/jimsh validate.tcl
+(as tclsh8.6, except regexp -lineanchor: 0 0)
+```
+
+Every line breaks one of the old rules. `integer` accepts a leading `-`, white space and a newline, so it proves none of `non-dash-prefixed`, `shell-atom` or `crlf-free`; `digit` and `alnum` with `-strict` do. `-line` lets `^…$` match one line of a multi-line value. The `||` arm runs with a value no validator passed. And `$t` is `crlf-free`, yet `subst` of it brings in `$x`'s newline, so a non-literal template keeps no colour. Under this design each of these keeps its T100 or T101.
+
 ## Taint at run time: the VM and the runtime
 
 No design under `docs/design/runtime/`, nor `compiler/vm-tcl-9-1.md`,
@@ -645,8 +703,8 @@ raises. The analyser reports only W101: the T100 is lost through `foreach`
 - **393b. Sink kinds.** `CoreSinkKind`, `SinkRow` and the `sink` form; every `taint_*sink*` field becomes a row. Done when `sink_colour_mitigated`, `T102_SAFE`, `CRLF_SAFE` and `REDIRECT_SAFE` are gone and the T/IRULE corpus reports the same set.
 - **393c. Origins and secrets.** Split `TAINTED` into origins; `secret`, `header-class` and T108. Done when example 6 reports T108, and W310 reads `-secret` rows instead of `credential_options`.
 - **393d. Spelling and parity.** The 3.0 forms, the 2.x shim and 332's round-trip for `TaintRow`. Done when every shipped spec round-trips and `body_statements.rs` has no `taint_` field arm.
-- **393e. Validators.** `refines`, `-adds-from-pattern`, and refinement at `Terminator::Branch`. Done when `if {[string is integer -strict $x]} { exec sleep $x }` and the `regexp` guard draw no T100.
-- **393f. Summaries.** Gen/kill `ProcTaintSummary` and pack-declared transfers. Done when example 4 draws no T101, and the explorer's taint view lists each proc's summary.
+- **393e. Validators.** `refines`, `-adds-from-pattern`, `-switches`, and refinement at `Terminator::Branch` for the call, `!call`, and decomposed `&&`/`||` shapes. Done when `if {[string is digit -strict $x]} { exec sleep $x }` and the anchored `regexp` guard draw no T100, and worked example 7's `integer`, `-line`, `||` and `subst` cases still draw it.
+- **393f. Summaries.** Gen/kill `ProcTaintSummary` computed in one walk, with per-sink transfers, and pack-declared transfers. Done when example 4 draws no T101, and the explorer's taint view lists each proc's summary.
 - **393g. Gates.** `-sink … -when` with `SinkWhen`; delete `taint_sink_gate`. Done when `TaintSinkGate` is gone from `pack_hooks.rs` and example 3 draws T100.
 - **393h. Optimiser barrier.** A test that compares sink facts before and after every rewrite over the taint corpus. Done when it runs in `make test` and passes.
 - **393i. Package and F5 sinks.** 390d's `-sink sql`, 360's field origins, 391's channel-read origins. Done when example 2 with a real `sqlite3` spec draws T107, and `rg 'IRULES_TAINT_SOURCE_PREFIXES|TAINTED_REFS' rust` is empty.
@@ -690,5 +748,13 @@ puts $x'` reports zero tainted variables with `"complete": true`.
 8. **A proc sanitiser is not recognised.** Example 4.
 9. **`foreach` drops taint.** `--source 'set c [lindex $argv 0]; foreach s [list $c] { eval $s }'` reports only W101; `eval [lindex $l 0]` reports T100.
 10. **Validators are not recognised.** `--source 'set x [gets stdin]
-if {[string is integer -strict $x]} { exec sleep $x }'` reports T100.
+if {[string is digit -strict $x]} { exec sleep $x }'` reports T100 at 2:48, and so does the guard `[regexp {^[0-9]+$} $x]`. (With `integer` the T100 is right: worked example 7.)
 11. **iRules getters are sources in every dialect.** `is_taint_source` discards its dialect (`taint.rs:381`), as its doc comment says (`:368-373`); 393i scopes field origins to the iRules library.
+
+## Review fixes (26 November 2026)
+
+- **A7, G16.** `integer` adds no colour; `digit` and `alnum` need `-strict`; `-switches` makes validators sound per switch; refinement only for the call, `!call` and decomposed `&&`/`||`; a non-literal `subst` template drops every colour; `foreach`, `lmap` and `dict for` take the join over elements; worked example 7 is a real run.
+- **A13.** Summaries are one walk over gen/kill transfers, whose join is closed; `param_sinks` carries per-sink transfers so callers check `-safe`.
+- **G12.** `{string is}` refines `{arg end}` with the class at `{arg 0}`; `regexp` names `{arg exp}` and `{arg string}`.
+- **G15.** Sink codes pick by dialect family (`f5-tcl`); `variable` carries its required flags and `-provider`.
+- **R13.** `db eval` is a `subcommand` of the `sqlite3-db` handle.

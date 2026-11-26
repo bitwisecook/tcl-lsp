@@ -73,7 +73,7 @@ errorclass POSIX {
     code ENOENT -fields {message} -message {no such file or directory}
     code EACCES -fields {message} -message {permission denied}
     code EISDIR -fields {message} -message {illegal operation on a directory}
-    …                                     ;# generated from the errno table, per platform
+    # the rest is generated from the errno table, per platform
 }
 errorclass TCL {
     code {LOOKUP COMMAND} -fields {name:command}      ;# available core 8.6-
@@ -81,6 +81,11 @@ errorclass TCL {
     code {LOOKUP DICT}    -fields {key}               ;# available core 8.6-
     code WRONGARGS                                    ;# available core 8.6-
     code {VALUE INDEX}                                ;# available core 8.6-
+    code {LIMIT STACK}                                ;# implicit at every call, 8.6-
+    code {LIMIT COMMANDS}                             ;# implicit at every call, 8.6-
+    code {READ VARNAME}                               ;# implicit at every read, 8.6-
+    code {WRITE VARNAME}                              ;# implicit at every write, 8.6-
+    code {OPENMODE INVALID}                           ;# open on 9.1; NONE on 8.6
 }
 errorclass ARITH { code DIVZERO -fields {message} ; code DOMAIN -fields {message} ; code IOVERFLOW -fields {message} }
 errorclass CHILDSTATUS { -fields {pid:integer status:integer} }
@@ -116,17 +121,19 @@ flowchart TB
   arith --> domain["ARITH DOMAIN"]
 ```
 
-Each node carries release windows, so the lattice depends on the positioned context. Under a target range of 8.4–9.1, an unknown command raises `NONE` on 8.4 and 8.5 and `TCL LOOKUP COMMAND` on 8.6 and later, and the analyser keeps both:
+Each node carries release windows, so the lattice depends on the positioned context. Under a target range of 8.4–9.1, `lindex` with a bad index raises `NONE` on 8.4 and 8.5 and `TCL VALUE INDEX` on 8.6 and later, and the analyser keeps both:
 
 ```mermaid
 flowchart LR
-  call["call to an unknown command"] --> ctx{"target range (308)"}
+  call["lindex with a bad index"] --> ctx{"target range (308)"}
   ctx -- "8.4-8.5" --> n1["raises NONE"]
-  ctx -- "8.6-9.1" --> n2["raises TCL LOOKUP COMMAND name"]
-  ctx -- "8.4-9.1" --> both["raises NONE on 8.4-8.5, TCL LOOKUP COMMAND on 8.6-"]
+  ctx -- "8.6-9.1" --> n2["raises TCL VALUE INDEX"]
+  ctx -- "8.4-9.1" --> both["raises NONE on 8.4-8.5, TCL VALUE INDEX on 8.6-"]
   ctx -- "jim" --> n3["raises NONE"]
-  both --> warn["a test for TCL LOOKUP COMMAND alone warns: it misses 8.4-8.5"]
+  both --> port["declared targets: a test for TCL VALUE INDEX alone is a portability finding"]
 ```
+
+An unknown command is different: it raises `Any`, because an `unknown` proc decides the code (worked example 2).
 
 ### What raises what
 
@@ -135,22 +142,73 @@ Commands declare what they can raise with `throws`, which can depend on argument
 ```spectcl
 command open   { throws {POSIX} }
 command exec   { throws {CHILDSTATUS} {CHILDKILLED} {CHILDSUSP} {POSIX} }
-command {dict get} { throws {TCL LOOKUP DICT} -when {argc >= 3} }
+command {dict get} { throws {TCL LOOKUP DICT} -when {argc >= 2} }
 command expr   { throws {ARITH} }
-default        { throws {TCL WRONGARGS} -on wrong-args ; throws {TCL LOOKUP COMMAND} -on unknown-command }
-command error  { throws {arg 3} -default NONE }     ;# the code is the third argument
-command throw  { throws {arg 1} }                    ;# available core 8.6-
+default        { throws {TCL WRONGARGS} -on wrong-args }     ;# unioned into every command
+command error  { throws {arg 2} -default {NONE} }   ;# the code is the third argument word
+command throw  { throws {arg 0} }                    ;# available core 8.6-
+command {string length} { throws -complete core tcl 8.6- }
 ```
+
+Argument references count from 0 after the command path (chapter 2's `ARGREF`): `error message info code` has the code at `{arg 2}`.
+
+**Sets are open unless claimed complete.** A `throws` row lists what a command may raise; it does not say that is all. `open` declares `{POSIX}`, but tclsh 9.1 raises `TCL OPENMODE INVALID` for a bad mode and `TCL VALUE NUMBER` for a bad permission word (8.6: `NONE` and `TCL VALUE INTEGER`). So a command's set is closed only when it says `throws -complete RANGE`, and a body's set is closed only when every call in it is. Every set also carries the implicit codes, whatever the rows say:
+- `TCL LIMIT` at any call: `proc r {n} {r [incr n]}; catch {r 0}` gives `TCL LIMIT STACK`, and an `interp limit` gives `TCL LIMIT COMMANDS`, which a `catch` inside the limited interpreter cannot stop;
+- `TCL WRITE VARNAME` at a variable write: `array set a {k 1}; catch {set a 1}`, or a write trace that fails (its own code is replaced);
+- `TCL READ VARNAME` at a read (an array read as a scalar, a failing read trace) and `TCL LOOKUP VARNAME` at a read not proved set.
+
+On 8.4 and 8.5 these are all `NONE`, except that on 8.5 a failing read or write trace passes its own code through (`TDBC X` in the run below); Jim 0.84 raises `NONE`.
+
+**Source:**
+```tcl
+array set a {k 1}
+puts "write: [catch {set a 1} m] [lrange $::errorCode 0 2]"
+puts "read:  [catch {set nosuch} m] [lrange $::errorCode 0 2]"
+proc r {n} {r [incr n]}
+puts "limit: [catch {r 0} m] [lrange $::errorCode 0 2]"
+set v 1
+proc tr {args} {error boom {} {TDBC X}}
+trace add variable v read tr
+puts "read trace: [catch {set v} m] [lrange $::errorCode 0 2]"
+```
+
+**Result:**
+```text
+$ tclsh8.6 implicit.tcl          (tclsh9.0 and tclsh9.1 print the same)
+write: 1 TCL WRITE VARNAME
+read:  1 TCL LOOKUP VARNAME
+limit: 1 TCL LIMIT STACK
+read trace: 1 TCL READ VARNAME
+$ tclsh8.5 implicit.tcl
+write: 1 NONE
+read:  1 NONE
+limit: 1 NONE
+read trace: 1 TDBC X
+$ tclsh8.4 implicit.tcl
+write: 1 NONE
+read:  1 NONE
+limit: 1 NONE
+read trace: 1 NONE
+$ ./target/debug/tclvm implicit.tcl
+write: 1 TCL WRITE VARNAME
+read:  1 TCL LOOKUP VARNAME
+limit: 1 NONE
+read trace: 1 TCL READ VARNAME
+```
+
+The VM's `limit: 1 NONE` is a third VM bug beside the two in the table above: its stack-depth error carries no `TCL LIMIT STACK`.
 
 Handle operations (391) declare theirs on the handle type's subcommands, so `$stmt execute` raises `TDBC …`.
 
-User code raises through `error`, `throw`, and `return -code error -errorcode …`. A literal code is a known pattern; a computed one is `Any`. Each proc's summary records the set it can raise, the same way 391 records the handle types a proc returns. A call to a proc raises its summary's set; a call to an unknown command raises `Any`.
+User code raises through `error`, `throw`, and `return -code error -errorcode …`. A literal code is a known pattern; a computed one is `Any`. There is no default row for an unknown command: a user `unknown` proc raises whatever it likes (`MYAPP NOCMD` in worked example 2, on every tclsh, Jim and tclvm), so such a call raises `Any`. Each proc's summary records the set it can raise, the same way 391 records the handle types a proc returns. A call to a proc raises its summary's set; a call to an unknown command raises `Any`.
 
 The same summary records the **completion codes** a body can produce, beside the error set:
 - 0 (ok), 1 (error), 2 (return), 3 (break) and 4 (continue);
 - any custom `return -code N`.
 
-`catch`'s result is one of those codes.
+`catch`'s result is one of those codes. Two constructs move codes between frames, and the summary follows both:
+- **`return -level N`.** `return -level 2 -code error` completes the proc's call with code 2 (return), and the error appears one frame further up: `catch {r}` in the caller gives 2, and the caller's own caller sees the error. A summary records a `(level, code)` pair for each such return, and a call site lowers the level by one.
+- **`finally`.** An error in a `finally` clause replaces the body's outcome: the error set of `try … finally` is the body's and handlers' set (when the `finally` can complete normally) joined with the `finally`'s own set, and the replaced code survives only in `-during` (worked example 6).
 
 Summaries carry error sets across calls. Here `t` calls `fetch`, which calls `open` and `expr`:
 
@@ -165,7 +223,7 @@ sequenceDiagram
   F-->>T: summary raises POSIX and ARITH, completion 0 or 1
   T->>T: trap POSIX ENOENT matches a sub-pattern: live
   T->>T: trap ARITH DIVZERO matches a sub-pattern: live
-  T->>T: trap TDBC matches nothing in the set: dead arm, warning
+  T->>T: trap TDBC matches no known pattern, but the set is open: no verdict
 ```
 
 
@@ -173,7 +231,7 @@ sequenceDiagram
 
 At `catch BODY ?m? ?o?` the analyser knows:
 - **the completion codes,** so the result of `catch` has a value domain (`{0 1}` for most bodies, `{0 1 3}` for a body that can `break`);
-- **the error set,** a set of code patterns with `Must`/`May` certainty, plus `Other` when any call raises `Any`;
+- **the error set,** the code patterns the body may raise, with the implicit codes, plus `Other` unless every call claims `throws -complete` (there is no `Must` pattern: the body may succeed);
 - **the options dict's shape,** whose keys depend on the release (above), with `-errorcode` typed by the error set;
 - **`$::errorCode`,** which after the `catch` holds the same type as `-errorcode`.
 
@@ -196,11 +254,15 @@ puts [r /nonexistent/x]
 CatchFacts {
     site: Span(17..39),
     completion: CodeSet::of(&[0, 1]),
-    errors: ErrorSet { patterns: &[ErrorPattern(&["POSIX"])], other: false, certainty: Must },
+    errors: ErrorSet { patterns: &[ErrorPattern(&["POSIX"]), ErrorPattern(&["TCL", "WRONGARGS"]),
+                                   ErrorPattern(&["TCL", "LIMIT"]), ErrorPattern(&["TCL", "READ", "VARNAME"]),
+                                   ErrorPattern(&["TCL", "LOOKUP", "VARNAME"])],
+                       other: true },   // open has no throws -complete
     options_keys: OptionKeys::since(Release::Tcl(8, 6)),   // includes -errorstack
 }
 // the flow from $o
-ValueFact { at: "lindex [dict get $o -errorcode] 1", domain: Domain::FieldOf("POSIX", 1) }  // an errno name
+ValueFact { at: "lindex [dict get $o -errorcode] 1",
+            domain: Domain::FieldOf("POSIX", 1).or_unknown() }  // an errno name when the class is POSIX
 ```
 
 **Bytecode (tclsh 9.1.0):**
@@ -234,7 +296,7 @@ $ tclsh9.1 r.tcl
 ENOENT
 ```
 
-The bytecode shows why the type must come from facts. `pushReturnOpts` builds a plain dict, and `listIndexImm 1` reads a plain list, so nothing at run time says "errno name". The analyser can say it, because `open` declares `throws {POSIX}` and `POSIX`'s second field is an errno.
+The bytecode shows why the type must come from facts. `pushReturnOpts` builds a plain dict, and `listIndexImm 1` reads a plain list, so nothing at run time says "errno name". The analyser can say it for the `POSIX` member, because `open` declares `throws {POSIX}` and `POSIX`'s second field is an errno; the set is open, so the domain also admits unknown values, and a comparison against a non-errno word is never "cannot match".
 
 ```mermaid
 flowchart LR
@@ -252,14 +314,14 @@ flowchart LR
 | Condition | Severity | Example |
 |---|---|---|
 | A `trap` arm, `switch` arm or comparison that cannot match | warning | `trap {TDBC}` around a body that raises only `POSIX`; `if {[lindex $::errorCode 0] eq "ARITH"}` after `open` |
-| A code that this release never raises | warning | `trap {TCL LOOKUP COMMAND}` with a target range that includes 8.4 or 8.5, where an unknown command raises `NONE` |
-| An options key that this release lacks | warning | `dict get $o -errorstack` on 8.5 |
-| A form this dialect lacks | error | `catch BODY m o` on 8.4; `try`/`throw` before 8.6; `error m i CODE` on Jim |
-| Re-raising loses the code | information | `error $m` inside a handler, where `return -options $o $m` keeps the code |
+| A code that a declared target never raises | portability (chapter 3) | `trap {TCL VALUE INDEX}` with declared targets that include 8.4 or 8.5, where `lindex` raises `NONE` |
+| An options key that the resolved release lacks | warning; portability when only some declared targets lack it | `dict get $o -errorstack` on 8.5 |
+| A form the resolved dialect lacks | error; portability when only some declared targets lack it | `catch BODY m o` on 8.4; `try`/`throw` before 8.6; `error m i CODE` on Jim |
+| Re-raising loses the code | information | `error $m` inside a handler whose body may raise a known code other than `NONE`, where `return -options $o $m` keeps the code; never when the only member is `Other` |
 | Matching the message instead of the code | information, with a fix | `string match "*no such file*" $m` when the body's set has `POSIX ENOENT`; the code action rewrites to a code test (or `try … trap` on 8.6+) |
 | `catch` result never read, and the body can raise a declared non-`NONE` code | information, off by default | a project policy (390h) can raise it |
 
-As in 391, `Other` (anything unknown) never produces a "cannot match" warning. Only a fully known error set does.
+As in 391, `Other` (anything unknown) never produces a "cannot match" warning. Only a complete error set does: every call claims `throws -complete` for the context. Warnings over uncertainty need every case to fail; a failure on some declared target is the opt-in portability class (chapter 3).
 
 ## Other consumers
 
@@ -271,7 +333,7 @@ As in 391, `Other` (anything unknown) never produces a "cannot match" warning. O
 - **Code actions.** Rewrite a `catch` plus an `if`/`switch` on `-errorcode` into `try … trap … on error` when the target range is 8.6 or later.
 - **Optimiser.**
   - Drop `trap` arms that are proven dead.
-  - Where the body's completion codes are only `{0}`, `catch` is the constant `0` and its handler is dead. That needs a proof that the body cannot fail; the proof includes wrong-args, so it holds only when every call is fully known.
+  - Where the body's completion codes are only `{0}`, `catch` is the constant `0` and its handler is dead. That needs a proof that the body cannot fail. Every call can raise `TCL LIMIT` and every variable access its implicit codes, so the fold applies only to a body with no calls and no variable access.
 - **Engines and conformance.** The `errorclass` rows are the single table the VM and the runtime raise from, replacing the per-subsystem `Native*ErrorCode` enums. The conformance area runs every declared code of every command on tclsh 8.4–9.1, jimsh and both engines. The table above already found two VM bugs: `open` raises `NONE`, and `exec false` succeeds.
 - **iRules.** f5-tcl uses the 8.4 forms: `catch` with `?varName?` only, and no `try`. A failed iRules command aborts the rule. Which error codes the appliance sets, and whether `$::errorCode` is readable in a rule, are new F5 question Q26.
 - **Explorer and MCP.** A `raises` view per proc and per `catch` site.
@@ -309,10 +371,12 @@ foreach p {/nonexistent/x /tmp/e39x-empty} {
 // design sketch
 ProcSummary { name: "::fetch",
     raises: ErrorSet { patterns: &[ErrorPattern(&["POSIX"]), ErrorPattern(&["ARITH"]),
-                                   ErrorPattern(&["TCL", "WRONGARGS"])],   // from the default rows
-                       other: false, certainty: May },
+                                   ErrorPattern(&["TCL", "WRONGARGS"]),   // from the default rows
+                                   ErrorPattern(&["TCL", "LIMIT"]),       // implicit, every call
+                                   ErrorPattern(&["TCL", "WRITE", "VARNAME"])],  // set f, set n
+                       other: true },          // open, read, file size and close claim no throws -complete
     completion: CodeSet::of(&[0, 1]) }
-TrapArm { pattern: &["TDBC"], live: false }   // reported: no member of the set has prefix TDBC
+TrapArm { pattern: &["TDBC"], live: Unknown }  // not reported: the set is open
 ```
 
 **Bytecode (tclsh 9.1.0)**, for the same `try` in a proc. Each arm is a `dictGet` of `-errorcode` and then an `errorPrefixEq`:
@@ -342,30 +406,31 @@ $ ./target/debug/tclvm e1.tcl
 couldn't open "/nonexistent/x": no such file or directory
 ```
 
-The analyser reports the `TDBC` arm as dead. It reports `try` itself as an error under a target range that includes 8.5. The VM's failure is the `open` error-code bug: `open` raises `NONE`, so the `POSIX ENOENT` arm never matches.
+The analyser does **not** report the `TDBC` arm. It is dead in this run, but `open` raises codes beyond its `{POSIX}` row, so `fetch`'s set is open, and an open set never makes an arm dead. Hover on the `try` lists the known patterns and "others". A dead-arm warning needs `throws -complete` on every call in the body: `try {string length $s} trap {POSIX} {} {…}` is reported, because `string length` claims a complete set and `$s` adds only the implicit variable codes. With declared targets that include 8.5, `try` itself is a portability finding. The VM's failure is the `open` error-code bug: `open` raises `NONE`, so the `POSIX ENOENT` arm never matches.
 
 ### 2. A code test that misses older releases
 
 **Source:**
 ```tcl
-proc lookup {} {
-    if {[catch {nosuchcmd} m]} {
-        if {[lrange $::errorCode 0 2] eq {TCL LOOKUP COMMAND}} { return "unknown command" }
+proc pick {l i} {
+    if {[catch {lindex $l $i} m]} {
+        if {[lrange $::errorCode 0 2] eq {TCL VALUE INDEX}} { return "bad index" }
         return "other: $::errorCode"
     }
+    return $m
 }
-puts [lookup]
+puts [pick {a b} x]
 ```
 
 **Bytecode (tclsh 9.1.0):**
 ```text
   Command 5: "lrange $::errorCode 0 2..."
-    (50) push 2 	# "::errorCode"
-    (55) loadStk 
-    (56) listRangeImm 0 2 
-    (65) push 3 	# "TCL LOOKUP COMMAND"
-    (70) streq 
-    (71) jumpFalse +25 	# pc 96
+    (42) push 1 	# "::errorCode"
+    (47) loadStk 
+    (48) listRangeImm 0 2 
+    (57) push 2 	# "TCL VALUE INDEX"
+    (62) streq 
+    (63) jumpFalse +16 	# pc 79
 ```
 
 **Result:**
@@ -373,10 +438,23 @@ puts [lookup]
 $ tclsh8.4 e2.tcl                (tclsh8.5 and jimsh 0.84 print the same)
 other: NONE
 $ tclsh8.6 e2.tcl                (tclsh9.1 and tclvm print the same)
-unknown command
+bad index
 ```
 
-The analyser follows `$::errorCode` from the `catch` into `lrange … 0 2` and the `streq`. The comparison can be true only on 8.6 and later, so under a target range of 8.4–9.1 it warns: "the error code is `NONE` on 8.4–8.5; this test misses those releases".
+The analyser follows `$::errorCode` from the `catch` into `lrange … 0 2` and the `streq`. The comparison can be true only on 8.6 and later. With declared targets of 8.4–9.1 the portability class reports "the error code is `NONE` on 8.4–8.5 and Jim; this test misses those releases". Without declared targets nothing is reported, because some case succeeds.
+
+The same test after an unknown command is never reported, on any range. An unknown command raises `Any`, because an `unknown` proc decides the code:
+
+```tcl
+proc unknown {args} { return -code error -errorcode {MYAPP NOCMD} "no $args" }
+catch {nosuchcmd} m
+puts $::errorCode
+```
+
+```text
+$ tclsh8.4 e_unk.tcl             (tclsh8.5, 8.6, 9.1, jimsh and tclvm print the same)
+MYAPP NOCMD
+```
 
 ### 3. Re-raising loses the code
 
@@ -468,6 +546,44 @@ wrong # args: should be "catch command ?varName?"
 
 `return -code error -errorcode` is the portable spelling for 8.5 and later, including Jim. On Jim, the analyser reports `error`'s third argument as a wrong-args error, and the summary of `f` raises `MYAPP E1` on every dialect.
 
+### 6. `return -level` and `finally` move codes
+
+**Source:**
+```tcl
+proc r {} { return -level 2 -code error -errorcode {DEEP} deep }
+proc mid {} { set rc [catch {r} m o]; return "mid: rc=$rc -code=[dict get $o -code] ec=[dict get $o -errorcode]" }
+proc mid2 {} { r; return notreached }
+puts [mid]
+puts "top: rc=[catch {mid2} m o] ec=[dict get $o -errorcode]"
+```
+
+```tcl
+set rc [catch {
+    try { error a {} {ORIG X} } finally { error f {} {FIN X} }
+} m o]
+puts "rc=$rc ec=[dict get $o -errorcode] during=[dict get $o -during -errorcode]"
+```
+
+**Bytecode (tclsh 9.1.0):** `r` compiles to one instruction carrying the level:
+```text
+  Command 1: "return -level 2 -code error -errorcode {DEEP} deep "
+    (0) push 0 	# "deep"
+    (5) push 1 	# "-errorcode DEEP"
+    (10) returnImm +1 2 
+    (19) done 
+```
+
+**Result:**
+```text
+$ tclsh8.6 lvl.tcl               (tclsh8.5, tclsh9.1 and tclvm print the same)
+mid: rc=2 -code=1 ec=DEEP
+top: rc=1 ec=DEEP
+$ tclsh8.6 fin.tcl               (tclsh9.1 and tclvm print the same)
+rc=1 ec=FIN X during=ORIG X
+```
+
+`r`'s summary records `(level 2, error {DEEP})`. At `catch {r}` in `mid` the completion set is `{2}`, not `{1}`, so a `catch` that tests for 1 misses it; at `mid2`'s call the level is spent and the caller sees `error {DEEP}`. The `try … finally` raises `FIN X`, and `ORIG X` survives only under `-during`. Jim keeps no `-errorcode` in `mid`'s options and has no `-during`, and 8.5 has no `try`; their summaries follow their own facets.
+
 ## Rust parity
 
 `ErrorClass`, `ErrorCodeId`, `ErrorPattern`, `Throws` and `CompletionCodes` live in the registry core and round-trip under 332's gate. The engine enums become views of that table, migrated one subsystem at a time. Each migration is checked by the conformance rows for that subsystem.
@@ -475,13 +591,24 @@ wrong # args: should be "catch command ?varName?"
 ## Plan steps
 
 - **392a. The model.** Add `errorclass`, `code`, field roles and `throws` (with `-when` and `-on`) to the registry core and the SpecTcl reader and printer. Generate the `POSIX` table from the errno names. Done when the core codes in the table above are rows with their release windows, and the rows print and re-read equal.
-- **392b. Summaries.** Every proc's summary gets an error set and completion codes from `throws` rows, `error`, `throw` and `return -code`. Done when hover on a proc shows its raises, and a proc that calls `open` and `expr` reports `{POSIX} {ARITH}`.
+- **392b. Summaries.** Every proc's summary gets an error set (open unless every call claims `throws -complete`, with the implicit codes) and completion codes from `throws` rows, `error`, `throw`, `return -code`, `return -level` and `finally`. Done when hover on a proc shows its raises, and a proc that calls `open` and `expr` reports `{POSIX} {ARITH}`.
 - **392c. Catch and try facts.** Add `CatchFacts`, the options-dict shape per release, `$::errorCode`, and the flow into `lindex`, `switch` and comparisons. Done when every row of the diagnostics table has a test, and the `r` example reports the domain of its `lindex`.
 - **392d. Dialect forms.** 8.4's one-variable `catch`, `try`/`throw` from 8.6, Jim's `NONE`-only built-ins and its two-argument `error`, and f5-tcl's 8.4 forms. Done when each form gives the dialect error at the right release, and Jim's `return -code error -errorcode` keeps its code in the analysis.
 - **392e. Editor surfaces.** Completion, hover, the `catch`-to-`try` code action and the message-matching fix. Done when the code action's output runs identically on tclsh 8.6 and 9.1 for the corpus examples.
 - **392f. One table for the engines.** The VM and runtime raise from the `errorclass` rows. Done when the `Native*ErrorCode` enums are views of the table, and the conformance area runs every declared code on every engine. That run includes the two VM bugs above, which are fixed by then.
-- **392g. Optimiser.** Drop proven-dead `trap` arms, and fold `catch` over a body that is proven not to fail. Done when both are proved rewrites under 335's gate.
+- **392g. Optimiser.** Drop `trap` arms proven dead against a complete set, and fold `catch` over a body with no calls and no variable access. Done when both are proved rewrites under 335's gate.
 
 ## Owner decisions (26 November 2026)
 
 - Error codes get the same treatment as handles: declared types, producers that say what they raise, and analyser tracking through `catch` and `try`, so code that handles errors knows what it is working with.
+
+## Review fixes (26 November 2026)
+
+- **A2.** Error sets are open unless every call claims `throws -complete`; `TCL LIMIT`, `TCL READ VARNAME`, `TCL WRITE VARNAME` and `TCL LOOKUP VARNAME` are implicit (real run in *What raises what*); `open`'s extra codes shown; the `catch` fold needs a body with no calls and no variable access; example 1 no longer reports the `TDBC` arm.
+- **A11.** No `-on unknown-command` default row; an unknown command raises `Any`; example 2 rewritten on `lindex`, with the `unknown`-proc run.
+- **A12 (this doc's part).** "Re-raising loses the code" fires only when the body may raise a known non-`NONE` code.
+- **A14.** `return -level` and `finally` in summaries; worked example 6 is a real run.
+- **G6.** `default` rows union; `throws -complete` shown.
+- **G11.** Codes a target never raises, and forms some targets lack, are the portability class.
+- **G12.** `error` is `{arg 2}`, `throw` `{arg 0}`, `{dict get}` `argc >= 2`.
+- **G13.** `ErrorSet` has no certainty field: patterns are "may raise", and `other` marks an open set.

@@ -79,9 +79,9 @@ To the engine a handle is only a string in a slot. Its type exists only in the a
 
 ### Handle types
 
-A pack declares each handle type:
+A pack declares each handle type. The rows a `handle` block takes (a schema with `|` for alternatives, not a pack; chapter 2's `handle` production is the grammar):
 
-```spectcl
+```text
 handle TYPE {
     kind token | command | object | path      ;# how the handle is spelt and used
     is SUPERTYPE …                            ;# subtyping: a file is a channel
@@ -133,15 +133,15 @@ A command declares what it produces. The handle type can depend on the arguments
 
 ```spectcl
 command open {
-    result -handle file  -capability {from-mode {arg 2}}
-    result -handle pipe  -when {value {arg 1} prefix |}
+    result -handle file  -capability {from-mode {arg 1}}   ;# open name ?access? …: the access word
+    result -handle pipe  -when {value {arg 0} prefix |}
 }
 command socket {
     result -handle socket-server -when {present -server}
     result -handle socket
 }
 command {zlib stream} { result -handle zlib-stream }
-command sqlite3 { arg name -creates sqlite3-db }     ;# arg 1 becomes the command
+command sqlite3 { arg name -creates sqlite3-db }     ;# the name word becomes the command
 command toplevel { arg pathName -creates tk-window }
 ```
 
@@ -154,7 +154,7 @@ command puts  { arg channelId -handle channel -needs writable -optional-first }
 command close { arg channelId -handle channel -releases }
 command {chan push} { arg channelId -handle channel -transforms }
 command {HSL::send} { arg handle -handle hsl ; arg data }
-command {thread::transfer} { arg channel -handle channel -moves-to {arg 1} }
+command {thread::transfer} { arg id ; arg channel -handle channel -moves-to {arg id} }
 ```
 
 The effects are:
@@ -172,12 +172,16 @@ The effects are:
 Many APIs hand out child handles: a connection gives statements, and a statement gives result sets.
 
 ```spectcl
-handle tdbc-connection { kind object ; lifetime scope }
-handle tdbc-statement  { kind object ; parent tdbc-connection -released-with }
-handle tdbc-resultset  { kind object ; parent tdbc-statement -released-with }
-command {$tdbc-connection prepare} { result -handle tdbc-statement -child-of self }
-command {$tdbc-statement execute}  { result -handle tdbc-resultset -child-of self }
-command {$tdbc-connection close}   { releases self }
+handle tdbc-connection {
+    kind object ; lifetime scope
+    subcommand prepare { result -handle tdbc-statement -child-of self }
+    subcommand close   { releases self }
+}
+handle tdbc-statement {
+    kind object ; parent tdbc-connection -released-with
+    subcommand execute { result -handle tdbc-resultset -child-of self }
+}
+handle tdbc-resultset { kind object ; parent tdbc-statement -released-with }
 ```
 
 `$conn close` releases every statement and result set made from it, so a later `$rs nextrow` is a use after release. This holds even though the code never closed `$rs` itself.
@@ -251,7 +255,7 @@ HandleType {
     options: OptionTableId("channel-file"),
 }
 ProducerRow { command: "open", handle: HandleTypeId("file"),
-              when: None, capabilities: CapFrom::ModeArg(2) }
+              when: None, capabilities: CapFrom::ModeArg(1) }
 ConsumerRow { command: "puts", arg: ArgSlot::Positional(-2),
               accepts: HandleTypeId("channel"), needs: Cap("writable"),
               effect: HandleEffect::Borrow }
@@ -271,9 +275,10 @@ HandleFacts {
 2. **Producers and consumers come from rows.** The analyser has no handle-specific code. A command row's producer or consumer facts drive it, so a user's pack for their Redis library gets the same tracking as `open`.
 3. **The state is a flow fact.** Release and move change state along the CFG. A use when the state is `Released` on every path is an error; on some paths it is a warning.
 4. **Interprocedural.** A proc's summary records the type it returns and the type each parameter needs. The needed type is inferred from how the body uses the parameter: `proc log {ch msg} {puts $ch $msg}` needs a writable channel. Callers are checked against the summary, and hover shows `ch: channel (writable)`.
-5. **Containers, kept bounded.** A handle stored in an array element, a dict value or a namespace variable is tracked by that key when the key is a literal, and otherwise widens to the type with `May` certainty. Handles built into callbacks (`chan event $ch readable [list h $ch]`) flow into the callback's parameters through 390f's callback signatures.
-6. **Literal spellings.** A literal that matches a type's `spelling` (`puts file3 x`) is reported as a hard-coded handle, which is almost always a bug. The well-known `instances` are exempt.
-7. **Unknown stays quiet.** A value of unknown type passed where a handle is wanted produces no diagnostic. Only a proven wrong type, a proven dead handle or a proven leak is reported, so code the analyser can't see through stays clean.
+5. **Containers, kept bounded.** A handle stored in an array element, a dict value or a namespace variable is tracked by that key when the key is a literal, and otherwise widens to the type with `May` certainty. A write through a computed key (`set h($k) …`) demotes every key of that array to `May`, because it may have overwritten any of them. Handles built into callbacks (`chan event $ch readable [list h $ch]`) flow into the callback's parameters through 390f's callback signatures.
+6. **Frame effects demote.** Only summary edges cross bodies, so a summary also records the body's frame effects: writes through `upvar`, `global`, `uplevel` and `namespace upvar`, writes to namespace variables, and command-table changes (`rename`, `proc` over an existing name, `interp alias`). A call whose summary has a frame effect that may reach a variable in scope demotes that variable's handle fact from `Must` to `May`, and a command-table change demotes every fact whose release came from the renamed command. An unknown callee (`unknown_callee`) is "may write any variable it can reach, may release, may store", so it demotes every handle fact in scope. `Must Released` therefore needs no such call between the release and the use (worked example 6).
+7. **Literal spellings.** A literal that matches a type's `spelling` (`puts file3 x`) is reported as a hard-coded handle, which is almost always a bug. The well-known `instances` are exempt.
+8. **Unknown stays quiet.** A value of unknown type passed where a handle is wanted produces no diagnostic. Only a proven wrong type, a proven dead handle or a proven leak is reported, so code the analyser can't see through stays clean. A wrong type is proven only when the value's producer row declares a handle type outside the accepted set; a command with no `result -handle` row proves nothing, so its result is of unknown handle type.
 
 ```mermaid
 stateDiagram-v2
@@ -290,9 +295,9 @@ stateDiagram-v2
 
 | Condition | Severity | When |
 |---|---|---|
-| Wrong handle type (`close $z` where `$z` is a `zlib-stream`) | error | the type is `Must` and outside the accepted set |
+| Wrong handle type (`close $z` where `$z` is a `zlib-stream`) | error | the binding is `Must`, and its producer row proves a type outside the accepted set |
 | Missing capability (`puts` on a read-only file) | warning | |
-| Use after release or move | error on every path, warning on some paths | |
+| Use after release or move | error on every path, warning on some paths | `Must Released`: no frame effect or unknown callee between the release and the use |
 | Double release | warning | |
 | Leak (lifetime `scope` or `event`) | information | not returned, stored or released |
 | Handle outlives its lifetime (iRules `static::` holding `hsl`) | error | |
@@ -471,10 +476,58 @@ when HTTP_REQUEST {
 **Output:**
 ```text
 line 3: error: an hsl handle lives for one connection; static::hsl outlives it
-line 7: error: HSL::send expects an hsl handle; [HTTP::host] returns a string
 ```
 
-The `HSL::send $hsl` in `HTTP_REQUEST` is clean: the handle came from an earlier event on the same connection.
+The `HSL::send $hsl` in `HTTP_REQUEST` is clean: the handle came from an earlier event on the same connection. `HSL::send [HTTP::host]` is not reported either: `HTTP::host` has no `result -handle` row, so its value is of unknown handle type, and unknown stays quiet. Reporting it would need a fact that a value is *not* a handle, which no form provides.
+
+### 6. A closed handle reopened through `upvar`, and a renamed `close`
+
+**Source:**
+```tcl
+proc reopen {n} { upvar 1 $n v; set v [open /tmp/e39x-a w] }
+proc swap {} { rename close _close; proc ::close {ch} { flush $ch } }
+set f [open /tmp/e39x-b w]
+close $f
+reopen f
+puts $f "after upvar"
+swap
+close $f
+puts $f "after rename"
+puts ok
+```
+
+**In memory:**
+```rust
+// design sketch: types proposed here
+ProcSummary { name: "::reopen", frame_effects: &[FrameEffect::UpvarWrite { level: 1, name: Param(0) }], .. }
+ProcSummary { name: "::swap",   frame_effects: &[FrameEffect::CommandTable { name: "close" }], .. }
+HandleValue { var: (Global, "f"), ty: "file", state: Released, certainty: Must }   // after line 4
+HandleValue { var: (Global, "f"), ty: "file", state: Live,     certainty: May  }   // after line 5: reopen writes f
+HandleValue { var: (Global, "f"), ty: "file", state: Released, certainty: May  }   // after line 8: close was renamed at line 7
+```
+
+**Bytecode (tclsh 9.1.0):** `reopen`'s write reaches the caller's slot through `upvar`, which no parameter or return edge shows:
+```text
+  Command 1: "upvar 1 $n v..."
+    (0) push 0 	# "1"
+    (5) loadScalar %v0 	# var "n"
+    (10) upvar %v1 	# var "v"
+    (15) pop 
+  Command 3: "open /tmp/e39x-a w..."
+    (31) push 2 	# "open"
+    (36) push 3 	# "/tmp/e39x-a"
+    (41) push 4 	# "w"
+    (46) invokeStk 3 
+    (51) storeScalar %v1 	# var "v"
+```
+
+**Result:**
+```text
+$ tclsh8.4 h6.tcl      (tclsh8.5, 8.6, 9.1, jimsh and tclvm print the same)
+ok
+```
+
+Both `puts $f` lines run. Without the frame-effect rule the analyser would report line 6 as a use after release on every path (an error) and line 9 the same; with it, neither is reported. The same holds for `global`, `uplevel 1 {set f [open …]}`, `namespace upvar` and `interp alias {} close {} myclose`, each run on tclsh 8.6 and 9.1 (Jim has no `interp alias`).
 
 ## Rust parity
 
@@ -483,7 +536,7 @@ The `HSL::send $hsl` in `HTTP_REQUEST` is clean: the handle came from an earlier
 ## Plan steps
 
 - **391a. The model.** Add `HandleType`, producer and consumer rows, and effects to the registry core and the SpecTcl 3 reader and printer, with the lattice and capabilities. Done when the core channel family, `zlib stream`, `after` and TclOO classes are expressed as rows, and they print and re-read equal.
-- **391b. The engine.** Generalise `ObjectHandleFacts` into `HandleFacts`, with state as a flow fact and interprocedural parameter and return summaries. Done when every existing object-type test passes unchanged, and the example above reports all three confusions at analysis time.
+- **391b. The engine.** Generalise `ObjectHandleFacts` into `HandleFacts`, with state as a flow fact, interprocedural parameter and return summaries, and frame effects in the summaries. Done when every existing object-type test passes unchanged, and the example above reports all three confusions at analysis time.
 - **391c. Channels on rows.** `ChannelKind` and `channel_options` become per-type tables, and `TaintColour::CHANNEL` is derived from them. Done when `rg 'enum ChannelKind' rust` is empty, and the `chan configure` validation tests pass.
 - **391d. Children and cascades.** `parent`, `-released-with`, `-child-of`, and Tk path cascades. Done when `$rs nextrow` after `$conn close` and `.a.b configure` after `destroy .a` are reported.
 - **391e. Lifetimes for iRules.** `connection`, `event` and `static` lifetimes, and the HSL, SIDEBAND and table handles as rows. Done when storing an `HSL::open` handle in `static::` is an error, and using it in a later event on the same connection is not.
@@ -493,3 +546,11 @@ The `HSL::send $hsl` in `HTTP_REQUEST` is clean: the handle came from an earlier
 ## Owner decisions (26 November 2026)
 
 - Any handle type must be declarable, and commands must say *which* handle type they produce and accept, so the analyser can track handles by type across commands.
+
+## Review fixes (26 November 2026)
+
+- **A6.** Summaries record frame effects; a call with one, or an unknown callee, demotes handle facts to `May`; a computed-key write demotes every key; worked example 6 is a real run.
+- **G4.** `-handle channel -needs writable -optional-first` and `-handle channel -reads` are legal: flags are order-free (chapter 2).
+- **G12.** `open`'s access word is `{arg 1}` and its name `{arg 0}`; `thread::transfer` names its target `{arg id}`.
+- **G13.** Wrong type needs a producer row proving it; the HSL example no longer reports `[HTTP::host]`.
+- **R13.** Handle methods are `subcommand` rows in the `handle` block, not `command {$type method}`.

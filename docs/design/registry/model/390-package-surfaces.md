@@ -64,15 +64,16 @@ A handle type names something a command creates: a new command (`zlib stream`, `
 
 **Source:**
 ```spectcl
-handle zlib-stream -kind command {
+handle zlib-stream {
+    kind command
     subcommand put   { arity 1..2 ; option -flush ; option -fullflush ; option -finalize }
     subcommand get   { arity 0..1 }
     subcommand eof   { arity 0 }
-    subcommand close { arity 0 ; releases }
+    subcommand close { arity 0 ; releases self }
 }
 command {zlib stream} {
     arg mode -values {compress decompress deflate inflate gzip gunzip}
-    result -creates zlib-stream
+    result -handle zlib-stream
 }
 ```
 
@@ -128,12 +129,12 @@ The VM has no `zlib` yet; that is engine work already tracked under the channel 
 ```spectcl
 command open {
     throws {POSIX ENOENT} {POSIX EACCES} {POSIX EISDIR} -detail {Any POSIX error from the OS.}
-    throws-prefix {POSIX}
+    throws {POSIX}                       ;# a pattern is already a prefix (R33)
 }
 ```
 
 Uses:
-- the analyser warns on a `trap` pattern that nothing in the `try` body can raise (when every call in the body has `throws` rows);
+- the analyser warns on a `trap` pattern that nothing in the `try` body can raise, only when every call in the body claims `throws -complete` (a `throws` row lists what a command may raise, not all of it: `open` also raises `TCL OPENMODE INVALID` on 9.1, 392);
 - completion inside `trap {…}` offers the codes of the body's calls;
 - hover shows a command's codes.
 
@@ -203,11 +204,12 @@ An argument role can say that its text is in another language. **We embed no par
 
 **Source:**
 ```spectcl
-handle sqlite3-db -kind command {
-    subcommand eval { arg sql -embedded sql -dialect sqlite ; arg script -script -optional }
+handle sqlite3-db {
+    kind command
+    subcommand eval { arg sql -embedded sql -dialect sqlite ; arg script -role Body -optional }
 }
 command {dom parse} { arg xml -embedded xml }
-command {$node selectNodes} { arg xpath -embedded xpath }
+handle dom-node { kind command ; subcommand selectNodes { arg xpath -embedded xpath } }
 ```
 
 What we produce, per editor (no parsing on our side):
@@ -227,9 +229,9 @@ A `migrate` row says how a call changes from one library version to the next. Th
 **Source:**
 ```spectcl
 migrate trace-variable {
-    library core 8.4-9.0
+    library core tcl 8.4-9
     on {trace variable}
-    when {value {arg 2} in {w}}
+    when {value {arg 1} in {w}}
     rewrite {trace variable $name w $cmd} {trace add variable $name write $cmd}
     note {trace variable is gone in 9.0; the callback's op argument changes from w to write}
 }
@@ -322,3 +324,12 @@ Each form has a Rust spelling and a round-trip gate, as 332 requires.
 
 - All thirteen areas are planned in.
 - **Embedded languages:** the editor supplies the language support for the range. We generate injection metadata and report ranges, and we embed no parsers for other languages.
+
+## Review fixes (26 November 2026)
+
+These examples now parse under chapter 2 of the [consolidated specification](../spectcl-3/02-grammar.md).
+
+- **G6, A2.** A dead-`trap` warning needs `throws -complete` on every call in the body, not merely `throws` rows.
+- **G12.** The migration's ops word is `{arg 1}` (0-based after `trace variable`).
+- **R13, R33.** `handle T { kind … }`, `result -handle`, `releases self`; handle methods are `subcommand` rows; `throws-prefix` is `throws`; `-script` is `-role Body`.
+- **R8, R28.** `library core tcl 8.4-9`: the family is named, and the 8.x line is spelt as R28 spells it (`8.4-9.0` is the same set).

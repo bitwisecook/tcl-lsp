@@ -84,7 +84,7 @@ against the code, the shortfall is large:
 
 302 and 305 write `compatible Itcl 3.4 {tcl 8.4-8.6}`, `train 3 {3.4-4}`,
 `train 4 {4-5}`, the shim `tcl8.x → core 8.4-9.0`, and the check atom
-`{value {arg 3} version-in 3-4}`. 305 says RANGE has §5.4's reading, where
+`{value {arg 2} version-in 3-4}`. 305 says RANGE has §5.4's reading, where
 `MIN-MAX` runs through MAX's whole line. Tcl's algebra excludes MAX.
 
 **Source:**
@@ -137,7 +137,7 @@ Either choice is consistent only if every row is rewritten to it. The
 recommendation is the targets reading everywhere in packs, with trains
 written as lines (`train 3 {3.4-3}`), and `version-in` comparing the set the
 code's own requirement denotes under `tclPkg.c`'s algebra. `-21.1` (305's
-`versions {iRules -21.1}`) is not valid in either; it is `0-21.0`.
+`versions {iRules -21.1}`) is not valid in either; it is `0-21.1` (R24: `0-21.0` would drop 21.0.x).
 
 ### Worked example 2: retirement and certainty (gaps 17 and 39)
 
@@ -149,9 +149,9 @@ A retired subcommand must stay known, so the analyser says "removed in 9.0"
 ```spectcl
 command trace {
     subcommand variable {
-        available core 8.4-
-        deprecated core 8.4 -message {use trace add variable} -fix {replace subcommand {add variable}}
-        retired core 9.0
+        available core tcl 8.4-
+        deprecated core tcl 8.4- -message {use trace add variable} -fix {replace subcommand {add variable}}
+        retired core tcl 9.0                     ;# a LIB-POINT: gone from 9.0 on
     }
 }
 ```
@@ -203,10 +203,13 @@ require path exits 1 with no message, a VM finding outside this document.
 library iRules { tracks-host f5-tcl -build tmm }
 event HTTP_REQUEST {
     available iRules 9.0-
-    side client ; transport tcp ; profiles {http} ; flow
+    side client ; transport tcp ; profiles {any HTTP}
     hover { summary {Triggered when the system fully parses an HTTP request header.} }
 }
-flow http-client {CLIENT_ACCEPTED HTTP_REQUEST HTTP_REQUEST_DATA}
+flow tcp_http -profiles {TCP HTTP} {
+    step CLIENT_ACCEPTED l4_client
+    step HTTP_REQUEST http_request
+}
 ```
 
 **In memory:**
@@ -400,3 +403,11 @@ flowchart LR
 - **iRules events become pack content:** `event` and `flow` forms in the iRules library's SpecTcl source, compiled into its image. That gives one source for the analyser, the LSP, the flow graph and the iRule test framework (gap 6; items 338 and 360).
 - **Localisation is prepared for, not shipped.** The 3.0 grammar reserves `message LOCALE` and `doc LOCALE` rows and the reader accepts them. Only English ships, and the editors select by locale once translations exist.
 - **No signing in 3.0.** Trust comes from provenance tiers, and untrusted workspace images are ignored and recompiled from source (gap 31; item 340).
+
+## Review fixes (26 November 2026)
+
+These worked examples now parse under chapter 2 of the [consolidated specification](../spectcl-3/02-grammar.md).
+
+- **G15, R8.** `retired` takes a `LIB-POINT` (`retired core tcl 9.0`); `core` names its family.
+- **G2.** The iRules event example uses `profiles {any HTTP}` and a `flow` with `-profiles` and `step` rows (360's form); the bare `flow` row is gone.
+- **R24.** "Before 21.1" is `0-21.1`.

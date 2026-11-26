@@ -20,7 +20,7 @@ full designs of [391](../model/391-handle-types.md) (handles) and
 | H | project policy packs | `scope project` | 3.1 |
 | I | Tk names beyond commands | `virtual-event`, `style`, `option-class` | 3.1 |
 | J | more importers | tooling (`spec_import`) | — |
-| K | test doubles | `mock` (3.0 for iRules), packaged for `tcltest` | 3.1 |
+| K | test doubles | `mock`; packaging fakes for `tcltest` users is tooling | 3.0 |
 | L | upgrade report | tooling over E | — |
 | M | token categories and snippets | `token` (3.1); `snippet` (3.0, item 320) | 3.0, 3.1 |
 | — | taint | `colour`, `origin`, `sink`, `header-class`, `refines`, `-sink`, `result -origin`/`-adds` | 3.0 |
@@ -65,7 +65,12 @@ command close { arg channelId -handle channel -releases }
 `ObjectHandleFacts` becomes `HandleFacts`: a `HandleValue` holds a type, its
 capabilities, a state (`Live`, `Released`, `Moved`, `Unknown`), `Must`/`May`
 certainty and its origin, and the state is a flow fact. Proc summaries record
-the type returned and the type each parameter needs, inferred from the body.
+the type returned, the type each parameter needs, inferred from the body, and
+the body's frame effects (`upvar`, `global`, `uplevel`, `namespace upvar`,
+`rename`, `interp alias`). A call whose summary has a frame effect, or whose
+callee is unknown, demotes every handle fact in scope from `Must` to `May`, so
+a closed `$f` that a helper reopens through `upvar` is never "used after
+release" (391).
 
 ```mermaid
 stateDiagram-v2
@@ -152,26 +157,32 @@ raise only `NONE`.
 ```spectcl
 errorclass POSIX { code ENOENT -fields {message} -message {no such file or directory} }
 errorclass TCL {
-    code {LOOKUP COMMAND} -fields {name:CommandName} { available core tcl 8.6- }
+    code {LOOKUP COMMAND} -fields {name:command}     { available core tcl 8.6- }
     code {LOOKUP DICT}    -fields {key}              { available core tcl 8.6- }
     code {VALUE INDEX}                               { available core tcl 8.6- }
 }
 errorclass ARITH { code DIVZERO -fields {message} }
 command open   { throws {POSIX} }
-command {dict get} { throws {TCL LOOKUP DICT} -when {argc >= 3} }
-default        { throws {TCL WRONGARGS} -on wrong-args ; throws {TCL LOOKUP COMMAND} -on unknown-command }
-command error  { throws {arg 3} -default {NONE} }
+command {dict get} { throws {TCL LOOKUP DICT} -when {argc >= 2} }
+default        { throws {TCL WRONGARGS} -on wrong-args }
+command error  { throws {arg 2} -default {NONE} }
+command {string length} { throws -complete core tcl 8.6- }
 ```
 
 Proc summaries record an error set and the completion codes a body can
-produce (0–4 and any `return -code N`). At `catch BODY ?m? ?o?` and `try`,
-`CatchFacts` holds the completion codes, the error set with certainty and an
-`Other` member when any call raises `Any`, the options dict's keys for the
-release (8.5 has no `-errorstack`; 8.4 has no options variable), and the type
-of `$::errorCode`. The analyser follows them into `dict get`, `lindex`,
-`switch` and comparisons: a `trap` arm or comparison that cannot match is a
-warning, a code a release never raises is a warning, a form the dialect lacks
-is an error. `Other` never yields "cannot match".
+produce (0–4, any `return -code N`, and what `return -level` and `finally`
+do to them, 392). At `catch BODY ?m? ?o?` and `try`, `CatchFacts` holds the
+completion codes, the error set (the patterns the body may raise, open
+unless every call claims `throws -complete`, always with chapter 3's
+implicit codes), the options dict's keys for the release (8.5 has no
+`-errorstack`; 8.4 has no options variable), and the type of `$::errorCode`.
+An unknown command raises `Any`, because an `unknown` proc can raise any
+code. The analyser follows them into `dict get`, `lindex`, `switch` and
+comparisons: a `trap` arm or comparison that cannot match a **complete** set
+is a warning; a code a declared target release never raises, or a form a
+declared target dialect lacks, is in the portability class (chapter 3). An
+open set never yields "cannot match". `{string length}` claims a complete
+set: besides wrong-args and the implicit codes it raises nothing.
 
 **Source:**
 
@@ -190,11 +201,14 @@ show {lindex {a b} x}
 **In memory:**
 
 ```rust
-// design sketch: 392's types, for `show {nosuchcmd}` over targets tcl 8.4-9.2
+// design sketch: 392's types, for `show {lindex {a b} x}` over targets tcl 8.4-9.2
 CatchFacts { completion: CodeSet::of(&[0, 1]),
-             errors: ErrorSet { patterns: &[ErrorPattern(&["NONE"])          /* 8.4, 8.5 */,
-                                            ErrorPattern(&["TCL", "LOOKUP", "COMMAND"]) /* 8.6- */],
-                                other: false, certainty: May }, .. }
+             errors: ErrorSet { patterns: &[ErrorPattern(&["NONE"])               /* 8.4, 8.5 */,
+                                            ErrorPattern(&["TCL", "VALUE", "INDEX"]) /* 8.6- */,
+                                            ErrorPattern(&["TCL", "WRONGARGS"]),     /* default row */
+                                            ErrorPattern(&["TCL", "LIMIT"])],        /* implicit */
+                                other: true /* lindex claims no throws -complete */ }, .. }
+// `show {nosuchcmd}`: ErrorSet { patterns: &[], other: true }: an unknown command raises Any
 ```
 
 **Bytecode (tclsh 9.1.0):** `show`'s `catch` compiles inline:
@@ -276,7 +290,7 @@ string a taint sink (T107, from the `sink sql` row of the sqlite3 library), so
 migrate trace-variable {
     library core tcl 8.4-9
     on {trace variable}
-    when {value {arg 2} in {w}}
+    when {value {arg 1} in {w}}
     rewrite {trace variable $name w $cmd} {trace add variable $name write $cmd}
     note {trace variable is gone in 9.0; the callback's op argument changes from w to write}
 }
@@ -376,10 +390,10 @@ origin (T108), whatever the colours.
 | Concern | Form | Replaces |
 |---|---|---|
 | colours | `colour NAME { core? ; concat all\|first\|none ; implies … }`; core colours bare, pack colours `LIBRARY.NAME` | `TaintColour` bitflags and its five copies |
-| origins | `origin NAME { discloses? }`; attached by `result -origin`, `arg … -writes -origin`, `-callback-origin {%P user}`, `variable env -origin env`, connection fields (360), and a channel handle's type (391) | `taint_source`, `TAINTS_VAR_WRITES`, `callback_taint_inputs`, `IRULES_TAINT_SOURCE_PREFIXES`, `TAINTED_REFS` |
+| origins | `origin NAME { discloses? }`; attached by `result -origin`, `arg … -writes -origin`, `-callback-origin {%P user}`, `variable env -kind Array -access ReadWrite -provider Environment -origin env`, connection fields (360), and a channel handle's type (391) | `taint_source`, `TAINTS_VAR_WRITES`, `callback_taint_inputs`, `IRULES_TAINT_SOURCE_PREFIXES`, `TAINTED_REFS` |
 | sinks | a `sink KIND { -origins -safe -code -severity -discloses }` catalogue, named per word by `arg … -sink KIND ?-safe+ C?` | `taint_*_sink*` fields, `Traits::TAINT_SINK`, the per-code masks |
 | sanitisers and transforms | `result -adds C ?-when {native ID}?`, `arg … -double-encodes C`, `result -clean` | `taint_transform`, `taint_transform_when`, `is_sanitiser`'s numeric rule |
-| validators | `refines WORD -adds C -on true\|false`, `-adds-from-pattern` | none today |
+| validators | `refines WORDREF -adds C -on true\|false`, `-adds-from-pattern`; sound per switch and per condition shape (393) | none today |
 | propagation | built-in identity and `concat` rules; `result -from`, `-element-of`, `-elements-from`; `errors -message-from` | `shape_unproven` and ad hoc rules |
 | summaries | a gen/kill `ProcTaintSummary` per parameter: `passes_origins`, `keeps`, `adds`, `param_sinks`, `validates` | 17 runs per parameter per `TaintBasis` |
 | gates | `-sink … -when PRED` under `SinkWhen`: suppressed only when proved false | `taint_sink_gate` (`HookFamily::TaintSinkGate`) |
@@ -482,3 +496,14 @@ ex1r.tcl:3:6: warning T101     Tainted variable $out flows into puts; output may
 | optimiser | no use moved past a release | prunes dead arms | — | — | — | — | — |
 | engines | — | the one raise table | — | — | — | — | run-time mode, `TAINT SINK` errors |
 | Rust (332) | `HandleType` | `Throws` | `ResultShape` | `Embedded` | `Migration` | `CallbackSig` | `TaintTable`, `TaintRow` |
+
+## Review fixes (26 November 2026)
+
+- **G6, A2.** `default` rows union; `throws -complete` shown; error sets are open with implicit codes; dead arms need a complete set (area B).
+- **G11.** Codes a target never raises and missing forms are the portability class (area B).
+- **G12.** `{dict get}` uses `argc >= 2`, `error` `{arg 2}`, the migration `{arg 1}`: 0-based after the `CMDPATH`.
+- **G13, A11.** The `CatchFacts` sketch has no certainty field; an unknown command raises `Any`, and the default `-on unknown-command` row is gone.
+- **G14.** `mock` is 3.0 (area K).
+- **G15.** `name:command`; `variable env` carries its required flags and `-provider`.
+- **A6.** Frame effects and unknown callees demote handle facts to `May` (area A).
+- **A14.** Completion codes account for `return -level` and `finally` (392).

@@ -170,24 +170,24 @@ are ordered, and the first match wins over the unversioned facts (302's
 
 ```spectcl
 command lsort {
-    option -stride { available core 8.6- ; takes strideLength -integer 2.. }
+    option -stride -takes strideLength -integer {Range 2 max} { available core tcl 8.6- }
 }
 command {string is} {                          ;# the 18 classes of 8.4
     arg class -values {alnum alpha ascii boolean control digit double false graph
                        integer lower print punct space true upper wordchar xdigit}
-    versions {core 9.0-} { arg class -values+ {list wideinteger entier dict} }
-    versions {core 8.6-} { arg class -values+ {list wideinteger entier} }
-    versions {core 8.5-} { arg class -values+ {list wideinteger} }
+    versions {core tcl 9.0-} { arg class -values+ {list wideinteger entier dict} }
+    versions {core tcl 8.6-} { arg class -values+ {list wideinteger entier} }
+    versions {core tcl 8.5-} { arg class -values+ {list wideinteger} }
 }
 command text {                                  ;# library Tk
     option -insertunfocussed {
         available Tk 8.6-
-        hover { summary {How the insert cursor shows without focus.} since {Tk 8.6} }
+        hover { summary {How the insert cursor shows without focus.} }   ;# "since" comes from available
     }
 }
 command persist {                               ;# library iRules, tracks host
-    subcommand mcp { available iRules 21.1- ; arity 1 ; hover {…} }
-    versions {iRules -21.1} { arg mode -values- {mcp} }
+    subcommand mcp { available iRules 21.1- ; arity 1 ; hover { summary {…} } }
+    versions {iRules 0-21.1} { arg mode -values- {mcp} }
 }
 ```
 
@@ -215,7 +215,7 @@ VersionedSpec {                                   // text; -insertunfocussed's A
 VersionedSpec {                                   // persist (library iRules, tracks host)
     subcommands: Facet { rows: &[(FacetKey::ANY, &[.., SubId("mcp")])] },   // mcp: iRules 21.1-, arity 1
     value_sets: Facet { rows: &[
-        (FacetKey { library: VersionSet("iRules -21.1"), dialect: None }, &[/* mode list */ ..]),  // without mcp
+        (FacetKey { library: VersionSet("iRules 0-21.1"), dialect: None }, &[/* mode list */ ..]),  // without mcp
         (FacetKey::ANY, &[/* mode list */ .., "mcp"]),
     ] },
     ..
@@ -291,24 +291,26 @@ check bench-mode-value {                ;# an enumerated -mode (rung 1 covers a 
   on bench::run                         ;#  this is for a set that depends on another option)
   when {all {present -mode} {known {option -mode}} {present -legacy}
             {value {option -mode} notin {fast slow}}}
-  emit W160 warning -at {option -mode} -message {with -legacy, -mode must be fast or slow}
+  emit bench/mode-value -severity warning -at {option -mode} -message {with -legacy, -mode must be fast or slow}
 }
 check itcl3-exact-on-tcl9 {
   on {package require}
-  when {all {present -exact} {value {arg 2} in {Itcl itcl}}
-            {value {arg 3} version-in 3-4} {dialect tcl 9.0-}}
-  emit W161 error -at {arg 3} -message {Itcl {value {arg 3}} does not load on Tcl {dialect}; Itcl 4 is the 9.x train}
+  when {all {present -exact} {value {arg 1} in {Itcl itcl}}
+            {value {arg 2} version-in 3-4} {dialect tcl 9.0-}}
+  emit itcl/exact-on-tcl9 -severity error -at {arg 2} \
+       -message {Itcl {value {arg 2}} does not load on Tcl {dialect}; Itcl 4 is the 9.x train}
 }
 check trace-variable-retired {          ;# the registry has no option deprecated in 9.0;
   on {trace variable}                   ;# `trace variable` is the nearest real case
   when {dialect tcl 8.4-}
-  emit W144 warning -at subcommand -message {deprecated since 8.4, gone in 9.0}
+  emit W144 -severity warning -at subcommand -message {deprecated since 8.4, gone in 9.0} \
        -fix {replace subcommand {add variable}}
 }
 check persist-mcp-arity {
   on {persist mcp}
-  when {all {library iRules 21.1-} {argc != 2}}
-  emit E002 error -at command -message {persist mcp takes one persistence name on BIG-IP {library iRules}}
+  when {all {library iRules 21.1-} {argc != 1}}
+  emit irules/persist-mcp-arity -severity error -at command \
+       -message {persist mcp takes one persistence name on BIG-IP {library iRules}}
 }
 ```
 
@@ -320,22 +322,22 @@ check persist-mcp-arity {
 CheckRule { id: "bench-mode-value", on: "bench::run",
     when: Pred::All(&[Present("-mode"), Known(Word::Option("-mode")), Present("-legacy"),
                       ValueNotIn(Word::Option("-mode"), &["fast", "slow"])]),
-    emit: Emit { code: "W160", severity: Warning, at: Word::Option("-mode"),
+    emit: Emit { code: "bench/mode-value", severity: Warning, at: Word::Option("-mode"),
                  message: "with -legacy, -mode must be fast or slow", fix: None } }
 CheckRule { id: "itcl3-exact-on-tcl9", on: "package require",
-    when: Pred::All(&[Present("-exact"), ValueIn(Word::Arg(2), &["Itcl", "itcl"]),
-                      ValueVersionIn(Word::Arg(3), VersionSet("3-4")),
+    when: Pred::All(&[Present("-exact"), ValueIn(Word::Arg(1), &["Itcl", "itcl"]),
+                      ValueVersionIn(Word::Arg(2), VersionSet("3-4")),
                       Dialect(DialectRange { family: Family::Tcl, releases: VersionSet("9.0-") })]),
-    emit: Emit { code: "W161", severity: Error, at: Word::Arg(3),
-                 message: "Itcl {value {arg 3}} does not load on Tcl {dialect}; …", fix: None } }
+    emit: Emit { code: "itcl/exact-on-tcl9", severity: Error, at: Word::Arg(2),
+                 message: "Itcl {value {arg 2}} does not load on Tcl {dialect}; …", fix: None } }
 CheckRule { id: "trace-variable-retired", on: "trace variable",
     when: Pred::Dialect(DialectRange { family: Family::Tcl, releases: VersionSet("8.4-") }),
     emit: Emit { code: "W144", severity: Warning, at: Word::Subcommand,
                  message: "deprecated since 8.4, gone in 9.0",
                  fix: Some(Fix::Replace(Word::Subcommand, "add variable")) } }
 CheckRule { id: "persist-mcp-arity", on: "persist mcp",
-    when: Pred::All(&[Library(LibraryId("iRules"), VersionSet("21.1-")), Argc(Ne, 2)]),
-    emit: Emit { code: "E002", severity: Error, at: Word::Command,
+    when: Pred::All(&[Library(LibraryId("iRules"), VersionSet("21.1-")), Argc(Ne, 1)]),
+    emit: Emit { code: "irules/persist-mcp-arity", severity: Error, at: Word::Command,
                  message: "persist mcp takes one persistence name on BIG-IP {library iRules}", fix: None } }
 ```
 
@@ -364,7 +366,7 @@ natively.
 | `kinds` | per word: `literal`, `var`, `command`, `script`, `expand` |
 | `values` | per word: the known value, or absent |
 | `options` | dict of written option → word index |
-| `argc` | the word count after the command name |
+| `argc` | the word count after the command path (`{persist mcp}` counts after `mcp`), from 0, options included: chapter 2's `ARGREF` |
 | `command` | the resolved command path (`{trace variable}`) |
 | `dialect` | `{family F release R build B capabilities {…}}` (308; a list of these over a set) |
 | `libraries` | dict of library → `{versions {…} placement P provenance K}` (308) |
@@ -407,7 +409,7 @@ An error, a fuel blowout or no result means abstention.
 
 | Old construct (vocabulary) | 3 |
 |---|---|
-| `dialects {tcl8.6 …}` (1.0); `TRANSLATIONS` (`upgrade.rs:86`): `tclX.Y`, `tclX.Y+`, `all-tcl`, `tcl8.x` | `available core RANGE` per the table (`tcl8.x` → `core 8.4-9.0`) |
+| `dialects {tcl8.6 …}` (1.0); `TRANSLATIONS` (`upgrade.rs:86`): `tclX.Y`, `tclX.Y+`, `all-tcl`, `tcl8.x` | `available core RANGE` per the table (`tcl8.x` → `core tcl 8.4-9`, R28) |
 | `dialects {f5-irules}` | `available iRules 0-` (304) |
 | `dialects {tk}` | `available Tk 0-` |
 | `MEMBERSHIP` tokens `f5-iapps`, `f5-tmsh`, `expect`, `spectcl`, `bpf` (`upgrade.rs:117`) | `available iApps|tmsh|Expect|spectcl|bpf 0-` (the environment's ambient library) |
@@ -450,8 +452,8 @@ command lsort {
 ```spectcl
 speclib tcl 3 {
 command lsort {
-    option -nocase { available core 8.5- ; detail {Case-insensitive comparison.} }
-    option -stride { available core 8.6- ; takes strideLength -integer {Range 2 max} }
+    option -nocase -detail {Case-insensitive comparison.} { available core tcl 8.5- }
+    option -stride -takes strideLength -integer {Range 2 max} { available core tcl 8.6- }
 }
 }
 ```
@@ -505,10 +507,7 @@ command text {
 speclib tk-extras 3 {
 command text {
     available Tk 0-
-    option -insertunfocussed {
-        available Tk 8.6-
-        takes cursorStyle
-    }
+    option -insertunfocussed -takes cursorStyle { available Tk 8.6- }
 }
 }
 ```
@@ -660,3 +659,15 @@ format change together in one commit.
 
 - **Generators stay, as user tooling.** The family keeps its spelling `f5-tcl`. Pack generators (the vendor-library generators and a programmed 2.x pack's extracted generator) ship as tooling users can run. A SpecTcl 3 pack stays declarative.
 - **Hand edits are allowed.** Editing a generated pack by hand is allowed, and reconciling hand edits with a regenerated library update is the job of the user or the AI tooling (item 310).
+
+## Review fixes (26 November 2026)
+
+The grammar fragments here are rationale; chapter 2 of the
+[consolidated specification](../spectcl-3/02-grammar.md) is the grammar, and
+these examples now parse under it.
+
+- **G2, G4.** Option values are flags before the option's block (`option -stride -takes strideLength -integer {Range 2 max} { available core tcl 8.6- }`); hover has no `since` row; `hover {…}` is a block of rows.
+- **G3.** Multi-line `emit` rows continue with a backslash.
+- **G12.** `argc` and `{arg N}` count from 0 after the command path: `{argc != 1}` for `persist mcp`, `{arg 1}` and `{arg 2}` for `package require -exact Itcl 3.4`.
+- **G15.** `emit` takes `-severity`; the invented codes W160 and W161 are pack codes `bench/mode-value` and `itcl/exact-on-tcl9`; `persist`'s is `irules/persist-mcp-arity`.
+- **R24, R28, R8.** `versions {iRules 0-21.1}`; the `tcl8.x` shim is `core tcl 8.4-9`; `core` names its family.
