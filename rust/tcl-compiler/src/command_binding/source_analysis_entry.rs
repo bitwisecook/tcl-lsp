@@ -545,6 +545,10 @@ impl SourceAnalysisEntry {
     ///   bytecode protocol.
     /// - Names follow the authored F5 Tcl 8.4 naming simulation, the only
     ///   policy `InvocationDialect::authored_logical_name_simulation` admits.
+    /// - The environment selects its hosted execution context
+    ///   (`BigIpExecutionContext::for_environment`), so an iRule's handlers
+    ///   address TMM's runtime namespaces (`::static`). No worker, native
+    ///   entry or publication receipt is issued.
     ///
     /// Each entered body then selects the TMM execution context
     /// (`BindingBaseline::body_compilation`). An input without that simulation
@@ -568,6 +572,10 @@ impl SourceAnalysisEntry {
                 .map(|_| parser);
             entry.unknown_entry = false;
             entry.invocation_realm = tcl_dialect::model::InvocationRealm::RuleLoader;
+            entry.hosted_execution_context =
+                tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+                    &input.availability_context().environment.id,
+                );
             entry.execution_name_policy = Some(
                 tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy),
             );
