@@ -271,6 +271,15 @@ child's `parent` `Weak` and dispatches through the parent handle. The
 mechanism, its two guards, and the unimplemented directions are in
 [`rename-alias.md`](rename-alias.md) §4.5.
 
+**Taint across interpreters** (item 393's run-time half, item 475, deferred;
+[design](../registry/model/393-taint.md#taint-at-run-time-the-vm-and-the-runtime)).
+In a `taint` build each interpreter keeps its own taint fact table, and a
+value keeps its tag when it crosses `interp alias` (arguments and result) or
+`interp eval`. The receiving interpreter re-interns the tag's facts in its
+own table. A parent therefore cannot launder a tainted value through a safe
+child, and a child's sinks see the parent's origins. Without the feature
+nothing here changes.
+
 ## 7. Compiler: registry-driven command-binding proof
 
 The compiler does not recognise `interp` by name. `tcl-registry` describes
@@ -433,3 +442,7 @@ architectures:
   `share`/`transfer` are accepted so top-level channel wiring does not abort
   a test file. Remaining gaps: the Safe Base (`safe.tcl` access-path
   virtualisation) and `target`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E10:** values keep their taint tags across `interp alias` and `interp eval` in taint builds (§6, from item 393).

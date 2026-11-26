@@ -1,6 +1,9 @@
 # Tcl conformance harness
 
-Tcl 9.0 is the reference standard for the bytecode VM. Conformance tests and
+Tcl 9.0 is the reference standard for both Rust engines today. Item 312 moves
+`tclvm` to a 9.1 base, with its own 9.1 library; `runtime/rust` stays on 9.0
+until item 88, and any lane comparing the two pins `--tcl-version 9.0`
+([VM on 9.1](../compiler/vm-tcl-9-1.md#runtimerust-stays-on-90)). Conformance tests and
 developer tools therefore need a trustworthy way to find the C interpreter,
 find the matching upstream source suite, and retain values that are not valid
 UTF-8. `tcl-test-support` owns that boundary for the Rust workspace.
@@ -60,3 +63,7 @@ owner, and finally run the owning crate's deterministic regression tests.
 
 Full Tcltest sweeps remain manual/exhaustive work. They are not added to smoke
 or ordinary CI merely because the shared harness makes them easier to invoke.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E8:** the reference release is 9.0 for both engines until 312; then 9.1 for `tclvm`, while `runtime/rust` stays on 9.0 until item 88.

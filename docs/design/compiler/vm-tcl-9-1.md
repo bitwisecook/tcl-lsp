@@ -272,6 +272,89 @@ Three gates, each with one owner:
    ```
 3. **Command semantics.** The `lseq` `expr` removal, `subst` options and the new math functions are gated in the builtins by the same dialect point as today.
 
+### The default release, the library and the commands
+
+An opcode table alone does not give a 9.1 VM. Today 9.1 is reachable only by
+asking for it, it runs with whatever library the shell exports, and it lacks
+commands 9.1 has. 312 therefore also covers three things (owner scope, 26
+November 2026, D-J). They stay with 312, after the crate splits; none of them
+moves earlier or gates Now 1–5.
+
+**1. The default release moves to 9.1.** Three places pin 9.0 in code:
+
+- `tclvm --help`: `--tcl-version <x.y> … (default 9.0)`;
+- `tcl-engine-tclvm`: `resolve_environment("tcl9.0")` in `with_registry`
+  (`rust/tcl-engine-tclvm/src/lib.rs:509`);
+- `tcl-spec-hooks`: `private_application_hook_engine(TclVersion::V9_0, …)`
+  (`rust/tcl-spec-hooks/src/private_application.rs:97`), and the test at
+  `emit.rs:975` sets `tcl9.0`.
+
+All three take 9.1. Rung-4 hook bodies then run on the release chapter 5
+assumes ("Bodies run on the 9.1 VM"). `runtime/rust` does not move: it stays
+on 9.0 until item 88 (see "`runtime/rust` stays on 9.0" below).
+
+**2. A release-matched Tcl library.** The VM reads `TCL_LIBRARY` whatever
+release is selected (`rust/tcl-vm-cli/src/main.rs:271`,
+`rust/tcl-vm/src/interp/bootstrap.rs:811`). Without it, it installs a partial
+autoloader (`bootstrap.rs:636`). The `tclshX.Y` wrappers on `PATH` unset
+`TCL_LIBRARY`; `tclvm` does not. So one variable decides whether `clock`
+works and whether init succeeds (runs below).
+
+- The library is selected per release by the platform-bootstrap owner
+  (`tcl-platform`'s `bootstrap`, the owner map's "interpreter platform
+  bootstrap" row), from the pinned tree of that release: `init.tcl`,
+  `clock.tcl` and its `msgs`/`tzdata`, `tcltest`, `package.tcl`, `auto.tcl`
+  and `word.tcl`. A native build embeds each pinned release's read-closure
+  the way `runtime/rust` already embeds 9.0.4's
+  (`runtime/rust/vendor/tcl_library/manifest.json`, checked by `cargo xtask
+  runtime-stdlib`).
+- `TCL_LIBRARY` is honoured only when its `init.tcl` names the selected
+  release. Otherwise the VM writes one line to stderr naming both releases
+  and uses the embedded library. It never fails init on another release's
+  library, and never runs `clock` with no library.
+- The manifest's `embedded_stdlib_revision`
+  (`tcl-runtime-api/src/manifest.rs:51`, today `9.0.4+…`) becomes per
+  release, so a unit compiled against one release's library is checked
+  against that release's.
+
+**3. The commands 9.1 has.** `info commands` under `tclvm --tcl-version 9.1`
+with the 9.1.0 library, against `tclsh9.1`:
+
+| | Commands |
+|---|---|
+| new in 9.1, missing from `tclvm` | `divmod`, `frexp`, `lfilter`, `modf`, `remquo`, `timer`, `unicode` |
+| present in 9.0, missing from `tclvm` at 9.0 and 9.1 | `chan`, `fcopy`, `fileevent`, `lremove`, `pid`, `socket`, `timerate`, `unload`, `zipfs`, `zlib` |
+| in `tclvm`, not in `tclsh` 9.0 or 9.1 | `my` (a global; C has it only inside method bodies) |
+
+312 adds handlers for the first row, each with its registry spec and
+`runtime_backing` in the same change (`AGENTS.md`, "WASM command parity").
+`lfilter` needs one before step 5 can compile it to `foreach_index`. The
+second row and `my` are 9.0 conformance bugs: they go on the deferred engine
+list, not into 312.
+
+### `runtime/rust` stays on 9.0
+
+`runtime/rust` keeps 9.0 semantics until item 88 (owner scope, D-J). The two
+engines then run different base releases. Until 88:
+
+- every differential lane that pairs `tclvm` with `runtime/rust`
+  (`tcl-fuzz`, the conformance runner, `command-backing`'s side-by-side
+  report) passes `--tcl-version 9.0` to `tclvm`
+  ([differential fuzzing](../contracts/differential-fuzzing.md), rule 4);
+- `command-backing` keeps admitting core commands "available at 9.0 or later"
+  (`rust/xtask/src/command_backing.rs:69`), so the 9.1 commands above stay on
+  `KNOWN_UNBACKED` for the runtime;
+- the runtime documents that name 9.0 as their reference stay correct for
+  `runtime/rust` (Corrections, below).
+
+### Taint
+
+Taint (item 393, run-time half 475, deferred) is run-time state, never part
+of the opcode table or a unit. No opcode carries a tag. In a `taint` build the
+check runs at invoke, before a sink command's handler, and a compiled inline
+form of a sink command (`expr`, `string map`) calls the same check. A build
+without the feature runs the opcodes unchanged.
+
 ### Codegen
 
 - Add `DICT_REMOVE`, `ARITH_SERIES` and `FOREACH_INDEX` to `Op`, with VM arms.
@@ -288,7 +371,7 @@ Three gates, each with one owner:
 
 ### Open questions
 
-- **Is 312 still deferred?** The plan's scope puts VM work off `work`, but 311, which needs 312's numbering, lands before 306. *Settled by the owner.* The split proposed in the plan text below takes only the `tcl-bytecode` part (steps 1–3) onto `work`.
+- **Is 312 still deferred?** *Settled by the owner:* no. 312 is in Now 6, after the crate splits and before 311, and it now includes the default release, the library and the 9.1 commands above (D-J). None of it moves into Now 1–5.
 - **9.0 or 9.1 name in disassembly for ≤ 9.0 targets?** Today it is the release's own name (`format.rs:331`). Keep that. Nothing measured argues otherwise.
 
 ## Work list
@@ -311,7 +394,10 @@ Three gates, each with one owner:
    - Add fixtures for each newly compiled command, for `switch -integer`, `try … trap`, `tailcall {*}`, `next {*}`, and `incr` on a proc with more than 256 locals.
    - Add a byte-level mode. It rebuilds C Tcl's bytes from `tcl::unsupported::getbytecode` instructions and their `pc` offsets (`tclDisassemble.c`, `tclBasic.c:415`), using pc deltas to tell apart the slots that share a mnemonic. It compares them with `encode`'s output.
 9. **Pins.** `reference-toolchains.tsv` already pins 9.1.0. `check-tcl-reference-toolchains` gains the rule that the opcode table's source tree is the pinned 9.1 tree.
-10. **`runtime/rust`.** Nothing until item 88. Then its `Frames`/`Namespaces` traits carry the 9.1 `uplevel` and `tailcall` semantics, and the differential suite gains the new fixtures.
+10. **`runtime/rust`.** Nothing until item 88. Then its `Frames`/`Namespaces` traits carry the 9.1 `uplevel` and `tailcall` semantics, and the differential suite gains the new fixtures. Until then its lanes pin `--tcl-version 9.0`.
+11. **Library per release.** The platform-bootstrap owner selects and embeds each pinned release's library read-closure; `tcl-vm-cli` and `bootstrap.rs` take it from there and honour `TCL_LIBRARY` only for the selected release. `embedded_stdlib_revision` becomes per release.
+12. **Default release 9.1** in `tclvm`, `tcl-engine-tclvm` and `tcl-spec-hooks`, after step 11, so a 9.1 default never runs on a 9.0 library.
+13. **The 9.1 commands:** `divmod`, `frexp`, `lfilter`, `modf`, `remquo`, `timer` and `unicode`, with specs, `runtime_backing` and conformance rows. Before step 5's `lfilter` lowering.
 
 ## Verification
 
@@ -321,6 +407,9 @@ Done when:
 - `bytecode-compare -v 9.1 all` matches on the extended corpus by disassembly, and its byte mode matches `getbytecode`'s bytes, or the fixture is on a listed divergence list.
 - `-v 8.4` through `-v 9.0` show no new mismatches against the pre-change baseline (`failset.py`).
 - The conformance runner's rows for the new commands pass against `tclsh` 9.1.0, and against 9.0.4 as non-compiled invocations, native and WASM.
+- `tclvm` with no `--tcl-version` reports `9.1.0` for `info patchlevel`, as do `tcl-engine-tclvm` and the hook engine.
+- `tclvm --tcl-version 9.1`, run with `TCL_LIBRARY` unset and again with it set to the 9.0.4 library, passes every conformance row (item 205) tagged for 9.1 with the same result as `tclsh9.1`, including `lseq`, `clock format` and the seven 9.1 commands. Each run records its `--tcl-version` and `TCL_LIBRARY` ([evidence](../contracts/tcl-execution-evidence.md)).
+- The same runs at `--tcl-version 8.4`, `8.6` and `9.0` initialise with no `version conflict` or `can't find package tcl` line.
 
 Record:
 - **Build cone.** Edits to `opcode_table.rs` rebuild `tcl-bytecode` and its dependants. Measure with item 259's method.
@@ -333,8 +422,66 @@ Record:
 - **A 9.2 that compacts opcodes.** TIP 720 proposes a "level 2" that renumbers. That would be a new base. The generator makes it a regenerated table, not a hand port.
 - **Private codes.** A unit holding a private code is a tbcx *extended* unit, which tbcx refuses at its format word. That is intended for `IRULE_*`. The admission table keeps them out of `tcl` dialect units.
 
+## Bugs found
+
+Runs of 26 November 2026: `./target/debug/tclvm` (debug build of 26 November)
+and the pinned `tclshX.Y` (whose wrappers unset `TCL_LIBRARY`). Each `tclvm`
+line names its `--tcl-version` (none means the 9.0 default) and whether
+`TCL_LIBRARY` was set; "set" means the session's
+`tmp/tcl9.0.4/library`.
+
+1. **`lseq` under 9.1 aborts.** `puts [lseq 3]`: `--tcl-version 9.1`,
+   unset: no output, no stderr, exit 1. With `-c`: `native compiler preflight
+   provider required`, exit 1. With the 9.1.0 library set: also exit 1, no
+   output. Default (9.0), set or unset: `0 1 2`. `tclsh9.0`, `tclsh9.1`:
+   `0 1 2`.
+2. **The library follows the shell, not the release.** Any script,
+   `--tcl-version 8.4`, set: `application-specific initialization failed:
+   can't find package tcl 9.0.4`; `8.6`: `… exactly 9.0.4`; `9.1`:
+   `version conflict for package "tcl": have 9.1.0, need exactly 9.0.4`. The
+   script then runs without its library.
+3. **`clock` aborts without a library, and takes earlier output with it.**
+   `puts a; catch {clock format 0 -gmt 1}; puts b` on one line: default,
+   `8.6`, `9.0` and `9.1`, unset: no stdout, no stderr, exit 1. Over three
+   lines, `a` is printed and then the run stops. `catch` does not stop it.
+   `8.4` unset and default set print `a`, `b` and the date. All `tclsh`
+   releases print all three. Root cause: library selection (bug 2), not
+   `clock`. The fix is the release-matched library above; the lost stdout is
+   its own bug (output is not flushed when the run exits).
+4. **`scan` integer width is wrong on the VM's own releases.**
+   `puts [scan 4294967295 %d]`: `tclvm` prints `4294967295` at every
+   `--tcl-version`, set or unset. `tclsh8.4`, `tclsh9.0` and `tclsh9.1` print
+   `-1`; `tclsh8.6` prints `4294967295`. So the default (9.0) and 9.1 are
+   wrong, not only older releases. The kernel fix is item 420's (`scan`
+   takes its grammar).
+5. **Missing and extra commands** (the table above): seven 9.1 commands, ten
+   9.0 commands, and a global `my`. `chan names`, default, unset: `invalid
+   command name "chan"`.
+
+Bugs 1–3 and 5's first row are 312's. Bug 4 is 420's. 5's other rows go on
+the deferred engine list.
+
 ## Corrections to the overview
 
+- The runtime documents that name 9.0 as the reference describe
+  `runtime/rust`, which stays on 9.0 until item 88, and `tclvm` only until
+  312 lands:
+  - `runtime/tcl-conformance-harness.md` ("Tcl 9.0 is the reference standard
+    for the bytecode VM"; the pinned sweep tree), now qualified there;
+  - `runtime/namespace-tree.md:16` (C citations from 9.0.4), now qualified
+    there;
+  - `runtime/rust-vm-tier-parity.md` is generated by `cargo xtask
+    tcltest-sweep` from 9.0.4. After 312 the sweep's `tclvm` side runs the
+    9.1.0 tree, and the `runtime/rust` side stays on 9.0.4 until 88;
+  - `rust/xtask/src/command_backing.rs:69` admits commands "available at 9.0
+    or later": correct for the runtime until 88.
 - The first `bytecode-image.md` (the `tclbc` design) and `lib.rs:22` say `Op` "matches Tcl 9.0.2". It is the 9.0 set plus 17 of 9.1's 20 additions plus 16 private opcodes, and it has no opcode numbers. The reference pin for 9.0 is 9.0.4, not 9.0.2.
 - `tcl-bytecode`'s crate doc lists `tcl-syntax` as its only dependency. `Cargo.toml` lists `tcl-dialect`, `tcl-lexer`, `tcl-runtime-api` and `tcl-syntax`.
 - `tclvm-opcode-status.md` counts 191 instructions and cites `rust/tcl-bytecode/src/lib.rs` for `Op`. `Op` is in `op.rs`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E2:** 312 also moves the default release to 9.1 (`tclvm`, `tcl-engine-tclvm`, `tcl-spec-hooks`), takes a release-matched library from the platform-bootstrap owner instead of `TCL_LIBRARY`, and adds the seven 9.1 commands; its done-when runs `tclvm --tcl-version 9.1` over the 9.1 conformance rows ("The default release, the library and the commands", work list 11–13, Verification). It stays after the splits.
+- **E3:** the `lseq`, library, `clock` and `scan` bugs and the command gaps are recorded with their runs ("Bugs found"); the `clock` root cause is library selection.
+- **E8:** `runtime/rust` stays on 9.0 until item 88 and its differential lanes pin `--tcl-version 9.0`; the runtime documents are listed under Corrections.
+- **E10:** taint is not in the opcode table or a unit, and is checked at invoke in taint builds ("Taint").

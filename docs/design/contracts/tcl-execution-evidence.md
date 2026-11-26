@@ -49,6 +49,27 @@ configurations, complete logs or build receipts. Do not record content hashes:
 the bytes in git are the record. A hash belongs in evidence only when the hash
 itself is what the experiment measured.
 
+## Engine runs
+
+An engine that emulates several releases (`tclvm`, `runtime/rust`, the WASM
+hosts) answers differently by release and by library, so a result is only
+evidence together with both. For every engine run, in evidence files and in
+design documents that quote one:
+
+- record the `--tcl-version` passed, or `default` with the release the build
+  defaults to (`tclvm --help` prints it; 9.0 until item 312 lands, then 9.1);
+- record whether `TCL_LIBRARY` was set, and to which library, or `unset`.
+  The pinned `tclshX.Y` wrappers unset it; `tclvm` reads it whatever release is
+  selected, and a run under another release's library fails init or loses
+  `clock` ([VM on 9.1](../compiler/vm-tcl-9-1.md#bugs-found));
+- compare an engine run with a `tclsh` run only at the same release. "`tclsh9.1`
+  and `tclvm` print the same" with no `--tcl-version` compares 9.1 with the
+  default.
+
+A quoted run that predates this rule and names neither is read as the
+default release with `TCL_LIBRARY` not recorded. Re-run it before a decision
+rests on it.
+
 ## Fixtures
 
 When many cases run inside the same harness, put the harness in one file under
@@ -160,3 +181,7 @@ code bindings, and point at native captures retained as test data. The raw
 appliance and run archives they once cited have been removed; their BIG-IP
 executions were converted into files under `evidence/tcl`. Record new
 executions here, not as proof pages.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E11:** every engine run records its `--tcl-version` (or the default release) and whether `TCL_LIBRARY` was set, and is compared with `tclsh` only at the same release ("Engine runs").

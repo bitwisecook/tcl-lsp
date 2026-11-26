@@ -39,6 +39,13 @@ Four arms exist, each answering a different question:
    `[info patchlevel]` probe must instead report the requested line. Any
    engine that cannot honour the requested release stops the command before
    the campaign starts, rather than silently running a skewed pair.
+   The two Rust engines run different base releases until item 88:
+   `runtime/rust` stays on 9.0, and `tclvm`'s default moves to 9.1 with item
+   312 ([VM on 9.1](../compiler/vm-tcl-9-1.md#runtimerust-stays-on-90)).
+   Until 88, every lane that names `runtime/rust` (tclvm/runtime-rust,
+   runtime-rust/tclsh, the three-way arm and the WASM arms) runs with
+   `--tcl-version 9.0`, and an unpinned campaign naming `runtime/rust` is
+   refused rather than run at `tclvm`'s default.
 5. **Finding identity includes the selected release.** An unpinned legacy
    pair retains its existing path for compatibility. A pinned pair adds a
    `tclX.Y` child below its pair directory, so the same pair and seed at Tcl
@@ -116,3 +123,7 @@ Four arms exist, each answering a different question:
 - The `fuzz-findings` skill drives campaigns, summarises the registry, and
   replays a seed.
 - [VM/bytecode test boundary](vm-bytecode-test-boundary.md)
+
+## Review fixes (26 November 2026, deep review)
+
+- **E8:** lanes that name `runtime/rust` pin `--tcl-version 9.0` until item 88 (rule 4).

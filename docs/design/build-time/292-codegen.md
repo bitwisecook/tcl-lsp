@@ -166,6 +166,24 @@ flowchart TB
   class compile new;
 ```
 
+### Layers and edges
+
+The two crates sit in the workspace overview's layers like this:
+
+| Crate | Layer | May depend on | Never depends on |
+|---|---|---|---|
+| `tcl-codegen` | 5, back ends, ranked below `tcl-compile` | `tcl-ir`, `tcl-native-plan`, `tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model`, `tcl-bytecode`, the registry core | `tcl-optimiser`, `tcl-diagnostics`, `tcl-db`, any surface or catalogue crate; `tcl-binding` and `tcl-unit` once item 50's annotated commands land (see Open questions on `tcl-native-plan`) |
+| `tcl-compile` | 5, ranked above `tcl-codegen` and below the engine hosts that use it (`tcl-engine-tclvm`) | `tcl-codegen`, `tcl-unit`, `tcl-optimiser`, and what `tcl-codegen` may name | `tcl-diagnostics`, `tcl-db`, any surface or catalogue crate |
+
+- `tcl-compile` is not a layer-4a compiler crate: it depends on
+  `tcl-codegen`, which is in layer 5, and a crate may depend only on lower
+  layers or lower ranks.
+- It does depend on `tcl-optimiser`, because the drivers run semantic
+  optimisation. The rule "codegen never depends on the optimiser" is the
+  emitter crate's, not the driver's.
+- Neither crate depends on an engine. `tcl-vm` stays a dev-dependency of
+  the emitters only.
+
 A consumer's import changes crate. The module paths inside `tcl-compile` are
 a sketch:
 
@@ -322,3 +340,7 @@ unchanged byte for byte on its fixtures.
 ## Owner decision (26 November 2026)
 
 The split is adopted. `tcl-codegen` keeps the emitters, and the new `tcl-compile` crate holds the drivers above the unit crate. Step 11 follows this design.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O7:** `tcl-compile` sits in layer 5 ranked above `tcl-codegen`, not in layer 4a; it depends on `tcl-optimiser` and the unit crate, while the emitters do not ("Layers and edges"). The overview and the integration design's edge table follow by handoff.

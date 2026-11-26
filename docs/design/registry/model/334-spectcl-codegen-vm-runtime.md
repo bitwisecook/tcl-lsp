@@ -206,6 +206,7 @@ precompiled form.
 | reference body | `runtime_backing tcl-body {-package-source P}` | inline the library's own body | exact definition match | `ReferenceBody` |
 | implementation | `implementation -native ID -versions {L V}` (313) | none: still an invoke | accelerated load script | none |
 | library versions | from 308's positioned context | stamped on every claim | `package present L` check | `PackFactStamp::library_versions` (313) |
+| taint sinks (393) | `sink` rows | none | sink rows at dispatch, taint builds only | none |
 
 A plain library command compiles exactly as C does. Our compiler matches it
 byte for byte:
@@ -359,7 +360,8 @@ and auto-load behaviour.
 **Native accelerators** (313's (b), unchanged in policy). An
 `implementation -native ID -versions {L V…}` row keys a `HostCommand`
 (`tcl-engine-api/src/lib.rs:660`, registered with `Engine::define_command`,
-`:1255`) in the library crate's `runtime` feature. Opted in, the host
+`:1255`) in the library's accelerator crate (section 3: a separate crate, not
+a `runtime` feature on the library crate). Opted in, the host
 replaces only that version's load script with `load {} ID; package provide
 L V`. That is the VM's existing static `load` door, generalised from its
 `Thread` special case (`cmd_thread.rs:346`) to a table, and
@@ -390,14 +392,64 @@ for an extended unit (`examples-334.json`, `tbcx-hook-body`).
 
 **iRules on the extended unit.** An iRules site may use a private opcode
 (`IRULE_STARTS_WITH`, `tcl-bytecode/src/op.rs:311`). It is admitted only
-for the `f5-irules` profile, so the unit is extended (`0x8001005D`), and C
-Tcl refuses it at the format word, as intended. Today's `tcl dis --dialect
+for the `f5-irules` profile, so the unit would be extended (`0x8001005D`),
+and C Tcl refuses it at the format word, as intended. Until items 423 and
+485 land, 311 serialises `tcl` profiles only and refuses an iRules unit
+([bytecode image](../../compiler/bytecode-image.md), decision 12), so
+iRules hook bodies and library files stay source in images. Today's `tcl dis --dialect
 f5-irules` dispatches every iRules command plain (`invokeStk1` of `if`,
 `expr`, `when`). The opcode appears only in codegen unit tests
 (`codegen/expressions.rs:1079`). `tclsh9.1` compiles the operator to a
 `syntax` instruction and raises `invalid bareword "starts_with"`.
 
-### 3. Parity: the Rust spelling
+### 3. What each engine installs, and where accelerators report
+
+**Facts at interpreter creation** (review decision D-B, 26 November 2026). The engines read
+the same images as the analyser, but only the core ones are linked in:
+
+| Engine entry point | Links | Installs at interpreter creation | Library facts from |
+|---|---|---|---|
+| `tclvm` (`tcl-vm-cli`), `tcl-debug` | `tcl-catalogue-core` | the Tcl and Jim core images | none: library sites run plain, library files compile from source |
+| `tcl-vm-wasm` | `tcl-catalogue-core` | the Tcl and Jim core images | none, as `tclvm` |
+| `tcl-engine-tclvm` (the VM inside the server, CLI, MCP, Studio) | `tcl-catalogue-core` | the Tcl and Jim core images | the host entry point's installed `SurfaceSet` |
+| `runtime/rust` cdylib, staticlib and WASI build | `tcl-catalogue-core` | the Tcl and Jim core images; `register_spec_builtin` (`interp/commands/registration.rs:180`) reads specs from them, not from a linked `tcl_registry` surface | an embedder's `SurfaceSet` passed through `tcl-engine-api` at creation, if any |
+| a compiled WASM program (`tcl-engine-wasm`, `compile_wasm` output) | no catalogue | nothing | a per-module fact projection codegen stamps into the module: the `errorclass` rows, sinks, `library_versions` and claims its sites rest on |
+
+- Library facts are `errorclass` rows (392f), sinks (393), `LIBRARY_UNITS`
+  and `library_versions` (this design). With none installed, an engine
+  behaves as today: no claim rests on a library, so nothing is refused, and
+  every file compiles from source.
+- `tcl-catalogue-core` embeds the two core images and nothing else, so a
+  library spec edit rebuilds no engine.
+- `command-backing` reads the core image for the declared side, and asks
+  `Vm::backing_report` and `Interp::backing_report` for the reported side.
+- Ordering (owner priority, 26 November 2026): `tcl-catalogue-core` is cut
+  where `tcl-catalogue` is (item 264), only if that costs the split nothing;
+  otherwise after Now 5. Until then the engines keep their current registry
+  edge. No crate extraction waits for it.
+
+**Accelerators are a separate crate, and report separately** (O16). A
+`runtime` feature on a library crate would be unified on in every build that
+also builds an engine host, so `tcl-catalogue`'s build would compile the
+accelerators and `tcl-engine-api`. Instead:
+
+- each library with accelerators gets one accelerator crate beside it
+  (`tcl-lib-tcllib-accel`), holding its `HostCommand`s keyed by
+  `NativeImplId`. It depends on `tcl-engine-api` and nothing in the registry.
+  Engine entry points that opt in link it by name, the way the hook runner
+  (`tcl-spec-hooks`) is linked. The library crate and `tcl-catalogue` never depend on it;
+- a library command's `runtime_backing` stays what its source makes it
+  (`TclBody { PackageSource }`). An accelerator never becomes a command's
+  backing, so `command-backing`'s core gate is unchanged;
+- `Vm::backing_report` and `Interp::backing_report` list linked accelerators
+  in their own section (ID, library, versions, crate), and the generated
+  report renders it as a separate table. `command-backing --check` fails on an
+  `implementation -native` ID that an installed image declares and a linked
+  accelerator crate lacks in one engine but has in the other;
+- 436's md5 check (one digest with accelerators on and off, in both engines)
+  is the behavioural gate.
+
+### 4. Parity: the Rust spelling
 
 Every row is one model value, so 332's gate covers it.
 
@@ -492,8 +544,20 @@ Every row is one model value, so 332's gate covers it.
   it, and none outside the Tcl core does (16 files, all in
   `commands/tcl/`).
 - Found while running the examples:
-  - `tclvm` names a fully qualified proc by its tail in `wrong # args`
-    messages (`::a::b` gives `"b x"`, where C gives `"::a::b x"`);
+  - `tclvm` names a proc by its tail in `wrong # args` messages, whatever
+    the call wrote: `::a::b` and `a::b` both give `"b x"`, where C gives the
+    name as invoked (`"::a::b x"`, `"a::b x"`; tclsh 9.0 and 9.1; `tclvm`
+    default release, `TCL_LIBRARY` unset);
   - a proc whose `expr` has a syntax error stops `tclvm -c` with `native
     compiler preflight provider required` (exit 1), where C raises a
-    catchable `invalid bareword` error.
+    catchable `invalid bareword` error. `tclvm --tcl-version 9.1 -c 'puts
+    [lseq 3]'` (`TCL_LIBRARY` unset) stops with the same message; the file
+    form exits 1 with no output ([VM on 9.1](../../compiler/vm-tcl-9-1.md#bugs-found)).
+
+## Review fixes (26 November 2026, deep review)
+
+- **D-B (engine side), E5's engine half:** section 3 lists what each engine links and installs: `tcl-catalogue-core`'s Tcl and Jim core images at interpreter creation, library facts from the entry point's `SurfaceSet`, and a codegen-stamped fact projection in compiled WASM programs.
+- **O16:** accelerators live in a separate accelerator crate linked by entry points, not a `runtime` feature; they never become a command's `runtime_backing` and report in their own section of `backing_report` (section 3).
+- **E3:** the `wrong # args` bug covers relative names too, and the `-c` preflight abort covers `lseq` under 9.1 (Corrections).
+- **E6:** iRules units are refused until items 423 and 485 (section 2).
+- **E10:** the fact table gains a taint-sink row: sink rows at dispatch, taint builds only; codegen reads none (section 1).

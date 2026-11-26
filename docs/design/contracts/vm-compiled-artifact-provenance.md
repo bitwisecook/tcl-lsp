@@ -48,6 +48,27 @@ supplied if its profile and command bindings still match; it stays foreign so
 a later `set_compiler` forces recompilation. Modules returned by the VM's own
 compile cache use the current-service production path directly.
 
+### Loaded tbcx units (item 311, designed)
+
+Serialised units ([bytecode image](../compiler/bytecode-image.md)) are
+embedder-owned artifacts under this contract, never a second admission path.
+
+| tbcx input | `CompiledUnit` |
+|---|---|
+| any unit, read from a file or an image's `BODIES` or `LIBRARY_UNITS` | built by `Vm::admitted_foreign_unit`: `compiler` is `AdmittedForeign` at the current generation |
+| the profile | `profile_generation` for the profile the unit's manifest names (a foreign unit: plain `tcl` 9.1). Until items 423 and 485, a non-`tcl` profile is refused before admission |
+| `UnitMeta`'s manifest | `manifest`, checked whole by the table below; a disagreeing field refuses the rungs that rest on it |
+| `UnitMeta`'s per-function command and procedure bindings and site claims | `FunctionAsm::command_bindings`, `procedure_bindings` and `site_claims`, admitted as for any module |
+| a unit with no or stale `UnitMeta` (foreign) | `manifest: None`, no bindings or claims: admitted by its profile alone, as plain dispatch |
+| `source_namespace` from `UnitMeta`, or the record's namespace field | `source_namespace` |
+
+Source policy decides the first-entry recompile rule above. A policy-0 unit is
+source-bearing and recompiles through the current service on first entry.
+Policy-1 and policy-2 units execute as loaded, as tbcx does: policy 2's source
+answers `info body` and never replaces the code. Validation (format, stamp,
+admission, operands) runs before any of this and is the reader's
+(`tcl_bytecode::tbcx::validate`), not the VM's.
+
 ## Compile target
 
 A runtime compile target has three independent identities:
@@ -270,3 +291,7 @@ the alias hop with no plain recompile, and a proc at the pack spelling, or
 facts for a changed pack, is refused and recompiled plain. A bundled
 pack's `llength` override folding a constant through its `const_fold` is
 admitted only while the VM holds the pack's facts.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E9:** item 311's loaded units map onto `CompiledUnit` through `Vm::admitted_foreign_unit`: `UnitMeta`'s manifest, bindings and claims are checked here, a unit without metadata is plain dispatch, and source policy decides the first-entry recompile ("Loaded tbcx units").

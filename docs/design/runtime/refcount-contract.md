@@ -61,6 +61,10 @@ record:
 - **Notes** — anomalies, fast paths that depend on `rc == 1`,
   cross-references to the MM-B discipline, etc.
 
+The taint tag of a `taint` build (item 393, run-time half 475, deferred)
+changes no row: it is not a reference, so it is never retained or released,
+and a duplicating export (`Tcl_DuplicateObj`) copies it with the value.
+
 ## Conventions
 
 - Every C-ABI export (`#[no_mangle] extern "C"`) named `Tcl_*` /
@@ -307,3 +311,7 @@ handlers invalidate their relevant guards and preserve entered operation and
 scalar context currency. Currency does not attest command generations,
 namespace/frame lifecycle, native getter recipes or value headers; their
 existing owners check them independently.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E10:** the taint tag adds no refcount row; duplication copies it (from item 393).

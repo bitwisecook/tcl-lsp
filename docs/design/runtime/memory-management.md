@@ -27,6 +27,13 @@ comment stating which:
 - **transfers ownership** across an API boundary — one side retains, the other
   releases, stated at the boundary.
 
+The run-time taint tag (item 393, run-time half 475, deferred) is not a
+reference and adds no category: in a `taint` build it is a `u32` in
+`ObjectAuxiliary`, outside the ABI header. Duplicating an object copies its
+tag; the tag is never retained or released, and a shared object is
+duplicated before a source colours it. MM-C's leak counters must stay at zero
+with the feature on.
+
 ### The store shape
 
 Every slot store has the same shape: retain the incoming value, then release
@@ -163,3 +170,7 @@ of racing another test's `reset`.
   — the cell model whose slots this discipline governs.
 - [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md) —
   the compile-side proof.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E10:** the taint tag is copied by duplication and never retained (MM-B, from item 393).

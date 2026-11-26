@@ -14,7 +14,10 @@ The *contract* the tree implements is
 (variables).
 
 Source of truth for the C semantics we're mirroring is Tcl 9.0.4. All C-file
-citations in this doc use that release's source.
+citations in this doc use that release's source. That stays right for
+`runtime/rust`, which keeps 9.0 until item 88; `tclvm` moves to a 9.1 base
+with item 312, so a rule here that 9.1 changes needs a 9.1 citation before
+the VM follows it.
 
 Jim uses a separate flat command table and retained canonical namespace
 objects. Each active context has an `Owned` original Jim object and a stable
@@ -960,3 +963,7 @@ with first refusal retained. True-top locals is distinct from a non-top namespac
 frame. No replacement key String, report inversion, complete roster, live
 reentrant table traversal or broader lifecycle authority follows; C, VM and
 other variable APIs keep their independent owners.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E8:** the 9.0.4 source of truth holds for `runtime/rust` until item 88; `tclvm` moves to 9.1 with item 312.

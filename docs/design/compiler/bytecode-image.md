@@ -227,7 +227,7 @@ pub mod tbcx {
 |---|---|---|
 | `format` word | `93` | `0x8000_0000 \| revision<<16 \| 93`, first revision `0x8001_005D` |
 | `tcl_version` | producer stamp: the pinned 9.1 patchlevel, `0x09010002` | the **target** release, e.g. `0x08061202` for 8.6.18 |
-| Target and profile | Tcl 9.1, the plain `tcl` profile | any release 8.4–9.1, any profile (Jim, iRules, …) |
+| Target and profile | Tcl 9.1, the plain `tcl` profile | any `tcl` release 8.4–9.1; other profiles (Jim, iRules, …) only after items 423 and 485 (decision 12) |
 | Code | the tbcx shape: plain dispatch, no compile procs, so no `startCommand` | our normal optimised codegen |
 | Opcodes | C Tcl 9.1's slots 0–210 only | slots 0–210 and private codes from 255 down |
 | Extras | none: the file is byte-valid tbcx 1.2.1 | aux tag `0x8000_0000` (`ForeachInfo`); a trailing extension table |
@@ -274,9 +274,9 @@ C Tcl 9.1 with tbcx reads the second file's format word and stops there.
    - The oracle is `tbcx::save` itself, run under the pinned `tclsh` 9.1.0. Every block's code bytes must match, or the fixture is on a listed divergence list.
    - 312's byte mode, against `getbytecode`, stays the check for normal optimised code.
 3. **Our metadata never enters the payload.** `UnitMeta` holds:
-   - the dialect profile id and dialect point;
+   - the module's `ArtefactIdentityManifest` (`ModuleAsm::manifest`), which already states the environment, release and build of the profile, the ABI version, package floors, pack-fact stamps, the intrinsic table and the embedded library revision ([provenance contract](../contracts/vm-compiled-artifact-provenance.md)). The profile is read from it; `UnitMeta` keeps no second profile id. Item 485's `GrammarProfileId` joins the manifest when it lands;
    - `source_namespace`, `source_hash` and `plain_command_dispatch`;
-   - specialisation stamps: the `PackFactStamp` list and `ArtefactIdentityManifest`;
+   - per function, its `PackFactStamp` claims (the manifest lists their union);
    - per function, in payload order (top, procs by definition order, then extension blocks):
      - the native-compilation fields (`lib.rs:172–186`);
      - command and procedure bindings, and site claims;
@@ -292,13 +292,18 @@ C Tcl 9.1 with tbcx reads the second file's format word and stops there.
      - plain dispatch and no native compilation;
      - exception handling derived from its exception ranges;
      - no positions, as in C.
+   - Both kinds enter the VM through the provenance contract's foreign door, `Vm::admitted_foreign_unit` (`tcl-vm/src/interp/configuration.rs:396`), because the VM cannot prove which compile service produced bytes read from a file or image:
+     - each function becomes a `CompiledUnit` with `CompilerProvenance::AdmittedForeign` at the current compiler generation, and `profile_generation` set from the profile the unit names;
+     - with current `UnitMeta`, `CompiledUnit::manifest` is the meta's manifest, and its command bindings, procedure bindings and site claims are checked rung by rung, exactly as the contract's table says for any module. A disagreeing field refuses the rungs that rest on it, and those functions recompile plain from their kept source;
+     - a foreign unit carries no manifest, bindings or claims, so the contract admits it "by its profile, bindings and claims alone": plain dispatch;
+     - source policy decides the contract's "source-bearing foreign procedure is recompiled on first entry" rule. Policy 0 is source-backed and follows it. Policies 1 and 2 execute as loaded, as tbcx does; policy 2's source answers `info body` only.
 5. **Private opcodes.** The unit kind marks them, and export either lowers them or refuses.
    - An interop unit can never contain one. `validate` rejects a code byte above 210, so a stray private opcode surfaces in our tooling, not as tbcx's "invalid opcode".
    - Export from an optimised module lowers only where the semantics are the same. The lowering is table-driven, beside 312's admission table:
      - `LNOT`→`not` (the VM runs both through one arm, `opcode_dispatch.rs:890`);
      - `LAND`/`LOR`→`swap; not; swap; not; bitor; not` and its dual, which keeps the left-first error order;
      - `STR_REPEAT` (stack `value count`, `opcode_dispatch.rs:792`)→`push ::tcl::string::repeat; reverse 3; reverse 2; invokeStk 3`, and `STR_REVERSE`→`push ::tcl::string::reverse; reverse 2; invokeStk 2`. These are C's uncompiled path, so they also see a renamed command, as C does.
-     - `CALL_FUNC1` and `IRULE_*` have no lowering. They occur only on 8.4 and iRules targets, which are extended anyway.
+     - `CALL_FUNC1` and `IRULE_*` have no lowering. They occur only on 8.4 and iRules targets, which are extended anyway; iRules units are refused until items 423 and 485 (decision 12).
    - Interop export normally recompiles in the tbcx shape (decision 2), so lowering serves only the `--from-optimised` path.
 6. **Releases below 9.1 are extended units.**
    - The header names the target. The code uses 312's 9.1 numbering, with the deprecated one-byte forms and private codes that target emits.
@@ -334,8 +339,14 @@ C Tcl 9.1 with tbcx reads the second file's format word and stops there.
     - every opcode is admitted for the target release (312's `admitted`);
     - each aux kind matches its opcode (`jumpTable`→0, `jumpTableNum`→1, `dictUpdate*`→2, `foreach_start`→3 or the `ForeachInfo` extension);
     - exception nesting is consistent, and the recomputed stack depth is ≤ `maxStack`;
-    - `UnitMeta` has one entry per function, its ranges and pcs fall in the code, and its profile id is known and matches the dialect point.
+    - `UnitMeta` has one entry per function, its ranges and pcs fall in the code, and its manifest names a known `tcl` environment whose release matches the header's target (decision 12).
 11. **Order relative to 312.** 311 needs 312's steps 1–3 first (`code`/`from_code`, `admitted`, `encode`/`decode`), with codes 0–210 equal to 9.1.0's. tbcx validates against the running 9.1 table. It needs 312's emit-time wide forms only for extended 9.1 units.
+12. **`tcl` profiles only, until 423 and 485.** A unit records its profile through the manifest's environment, and an engine refuses a profile it cannot run only after item 423; item 485 gives the profile its id. Until both land:
+    - the writer refuses a module whose profile is not a `tcl` release 8.4–9.1 (`ExportError::Profile`);
+    - the reader refuses an extended unit whose `UnitMeta` names another environment (`ImageError::Profile`), and the caller compiles from source. It is never loaded as foreign, because foreign means Tcl 9.1 and that is what 423 exists to stop;
+    - so `IRULE_*` opcodes, admitted only for `f5-irules`, appear in no unit, and item 434's f5-tcl codegen bug cannot be serialised.
+    The limit lifts when 423's done-when passes and 485's id is in the manifest.
+13. **Taint is not in the image.** No tbcx field, `UnitMeta` entry or extension carries a taint tag, because taint is run-time state (393). A loaded unit runs sink checks at invoke in a `taint` build, like any other code.
 
 How a unit is loaded, from decisions 1, 4 and 10:
 
@@ -433,3 +444,9 @@ Record:
 ## Review fixes (26 November 2026)
 
 - **R10:** a private-opcode change bumps the extended revision, pinned by a digest test; one stale-meta rule (refused, or foreign) for every caller, image bodies included.
+
+## Review fixes (26 November 2026, deep review)
+
+- **E6:** 311's first cut serialises `tcl` profiles 8.4–9.1 only; the writer and reader refuse other profiles, and non-`tcl` extended units, until items 423 and 485 land (decision 12, the unit-kind table).
+- **E9:** `UnitMeta` carries the module's `ArtefactIdentityManifest` instead of a separate profile id, and every loaded unit, with or without metadata, enters the VM through `Vm::admitted_foreign_unit` and the provenance contract's per-rung checks (decisions 3, 4 and 10; the contract gains a section on loaded units).
+- **E10:** taint is not in the image and is checked at invoke in taint builds (decision 13).
