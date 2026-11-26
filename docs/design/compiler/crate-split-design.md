@@ -18,6 +18,48 @@ performance. `tcl-compiler` is the first and largest piece; `tcl-registry`
 a long time while the layout changes. The order is chosen for the least total
 work and the cleanest result, not to keep every step green.
 
+### Parallel worktrees
+
+The acceptance test for the layout: many independent worktrees work in
+parallel, each on an isolated part of the stack, and none fills the disk or
+memory. Each worktree's build compiles only the dependency cone of what it
+touches. Five things decide that:
+
+- **Cone size.** Working on a crate compiles its dependencies, and testing it
+  compiles its dev-dependencies too. Today building `tcl-registry` alone
+  compiles 54 crates, `tcl-compiler` 80 and `tcl-lsp-core` 179. Every Tcl-facing
+  crate sits above the 583k-line registry.
+  - The split makes cones small.
+  - Items 117 and 118, and later splitting the registry's per-command data from
+    its lookup code, keep the registry out of cones that only need the lookup
+    vocabulary.
+- **Dev-dependency hygiene.** A crate's tests may not depend on a crate above
+  it, because that puts the whole upper stack into every worktree that tests
+  it. Step 0 removes today's case. Once the split is done, the `module-layers`
+  gate enforces this for dev-dependencies too.
+- **Peak memory.** rustc's peak memory grows with the size of the crate it is
+  compiling. A 564k-line crate is one large process; ten smaller crates are ten
+  smaller ones, which `-j` can bound.
+- **Disk per worktree.** Debuginfo is already off and the target directory is
+  per checkout (`scripts/dev/agent-build-env.sh`). What remains is incremental
+  state (9.7 GB today, mostly `tcl-compiler`'s three caches) and large test
+  binaries (183 MB for `tcl-compiler`'s lib tests). Both shrink with cone and
+  crate size.
+- **Sharing across worktrees.** Third-party dependencies and unchanged
+  workspace crates are rebuilt in every worktree's target directory. A shared
+  compiler cache would let worktrees reuse each other's outputs, and a cache
+  keyed on absolute paths would miss across checkouts. That is item 260.
+
+Item 259 measures this before the split, and then again as each crate builds.
+The measure covers four representative isolated edits:
+- a lexer or syntax change;
+- a registry command spec;
+- an analyser rule;
+- an LSP feature.
+
+For each edit it records the crates compiled, wall time, peak RSS and
+target-directory growth.
+
 ## Why now
 
 Build and iteration time is paid on every change in every later stage of the
