@@ -93,6 +93,7 @@ run_naming_owner tcl-vm-it 'interp::native_rename::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_upvar_info_exists_tests::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_compiled_locals::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'exec::native_uplevel_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'exec::native_uplevel_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_namespace::' -p tcl-vm --lib
 run_naming_owner tcl-vm-it 'cmd_namespace::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_package::' -p tcl-vm --lib
