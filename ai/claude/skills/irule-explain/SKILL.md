@@ -1,7 +1,7 @@
 ---
 name: irule-explain
 description: "Explain what an F5 iRule does by breaking down each event handler, describing data flow, noting security concerns, and summarising overall purpose. Uses LSP analysis for accurate context. Use when explaining iRule code, understanding what an iRule does, analysing iRule event handlers, or answering questions about F5 iRule behaviour."
-allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, Bash, Read
+allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, mcp__tcl-lsp__hud_chain, Read
 ---
 
 # iRule Explain
@@ -17,11 +17,10 @@ allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, Bash, Re
    references, then `analyze` on the rule's `source`. If a tool fails (e.g.
    syntax errors), explain from the source alone and say LSP analysis was
    unavailable.
-3. With a config, find the virtual servers that attach the rule
-   (`f5-query query '.ltm.virtual[] | select(.rules[] == "/Common/RULE") | .name' CONF`)
-   and their HUD chains (`f5-query explain virtual VS CONF --json`): which
-   profiles raise its events, and which other iRules share its connection
-   variables and events. Without a config, say which profiles you assume.
+3. With a config, call `mcp__tcl-lsp__hud_chain` with `rule_path` for the
+   HUD chain of every virtual server that attaches the rule: which profiles
+   raise its events, and which other iRules run for the same events and share
+   its connection variables. Without a config, say which profiles you assume.
 4. Explain: overall purpose; each handler, when it fires and its priority;
    data flow between events (a variable set in CLIENT_ACCEPTED used in
    HTTP_REQUEST, values carried across keep-alive requests); procs and what

@@ -29,31 +29,19 @@ use tcl_bigip::irule_context::{
 use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
-/// `irule_with_context` — bundle each iRule in a BIG-IP config with the objects
-/// it references (pools, data-groups, profiles, monitors, …). Mirrors the
-/// `f5 irule context` pipeline: parse + merge the config(s), build one bundle
-/// per `ltm rule`, render to JSON or Tcl-flavoured text.
-pub fn irule_with_context(args: &Value) -> ToolResult {
-    let config_text = args
+/// Parse inline `config_text` plus any `config_paths` files, keeping each
+/// entry's origin and raw text.
+fn load_configs(args: &Value) -> Result<Vec<(String, String, BigipConfig)>, Value> {
+    let mut configs: Vec<(String, String, BigipConfig)> = Vec::new();
+    if let Some(text) = args
         .get("config_text")
         .and_then(Value::as_str)
-        .unwrap_or("");
-    let rule_filter = args.get("rule_path").and_then(Value::as_str).unwrap_or("");
-    let format = args.get("format").and_then(Value::as_str).unwrap_or("json");
-    let transitive = args
-        .get("transitive")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-
-    // Resolve inputs: inline `config_text` plus any `config_paths` files.
-    // Each entry keeps its raw text so the context builder can slice rule
-    // bodies by source range.
-    let mut configs: Vec<(String, String, BigipConfig)> = Vec::new();
-    if !config_text.is_empty() {
+        .filter(|s| !s.is_empty())
+    {
         configs.push((
             "<config_text>".to_owned(),
-            config_text.to_owned(),
-            parse_bigip_conf(config_text, "Common"),
+            text.to_owned(),
+            parse_bigip_conf(text, "Common"),
         ));
     }
     if let Some(paths) = args.get("config_paths").and_then(Value::as_array) {
@@ -72,13 +60,73 @@ pub fn irule_with_context(args: &Value) -> ToolResult {
             "no config provided; pass config_text or config_paths",
         ));
     }
+    Ok(configs)
+}
 
-    // Merge once so cross-file references resolve.
+fn merge_loaded(configs: &[(String, String, BigipConfig)]) -> BigipConfig {
     let config_refs: Vec<(String, &BigipConfig)> = configs
         .iter()
         .map(|(origin, _text, cfg)| (origin.clone(), cfg))
         .collect();
-    let merged = tcl_bigip::lint::merge_configs(&config_refs);
+    tcl_bigip::lint::merge_configs(&config_refs)
+}
+
+/// `hud_chain` — the HUD chain of each virtual server: its profiles as HUD
+/// filters, the attached iRules in rule-list order, and every `when` handler
+/// merged into one table per event, ordered by priority and rule position.
+pub fn hud_chain(args: &Value) -> ToolResult {
+    let configs = load_configs(args)?;
+    let merged = merge_loaded(&configs);
+    let virtual_name = args.get("virtual").and_then(Value::as_str).unwrap_or("");
+    let rule_filter = args.get("rule_path").and_then(Value::as_str).unwrap_or("");
+
+    let mut chains = if virtual_name.is_empty() {
+        tcl_bigip::hud_chain::hud_chains(&merged)
+    } else {
+        match tcl_bigip::hud_chain::hud_chain(&merged, virtual_name) {
+            Some(chain) => vec![chain],
+            None => {
+                return Ok(refused(format_args!(
+                    "no virtual server {virtual_name} in config"
+                )));
+            }
+        }
+    };
+    if !rule_filter.is_empty() {
+        chains.retain(|chain| {
+            chain.rules.iter().any(|rule| {
+                rule.reference == rule_filter || rule.full_path.as_deref() == Some(rule_filter)
+            })
+        });
+    }
+    if chains.is_empty() {
+        return Ok(refused(if rule_filter.is_empty() {
+            "no virtual servers in config".to_owned()
+        } else {
+            format!("no virtual server attaches {rule_filter}")
+        }));
+    }
+    let chains = serde_json::to_value(&chains)
+        .map_err(|error| tool_error(format_args!("serialising HUD chains: {error}")))?;
+    Ok(json!({ "chains": chains }))
+}
+
+/// `irule_with_context` — bundle each iRule in a BIG-IP config with the objects
+/// it references (pools, data-groups, profiles, monitors, …). Mirrors the
+/// `f5 irule context` pipeline: parse + merge the config(s), build one bundle
+/// per `ltm rule`, render to JSON or Tcl-flavoured text.
+pub fn irule_with_context(args: &Value) -> ToolResult {
+    let rule_filter = args.get("rule_path").and_then(Value::as_str).unwrap_or("");
+    let format = args.get("format").and_then(Value::as_str).unwrap_or("json");
+    let transitive = args
+        .get("transitive")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+
+    let configs = load_configs(args)?;
+
+    // Merge once so cross-file references resolve.
+    let merged = merge_loaded(&configs);
     let registry = crate::environment::store_for_dialect("f5-irules");
 
     // One bundle per `ltm rule`, optionally filtered by full path.
@@ -177,4 +225,70 @@ pub fn explain_flow(args: &Value) -> ToolResult {
         let _ = std::fs::remove_file(p);
     }
     result.map_err(tool_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CONF: &str = "\
+ltm rule /Common/r1 {
+when HTTP_REQUEST { set u [HTTP::uri] }
+}
+ltm rule /Common/r2 {
+when HTTP_REQUEST priority 100 { set u x }
+}
+ltm virtual /Common/vs1 {
+    destination /Common/10.0.0.1:80
+    profiles { /Common/http { } /Common/tcp { } }
+    rules { /Common/r1 /Common/r2 }
+}
+ltm virtual /Common/vs2 {
+    destination /Common/10.0.0.2:80
+    profiles { /Common/tcp { } }
+}
+";
+
+    #[test]
+    fn hud_chain_merges_handlers_across_rules() {
+        let out = hud_chain(&json!({ "config_text": CONF, "virtual": "vs1" })).unwrap();
+        let chains = out["chains"].as_array().unwrap();
+        assert_eq!(chains.len(), 1);
+        let chain = &chains[0];
+        assert_eq!(chain["virtualServer"], "/Common/vs1");
+        assert_eq!(chain["filters"][0]["profileType"], "TCP");
+        assert_eq!(chain["filters"][1]["profileType"], "HTTP");
+        assert_eq!(chain["filters"][1]["typeSource"], "baseObject");
+        let handlers = &chain["events"][0]["handlers"];
+        assert_eq!(chain["events"][0]["event"], "HTTP_REQUEST");
+        assert_eq!(handlers[0]["rule"], "/Common/r2");
+        assert_eq!(handlers[0]["priority"], 100);
+        assert_eq!(handlers[1]["rule"], "/Common/r1");
+        assert_eq!(chain["events"][0]["raised"], true);
+    }
+
+    #[test]
+    fn hud_chain_filters_by_attached_rule() {
+        let out = hud_chain(&json!({ "config_text": CONF, "rule_path": "/Common/r1" })).unwrap();
+        let names: Vec<_> = out["chains"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["virtualServer"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["/Common/vs1"]);
+
+        let all = hud_chain(&json!({ "config_text": CONF })).unwrap();
+        assert_eq!(all["chains"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn hud_chain_refuses_unknown_targets_and_errors_without_config() {
+        let missing = hud_chain(&json!({ "config_text": CONF, "virtual": "nope" })).unwrap();
+        assert!(missing["refused"]["reason"].is_string());
+        let unattached =
+            hud_chain(&json!({ "config_text": CONF, "rule_path": "/Common/zz" })).unwrap();
+        assert!(unattached["refused"]["reason"].is_string());
+        assert!(hud_chain(&json!({})).is_err());
+    }
 }

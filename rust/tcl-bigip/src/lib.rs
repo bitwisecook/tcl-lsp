@@ -35,6 +35,7 @@ pub mod f5_trailer;
 pub mod flow;
 pub mod graph;
 pub mod grep;
+pub mod hud_chain;
 pub mod irule_context;
 pub mod jsonfmt;
 pub mod links;

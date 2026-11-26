@@ -1691,6 +1691,7 @@ with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
 | `compile_wasm` | Compile source to a WebAssembly module |
 | `xc_translate` | Translate iRule to XC configuration — Terraform, ves.io JSON, or pasteable Console documents |
 | `irule_with_context` | Bundle each iRule in a BIG-IP config with the objects it references |
+| `hud_chain` | A virtual server's HUD chain: profiles as filters, attached iRules, every handler merged per event in priority order |
 | `explain_flow` | Narrate a captured session (pcap) against a BIG-IP config |
 | `tk_layout` | Extract Tk widget tree as JSON |
 | `generate_irule_test` | Generate iRule test script with CFG paths and multi-TMM detection |
