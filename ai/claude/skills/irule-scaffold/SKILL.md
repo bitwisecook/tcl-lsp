@@ -9,23 +9,20 @@ allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__event_info, mcp__tcl-lsp__co
 ## Steps
 
 1. Read `../_prompts/irules_system.md`.
-2. Take the event names from the request. If none were given, list the
-   common ones (RULE_INIT, CLIENT_ACCEPTED, HTTP_REQUEST, HTTP_RESPONSE,
-   HTTP_REQUEST_DATA, HTTP_RESPONSE_DATA, SERVER_CONNECTED, CLIENT_CLOSED,
-   SERVER_CLOSED, CLIENTSSL_HANDSHAKE, SERVERSSL_HANDSHAKE, DNS_REQUEST,
-   DNS_RESPONSE, LB_SELECTED, LB_FAILED) with when each fires, and ask.
-3. Generate a skeleton with guarded logging when requested; do not assume
-   that every command applies to every event. Include only commands applicable
-   to that specific event by checking `event_info.valid_commands` and the matching `command_info`
-   metadata for the target BIG-IP version. These provider queries use the
-   shared event and command registries; do not infer profile-specific support
-   that the response does not report. If metadata is unavailable, use
-   placeholders instead of asserting a command is valid. Extract values only
-   where the command is applicable and needed; add commented placeholder
-   sections (`# --- Request routing ---`), K&R braces, 4-space indent, and a
-   comment on when each event fires.
-4. Write the file, then call `mcp__tcl-lsp__analyze` with the contents as
-   `source`; fix and re-validate up to 3 iterations, then report the status
-   and anything remaining.
+2. Take the event names from the request. If none were given, offer the
+   common events from the prompt with when each fires, and ask.
+3. For each event call `mcp__tcl-lsp__event_info`: its multiplicity, side,
+   `implied_profiles` (the HUD filters the virtual server needs) and
+   `valid_commands`. Use only commands it reports, checking
+   `mcp__tcl-lsp__command_info` for the target BIG-IP version when one is
+   given; where metadata is missing, leave a placeholder instead of
+   asserting a command.
+4. Generate the skeleton: a comment on when each handler fires, guarded
+   logging when requested, values extracted only where needed, commented
+   placeholder sections (`# --- Request routing ---`), K&R braces, 4-space
+   indent, connection variables with a rule-specific prefix.
+5. Write the file, call `mcp__tcl-lsp__analyze` with the contents as
+   `source`, fix and re-validate up to 3 iterations, then report the status,
+   the profiles the skeleton needs, and anything remaining.
 
 $ARGUMENTS

@@ -13,8 +13,10 @@ allowed-tools: mcp__tcl-lsp__analyze, Read, Edit
    error report it; if there are no errors or warnings, report the file is
    clean.
 3. Fix only what the diagnostics flag, in one pass where possible, following
-   the security rules and preserving behaviour and intent. Codes:
-   `docs/generated/diagnostic_codes.md`.
+   the security rules and preserving behaviour and intent. Do not rename
+   connection variables, change `priority` or alter `return` / `event`
+   control without saying so: other iRules on the virtual server may depend
+   on them. Codes: `docs/generated/diagnostic_codes.md`.
 4. Re-read and re-analyse; repeat up to 5 iterations.
 5. Report what was fixed and what remains, with a reason for anything that
    cannot be auto-fixed (e.g. needs an architectural change).

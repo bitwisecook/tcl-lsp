@@ -14,7 +14,9 @@ allowed-tools: mcp__tcl-lsp__validate, Read
 3. Report by category (errors, security, taint, thread safety, performance,
    style, optimiser): for each issue the code, severity, line, message, and
    a one-line fix (`docs/generated/diagnostic_codes.md`), then per-category
-   totals. A clean file gets an explicit pass.
+   totals. A clean file gets an explicit pass. Validation covers this rule
+   alone: say that profile availability and conflicts with other iRules on
+   the virtual server need `/irule-hud` with the BIG-IP config.
 
 ## Output
 
