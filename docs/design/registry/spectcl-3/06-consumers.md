@@ -11,8 +11,8 @@ It consolidates [313](../model/313-consumer-hooks.md),
 [319](../model/319-consumer-migration.md), [334](../model/334-spectcl-codegen-vm-runtime.md)
 and [335](../model/335-spectcl-source-tools.md). The crate and pass of the
 compiler split that reads each fact family, and the shared interprocedural
-framework, are the integration design's (`compiler/compiler-analyser-spectcl-integration.md`,
-written in parallel; plan items 480–494 are reserved for its steps).
+framework, are the [integration design](../../compiler/compiler-analyser-spectcl-integration.md)'s;
+its steps are plan items 480–487.
 
 ```mermaid
 flowchart LR
@@ -259,3 +259,8 @@ and the catalogue instead of their own copies, and `cargo xtask
 registry-axes` becomes the consumer-purity ratchet over every crate (item
 319): a consumer site is debt, engines are checked for agreement, and the
 ledger only shrinks.
+
+## Review fixes (26 November 2026)
+
+- **P7 (plan review):** the integration design is committed; its steps are plan items 480–487, not a reserved block.
+- **Language fixer handoff:** the rewrite example's `-proof {core tcl 8.5-9.2}` is intended: under chapter 2's `a0` bounds it holds every 8.5.x to 9.1.x release and excludes 9.2, which no proof run covers.

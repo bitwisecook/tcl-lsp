@@ -23,7 +23,7 @@ model at parity, serving every consumer across C Tcl 8.4–9.1, Jim and f5-tcl.
 | [9. Package surfaces](09-package-surfaces.md) | handles, error codes, results, embedded ranges, migrations, callbacks, the additive areas, taint (static and run time) |
 | [10. Tooling and migration](10-tooling-and-migration.md) | shims, `tcl spec upgrade`, the printer, authoring and AI tooling, editor bundles, the `.tclspec` editor |
 | [11. Open decisions](11-open-decisions.md) | the questions left to the owner, with each source's and this spec's recommendation |
-| [12. Plan crosswalk](12-plan-crosswalk.md) | plan items 400–479 (480–494 reserved), merges, and the map from every proposed ID |
+| [12. Plan crosswalk](12-plan-crosswalk.md) | plan items 400–487 (480–487 from the integration design), merges, the review's renumbering, and the map from every proposed ID |
 
 ```mermaid
 flowchart LR
@@ -44,3 +44,7 @@ Every Tcl result and disassembly in these chapters is a real run on tclsh
 8.4.20–9.1.0, jimsh 0.84 (`tmp/jimtcl-oracle/jimsh`), and the built
 `./target/debug/tcl` and `./target/debug/tclvm`. A Rust block marked "design
 sketch" shows proposed types; one marked "today" shows the code as it is.
+
+## Review fixes (26 November 2026)
+
+- **P7:** chapter 12 now covers items 400–487; the integration design's steps are 480–487.

@@ -7,20 +7,23 @@ with existing items: 331a–d, 332a–e, 333's 336–344, 334's 340–346, 335's
 items. This chapter allocates fresh, contiguous plan numbers from 400, in
 dependency order, merges duplicate work, and records the crosswalk. The items
 are in [the plan](../../../work/name-handling/plan.md) after item 392, and each
-source doc carries a "Plan numbers" note.
+source doc carries a "Plan numbers" note. The [integration design](../../compiler/compiler-analyser-spectcl-integration.md)'s
+steps INT-a to INT-m became items 480–487 after the plan review of 26 November
+2026, or folded into existing items; that review also split three items and
+added two (*Review renumbering*, below).
 
 ## Allocation
 
 | Block | Group | Runs after |
 |---|---|---|
-| 400–416 | the language: manifest and grammar, notices, hooks by ID, tier-gated spellings, the printer, the parity gate, the registry seam, image trust, identity and composition, dependencies, pack diagnostics, tests and proofs, content forms, load at scale | 305's reader (and item 251), the registry split (261–265) |
+| 400–416 | the language: manifest and grammar, notices, hooks by ID, tier-gated spellings, the printer, the parity gate, the registry seam, image trust, identity and composition, dependencies, pack diagnostics, tests and proofs, content forms, load at scale | the registry and compiler splits; 305's reader |
 | 417–435 | dialects: grammar profiles, D5, kernels, the writer, engines, conformance, portability, semantic axes, Jim, dialect-aware hooks, f5-tcl severities and rows, per-dialect consumer and codegen rules, the catalogue gate | 301, 303, 304, 418 after 400 |
 | 436–441 | consumers: the VM and runtime from facts; name and frame facts, rename, extract and inline, edge cases | 311, 313, 437 after 400 |
-| 442–451 | F5: iRules forms, pack, profiles, connection fields, test framework, release facets; iApps, tmsh, the config graph, the config-mode simulator | 304, 330, 400, 118 |
-| 452–457 | SslicTcl | 400; with 307's DSL step |
-| 458–464 | eBPF | 307's DSL step, last |
+| 442–451 | F5: iRules forms, pack, profiles, connection fields, test framework, release facets; iApps, tmsh, the config graph, the config-mode simulator | 304, 400, 118a; 443 performs 330's iRules upgrade |
+| 452–457 | SslicTcl | 400; 454 after 307's images |
+| 458–464 | eBPF | 307 |
 | 465–479 | taint: static (465–474) and run-time (475–479) | 400, 391, 392, 313 |
-| 480–494 | **reserved** for the compiler and analyser integration design (`compiler/compiler-analyser-spectcl-integration.md`, steps INT-a to INT-m, 13 so far), written in parallel and not yet committed; allocated when it lands | 400, 406 |
+| 480–487 | the [integration design](../../compiler/compiler-analyser-spectcl-integration.md#10-proposed-plan-steps)'s steps: `FactView`, every image in the catalogue, one `Certainty`, the summary framework, fact slices, grammar profile ids, consumer cones, § 9 as a row. 488–494 are unused | 262, 264, 305, 258, 286, 314 |
 
 ```mermaid
 flowchart LR
@@ -35,6 +38,8 @@ flowchart LR
   s306["306 spike"] --> s307["307 libraries as data"]
   lang --> s306
   s307 --> ebpf["458 to 464 eBPF"]
+  lang --> integ["480 to 487 integration"]
+  integ --> taint
   s307 --> ssl
   cons --> waves["319 to 330 consumer waves"]
 ```
@@ -54,6 +59,11 @@ flowchart LR
 | 334 work items 1 and 3 (`library_versions`, `implementation`) and 313 | 313 (no new item) |
 | 335's `-appends N` and 390f's `-callback -appends` | 390f (no new item) |
 | 390's `throws-prefix` and 392's `throws` | 392a (no new item) |
+| INT-d and 308 | 308, as 308a and 308b |
+| INT-f and 391b, 392b–c, 393f | 470, with 391b and 392b–c (no new item) |
+| INT-i and 318 | 318's done-when |
+| INT-k and 380's 386 | 464 |
+| INT-l and 393a | 465 |
 
 ## Crosswalk
 
@@ -78,7 +88,7 @@ flowchart LR
 | 333's 343 | [333](../model/333-spectcl-3-gap-analysis.md) | 416 | Load at scale |
 | 370's 370; 350's 359 (character model, `{*}`) | [370](../model/370-dialect-grammars.md) | 417 | Grammar profiles in `tcl-dialect` |
 | 370's 371 | [370](../model/370-dialect-grammars.md) | 418 | `grammar` blocks in reader3 |
-| 370's 372 | [370](../model/370-dialect-grammars.md) | 419 | Pack dialects reach every parser (D5) |
+| 370's 372 | [370](../model/370-dialect-grammars.md) | 419 | Pack dialects reach every parser (the redesign's §11 D5) |
 | 370's 373 | [370](../model/370-dialect-grammars.md) | 420 | Kernels take their grammar |
 | 370's 374 | [370](../model/370-dialect-grammars.md) | 421 | Lexer and segmentation |
 | 370's 375 | [370](../model/370-dialect-grammars.md) | 422 | The writer takes the profile |
@@ -139,19 +149,47 @@ flowchart LR
 | 393x3 | [393](../model/393-taint.md) | 477 | Run-time taint propagation |
 | 393x4 | [393](../model/393-taint.md) | 478 | The taint warn-mode conformance lane |
 | 393x5 | [393](../model/393-taint.md) | 479 | Taint oracles |
+| INT-a | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 480 | `FactView` and `HookDispatch` in the registry core |
+| INT-b | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 481 | Every fact an image, every image in the catalogue |
+| INT-c | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 482 | One `Certainty` |
+| INT-d | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 308 (308a, 308b) | The positioned context in `tcl-binding` |
+| INT-e | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 483 | The summary framework |
+| INT-f | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 470 | The new domains (with 391b and 392b–c) |
+| INT-g | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 484 | Fact slices and pack inputs |
+| INT-h | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 485 | Grammar profile ids |
+| INT-i | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 318 | The VM boundary |
+| INT-j | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 486 | Consumer cones |
+| INT-k | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 464 | `bpf-tcl-ir` without `tcl-analysis` |
+| INT-l | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 465 | One taint colour, one completion code value |
+| INT-m | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 487 | § 9 as a conformance row |
 | 333's 336–344, 334's 340–346, 335's 345–355, 350's 356–365, 370's 370–378, 380's 380–386 as numbers | — | retired | the numbers are not plan items; the rows above map their work |
 
 The model documents keep their own numbers (`331-library-dependencies.md`
 is still "331"); only proposed plan numbers are retired. Items 301–330 and
-390–392 are unchanged. Item 305's plan text stays, marked as superseded in
+390–392 keep their numbers. Item 305's plan text stays, marked as superseded in
 detail by this specification.
+
+## Review renumbering (26 November 2026)
+
+The plan review split three items so that their build-time halves do not wait
+for slow work, and added two. The lettered halves are bullets inside their
+item, as 117a and 117b are, except 244a, which is its own row.
+
+| Before | After | Why |
+|---|---|---|
+| 118 | 118a (the data move, with the registry split), 118b (the generated model and the 216 comparisons, with 119) | the build win does not wait for the generator |
+| 308 | 308a (whole-file selection, after 253, 302 and 303), 308b (per position, after item 84) | 308 had been scheduled before item 84, which it needs |
+| 318 | 318a (`tcl-spec-hooks` behind a non-default feature, now), and the rest with 305–307 | a build win that needs no reader |
+| none | 244a | 393's bug 1: taint sources lost under `tcl9.0` and `tcl9.1` |
+| item 90's step 14 | 495 | the caching step had no item number |
+| INT-a to INT-m | 480–487, or folded (table above) | the integration design's steps |
 
 ## Example: one plan row and its crosswalk entry
 
 **Source:**
 
 ```text
-413. **[designed]** (with 305's `check`; was 333's 337; [design](../../design/registry/model/333-spectcl-3-gap-analysis.md), [spec](../../design/registry/spectcl-3/05-checks-hooks-abi.md)) Pack diagnostics. …
+413. **[designed]** (with 305's `check`; blocked by D9 and D10 ([chapter 11](../../design/registry/spectcl-3/11-open-decisions.md)); assumes their recommendations; …; was 333's 337; [design](../../design/registry/model/333-spectcl-3-gap-analysis.md), [spec](../../design/registry/spectcl-3/05-checks-hooks-abi.md)) Pack diagnostics. …
    - Done when: 305's four example rules load with pack codes, a user setting changes one's severity, and the editor catalogues list pack codes at run time.
 ```
 
@@ -159,22 +197,42 @@ detail by this specification.
 
 ```rust
 // rust/xtask/src/plan_rows.rs parses each row into its Item (real fields)
-Item { number: 413, status: "designed", text: "413. **[designed]** (with 305's `check`; …" }
+Item { number: 413, status: "designed", text: "413. **[designed]** (with 305's `check`; blocked by D9 and D10 …" }
 // the crosswalk row, as this chapter's table states it
 ("333's 337", "333-spectcl-3-gap-analysis.md", 413, "Pack diagnostics")
 ```
 
 `cargo xtask plan-rows` reads every row with the pattern `^(\d+)\.
 \*\*\[([a-z ]+)\]\*\*` (`rust/xtask/src/plan_rows.rs`); the new items sit
-outside the working order's migration stages, so it asks no conformance rows
-of them yet. A plan row has no bytecode or Tcl result.
+outside the working order's migration stages (stages 6–13), so it asks no
+conformance rows of them yet. A lettered row such as `244a.` does not match the
+pattern, so the tool skips it. A plan row has no bytecode or Tcl result.
 
 ## Where they run in the working order
 
-The plan's working order gains one bullet, beside the dialect and library
-model's: the SpecTcl 3 items run after the registry crate split (261–265) and
-items 301–305, with 400–416 landing with 305's reader and before 306–307's
-per-surface moves; 417–435 follow 301, 303 and 304; 436–441 run in the
-consumer waves of 319–330 beside 313; 442–451 follow 304 and 330's iRules
-upgrade; 452–464 run with 307's last step; 465–479 follow 391 and 392; and
-480–494 are reserved for the integration design's steps.
+The plan's working order has eight Now stages, ahead of its stages 1–13:
+build and iteration wins; the registry split; the compiler split's lower
+crates; binding and the passes; the top of the stack and the rest of the
+workspace; the dialect and library model with SpecTcl 3; the analysis
+framework; the consumers. The SpecTcl 3 items run in the last three:
+
+- **Now 6:** 400–411, 413, 415 and 416 with 305's reader and the
+  expect spike; 465–468; 482; 481 with 307; the dialect items 417–420,
+  424–432 and 435.
+- **Now 7:** 469–471 with 483, 484, 485 and 487.
+- **Now 8:** 414, 433, 436, 441 and 472 beside 313; 437–440; 442–451 (443
+  performs 330's iRules upgrade); 452–457; 458–464; 473 and 474; 486.
+- **Waiting:** 412 after 308b, so after item 84; 421 with item 41 and 422 with
+  item 39.
+- **Deferred with the engine items:** 423, 434 and 475–479.
+
+## Review fixes (26 November 2026)
+
+- **P7:** INT-a, b, c, e, g, h, j and m allocated as 480–487; INT-d, f, i, k
+  and l folded into 308, 470, 318, 464 and 465; the "not yet committed" text
+  is gone.
+- **P1, P10, P11, P12:** *Review renumbering* records 118a/118b, 308a/308b,
+  318a, 244a and 495; 452–464 no longer name a "DSL step" 307 does not have.
+- **P2, P5:** 443 performs 330's iRules upgrade; *Where they run* follows the
+  plan's Now stages.
+- **P9:** 419's D5 is the redesign's §11 D5, not chapter 11's.
