@@ -63,7 +63,7 @@ use crate::ir::{Script, Statement, SwitchArm};
 use crate::sccp::BranchFactKind;
 use crate::ssa::SsaSourceView;
 use crate::tcl_expr_eval::{
-    Env, EnvValue, FoldPolicy, const_to_env_value, eval_tcl_expr_with_math_bindings,
+    Env, EnvValue, FoldPolicy, TclValue, const_to_env_value, eval_tcl_expr_with_math_bindings,
     leading_zero_is_octal,
 };
 use tcl_registry::value_transfer::ExactValue;
@@ -157,8 +157,9 @@ fn decide(ctx: &PassContext<'_>, condition: &ExprNode, env: &Env) -> Option<bool
         .iter()
         .map(|(name, value)| {
             let exact = match value {
-                EnvValue::Int(i) => ExactValue::int(*i),
-                EnvValue::Float(f) => ExactValue::shortest_double(*f),
+                EnvValue::Number(TclValue::Int(i)) => ExactValue::int(*i),
+                EnvValue::Number(TclValue::Float(f)) => ExactValue::shortest_double(*f),
+                EnvValue::Number(TclValue::Big(b)) => ExactValue::text(b.to_string()),
                 EnvValue::Str(value) => value.clone().into_byte_value(),
             };
             (name.clone(), exact)
@@ -644,11 +645,7 @@ fn resolve_subject(
     let normalised = normalise_var_name(&var_ref).to_owned();
     let value = env.get(&name).or_else(|| env.get(&normalised))?;
     match value {
-        EnvValue::Int(i) => Some(i.to_string()),
-        EnvValue::Float(f) => crate::tcl_expr_eval::format_tcl_value_with_policy(
-            &crate::tcl_expr_eval::TclValue::Float(*f),
-            policy,
-        ),
+        EnvValue::Number(number) => crate::tcl_expr_eval::format_tcl_value_with_policy(number, policy),
         EnvValue::Str(value) => Some(value.bytes.clone()),
     }
 }

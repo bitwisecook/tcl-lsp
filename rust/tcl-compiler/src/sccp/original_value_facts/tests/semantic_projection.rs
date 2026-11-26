@@ -643,7 +643,7 @@ fn point_expression_environment_preserves_alias_spelling_and_retargeting() {
             )]);
             let env = env_from_uses(&statement.uses, &values, lookup);
             assert!(
-                matches!(env.get("y"), Some(EnvValue::Int(value)) if *value == expected),
+                matches!(env.get("y"), Some(EnvValue::Number(TclValue::Int(value))) if *value == expected),
                 "source alias must remain available: {env:?}"
             );
             assert_eq!(

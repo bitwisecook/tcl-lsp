@@ -1185,6 +1185,11 @@ Native representation evidence belongs to the original read, since aliases
 can change the representation without changing those contents. SCCP compares
 doubles by their bits in both joins and change detection.
 
+Expression environment bindings and the folder share `TclValue` for numbers
+and `ExactValue<String>` for text. A numeric binding carries the computed
+number. The selected release and precision govern its rendered text, and the
+original read supplies any native object proof.
+
 **Three separate facts, three joins.** The exact value, the semantic type
 or shape, and the representation evidence are distinct, and `TclType` alone
 cannot carry the second two:

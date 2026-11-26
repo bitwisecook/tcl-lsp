@@ -20,7 +20,7 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::tcl_expr_eval::{
-    Env, EnvValue, FoldPolicy, analyse_tcl_expr_with_resolved_math_bindings,
+    Env, EnvValue, FoldPolicy, TclValue, analyse_tcl_expr_with_resolved_math_bindings,
     eval_tcl_expr_with_policy, format_tcl_value,
 };
 use tcl_core_types::DiagCode;
@@ -118,7 +118,7 @@ fn folds_match_actual_current_jim() {
 #[test]
 fn membership_precedence_folds_match_c_tcl() {
     let env = Env::from([
-        ("a".to_owned(), EnvValue::Int(2)),
+        ("a".to_owned(), EnvValue::Number(TclValue::Int(2))),
         ("l".to_owned(), EnvValue::text("1")),
     ]);
     for version in TclVersion::ALL {

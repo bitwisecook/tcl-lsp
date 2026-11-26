@@ -139,7 +139,7 @@ fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
 #[test]
 fn evaluate_expr_integer() {
     let mut env = Env::new();
-    env.insert("x".into(), EnvValue::Int(5));
+    env.insert("x".into(), EnvValue::Number(TclValue::Int(5)));
     assert_eq!(value_86_env("$x + 3", &env), Some(TclValue::Int(8)));
 }
 
@@ -1032,7 +1032,7 @@ fn right_shift_at_and_past_width() {
 #[test]
 fn variable_resolution_from_env() {
     let mut env = Env::new();
-    env.insert("x".into(), EnvValue::Int(42));
+    env.insert("x".into(), EnvValue::Number(TclValue::Int(42)));
     assert_eq!(eval_str_env("$x + 8", &env), Some(TclValue::Int(50)));
 }
 

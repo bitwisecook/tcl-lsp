@@ -1234,8 +1234,9 @@ pub(crate) fn expression_operands_with_integer_contents(
                     }
                 }
                 let value = match &proof.value {
-                    TclValue::Int(value) => EnvValue::Int(*value),
-                    TclValue::Float(value) => EnvValue::Float(*value),
+                    number @ (TclValue::Int(_) | TclValue::Float(_)) => {
+                        EnvValue::Number(number.clone())
+                    }
                     TclValue::Big(value) => EnvValue::text(value.to_string()),
                 };
                 environment.insert(name.clone(), value);

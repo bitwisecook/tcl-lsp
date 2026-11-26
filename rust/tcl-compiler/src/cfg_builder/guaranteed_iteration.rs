@@ -188,12 +188,12 @@ impl CfgBuilder<'_> {
 /// Coerce a literal assignment value to int/float when possible (else str),
 /// for the `for`-init constant environment.
 fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
-    use crate::tcl_expr_eval::EnvValue;
+    use crate::tcl_expr_eval::{EnvValue, TclValue};
     if let Ok(i) = text.parse::<i64>() {
-        return EnvValue::Int(i);
+        return EnvValue::Number(TclValue::Int(i));
     }
     if let Ok(f) = text.parse::<f64>() {
-        return EnvValue::Float(f);
+        return EnvValue::Number(TclValue::Float(f));
     }
     EnvValue::text(text)
 }

@@ -164,10 +164,8 @@ impl TclValue {
 /// Environment value kind — what callers can bind a variable to.
 #[derive(Debug, Clone)]
 pub enum EnvValue {
-    /// Integer binding.
-    Int(i64),
-    /// Float binding.
-    Float(f64),
+    /// Numeric binding without a native object proof.
+    Number(TclValue),
     /// Exact string binding, read under the selected numeral grammar.
     Str(ExactValue<String>),
 }
@@ -185,9 +183,9 @@ pub(crate) fn const_to_env_value(c: &crate::analyses::ConstValue) -> EnvValue {
     use crate::analyses::ConstValue;
 
     match c {
-        ConstValue::Int(i) => EnvValue::Int(*i),
-        ConstValue::Float(f) => EnvValue::Float(*f),
-        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
+        ConstValue::Int(i) => EnvValue::Number(TclValue::Int(*i)),
+        ConstValue::Float(f) => EnvValue::Number(TclValue::Float(*f)),
+        ConstValue::Bool(b) => EnvValue::Number(TclValue::Int(i64::from(*b))),
         ConstValue::String(s) => EnvValue::Str(s.clone().into_exact()),
     }
 }
