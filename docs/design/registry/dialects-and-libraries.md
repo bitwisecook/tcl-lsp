@@ -1,6 +1,6 @@
 # Dialects, libraries and environments: the target model
 
-Status: designed 26 November 2026, owner direction. Plan items 266–272 carry
+Status: designed 26 November 2026, owner direction. Plan items 301–307 carry
 it, and the crate layout is in [registry split](registry-split-design.md).
 
 This document supersedes the classification in
@@ -165,7 +165,7 @@ The target, if the spike holds:
 - **One catalogue.** The 98k lines of equivalence packs and the native Rust
   catalogue are both deleted.
 
-The spike (item 271) does this end to end for Expect (2.7k lines). It measures:
+The spike (item 306) does this end to end for Expect (2.7k lines). It measures:
 - load time and memory against the native surface;
 - the build time of a one-command edit;
 - equivalence of answers.
@@ -191,21 +191,21 @@ hook-heavy ones (the Tcl core surface).
 
 | Item | Step |
 |---|---|
-| 266 | The dialect model: three families, F5 releases and builds, selectable Jim builds and capabilities, and `tcl-dialect` cleared of environments |
-| 267 | The library model: version trains, compatibility rows, requirements, bundling, one `Availability` per command, D17-P fixed, full `package require` ranges |
-| 268 | Environments as data over 266 and 267, with one alias table and one catalogue |
-| 269 | iRules, iApps and tmsh as libraries on f5tcl; consumers move to environment queries |
-| 270 | SpecTcl 3 with 1.x/2.x shims, the loader on `tcl-source`, and `tcl spec upgrade` to 3 |
-| 271 | The libraries-as-data spike on Expect, which decides 272 |
-| 272 | Shipped libraries as SpecTcl-sourced images (conditional on 271) |
+| 301 | The dialect model: three families, F5 releases and builds, selectable Jim builds and capabilities, and `tcl-dialect` cleared of environments |
+| 302 | The library model: version trains, compatibility rows, requirements, bundling, one `Availability` per command, D17-P fixed, full `package require` ranges |
+| 303 | Environments as data over 301 and 302, with one alias table and one catalogue |
+| 304 | iRules, iApps and tmsh as libraries on f5tcl; consumers move to environment queries |
+| 305 | SpecTcl 3 with 1.x/2.x shims, the loader on `tcl-source`, and `tcl spec upgrade` to 3 |
+| 306 | The libraries-as-data spike on Expect, which decides 307 |
+| 307 | Shipped libraries as SpecTcl-sourced images (conditional on 306) |
 
 ## Order
 
 1. **Crate split first.** The registry crate split (262–265) needs none of
    this model, and it pays for itself in build time.
-2. **Then the model.** 266, 267 and 268 change types the surface crates
+2. **Then the model.** 301, 302 and 303 change types the surface crates
    already hold, so they follow the split.
-3. **iRules and iApps.** 269 follows 266 and 267.
-4. **SpecTcl.** 270 needs 267's vocabulary and the compiler split's
+3. **iRules and iApps.** 304 follows 301 and 302.
+4. **SpecTcl.** 305 needs 302's vocabulary and the compiler split's
    `tcl-source` (item 251).
-5. **The spike.** 271 follows 270, and 272 follows 271.
+5. **The spike.** 306 follows 305, and 307 follows 306.

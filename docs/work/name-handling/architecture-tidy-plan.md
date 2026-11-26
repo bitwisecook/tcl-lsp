@@ -86,11 +86,11 @@ Split `tcl-compiler` along the layers where doing so removes a cycle or a duplic
 
 There is no façade: each extraction moves its consumers, and `tcl-compiler` ends as the unit crate (`CompilationUnit`), re-exporting nothing.
 
-Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-spectcl` must not depend on `tcl-lsp-core`); domain crates (`tcl-bigip`, `tcl-irules`, `tcl-sslictcl`) contribute registry and profile data and hooks through interfaces rather than being linked into the LSP core; tools (`tcl-mcp`, `f5-xc`) depend on the semantic model and feature APIs, not on CLIs. Measure native and WASM build times, binary size and the edit-and-test rebuild count before and after each split.
+Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-spectcl` must not depend on `tcl-lsp-core`; plan item 288 removes today's edge and the project-layout exception for it); domain crates (`tcl-bigip`, `tcl-irules`, `tcl-sslictcl`) contribute registry and profile data and hooks through interfaces rather than being linked into the LSP core; tools (`tcl-mcp`, `f5-xc`) depend on the semantic model and feature APIs, not on CLIs. Measure native and WASM build times, binary size and the edit-and-test rebuild count before and after each split.
 
 ## Caching
 
-One memoisation layer: salsa, at the granularity of the units above — source file, structured words, binding per file, body unit, summaries per unit, query results — so invalidation follows real dependencies and memory is accounted per ingredient. The hand-written memos are converted into salsa queries or deleted; a gate forbids new `Mutex`/`OnceLock` memo types outside the database. The existing incremental-versus-fresh comparisons become the acceptance test, alongside #2543's allocator trace.
+Minimal caching. The crates below the top are pure functions over their inputs. One database at the top (`tcl-db`, plan item 286) caches only at unit boundaries where re-computation has measured cost — candidates are the source file, binding per file, body unit, summaries per unit and query results — so invalidation follows real dependencies and memory is accounted per ingredient. Every other hand-written memo is deleted; a gate forbids new `Mutex`/`OnceLock` memo types outside the database. Identity types do not use salsa interning, so `tcl-names` and the registry stay salsa-free and the VM can use them. Deleting the memos is the last step of plan item 90; the per-body tiers come late, after phases 4 and 5. The existing incremental-versus-fresh comparisons become the acceptance test, alongside #2543's allocator trace.
 
 
 The measured costs, the inventory of about 110 caches outside salsa and the step-by-step plan are in [caching](caching-design.md).
@@ -104,12 +104,12 @@ Anything that defines Tcl semantics stays in-house, because it must match the C 
 | Structured words and the source tree | `rowan`, `cstree`, `text-size` | Optional replacement for the home-grown green tree; evaluate during phase 2, adopt only if it removes code or speeds incremental reparse |
 | Source maps and UTF-16 positions | `line-index` | Replace per-feature offset arithmetic |
 | Typed identities | `slotmap` (generational keys), `la-arena`, `typed-index-collections` | Generations model a recreated namespace or command under the same name; arenas hold dense per-unit tables |
-| Name interning | salsa interned structs; `lasso`, `smol_str`/`compact_str` | Prefer salsa so names live in the one cache layer; keep byte names (`NameBytes`) |
+| Name interning | `lasso`, `smol_str`/`compact_str`; not salsa interned structs | Identity types stay salsa-free so `tcl-names` and the registry can serve the VM; keep byte names (`NameBytes`) |
 | Fine-grained world transitions | `imbl`, `rpds` | Persistent maps with structural sharing for per-point command, class and frame state (root cause 3) |
 | Dataflow sets | `fixedbitset`, `bitvec`, `roaring` | Liveness, reaching definitions, W210/W211/W220 on SSA |
 | Graph algorithms | `petgraph` | SCC order for interprocedural summaries, call-graph queries, cycle checks; keep tuned SSA dominators |
 | Facts and rules | `ascent` (Datalog with lattices), `datafrog`, `crepe` | Trial for phase 6 on one analysis (call edges or taint), measured native and WASM |
-| Caching and memory | salsa (finer granularity), `dhat` | One cache layer; heap profiling for #2543 |
+| Caching and memory | salsa (at measured unit boundaries only), `dhat` | One database at the top; heap profiling for #2543 |
 | Per-analysis allocation | `bumpalo` | Optional arenas for transient fact tables |
 | Crate layering gate | `cargo-deny` `[bans]` with `wrappers`; `cargo-modules`, `cargo-depgraph` | Name the crates allowed to depend on each layer; visualise the graph |
 | Walker, memo and resolver ratchets | the existing `syn`-based xtask gates; `ast-grep` or `dylint` | Follow the `registry-axes`/`value-transfers` pattern |
@@ -159,6 +159,8 @@ The [cross-cutting review](cross-cutting-review.md) reorders this plan: phase 0 
 
 Each phase ends with its walkers deleted, its gates tightened and the agreement tests green; nothing is left half-migrated across a phase boundary.
 
+**`work` branch exception.** On `work`, the crate split (plan item 90) may leave the tree broken between steps; the gates and agreement tests run when each crate first builds again. See the [crate split's sequence](../../design/compiler/crate-split-design.md#sequence).
+
 0. **Inventory, gates and the licence decision.** Settle the licence (see above) so dependency choices follow it. Turn the censuses into a walker manifest beside the owner manifest (fact, owner, competing walkers, disposition), and add a `walker-ownership` ratchet modelled on `registry-axes`/`value-transfers`: the known set may only shrink; a waiver names its fact and owner. Add the agreement harness: one fixture table, every consumer asked the same question, compared with each other and with tclsh. Add the crate-dependency and memo gates.
 1. **Switch to owners that already exist** (about 11 walkers), fix the `in`/`ni` precedence wrong answer in the shared expression parser, and fix the two VM frame bugs with their fixtures added to both engines' suites: frame effects (parameter traits, interprocedural `upvar`, LSP caller-frame), purity (GVN, `source_purity`, `var_escape`), dead stores (one implementation for O109, W220 and the explorer), call edges (taint, tail calls, call hierarchy, graphs). Fixes the `upvar`-level and purity disagreements.
 2. **Structured words.** Lower command words as structured parts; migrate the 143 users of the text scanners; delete about 10 walkers. The largest single change; do it before anything else that touches SSA construction.
@@ -166,10 +168,10 @@ Each phase ends with its walkers deleted, its gates tightened and the agreement 
 4. **Every body is a unit.** Methods, one-member definitions, `initialise`, `itcl::body`, deferred callbacks, caller-frame scripts and `namespace eval` bodies lowered with entry facts; lowering continues past unproven calls. Deletes the method, unentered-body and unseen-call fallbacks (about 17), including W156's own.
 5. **One binding walk.** Fold the analyser walk, the signature scan and `visit_analysis_executable_commands` into binding; typed class model; instance values with creation and destruction effects ([root causes](oo-tk-root-causes.md) 2, 3, 5).
 6. **The semantic model.** One query API; diagnostics become rules over it; LSP features, MCP, the diagram and the explorer move onto it; the agreement harness covers every feature.
-7. **Crates and caching.** Split along the layers, enforce the dependency rules, move all memoisation into salsa.
+7. **Caching tiers.** The per-body and workspace caching tiers (plan items 101 and 103, and 46–49 and 73) on the one database. The crate split itself is not a late phase: it runs first, as plan item 90, ahead of every other stage, and deletes the hand-written memos as its last step.
 8. **Object-system profiles and value grammars** ([object systems plan](object-systems-plan.md)): itcl, snit, Jim, Clay, NX, stooop, critcl and Tk megawidgets as data; code-in-data such as override dictionaries.
 
-Alongside phase 1, replace the hand-rolled generic code above, the AES and OpenPGP code first, each behind its condition. Phases 1 and 2 can start at once and in parallel; 3 and 4 depend on 2; 5 and 6 on 3 and 4; 7 can begin with the leaf crates (`tcl-source`) as soon as 2 lands.
+Alongside phase 1, replace the hand-rolled generic code above, the AES and OpenPGP code first, each behind its condition. Phases 1 and 2 can start at once and in parallel; 3 and 4 depend on 2; 5 and 6 on 3 and 4; 7, the caching tiers, follows 4 and 5. The crate split (plan item 90) runs before all of them.
 
 ## Measuring progress
 
@@ -180,7 +182,7 @@ Alongside phase 1, replace the hand-rolled generic code above, the AES and OpenP
 
 ## Risks
 
-- **Scale.** This touches most of the compiler. Keep each phase deliverable on its own, behind the agreement harness, and never leave two owners live for one fact at a phase boundary.
+- **Scale.** This touches most of the compiler. Keep each phase deliverable on its own, behind the agreement harness, and never leave two owners live for one fact at a phase boundary. (`work` branch exception: the crate split's steps may leave the tree broken in between; see the [crate split's sequence](../../design/compiler/crate-split-design.md#sequence).)
 - **Precision loss while migrating.** A consumer moved onto a pipeline fact that the pipeline cannot yet supply must abstain (unknown), not fall back to a private guess; track abstentions as a measured cost, separately from wrong answers.
 - **Performance.** Structured words and more body units add work; salsa granularity must pay for itself. Measure before and after each phase.
 - **Coordination.** Area owners and existing rulings in [current-state.md](current-state.md) and the handovers stay authoritative; this plan orders the work and does not re-open decided questions.

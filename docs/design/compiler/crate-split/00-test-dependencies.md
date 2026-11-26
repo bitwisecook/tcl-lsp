@@ -1,7 +1,21 @@
 # Step 0: take the upper stack out of tcl-compiler's tests
 
-Part of [splitting tcl-compiler](../crate-split-design.md). Plan item 246.
-Nothing before it; step 1 builds on its measurement.
+Part of [splitting tcl-compiler](../crate-split-design.md). Plan item 246, the
+`tcl-compiler` part of step 0, done as items 266 (the `tests/` files and the
+bench), 267 (the `src` blocks behind `test-support`) and 268 (CI shards and
+gates). Nothing before it; step 1 builds on its measurement.
+
+The same fault exists in other crates, as sibling items of step 0, each
+verified in its `Cargo.toml` on 26 November 2026:
+
+- 269: `tcl-registry`'s dev-dependency on `tcl-spectcl`;
+- 270: `tcl-lsp-core`'s on `tcl-spectcl` and `tcl-codegen`;
+- 271: `tcl-lsp-db`'s on `tcl-vm`, `tcl-spectcl` and `tcl-codegen`;
+- 272: `tcl-vm`'s on `tcl-compiler` and `tcl-codegen`.
+
+Each gets its own short design when it starts. The `module-layers` gate
+(item 247) checks dev-dependency edges from the start, with these as a known
+list that may only shrink.
 
 ## Problem
 
@@ -18,8 +32,9 @@ and two of `tcl-compiler`'s dev-dependencies depend on `tcl-compiler` itself:
 - `tcl-engine-tclvm` pulls `tcl-codegen`.
 
 The third upper-stack dev-dependency, `tcl-vm`, does not depend on
-`tcl-compiler`. It builds once and stays cached, so it causes no cascade and
-stays.
+`tcl-compiler`, so a `tcl-compiler` edit does not rebuild it, and it stays. It
+is not built once for good: `tcl-vm` depends on `tcl-registry`, so a registry
+edit rebuilds it, along with `tcl-compiler` itself.
 
 ## What uses them
 
@@ -37,6 +52,8 @@ SpecTcl packs through the SpecTcl loader, and the loader parses with
 surface in SpecTcl was written to avoid (its Q1/Q6).
 
 ## Design
+
+Items 266–268 are steps 1–3, then 4–5, then 6–7 below.
 
 1. Create a new crate, `rust/tcl-compiler-it`. It has no library code and only
    tests. Its dev-dependencies:
@@ -92,5 +109,5 @@ surface in SpecTcl was written to avoid (its Q1/Q6).
 
 - The 22 `tcl_vm` users stay in place.
 - The `tcl-spectcl` loader's own dependency on `tcl-compiler` is untouched:
-  `parsing` moves to `tcl-source` in step 4, and at that point the SpecTcl
-  loader can depend on `tcl-source` alone.
+  `parsing` moves to `tcl-source` in step 2, and item 281 then rewires the
+  SpecTcl loader onto `tcl-source`.
