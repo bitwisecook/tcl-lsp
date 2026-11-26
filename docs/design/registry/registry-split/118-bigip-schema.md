@@ -117,7 +117,9 @@ flowchart LR
   lsp["tcl-lsp-core, bigip.rs"] --> schema
   xtask["xtask bigip_data_schema"] --> schema
   schema --> tclDialect
-``` `tcl-registry`'s root re-export (`lib.rs:448`) goes. `tcl-registry`
+```
+
+`tcl-registry`'s root re-export (`lib.rs:448`) goes. `tcl-registry`
 has no edge to the new crate.
 
 In step 4's [crate roles](04-dependency-hygiene.md#crate-roles) the crate has
