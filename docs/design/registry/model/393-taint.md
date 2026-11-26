@@ -1,7 +1,9 @@
 # Taint as SpecTcl 3 content: colours, origins, sinks and sanitisers
 
-**Status:** designed 26 November 2026. Plan item 393 (proposed). It has no
-plan-file rows yet; the steps at the end are for the renumbering pass to fold in.
+**Status:** designed 26 November 2026. Plan item 393 (proposed). Its steps
+are plan items 465–479 (see Plan numbers).
+
+**Plan numbers** (26 November 2026): 393a → 465, 393b → 466, 393c → 467, 393d → 468, 393e → 469, 393f → 470, 393g → 471, 393h → 472, 393i → 473, 393j → 474, 393x1 → 475, 393x2 → 476, 393x3 → 477, 393x4 → 478, 393x5 → 479. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 **Builds on:**
 - [SpecTcl 3](305-spectcl-3.md), for the grammar, the `check` form and facets;

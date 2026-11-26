@@ -1,6 +1,6 @@
 # Step 360 (proposed): iRules events, profiles, connections and tests from SpecTcl facts
 
-Status: proposed 26 November 2026, as plan items 360a–360f. It builds on
+Status: proposed 26 November 2026, with proposed items 360a–360f (now plan items 442–447). It builds on
 [304](304-f5-libraries.md) (the iRules library on f5-tcl's `tmm` build),
 [305](305-spectcl-3.md) (grammar), [308](308-positioned-context.md)
 (positioned context), [313](313-consumer-hooks.md) (consumer rows),
@@ -8,6 +8,8 @@ Status: proposed 26 November 2026, as plan items 360a–360f. It builds on
 (Rust parity) and [333](333-spectcl-3-gap-analysis.md) items 338 and 342.
 350 covers SpecTcl across dialects and defers F5 here. iApps and tmsh are in
 the sibling [361](361-spectcl-f5-iapps-tmsh.md).
+
+**Plan numbers** (26 November 2026): 360a → 442 (merged with 333's 338 `event` and `flow`), 360b → 443, 360c → 444, 360d → 445, 360e → 446, 360f → 447. References to "333 items 338 and 342" mean plan items 442 and 414. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

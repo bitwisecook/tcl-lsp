@@ -1,12 +1,14 @@
 # Step 365 (proposed): SslicTcl from one SpecTcl 3 source
 
-Status: proposed 26 November 2026, as plan items 365a–365f. Builds on
+Status: proposed 26 November 2026, with proposed items 365a–365f (now plan items 452–457). Builds on
 [302](302-libraries.md), [303](303-environments.md), [305](305-spectcl-3.md),
 [306](306-expect-spike.md), [308](308-positioned-context.md),
 [313](313-consumer-hooks.md) and [332](332-rust-spectcl-parity.md). It covers
 SslicTcl as [360](360-spectcl-f5-integration.md) and
 [361](361-spectcl-f5-iapps-tmsh.md) cover F5; grammar needs go to 370. Owner
 ruling: SslicTcl is internal and changes with its consumers, with no shims.
+
+**Plan numbers** (26 November 2026): 365a → 452, 365b → 453, 365c → 454, 365d → 455, 365e → 456, 365f → 457. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 
@@ -313,4 +315,4 @@ update-source-data`/`check-source-data`. **365e** `tcl-sslictcl` on
   `values.rs` calls BOOL Tcl's eight spellings, but Tcl accepts prefixes:
   `string is boolean -strict tr` is 1 on 8.4 and 9.1, where the loader
   reports `SSLIC1009`.
-- **Numbering:** 350 claims items 356–365; this doc uses 365a–365f.
+- **Numbering:** 350 claimed items 356–365 and this doc 365a–365f; both are now mapped to plan items (see Plan numbers).

@@ -1,12 +1,14 @@
 # Step 350 (proposed): SpecTcl 3 and the registry across dialects
 
-Status: proposed 26 November 2026, as plan items 356–365 (335 holds 345–355).
+Status: proposed 26 November 2026, with proposed items 356–365 (retired; see Plan numbers).
 It reviews [301](301-dialects.md)–[308](308-positioned-context.md) and
 [313](313-consumer-hooks.md) dialect by dialect: tcl 8.4–9.1; jim 0.76–0.84
 under `full`, `minimal` and its extensions; f5-tcl on the BIG-IP lines under
 `tmm` and `scriptd`. f5-tcl is covered here only at dialect level. Events,
 profiles, the flow graph and `tcl-irule-test` are in
 [360](360-spectcl-f5-integration.md).
+
+**Plan numbers** (26 November 2026): the proposed 356–365 are retired: 356 → 427, 357 → 428, 358 → 429, 359 → 426 (its `{*}` axis and character model → 417), 360 → 431, 361 → 432, 362 → 430, 363 → 433, 364 → 434, 365 → 435. The table under "Plan items" and the "item 3NN" references below use the proposed numbers. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

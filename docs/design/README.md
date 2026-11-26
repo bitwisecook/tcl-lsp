@@ -398,6 +398,12 @@ declarations are written in.
     (117a, 117b).
   - [118-bigip-schema.md](registry/registry-split/118-bigip-schema.md) — the
     BIG-IP configuration-schema crate (118).
+- [registry/spectcl-3/](registry/spectcl-3/README.md) — the consolidated
+  SpecTcl 3 specification: one closed grammar, semantics, dialect grammar
+  profiles, the hook rungs and ABI, consumers, the image format and Rust
+  parity, the F5, SslicTcl and eBPF domains, package surfaces and taint,
+  tooling and migration, open decisions, and the plan crosswalk (items
+  400–479). It supersedes the step designs below in detail.
 - The dialect and library model's step designs, in `registry/model/`:
   - [301-dialects.md](registry/model/301-dialects.md) — three families,
     F5 releases and builds, selectable Jim builds (301).

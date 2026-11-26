@@ -1,6 +1,6 @@
 # Step 380 (proposed): SpecTcl 3 for the eBPF backend
 
-Status: proposed 26 November 2026, as plan items 380–386. Builds on
+Status: proposed 26 November 2026, with proposed items 380–386 (retired; see Plan numbers). Builds on
 [302](302-libraries.md), [303](303-environments.md), [304](304-f5-libraries.md)
 (a library owns its policy), [305](305-spectcl-3.md), [308](308-positioned-context.md),
 [313](313-consumer-hooks.md), [332](332-rust-spectcl-parity.md) (parity) and
@@ -8,6 +8,8 @@ Status: proposed 26 November 2026, as plan items 380–386. Builds on
 redesign's D3 and 333's gap 12, and uses 333's planned forms: 336 (manifest),
 337 (pack codes, `within`), 338 (`event`) and 342 (`test`). 360 (iRules
 events) and 370 (grammars) are written beside it.
+
+**Plan numbers** (26 November 2026): the proposed 380–386 are retired: 380 → 458, 381 → 459, 382 → 460, 383 → 461, 384 → 462, 385 → 463, 386 → 464. References to 333's 336, 337, 338 and 342 mean plan items 400, 413, 442 and 414. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 
@@ -354,8 +356,8 @@ rbpf, asserted in tests/socket_filter.rs:95-116: 0, 40, 0
   counts 26 descriptors; there are 27, because `if` carries one.
 - **333, gap 12** sends `bpf_op` to 334, which never mentions eBPF. 380
   takes it.
-- **Plan numbers collide:** 333 proposes 336–344, 334 claims 340–348 and
-  335 claims 345–355.
+- **Plan numbers collided:** 333 proposed 336–344, 334 340–346 and 335
+  345–355. The consolidated specification's crosswalk retires them.
 - **CSD, 09, 10, 11:** `bpf-tcl-ir` needs `tcl-analysis` and
   `target_contract` only for `semantic_bridge.rs`, which no production path
   calls.

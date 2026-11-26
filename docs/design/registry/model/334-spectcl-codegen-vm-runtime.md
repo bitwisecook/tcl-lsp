@@ -1,6 +1,6 @@
 # Step 334 (proposed): SpecTcl 3 for codegen, the VM and the runtime
 
-Status: proposed 26 November 2026, as plan items 340–346. It builds on
+Status: proposed 26 November 2026, with proposed items 340–346 (retired; see Plan numbers). It builds on
 [305](305-spectcl-3.md) (SpecTcl 3, rungs), [306](306-expect-spike.md)
 (images), [313](313-consumer-hooks.md) (section 4: execution stays with the
 library's source, native accelerators by ID), [332](332-rust-spectcl-parity.md)
@@ -8,6 +8,8 @@ library's source, native accelerators by ID), [332](332-rust-spectcl-parity.md)
 and item 312 ([the 9.1 opcode table](../../compiler/vm-tcl-9-1.md)). Owner
 goal: SpecTcl 3 and the Rust registry, always at parity, fully support codegen,
 the VM and the runtime, not only the analyser.
+
+**Plan numbers** (26 November 2026): the proposed 340–346 are retired. Work items 2, 4, 5 and 6 → 436; work items 1 and 3 stay in item 313. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 Every bytecode, timing and result below is a real run, 26 November 2026:
 `tclsh9.1` (9.1.0) with `::tcl::unsupported::disassemble` (header lines

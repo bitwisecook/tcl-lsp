@@ -6,6 +6,9 @@ Status: reference draft, 26 November 2026. Plan item 305, step 5 of
 (`tcl-source`). [306](306-expect-spike.md) compiles it to images, and
 [308](308-positioned-context.md) supplies the hook context.
 
+The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes
+this design in detail: its grammar, model and plan items 400–479.
+
 The `library` block's dependency rows (`requires` with `-mode`, `-any`
 and `-when`, `provides`, `conflicts`, `provides-early`) and the `extend`
 item are designed in [331](331-library-dependencies.md). The map from

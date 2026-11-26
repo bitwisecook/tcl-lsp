@@ -1,12 +1,14 @@
 # Step 332 (proposed): one registry model, Rust and SpecTcl 3 at parity
 
-Status: proposed 26 November 2026, as new plan items 332a–332e. It builds
+Status: proposed 26 November 2026, with proposed items 332a–332e (now plan items 400 and 402–405). It builds
 on [302](302-libraries.md) (the model types), [305](305-spectcl-3.md) (the
 grammar), [307](307-libraries-as-data.md) (the Tcl core stays native),
 [309–310](309-310-migration-and-authoring.md) (the printer),
 [313](313-consumer-hooks.md) (consumer rows) and
 [331](331-library-dependencies.md) (dependency rows). 307's per-surface
 moves to images depend on its gate.
+
+**Plan numbers** (26 November 2026): 332a → 402, 332b → 403 (merged with 333's 340 gap 4), 332c → 400 (merged with 333's 336), 332d → 404, 332e → 405. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

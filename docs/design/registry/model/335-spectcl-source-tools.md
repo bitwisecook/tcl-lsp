@@ -1,6 +1,6 @@
 # Step 335 (proposed): SpecTcl facts for the source-transforming tools
 
-Status: proposed 26 November 2026, as plan items 345–355. It builds on
+Status: proposed 26 November 2026, with proposed items 345–355 (retired; see Plan numbers). It builds on
 [305](305-spectcl-3.md) (grammar, rungs, `ctx`), [308](308-positioned-context.md)
 (the positioned query), [313](313-consumer-hooks.md) (optimiser, minifier and
 formatter at overview depth) and [319](319-consumer-migration.md) (consumer
@@ -8,6 +8,8 @@ migration). It adds the refactors, which 313 and 319 do not cover, and takes
 the formatter, minifier and optimiser to the depth of every argument role and
 edge case. Built on by the refactor crate (item 289's `tcl-ide-*` split) and the
 conformance areas `refactor-*` and `source-tools`.
+
+**Plan numbers** (26 November 2026): the proposed 345–355 are retired. Work items 1–2 → 437, 3 → 438, 4 → 439, 5 → 440, 6 → 441, 7 → 414 (merged with 333's 342); `-appends` → 390f. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

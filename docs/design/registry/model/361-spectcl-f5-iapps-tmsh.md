@@ -1,6 +1,6 @@
 # Step 361 (proposed): iApps and tmsh scripts from SpecTcl facts
 
-Status: proposed 26 November 2026, as plan items 361a–361d. It is the
+Status: proposed 26 November 2026, with proposed items 361a–361d (now plan items 448–451). It is the
 `scriptd` sibling of [360](360-spectcl-f5-integration.md), which covers
 iRules on `tmm`. It builds on [304](304-f5-libraries.md) (iApps and tmsh as
 libraries on f5-tcl's `scriptd` build), [305](305-spectcl-3.md),
@@ -8,6 +8,8 @@ libraries on f5-tcl's `scriptd` build), [305](305-spectcl-3.md),
 ([118](../registry-split/118-bigip-schema.md)). Whether a tmsh `cli script`
 runs on `scriptd` or a third build is plan question Q11; nothing below
 depends on the answer except the `-build` key.
+
+**Plan numbers** (26 November 2026): 361a → 448, 361b → 449, 361c → 450, 361d → 451. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

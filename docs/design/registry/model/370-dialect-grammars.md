@@ -1,11 +1,13 @@
 # Step 370 (proposed): dialect grammars
 
-Status: proposed 26 November 2026, as new plan items 370–378. It builds on
+Status: proposed 26 November 2026, with proposed items 370–378 (retired; see Plan numbers). It builds on
 [301](301-dialects.md) (`DialectPoint`, families, builds), [305](305-spectcl-3.md)
 (the `dialect` form) and [332](332-rust-spectcl-parity.md) (the parity rule),
 and closes the redesign's §11 D5. It feeds items 27, 39, 40, 41, 70, 79 and
 202, and item 88 for the engines. 308's positioned context and every
 grammar-level consumer build on it.
+
+**Plan numbers** (26 November 2026): the proposed 370–378 are retired: 370 → 417, 371 → 418, 372 → 419, 373 → 420, 374 → 421, 375 → 422, 376 → 423, 377 → 424, 378 → 425. The work list's bold numbers are these proposals. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

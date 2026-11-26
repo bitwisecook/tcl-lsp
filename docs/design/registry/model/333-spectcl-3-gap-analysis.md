@@ -7,9 +7,11 @@ stack as designed in [305](305-spectcl-3.md), [302](302-libraries.md),
 [313](313-consumer-hooks.md), [319](319-consumer-migration.md), the
 [registry split](../registry-split-design.md) and
 [`bytecode-image.md`](../../compiler/bytecode-image.md), against the code. It
-proposes items 336–344. The consolidated SpecTcl specification builds on it,
+proposed items 336–344 (now plan items 400–416; see Plan numbers). The consolidated SpecTcl specification builds on it,
 with [331](331-library-dependencies.md) and [332](332-rust-spectcl-parity.md).
 Codegen and VM gaps belong to 334, and formatter and refactor gaps to 335.
+
+**Plan numbers** (26 November 2026): 336 → 400, 337 → 413, 338 → 415 (its `event` and `flow` part → 442; `channel-driver` → 391c; `class` → 391a), 339 → 408 and 409, 340 → 407 (gap 4 → 403), 341 → 401, 342 → 414, 343 → 416, 344 → 406. The bold numbers in the register below are these proposals, not plan items. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 

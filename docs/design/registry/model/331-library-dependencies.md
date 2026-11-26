@@ -1,10 +1,12 @@
 # Step 331 (proposed): library-to-library dependencies
 
-Status: proposed 26 November 2026, as new plan items 331a–331d. It replaces
+Status: proposed 26 November 2026, with proposed items 331a–331d (now plan items 409–412; see Plan numbers). It replaces
 [302](302-libraries.md)'s `Requirement` and extends its resolution, adds rows
 to [305](305-spectcl-3.md)'s `library` block, and feeds
 [308](308-positioned-context.md)'s positioned query. [332](332-rust-spectcl-parity.md)
 lists its new productions in the parity gate.
+
+**Plan numbers** (26 November 2026): 331a → 410, 331b → 411, 331c → 412, 331d → 409 (merged with 333's 339 composition). The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
 ## Problem
 
