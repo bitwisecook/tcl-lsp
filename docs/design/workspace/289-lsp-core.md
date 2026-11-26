@@ -111,7 +111,7 @@ production lines.
 | `tcl-ide-views` | 5 | `graphs`, `tk_preview` | 3.5k | 1.3k |
 | `tcl-ide-edit` | 6 | `refactor` (less `FrameWalk`), `code_actions`, `rename`, `rename_safety`, `namespace_rename`, `original_command_rename`, `original_member_rename`, `file_ops` | 23.4k | 19.4k |
 | `tcl-ide-f5` (adapter) | 7 | `bigip`, `ilx_navigation`, `irules_object_refs`, `semantic_tokens/config_documents.rs`, `semantic_tokens/irules_document.rs`, the `ConfigDiagnostic` conversion, the partition-rename action | 2.6k | 1k |
-| `tcl-ide-sslictcl` (adapter) | 7 | `sslictcl_diagnostics` | 0.1k | 0.1k |
+| `tcl-ide-sslictcl` (adapter, interim) | 7 | `sslictcl_diagnostics`, until item 457 | 0.1k | 0.1k |
 
 The ranks as a graph. An arrow means "may depend on": each group may name the
 groups below it, never one beside it. The adapters are the only crates that
@@ -209,7 +209,7 @@ Each crate names only the compiler crates its modules use today
 |---|---|
 | `tcl-ide-model` | `tcl-source`, `tcl-model`, `tcl-binding` (`original_invocation`'s registry words), `tcl-ir` |
 | `tcl-ide-names` | `tcl-source`, `tcl-names`, `tcl-model`, `tcl-binding`, `tcl-ir` |
-| `tcl-ide-diagnostics` | `tcl-model`, `tcl-diagnostics` (the code catalogue and `run_all_checks`' result types), `tcl-optimiser` (rewrite findings) |
+| `tcl-ide-diagnostics` | `tcl-model` (`DocumentFacts`, the findings and rewrite findings in it); interim, until `DocumentFacts` exists: `tcl-diagnostics` (the code catalogue and `run_all_checks`' result types) and `tcl-optimiser` (rewrite findings), as exception rows |
 | `tcl-ide-workspace` | `tcl-binding`, `tcl-model`, the unit crate (`auto_path_eval`, `compilation_unit`: 30 uses) |
 | `tcl-ide-format` | `tcl-binding`, `tcl-model`, `tcl-lowering` (`minify`), `tcl-ir`, `tcl-analysis` (3), `tcl-optimiser` (1) |
 | `tcl-ide-nav`, `tcl-ide-assist`, `tcl-ide-edit` | `tcl-binding`, `tcl-model`, `tcl-source`, `tcl-ir`, the unit crate; `tcl-lowering` for `assist` and `edit` |
@@ -217,8 +217,14 @@ Each crate names only the compiler crates its modules use today
 | `tcl-ide-views` | `tcl-analysis`, `tcl-lowering`, `tcl-ir`, the unit crate |
 
 No feature crate depends on `tcl-diagnostics` to run analyses. The 86
-analyser calls become an `&AnalysisResult` (from `tcl-model`) in the input,
-which the caller gets from `tcl-db` or runs itself. Seven compiler modules
+analyser calls, and `minify`'s optimiser run (`minify.rs:324`), become the
+input's `document: &dyn DocumentFacts`. `DocumentFacts` is the binding-free
+record in `tcl-model` that `AnalysisResult` projects into, and `tcl-semantic`
+implements it (coordinator decision D-C). The server gets it from
+`tcl-lsp-session`, the CLI and MCP from `tcl-db`'s batch constructor; no
+feature crate names `tcl-db`. `AnalysisResult` itself stays in
+`tcl-diagnostics` (05-tcl-model:390), so the target edge from a feature crate
+is to `tcl-model` only. Seven compiler modules
 the groups name are not in CSD's table (`lambda_literal` 20 uses,
 `object_types`, `value_shapes`, `types`, `def_use`, `dataflow_graph`,
 `taint_interproc`); item 247's ledger places them.
@@ -229,11 +235,13 @@ Each feature crate that takes a contribution defines its trait beside its
 entry point, and takes the set as an argument. Sketches:
 
 ```rust
-// tcl-ide-model
+// tcl-ide-model (target, decision D-C)
 pub struct DocumentInput<'a> {
     pub text: &'a str,
     pub environment: &'a DocumentEnvironment,
-    pub analysis: Option<&'a AnalysisResult>,
+    pub facts: FactView<'a>,                 // tcl_registry: the generation and the document's entry selection (item 480)
+    pub context: &'a ContextIntervals,       // tcl_binding: the facet selection per interval (308)
+    pub document: &'a dyn DocumentFacts,     // tcl_model: what the analysis found
 }
 pub trait DocumentKind: Send + Sync {
     fn id(&self) -> &'static str;             // "bigip-conf", "apl", "sslictcl"
@@ -253,6 +261,18 @@ pub trait FindingSource: Send + Sync {
 // ActionContributor (BIG-IP stanza actions)
 ```
 
+Hover, completion and signature help read the facet at a position as
+`input.context.at(offset)` over `input.facts`, the same selection binding and
+the diagnostics used, so the two cannot disagree on a versioned fact. Rules
+and layout hooks reach the registry through `input.facts.hooks()`.
+
+During the extraction (289's own work list) the input carries what the
+caller has today: `analysis: Option<&AnalysisResult>` and
+`registry: &CommandRegistry`. The three fields above replace them after
+`tcl-semantic`, item 480's `FactView` and 308a's intervals exist, without
+moving a crate again. The extraction waits for none of them (owner priority,
+26 November 2026).
+
 A semantic-token request then runs like this. The caller supplies the
 analysis; the feature crate never runs the analyser, and it learns about
 BIG-IP only through the contributor it is handed:
@@ -264,8 +284,8 @@ sequenceDiagram
   participant Tokens as tcl-ide-tokens
   participant F5 as tcl-ide-f5
   participant Bigip as tcl-bigip
-  Entry->>Db: analysis for the document
-  Db-->>Entry: AnalysisResult
+  Entry->>Db: analysis for the document (session query, or the batch constructor)
+  Db-->>Entry: DocumentFacts, ContextIntervals and the generation
   Entry->>Tokens: semantic_tokens(input, [tcl-ide-f5])
   Tokens->>F5: document_tokens(input)
   F5->>F5: DocumentKind claims "bigip-conf"?
@@ -298,12 +318,24 @@ let tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
 
 ```rust
 // sketch; f5_tokens is tcl-ide-f5's TokenContributor, linked by the entry point
-let input = DocumentInput { text: source, environment: &environment, analysis: Some(&analysis) };
+let input = DocumentInput {
+    text: source,
+    environment: &environment,
+    facts: generation.view(&environment.entry_selection()),
+    context: &document.context,
+    document: &document.facts,
+};
 let tokens = tcl_ide_tokens::semantic_tokens(&input, &[&f5_tokens]);
 ```
 
 `tcl-ide-f5` implements them over `tcl-bigip` and `tcl-irules`;
-`tcl-ide-sslictcl` over `tcl-sslictcl`. Entry points (the server session, the
+`tcl-ide-sslictcl` over `tcl-sslictcl`, until item 457. SslicTcl's findings
+then come from the generic declaration reader (`tcl-decl-reader`, item 453),
+which reads the document grammar from the `tcl-lib-sslictcl` image through
+`input.facts` and emits its codes into `DocumentFacts`. `tcl-ide-diagnostics`
+reports them like any other finding, so no adapter is left
+([365](../registry/model/365-spectcl-sslictcl.md)), and 457 deletes
+`tcl-ide-sslictcl`. Entry points (the server session, the
 CLI, MCP) link the adapters they want and pass them in. `f5-cli`, which needs
 formatting but no LSP features, links `tcl-ide-format` and no adapter.
 
@@ -366,6 +398,11 @@ No crate's dev-dependencies then name a crate above it. `tcl-test-support`
 - **Inputs, not runs.** A feature crate never runs the analyser, so an
   analyser edit rebuilds `tcl-diagnostics` and the database, not the
   features (CSD's "an edit to the analyser" gain extends up the stack).
+- **No session state here.** Dialect selection, the configuration stack
+  (`config_ini`'s layers) and the rename tier plan are the shared
+  `tcl-session` crate's (decision D-M, items 104, 109 and 113), at rank 1
+  beside `tcl-ide-model`; 290 creates it. `tcl-ide-edit` runs the tiers that
+  plan names over `DocumentInput`s, for the server, the CLI and MCP alike.
 
 ### Open questions
 
@@ -390,7 +427,9 @@ No crate's dev-dependencies then name a crate above it. `tcl-test-support`
    `tcl-lsp-core`'s dependencies.
 3. Clear the back-edges in the table, in `tcl-lsp-core`, one kind per change.
 4. Replace the 86 analyser calls with an `&AnalysisResult` input, module by
-   module; the callers in the server and MCP run or fetch the analysis.
+   module; the callers in the server and MCP run or fetch the analysis. (The
+   input becomes `&dyn DocumentFacts` after `tcl-semantic`; that change
+   follows the extraction and moves no crate.)
 5. Move the profile helpers to `tcl-catalogue`; rewrite their callers.
 6. Move the test features into `tcl-ide-diagnostics-fixtures`; drop
    `tcl-codegen` and `tcl-spectcl` from the dev-dependencies (item 270).
@@ -409,7 +448,9 @@ exception for these crates, and:
 
 - `cargo tree -p tcl-ide-tokens -e normal` lists no `tcl-bigip`, `tcl-irules`
   or `tcl-sslictcl`, and no `tcl-ide-*` crate's tree does;
-- no `tcl-ide-*` crate names `Analyser`;
+- no `tcl-ide-*` crate names `Analyser` or `optimise_with_dialect`;
+- after `DocumentFacts` lands, no `tcl-ide-*` crate's tree lists `tcl-db` or
+  `tcl-diagnostics` (the exception rows are deleted);
 - `cargo tree -p tcl-ide-X` (all edges) lists no crate above it for every X;
 - the LSP end-to-end suite and the semantic-token goldens pass, and MCP and
   CLI JSON output is byte-identical on the golden corpus.
@@ -450,3 +491,18 @@ Record:
   `tcl-sslictcl` as contributing "registry and profile data and hooks". In
   `tcl-lsp-core` they contribute document kinds, tokens, findings, navigation
   and actions; the registry data part belongs to items 118 and 264.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C1, O2, O3 (workspace side):** `DocumentInput` is now `{ text,
+  environment, facts: FactView, context: &ContextIntervals, document: &dyn
+  DocumentFacts }` (decision D-C). `DocumentFacts` is in `tcl-model`, since
+  `AnalysisResult` cannot move there. Feature crates reach no `tcl-db` or
+  `tcl-diagnostics`; the dependency table's interim edges are exception rows.
+  The extraction moves code with today's inputs and is not gated on the new
+  types (owner priority).
+- **O8:** `tcl-ide-sslictcl` is settled as an interim adapter, deleted by item
+  457 when the generic declaration reader (`tcl-decl-reader`) supplies the
+  findings.
+- **W5:** dialect selection, configuration and the rename tier plan are
+  `tcl-session`'s, not a feature crate's.

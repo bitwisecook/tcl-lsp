@@ -249,6 +249,14 @@ hubs by stopping changing:
 4. After 294: decide the `tcl-explore` binary and, if adopted, point the
    compiler-explorer skill at it.
 5. After 287: move single-crate tests out of `tcl-compiler-it`.
+6. Once `tcl-spec-images` exists (item 307): record its cone and the time it
+   adds before each launch path that builds an image-embedding crate
+   (`scripts/tcl-mcp`, the compiler-explorer skill, rust-analyzer, the CI
+   release containers, the WASM builds). Under decision D-A its dev cone is
+   `tcl-spectcl`'s reader, `tcl-source` and the registry core, with no VM or
+   compiler; a regression against that is recorded beside the hub numbers.
+   Like every number here it is recorded alongside the steps and never
+   blocks one (owner priority, 26 November 2026).
 
 ## Verification
 
@@ -278,3 +286,9 @@ where the last of 288–294 builds, and:
 - The plan's dependent counts (43, 37, 33, 30, 34) match counting manifests
   across the whole tree (44, 39, 33, 30, 36 today) rather than root-workspace
   dependents (40, 34, 32, 27, 29). The text should say which.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C3 (workspace side):** the work list re-measures the image generator
+  `tcl-spec-images`, which runs before every image-embedding build, beside
+  the hubs. It is recorded, not gated.

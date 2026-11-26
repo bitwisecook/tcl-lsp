@@ -144,6 +144,22 @@ tclpkg.tcl (manifest)
     findings. Installed, vendored, virtual-environment, build, and generated
     trees are outside the direct project source inventory.
 
+## SpecTcl facts and the analysis
+
+Three parts of tclpkg read command facts or feed the analysis. Each moves
+onto the target interface as consumer 14 of the
+[consumer migration](../registry/model/319-consumer-migration.md#the-consumers)
+(wave 7, after SpecTcl 3's images, items 305, 307 and 406):
+
+| Part | Today | Target |
+|---|---|---|
+| `tcl docker create` | loads the project's packs with `tcl_spectcl::pack::load` and reads each command's `runtime_backing` and `required_package` (`rust/tcl-cli/src/commands/docker.rs:58-84`) | reads `runtime_backing` through a `FactView` over the project's packs, and the providing package from the library's image; SpecTcl 3.0 has no `required_package` (`available P 0-` replaces it) |
+| `tcl pkg discover` (rule 24) | runs `Analyser` and the optimiser itself over `tcl_cli_support::registry_for_dialect` (`rust/tcl-cli/src/commands/pkg_discover.rs:31-33, 214, 258`) | reads `DocumentFacts` from `tcl-db`'s session-free batch constructor, as MCP and the CLI do ([293](../workspace/293-mcp.md#analysis-without-a-session)) |
+| `tclpkg.lock` and the `spec` tier (rule 5a) | the tier clamp reads the lockfile's graph when packs are discovered | the lockfile is a `tcl-db` input: the server's `PackState` watches it, and the CLI passes it to the batch constructor, so a lockfile edit re-tiers the packs and re-runs only what reads them |
+
+The lockfile and the image agree on a pack's identity: `spec_integrity` (rule
+9) is the hash a compiled image records as its `source_hash`.
+
 ## CLI surface
 
 `tcl pkg` — `init`, `discover` (alias `scan`), `install`, `list`, `tree`,
@@ -178,6 +194,9 @@ colour, the check/cross/warning symbols, and the canonical `--json` mode.
 - `rust/tcl-pkg/src/registry.rs` — registry client and TTL cache
 - `rust/tcl-pkg/src/venv.rs` — virtual environment management
 - `rust/tcl-pkg/src/docker.rs` — Dockerfile generation for Tcl projects
+- `rust/tcl-cli/src/commands/docker.rs` — `tcl docker`'s verb handler, which
+  lists the native extensions from the project's packs
+- `rust/tcl-cli/src/commands/pkg_discover.rs` — `tcl pkg discover`
 - `rust/tcl-pkg/src/exec.rs` — the single external-execution chokepoint
 - `rust/tcl-pkg/src/policy.rs`, `hooks.rs` — operator policy and lifecycle hooks
 - `rust/tcl-pkg/src/ui.rs` — CLI output helpers
@@ -210,3 +229,10 @@ of the contract.
   paths.
 - [tcl verb CLI feature](../../kcs/features/kcs-feature-tcl-verb-cli.md) — the
   `tcl` CLI contracts.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C6:** new section *SpecTcl facts and the analysis*. `tcl docker`'s
+  extension list and `tcl pkg discover` are consumer 14 of the consumer
+  migration (319), and the lockfile becomes a `tcl-db` input, so a lockfile
+  edit re-tiers the packs. Anchors added for the two verb handlers.

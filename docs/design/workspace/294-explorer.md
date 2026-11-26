@@ -96,11 +96,15 @@ Each caller builds the inputs from what it already has:
 | Caller | Today | After |
 |---|---|---|
 | `tcl-cli` (`tcl explore`, 7 `run_pipeline` uses) | `run_pipeline(source, dialect)` | the CLI's registry, from `tcl-catalogue` and the bundled packs it already links through `tcl-spectcl` |
-| `tcl-lsp-server` (`commands/document_views.rs:338–423`) | `run_pipeline_with_analysis_input` or `run_pipeline` | the session's registry for the document (`Session::registry_for`, [290](290-lsp-server.md)), so the view matches the document's diagnostics |
-| `tcl-explorer-wasm` | `run_pipeline(source, dialect)` | `tcl-catalogue`'s registry for the dialect, with no packs |
+| `tcl-lsp-server` (`commands/document_views.rs:338–423`) | `run_pipeline_with_analysis_input` or `run_pipeline` | the session's facts for the document (`Session::generation` and the analysis's entry selection, [290](290-lsp-server.md)), so the view matches the document's diagnostics |
+| `tcl-explorer-wasm` | `run_pipeline(source, dialect)` | the same installed set as the server: `tcl-catalogue`'s embedded images, the vendor packs included, as the BundledPack default (decision D-H); a `specs/` source in the browser mount overrides one only when its hash differs |
 
 `serialise/irules.rs:164` gets its registry from `ExplorerResult` instead of
 looking one up again.
+
+Until item 480's `FactView` exists, `registry` is the `&CommandRegistry`
+built from that set; the field becomes a `FactView` (workspace rule 8) after
+the extraction, which does not wait for it.
 
 `dialect` stays in the inputs because `ExplorerResult` keeps the label
 (`lib.rs:294`) and the serialisers read it (`serialise.rs:298`). The browser
@@ -116,7 +120,8 @@ let result = tcl_explorer::run_pipeline(source, dialect);
 **After:**
 
 ```rust
-// the core registry with no packs; tcl-catalogue's once item 264 lands
+// interim: the core registry; after item 264, tcl-catalogue's installed set,
+// the embedded vendor images included (decision D-H), as the server uses
 let environment = tcl_registry::model::resolve_environment(dialect);
 let profile = environment.unit_profile();
 let context = environment.default_context_registry();
@@ -169,7 +174,7 @@ flowchart LR
   cli -->|"pack verbs, bundled packs"| spectcl
   cli -->|"live_entry.rs"| vm
   wasm --> catalogue
-  server -->|"registry_for(uri)"| session
+  server -->|"generation()"| session
   explorer --> codegenApi
   explorer --> compilerCrates
 ```
@@ -260,6 +265,10 @@ Record:
 
 ## Risks
 
+- **A different registry in the browser.** Today the browser explorer and
+  the LSP diagnostics can disagree on an EDA file, because the explorer has
+  no vendor packs. After decision D-H both read the catalogue's embedded
+  images, so they agree; golden diffs of the browser views show the change.
 - **A different registry in the server's view.** Switching the server's view
   from `active_registry_for_dialect` to the session's registry is a
   deliberate behaviour change: the view follows the document's packs and
@@ -275,3 +284,12 @@ Record:
 - The plan says the bytecode view "uses one named `tcl-codegen` API". The
   WASM views use the WASM emitter as well (`compile_wasm` and its types, in
   three files).
+
+## Review fixes (26 November 2026, deep review)
+
+- **C2 (workspace side):** `tcl-explorer-wasm` uses the same installed set as
+  the server, with the catalogue's embedded vendor images as the BundledPack
+  default (decision D-H), not "no packs".
+- **C1, O3 (workspace side):** the server passes its generation-backed facts
+  (`Session::generation`), and `ExplorerInputs.registry` becomes a `FactView`
+  after item 480, without gating the extraction.

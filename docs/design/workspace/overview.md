@@ -92,18 +92,18 @@ may depend only on lower ranks.
 | Layer | Crates |
 |---|---|
 | 0. Leaves | `tcl-core-types`, `tcl-platform`, `tcl-version`, `tcl-userdirs`, `tcl-dialect`, `tcl-f5mku`, `tcl-sandbox` |
-| 1. Grammar and values | `tcl-lexer`, `tcl-numeric`, `tcl-value-syntax`, `tcl-expr`, `tcl-syntax`, `tcl-pkg-model` |
-| 2. Runtime vocabulary and kernels | `tcl-runtime-api`, `tcl-cmd-core`, `tcl-regex`, `tcl-bytecode`, `tcl-engine-api`, `tcl-host-c-abi`, `tcl-host-native`, the native-model crate (new, item 117), `tcl-source-store` (new, 288); test-only: `tcl-test-support` |
+| 1. Grammar and values | `tcl-lexer`, `tcl-numeric`, `tcl-value-syntax`, `tcl-expr`, `tcl-syntax`, `tcl-pkg-model`, `tcl-source` (new, 251: CST and segmenter, over `tcl-lexer`, `tcl-syntax` and `tcl-dialect` only) |
+| 2. Runtime vocabulary and kernels | `tcl-names` (new, 248; it enters this layer, below `tcl-runtime-api`, when item 274 moves the `*Ref` types, `IdentityInterner` and the issuers into it after Now 5, and sits in 4a until then), `tcl-runtime-api`, `tcl-cmd-core`, `tcl-regex`, `tcl-bytecode-tables` (new: literal and local tables, `ErrorRegion`, native literals), `tcl-bytecode` (`Op`, layout, encoder, tbcx), `tcl-engine-api`, `tcl-host-c-abi`, `tcl-host-native`, the native-model crate (new, item 117), `tcl-source-store` (new, 288); test-only: `tcl-test-support` |
 | 3. Registry | `tcl-registry` (core), the BIG-IP schema crate (new, item 118). Beside it, used by entry points and tests only: `tcl-dialect-tcl`, `tcl-dialect-jim`, `tcl-dialect-f5`, the `tcl-lib-*` crates, `tcl-catalogue` (new, item 264) |
-| 4a. Compiler | CSD's crates in CSD's order: `tcl-source`, `tcl-names`, `tcl-values`, `tcl-model`, `tcl-ir`, `tcl-binding` (`tcl-invocation` stays inside it, item 282), `tcl-lowering`, `tcl-analysis`, the unit crate `tcl-unit` (below the next three, step 13), `tcl-native-plan`, `tcl-diagnostics`, `tcl-optimiser`, then `tcl-compile` (codegen drivers, item 292) and later `tcl-semantic` |
+| 4a. Compiler | CSD's crates in CSD's order (`tcl-source` and, after 274, `tcl-names` sit lower): `tcl-values`, `tcl-model`, `tcl-ir`, `tcl-binding` (`tcl-invocation` stays inside it, item 282), `tcl-lowering`, `tcl-analysis`, the unit crate `tcl-unit` (step 13), then `tcl-semantic` (item 85, the one analysis query API), `tcl-native-plan` and `tcl-optimiser`, then `tcl-diagnostics` (rules over `tcl-semantic`) |
 | 4b. Engines | `tcl-vm` (291), `tcl-runtime` (`runtime/rust`) |
-| 5. Back ends and engine hosts | `tcl-codegen` (292), `bpf-tcl-ir`, `bpf-tcl-codegen`, `bpf-tcl`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim`, `tcl-spec-hooks` |
-| 6. Database, domains and loaders | `tcl-db` (today's `tcl-lsp-db`, item 286); `tcl-sslictcl`, `tcl-irules`, `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-diagram`; `tcl-spectcl`, `tcl-pkg` |
+| 5. Back ends and engine hosts | `tcl-codegen` (292, emitters), then `tcl-compile` (new, 292: the drivers, over `tcl-codegen`, `tcl-optimiser` and `tcl-unit`), `bpf-tcl-ir`, `bpf-tcl-codegen`, `bpf-tcl`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim`, `tcl-spec-hooks` |
+| 6. Database, domains and loaders | `tcl-db` (today's `tcl-lsp-db`, item 286); `tcl-sslictcl`, `tcl-irules`, `bpf-tcl-rules` (new, 464: BPF diagnostics over `tcl-diagnostics`' rule traits), `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-diagram`; `tcl-spectcl`, `tcl-pkg` |
 | 7. Feature crates (protocol-neutral) | `tcl-ide-model`, `tcl-ide-names`, `tcl-ide-diagnostics`, `tcl-ide-workspace`, `tcl-ide-symbols`, `tcl-ide-format`, `tcl-ide-nav`, `tcl-ide-assist`, `tcl-ide-tokens`, `tcl-ide-views`, `tcl-ide-edit` (all new, 289, from `tcl-lsp-core`) |
 | 8. Domain adapters | `tcl-ide-f5`, `tcl-ide-sslictcl` (new, 289); dev-only: `tcl-ide-diagnostics-fixtures` (new, 289) |
 | 9. Tool libraries | `f5-xc`, `tcl-spec-studio`, `tcl-explorer`, `tcl-cli-support`, `tcl-kcs-help` (new, 293), `f5-explain` (new, 293), `tcl-irule-test`, `tcl-debugger`, `tcl-fuzz`, `bigip-report-gen-rust` |
 | 10. Server stack | `tcl-lsp-session`, `tcl-lsp-documents`, `tcl-lsp-diagnostics`, `tcl-lsp-navigation`, `tcl-lsp-workspace`, `tcl-lsp-commands` (all new, 290), `tcl-lsp-server` (transport) |
-| 11. Entry points | binaries: `tcl-cli`, `f5-cli`, `tcl-mcp`, `tcl-vm-cli`, the `tcl-lsp-server` binary; `xtask`; test-only: `tcl-compiler-it` (item 266), `tcl-lsp-it` (new, 289); outside the workspace: `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl-explorer-wasm`, `tcl-spec-studio-wasm`, `tcl-vm-wasm`, `bigip-query-wasm`, `bigip-report-gen/wasm`, `bigip-report-gen/python`, `zed-query-check`, `editors/zed` |
+| 11. Entry points | binaries: `tcl-cli`, `f5-cli`, `tcl-mcp`, `tcl-vm-cli`, the `tcl-lsp-server` binary; `xtask`; test-only: `tcl-compiler-it` (item 266), `tcl-lsp-it` (new, 289), `tcl-vm-it` and `tcl-db-it` (new, 292; 292 calls the second `tcl-lsp-db-it`); outside the workspace: `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl-explorer-wasm`, `tcl-spec-studio-wasm`, `tcl-vm-wasm`, `bigip-query-wasm`, `bigip-report-gen/wasm`, `bigip-report-gen/python`, `zed-query-check`, `editors/zed` |
 
 `f5-xc` and `tcl-spec-studio` are tool libraries, not domain crates: after
 289 and 293 they use feature crates (`tcl-ide-diagnostics`, `tcl-ide-format`,
@@ -149,7 +149,7 @@ flowchart TB
   L7 --> L2
   L6db --> L4a
   L6dom --> L3
-  L6load --> L5
+  L6load -->|"tcl-source only"| L4a
   L5 --> L4a
   L5 --> L4b
   L4a --> L3
@@ -181,10 +181,11 @@ flowchart TB
   end
   subgraph g8["8. Adapters"]
     ideF5["tcl-ide-f5"]
-    ideSsl["tcl-ide-sslictcl"]
+    ideSsl["tcl-ide-sslictcl (until 457)"]
   end
   subgraph g7["7. Feature crates"]
     features["tcl-ide-model … tcl-ide-edit"]
+    tclSession["tcl-session"]
   end
   subgraph g6["6. Database and domains"]
     tclDb["tcl-db"]
@@ -196,11 +197,16 @@ flowchart TB
   transport --> handlers
   handlers --> session
   session --> tclDb
+  session --> tclSession
   handlers --> features
   handlers -->|"commands only"| tools
   tclCli --> tools
+  tclCli --> tclSession
+  tclCli -->|"batch"| tclDb
   tclMcp --> tools
   tclMcp --> features
+  tclMcp --> tclSession
+  tclMcp -->|"batch"| tclDb
   tools --> features
   lspBin -->|"registers"| ideF5
   tclMcp -->|"registers"| ideF5
@@ -237,11 +243,55 @@ flowchart TB
    layer 11 depends on it.
 7. **One database.** Only `tcl-db` and `tcl-lsp-session` name `salsa` (today
    21 `tcl-lsp-server` files do). Feature crates are pure functions over
-   inputs and never name `tcl-db`.
-8. **Callers choose the registry.** A library takes a `&CommandRegistry` or a
-   resolved environment from its caller; it does not call a
+   inputs and never name `tcl-db` or `tcl-diagnostics`: their analysis
+   arrives in 289's `DocumentInput`, as a `&dyn DocumentFacts` from
+   `tcl-model` (below). The CLI and MCP reach the database only through its
+   session-free batch constructor, so they name no salsa either.
+8. **Callers choose the facts.** A library takes a `FactView` (the
+   generation plus a `FacetSelection`, item 480), and a `&ContextIntervals`
+   when it answers per position, from its caller. It does not call a
    `registry_for_dialect(&str)` of its own (`tcl-explorer` and `tcl-mcp` today
-   call `tcl_spectcl::bundled`'s).
+   call `tcl_spectcl::bundled`'s), and it never selects surfaces itself:
+   `tcl-irule-test`, a library with no `[[bin]]`, takes the iRules facts from
+   the tool that calls it rather than linking `tcl-catalogue` (rule 4).
+   Until a crate's extraction reaches item 480's view, a `&CommandRegistry`
+   from the caller satisfies the rule.
+
+### Analysis and facts reach the consumers
+
+One interface serves the server, the CLI and MCP (coordinator decision D-C):
+
+- **`tcl-model` defines `DocumentFacts`**, a binding-free record of what a
+  document's analysis found (diagnostics, symbols, resolved invocations,
+  findings). `AnalysisResult` projects into it. `tcl-semantic` (item 85),
+  between `tcl-unit` and `tcl-diagnostics`, implements it as the single
+  analysis query API, and the diagnostics become rules over it.
+- **Feature crates take `DocumentInput`** ([289](289-lsp-core.md#domain-crates-plug-in)):
+  the text, the environment, a `FactView`, the document's
+  `&ContextIntervals` and the `&dyn DocumentFacts`. They depend on
+  `tcl-model` and the registry core, never on `tcl-db` or `tcl-diagnostics`,
+  so an analyser edit rebuilds no `tcl-ide-*` crate.
+- **The server** gets all of it from `tcl-lsp-session`. Its `PackState` is
+  the pack watcher that sets `tcl-db`'s `UserPack` inputs, and a
+  generation-backed `FactView` replaces `registry_for -> Arc<CommandRegistry>`
+  ([290](290-lsp-server.md#interfaces)). A document's `# tcl-lsp: stub`
+  lines compile to a per-file `UserPack` input.
+- **The CLI and MCP** run `tcl-db`'s batch constructor once, with no session
+  and no salsa in their own code ([293](293-mcp.md#analysis-without-a-session)),
+  and read the same records from it.
+- **Dialect selection, the configuration stack and the rename tiers** live in
+  the shared `tcl-session` crate (decision D-M; items 104, 109, 113 and 204),
+  which all three surfaces use. `tcl-lsp-session` holds only LSP state.
+
+None of this gates an extraction (owner priority, 26 November 2026). 289 and
+290 move the code with today's inputs: the feature crates take the caller's
+`&AnalysisResult` and `&CommandRegistry`, and the `tcl-ide-*` →
+`tcl-diagnostics` edges are exception rows until `DocumentFacts` exists.
+290 creates `tcl-session` from the server's `dialects` and `configuration`
+modules, and the CLI and MCP adopt it once it exists. `DocumentInput`'s final
+fields and the batch constructor follow `tcl-semantic` and items 480 and 484,
+after Now 5. The Now 8 consumer waves then migrate once, onto that API
+([319](../registry/model/319-consumer-migration.md#the-consumer-interface)).
 
 ### The gate
 
@@ -268,6 +318,26 @@ It becomes a rank gate:
   `cargo deny` and the gate never disagree.
 - Rule 7 is a token check, like `walker-ownership`: `salsa::` outside the two
   crates fails.
+- The ledger has a row for every crate the target names, not only those in
+  the layer table above. The workspace steps add:
+  - `tcl-session` (layer 7, rank 1, `generic`; created by 290);
+  - `tcl-decl-reader`, the generic declaration reader (item 453), in layer 4a
+    ranked directly above `tcl-source` and below every other compiler crate,
+    over `tcl-source` and the registry core only, so `tcl-spectcl`,
+    `tcl-sslictcl` and the feature crates all read it without a sibling edge;
+  - `tcl-lsp-it` and `tcl-db-it` (layer 11, `test`; 292 calls the second
+    `tcl-lsp-db-it`);
+  - `tcl-ide-sslictcl` (layer 8, `adapter`) until item 457 deletes it.
+
+  The registry and compiler steps add `tcl-spec-images`,
+  `tcl-catalogue-core`, `tcl-lib-bpf`, `tcl-lib-linux-ebpf`,
+  `tcl-lib-sslictcl`, `tcl-vm-it`, and `tcl-semantic` between `tcl-unit` and
+  `tcl-diagnostics`.
+- `tcl-spectcl` has one place: the loaders group of layer 6. It reads packs
+  on `tcl-source` and the registry core and links no VM, because the hook
+  runner (`tcl-spec-hooks`) is a separate dependency that named entry crates
+  link (decision D-I). So the loaders group has no edge to layer 5. It sits
+  above the core and beside the compiler, and no compiler crate names it.
 
 For example, the ledger rows of layer 7, with [289](289-lsp-core.md)'s ranks:
 
@@ -323,11 +393,15 @@ The steps run beside item 90, each when the crates it names exist (the
 plan's working order):
 
 1. **288** first. It needs nothing from item 90 and unblocks 270.
-2. **289** after item 90's step 5 (`tcl-model`), so the feature crates can
-   take `AnalysisResult` from `tcl-model`, and after item 264
-   (`tcl-catalogue`) for the profile helpers. Its first part (domain adapters
-   and the ledger) can start at once.
-3. **290** after 289's `tcl-ide-model`, and after item 286 (`tcl-db`).
+2. **289** after 288. Its extraction moves the modules with today's inputs
+   (the caller's `&AnalysisResult` and `&CommandRegistry`) and waits for no
+   new type: `DocumentFacts`, `FactView` and `ContextIntervals` reach
+   `DocumentInput` later, without moving a crate again. The profile helpers
+   move to `tcl-catalogue` once item 264 exists; until then they stay in
+   `tcl-ide-model`. Its first part (domain adapters and the ledger) can start
+   at once.
+3. **290** after 289's `tcl-ide-model`, and after item 286 (`tcl-db`). It
+   creates `tcl-session` from the server's dialect and configuration modules.
 4. **293** and **294** at any time; 294's registry inversion needs item 264.
 5. **295** is the acceptance record: it re-measures each hub when its crates
    build.
@@ -380,4 +454,27 @@ builds).
   loader runs packs in the VM) is not in CSD's table, and it puts the VM and
   `tcl-codegen` into the server, the explorer, the spec studio and MCP. No
   plan item covers it; items 305–307 (SpecTcl 3, packs as images) may remove
-  the need. Recorded here as an open question for the owner.
+  the need. Recorded here as an open question for the owner. Settled since:
+  item 318 and decision D-I make the hook runner a dependency that only
+  named entry crates link, so the loader links no VM.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C1, O2, O3 (workspace side):** new section *Analysis and facts reach the
+  consumers* (decision D-C). `DocumentInput` carries a `FactView`, the
+  `ContextIntervals` and a `&dyn DocumentFacts`; `PackState` is the
+  `UserPack` watcher; the CLI and MCP use `tcl-db`'s batch constructor.
+  Rule 7 forbids `tcl-ide-*` → `tcl-diagnostics`, and rule 8 takes a
+  `FactView`. The LSP-stack diagram gains the batch edges and `tcl-session`.
+  None of it gates 289's or 290's extraction (owner priority).
+- **C7:** rule 8 says `tcl-irule-test` takes its iRules facts from its caller.
+- **O8:** `tcl-spectcl` has one place (layer 6, over `tcl-source` and the
+  core, no layer-5 edge; the stack diagram's `L6load --> L5` is now
+  `L6load --> L4a`). The declaration reader is its own crate,
+  `tcl-decl-reader`, directly above `tcl-source`. `tcl-ide-sslictcl` is
+  interim until item 457.
+- **O15 (workspace side):** *The gate* lists the ledger rows the workspace
+  steps add. The layer-table rows are handed to the table's owner.
+- **W5:** `tcl-session` (D-M) holds dialect selection, the configuration stack
+  and the rename tiers for all three surfaces; 290 creates it.
+- The open question on `tcl-spectcl` → `tcl-spec-hooks` is marked settled.

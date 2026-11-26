@@ -582,9 +582,12 @@ against, and how it stays fast under an editor's keystroke load.
   collector that keeps the per-keystroke interned keys in `tcl-lsp-db`
   bounded, the two ways to disable it by accident, and the guardrails that
   pin it.
-- [target-architecture.md](rust/target-architecture.md) — the target design
-  (zero-copy, single-parse, incremental-reuse, MVCC) and how the competing
-  goals are reconciled.
+- [target-architecture.md](rust/target-architecture.md) — superseded in part
+  (26 November 2026): the parse-side direction (zero-copy, single parse, one
+  CST) and MVCC still stand; the crate layout and caching are now
+  [crate-split-design.md](compiler/crate-split-design.md),
+  [14-caching.md](compiler/crate-split/14-caching.md) and
+  [workspace/overview.md](workspace/overview.md).
 
 ## tclpkg/
 
@@ -602,7 +605,8 @@ The target layers for the whole workspace, beside the compiler and registry
 splits (plan items 288–295 and 314–318).
 
 - [overview.md](workspace/overview.md) — every crate's layer, the dependency
-  rules, and the rank gate that enforces them.
+  rules, how analysis and facts reach the consumers, and the rank gate that
+  enforces them.
 - [288-spectcl-edge.md](workspace/288-spectcl-edge.md) — the
   `tcl-spectcl` → `tcl-lsp-core` edge removed through `tcl-source-store`.
 - [289-lsp-core.md](workspace/289-lsp-core.md) — `tcl-lsp-core` into eleven

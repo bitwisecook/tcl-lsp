@@ -1,5 +1,15 @@
 # Target architecture — zero-copy, single-parse, incremental, MVCC
 
+> **Superseded in part (26 November 2026).** The crate layout and the caching
+> policy are now set by [splitting tcl-compiler](../compiler/crate-split-design.md),
+> its [step 14, caching](../compiler/crate-split/14-caching.md), and the
+> [workspace target layers](../workspace/overview.md). Where this page says
+> every derived value is a query, step 14 wins: lower crates are pure, one
+> database (`tcl-db`) holds every cache, and a cache stays only where deleting
+> it costs more than its measured gate. Layer 4 below is rewritten to that
+> rule. The parse-side goals (zero-copy, one CST, positions from tokens),
+> MVCC and decisions D1 and D4 still stand as design direction.
+
 The architectural destination the Rust workspace is converging on, and the
 tensions and decisions that shape it. Companion to
 [`current-architecture.md`](current-architecture.md), which describes the crate
@@ -83,9 +93,16 @@ over two hundred sites outside `tcl-lexer`, so features still build their own.
 
 ### Layer 4 — Demand-driven incremental graph (the cascade)
 
-Derived data is expressed as **memoised queries** over inputs, with dependencies
-tracked so a change invalidates exactly its dependents and recomputes them
-lazily, when next demanded:
+Derived data that is worth keeping is a **memoised query in `tcl-db`**, with
+dependencies tracked so a change invalidates exactly its dependents and
+recomputes them lazily, when next demanded. Not every value below is a query.
+[Step 14](../compiler/crate-split/14-caching.md) sets the rule: the crates
+below `tcl-db` are pure, with no memo of their own, and a deleted memo comes
+back as a `tcl-db` query only if deleting it raises cold latency, one-line
+edit latency or the repeat probe by more than the gate (5%, proposed). The
+registry input is now the image generation, `CompiledSurfaces` and
+`UserPack` ([integration § 5](../compiler/compiler-analyser-spectcl-integration.md#5-incrementality-and-caching)).
+The graph below is the shape of the dependencies, not a list of caches:
 
 ```
 input    source(file)          = version + Arc<str>
@@ -176,15 +193,17 @@ same guarantees as the host:
   range *inside* the embedded language — which unlocks per-sub-language
   diagnostics, hover, and semantic-token colouring (capture groups in a regexp,
   conversions in a format string) that ad-hoc scanners cannot place.
-- **In the cascade.** A sub-tree is a query keyed on its span and typing, so
-  editing one regexp invalidates only that sub-tree.
+- **Recomputed, or cached by the gate.** Re-parsing one sub-tree is cheap.
+  A sub-tree becomes a `tcl-db` query keyed on its span and typing only if
+  step 14's measured gate keeps it; otherwise it is recomputed with its
+  host.
 
 **Injection runs both ways.** BIG-IP config is itself a host: a `.conf` file is
 config syntax with Tcl (iRules) injected inside `ltm rule { … }`, and within
 that Tcl the sub-grammars are injected again. The model is therefore a single
 CST of typed nodes joined by language-injection edges (the tree-sitter injection
 model) — every node spanning the one source, every position resolved by the one
-service, every node a participant in the one cascade. One parser per language,
+service, and every node's invalidation follows its host's. One parser per language,
 no duplicates.
 
 ## Decisions
@@ -239,6 +258,18 @@ completes. Progressive enhancement, not a blocking dependency.
 
 - [`current-architecture.md`](current-architecture.md) — the crate graph and
   ownership rules this builds on.
+- [`crate-split-design.md`](../compiler/crate-split-design.md),
+  [`14-caching.md`](../compiler/crate-split/14-caching.md) and the
+  [workspace overview](../workspace/overview.md) — the target crate graph and
+  caching rule that supersede this page's Layer 4.
 - [`incremental-analysis.md`](incremental-analysis.md) — Layer 4 as it exists
   today: the per-item firewall, the query graph, and the fallback contract.
 - [`engineering-guide.md`](engineering-guide.md) — the engineering rules.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W8:** marked superseded in part by `crate-split-design.md`, step 14
+  (`14-caching.md`) and the workspace overview. Layer 4 is rewritten to step
+  14's rule (pure lower crates, one database, caches only by the measured
+  gate), and the embedded sub-tree "query keyed on its span" is now gated the
+  same way. Re-indexed in `docs/design/README.md`.

@@ -61,13 +61,24 @@ functions over it. Ranks are in brackets.
 
 | Crate | Takes | Prod |
 |---|---|---|
-| `tcl-lsp-session` [1] | `BackendState` as `Session`; `dialects`, `analysis`, `configuration` (the settings model and reload), `tracked_locks`, `rt`, `analysis_cooperation`, `fresh_analysis_cache`, `diagnostic_read_cancellation`, `environment_notice`, `path_glob`, `vfs`; `uri_norm::DocumentPath` and `protocol`'s position lifts (`lift_lsp_range`, `line_col_to_byte_offset`) | 9.3k |
+| `tcl-session` (layer 7, rank 1; shared) | `dialects.rs`'s selection (783 lines: detector, document, folder, ini and session precedence, item 109); `configuration`'s stack and resolution (`global_settings`, `folder_settings`, `formatter_settings`, `resolved_settings`, `setting_parsers`, `feature_toggles`; item 113); the rename tier plan from `rename/tiers.rs` (item 104) | about 3.5k |
+| `tcl-lsp-session` [1] | `BackendState` as `Session`, holding a `tcl_session::Session`; `analysis`, `configuration`'s LSP half (`reload`, `requests`: `workspace/configuration` and `didChangeConfiguration`), `tracked_locks`, `rt`, `analysis_cooperation`, `fresh_analysis_cache`, `diagnostic_read_cancellation`, `environment_notice`, `path_glob`, `vfs`; `uri_norm::DocumentPath` and `protocol`'s position lifts (`lift_lsp_range`, `line_col_to_byte_offset`) | about 6k |
 | `tcl-lsp-documents` [2] | `documents`, `source_publication`, `document_transform`, `file_rename_publication_custody`, `closed_scan_input_custody`, `provider_source`, `recovery_source`, `rewrite_wire` | 9.3k |
 | `tcl-lsp-workspace` [3] | `workspace`, `spec_packs`, `studio_source`, `package_source` | 8.2k |
 | `tcl-lsp-diagnostics` [4] | `diagnostics`, `current_diagnostics`, `proposal_diagnostics`, `workspace_diagnostic_sources`, `policy_truth_table` | 11.9k |
 | `tcl-lsp-navigation` [4] | `navigation`, `readonly_reference_reports`, `rename`, `method_families`, `code_actions`, `semantic_tokens`, `document_features` | 24.9k |
 | `tcl-lsp-commands` [5] | `commands` (BIG-IP, XC, explorer and diagram views, fix-all, catalogue queries) | 3.2k |
 | `tcl-lsp-server` [6] | `language_server` (`impl LanguageServer`), `protocol` (capabilities, request plumbing), `service`, `stdio_pump`, `exit_watchdog`, `transport_liveness`, `uri_norm`, `main.rs` | 2.6k |
+
+`tcl-session` is not a server crate. It is the shared session of decision
+D-M: the server, the CLI and MCP all select dialects, layer configuration and
+plan rename tiers through it, so none of the three has its own (items 104,
+109, 113 and 204). It sits at layer 7, rank 1, beside `tcl-ide-model`, and
+holds plain data and pure functions: no `salsa`, no `tokio`, no LSP types.
+The rename tiers themselves run in `tcl-ide-edit` over the plan it returns.
+`tcl-lsp-session` holds only LSP state. 290 creates `tcl-session` as it moves
+these modules out of `Backend`; the CLI and MCP switch to it afterwards, so
+no earlier extraction waits for it.
 
 The crates as a graph. Handlers depend on the session and never on the
 transport; the commands crate alone holds the domain tools; only the session
@@ -84,6 +95,7 @@ flowchart TB
   workspace["tcl-lsp-workspace [3]"]
   documents["tcl-lsp-documents [2]"]
   session["tcl-lsp-session [1]"]
+  shared["tcl-session (layer 7)"]
   db["tcl-db"]
   ide["tcl-ide-* feature crates"]
   spectcl["tcl-spectcl"]
@@ -103,6 +115,7 @@ flowchart TB
   workspace --> session
   documents --> session
   session --> db
+  session --> shared
   navigation --> ide
   diagnostics --> ide
   commands --> domainTools
@@ -121,20 +134,20 @@ measurement shows hover and rename edits worth isolating.
 // tcl-lsp-session
 pub struct Session {
     pub client: Arc<dyn ClientSink>,
+    pub shared: tcl_session::Session, // DialectState, the configuration stack, the rename tier plan (D-M)
     pub documents: Documents,        // documents, store, edit_order, transforms
-    pub settings: Settings,          // the ~30 configuration fields
-    pub dialects: DialectState,      // default, session, folder and document overrides
     pub workspace: WorkspaceState,   // index, package resolver, scan gates, rehoming
-    pub packs: PackState,            // spec packs, studio sources, reload sequence
+    pub packs: PackState,            // the pack watcher: sets tcl-db's UserPack inputs
     pub db: DbState,                 // tcl-db handle, files, project, tombstones, gates
     pub diagnostics: DiagnosticState,
     pub tokens: TokenState,
     pub plugins: Plugins,            // 289's contributors, set by the entry point
 }
 impl Session {
-    pub fn dialect_for(&self, uri: &Uri) -> ResolvedDialect;
+    pub fn dialect_for(&self, uri: &Uri) -> ResolvedDialect;   // delegates to tcl_session
     pub async fn analysis(&self, uri: &Uri) -> Result<Arc<DocumentAnalysis>, Cancelled>;
-    pub fn registry_for(&self, uri: &Uri) -> Arc<CommandRegistry>;   // packs included
+    // DocumentAnalysis carries the document's DocumentFacts and ContextIntervals
+    pub fn generation(&self) -> Arc<Generation>;   // the current one, packs included; was registry_for
 }
 pub trait ClientSink: Send + Sync {          // what handlers send to the editor
     fn publish_diagnostics(&self, uri: Uri, diags: Vec<Diagnostic>, version: Option<i32>);
@@ -255,6 +268,17 @@ With the ranks above, the cross-crate references that point the wrong way
 - `tcl-spectcl` is named by `tcl-lsp-workspace` (pack reload, discovery) and
   `tcl-lsp-diagnostics` (pack notices). The session holds the active pack set
   as data (`PackState`), so `tcl-lsp-navigation` does not link the loader.
+- **`PackState` is the pack watcher** (coordinator decision D-C). There is one
+  owner of the pack set: `PackState` watches the pack files, the workspace's
+  `tclpkg.lock` and each document's `# tcl-lsp: stub` lines, and sets `tcl-db`'s
+  inputs (one `UserPack` per pack, a per-file `UserPack` for a document's
+  stubs, the lockfile's tiers). `tcl-db` builds the generation from them. The
+  session holds no registry of its own: `registry_for(uri) ->
+  Arc<CommandRegistry>` becomes `generation()`, and a handler builds the
+  document's `FactView` from it and the analysis's entry selection, so hover
+  and diagnostics read the same facets.
+- Until items 480 and 484 exist, `registry_for` and today's reload stay as
+  they are. The split moves them unchanged and does not wait for them.
 
 ### Decisions
 
@@ -306,6 +330,11 @@ Done when the seven crates build, the rank gate passes, and:
 - no crate but `tcl-lsp-session` (and `tcl-db`) names `salsa`;
 - no crate but `tcl-lsp-commands` depends on `tcl-bigip`, `f5-xc`,
   `tcl-explorer` or `tcl-diagram`;
+- dialect selection and the configuration stack are in `tcl-session`: no
+  `tcl-lsp-*` crate defines today's precedence functions
+  (`session_dialect_from`, `merged_folder_dialect_overrides`,
+  `dialect_for_open`, `dialects.rs:50,61,334`), and `tcl-cli` and `tcl-mcp`
+  call the same `tcl-session` functions;
 - the LSP end-to-end partitions, `npm run test:web` and the WASI host test
   pass.
 
@@ -339,3 +368,17 @@ Record:
 - The plan item puts the handler groups "over `tcl-db` and `tcl-lsp-core`".
   After 289 they sit over `tcl-lsp-session`, which holds `tcl-db`, and over
   the `tcl-ide-*` crates each group needs.
+- Item 206 names `tcl-lsp-core` as the owner of items 109 and 113. 289
+  dissolves that crate; the owner is `tcl-session`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W5:** `tcl-lsp-session` holds only LSP state. Dialect selection, the
+  configuration stack and the rename tier plan move to a shared
+  `tcl-session` (decision D-M, layer 7 rank 1), which the CLI and MCP also
+  use. 290 creates it, and no earlier extraction waits for it (owner
+  priority).
+- **C1 (workspace side):** `PackState` is the single pack watcher. It sets
+  `tcl-db`'s `UserPack` inputs (packs, document stubs, lockfile tiers), and
+  `registry_for -> Arc<CommandRegistry>` becomes a generation from which
+  handlers build a `FactView` (decision D-C).

@@ -535,9 +535,30 @@ positioned command navigation exposes `command_answer`. Namespace lookup uses
 `Answer<SourceNamespaceKey>` rather than a private presence enum. Unknown
 cannot supply an absence diagnostic or a unique navigation target.
 
-`Refusal<Range>` and `EditorOutcome<T, Range>` are the shared editor outcome.
-The LSP prepare-rename handler reports a refusal as a protocol error with its
-reason; MCP rename returns a successful tool result containing
+Today `Refusal<Range>` and `EditorOutcome<T, Range>` are the shared editor
+outcome (`tcl-core-types/src/answer.rs:252,260`). The target replaces the
+refusal with 335's one abstention record (item 439), also in `tcl-core-types`:
+`EditorOutcome<T> = Result<T, Abstain>`, where `Abstain { code, at, reason,
+missing }` carries the user-visible `reason` that `Refusal` carries today and
+the range as `at`. `AbstainCode` is a superset of `UnknownReason`: a lookup
+that answers `Unknown(reason)` abstains as `AbstainCode::Lookup(reason)`, so
+`DynamicName`, `IncompleteLookup` and the other reasons are spelled once, and
+the refactor codes (`MissingFact`, `OutOfReach`, `Frame`, `Collision`) are
+added beside them. `missing` names the command by the registry's
+generation-independent `CommandKey`, not by display text. `RenameRefusal`
+(`rename_safety.rs:131`) and `OriginalCommandRenameRefusal`'s codes map into
+`AbstainCode`, and `tcl-spectcl`'s `upgrade::Refusal` stays a loader report,
+not an editor outcome.
+
+The naming authority becomes one enum. `NamingAuthority { Diagnostic,
+Navigation, Runtime }` and item 98's authorities (Display, Logical, Native,
+normal completion, Edit) are one `Authority` in `tcl-core-types`: Diagnostic
+is Display, Navigation is Logical (a retained static target), Runtime is
+Native, and normal completion and Edit are added. An `Answer`'s authority and
+a receipt's authority are then the same value.
+
+The LSP prepare-rename handler reports an abstention as a protocol error with
+its reason; MCP rename returns a successful tool result containing
 `{"refused": {"reason": "..."}}`. Neither representation applies partial edits.
 `ConformanceCounts` reports correct answers, abstentions and wrong answers
 independently. A finite set that excludes the oracle answer counts as wrong.
@@ -4657,3 +4678,13 @@ not the caller frame's, so its reads are not caller SSA reads. Likewise a read
 the walk captured inside a callee it followed belongs to the callee's
 activation: SSA keeps a captured read only when its cell has no activation or
 the point's own, as it already did for an invocation's execution reads.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M5:** *Typed keys and naming answers* now names 335's `Abstain` (item 439)
+  as the target editor outcome, `EditorOutcome<T> = Result<T, Abstain>`, with
+  `AbstainCode::Lookup(UnknownReason)` making it a superset of item 78's
+  reasons. It also makes item 98's authorities and `NamingAuthority` one
+  `Authority` enum (Diagnostic is Display, Navigation is Logical, Runtime is
+  Native; normal completion and Edit added). Today's `Refusal` and
+  `EditorOutcome` are described as the current state.

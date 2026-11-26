@@ -43,6 +43,36 @@ Most unwaived sites are in `tcl-bigip` (216), `tcl-compiler` (71),
   `TK_PACKAGE = "Tk"`. Items 301 and 304 each propose a separate
   only-shrinking count for these.
 
+## The consumer interface
+
+The consumers below migrate once, onto one interface (coordinator decision
+D-C), not onto `tcl-db` queries now and item 85's semantic model later:
+
+- **`DocumentFacts`** in `tcl-model`: the binding-free record of a
+  document's analysis, which `AnalysisResult` projects into.
+- **`tcl-semantic`** (item 85), between `tcl-unit` and `tcl-diagnostics`,
+  implements it as the single analysis query API. Diagnostics become rules
+  over it.
+- **`DocumentInput { text, environment, facts: FactView, context:
+  &ContextIntervals, document: &dyn DocumentFacts }`** is what every feature
+  crate takes ([289](../../workspace/289-lsp-core.md#domain-crates-plug-in)):
+  the facet at a position is `context` over `facts`, which is the
+  selection 308 computes in `tcl-binding`.
+- **Who builds it:** the server from `tcl-lsp-session` (its `PackState` sets
+  the `UserPack` inputs); the CLI and MCP from `tcl-db`'s session-free batch
+  constructor ([293](../../workspace/293-mcp.md#analysis-without-a-session)).
+  No consumer below `tcl-db` names it.
+
+So the Now 8 waves target `tcl-semantic`'s API. Item 85 deepens what is
+behind it (more facts, the agreement harness) without moving a consumer
+again. When 308 below says "`positioned_context`", a consumer reads it as
+`input.context` (or `BatchDocument::context`). Only `tcl-db` and the
+session call the query.
+
+Tools that run code select no surfaces. `tcl-irule-test`, `bpf-tcl-ir` and
+the packaging verbs take their facts as a `FactView` from the entry point
+that calls them (workspace rules 4 and 8).
+
 ## The consumers
 
 Each consumer gives today's hard-coded knowledge (**Today**), what replaces
@@ -88,8 +118,9 @@ it (**With**), the migration steps (**Steps**), what must land first
   - `snippets.rs:334` holds 16 templates, and
     `editors/vscode/snippets/tcl.code-snippets` copies the same 16 by hand.
 - **With.**
-  - 308's `positioned_context` and `VersionLine`, plus facets (302), for
-    hover, completion and signature help.
+  - `DocumentInput`'s `context` and `facts` (308's intervals, `VersionLine`
+    and facets, 302) for hover, completion and signature help, so they select
+    the same facet the diagnostics did.
   - A `--` option row with `-ends-options`.
   - `subcommand … -exported instance|class`.
   - A `snippet PREFIX LABEL BODY` row.
@@ -186,7 +217,10 @@ adds three things:
   - `tcl-cli/src/commands/spec.rs:581` `VERIFY_DIALECTS` copies the
     catalogue.
 - **With.**
-  - `command_info {dialect?, file?, position?}` through 308.
+  - `command_info {dialect?, file?, position?}` through 308's context, read
+    from `tcl-db`'s batch constructor; MCP and the CLI name no salsa.
+  - Dialect selection and configuration from `tcl-session` (decision D-M),
+    shared with the server.
   - `EventRegistry` for the profile implications.
   - Effects and taint facts for the action and source lists.
   - `tcl-spec-hooks`' input schema for `CTX_KEYS`.
@@ -228,6 +262,10 @@ adds three things:
 - **After.** 264, 303, 306, 307 and item 119's manifest.
 
 **12. `tcl-irule-test` and `bpf-tcl-ir`**
+- **Facts from the caller.** Both are libraries. They take a `FactView`
+  from the tool that calls them (`f5-explain`'s callers, MCP, `tcl-cli`,
+  `bpf-tcl`), not `tcl-catalogue`, so an iRules fact edit rebuilds the
+  entry points only.
 - **Today.**
   - iRules getter semantics live in four places:
     - `command_mocks.tcl` (1,695 lines, 97 procs);
@@ -263,6 +301,33 @@ adds three things:
 - **After.** 118, 264 and 304.
 - **Done when.** `tcl-bigip`'s pins are reclassified under a schema owner,
   and `tcl-irules`, `f5-cli` and `f5-xc` have no pins.
+
+**14. Packaging** (`tcl docker`, `tcl pkg`)
+- **Today.**
+  - `tcl docker create` lists the extensions an image needs by loading the
+    project's 2.x packs and reading `command.spec.runtime_backing` and
+    `command.spec.required_package` directly
+    (`tcl-cli/src/commands/docker.rs:58-84`, `tcl_spectcl::pack::load`).
+    SpecTcl 3.0 has no `required_package` (`available P 0-` replaces it), and
+    406 makes the registry read images only, so this breaks or silently
+    lists the wrong extensions.
+  - `tcl pkg discover` runs the analyser and the optimiser itself
+    (`pkg_discover.rs:31-33, 214, 258`) over `tcl_cli_support::registry_for_dialect`.
+  - The `spec` directive's requested tier and the lockfile's graph set a
+    package's pack trust (`tier::clamp_requested`), but nothing tells the
+    analysis that `tclpkg.lock` changed.
+- **With.**
+  - `runtime_backing` read through a `FactView` over the project's packs,
+    and each library's package names from its image, not the 2.x `spec`
+    record.
+  - `discover` reads `DocumentFacts` from `tcl-db`'s batch constructor.
+  - The lockfile as a `tcl-db` input (integration § 5), set by `PackState` in
+    the server and passed to the batch constructor by the CLI, so a lockfile
+    edit re-tiers the packs.
+- **After.** 305, 307, 406 and 484, and the batch constructor.
+- **Done when.** `rg 'tcl_spectcl::pack|required_package|Analyser::new'
+  rust/tcl-cli/src/commands/{docker,pkg_discover}.rs` is empty, and a
+  3.0 pack's host-native command lists its package in `tcl docker create`.
 
 ## Consumer purity: the gate
 
@@ -317,7 +382,7 @@ generator manifest names.
 | 4 | 313's optimiser, minifier and formatter; 322, 323 | share `ResolvedInvocation`; follow 257, 254, 284 and 292 |
 | 5 | 324 (engine agreement), 326 (iRules semantics) | share `implementation` and `semantic_operation` IDs |
 | 6 | 328 (editors), 329 (Studio, explorer) | share the images and `tcl-catalogue` |
-| 7 | 327 (BIG-IP tools), 330 (equivalence packs) | after 118, 304 and each surface's 307 move |
+| 7 | 327 (BIG-IP tools), 330 (equivalence packs), packaging (consumer 14) | after 118, 304 and each surface's 307 move |
 
 ## Editor artefacts from the images
 
@@ -415,3 +480,18 @@ The equivalence packs are 98,349 lines in `rust/tcl-spectcl/equivalence/`.
    roughly 460 command names.
 4. **`xtask` generators in the gate's scope.** The proposal includes
    `gen_*`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W6, C1:** new section *The consumer interface*. The Now 8 consumers target
+  `tcl-semantic`'s API (`DocumentFacts`, `DocumentInput`, `FactView`,
+  `ContextIntervals`; decision D-C), so they migrate once, and item 85
+  deepens the implementation behind it. Consumers 2 and 9 read 308's context
+  through the input, and the CLI and MCP through `tcl-db`'s batch
+  constructor.
+- **C6:** a fourteenth consumer, packaging (`tcl docker`, `tcl pkg`): the
+  docker extension list reads `runtime_backing` and package names through a
+  `FactView`, `discover` reads `DocumentFacts`, and the tclpkg lockfile is a
+  `tcl-db` input. Wave 7.
+- **C7:** `tcl-irule-test` and `bpf-tcl-ir` take their facts from their
+  caller.
