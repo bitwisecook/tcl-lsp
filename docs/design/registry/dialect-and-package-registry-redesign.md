@@ -2,7 +2,7 @@
 
 > The implemented model and its current limitations (§11).
 >
-> **Target model (26 November 2026):** [dialects, libraries and environments](dialects-and-libraries.md) supersedes §0 and §2's classification where they differ. The dialect families are `tcl`, `jim` and `f5tcl`, with BIG-IP releases as f5tcl's releases and `tmm`/`scriptd` as its builds. iRules, iApps and tmsh are libraries, and every library carries compatibility rows over dialect ranges. This document remains the reference for evidence, detection and the analysis world.
+> **Target model (26 November 2026):** [dialects, libraries and environments](dialects-and-libraries.md) supersedes §0 and §2's classification where they differ. The dialect families are `tcl`, `jim` and `f5-tcl`, with BIG-IP releases as f5-tcl's releases and `tmm`/`scriptd` as its builds. iRules, iApps and tmsh are libraries, and every library carries compatibility rows over dialect ranges. This document remains the reference for evidence, detection and the analysis world.
 >
 > Companions:
 > [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)

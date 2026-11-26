@@ -339,7 +339,7 @@ declarations are written in.
   shells as base-Tcl profiles plus `required_package`-gated tool packages,
   shipped as bundled `.tclspec` packs with `environment` blocks.
 - [dialects-and-libraries.md](registry/dialects-and-libraries.md) — the
-  target model: fundamental dialects (tcl, jim, f5tcl), libraries with
+  target model: fundamental dialects (tcl, jim, f5-tcl), libraries with
   compatibility over dialect and library version ranges, environments, and
   SpecTcl 3 with shims for old packs (plan items 301–307).
 - [registry-split-design.md](registry/registry-split-design.md) — the
