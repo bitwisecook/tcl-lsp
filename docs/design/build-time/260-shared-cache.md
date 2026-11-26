@@ -67,6 +67,31 @@ So, with v0.18.0 across two worktrees of this repository:
 | workspace crate, test profile | never | incremental (`CARGO_PROFILE_TEST_INCREMENTAL=true`, `agent-build-env.sh:112`) |
 | workspace crate, dev profile (check, clippy, `cargo xtask`) | no | not incremental (`agent-build-env.sh:113`), but `CARGO_MANIFEST_DIR` is an absolute, per-worktree `CARGO_*` value |
 
+The same table as the question sccache answers for each rustc call:
+
+```mermaid
+flowchart TB
+  unit["a unit to compile"]
+  linker{"bin, proc-macro, or build-script binary?"}
+  never["never cached: invokes the linker"]
+  workspace{"workspace crate?"}
+  profile{"test profile?"}
+  incr["never cached: incremental"]
+  manifest["misses across worktrees: CARGO_MANIFEST_DIR differs"]
+  outdir{"includes from OUT_DIR?"}
+  outMiss["likely misses: OUT_DIR is per worktree"]
+  hit["likely shared: same sources in CARGO_HOME, same CARGO_* values"]
+  unit --> linker
+  linker -->|"yes"| never
+  linker -->|"no"| workspace
+  workspace -->|"yes"| profile
+  profile -->|"yes"| incr
+  profile -->|"no, dev"| manifest
+  workspace -->|"no, third-party"| outdir
+  outdir -->|"yes"| outMiss
+  outdir -->|"no"| hit
+```
+
 The CI comment at `ci.yml:1417–1419` still says "the pinned v0.17 Rust
 backend"; the pin is v0.18.0 (see Corrections).
 
@@ -81,12 +106,72 @@ One sccache local disk cache per machine, used by every agent worktree:
 - `RUSTC_WRAPPER=sccache`.
 
 `agent-build-env.sh` sets these only when `sccache --version` succeeds, as CI
-does. Correctness never depends on it.
+does. Correctness never depends on it. Its `--print` output on a machine with
+sccache:
+
+**Before:**
+
+```sh
+export CARGO_TARGET_DIR=/home/user/tcl-lsp/target
+unset CARGO_INCREMENTAL
+export CARGO_PROFILE_TEST_INCREMENTAL=true
+export CARGO_PROFILE_DEV_INCREMENTAL=false
+export CARGO_PROFILE_DEV_DEBUG=0
+export CARGO_PROFILE_TEST_DEBUG=0
+export CARGO_PROFILE_TEST_OPT_LEVEL=1
+```
+
+**After:**
+
+```sh
+export CARGO_TARGET_DIR=/home/user/tcl-lsp/target
+unset CARGO_INCREMENTAL
+export CARGO_PROFILE_TEST_INCREMENTAL=true
+export CARGO_PROFILE_DEV_INCREMENTAL=false
+export CARGO_PROFILE_DEV_DEBUG=0
+export CARGO_PROFILE_TEST_DEBUG=0
+export CARGO_PROFILE_TEST_OPT_LEVEL=1
+export RUSTC_WRAPPER=sccache
+export SCCACHE_DIR=/root/.cache/sccache
+export SCCACHE_CACHE_SIZE=20G
+```
+
+Without sccache the output stays as it was before.
 
 It shares what v0.18.0 can share: third-party libraries. It does not change the
 workspace profile settings, so nothing in the fingerprint changes. An agent
 with and without the cache builds the same units, which keeps AGENTS.md's
 rule against differing environments intact.
+
+Three worktrees on one machine then look like this. Each keeps its own target
+directory, and only third-party library compiles go through the shared cache:
+
+```mermaid
+flowchart LR
+  subgraph wtA["worktree A"]
+    cargoA["cargo"]
+    targetA["target/: workspace units, incremental"]
+  end
+  subgraph wtB["worktree B"]
+    cargoB["cargo"]
+    targetB["target/: workspace units, incremental"]
+  end
+  subgraph wtC["worktree C"]
+    cargoC["cargo"]
+    targetC["target/: workspace units, incremental"]
+  end
+  sccache["RUSTC_WRAPPER=sccache"]
+  cache[("SCCACHE_DIR: ~/.cache/sccache, 20G, LRU")]
+  home[("CARGO_HOME: registry sources")]
+  cargoA --> targetA
+  cargoB --> targetB
+  cargoC --> targetC
+  cargoA --> sccache
+  cargoB --> sccache
+  cargoC --> sccache
+  sccache -->|"third-party libraries"| cache
+  sccache -->|"reads"| home
+```
 
 ### What it cannot cache, and the target
 
@@ -100,9 +185,11 @@ they are incremental. Two terms make the target precise:
 
 Targets, measured by item 259's script with a warm cache:
 
-1. **After an edit, the rebuild is exactly C(e).** Rebuilt units ÷ |C(e)| = 1.0.
-   There are no extra variants (items 296, 297) and no build-script reruns
-   (item 299).
+1. **After an edit, the rebuild is exactly C(e).** The workspace crates
+   rebuilt (item 259's `workspace_compiled`) ÷ |C(e)| = 1.0. Count crates,
+   not units: one crate compiles as several units (lib, test harness,
+   integration tests). There are no extra variants (items 296, 297) and no
+   build-script reruns (item 299).
 2. **Third-party hit rate in a fresh worktree is at least 90%** of cacheable
    units. Proc macros and build-script binaries are counted separately as
    "not cacheable".
@@ -110,6 +197,19 @@ Targets, measured by item 259's script with a warm cache:
    for every edit after the split.** Today it is far above that for the
    registry edit, where C(e) is most of the stack. Item 259 records the actual
    values; this target is checked when item 264 and step 12 (item 257) land.
+
+A worked case, from item 259's first run (the analyser edit, in place at
+`18040b3b`). `cargo test -p tcl-compiler --no-run` after the edit:
+
+| Set | Workspace crates | Count |
+|---|---|---|
+| C(e) | `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks`, `tcl-engine-tclvm`, `tcl-codegen`, `tcl-bigip`, `tcl-irules`, `tcl-sslictcl` | 9 |
+| B(e) | `tcl-registry`, `tcl-vm`, `tcl-dialect`, `tcl-lexer`, `tcl-syntax` and 15 more not above the edit | 20 |
+
+The rebuild was those 9 crates (31 units), so target 1 holds: 9 ÷ 9 = 1.0.
+The rebuilt share is 9 ÷ 29, about 31%, above target 3. Most of C(e) is
+`tcl-compiler`'s dev-dependency cascade (`tcl-spectcl`, `tcl-engine-tclvm`
+and what they pull), which step 0a (item 246) removes.
 
 ### Alternatives considered
 

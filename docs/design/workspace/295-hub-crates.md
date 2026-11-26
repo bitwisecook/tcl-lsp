@@ -17,10 +17,36 @@ them. This design covers these five:
 | Crate | Why every worktree builds it |
 |---|---|
 | `tcl-mcp` | `.mcp.json` starts `scripts/tcl-mcp`, which runs `cargo run --quiet --locked -p tcl-mcp` each time a client starts |
-| `tcl-cli` | the compiler-explorer skill runs `cargo run -q -p tcl-cli --bin tcl` (`.claude/skills/compiler-explorer/explore.py:49`); and `tcl-mcp` depends on it |
+| `tcl-cli` | the compiler-explorer skill runs `cargo run -q -p tcl-cli --bin tcl` (`.claude/skills/compiler-explorer/explore.py:103`); and `tcl-mcp` depends on it |
 | `tcl-lsp-server` | the lsp-client skill drives a built server (`lsp_client.py:719`); editors run it |
 | `tcl-lsp-core` | it is in the cone of all three, of `xtask` (every `cargo xtask` gate), of `tcl-spectcl` until 288, and of `tcl-lsp-db`, `tcl-cli-support`, `tcl-spec-studio`, `f5-cli` and `f5-xc` |
 | `tcl-compiler-it` | created by item 266; every compiler-split worktree runs its tests (item 287) |
+
+What builds them is the tooling, not the code. Every agent session starts the
+MCP server, and the two skills build a binary each:
+
+```mermaid
+flowchart LR
+  mcpJson[".mcp.json"]
+  mcpScript["scripts/tcl-mcp: cargo run -p tcl-mcp"]
+  exploreSkill["compiler-explorer skill: cargo run -p tcl-cli --bin tcl"]
+  lspSkill["lsp-client skill: a built server"]
+  xtaskGates["cargo xtask gates"]
+  tclMcp["tcl-mcp"]
+  tclCli["tcl-cli"]
+  lspServer["tcl-lsp-server"]
+  xtask["xtask"]
+  lspCore["tcl-lsp-core"]
+  mcpJson --> mcpScript --> tclMcp
+  exploreSkill --> tclCli
+  lspSkill --> lspServer
+  xtaskGates --> xtask
+  tclMcp --> tclCli
+  tclMcp --> lspCore
+  tclCli --> lspCore
+  lspServer --> lspCore
+  xtask --> lspCore
+```
 
 **Low hubs** sit below almost everything, so an edit to one rebuilds most of
 the workspace. Plan item 295's text names these: `tcl-dialect`,
@@ -44,7 +70,25 @@ normal and build edges only, on 26 November 2026:
 | `tcl-compiler-it` (not yet created; `tcl-compiler`'s dev cone, which it inherits) | 218 | 159 | — | 29 |
 | for reference: `xtask` | 312 | 236 | 236 | 36 |
 
-The workspace has 55 members. `tcl-mcp`'s cone holds 43 of them.
+The workspace has 56 members. `tcl-mcp`'s cone holds 43 of them.
+
+The two measures on `tcl-lsp-core`, all edges:
+
+```sh
+$ cargo tree -p tcl-lsp-core --prefix none | sort -u | wc -l
+263
+$ cargo tree -p tcl-lsp-core --prefix none | sed 's/ (\*)$//' | sort -u | wc -l
+199
+```
+
+The gap is crates listed twice, once expanded and once elided:
+
+```text
+tcl-dialect v0.1.0 (…/rust/tcl-dialect)
+tcl-dialect v0.1.0 (…/rust/tcl-dialect) (*)
+tcl-registry v0.1.0 (…/rust/tcl-registry)
+tcl-registry v0.1.0 (…/rust/tcl-registry) (*)
+```
 
 ## Design
 
@@ -116,6 +160,20 @@ stack, because the server is the product. What changes:
 
 Target: the transport's cone does not exceed today's 202, and an edit to
 `navigation/hover.rs`'s successor rebuilds two crates.
+
+**Before:**
+
+```text
+edit tcl-lsp-server/src/navigation/hover.rs
+rebuilds: tcl-lsp-server (70k production lines)
+```
+
+**After:**
+
+```text
+edit tcl-lsp-navigation/src/hover.rs
+rebuilds: tcl-lsp-navigation, tcl-lsp-server (transport, 2.6k)
+```
 
 ### `tcl-compiler-it`: it follows its tests
 

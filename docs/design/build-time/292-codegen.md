@@ -13,8 +13,8 @@ explorer work build on it.
 
 `tcl-codegen` is 68,643 lines in 144 `src` files, of which 41 files and 16,521
 lines are named as tests, plus 23,659 lines in 52 `tests/` files with 815
-tests. Its normal dependencies are `tcl-compiler` and eight small crates
-(`Cargo.toml:34–43`). Its dev-dependencies are `tcl-compiler` with
+tests. Its normal dependencies are `tcl-compiler`, `tcl-registry` and seven
+small crates (`Cargo.toml:34–43`). Its dev-dependencies are `tcl-compiler` with
 `features = ["test-support"]`, `tcl-test-support` and `tcl-vm`
 (`Cargo.toml:46–49`). Its 8 direct dependents, 15 transitive, are:
 
@@ -71,6 +71,34 @@ The drivers are:
 - the WASM `pipeline` (in `codegen/wasm`, 12.6k lines in all);
 - `inlining` (8.6k lines).
 
+A script's path through both halves:
+
+```mermaid
+flowchart LR
+  source["Tcl source"]
+  unit["unit build: CompilationUnit::build_for, build_with_analysis_input"]
+  opt["semantic optimisation"]
+  inline["inlining, with callee units"]
+  ir["IR and native plans"]
+  bytecode["bytecode emitter: ModuleAsm"]
+  wasm["WASM emitter: WasmModule"]
+  source --> unit
+  unit --> opt
+  opt --> inline
+  inline --> ir
+  ir --> bytecode
+  ir --> wasm
+  subgraph drivers["drivers: compile_service, pipeline, inlining"]
+    unit
+    opt
+    inline
+  end
+  subgraph emitters["emitters: codegen"]
+    bytecode
+    wasm
+  end
+```
+
 Its consumers use the drivers almost exclusively:
 
 | Consumer | Uses |
@@ -90,6 +118,72 @@ the drivers need the unit crate by definition.
 |---|---|---|---|
 | `tcl-codegen` (emitters) | `codegen` minus the WASM `pipeline` driver: bytecode and WASM emission, peephole, operand widths, format | `tcl-ir`, `tcl-native-plan`, `tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model`, `tcl-bytecode`, the registry core | `tcl-compile`, `tcl-explorer`'s bytecode view (item 294), `tcl-fuzz`'s emitter differential |
 | `tcl-compile` (new; drivers) | `compile_service`, the WASM `pipeline` and `compile_wasm`, `inlining` | the unit crate, `tcl-optimiser`, `tcl-codegen` | `tcl-engine-tclvm`, `tcl-vm-cli`, `tcl-debugger`, `tcl-irule-test`, `tcl-cli`, `tcl-mcp`, `tcl-fuzz`, and the test crates `tcl-vm-it` and `tcl-lsp-db-it` |
+
+Before, every consumer takes the one crate, and through it the whole compiler:
+
+```mermaid
+flowchart TB
+  drivers["tcl-engine-tclvm, tcl-vm-cli, tcl-debugger, tcl-irule-test, tcl-cli, tcl-mcp"]
+  emitterUsers["tcl-explorer, tcl-fuzz"]
+  codegen["tcl-codegen: emitters and drivers"]
+  compiler["tcl-compiler, 564k production lines"]
+  drivers --> codegen
+  emitterUsers --> codegen
+  codegen --> compiler
+```
+
+After, the emitters sit beside the analyser and the optimiser, not under
+them, so an edit to either rebuilds `tcl-compile` and not `tcl-codegen`. The
+crate order is CSD's, which draws `tcl-native-plan` over the unit crate (see
+Open questions):
+
+```mermaid
+flowchart TB
+  drivers["tcl-engine-tclvm, tcl-vm-cli, tcl-debugger, tcl-irule-test, tcl-cli, tcl-mcp"]
+  explorer["tcl-explorer"]
+  fuzz["tcl-fuzz"]
+  compile["tcl-compile (new): drivers"]
+  codegen["tcl-codegen: emitters"]
+  optimiser["tcl-optimiser"]
+  diagnostics["tcl-diagnostics: the analyser"]
+  nativePlan["tcl-native-plan"]
+  unitCrate["the unit crate"]
+  lower["tcl-analysis, tcl-lowering, tcl-binding, tcl-ir, tcl-model, tcl-values"]
+  drivers --> compile
+  fuzz --> compile
+  fuzz --> codegen
+  explorer --> codegen
+  compile --> codegen
+  compile --> optimiser
+  compile --> unitCrate
+  codegen --> nativePlan
+  codegen --> lower
+  nativePlan --> unitCrate
+  optimiser --> unitCrate
+  diagnostics --> unitCrate
+  unitCrate --> lower
+  classDef new stroke-width:2px;
+  class compile new;
+```
+
+A consumer's import changes crate. The module paths inside `tcl-compile` are
+a sketch:
+
+**Before:**
+
+```rust
+// rust/tcl-engine-tclvm/src/lib.rs:70
+use tcl_codegen::compile_service::BytecodeCompileService;
+// rust/tcl-mcp/src/tools/transforms.rs:153
+let mut wasm = tcl_codegen::codegen::wasm::compile_wasm(
+```
+
+**After:**
+
+```rust
+use tcl_compile::compile_service::BytecodeCompileService;
+let mut wasm = tcl_compile::wasm::compile_wasm(
+```
 
 ### Binding facts reach the emitters as IR
 
@@ -162,6 +256,14 @@ item 296 accepts it in its design.
   needs callee units for: if only callee IR, a `CalleeBodies` input built by
   `tcl-compile` replaces the three unit builds. The inventory under item 283
   answers it.
+- Does `tcl-native-plan` depend on the unit crate? CSD's target diagram
+  draws `tcl-native-plan` → `tcl-unit`, and its layer list puts the unit
+  crate below the native plan. If so, the emitters reach the unit crate
+  through `tcl-native-plan`, and the first "done when" line below cannot
+  pass as written. Either the native plan drops that edge (its plan inputs
+  arrive as data from `tcl-compile`) or the line drops "unit crate" and
+  `tcl-binding`, keeping `tcl-diagnostics` and `tcl-optimiser`. Settle with
+  step 11's inventory of what `tcl-native-plan` calls in the unit.
 - Which of the 160 binding references are on the annotated command after item
   50? Recount when item 252 lands, with
   `rg 'tcl_binding::' rust/tcl-codegen/src`.

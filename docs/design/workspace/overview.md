@@ -33,6 +33,53 @@ The result is that the top crates' cones hold almost the whole workspace.
 `tcl-mcp`'s normal cone is 43 of the 56 workspace members; see
 [295](295-hub-crates.md) for each hub's numbers.
 
+Drawn as a graph, the main edges of the table chain into each other: a crate
+that takes `tcl-spectcl` also gets the feature core, the domain crates, the VM
+and the code generator.
+
+```mermaid
+flowchart LR
+  tclMcp["tcl-mcp"]
+  tclCli["tcl-cli"]
+  f5Cli["f5-cli"]
+  lspServer["tcl-lsp-server"]
+  explorer["tcl-explorer"]
+  f5xc["f5-xc"]
+  bigipQuery["tcl-bigip-query"]
+  diagram["tcl-diagram"]
+  spectcl["tcl-spectcl"]
+  specHooks["tcl-spec-hooks"]
+  engineTclvm["tcl-engine-tclvm"]
+  vm["tcl-vm"]
+  codegen["tcl-codegen"]
+  lspCore["tcl-lsp-core"]
+  bigip["tcl-bigip"]
+  irules["tcl-irules"]
+  sslictcl["tcl-sslictcl"]
+  compiler["tcl-compiler"]
+  tclMcp --> tclCli
+  tclMcp --> f5Cli
+  lspServer --> explorer
+  lspServer --> f5xc
+  lspServer --> bigipQuery
+  lspServer --> diagram
+  lspServer --> bigip
+  explorer --> spectcl
+  explorer -.->|"optional"| vm
+  spectcl --> lspCore
+  spectcl --> specHooks
+  specHooks --> engineTclvm
+  engineTclvm --> vm
+  engineTclvm --> codegen
+  f5Cli --> lspCore
+  f5xc --> lspCore
+  lspCore --> bigip
+  lspCore --> irules
+  lspCore --> sslictcl
+  bigip --> irules
+  irules --> compiler
+```
+
 ## Design
 
 ### Layers
@@ -66,31 +113,101 @@ Layers 4a and 4b are siblings: the engines do not depend on the compiler
 (`tcl-vm`'s normal dependencies hold no compiler crate today), and the compiler
 does not depend on an engine. Layer 6's three groups are siblings too.
 
+The stack, with the main edges between layers once the steps land. What is
+missing matters as much: no feature crate (7) reaches a domain crate, a loader
+or the database (rules 5 and 7), and only the adapters (8) join features and
+domains.
+
+```mermaid
+flowchart TB
+  L11["11. Entry points"]
+  L10["10. Server stack"]
+  L9["9. Tool libraries"]
+  L8["8. Domain adapters"]
+  L7["7. Feature crates, tcl-ide-*"]
+  L6db["6. Database: tcl-db"]
+  L6dom["6. Domains: tcl-bigip, tcl-irules, tcl-sslictcl, …"]
+  L6load["6. Loaders: tcl-spectcl, tcl-pkg"]
+  L5["5. Back ends and engine hosts"]
+  L4a["4a. Compiler"]
+  L4b["4b. Engines: tcl-vm, tcl-runtime"]
+  L3["3. Registry core, BIG-IP schema"]
+  L2["2. Runtime vocabulary, tcl-source-store"]
+  L1["1. Grammar and values"]
+  L0["0. Leaves"]
+  L11 --> L10
+  L11 --> L9
+  L11 --> L8
+  L10 --> L7
+  L10 --> L6db
+  L10 --> L6load
+  L9 --> L7
+  L9 --> L6dom
+  L8 --> L7
+  L8 --> L6dom
+  L7 --> L4a
+  L7 --> L2
+  L6db --> L4a
+  L6dom --> L3
+  L6load --> L5
+  L5 --> L4a
+  L5 --> L4b
+  L4a --> L3
+  L4b --> L3
+  L3 --> L2
+  L2 --> L1
+  L1 --> L0
 ```
- 11  tcl-cli  f5-cli  tcl-mcp  tcl-vm-cli  xtask   *-wasm, *-wasi   tcl-compiler-it  tcl-lsp-it
-      │        │        │                            │
- 10   │        │        │   tcl-lsp-server (transport) ── tcl-lsp-{documents,diagnostics,
-      │        │        │          │                       navigation,workspace,commands}
-      │        │        │          └──────── tcl-lsp-session (state, rt, salsa use) ──┐
-  9  tcl-explorer  tcl-cli-support  tcl-kcs-help  f5-explain  tcl-irule-test           │
-     f5-xc  tcl-spec-studio  tcl-debugger  tcl-fuzz  bigip-report-gen-rust             │
-  8  tcl-ide-f5   tcl-ide-sslictcl          (adapters: domain → feature traits)        │
-  7  tcl-ide-edit                                                                      │
-     tcl-ide-{nav,assist,tokens,views}                                                 │
-     tcl-ide-{symbols,format}                                                          │
-     tcl-ide-{diagnostics,workspace}                                                   │
-     tcl-ide-names                                                                     │
-     tcl-ide-model (positions, document context, plug-in traits)                       │
-  6  tcl-db ◄──────────────────────────────────────────────────────────────────────────┘
-     tcl-sslictcl  tcl-irules  tcl-bigip(-io,-query)  tcl-diagram
-     tcl-spectcl  tcl-pkg
-  5  tcl-codegen  bpf-tcl-*   tcl-engine-tclvm  tcl-engine-wasm  tcl-cshim  tcl-spec-hooks
-  4  [a] compiler crates (CSD), unit crate on top     [b] tcl-vm   tcl-runtime
-  3  tcl-registry core   BIG-IP schema    ┆ tcl-dialect-*  tcl-lib-*  tcl-catalogue (entry points only)
-  2  tcl-runtime-api  tcl-cmd-core  tcl-regex  tcl-bytecode  tcl-engine-api  tcl-host-*
-     native model (117)  tcl-source-store (288)  tcl-test-support (tests only)
-  1  tcl-lexer  tcl-numeric  tcl-value-syntax  tcl-expr  tcl-syntax  tcl-pkg-model
-  0  tcl-core-types  tcl-platform  tcl-version  tcl-userdirs  tcl-dialect  tcl-f5mku  tcl-sandbox
+
+Above layer 6 sits the LSP stack: the transport over the handler crates, all
+of them over the session, which alone holds the database. Entry points
+register the adapters they link.
+
+```mermaid
+flowchart TB
+  subgraph g11["11. Entry points"]
+    lspBin["tcl-lsp-server binary"]
+    facades["WASM and WASI transports"]
+    tclMcp["tcl-mcp"]
+    tclCli["tcl-cli"]
+  end
+  subgraph g10["10. Server stack"]
+    transport["tcl-lsp-server (transport)"]
+    handlers["tcl-lsp-documents, -workspace, -diagnostics, -navigation, -commands"]
+    session["tcl-lsp-session"]
+  end
+  subgraph g9["9. Tool libraries"]
+    tools["tcl-explorer, f5-xc, tcl-kcs-help, f5-explain, …"]
+  end
+  subgraph g8["8. Adapters"]
+    ideF5["tcl-ide-f5"]
+    ideSsl["tcl-ide-sslictcl"]
+  end
+  subgraph g7["7. Feature crates"]
+    features["tcl-ide-model … tcl-ide-edit"]
+  end
+  subgraph g6["6. Database and domains"]
+    tclDb["tcl-db"]
+    bigipIrules["tcl-bigip, tcl-irules"]
+    sslictcl["tcl-sslictcl"]
+  end
+  lspBin --> transport
+  facades --> transport
+  transport --> handlers
+  handlers --> session
+  session --> tclDb
+  handlers --> features
+  handlers -->|"commands only"| tools
+  tclCli --> tools
+  tclMcp --> tools
+  tclMcp --> features
+  tools --> features
+  lspBin -->|"registers"| ideF5
+  tclMcp -->|"registers"| ideF5
+  ideF5 --> features
+  ideF5 --> bigipIrules
+  ideSsl --> features
+  ideSsl --> sslictcl
 ```
 
 ### Dependency rules
@@ -151,6 +268,32 @@ It becomes a rank gate:
   `cargo deny` and the gate never disagree.
 - Rule 7 is a token check, like `walker-ownership`: `salsa::` outside the two
   crates fails.
+
+For example, the ledger rows of layer 7, with [289](289-lsp-core.md)'s ranks:
+
+```text
+crate	layer	rank	role
+tcl-ide-model	7	1	generic
+tcl-ide-names	7	2	generic
+tcl-ide-diagnostics	7	3	generic
+tcl-ide-workspace	7	3	generic
+tcl-ide-symbols	7	4	generic
+tcl-ide-format	7	4	generic
+tcl-ide-nav	7	5	generic
+tcl-ide-assist	7	5	generic
+tcl-ide-tokens	7	5	generic
+tcl-ide-views	7	5	generic
+tcl-ide-edit	7	6	generic
+```
+
+and how the gate judges four edges against them:
+
+| Edge | Verdict |
+|---|---|
+| `tcl-ide-nav` → `tcl-ide-names` | passes: rank 5 over rank 2 |
+| `tcl-ide-diagnostics` → `tcl-ide-workspace` | fails rule 1: equal ranks (today's `diagnostic_policy` → `config_ini`, which 289 clears) |
+| `tcl-ide-tokens` → `tcl-bigip` | fails rule 5 whatever the ranks: the target's role is `domain` |
+| `tcl-lsp-server` (dev) → `tcl-lsp-core` with `truth-table` | fails rule 3; listed in `crate-layer-exceptions.tsv` until 289 |
 
 Inside a crate, item 247's `module-layers` gate keeps the modules in order. It
 gets one ledger per split crate family: CSD's for `tcl-compiler`, and
