@@ -38,6 +38,7 @@ rust/tcl-irules
 rust/tcl-lexer
 rust/tcl-lsp-core
 rust/tcl-lsp-db
+rust/tcl-lsp-db-it
 rust/tcl-lsp-server
 rust/tcl-mcp
 rust/tcl-numeric

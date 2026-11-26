@@ -53,21 +53,25 @@ fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
     )
 }
 
-fn read_pack(reads: bool) -> tcl_spectcl::pack::PackSet {
-    let role = if reads { "arg 0 -role VarRead" } else { "" };
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/tracked-input349.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        format!(
-            "speclib tracked_input349 1.0 {{\ncommand tracked_input349::read {{\narity 1\n{role}\n}}\n}}\n"
-        ),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    packs
+/// `tracked_input349::read`, its argument a variable read or not, installed
+/// as a workspace pack's overlay: the registry and the overlay key.
+fn install_read_pack(
+    reads: bool,
+) -> (std::sync::Arc<tcl_registry::registry::CommandRegistry>, u64) {
+    static READS: [(u8, tcl_registry::ArgRole); 1] = [(0, tcl_registry::ArgRole::VarRead)];
+    let overlay = if reads { 0x349_0001 } else { 0x349_0000 };
+    let registry = crate::test_overlays::install(
+        "tcl",
+        "tracked_input349",
+        overlay,
+        vec![tcl_registry::spec::CommandSpec {
+            name: "tracked_input349::read",
+            arity: tcl_registry::arity::Arity::exact(1),
+            arg_roles: if reads { &READS } else { &[] },
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        }],
+    );
+    (registry, overlay)
 }
 
 fn has_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
@@ -155,10 +159,9 @@ fn tracked_document_input_reloads_actual_pack_roles_and_refuses_stale_grammar() 
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let mut db = TclDatabase::default();
-    let packs = read_pack(true);
-    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let (registry, packs) = install_read_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let config = configuration(&db, packs.key);
+    let config = configuration(&db, packs);
     let source = "tracked_input349::read retained";
     let file = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
     let input = document_analysis_input(&db, file, config).unwrap();
@@ -184,10 +187,8 @@ fn tracked_document_input_reloads_actual_pack_roles_and_refuses_stale_grammar() 
     assert!(compilation_unit_for_config(&db, file, stale, config).is_none());
     assert!(proc_taint_solve_for_config(&db, file, stale, config).is_none());
 
-    let changed_packs = read_pack(false);
-    let changed_registry =
-        tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed_packs);
-    config.set_spec_pack_key(&mut db).to(changed_packs.key);
+    let (changed_registry, changed_packs) = install_read_pack(false);
+    config.set_spec_pack_key(&mut db).to(changed_packs);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
     let changed_input = document_analysis_input(&db, file, config).unwrap();
     assert_ne!(changed_input, input);

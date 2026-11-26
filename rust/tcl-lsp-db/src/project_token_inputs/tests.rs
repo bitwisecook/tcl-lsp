@@ -33,21 +33,42 @@ fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
     )
 }
 
-fn read_pack(reads: bool) -> tcl_spectcl::pack::PackSet {
-    let role = if reads { "arg 0 -role VarRead" } else { "" };
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/project-input354.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        format!(
-            "speclib project_input354 1.0 {{\ncommand project_input354::read {{\narity 1\n{role}\n}}\n}}\n"
-        ),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    packs
+/// `project_input354::read`, its argument a variable read or not, installed
+/// as a workspace pack's overlay; the overlay key.
+fn install_read_pack(reads: bool) -> u64 {
+    static READS: [(u8, tcl_registry::ArgRole); 1] = [(0, tcl_registry::ArgRole::VarRead)];
+    let overlay = if reads { 0x354_0001 } else { 0x354_0000 };
+    let _registry = crate::test_overlays::install(
+        "tcl",
+        "project_input354",
+        overlay,
+        vec![tcl_registry::spec::CommandSpec {
+            name: "project_input354::read",
+            arity: tcl_registry::arity::Arity::exact(1),
+            arg_roles: if reads { &READS } else { &[] },
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        }],
+    );
+    overlay
+}
+
+/// `MyDef name params body`, a keyword that defines a procedure, as a
+/// workspace pack declares it.
+fn my_def() -> tcl_registry::spec::CommandSpec {
+    use tcl_registry::ArgRole;
+    static ROLES: [(u8, ArgRole); 3] = [
+        (0, ArgRole::Name),
+        (1, ArgRole::ParamList),
+        (2, ArgRole::Body),
+    ];
+    tcl_registry::spec::CommandSpec {
+        name: "MyDef",
+        arity: tcl_registry::arity::Arity::new(1, 3),
+        traits: tcl_registry::Traits::LANGUAGE_KEYWORD | tcl_registry::Traits::DEFINES_PROCEDURE,
+        defines_command_at: Some(0),
+        arg_roles: &ROLES,
+        ..tcl_registry::spec::CommandSpec::DEFAULT
+    }
 }
 
 fn is_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
@@ -99,9 +120,8 @@ fn assert_project_tokens_withdraw_changed_availability(
         "retained"
     ));
 
-    let changed = read_pack(false);
-    let _changed_registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed);
-    library_config.set_spec_pack_key(db).to(changed.key);
+    let changed = install_read_pack(false);
+    library_config.set_spec_pack_key(db).to(changed);
     set_overlay_epoch(db, tcl_registry::overlay_epoch());
     assert!(project_proc_var_index_for_inputs(db, project).is_empty());
     assert!(!is_variable(
@@ -147,10 +167,9 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Source-only parameter hints; no Native invocation or variable binding.
     let mut db = TclDatabase::default();
-    let packs = read_pack(true);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = install_read_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let library_config = configuration(&db, packs.key);
+    let library_config = configuration(&db, packs);
     let caller_config = configuration(&db, 0);
     let library = SourceFile::new(
         &db,
@@ -1015,24 +1034,27 @@ fn head_kind(tokens: &SemanticTokens, source: &str, value: &str) -> Option<u32> 
 #[test]
 fn a_covering_user_pack_describes_a_workspace_procedure() {
     let mut db = TclDatabase::default();
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/definer2532.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        "speclib definer2532 1.0 {\n\
-         command MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n\
-         command Narrow {\narity 1\n}\n\
-         command Stated {\narity 1\n}\n\
-         }\n"
-            .to_owned(),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = 0x2532_0001;
+    let registry = crate::test_overlays::install(
+        "tcl",
+        "definer2532",
+        packs,
+        vec![
+            my_def(),
+            tcl_registry::spec::CommandSpec {
+                name: "Narrow",
+                arity: tcl_registry::arity::Arity::exact(1),
+                ..tcl_registry::spec::CommandSpec::DEFAULT
+            },
+            tcl_registry::spec::CommandSpec {
+                name: "Stated",
+                arity: tcl_registry::arity::Arity::exact(1),
+                ..tcl_registry::spec::CommandSpec::DEFAULT
+            },
+        ],
+    );
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let config = configuration(&db, packs.key);
+    let config = configuration(&db, packs);
     let library = SourceFile::new(
         &db,
         "# tcl-lsp: stubs-begin\n# tcl-lsp: stub Stated {x}\n# tcl-lsp: stubs-end\n\
@@ -1091,20 +1113,10 @@ fn a_covering_user_pack_describes_a_workspace_procedure() {
 #[test]
 fn a_namespace_procedure_shadows_a_global_pack_command_only_in_its_namespace() {
     let mut db = TclDatabase::default();
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/shadow2532.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        "speclib shadow2532 1.0 {\ncommand MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n}\n"
-            .to_owned(),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = 0x2532_0002;
+    let _registry = crate::test_overlays::install("tcl", "shadow2532", packs, vec![my_def()]);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let config = configuration(&db, packs.key);
+    let config = configuration(&db, packs);
     let (keyword, function) = (Some(0), Some(1)); // legend indices
     let same = "namespace eval ::app { proc MyDef {name} {} }\n\
                 namespace eval ::app { MyDef x }\nMyDef foo {a} { puts $a }\n";

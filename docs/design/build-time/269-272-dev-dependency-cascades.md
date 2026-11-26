@@ -486,3 +486,28 @@ As designed, with one fixture choice and one fix it exposed.
   one allocation) failed. Both keys now read `model::assembly::roster_axis`,
   so a roster change rebuilds only the assemblies it can change.
 - `deny.toml` no longer lists `tcl-lsp-core` as a `tcl-codegen` wrapper.
+
+### 271 as built
+
+The experiment came first and settled most of the item.
+
+- **38 tests stay in `tcl-lsp-db`.** They installed a pack only to give the
+  database a command to read; the database reads the installed registry by
+  its overlay key, never the pack. `src/test_overlays.rs` installs the same
+  commands, built as `CommandSpec`s, through the public
+  `tcl_registry::model::profile_store_with_overlay`, with the plain
+  invocation and pack origin a pack install records. Outcomes match test by
+  test, and the 12 that already failed fail with the same message.
+- **13 of `value_transfer_parity`'s 17 tests never named SpecTcl** and stay.
+- **What moved to `tcl-lsp-db-it`:** the 4 parity tests whose pack bodies must
+  run (hook plan publication), the VM entry test, and `dialect_seam`'s 5
+  tests. All go through `tcl-lsp-db`'s public API; no `test-support` feature
+  was added and nothing was widened. The VM test's `Module` is
+  `tcl_bytecode::ModuleAsm`. Helpers the moved tests share with tests that
+  stayed (`fixture_function`, `value_at`, `answers_for`,
+  `supplied_cfg_lattice_key`) are copied.
+- `tcl-lsp-db` drops `tcl-codegen`, `tcl-vm`, `tcl-spectcl` and
+  `tcl-runtime-api`. `deny.toml` lists `tcl-lsp-db-it` as a wrapper of
+  `tcl-lsp-db`, `tcl-lsp-core` and `tcl-compiler`, and no longer lists
+  `tcl-lsp-db` as a `tcl-codegen` wrapper. The shard map gives the crate's
+  lib and `it_2` to shard 2.

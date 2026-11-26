@@ -117,19 +117,20 @@ external-default-features = "allow"
 # Analysis layers may enter through the listed wrappers. The xtask crate-layer
 # gate checks workspace edges with this same policy before the full deny audit.
 deny = [
-    { name = "tcl-lsp-db", wrappers = ["tcl-lsp-server"] },
+    { name = "tcl-lsp-db", wrappers = ["tcl-lsp-db-it", "tcl-lsp-server"] },
     { name = "tcl-lsp-core", wrappers = [
         "bigip-query-wasm", "f5-cli", "f5-xc", "tcl-cli", "tcl-cli-support",
-        "tcl-lsp-db", "tcl-lsp-server", "tcl-mcp", "tcl-spec-studio", "tcl-spectcl", "xtask",
+        "tcl-lsp-db", "tcl-lsp-db-it", "tcl-lsp-server", "tcl-mcp", "tcl-spec-studio", "tcl-spectcl",
+        "xtask",
     ] },
     { name = "tcl-codegen", wrappers = [
         "tcl-cli", "tcl-debugger", "tcl-engine-tclvm", "tcl-explorer", "tcl-fuzz", "tcl-irule-test",
-        "tcl-lsp-db", "tcl-mcp", "tcl-spectcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm",
+        "tcl-mcp", "tcl-spectcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm",
     ] },
     { name = "tcl-compiler", wrappers = [
         "bigip-query-wasm", "bigip-report-gen-rust", "bpf-tcl-ir", "f5-xc", "tcl-cli",
         "tcl-cli-support", "tcl-codegen", "tcl-compiler-it", "tcl-debugger", "tcl-diagram", "tcl-engine-tclvm",
-        "tcl-explorer", "tcl-fuzz", "tcl-irule-test", "tcl-irules", "tcl-lsp-core", "tcl-lsp-db",
+        "tcl-explorer", "tcl-fuzz", "tcl-irule-test", "tcl-irules", "tcl-lsp-core", "tcl-lsp-db", "tcl-lsp-db-it",
         "tcl-lsp-server", "tcl-mcp", "tcl-spec-hooks", "tcl-spec-studio", "tcl-spectcl",
         "tcl-sslictcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm", "xtask",
     ] },

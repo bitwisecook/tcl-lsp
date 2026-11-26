@@ -4878,17 +4878,30 @@ dependencies = [
  "rayon",
  "salsa",
  "serde_json",
- "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
- "tcl-runtime-api",
- "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
+]
+
+[[package]]
+name = "tcl-lsp-db-it"
+version = "0.1.0"
+dependencies = [
+ "salsa",
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-lsp-core",
+ "tcl-lsp-db",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-spectcl",
  "tcl-vm",
 ]
 

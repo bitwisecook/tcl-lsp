@@ -34,6 +34,8 @@
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
+2	tcl-lsp-db-it	lib	tcl-lsp-db-it	tcl_lsp_db_it
+2	tcl-lsp-db-it::it_2	test	tcl-lsp-db-it	it_2
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::it_2	test	tcl-lsp-db	it_2
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg

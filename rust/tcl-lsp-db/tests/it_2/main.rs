@@ -17,9 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `tcl-lsp-db` integration tests assigned to CI shard 2, one module per
-//! former test binary, linked once instead of 2 times
+//! former test binary
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
-mod dialect_seam;
 mod overlay_generations;

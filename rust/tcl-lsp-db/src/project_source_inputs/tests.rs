@@ -33,25 +33,31 @@ fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
     )
 }
 
-fn procedure_pack(defines: bool) -> tcl_spectcl::pack::PackSet {
-    let hook = if defines {
-        "analyser_hook -native Proc\ncommand_table_effect DefinesProcedure"
-    } else {
-        ""
-    };
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/project-source356.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        format!(
-            "speclib project_source356 1.0 {{\ncommand project_source356::define {{\narity 3\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n{hook}\n}}\n}}\n"
-        ),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    packs
+/// `project_source356::define name params body`, a procedure definer or not,
+/// installed as a workspace pack's overlay; the overlay key.
+fn install_procedure_pack(defines: bool) -> u64 {
+    use tcl_registry::ArgRole;
+    static ROLES: [(u8, ArgRole); 3] = [
+        (0, ArgRole::Name),
+        (1, ArgRole::ParamList),
+        (2, ArgRole::Body),
+    ];
+    let overlay = if defines { 0x356_0001 } else { 0x356_0000 };
+    let _registry = crate::test_overlays::install(
+        "tcl",
+        "project_source356",
+        overlay,
+        vec![tcl_registry::spec::CommandSpec {
+            name: "project_source356::define",
+            arity: tcl_registry::arity::Arity::exact(3),
+            arg_roles: &ROLES,
+            analyser_hook: defines.then_some(tcl_registry::hooks::AnalyserHookId::Proc),
+            command_table_effect: defines
+                .then_some(tcl_registry::command_table::CommandTableEffect::DefinesProcedure),
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        }],
+    );
+    overlay
 }
 
 fn has_procedure(tree: &ItemTree, name: &str) -> bool {
@@ -66,10 +72,9 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // A selected authored definer supplies source cards, not Native execution.
     let mut db = TclDatabase::default();
-    let packs = procedure_pack(true);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = install_procedure_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let library_config = configuration(&db, packs.key);
+    let library_config = configuration(&db, packs);
     let caller_config = configuration(&db, 0);
     let library = SourceFile::new(
         &db,
@@ -121,9 +126,8 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
         (library, library_config),
         (caller, caller_config),
     ]));
-    let changed = procedure_pack(false);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed);
-    library_config.set_spec_pack_key(&mut db).to(changed.key);
+    let changed = install_procedure_pack(false);
+    library_config.set_spec_pack_key(&mut db).to(changed);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
     assert!(!has_procedure(
         &item_tree_for_config(&db, library, library_config),
@@ -155,10 +159,9 @@ fn configured_project_headers_keep_pack_definers_and_withdraw_changed_source_met
 #[test]
 fn configured_proc_source_headers_defer_body_effects_and_keep_unknown_hook_effects() {
     let mut db = TclDatabase::default();
-    let packs = procedure_pack(true);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = install_procedure_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let config = configuration(&db, packs.key);
+    let config = configuration(&db, packs);
     let source = "project_source356::define provided {one} {rename puts {}}; puts VALUE";
     let file = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
     let headers = item_sigs_for_config(&db, file, config);
@@ -582,10 +585,9 @@ fn configured_project_headers_and_factories_preserve_the_structure_tier_firewall
 #[test]
 fn configured_project_diagnostics_use_actual_foreign_headers_for_direct_calls_and_callbacks() {
     let mut db = TclDatabase::default();
-    let packs = procedure_pack(true);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = install_procedure_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    let library_config = configuration(&db, packs.key);
+    let library_config = configuration(&db, packs);
     let caller_config = configuration(&db, 0);
     let library = SourceFile::new(
         &db,

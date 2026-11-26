@@ -85,6 +85,7 @@ members = [
     "rust/tcl-irules",
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-db",
+    "rust/tcl-lsp-db-it",
     "rust/tcl-lsp-server",
     "rust/tcl-explorer",
     "rust/tcl-spec-studio",

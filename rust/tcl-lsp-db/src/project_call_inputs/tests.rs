@@ -34,25 +34,24 @@ fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {
     )
 }
 
-fn body_pack(body: bool) -> tcl_spectcl::pack::PackSet {
-    let role = if body {
-        "arg 0 -role Body"
-    } else {
-        "arg 0 -role Value"
-    };
-    let packs = tcl_spectcl::pack::load_in_memory(vec![(
-        tcl_spectcl::PackFile {
-            tier: tcl_spectcl::Tier::Workspace,
-            path: std::path::PathBuf::from("/workspace/.tcl-lsp/project-call357.tclspec"),
-            origin: tcl_spectcl::discovery::Origin::DotDir,
-            dependency_tier: None,
-        },
-        format!(
-            "speclib project_call357 1.0 {{\ncommand project_call357::run {{\narity 1\n{role}\n}}\n}}\n"
-        ),
-    )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
-    packs
+/// `project_call357::run`, one argument a body or a plain value, installed
+/// as a workspace pack's overlay; the overlay key.
+fn install_body_pack(body: bool) -> u64 {
+    static BODY: [(u8, tcl_registry::ArgRole); 1] = [(0, tcl_registry::ArgRole::Body)];
+    static VALUE: [(u8, tcl_registry::ArgRole); 1] = [(0, tcl_registry::ArgRole::Value)];
+    let overlay = if body { 0x357_0001 } else { 0x357_0000 };
+    let _registry = crate::test_overlays::install(
+        "tcl",
+        "project_call357",
+        overlay,
+        vec![tcl_registry::spec::CommandSpec {
+            name: "project_call357::run",
+            arity: tcl_registry::arity::Arity::exact(1),
+            arg_roles: if body { &BODY } else { &VALUE },
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        }],
+    );
+    overlay
 }
 
 #[test]
@@ -61,11 +60,10 @@ fn supplied_project_callers_keep_per_file_body_roles_and_withdraw_unavailable_co
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // This records conditional caller advice, without Native execution or entry.
     let mut db = TclDatabase::default();
-    let packs = body_pack(true);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    let packs = install_body_pack(true);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
     let library_config = configuration(&db, 0);
-    let caller_config = configuration(&db, packs.key);
+    let caller_config = configuration(&db, packs);
     let library = SourceFile::new(
         &db,
         "proc helper {mode} {return $mode}".to_owned(),
@@ -104,9 +102,8 @@ fn supplied_project_callers_keep_per_file_body_roles_and_withdraw_unavailable_co
             .is_some()
     );
 
-    let changed = body_pack(false);
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed);
-    caller_config.set_spec_pack_key(&mut db).to(changed.key);
+    let changed = install_body_pack(false);
+    caller_config.set_spec_pack_key(&mut db).to(changed);
     set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
     let value_only = file_external_call_sites_for_inputs(&db, library, project).unwrap();
     assert!(

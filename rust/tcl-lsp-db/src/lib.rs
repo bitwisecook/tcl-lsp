@@ -215,7 +215,7 @@ use tcl_compiler::cfg_builder::OriginalProcedureSummaryOwners;
 use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::compilation_unit::CompilationUnit;
 #[cfg(test)]
-use tcl_compiler::compilation_unit::{FunctionUnit, LatticeRequest, UnitBuildOptions};
+use tcl_compiler::compilation_unit::{LatticeRequest, UnitBuildOptions};
 #[cfg(test)]
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_compiler::compiler_checks::Diagnostic as CompilerCheck;
@@ -988,6 +988,9 @@ pub use project_token_inputs::{
     project_named_instance_index_for_inputs, project_proc_var_index_for_inputs,
     semantic_tokens_project_for_inputs,
 };
+
+#[cfg(test)]
+mod test_overlays;
 
 #[cfg(test)]
 mod value_transfer_parity;

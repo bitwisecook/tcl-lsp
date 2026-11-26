@@ -1,0 +1,51 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-lsp-db-it"
+publish.workspace = true
+description = "tcl-lsp-db's tests that need crates above it (tcl-spectcl, tcl-vm); no library code"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+tcl-lsp-db = { path = "../tcl-lsp-db" }
+# Loads workspace packs from SpecTcl text, installs their overlays and
+# publishes their hook plans as the server does; it sits beside
+# `tcl-lsp-db`, so these tests live here rather than in `tcl-lsp-db`, where
+# every SpecTcl or VM edit would rebuild them.
+tcl-spectcl = { path = "../tcl-spectcl" }
+# A real VM hands the function-lattice test its native compilation entry.
+tcl-vm = { path = "../tcl-vm" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+tcl-registry = { path = "../tcl-registry" }
+salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
+
+[lints]
+workspace = true
