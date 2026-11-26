@@ -58,6 +58,8 @@ flowchart LR
 
 ## A. Handle types
 
+[Typed handles](391-handle-types.md) gives the full design: any handle type, producers and consumers by type, children, lifetimes and the analyser engine. This section is the summary.
+
 A handle type names something a command creates: a new command (`zlib stream`, `sqlite3 db`, `image create`, a Tk widget, a `snit` instance) or a token that other commands accept (a channel, an `http::geturl` token, an `after` id). The type has its own subcommands, written with the ordinary `subcommand` rows. `-creates` says which word names it or which result carries it, and `-releases` says which call ends it. Gap 8 (classes) becomes the special case where the handle is a TclOO object.
 
 **Source:**

@@ -450,6 +450,9 @@ declarations are written in.
   - [390-package-surfaces.md](registry/model/390-package-surfaces.md) —
     handle types, error codes, result shapes, embedded-language ranges,
     migrations, callbacks and other package-user surfaces (390).
+  - [391-handle-types.md](registry/model/391-handle-types.md) — typed
+    handles of any kind, their producers, consumers, lifetimes and analyser
+    tracking (391).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
