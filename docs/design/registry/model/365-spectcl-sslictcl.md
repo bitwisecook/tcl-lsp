@@ -53,13 +53,17 @@ Eleven members are loaded and emitted but read by no phase: `groups`,
 
 ## Design
 
-### 1. Placement: a library placed by its own environment
+### 1. Placement: a namespaced pack dialect, a library and an environment
 
-SslicTcl is the library `sslictcl`. The environment `sslictcl` places it
-ambient on dialect tcl 9.0, as 303 already does for `spectcl`, `sslictcl`
-and `bpf`. Not a dialect: a dialect owns how source is read and evaluated,
-and SslicTcl lexes with `GRAMMAR_TCL9X` verbatim and evaluates nothing; its
-one lexical difference, rejecting substitution, is a 370 axis. A library: it
+SslicTcl is the library `sslictcl` on the namespaced pack dialect
+`sslictcl/decl`, placed by the environment `sslictcl`. **The dialect:** a
+dialect owns how source is read, and `DialectPoint::grammars(&self)` takes
+only the point, so the one lexical difference, rejecting substitution, can
+only be set by a dialect. `sslictcl/decl` is `tcl` 9.0's profile with one
+changed axis, `grammar script { substitution reject }`; it adds no family
+and no lexer, and the BundledPack tier may define it (370's trust table).
+SslicTcl is internal, so the dialect lives in its own pack, with no shims.
+A library: it
 provides words on its own version axis, which the `sslictcl N` header pins
 as a require would (308: `Why::Header`). The environment carries extension,
 editor identity, header signature, closed world, a new policy `evaluation
@@ -77,8 +81,11 @@ value domains are named once. The excerpt shows each new form once:
 ```spectcl
 speclib sslictcl 3 {
     library sslictcl { train 2 {2-3} ; compatible sslictcl 2- {tcl 9.0-} }
+    dialect sslictcl/decl -base {tcl 9.0} {
+        grammar script { substitution reject }
+    }
     environment sslictcl {
-        dialect tcl 9.0 ; library sslictcl 2 -placement ambient
+        dialect sslictcl/decl ; library sslictcl 2 -placement ambient
         policy closed -evaluation never ; alias sslic-tcl tls-sslictcl
         file_extension sslictcl {SslicTcl TLS Declaration}
         signature -header sslictcl -arg integer ; document sslictcl-document
@@ -168,9 +175,11 @@ BIG-IP release defaults stay with 360/361; SslicTcl gets projected endpoints.
 
 ### 4. Grammar needs (sent to 370)
 
-No new family or lexer. Three profile axes: (1) **substitution** in bare and
-quoted words: `evaluate` (Tcl), `literal` (SpecTcl 3's reader) or `reject`
-(SslicTcl); (2) an **opaque embedded region**, a `predicate` that is Tcl for
+No new compiled family or lexer. Three profile axes: (1) **substitution** in
+bare and quoted words: `evaluate` (Tcl), `literal` (SpecTcl 3's reader) or
+`reject` (SslicTcl, selected by `sslictcl/decl`; the document's
+`substitution reject -code SSLIC1002` row only maps the finding to a code);
+(2) an **opaque embedded region**, a `predicate` that is Tcl for
 editing but never analysed; (3) **no evaluation**, replacing
 `SUPERSEDED_ANALYSER_CODES = [W123]` (`sslictcl_diagnostics.rs`).
 
@@ -260,7 +269,9 @@ $ ./target/debug/tcl dis m.sslictcl   # the same two calls
 
 ### Decisions
 
-1. Library plus environment, not a dialect: nothing it changes is a dialect's.
+1. A namespaced pack dialect (`sslictcl/decl`, one changed axis), a library
+   and an environment. The one thing it changes, how substitution is read, is
+   a dialect's.
 2. Data in its own vocabulary: no JSON schema or Rust table remains.
 3. A generic declaration reader: every loader check is a grammar fact.
 4. Its own crate (one crate per package); old versions rejected, not shimmed.
@@ -316,3 +327,8 @@ update-source-data`/`check-source-data`. **365e** `tcl-sslictcl` on
   `string is boolean -strict tr` is 1 on 8.4 and 9.1, where the loader
   reports `SSLIC1009`.
 - **Numbering:** 350 claimed items 356–365 and this doc 365a–365f; both are now mapped to plan items (see Plan numbers).
+
+## Review fixes (26 November 2026)
+
+- **D7:** SslicTcl's `substitution reject` is set by the namespaced pack dialect `sslictcl/decl` (`tcl` 9.0 with one changed axis), which the trust table allows a BundledPack to define. "Not a dialect" is withdrawn; the environment no longer changes an axis. The `-base` spelling is chapter 2's.
+- **D15:** today `tcl dis samples/sslictcl/example.sslictcl` compiles 68 instructions with exit 0; the refusal is item 457's.

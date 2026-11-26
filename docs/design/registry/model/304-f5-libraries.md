@@ -102,7 +102,7 @@ sequenceDiagram
   participant P as IrulesPolicy
   C->>R: resolve a command at a site
   R->>E: which libraries are present?
-  E-->>R: iRules, tracking f5-tcl 16.1
+  E-->>R: iRules, tracking f5-tcl 21.1
   R->>P: admits(spec, RuleLoader)
   P-->>R: admitted, or one of the 15 refused
   R-->>C: the spec, or a refusal
@@ -273,3 +273,7 @@ gate).
   literals.
 - "The lexer receives the dialect core profile only" also needs `tmm` to
   carry no lexical delta. This holds, by 301's correction.
+
+## Review fixes (26 November 2026)
+
+- **D12:** the lookup sequence shows iRules tracking f5-tcl 21.1, a K5902 line, not 16.1.

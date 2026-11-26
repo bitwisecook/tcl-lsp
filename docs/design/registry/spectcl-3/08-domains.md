@@ -29,11 +29,14 @@ realm. The BIG-IP schema stays in item 118's crate; `tcl-lib-irules` has no
 edge to it, and `tcl-bigip`, which depends on both, does every join.
 
 **Load-time failures match the appliance** (owner decision). Under `tmm`, an
-unknown, absent or refused command head, `proc` inside `when`, and the inert
-`{*}` trap are errors where the rule loader refuses the rule, even inside
-`catch`. Only BIG-IP releases in public support per K5902 are modelled, and
-facets start at the oldest of them; an event with no row inherits that line
-(item 432).
+unknown, absent or refused command head and `proc` inside `when` are errors
+where the rule loader refuses the rule, even inside `catch`. Anything the
+appliance accepts is not an error: the inert `{*}` loads and runs, `list
+{*}{a b}` returning `* {a b}` with code 0 in TMM, iApp, iCall and tmsh
+(`evidence/tcl/bigip-r2286l-g-expansion.md`; measurements §1, "2 elements, no
+warning"), so it is a **warning** about the misparse (item 431). Only BIG-IP
+releases in public support per K5902 are modelled, and facets start at the
+oldest of them; an event with no row inherits that line (item 432).
 
 ### Events, flows and profiles as pack content
 
@@ -48,11 +51,18 @@ keep today's methods (today: 176 `EventProps` rows,
   side-neutral command reads), `multiplicity`, `frame connection`,
   `establishes {FIELD…}`, `setup`, `collect`, `category`, availability on the
   BIG-IP axis.
-- **Order is derived.** A `flow` is a measured or documented trace for one
-  profile set; `precedes A B -evidence E` records a measured pair. The master
-  order is a topological sort of all flows and `precedes` rows, ties broken by
-  flow position; a cycle is a pack error. The first image must reproduce
-  today's 74-row order exactly.
+- **Order is a measured partial order.** A `flow` is a measured or
+  documented trace for one profile set; `precedes A B -evidence E` records a
+  measured pair. The order is the transitive closure of all flows and
+  `precedes` rows; a cycle is a pack error. Two events with no path between
+  them are **unordered**, and so is every event that appears in no flow and
+  no `precedes` row: a consumer that needs a sequence (the simulator, the
+  diagram, `explain_flow`) reports such an event as unordered rather than
+  placing it. Today's flows name 27 events and two `precedes` rows are
+  measured, against 74 hand-ordered rows (`events/event_order.rs`) and 176
+  events, so the hand order is not reproduced. A test lists every pair where
+  the 74 rows and the derived order disagree or the derived order has no
+  answer, as input to Q13 and Q14.
 - **Command validity** stays on the command: `event_requires`,
   `excluded_events`, and `rule_init warn`.
 - **Profiles.** `implies`, `forbids`, `conflict`, `namespace NS -also {…}`, and
@@ -82,16 +92,26 @@ on. Lifetimes are `event`, `request`, `connection`, `message` and `table`
 (shared across connections and TMMs). Each field refines a
 `SideEffectTarget`, so the coarse effect rows are derived. Forms declare
 `effect reads|writes connection F`, `decision CATEGORY ACTION`, `ends
-connection -reset|-silent`, `disables events` and `emits EVENT -certainty`.
+connection -reset|-silent`, `disables events` and `enables events` (each
+with `-scope rule|connection`, `unmeasured` until Q16), and `emits EVENT
+-certainty`.
 `-origin client` makes every getter of that field a taint source, replacing
 `TAINTED_REFS`.
 
 **The host binding.** `tcl-bigip` resolves each `ltm virtual`'s profiles
 through the schema to kinds, maps them through `schema-kind`, and gives the
 positioned context a `HostChoice`: `Unbound` (file-level, today's
-behaviour), `Bound` with one `HostBinding { virtual_server, profiles, release }`
-per virtual server, or `Unknown`. A rule on two virtual servers reports per
-server.
+behaviour), `Bound` with one `HostBinding { virtual_server, profiles, rules,
+release }` per virtual server, or `Unknown`. `rules` is every rule on that
+virtual server with its `priority` (0–1000, default 500, from the `when`
+grammar), so the binding derives, per event, the handler order across rules
+as F5 documents it: ascending priority, then the order of the virtual
+server's rules list. A rule on two virtual servers reports per server. None
+of the cross-rule behaviour is measured here: the handler order, variables
+shared by every rule on one connection, and what `event disable` stops are
+F5-documented only. `event disable` therefore carries `disables
+events -scope rule|connection`, with its scope `unmeasured (Q16)` until a
+probe, and `event enable` is modelled beside it.
 
 ### iApps and tmsh
 
@@ -185,16 +205,27 @@ diagnostics=2 across 1 input(s)
 The appliance (21.1.0.1, `bigip-irule-parser-measurements.md` §1, §4c, §5)
 reads `list {*}$l` as `* {a b c}`, refuses `namespace` with `command is
 disabled`, and refuses `proc` in `when` with `not valid in the current
-scope`. Under this specification line 4 is an error (inert `{*}`, item 431),
-line 6 is an error (refused), and line 7's severity becomes an error.
+scope`. The rule loads, so under this specification line 4 is a warning
+(inert `{*}` misparse, item 431), line 6 is an error (refused), and line 7's
+severity becomes an error.
 
 ## SslicTcl
 
-SslicTcl is a never-evaluated TLS declaration language in Tcl syntax. It is a
-library, `sslictcl`, placed ambient by the `sslictcl` environment on `tcl`
-9.0, with policy `closed -evaluation never` and its document grammar as the
-root. Its one lexical difference, rejecting substitution, is the
-`substitution reject` value of chapter 4.
+SslicTcl is a never-evaluated TLS declaration language in Tcl syntax. It is
+internal to this project, with no shims. It has three parts:
+
+- the namespaced pack dialect `sslictcl/decl`, defined by `tcl-lib-sslictcl`
+  at the BundledPack tier (chapter 4's trust table): `tcl` 9.0's axes with one
+  changed, `grammar script { substitution reject }`. A dialect owns how source
+  is read, and `DialectPoint::grammars` takes only the point, so this is the
+  one place the axis can change;
+- the library `sslictcl`, placed ambient;
+- the environment `sslictcl`, on `sslictcl/decl`, with policy `closed
+  -evaluation never` and the library's document grammar as the root. The
+  document's `substitution reject -code SSLIC1002` row maps the reader's
+  finding to its code; it does not set the axis.
+
+The library's pack carries the rest:
 
 - **One pack** (`tcl-lib-sslictcl/sslictcl.tclspec`) states the vocabulary
   once: words are member-only commands, blocks are `definition_body`
@@ -249,9 +280,10 @@ $ tclsh9.1 m.sslictcl
 invalid command name "sslictcl"
 ```
 
-The document is not a program, so there is no bytecode to show: after item
-457 `tcl dis` and `tclvm` refuse an `evaluation never` environment instead
-of compiling two calls.
+The document is not a program, so there is no bytecode to show. Today `tcl
+dis` compiles it as Tcl calls (`samples/sslictcl/example.sslictcl` gives 68
+instructions, exit 0); after item 457 `tcl dis` and `tclvm` refuse an
+`evaluation never` environment instead.
 
 ## eBPF
 
@@ -266,19 +298,27 @@ BPF-Tcl is a closed, typed packet language with Tcl syntax, lowered by
   `out-of-bounds`, `attach`; `context` field offsets; `helper` ids; `map-type`;
   `limit` facets (`stack-bytes 512`, `back-edges bounded` from 5.3);
 - environment `bpf`: `tcl` 9.0, `bpf` ambient, `linux-ebpf` hosted at the
-  target range, policy closed, extension `.bpftcl`.
+  target range, policy `closed -evaluation never`, extension `.bpftcl`. No
+  Tcl engine runs a `bpf` document: item 457's refusal covers it, as it
+  covers `sslictcl`. Today `tcl dis --dialect bpf` compiles `when` as a
+  plain `invokeStk1 3`. The Tcl model that runs BPF-Tcl under tclsh (380,
+  reason 5) is a test runner with its own procs, not this environment.
 
 **A missing recipe means "not in the subset".** The eBPF target has no plain
 invoke, so `BpfPolicy` refuses any command with no `compile ebpf` row
 (`while`, `proc`, `thread::send`), worded by effect class. That rule replaces
 the declaration-only top level and `is_thread_command`. `compile ebpf` is a
-fact naming a closed op, not a template or hook (Reconciliation R10). The
-expression sublanguage is `-expr-profile ebpf-int64` on a role: `/` and `%`
-truncate and integers wrap at 64 bits, so a folder abstains under it.
+fact naming a closed op, not a template or hook (Reconciliation R10). "No
+plain invoke" holds inside `bpf-tcl-ir`; the Tcl engines are kept off by
+`evaluation never`. The expression sublanguage is selected per role:
+`-expr-profile ebpf-int64` selects the Rust value `ebpf-int64` of chapter 4's
+expr `arithmetic` axis (`/` and `%` truncate, integers wrap at 64 bits), so a
+folder abstains under it. The pack selects the value; it supplies no operator
+table and no division rule, as for every grammar.
 
 ```mermaid
 flowchart LR
-  tcl["dialect tcl 9.0"] --> env["environment bpf, policy closed"]
+  tcl["dialect tcl 9.0"] --> env["environment bpf, policy closed, evaluation never"]
   bpfLib["library bpf: verbs and compile ops"] -- ambient --> env
   kern["library linux-ebpf: events, helpers, limits"] -- "hosted, target range" --> env
   bpfLib -- requires --> kern
@@ -295,3 +335,12 @@ and stack reuse stay in `bpf-tcl-ir`'s front end, registered as a
 contribution. `BPF001`–`BPF017` become pack codes with the old numbers as
 aliases. Kernel facts are generated from the UAPI headers; `rbpf`'s helper
 ids stay in `bpf-tcl`, the harness that defines them.
+
+## Review fixes (26 November 2026)
+
+- **D2:** the inert `{*}` is a warning about the misparse, not a load-time error; the appliance accepts it (`bigip-r2286l-g-expansion.md`). The example's line 4 follows.
+- **D7:** SslicTcl's `substitution reject` is set by the namespaced pack dialect `sslictcl/decl`; the environment no longer changes an axis.
+- **D8:** `ebpf-int64` is a Rust value of the expr `arithmetic` axis that a role selects; no pack supplies a table.
+- **D9:** the event order is the measured partial order; events in no flow and no `precedes` row are unordered; the 74-row reproduction requirement is dropped.
+- **D10:** `HostBinding` carries `rules` with priorities; cross-rule order and `event disable` scope are F5-documented, unmeasured (Q16); `event enable` and `-scope rule|connection` are modelled.
+- **D15:** present-tense `tcl dis` claims are marked as today versus after items 434 and 457; `bpf` is `evaluation never`.

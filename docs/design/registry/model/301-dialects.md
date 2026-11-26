@@ -257,9 +257,10 @@ and stays off this ladder. Only 21.1 is appliance-measured, so only it carries
 carries `Inherited` evidence. Nothing measured shows a grammar change between
 lines.
 
-The conformance release matrix for f5-tcl is {15.0, 16.1, 17.1, 21.1}: the
-baseline, the default, the last 17.x line the iApp data names, and the
-measured line.
+The conformance release matrix for f5-tcl is the K5902 lines in public
+support: the oldest (the baseline), the default (open decision D15) and
+21.1, the measured line. 15.0 and 16.1 are below that list and leave the
+matrix (owner decision; Reconciliation R18).
 
 ### Capability flags
 
@@ -432,3 +433,7 @@ environment model.
 
 - **f5-tcl's release ladder** is the BIG-IP releases still in public support per F5's K5902 article, and nothing older.
 - **Jim** is supported at its latest release (0.84) only, under the `full` and `minimal` builds. A dialect gets release boundaries only where a release makes big language changes, as C Tcl's do.
+
+## Review fixes (26 November 2026)
+
+- **D12:** the f5-tcl conformance matrix is the K5902 lines (the oldest, the default and 21.1), not {15.0, 16.1, 17.1, 21.1}.

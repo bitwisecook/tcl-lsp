@@ -58,7 +58,7 @@ only in those tests (`:530` on). Production uses `lowering` and `cfg_builder`
 **Decision.** Library `bpf` is the BPF-Tcl vocabulary (train 1). Library
 `linux-ebpf` is the kernel's eBPF ABI, versioned by kernel release.
 Environment `bpf` places core tcl 9.0, `bpf` ambient, `linux-ebpf` hosted at
-the target range, and policy `closed`. As in 304, `bpf` owns its
+the target range, and policy `closed -evaluation never`. As in 304, `bpf` owns its
 `LibraryPolicy`. Reasons:
 
 1. **The lexer is Tcl 9.0's** (`GRAMMAR_TCL9X`, `profile/catalog.rs:218`).
@@ -66,21 +66,26 @@ the target range, and policy `closed`. As in 304, `bpf` owns its
 2. **The subset is availability.** "Only these commands" is closed-world
    policy (redesign §2), like iRules' 15 refused commands.
 3. **The one semantic difference is the target's.** `/` and `%` truncate,
-   and integers wrap at 64 bits (`emit.rs:722-734`). No interpreter
-   evaluates BPF-Tcl. The expression is an argument of `setint` or `if`,
-   which makes it an argument sublanguage, declared per role.
+   and integers wrap at 64 bits (`emit.rs:722-734`). No Tcl engine runs a
+   `bpf` document: the environment is `evaluation never`, so `tcl dis`,
+   `tclvm` and the runtime refuse it (item 457). The expression is an
+   argument of `setint` or `if`, which makes it an argument sublanguage,
+   declared per role.
 4. **Kernel versions are a library axis.** Event floors (XDP 4.8, TC 6.6),
    helpers, map types and limits vary by kernel. As `available linux-ebpf
    RANGE` rows they use 302's facets, 308's query and `tclLsp.targets`.
-5. **It runs as Tcl.** A 38-line model defines each verb as a proc. It runs
-   the backend's `block-ssh` test under `tclsh9.0` and `tclsh9.1` with the
-   verdicts `rbpf` asserts (example 1).
+5. **A Tcl model can run it, as a test runner.** A 38-line model defines
+   each verb as a proc. It runs the backend's `block-ssh` test under
+   `tclsh9.0` and `tclsh9.1` with the verdicts `rbpf` asserts (example 1).
+   The model is its own script in a plain `tcl` 9.0 interpreter, not the
+   `bpf` environment, and is exact only without truncating division or
+   64-bit wrap (Risks).
 
 The environment and what it places:
 
 ```mermaid
 flowchart LR
-  tcl["dialect tcl 9.0, GRAMMAR_TCL9X"] --> env["environment bpf, policy closed, .bpftcl"]
+  tcl["dialect tcl 9.0, GRAMMAR_TCL9X"] --> env["environment bpf, policy closed, evaluation never, .bpftcl"]
   bpfLib["library bpf, train 1: verbs and recipes"] -- ambient --> env
   kern["library linux-ebpf, kernel releases: events, helpers, limits"] -- "hosted, target range" --> env
   bpfLib -- "requires (331)" --> kern
@@ -178,18 +183,25 @@ refused with BPF008, as `frontend.rs:952-983` tests for described events.
 | missing verdict, back edges, stack after slot reuse, map before declaration, equal priorities | 5 | `bpf-tcl-ir`'s front end as an analyser contribution, reading `limit` facts |
 | `/`, `%` on an operand of unknown sign | 1 | `-role expr -expr-profile ebpf-int64`; a hint |
 
-`expr-profile ebpf-int64 { ops {+ - * / % & | ^ << >> == != < <= > >= unary - ! ~ +} div truncate wrap 64 }`
-replaces `map_bin`, `map_cmp` and `map_un` (`lower.rs:1215-1245`).
+`ebpf-int64` is a Rust value of 370's expr `arithmetic` axis, implemented in
+`tcl-expr` beside `tcl`: the binary operators `+ - * / % & | ^ << >> == !=
+< <= > >=` and unary `- ! ~ +` (the list the withdrawn form carried), `/`
+and `%` truncating, integers wrapping at 64 bits. It replaces `map_bin`, `map_cmp` and `map_un`
+(`lower.rs:1215-1245`). The pack only selects it, with `-role expr
+-expr-profile ebpf-int64`; no pack form defines an operator list or a
+division rule (owner decision: packs select lookup tables but never supply
+them).
 
 ### 3. Grammar needs (370)
 
 There is **no lexer axis** to add. 370 should list `bpf` beside `sslictcl`
 as a negative control: an environment over `GRAMMAR_TCL9X`. The expression
 profile is not an axis either: it attaches to a role, not to a document,
-and it only *selects* from 370's `expr operators tcl90` table (370: a pack
-cannot supply a table). Unlike SslicTcl's `substitution reject` (365), BPF-Tcl
+and it only *selects* 370's Rust value `expr arithmetic ebpf-int64` (370: a
+pack cannot supply a table). Unlike SslicTcl's `substitution reject` (365), BPF-Tcl
 reads every word as Tcl 9.0 does. The new words (`compile ebpf`, `context`, `helper`, `map-type`,
-`limit`, `expr-profile` and `event`'s eBPF rows) belong to 336 and 338.
+`limit`, the `-expr-profile` role option and `event`'s eBPF rows) belong to
+336 and 338; the `expr-profile ID {…}` definition form is withdrawn.
 `.bpftcl` is a `file_extension` row on the environment (303).
 
 ### 4. Consumers
@@ -246,7 +258,7 @@ register the contribution.
 | `effect reads packet` | a `world_effects` row (exists); replaces `BpfEffects::PKT_READ` |
 | `event XDP {…}`, `context`, `field … -role` | `EbpfEvent`, `EbpfContext`, `CtxField { role }`: today's `BpfEventSpec`/`BpfCtxField` reshaped, in `tcl-lib-bpf`'s `DescriptorTable` |
 | `helper`, `map-type`, `limit` | `Helper`, `MapType`, `Limits` facets |
-| `expr-profile ebpf-int64` | `ExprProfileId` on `ArgRole::Expr` |
+| `-expr-profile ebpf-int64` on a role | `ExprArithmetic::EbpfInt64` selected on `ArgRole::Expr` |
 | `extend command if { compile ebpf conditional }` | 331's `ProviderRow` on core `if` (replaces `if_.rs:247`) |
 | `policy closed`, `BpfPolicy` | 304's `LibraryPolicy` |
 | `test bpf/…` (342) | `PackTest` rows |
@@ -320,7 +332,9 @@ rbpf, asserted in tests/socket_filter.rs:95-116: 0, 40, 0
 
 ## Work list
 
-1. 380: `tcl-lib-bpf`, the two packs, the environment rows, `BpfPolicy`.
+1. 380: `tcl-lib-bpf`, the two packs, the environment rows (`closed
+   -evaluation never`), `BpfPolicy`; with item 457, `tcl dis`, `tclvm` and
+   the runtime refuse a `bpf` document.
 2. 381: `CompileRecipe::Target`, the reader and printer, `bpf-tcl-ir` dispatch.
 3. 382: `EbpfFacts` and `KernelAbi`; lift the hand tables.
 4. 383: the analyser contribution, `check` rules, hover, completion.
@@ -369,3 +383,8 @@ rbpf, asserted in tests/socket_filter.rs:95-116: 0, 40, 0
 - **Wire the semantic bridge, or delete it?** Settled by whether its audit
   catches anything the recipe policy does not, measured over `tcl-fuzz`'s
   `bpf_diff` corpus.
+
+## Review fixes (26 November 2026)
+
+- **D8:** `ebpf-int64` is a Rust value of the expr `arithmetic` axis that the role selects; the `expr-profile ID {ops … div … wrap …}` definition is withdrawn.
+- **D15:** the `bpf` environment is `closed -evaluation never`, and item 457's refusal covers it; reason 3's "no interpreter" and reason 5's Tcl model are reconciled (the model is a test runner outside the environment). Today `tcl dis --dialect bpf` emits a plain `invokeStk1 3 # when`; "no plain invoke" holds inside `bpf-tcl-ir` only until item 457.

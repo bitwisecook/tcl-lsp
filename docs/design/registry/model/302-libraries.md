@@ -233,7 +233,7 @@ dialect release set.
 | Tk | own axis; `{8.4 on tcl 8.4}` … `{9.0 on tcl 9.0}` (one per line), `requires tcl = same line` | `wish` 8.6 → {8.6}; `require Tk 8.5` on 8.6 → {8.6} (8.6 satisfies 8.5); `text -insertunfocussed` visible at 8.6 |
 | TclOO | library `TclOO`, train 1 = `0.6-1.1`, `{TclOO on tcl 8.5}` only; core `oo::*` items `library: None, dialect: tcl 8.6-` | 8.5 + `require TclOO` → library items visible; 8.6 → core items visible, and the require is satisfied by the core's provided `TclOO 1.1.0` (`generated_release_facts.rs:1093`) |
 | snit (multi-train tcllib) | trains 2 = `2.3.4`, 1 = `1.4.3`; `{2.x on tcl 8.5-9.2}` (the `pkgIndex.tcl` guard and `snit2.tcl:18`'s `package require Tcl 8.5 9`), `{1.x on tcl 8.5-9.2}` (`snit.tcl:18`, the same require) | 8.4 + `require snit` → ∅ (report); 8.6 → {2.3.4}; `require snit 1` → {1.4.3} |
-| iRules | tracks host, `{any on f5-tcl, build tmm}` | f5-tcl 16.1/tmm → iRules {16.1}; `HTTP2::header` visible; 15.1 → not visible; scriptd → iRules absent |
+| iRules | tracks host, `{any on f5-tcl, build tmm}` | f5-tcl 21.1/tmm → iRules {21.1}; `persist mcp` (available from 21.1) visible; 17.1 → not visible; scriptd → iRules absent |
 
 The snit row matches tclsh. With only `tcllib-2.0/modules/snit` on
 `auto_path`, one fresh interpreter per line gives:
@@ -475,7 +475,7 @@ hover, completion and MCP), and the SpecTcl loader (305).
   registry's `resolve_spec`, the version gate's diagnostic, completion's
   candidate list and hover's "since" line. The matrix is Tcl 8.4–9.1 × the
   six worked libraries × {no require, bare require, ranged, `-exact`,
-  conditional}, plus f5-tcl {15.0, 16.1, 17.1, 21.1} × {tmm, scriptd} for
+  conditional}, plus f5-tcl's K5902 lines (the oldest, the default and 21.1) × {tmm, scriptd} for
   iRules. Expected cells come from the oracles: tclsh `package require` in
   each pinned tree with tcllib 2.0 on `auto_path`, and the iRules lifecycle
   data.
@@ -516,3 +516,7 @@ hover, completion and MCP), and the SpecTcl loader (305).
   `pkgs/<dir>/configure.ac`. The checked-out trees in `tmp/` hold only
   `pkgs/README` and `package.list.txt`, so `fetch-tcl-source` must keep
   `pkgs/` for the generator.
+
+## Review fixes (26 November 2026)
+
+- **D12:** the iRules worked row and the conformance matrix use K5902 lines (21.1 and `persist mcp`; the oldest, default and measured lines), not 15.1, 15.0 and 16.1.

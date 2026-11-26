@@ -7,7 +7,10 @@ libraries on f5-tcl's `scriptd` build), [305](305-spectcl-3.md),
 [308](308-positioned-context.md) and item 118's schema crate
 ([118](../registry-split/118-bigip-schema.md)). Whether a tmsh `cli script`
 runs on `scriptd` or a third build is plan question Q11; nothing below
-depends on the answer except the `-build` key.
+depends on the answer except the `-build` key. Q11 also covers iCall: every
+r2286l case ran in an iCall script beside TMM, tmsh and iApp (for example
+`evidence/tcl/bigip-r2286l-g-expansion.md`), yet iCall has no build and no
+environment (304).
 
 **Plan numbers** (26 November 2026): 361a → 448, 361b → 449, 361c → 450, 361d → 451. The [consolidated SpecTcl 3 specification](../spectcl-3/README.md) supersedes this design in detail, and its [crosswalk](../spectcl-3/12-plan-crosswalk.md) maps every proposed number.
 
@@ -287,3 +290,7 @@ or rewrite the lookup. The return shapes of `tmsh::get_config` and
   resolving them in `tcl-bigip`.
 - **The brief's `macro` section** is not in the registry schema's
   `sys application template` definition (`bigip/data/sys/application.rs`).
+
+## Review fixes (26 November 2026)
+
+- **D15:** iCall, measured as a channel in every r2286l case but with no build or environment, is listed under Q11.

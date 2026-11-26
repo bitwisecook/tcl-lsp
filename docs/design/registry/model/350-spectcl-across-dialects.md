@@ -72,14 +72,14 @@ only sets its values (redesign §3.1).
 | Area | tcl 8.4 → 9.1 | jim 0.76–0.84 | f5-tcl (both builds) | 350 adds |
 |---|---|---|---|---|
 | Numerals | `010` is 8 to 8.6, 10 from 9.0; `0o`, `0b` from 8.5; `1_000` from 9.0 | `010` is 10; `0o`, `0b` yes; `1_000` no | 8.4: `0b101` fails (§4b) | nothing; `ExprGrammar.numbers` holds it (301) |
-| Escapes and characters | `\U` from 8.6; 8.6.18 maps `\U0001F600` to U+FFFD; 9.x counts scalars | `\U` yes; UTF-8 under `utf8`, bytes under `--minimal`; no `encoding` command | 8.4 rules, unmeasured | F5 character model `BmpCharsElseUtf8Bytes` with `Inherited` evidence, or `None` until measured |
+| Escapes and characters | `\U` from 8.6; 8.6.18 maps `\U0001F600` to U+FFFD; 9.x counts scalars | `\U` yes; UTF-8 under `utf8`, bytes under `--minimal`; no `encoding` command | 8.4 rules; U+1F600 is 4 characters under `tmm` (`bigip-r2286i-unicode-literal-emoji-grinning.md`) | F5 character model `BmpCharsElseUtf8Bytes`, measured under `tmm`, `Inherited` under `scriptd` |
 | `expr` | 8.5 adds `**`, `in`, `ni` | own precedence ladder, `=*`, `=~`, `<<<`; `expr 1 + 2` refused from 0.81 | 8.4 plus `starts_with`, `contains`, `matches_*`, word `and`/`or`/`not` | nothing new; `IRULE_*` opcodes become f5-tcl opcodes (§3) |
-| Word rules | `{*}` from 8.5 | `{*}` in words, as 8.5 | `}{` splits (R2); `{*}` is inert; a `{` line continues (N1) | **axis** `expansion {word inert}` so an inert `{*}` is a diagnostic |
+| Word rules | `{*}` from 8.5 | `{*}` in words, as 8.5 | `}{` splits (R2); `{*}` is inert and the rule loads (`bigip-r2286l-g-expansion.md`); a `{` line continues (N1) | **axis** `expansion {word inert}` so an inert `{*}` is a warning |
 | Namespaces | `namespace eval` runs in the namespace; 8.x writes an existing global (creative writing), 9.x does not | runs in a new call frame: `set v 1` makes a frame local; no `exists`, `children` | 8.4; `namespace` refused by the iRules compiler | **axis** `namespace-eval-frame {namespace new-frame}` and `creative-writing {yes no}` for binding |
 | `proc` and lambdas | 3 words; defaults only after required parameters | 3 or 4 words (statics, `&name` statics from 0.83); defaults and `args` anywhere; `&name` reference parameters; no `{*}` parameter: `{a {*}rest}` is the three names `a`, `*`, `rest`; `local`, `lambda` | 8.4 `proc`; iRules reaches top-level procs only through `call` | **axis** `proc-params {tcl jim}`; the statics refinement stays in the pack |
 | References and GC | none | `ref`, `getref`, `collect`, finalizers; any string holding the reference text keeps it alive | none | effect `ref-liveness` (§4, optimiser) |
 | Lists and dicts | `lsort -stride` from 8.6; `dict getdef` from 9.0 | `lsearch` defaults to `-exact`; no `lsort -indices`; `string is` has 15 classes | no `dict`, `lassign`, `lmap` (§4) | Jim deltas as facets on inherited commands (§2) |
-| Errors and codes | 0–4; `try` from 8.6 | `info returncodes`: 5 `signal`, 6 `exit`, 7 `eval`; `catch -signal` | 8.4 `catch`; no `try`; TMM handlers suspend with code 5 | **axis** `return-codes`; CFG continuation for code 5 under `tmm` |
+| Errors and codes | 0–4; `try` from 8.6 | `info returncodes`: 5 `signal`, 6 `exit`, 7 `eval`; `catch -signal` | 8.4 `catch`; no `try`; TMM handlers suspend with code 5 (static analysis from Ghidra, unconfirmed: measurements, "Suspension is Tcl return code 5") | **axis** `return-codes`; CFG continuation for code 5 under `tmm`, labelled static-analysis |
 | `package`, `load` | `pkgIndex.tcl`, `ifneeded`, ranges | `forget names provide require` only; `require name ?version?`; finds `name.tcl` or `name.so` on `auto_path` | `package`, `load` absent or refused in `tmm`; `scriptd` iApps ship packages (below) | Jim `package` as a binding-transition descriptor with no `ifneeded` |
 | `info` | 9.1 adds `cmdtype`, `consts`, … | adds `statics`, `alias`, `references`, `returncodes`, `source`, `version`; no `class`, `object` | 8.4 set; tmsh adds `info vartype` (§4) | subcommand-set facets keyed by family |
 | `unknown` | default `unknown` auto-loads | no default `unknown`; a user `unknown` is honoured | `unknown` absent from TMM's interpreter | world policy: Jim open, `tmm` closed at load |
@@ -193,7 +193,7 @@ are not tcllib 2.0 placed on f5-tcl.
 
 | Consumer | tcl | jim | f5-tcl |
 |---|---|---|---|
-| Analyser, LSP | as today | deltas (§2); `namespace eval` frame; statics are not W210 (item 197) | `{*}` inert is an error under f5-tcl. Under `tmm` an unknown, absent or refused head is an **error**, because it fails at load even inside `catch` (§4a). `proc` in `when` is an error. `static::` keeps today's checks (IRULE4002, a generic name shared across rules; `irules_checks/generic_static_names.rs`), and a `::` global keeps IRULE6001 (CMP demotion). Event validity: [360](360-spectcl-f5-integration.md) |
+| Analyser, LSP | as today | deltas (§2); `namespace eval` frame; statics are not W210 (item 197) | `{*}` inert is a warning under f5-tcl, because the rule loads and runs (`bigip-r2286l-g-expansion.md`). Under `tmm` an unknown, absent or refused head is an **error**, because it fails at load even inside `catch` (§4a). `proc` in `when` is an error. `static::` keeps today's checks (IRULE4002, a generic name shared across rules; `irules_checks/generic_static_names.rs`), and a `::` global keeps IRULE6001 (CMP demotion). Event validity: [360](360-spectcl-f5-integration.md) |
 | Formatter | as today | statics proc: arg 3 is `Body` | merge `}` newline `else` into `} else` (N5); never put `{` at the start of a line where N1 would join it; `}{` → `} {` is safe both ways |
 | Minifier | 313 | statics names are visible through `info statics`, so `-frozen`; `local` | `static::*`, data-group and pool names are `-frozen` (today's `tcl minify` leaves them, and every other name, unchanged). It joins `when` blocks as `};when`. Whether the loader accepts that at the declaration-only top level is unmeasured, so newlines stay until a probe says so |
 | Optimiser | 313's proof sets on tclsh | rewrites proved on jimsh. `ref-liveness`: a value holding a reference's text keeps it alive, so dead-store removal moves finalizers | `table`, `session`, `after`, `call` and the other suspending handlers (§14) are barriers. Rewrites are proved only against 21.1 evidence, else abstain |
@@ -327,8 +327,8 @@ when CLIENT_ACCEPTED {
 
 ```rust
 // design sketch: 301, 302, 304 and 350
-ResolvedEnvironment { point: DialectPoint { release: f5(16.1), build: Tmm, .. },
-    libraries: LibraryWorld { versions: { "iRules": {16.1} }, .. } }
+ResolvedEnvironment { point: DialectPoint { release: f5(21.1), build: Tmm, .. },
+    libraries: LibraryWorld { versions: { "iRules": {21.1} }, .. } }
 CoreProfile { expansion: Inert, brace_separator: true, brace_line_continuation: Continues, .. }
 IrulesPolicy.admits("namespace", RuleLoader) == Admit::Refused  // one of the 15
 ```
@@ -353,8 +353,8 @@ $ ./target/debug/tcl diag --dialect f5-irules ex3.irul
 7:5: warning IRULE5006 'proc' is only valid at the top level of an iRule.
 ```
 
-With 350, line 4 is an error (inert `{*}`), line 6 is an error (refused),
-and line 7's severity becomes an error.
+With 350, line 4 is a warning (inert `{*}`: the rule loads and misparses),
+line 6 is an error (refused), and line 7's severity becomes an error.
 
 ## Plan items
 
@@ -412,7 +412,8 @@ and line 7's severity becomes an error.
   right, but `oo` and `tree` are default extensions, not optional.
 - **302 and 304:** "tcllib never on f5-tcl" needs the iApp-bundled
   exception. The iRules worked row ("`HTTP2::header` … 15.1 → not visible")
-  rests on one of the five command version keys.
+  rests on one of the five command version keys, and 15.1 is below the
+  K5902 lines, so the example should use two supported lines.
 - **305:** `available core 0.78-` is ambiguous across families. Its shim row
   "`available {jim 0.78-}` → `available core 0.78-`" should become `core jim
   0.78-`.
@@ -429,3 +430,10 @@ and line 7's severity becomes an error.
 2. **Only F5-supported BIG-IP releases are modelled.** iRules `proc` and `call` arrived in v10, which is older than any release we support. The f5-tcl release ladder covers only the BIG-IP versions still in public support according to F5's K5902 article. Its lower bound moves with that article, and nothing older needs dating. Command history before the oldest supported release is irrelevant, and rows start at that release.
 3. **F5-bundled iApp packages are modelled now, with unknown versions.** `http`, `uri`, `sha256` and the other packages listed in the iApp context become F5-bundled libraries on f5-tcl `scriptd` whose versions are unknown until probed. The question is F5 question Q12 in the plan.
 4. **Jim: the latest release only, for now.** Only the latest Jim release (0.84) is supported. A Jim version range can come later. As a principle, a dialect gets release boundaries only where a release makes big changes to the language, as C Tcl's do. Jim's minor releases don't, so `jim` is one point until a release changes the language. The 0.76–0.84 span in today's environment narrows to 0.84 (item 356 becomes "jim 0.84 full and minimal").
+
+## Review fixes (26 November 2026)
+
+- **D1:** the F5 character model is measured under `tmm` (r2286i files).
+- **D2:** the inert `{*}` is a warning: the appliance loads the rule and returns `* {a b}`. Owner decision 1 below gives the loader's severity, and the loader accepts it.
+- **D12:** the worked example runs on f5-tcl 21.1, not 16.1; the 15.1 iRules example in Corrections is flagged as below the K5902 lines.
+- **D14:** code 5 under `tmm` is static analysis, unconfirmed.

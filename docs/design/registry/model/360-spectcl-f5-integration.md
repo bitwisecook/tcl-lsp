@@ -96,13 +96,20 @@ precedes SERVERSSL_CLIENTHELLO_SEND SERVERSSL_SERVERHELLO -evidence {bigip-name-
   `CLIENTSSL_CLIENTHELLO` admits CLIENTSSL or PERSIST). `{all …}` is a
   conjunction.
 - **Order.** A `flow` is a measured or documented linear trace for one
-  profile set. `precedes` records a measured pair. The master order is
-  **derived**: a topological sort of all flows and `precedes` rows, ties
-  broken by flow position. A cycle is a pack error. Q5 said one trace gives
-  a partial order, so the 74-row hand order goes.
+  profile set. `precedes` records a measured pair. The order is the
+  **measured partial order**: the transitive closure of all flows and
+  `precedes` rows. A cycle is a pack error. Two events with no path between
+  them are unordered, and so is an event in no flow and no `precedes` row; a
+  consumer that needs a sequence reports it as unordered instead of placing
+  it. Q5 said one trace gives a partial order, so the 74-row hand order
+  goes: today's flows name 27 events and two pairs are measured, against 74
+  hand rows and 176 events, so no sort of the measured facts can reproduce
+  it. A one-off test lists every pair where the hand rows and the derived
+  order disagree or the derived order has no answer, for Q13 and Q14.
 - **Availability per release.** `available iRules 9.0-`, `deprecated -from
   9.4.0` (today's `Lifecycle`), on the BIG-IP axis. An event with no row
-  inherits the axis baseline, 15.0, as today (`EventProps::lifecycle`).
+  inherits the ladder's oldest line, the oldest BIG-IP release in public
+  support per K5902 (today `EventProps::lifecycle` uses 15.0).
 - **Valid commands.** Stay on the command, where Q5 put them:
   `event_requires {…}` and `excluded_events {…}` (2.x rows, unchanged), plus
   `rule_init warn` for the four `HTTP::` commands the compiler loads in
@@ -121,13 +128,18 @@ precedes SERVERSSL_CLIENTHELLO_SEND SERVERSSL_SERVERHELLO -evidence {bigip-name-
   command drop    { ends connection -silent ; decision connection drop }
   command discard { ends message -silent ; decision connection discard }
   command event {
-      form {event disable all} { disables events -all -this-connection }
-      form {event EVENT disable} { disables events -arg 0 }
+      form {event disable all} { disables events -all -scope unmeasured }
+      form {event EVENT disable} { disables events -arg 0 -scope unmeasured }
+      form {event EVENT enable} { enables events -arg 0 -scope unmeasured }
   }
   ```
 
   `ends message` versus `ends connection` is the simulator's split today. The
   registry says the opposite for `discard`; Q16 settles it on the lab.
+  `-scope` is `rule` (this rule's handlers only) or `connection` (every
+  rule's); F5 documents `event disable` as rule-scoped, but nothing here
+  measures it, so the rows say `unmeasured` until Q16, and a consumer that
+  needs the scope abstains.
 
 **Generation.** `event_facts/generated.rs` is deleted: `category` is a row,
 so the 18 missing events get one. `event_props_table.rs`, `event_order.rs`,
@@ -189,8 +201,10 @@ flowchart TB
 pub struct HostBinding {
     pub virtual_server: BigIpName,          // tcl-bigip::object_names
     pub profiles: ProfileSet,               // closed: a VS names every profile
+    pub rules: SmallVec<[(RuleId, Priority); 4]>, // every rule on the VS, in its list order
     pub release: VersionSet,                // BIG-IP axis, from config or tclLsp.targets
 }
+pub struct Priority(u16);                   // 0-1000 from the rule's `when`, default 500
 pub struct PositionedContext { /* 308's fields */ pub hosts: HostChoice }
 pub enum HostChoice { Unbound, Bound(SmallVec<[HostBinding; 2]>), Unknown }
 ```
@@ -200,6 +214,14 @@ The bindings come from a salsa input, `rule_attachments(file)`, built by
 virtual servers is checked against each and reports per server, as
 BIGIP6038 does today. `Unbound` keeps today's file-level behaviour
 (`# tcl-lsp: profiles` directives, `compute_file_profiles`).
+
+`rules` answers Q16's "which later events and other rules run". Per event,
+the binding derives the handler order across the virtual server's rules as
+F5 documents it: ascending `priority` (the `when` grammar's 0–1000, default
+500), then the rules list order. Connection variables shared across those
+rules, the handler order and the scope of `event disable` are F5-documented
+and unmeasured (Q16); the simulator runs them as documented and labels the
+run.
 
 ### 3. The connection graph
 
@@ -364,7 +386,10 @@ source, as Q1 requires, and stays unmeasured until a lab probe.
   for all 176 names;
 - **Q15** the command × event compile matrix per release, generated from the
   facts (extends §8's 120 pairs);
-- **Q16** what `drop`, `discard`, `reject` and `event disable all` end;
+- **Q16** what `drop`, `discard`, `reject` and `event disable all` end,
+  whether `event disable` and `event enable` act on one rule or the
+  connection, and the handler order and shared variables across two rules
+  of different priority on one virtual server;
 - **Q17** field lifetimes across keep-alive requests, with and without
   OneConnect;
 - **Q18** which profile kinds admit `HTTP_REQUEST` (`http2`,
@@ -459,8 +484,10 @@ simulator itself cannot run on the 8.4 line f5-tcl forks. Event order and
 
 ## Risks
 
-- **A derived order that differs from today's 74 rows.** Mitigation: the
-  first image must reproduce today's order exactly; changes come with probes.
+- **A derived order that differs from today's 74 rows.** It will: the
+  measured partial order leaves most events unordered. Mitigation: the
+  one-off disagreement test lists each pair, and Q13 and Q14 probes add
+  `flow` and `precedes` rows; nothing unmeasured is reinstated as a fact.
 - **Fields too coarse for real TMM.** `HTTP::header value Host Extra` writes
   (evidence). Mitigation: effects sit on resolved forms (Q9), so a measured
   write is a form row, not a field change.
@@ -487,3 +514,9 @@ simulator itself cannot run on the 8.4 line f5-tcl forks. Event order and
 - **Load-time failures match the appliance.** An unknown, absent or refused head under `tmm`, and `proc` inside `when`, are errors, as the rule loader reports them.
 - **Supported releases only.** Release facets (360f) start at the oldest BIG-IP release still in public support per F5's K5902 article, so rows older than that are not dated.
 - **Question numbers.** F5 question Q12 is the iApp-bundled package versions; this doc's probes are Q13–Q19, and 361's are Q20–Q25.
+
+## Review fixes (26 November 2026)
+
+- **D9:** the order is the measured partial order; events in no flow are unordered; the 74-row reproduction mitigation is gone.
+- **D10:** `HostBinding.rules` with priorities; `event enable`; `-scope rule|connection` on `disables events`, unmeasured until Q16.
+- **D12:** an event with no row inherits the oldest K5902 line, not 15.0.
