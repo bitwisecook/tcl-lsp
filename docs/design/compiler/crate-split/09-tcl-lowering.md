@@ -25,7 +25,22 @@ Lowering, CFG building and the SSA family are about 45k production lines
 Lowering runs binding. `lowering/body_cache.rs:55` and
 `lowering/script_bodies.rs:189` call `SourceCommandBindings::analyse_*`. The
 group names the binding modules 665 times and binding names it 51 times. Step
-7 clears those 51. The group's other references, outside `tcl-ir`,
+7 clears those 51.
+
+The data flow for one body, from source text to the SSA that `tcl-analysis`
+reads. Lowering calls binding, which sits below it:
+
+```mermaid
+flowchart LR
+  source["source text"] --> lowerer["Lowerer: lower_to_ir"]
+  lowerer -- "SourceCommandBindings::analyse_*" --> binding["tcl-binding"]
+  lowerer --> ir["tcl-ir Module"]
+  ir --> cfgBuilder["cfg_builder"] --> cfg["cfg::Function"]
+  cfg --> ssa["ssa: SsaFunction"]
+  ssa --> stateSsa["memory_ssa, state_ssa, cell_state_ssa, effect_ssa"]
+  ssa --> analysis["tcl-analysis: SCCP and the rest"]
+```
+ The group's other references, outside `tcl-ir`,
 `tcl-source`, `tcl-names`, `tcl-model` and `tcl-binding`:
 
 | From → to | Refs (files) | What crosses | Fix |
@@ -108,6 +123,20 @@ Each is rewritten in the same change. `bpf-tcl-ir` calls `lower_to_ir` and
 `build_cfg_function_in_bpf_selected_scope`, so it depends on `tcl-lowering`
 as well as `tcl-ir`.
 
+For example, `bpf-tcl-ir/src/semantic_bridge.rs`:
+
+**Before:**
+
+```rust
+use tcl_compiler::lowering::lower_to_ir;
+```
+
+**After:**
+
+```rust
+use tcl_lowering::api::lower_to_ir;
+```
+
 ### Decisions
 
 - **`world_state_ssa` goes with executable IR, not here.** It names
@@ -120,6 +149,19 @@ as well as `tcl-ir`.
   times, and lowering, `executable_ir` and `irules_checks` use it.
   `ir` → `execution_region` (3) is a back-edge that
   [step 6](06-tcl-ir.md) must clear.
+
+The modules that leave the group, and where they go:
+
+```mermaid
+flowchart LR
+  sourceView["ssa::source_view"] --> unit["tcl-unit"]
+  uses["ssa::uses"] --> binding["tcl-binding"]
+  execRegion["execution_region"] --> binding
+  worldState["world_state_ssa"] --> analysis["tcl-analysis"]
+  instanceClass["InstanceClassState"] --> model["tcl-model"]
+  latticeRebase["lattice_rebase"] --> ir["tcl-ir: the IR half"]
+  latticeRebase --> unit
+```
 
 ### Open questions
 

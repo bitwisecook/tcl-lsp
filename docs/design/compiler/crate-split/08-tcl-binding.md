@@ -87,6 +87,21 @@ Outside the group, binding names `ir` 929 times, `segmenter` 216, `place`
   Its only users are `compilation_unit` (20) and `analyser` (2), so it goes to
   `tcl-unit` ([step 13](13-unit-and-db.md)).
 
+Where the modules around binding land:
+
+```mermaid
+flowchart LR
+  core["command_binding, registry_invocation, realm, raw_binding, variable_bindings, var_resolve, signature_scan, dynamic_names"] --> binding["tcl-binding"]
+  helpers["ir_helpers, ssa::uses"] --> binding
+  small["twelve small modules: native_numeric, place_bridge, ..."] --> binding
+  oneWay["environment_ingress, analysis_control, alias, declared_frame_effects, contents_source"] --> model["tcl-model"]
+  depth["depth_guard"] --> source["tcl-source"]
+  unitScope["unit_scope"] --> unit["tcl-unit"]
+  objectTypes["object_types"] --> above["above binding"]
+  classDef new stroke-width:3px;
+  class binding new;
+```
+
 ### Item 253: a pure move
 
 The modules move unchanged into `rust/tcl-binding/src/`, with the same module
@@ -134,6 +149,22 @@ wholesale.
 Inside `tcl-compiler`, every `crate::command_binding::` path becomes
 `tcl_binding::`. `retired_api_gate` then forbids the old paths.
 
+For example, in `tcl-lsp-core`:
+
+**Before:**
+
+```rust
+use tcl_compiler::command_binding::SourceCommandBindings;
+use tcl_compiler::registry_invocation::source_structure;
+```
+
+**After:**
+
+```rust
+use tcl_binding::api::SourceCommandBindings;
+use tcl_binding::query; // today's registry_invocation::source_structure
+```
+
 ### Item 282: where tcl-invocation goes
 
 The question was whether `registry_invocation`, the registry adapter, can
@@ -156,6 +187,17 @@ become a crate below `tcl-binding`. The ledger says no:
 Splitting it below binding would mean moving about 100 binding types down
 with it, which is most of binding's vocabulary. The decision is to keep it
 inside `tcl-binding`.
+
+The two modules name each other heavily (production references, from the
+tables above), so there is no line to cut between them:
+
+```mermaid
+flowchart LR
+  cb["command_binding"] -- "781" --> ri["registry_invocation"]
+  ri -- "268" --> cb
+  cb -- "317" --> ss["signature_scan"]
+  ri -- "114" --> ss
+```
 
 - **`source_structure`** is already its own module tree. After item 250 it
   reads reports only through `BodyReport`. It is the first candidate for item
@@ -201,7 +243,7 @@ The overview's crate table records `tcl-invocation` as "not split; see step
   doc gives the reason.
 - **Measured** (item 90's record):
   - `cargo tree -p tcl-binding -e normal` crate count. Expected: about
-    the registry's 54 plus the five vocabulary crates.
+    the registry's 42 plus the five vocabulary crates.
   - Crates rebuilt after an edit to `command_binding/` with `cargo test -p
     tcl-binding --lib --no-run`. Expected: 1.
   - Crates rebuilt after an edit to `analyser/` or `sccp/`. Expected: no

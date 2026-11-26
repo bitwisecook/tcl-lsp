@@ -31,6 +31,27 @@ and two of `tcl-compiler`'s dev-dependencies depend on `tcl-compiler` itself:
 - `tcl-spectcl` pulls `tcl-lsp-core` and everything `tcl-lsp-core` needs.
 - `tcl-engine-tclvm` pulls `tcl-codegen`.
 
+The two loops, from the `Cargo.toml` files (dotted arrows are
+dev-dependencies; each arrow points at the crate depended on):
+
+```mermaid
+flowchart LR
+  compiler["tcl-compiler"]
+  spectcl["tcl-spectcl"]
+  lspCore["tcl-lsp-core"]
+  specHooks["tcl-spec-hooks"]
+  engine["tcl-engine-tclvm"]
+  codegen["tcl-codegen"]
+  vm["tcl-vm"]
+  compiler -.-> spectcl
+  compiler -.-> engine
+  compiler -.-> vm
+  spectcl --> lspCore --> compiler
+  spectcl --> specHooks --> engine
+  engine --> codegen --> compiler
+  engine --> vm
+```
+
 The third upper-stack dev-dependency, `tcl-vm`, does not depend on
 `tcl-compiler`, so a `tcl-compiler` edit does not rebuild it, and it stays. It
 is not built once for good: `tcl-vm` depends on `tcl-registry`, so a registry
@@ -80,6 +101,63 @@ Items 266–268 are steps 1–3, then 4–5, then 6–7 below.
 5. Drop `tcl-spectcl` and `tcl-engine-tclvm` from `tcl-compiler`'s
    `[dev-dependencies]`. This also removes the `tcl-spectcl` ↔ `tcl-compiler`
    dev cycle the Cargo.toml comment describes.
+
+The change to the manifests:
+
+**Before:**
+
+```toml
+# rust/tcl-compiler/Cargo.toml (comments trimmed)
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+tcl-vm = { path = "../tcl-vm" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+serde_json = { workspace = true }
+temp-env = "0.3"
+rayon = "1"
+tcl-spectcl = { path = "../tcl-spectcl" }
+```
+
+**After:**
+
+```toml
+# rust/tcl-compiler/Cargo.toml
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+tcl-vm = { path = "../tcl-vm" }
+serde_json = { workspace = true }
+temp-env = "0.3"
+rayon = "1"
+
+# rust/tcl-compiler-it/Cargo.toml (tests only)
+[dev-dependencies]
+tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
+tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+tcl-vm = { path = "../tcl-vm" }
+tcl-test-support = { path = "../tcl-test-support" }
+```
+
+No crate that depends on `tcl-compiler` is built for its lib tests any more.
+The loops close in the new crate instead, which nothing depends on:
+
+```mermaid
+flowchart LR
+  it["tcl-compiler-it"]
+  compiler["tcl-compiler"]
+  spectcl["tcl-spectcl"]
+  engine["tcl-engine-tclvm"]
+  vm["tcl-vm"]
+  it -.-> compiler
+  it -.-> spectcl
+  it -.-> engine
+  it -.-> vm
+  compiler -.-> vm
+  spectcl --> compiler
+  engine --> compiler
+  classDef new stroke-width:3px;
+  class it new;
+```
 6. Re-key CI:
    - the nextest shard map (`scripts/dev/rust-test-binary-shards.tsv`) gets the
      new crate's binaries;

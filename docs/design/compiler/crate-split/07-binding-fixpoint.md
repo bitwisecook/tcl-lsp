@@ -140,6 +140,51 @@ below the analyser ([step 13](13-unit-and-db.md)). It runs binding, lowering,
 CFG, SSA and SCCP, collects proved operands, and re-runs binding, up to the
 fixed limit.
 
+The edges between the two groups, in production references, before and after
+item 279 (each arrow points at the module group named):
+
+```mermaid
+flowchart LR
+  subgraph grpBefore["Before: a cycle"]
+    bindA["binding"] -- "105" --> passA["lowering, SSA, analysis"]
+    passA -- "1,232" --> bindA
+  end
+  subgraph grpAfter["After: inversion"]
+    unitB["tcl-unit: fixpoint driver"] --> passB["tcl-lowering, tcl-analysis"]
+    passB --> bindB["tcl-binding"]
+    unitB --> bindB
+  end
+```
+
+One body's build, as the unit drives it:
+
+```mermaid
+sequenceDiagram
+  participant Unit as tcl-unit per-body build
+  participant Binding as tcl-binding
+  participant Lowering as tcl-lowering
+  participant Analysis as tcl-analysis
+  Unit->>Binding: analyse_with_proved(image, proved = none)
+  Binding-->>Unit: SourceCommandBindings
+  loop until nothing new is proved, up to the fixed limit
+    Unit->>Lowering: lower, build CFG and SSA
+    Unit->>Analysis: SCCP
+    Analysis-->>Unit: proved values
+    Unit->>Binding: analyse_with_proved(image, proved)
+    Binding-->>Unit: re-bound sites
+  end
+```
+
+Spike 94's probe case `e01-computed-head` shows what the loop is for. The
+command word is a variable read that binding alone leaves open; SCCP can fold
+`lreverse {set}` to `set`, and the next round binds the command:
+
+```tcl
+set head [lreverse {set}]
+$head value 1
+puts $value      ;# 1, in tclsh 8.5 and later
+```
+
 ### Binding's interface for the loop
 
 Binding defines the input. It never calls up:

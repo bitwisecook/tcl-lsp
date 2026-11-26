@@ -122,7 +122,7 @@ Each crate gets one module per consumer role, and no hidden items:
 
 | Crate | Module | Takes |
 |---|---|---|
-| `tcl-binding` | `native` | the compiler-facing binding facts: admission (`admitted_native_compiler_invocation`, `NativeCompilationDependency`), the compiled preflight (`OrderedLocals`, `FormalTopology`, `SourceCompilerFormalOwner`), mutation scans (`ModuleCommandMutations`, `scan_module_command_mutations_with_bindings`), metadata (`InvocationMetadataContext`, `compiled_namespace_context`), source words (`original_native_compiler_words`, `BodySourceProofs`) |
+| `tcl-binding` | `native` | the compiler-facing binding facts: admission (`admitted_native_compiler_invocation`, `NativeCompilationDependency`), the compiled preflight (`SourceCompilerLocalInventory`, `OriginalFormalTopology`, `SourceCompilerFormalOwner`), mutation scans (`ModuleCommandMutations`, `scan_module_command_mutations_with_bindings`), metadata (`InvocationMetadataContext`, `compiled_namespace_context`), source words (`original_native_compiler_words`, `BodySourceProofs`) |
 | `tcl-lowering` | `native` | `build_cfg_codegen_with_registry_and_context`, `prepare_cfg_context_bundle`, the `cfg_lower` and `summary_candidates` modules, `native_byte_compilation`'s plan (`NativeByteCommandPlan`, `native_byte_command_plan`), `ResolvedLowering`, `extract_proved_expr_arg`, `finish_module` |
 | `tcl-ir` | `api` | `original_source_procedure_bodies`, `native_source_procedure_bodies_for_compilation`, `unanimous_statement_source_tokens`, `rebase` (from `lattice_rebase`); `tcl-source`'s `limits` (today `depth_guard`) |
 | `tcl-analysis` | `native` | `eval_native_constant`, `NativeConstantResult`, `original_literal_argument_contents` |
@@ -132,9 +132,9 @@ Each crate gets one module per consumer role, and no hidden items:
 Rules:
 
 - **Fields become getters.** The 19 hidden `pub` fields, such as
-  `OrderedLocals { frame, formals, locals, protocol, compilation }`, become
-  private fields with `pub fn` getters. Codegen reads them and does not build
-  them.
+  `ordered_locals::SourceCompilerLocalInventory { frame, formals, locals,
+  protocol, compilation, .. }`, become private fields with `pub fn` getters.
+  Codegen reads them and does not build them.
 - **Unused items become private.** The 47 items no outside crate names become
   `pub(crate)`, or are deleted if nothing inside uses them either.
 - **Fixtures go behind `test-support`.** The 9 test fixtures become
@@ -148,6 +148,45 @@ Rules:
   must find none outside `test-support` items (item 283's "done when"). A
   gate rule keeps it at zero.
 
+One struct, before and after (two of its seven hidden fields shown):
+
+**Before:**
+
+```rust
+// tcl-compiler: command_binding/compiled_preflight/ordered_locals.rs
+#[doc(hidden)]
+pub struct SourceCompilerLocalInventory {
+    #[doc(hidden)]
+    pub frame: crate::var_resolve::VariableExecutionFrame,
+    #[doc(hidden)]
+    pub locals: Vec<Option<NameBytes>>,
+    // chunk, config, compilation, protocol, formals: also hidden pub fields
+}
+
+// tcl-codegen
+let frame = &locals.frame;
+```
+
+**After:**
+
+```rust
+// tcl-binding, reached through tcl_binding::native
+pub struct SourceCompilerLocalInventory {
+    frame: tcl_names::variable::VariableExecutionFrame,
+    locals: Vec<Option<NameBytes>>,
+    // ...
+}
+impl SourceCompilerLocalInventory {
+    #[inline]
+    pub fn frame(&self) -> &VariableExecutionFrame { &self.frame }
+    #[inline]
+    pub fn locals(&self) -> &[Option<NameBytes>] { &self.locals }
+}
+
+// tcl-codegen
+let frame = locals.frame();
+```
+
 ### Consumers
 
 - **`tcl-codegen`** depends on `tcl-native-plan`, `tcl-unit`, `tcl-analysis`,
@@ -157,6 +196,33 @@ Rules:
 - **`tcl-explorer`** reads plans through `tcl-native-plan` (item 294).
 - **`bpf-tcl-ir`** needs `tcl-ir`, `tcl-lowering` and `tcl-analysis` (for
   `executable_ir`), plus `target_contract`.
+
+The two native consumers' crates after the split (each arrow points at the
+crate depended on). `tcl-codegen` is drawn as one crate; under the owner
+decision below, its drivers move to `tcl-compile`:
+
+```mermaid
+flowchart TB
+  codegen["tcl-codegen"]
+  bpf["bpf-tcl-ir"]
+  nativePlan["tcl-native-plan"]
+  unit["tcl-unit"]
+  analysis["tcl-analysis"]
+  lowering["tcl-lowering"]
+  binding["tcl-binding"]
+  ir["tcl-ir"]
+  codegen --> nativePlan
+  codegen --> unit
+  codegen --> analysis
+  codegen --> lowering
+  codegen --> binding
+  codegen --> ir
+  bpf -- "target_contract" --> nativePlan
+  bpf --> analysis
+  bpf --> lowering
+  bpf --> ir
+  nativePlan --> unit --> analysis --> lowering --> binding --> ir
+```
 
 ## Work list
 
@@ -190,7 +256,7 @@ Rules:
 
 - **Codegen churn.** 131 item paths in `tcl-codegen` change at once. Do it
   per crate, in step 3's order, so each change is reviewable.
-- **Getters on hot structs** (`OrderedLocals`) need `#[inline]`, or the
+- **Getters on hot structs** (`SourceCompilerLocalInventory`) need `#[inline]`, or the
   opt-level-1 test builds slow down.
 
 ## Corrections to the overview

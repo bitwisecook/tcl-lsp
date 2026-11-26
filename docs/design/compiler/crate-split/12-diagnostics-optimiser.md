@@ -89,6 +89,28 @@ It depends on `tcl-unit` and everything below it. Its public surface is
 `Analyser`, `AnalysisResult`, `Diagnostic` and the code types (from
 `tcl-model`), and `compiler_checks::run`.
 
+The crates at rank 10 and the domain crate above them, after this step (each
+arrow points at the crate depended on). The analyser and the optimiser no
+longer name each other:
+
+```mermaid
+flowchart TB
+  entry["tcl-lsp-server, tcl-mcp, CLI: build the RuleSet"]
+  irules["tcl-irules: irules_checks, irules_event_checks"]
+  diagnostics["tcl-diagnostics: analyser, compiler_checks, rules traits"]
+  optimiser["tcl-optimiser"]
+  unit["tcl-unit: elimination scans, method_barrier, capsule data"]
+  model["tcl-model: FixSafety, CodeFix, HostEventContext, LibraryCheckPayload"]
+  entry --> irules
+  entry --> diagnostics
+  entry --> optimiser
+  irules --> diagnostics
+  irules --> unit
+  diagnostics --> unit
+  optimiser --> unit
+  unit --> model
+```
+
 The analyser's 8 references into the optimiser move down. The elimination
 scans and `eq_ne_compares_as_strings` are IR and unit facts, so they go to
 `tcl-unit` (or to `tcl-analysis` where they take no unit); SCCP and shimmer
@@ -168,6 +190,25 @@ impl Analyser { pub fn with_rules(self, rules: Arc<RuleSet>) -> Self; }
   `RuleSet` per resolved environment and pass it to the analyser. This
   matches [item 289](../../../work/name-handling/plan.md): domain crates
   contribute rules through interfaces that the entry points register.
+
+How the rules reach the analyser:
+
+```mermaid
+sequenceDiagram
+  participant Entry as entry point
+  participant Irules as tcl-irules
+  participant Analyser as tcl-diagnostics Analyser
+  Entry->>Irules: rules for this resolved environment
+  Irules-->>Entry: RuleSet: unit and site rules
+  Entry->>Analyser: with_rules(Arc RuleSet)
+  loop each command in the walk
+    Analyser->>Irules: SiteRule::check_site(site)
+    Irules-->>Analyser: Diagnostic list
+  end
+  Analyser->>Irules: UnitRule::check(unit, registry)
+  Irules-->>Analyser: CheckWarning list
+```
+
 - **Gating.** The `is_irules()` checks inside the moved code become `applies`
   (item 304's environment query).
 - **What moves to `tcl-irules`:**
@@ -180,12 +221,40 @@ impl Analyser { pub fn with_rules(self, rules: Arc<RuleSet>) -> Self; }
 `tcl-unit`. `tcl-diagnostics` names no iRules-only module (item 285's "done
 when").
 
+The IRULE4001 pair from `irules_event_checks/tests.rs`, which the risks
+section's per-entry-point test can reuse:
+
+**Before:**
+
+```tcl
+when HTTP_REQUEST {
+    set static::c 1
+}
+# IRULE4001: a write to a static:: variable outside RULE_INIT
+```
+
+**After:**
+
+```tcl
+when RULE_INIT {
+    set static::c 1
+}
+# no IRULE4001
+```
+
 ### Open questions
 
 - **The cost of the `SiteRule` call per command.** It is one virtual call per
   site per registered rule set. Settle it with release analysis latency on an
   iRules-heavy subset of the corpus, before and after. If it costs more than
   1%, pass the rule set as a generic parameter.
+- **`analyser/diagnostics/dataflow/irules_cells.rs` (486 lines).** It emits
+  IRULE4001, IRULE4003, IRULE4005 and IRULE6001 from the analyser's dataflow
+  pass over resolved cells, not from `irules_event_checks.rs`, and the move
+  list above does not name it. 285's done-when ("no iRules-only module")
+  needs it moved too. It reads cells, not a site, so it fits neither rule
+  shape as written. Settle it with the ledger: either `UnitRule` gains the
+  resolved cells, or a third rule shape is added.
 - **Other dialect rule groups.** Check `tk_checks.rs` and the Jim-only rules
   with `rg 'is_jim|tk' analyser`. They follow the same pattern if they read
   only their library's presence. They are not part of this step.

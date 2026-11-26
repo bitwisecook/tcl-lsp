@@ -36,6 +36,16 @@ These come from `tmp/tcl9.0.4/generic/` and `tmp/tcl9.1.0/generic/`. The tables 
 
 **Numbering.** Slots 0–190 keep their numbers. 9.1 appends slots 191–210 (211 in all). So 9.0 code bytes are valid 9.1 code bytes. 8.x numbering is different: 8.6.18 differs from 9.0 at 150 of its 190 slots, because 9.0 dropped `lor`/`land` at slots 40–41.
 
+The code space, as this design numbers it:
+
+```mermaid
+flowchart LR
+  c90["0 to 190: C Tcl 9.0 slots, same numbers in 9.1"] --> c91["191 to 210: added in 9.1"]
+  c91 --> gap["211 up to the private floor: unused, checked by the generator"]
+  gap --> priv["private opcodes, from 255 down"]
+  r86["8.x tables: a different numbering, mapped by name and width"] -.-> c90
+```
+
 **Renamed** (same slot, same width, suffix dropped): `push4`→`push`, `invokeStk4`, `loadScalar4`, `loadArray4`, `storeScalar4`, `storeArray4`, `jump4`, `jumpTrue4`, `jumpFalse4`, `beginCatch4`, `appendScalar4`, `appendArray4`, `lappendScalar4`, `lappendArray4`, `lreplace4`.
 
 **Deprecated** (`DEPRECATED_OPCODE`, `tclCompile.h:639`): every one-byte-operand form, `loadScalarStk`, `storeScalarStk`, `returnCodeBranch` (now `returnCodeBranch1`), and the one-byte `tailcall`, `tclooNext` and `tclooNextClass`.
@@ -68,6 +78,38 @@ These come from `tmp/tcl9.0.4/generic/` and `tmp/tcl9.1.0/generic/`. The tables 
 
 **Newly compiled commands in 9.1:** `dict remove`, `dict replace`, `info object creationid`, `ledit`, `lfilter`, `lpop`, `lseq` and `uplevel`, each with a `TclCompile*Cmd` that 9.0.4 lacks. `switch -integer` ([TIP 730](https://core.tcl-lang.org/tips/doc/trunk/tip/730.md)) compiles through `IssueSwitchNumJumpTable`.
 
+For example, `dict remove` inside a proc, from `tcl::unsupported::disassemble`
+in the pinned `tclsh` builds (header lines dropped). 9.0.4 invokes the
+command with one-byte operands; 9.1.0 emits wide forms and the new opcode:
+
+```tcl
+proc p {d} { dict remove $d a }
+```
+
+**Before:**
+
+```text
+tclsh 9.0.4
+    (0) push1 0 	# "::tcl::dict::remove"
+    (2) loadScalar1 %v0 	# var "d"
+    (4) push1 1 	# "a"
+    (6) invokeStk1 3 
+    (8) done 
+```
+
+**After:**
+
+```text
+tclsh 9.1.0
+    (0) loadScalar %v0 	# var "d"
+    (5) push 0 	# "a"
+    (10) dictRemove 
+    (11) done 
+```
+
+`lseq 5` goes the same way: `push1`, `push1`, `invokeStk1 2` in 9.0.4, and
+four `push` and `arithSeries 13` in 9.1.0.
+
 **Semantics with no new opcode.** `lseq` loses its `expr` behaviour ([TIP 746](https://core.tcl-lang.org/tips/doc/trunk/tip/746.md)), which is visible through `arithSeries`. The full list is in `tmp/tcl9.1.0/changes.md`. `subst` options, `timer`, `unicode`, the C99 math functions and regexp `\z` are command-level, and they stay registry facts.
 
 **`ByteCode` struct.** Its fields are unchanged from 9.0.4. Only `createTime` (under `TCL_COMPILE_STATS`) changes type. The command-location encoding (`EncodeCmdLocMap`) is unchanged apart from a `Tcl_Size` local. The aux types are `ForeachInfo`, `NewForeachInfo`, `DictUpdateInfo` and `JumptableInfo`, plus the new `JumptableNumInfo` (`tclCompCmds.c:92`, `tclCompCmdsSZ.c:109`). `ForeachInfo`'s temp fields become `Tcl_LVTIndex`, an alias of `Tcl_Size`, so their width is unchanged.
@@ -98,6 +140,20 @@ pub fn admitted(release: tcl_dialect::TclVersion, op: Op) -> bool;
   Codegen asserts admission, and item 311's loader rejects a unit that breaks it.
 - **Export lowering** is a column of the same table. It gives, per private opcode, the standard 9.1 sequence that item 311's interop export substitutes (`LNOT`→`not`, `LAND`/`LOR`, `STR_REPEAT`/`STR_REVERSE`), or none (`CALL_FUNC1`, `IRULE_*`).
 
+Where the table comes from and who reads it:
+
+```mermaid
+flowchart LR
+  trees["pinned trees: tclInstructionTable in each tclCompile.c"] --> gen["cargo xtask opcode-table"]
+  gen --> table["opcode_table.rs: code, from_code, operands"]
+  gen --> tsv["opcodes-by-release.tsv: admission, export lowering"]
+  table --> encoder["encode and decode"]
+  tsv --> codegen["codegen: admission asserts"]
+  tsv --> loader["item 311: validate on load, export lowering"]
+  encoder --> loader
+  gen -- "--check" --> gate["xtask-check"]
+```
+
 ### Semantics base: 9.1 for every opcode
 
 Every dispatch arm implements 9.1's `TclExecuteByteCode` behaviour. Where 9.0 and 9.1 differ for one opcode, 9.1 wins, and the older behaviour is a dialect fact the arm reads. No such opcode-level difference was found beyond the operand retyping above, so this is a rule for later releases, not a migration today.
@@ -111,6 +167,16 @@ Three gates, each with one owner:
 
 1. **What compiles.** Whether a command compiles inline, and to what, for a given release is a registry fact on its `CommandSpec`'s lowering descriptor, with a release range. It is never a `match` in codegen (the registry rule in `AGENTS.md`). The eight newly compiled commands get 9.1 ranges. On ≤ 9.0 they stay invocations, so `lfilter` and `lseq` there remain whatever the registry says those releases do.
 2. **Operand width.** Width selection replaces the widening post-pass. Codegen picks the form from `TclVersion` when it emits, so jump layout is computed once in the target's shape. Narrow forms for ≤ 9.0, wide forms for 9.1.
+
+   ```mermaid
+   flowchart LR
+     subgraph grpToday["Today"]
+       emitA["emit in the 9.0 shape"] --> layoutA["jump shortening"] --> widen["widen_operands: every op to its wide form, for 9.1"]
+     end
+     subgraph grpAfter["After"]
+       emitB["emit the target's form, chosen from TclVersion"] --> layoutB["jump layout, once"]
+     end
+   ```
 3. **Command semantics.** The `lseq` `expr` removal, `subst` options and the new math functions are gated in the builtins by the same dialect point as today.
 
 ### Codegen

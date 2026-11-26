@@ -105,6 +105,22 @@ pub mod limits   { /* depth_guard's source and expression nesting limits */ }
   `descend_token`, or moved to the analyser if they test the registry's
   `Body` roles.
 
+Where each candidate goes:
+
+```mermaid
+flowchart LR
+  parsing["parsing: syntax, spectcl_source"] --> source["tcl-source"]
+  segmenter["segmenter.rs"] --> source
+  text["text.rs"] --> source
+  words["word_expr.rs, ir/word_expr.rs, ir/provenance.rs"] --> source
+  limits["depth_guard limits"] --> source
+  recovery["segment_with_recovery"] --> analyser["analyser: syntax_recovery.rs"]
+  wordSubst["word_subst"] --> binding["tcl-binding, step 8"]
+  descend["descend_command"] --> deleted["deleted"]
+  classDef new stroke-width:3px;
+  class source new;
+```
+
 ### Decisions
 
 1. **Structured words and source sites move with the CST.** Item 82 puts
@@ -114,10 +130,52 @@ pub mod limits   { /* depth_guard's source and expression nesting limits */ }
    (`tcl_expr_eval.rs:212`). Leaving these types in `tcl-ir` (rank 5) would
    recreate the back-edges that steps 3 and 4 have to clear.
 2. **`flatten_case_list_clauses` takes the shape, not the spec.** Its 6
-   production callers (5 in `analyser/handlers`, 2 in
-   `tcl-lsp-core/src/executable_regions.rs`) build the `CaseListShape` from
-   the registry spec they already hold. The registry stays the owner of which
-   commands take a case list.
+   production callers (5 in `analyser/handlers`, 1 in
+   `tcl-lsp-core/src/executable_regions.rs`, which also names it in a doc
+   comment) build the `CaseListShape` from the registry spec they already
+   hold. The registry stays the owner of which commands take a case list.
+   Today the function builds the shape itself:
+
+**Before:**
+
+```rust
+// tcl-compiler/src/segmenter.rs
+pub fn flatten_case_list_clauses(
+    source: &str,
+    text: &str,
+    tok: Token,
+    case: &tcl_registry::CaseListSpec,
+    config: LexerConfig,
+) -> Vec<((String, Token), (String, Token))> {
+    let elements = flatten_clause_list_elements_with_config(source, text, tok, config);
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: case.clause_flags,
+        clause_value_flags: case.clause_value_flags,
+    };
+    // ...
+}
+```
+
+**After:**
+
+```rust
+// tcl-source/src/segment.rs: no tcl-registry in scope
+pub fn flatten_case_list_clauses(
+    source: &str,
+    text: &str,
+    tok: Token,
+    shape: &tcl_syntax::case_list::CaseListShape,
+    config: LexerConfig,
+) -> Vec<((String, Token), (String, Token))>;
+
+// each caller, which already holds the spec
+let shape = CaseListShape {
+    clause_flags: case.clause_flags,
+    clause_value_flags: case.clause_value_flags,
+};
+let clauses = tcl_source::segment::flatten_case_list_clauses(source, text, tok, &shape, config);
+```
+
 3. **The F5 `else` merge moves unchanged.** It is a fact of the F5 trunk
    parser, applied before any command lookup, and its `registry-axes`
    allowance moves with it (`rust/tcl-source/src/segment.rs`, 2). A later
@@ -162,6 +220,38 @@ lists it as a `tcl-source` user.
   and `pack.rs`'s parsing calls) moves onto `tcl_source::spectcl` and
   `tcl_source::cst`.
 
+`tcl-sslictcl`'s workspace dependencies, before and after (each arrow points
+at the crate depended on):
+
+```mermaid
+flowchart LR
+  subgraph grpBefore["Before: 126 packages"]
+    sslA["tcl-sslictcl"] --> compA["tcl-compiler"] --> regA["tcl-registry"]
+    compA --> restA["tcl-cmd-core, tcl-regex, tcl-bytecode, tcl-runtime-api"]
+  end
+  subgraph grpAfter["After: about 79 packages"]
+    sslB["tcl-sslictcl"] --> srcB["tcl-source"] --> lowB["tcl-lexer, tcl-syntax, tcl-dialect, tcl-core-types"]
+  end
+```
+
+The change in `rust/tcl-sslictcl/src/dsl.rs`:
+
+**Before:**
+
+```rust
+use tcl_compiler::parsing::syntax::build::build_document;
+use tcl_compiler::parsing::syntax::segment::segments_from_document;
+use tcl_compiler::segmenter::SegmentedCommand;
+```
+
+**After:**
+
+```rust
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::segment::segments_from_document;
+use tcl_source::segment::SegmentedCommand;
+```
+
 `tcl-spectcl` still needs the compiler for three things after this step:
 
 | Use | Site | Follows |
@@ -197,7 +287,7 @@ share one crate. See open question 1.
 
 1. Delete `descend_command` and rewrite its tests on `descend_token`.
 2. Change `flatten_case_list_clauses` to take `&CaseListShape`, and update the
-   6 callers.
+   6 call sites.
 3. Move `segment_with_recovery` and its two tests into
    `analyser/state/syntax_recovery.rs`.
 4. Replace the test-only registry lookups in `red.rs` and `descend.rs` with

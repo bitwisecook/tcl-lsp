@@ -101,6 +101,21 @@ no `pub use` of another workspace crate and no module that only forwards
 one. The `tcl_expr` and `tcl_syntax` re-exports above are deleted, and their
 users name `tcl-expr` and `tcl-syntax` directly.
 
+For example, `tests/it_5/pipeline_coverage.rs` (in `tcl-compiler-it` after
+step 0):
+
+**Before:**
+
+```rust
+use tcl_compiler::expr_parser::parse_expr;
+```
+
+**After:**
+
+```rust
+use tcl_expr::expr::parser::parse_expr;
+```
+
 **The name: `tcl-unit`, not `tcl-compiler`.** Reasons:
 
 1. **What it holds.** After the split the crate holds the compilation unit,
@@ -156,6 +171,30 @@ removed as follows:
   concrete database, which implements both crates' traits.
 - **The test-only uses** (`diagnostic_policy::Finding`, `diagnostic_subject`)
   move with their tests into `tcl-lsp-core`'s, or into item 271's test crate.
+
+The top of the stack, before and after item 286 (each arrow points at the
+crate depended on). The upward edge from the database to `tcl-lsp-core`
+turns round:
+
+```mermaid
+flowchart TB
+  subgraph grpBefore["Before"]
+    serverA["tcl-lsp-server"] --> lspDbA["tcl-lsp-db"]
+    serverA --> lspCoreA["tcl-lsp-core"]
+    lspDbA --> lspCoreA
+    lspDbA --> compilerA["tcl-compiler"]
+    lspCoreA --> compilerA
+  end
+  subgraph grpAfter["After"]
+    serverB["tcl-lsp-server: the concrete database"] --> lspCoreB["tcl-lsp-core: tokens, folding, symbols over tcl_db::Db"]
+    serverB --> dbB["tcl-db"]
+    mcpB["tcl-mcp"] --> dbB
+    cliB["tcl-cli"] --> dbB
+    lspCoreB --> dbB
+    dbB --> diagB["tcl-diagnostics, tcl-optimiser"]
+    diagB --> unitB["tcl-unit"]
+  end
+```
 
 `tcl-db` depends on `tcl-diagnostics`, `tcl-optimiser`, `tcl-unit` and
 below. It names no native-plan module today (`analyser` 136 references,

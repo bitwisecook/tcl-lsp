@@ -51,6 +51,65 @@ The gate also reports the total, the number of pairs still at a nonzero count,
 and, per target crate, whether it has no back-edges left. A crate with no
 back-edges can be extracted.
 
+What the gate reads and writes:
+
+```mermaid
+flowchart LR
+  tree["tcl-compiler production code"] --> scanner["token scanner: crate:: paths outside cfg(test)"]
+  layers["module-layers.tsv: module, crate, rank"] --> gate["module-layers gate"]
+  scanner --> gate
+  manifests["Cargo.toml dev-dependencies"] --> gate
+  gate --> backEdges["module-back-edges.tsv: the work list"]
+  gate --> perCrate["per-crate report: back-edges left"]
+  perCrate --> extract["a crate at 0 can be extracted"]
+```
+
+Its mode changes once, at step 13:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Reporting: item 247 lands
+  Reporting --> Reporting: steps 2 to 12 move modules
+  Reporting --> Enforcing: step 13 turns it on
+  Enforcing --> [*]
+  note right of Reporting
+    prints the diff against the tree
+    and never fails, except on a
+    new upward dev-dependency
+  end note
+  note right of Enforcing
+    a new pair or a higher count fails
+  end note
+```
+
+A worked example. In the seeded ledger, `command_binding` is rank 6 and
+`analyser` is rank 10, so this line in `command_binding` counts as one
+production reference on a back-edge:
+
+```rust
+use crate::analyser::ResolvedAnalysisInput;
+```
+
+The same line inside a `#[cfg(test)] mod tests` block, or in a `tests.rs`
+file, counts nothing. The ledgers then hold rows like these (the counts are
+today's, from the table below; `analyser::types` shows a split module):
+
+```text
+# module-layers.tsv
+module	crate	rank
+segmenter	tcl-source	1
+analyser::types	tcl-model	4
+ir	tcl-ir	5
+command_binding	tcl-binding	6
+signature_scan	tcl-binding	6
+analyser	tcl-diagnostics	10
+
+# module-back-edges.tsv
+from	to	count
+command_binding	analyser	316
+ir	command_binding	54
+```
+
 ## Seeding
 
 The first ledger is generated from the tree as it stands (`cargo xtask

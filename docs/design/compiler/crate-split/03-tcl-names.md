@@ -42,6 +42,20 @@ These types form a closure, and the move has to take all of it:
 So `tcl-names` depends on the registry core. That is allowed, since the
 registry sits below the stack.
 
+The closure as field references (an arrow points at the type a field holds):
+
+```mermaid
+flowchart LR
+  place["Place, CellOwner"] --> nsKey["SourceNamespaceKey"]
+  place --> slot["RawBindingSlotId"]
+  place --> objAlloc["SourceObjectAllocation"]
+  objAlloc --> frame["VariableExecutionFrame"]
+  frame --> frameLevel["tcl_registry::FrameLevel"]
+  executed["ExecutedScriptSource"] --> words["tcl-source: Provenance, WordExpr"]
+  classDef lower stroke-dasharray:5 3;
+  class frameLevel,words lower;
+```
+
 `CommandRef`, the other `*Ref` types, `IdentityInterner`, `Answer` and
 `Knowledge` are already in `tcl-core-types` (`semantic_identity.rs:76`,
 `answer.rs:64,101`). `tcl-runtime-api` names them, so they stay there and are
@@ -148,6 +162,43 @@ verified:
   `source_binding_at_slot`, with the ensemble's rule of no global fallback kept
   in that function. The function lives in binding. The key constructor lives
   here.
+
+  The Tcl rule the slot lookup keeps, checked in `tclsh` 8.6 and 9.0: a
+  relative `-map` target resolves in the ensemble's namespace, and does not
+  fall back to the global command of the same name.
+
+  ```tcl
+  proc helper {} { return global }
+  namespace eval ns {
+      proc helper {} { return ns }
+      namespace ensemble create -command ::tool -map {run helper}
+  }
+  namespace eval ns2 {
+      namespace ensemble create -command ::tool2 -map {run helper}
+  }
+  tool run     ;# ns
+  tool2 run    ;# error: invalid command name "::ns2::helper"
+  ```
+
+**Before:**
+
+```rust
+// command_binding/ensemble_dispatch.rs (simplified): an identity rebuilt from display text
+let head = tcl_syntax::naming::rooted_member_key(&frozen.namespace.display()?, head);
+let binding = source_binding(state, &head, &frozen.namespace);
+```
+
+**After:**
+
+```rust
+// the key is built from the namespace key, never from its display text
+let key = SourceCommandKey::Slot {
+    namespace: frozen.namespace.clone(),
+    simple: NameBytes::from(head),
+};
+let binding = source_binding_at_slot(state, &key); // no global fallback
+```
+
 - **Two more candidates the note does not list.** `signature_scan/ctx.rs:512`
   and `:548` build `qualify(&namespace.display()?, written)` and derive a
   `SignatureNamespaceScope::Symbolic` from the result. This happens on the
