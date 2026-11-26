@@ -21,10 +21,10 @@
 //! These receipts describe source declarations only. They supply no fetched
 //! variable value, successful iteration, current command target or Native entry.
 
-#[cfg(test)]
-use super::SegmentedCommand;
 use super::{Analyser, Span, Token, TokenType};
 use crate::command_binding::OriginalSourceAnalysisOwner;
+#[cfg(feature = "test-support")]
+use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::scope::{
     SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceNameValue,
 };
@@ -518,12 +518,12 @@ impl Analyser {
     }
 }
 
-#[cfg(test)]
-mod controls {
-    use super::*;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod controls {
+    use super::{Analyser, Arc, FiniteForeachProcedures, FiniteNameLookup, SegmentedCommand};
 
     fn input() -> crate::analyser::ResolvedAnalysisInput {
-        tcl_spectcl::core_surfaces::ensure();
         let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
         let profile = environment.analyser_profile();
         let context = Arc::new(
@@ -564,8 +564,7 @@ mod controls {
         )
     }
 
-    #[test]
-    fn literal_jim_iterations_keep_readonly_list_lineage_and_source_names() {
+    pub fn literal_jim_iterations_keep_readonly_list_lineage_and_source_names() {
         let source = "foreach name {a b} {proc $name {} {{n 0}} {return $n}}";
         let (analyser, command) = fixture(source, &input());
         assert!(!analyser.result.allows_lexical_declaration_advice());
@@ -615,8 +614,7 @@ mod controls {
         );
     }
 
-    #[test]
-    fn iteration_names_refuse_equal_foreign_owner_changed_source_and_namespace() {
+    pub fn iteration_names_refuse_equal_foreign_owner_changed_source_and_namespace() {
         let source = "foreach name {a b} {proc $name {} {return VALUE}}";
         let input = input();
         let (mut analyser, command) = fixture(source, &input);
@@ -686,8 +684,7 @@ mod controls {
         );
     }
 
-    #[test]
-    fn iteration_plan_refuses_mutation_multiple_bindings_expansion_and_name_prefixes() {
+    pub fn iteration_plan_refuses_mutation_multiple_bindings_expansion_and_name_prefixes() {
         let input = input();
         for source in [
             "foreach name {a b} {set name changed; proc $name {} {return VALUE}}",
@@ -705,8 +702,7 @@ mod controls {
         }
     }
 
-    #[test]
-    fn reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal() {
+    pub fn reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal() {
         let source = "foreach name {a b} {proc $name {} {return VALUE}}";
         let (mut analyser, command) = fixture(source, &input());
         let plan = capture(&analyser, &command).unwrap();

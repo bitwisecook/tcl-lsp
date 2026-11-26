@@ -26,7 +26,6 @@ mod body_identity;
 #[path = "../support/function_identity.rs"]
 mod function_identity;
 
-mod cfg;
 mod checks;
 mod irules_spec_examples_self_consistent;
 mod lsp_external_taint_validation;

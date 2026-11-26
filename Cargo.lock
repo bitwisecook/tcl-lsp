@@ -4600,19 +4600,32 @@ dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
- "tcl-engine-tclvm",
  "tcl-expr",
  "tcl-lexer",
  "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
- "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
  "temp-env",
  "thiserror 2.0.21",
  "unicode-general-category",
+]
+
+[[package]]
+name = "tcl-compiler-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-engine-tclvm",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-spectcl",
+ "tcl-test-support",
 ]
 
 [[package]]

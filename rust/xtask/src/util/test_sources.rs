@@ -105,7 +105,8 @@ fn collect(root: &Path, relative: &str, found: &mut Vec<String>) {
     }
 }
 
-/// Names of `mod name;` declarations: those under `#[cfg(test)]`, or every
+/// Names of `mod name;` declarations: those under a test gate
+/// (`#[cfg(test)]` or `#[cfg(feature = "test-support")]`), or every
 /// one when the declaring file is itself test-only.
 fn module_declarations(text: &str, every: bool) -> Vec<String> {
     let lines: Vec<&str> = text.lines().collect();
@@ -118,7 +119,7 @@ fn module_declarations(text: &str, every: bool) -> Vec<String> {
             .iter()
             .rev()
             .take_while(|above| above.starts_with("#[") || above.starts_with("///"))
-            .any(|above| *above == "#[cfg(test)]" || above.starts_with("#[cfg(all(test,"));
+            .any(|above| super::is_test_gate(above) || above.starts_with("#[cfg(all(test,"));
         if every || guarded {
             names.push(name.to_owned());
         }

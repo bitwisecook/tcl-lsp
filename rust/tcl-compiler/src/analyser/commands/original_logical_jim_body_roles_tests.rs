@@ -23,7 +23,6 @@ fn analyse(source: &str) -> crate::analyser::AnalysisResult {
         DialectProfile,
         model::{DialectPoint, Release},
     };
-    tcl_spectcl::core_surfaces::ensure();
     let profile = DialectProfile::projected_from_point(
         "jim-original-conditional-body-roles",
         &[],
@@ -43,8 +42,7 @@ fn analyse(source: &str) -> crate::analyser::AnalysisResult {
         .analyse(source, profile.name)
 }
 
-#[test]
-fn selected_logical_if_body_retains_original_jim_class_metadata() {
+pub fn selected_logical_if_body_retains_original_jim_class_metadata() {
     let source = "if {1} {class Point {x 0}; class Derived Point {z 0}}";
     let result = analyse(source);
     let point = result
@@ -70,8 +68,7 @@ fn selected_logical_if_body_retains_original_jim_class_metadata() {
     assert_eq!(original.inherited_variables(&result), ["x"]);
 }
 
-#[test]
-fn replaced_logical_handler_and_inert_data_do_not_donate_body_roles() {
+pub fn replaced_logical_handler_and_inert_data_do_not_donate_body_roles() {
     for source in [
         "proc if {args} {}; if {1} {class Hidden {x 0}}",
         "set text {class Hidden {x 0}}",

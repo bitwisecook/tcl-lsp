@@ -16,12 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
+use super::{CompilationUnit, FunctionUnit, UnitBuildOptions};
 
 const SOURCE: &str = "proc f {} {{n 0}} {return $n}; f";
 
 fn input() -> crate::analyser::ResolvedAnalysisInput {
-    tcl_spectcl::core_surfaces::ensure();
     let mut analyser = crate::analyser::Analyser::new();
     analyser.prepare_analysis_input("jim").unwrap()
 }
@@ -65,8 +64,7 @@ fn static_key(function: &FunctionUnit) -> &crate::var_resolve::VariableCellKey {
             .expect("actual callable-static SSA key")
 }
 
-#[test]
-fn native_static_read_receipt_keeps_the_current_unit_allocation_owner() {
+pub fn native_static_read_receipt_keeps_the_current_unit_allocation_owner() {
     let input = input();
     let registry = input.borrowed_context_registry().commands();
     let current = unit(&input);
@@ -109,8 +107,7 @@ fn native_static_read_receipt_keeps_the_current_unit_allocation_owner() {
     }
 }
 
-#[test]
-fn native_static_read_receipt_refuses_wrapped_and_relabelled_cells() {
+pub fn native_static_read_receipt_refuses_wrapped_and_relabelled_cells() {
     use crate::raw_binding::RawBindingSlotId;
     use crate::var_resolve::VariableCellKey;
     let input = input();
@@ -159,9 +156,7 @@ fn native_static_read_receipt_refuses_wrapped_and_relabelled_cells() {
     assert!(!receipt.owns_declared_callable_static(key, "other"));
 }
 
-#[test]
-fn direct_original_static_reads_keep_missing_and_other_body_diagnostics() {
-    tcl_spectcl::core_surfaces::ensure();
+pub fn direct_original_static_reads_keep_missing_and_other_body_diagnostics() {
     for (source, expected) in [
         (SOURCE, vec![]),
         ("set n 1; proc f {} {n} {return $n}; f", vec![]),

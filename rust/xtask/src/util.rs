@@ -74,13 +74,23 @@ pub fn license_banner(line_comment: &str) -> String {
     out
 }
 
-/// The line of the `#[cfg(test)]` that annotates a **module** (`mod tests`),
-/// after which nothing is production code. A `#[cfg(test)]` on a single
-/// `use` or helper item near the top of a file does not end the scan — that
-/// was how a dozen large files went unscanned.
+/// Whether `attribute` gates its item to test code: `#[cfg(test)]`, or
+/// `#[cfg(feature = "test-support")]`, under which a crate keeps the bodies
+/// of tests that another crate runs (`tcl-compiler-it` runs `tcl-compiler`'s
+/// tests that need `tcl-spectcl`).
+pub fn is_test_gate(attribute: &str) -> bool {
+    let attribute = attribute.trim_start();
+    attribute.starts_with("#[cfg(test)]")
+        || attribute.starts_with("#[cfg(feature = \"test-support\")]")
+}
+
+/// The line of the test gate ([`is_test_gate`]) that annotates a **module**
+/// (`mod tests`), after which nothing is production code. A `#[cfg(test)]` on
+/// a single `use` or helper item near the top of a file does not end the
+/// scan — that was how a dozen large files went unscanned.
 pub fn test_module_start(lines: &[&str]) -> Option<usize> {
     lines.iter().enumerate().find_map(|(i, l)| {
-        if !l.trim_start().starts_with("#[cfg(test)]") {
+        if !is_test_gate(l) {
             return None;
         }
         let next = lines[i + 1..]
@@ -367,6 +377,20 @@ pub fn format_rust(text: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_test_support_module_is_test_code() {
+        let lines = [
+            "fn f() {}",
+            "#[cfg(feature = \"test-support\")]",
+            "#[doc(hidden)]",
+            "pub mod tests {",
+            "}",
+        ];
+        assert_eq!(super::test_module_start(&lines), Some(1));
+        let item = ["#[cfg(feature = \"test-support\")]", "pub fn fixture() {}"];
+        assert_eq!(super::test_module_start(&item), None);
+    }
+
     #[test]
     fn a_child_module_answers_through_its_listed_parent() {
         let listed = |path: &str| {

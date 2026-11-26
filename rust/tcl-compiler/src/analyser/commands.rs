@@ -498,5 +498,6 @@ mod original_nested_source_tests;
 #[cfg(test)]
 mod original_command_variable_geometry_tests;
 
-#[cfg(test)]
-mod original_logical_jim_body_roles_tests;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod original_logical_jim_body_roles_tests;

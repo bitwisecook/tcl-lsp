@@ -52,6 +52,9 @@ pub(super) use source_point::OriginalSourcePointAdviceGraph;
 mod source_class;
 mod source_jim_member;
 pub use source_jim_member::OriginalAuthoredJimProcedureMember;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use source_jim_member::tests as source_jim_member_tests;
 mod source_jim_class;
 pub use source_jim_class::{OriginalAuthoredJimClass, OriginalAuthoredJimClassCall};
 mod source_constructor_effects;

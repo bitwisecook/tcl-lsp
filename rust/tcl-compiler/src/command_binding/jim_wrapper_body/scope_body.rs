@@ -70,8 +70,9 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
     fn presence(
         analysis: &crate::analyser::AnalysisResult,
         text: &str,
@@ -92,9 +93,7 @@ mod tests {
             )
     }
 
-    #[test]
-    fn original_single_parent_definition_prefix_issues_first_entry_absence() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn original_single_parent_definition_prefix_issues_first_entry_absence() {
         let text = "# tcl-dialect: jim\nclass Point {x 0 y 0}\nclass Point3 Point {z 0}\nPoint method norm {} { return [expr {abs($x) + abs($y)}] }\nPoint3 method who {} { not_a_command_anywhere $self $x $z }\n";
         let offset = u32::try_from(text.find("not_a_command_anywhere").unwrap()).unwrap();
         for per_item in [false, true] {
@@ -133,9 +132,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn prior_body_effects_substitutions_and_generated_heads_remain_unknown() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn prior_body_effects_substitutions_and_generated_heads_remain_unknown() {
         for body in [
             "set q value; missing_first_boundary $self",
             "if {[exists -command {::<reference.<C______>.00000000000000000000>}]} {proc missing_first_boundary {} {}}; missing_first_boundary",
@@ -157,9 +154,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn unknown_history_overrides_and_conflicting_links_do_not_issue_absence() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn unknown_history_overrides_and_conflicting_links_do_not_issue_absence() {
         for text in [
             "ref value tag finalizer; class C {}; C method m {} {missing_entry}",
             "class C {}; C method m {} {missing_entry}; ref value tag finalizer",

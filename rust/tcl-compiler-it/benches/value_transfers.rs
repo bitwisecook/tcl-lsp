@@ -40,8 +40,8 @@
 //!    latency of a cancelled evaluation's decline, and the resident memory
 //!    the build kept.
 //!
-//! `cargo bench -p tcl-compiler --bench value_transfers` runs the full
-//! sizes; `cargo test -p tcl-compiler --bench value_transfers` runs the same
+//! `cargo bench -p tcl-compiler-it --bench value_transfers` runs the full
+//! sizes; `cargo test -p tcl-compiler-it --bench value_transfers` runs the same
 //! report at smoke sizes (set `VT_BENCH_FULL=1` for the full ones), under
 //! the test profile.
 
@@ -58,7 +58,8 @@ use tcl_registry::value_transfer::{
 
 /// The design's executable example, a workspace pack whose `tenant::label`
 /// is a declared implementation.
-const TENANT_PACK: &str = include_str!("../tests/fixtures/value_transfers/tenant.tclspec");
+const TENANT_PACK: &str =
+    include_str!("../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec");
 
 /// The dialect every workload is analysed under.
 const DIALECT: &str = "tcl9.0";

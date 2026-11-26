@@ -466,14 +466,14 @@ fn child_binding_frame_refusal(
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
     use crate::compilation_unit::{CompilationUnit, FunctionUnit, UnitBuildOptions};
 
     const SOURCE: &str = "proc counter {} {{n 0}} { return [incr n] }; counter";
 
     fn input() -> crate::analyser::ResolvedAnalysisInput {
-        tcl_spectcl::core_surfaces::ensure();
         crate::analyser::Analyser::new()
             .prepare_analysis_input("jim")
             .unwrap()
@@ -545,8 +545,7 @@ mod tests {
         })
     }
 
-    #[test]
-    fn original_nested_named_static_read_keeps_original_positive_expectations() {
+    pub fn original_nested_named_static_read_keeps_original_positive_expectations() {
         let input = input();
         assert!(accepts(&unit(SOURCE, &input), &input));
         for per_item in [false, true] {
@@ -567,8 +566,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn original_nested_named_read_refuses_alias_rebinding_callee_and_opaque_children() {
+    pub fn original_nested_named_read_refuses_alias_rebinding_callee_and_opaque_children() {
         let input = input();
         for source in [
             "proc counter {} {{n 0}} {upvar 1 other n; return [incr n]}; counter",
@@ -644,8 +642,7 @@ mod tests {
         None
     }
 
-    #[test]
-    fn original_nested_named_read_refuses_equal_foreign_and_stale_source_owners() {
+    pub fn original_nested_named_read_refuses_equal_foreign_and_stale_source_owners() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         let current = unit(SOURCE, &input);
@@ -738,8 +735,7 @@ mod tests {
             assert!(!receipt.may_select_direct_source_read(view, symbol, "n", span));
         }
     }
-    #[test]
-    fn original_nested_read_rejects_a_child_with_a_foreign_frame() {
+    pub fn original_nested_read_rejects_a_child_with_a_foreign_frame() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         let current = unit(SOURCE, &input);
@@ -831,8 +827,7 @@ mod tests {
         (receipt, child, advice)
     }
 
-    #[test]
-    fn original_child_body_keeps_its_issued_frame_distinct_from_header_layout() {
+    pub fn original_child_body_keeps_its_issued_frame_distinct_from_header_layout() {
         let input = input();
         let current = unit(SOURCE, &input);
         let (receipt, child, advice) = body_frame_evidence(&current, &input);
@@ -852,8 +847,7 @@ mod tests {
         assert!(accepts(&current, &input));
     }
 
-    #[test]
-    fn original_child_body_frame_refuses_missing_reissued_and_foreign_rows() {
+    pub fn original_child_body_frame_refuses_missing_reissued_and_foreign_rows() {
         let input = input();
         let current = unit(SOURCE, &input);
         let (receipt, child, advice) = body_frame_evidence(&current, &input);
@@ -901,8 +895,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn original_child_body_frame_refuses_different_allocation_and_missing_formals() {
+    pub fn original_child_body_frame_refuses_different_allocation_and_missing_formals() {
         let input = input();
         let current = unit(SOURCE, &input);
         for change in [false, true] {
@@ -919,8 +912,7 @@ mod tests {
             );
         }
     }
-    #[test]
-    fn known_child_projection_uses_live_producer_and_separate_body_scope() {
+    pub fn known_child_projection_uses_live_producer_and_separate_body_scope() {
         let input = input();
         let current = unit(SOURCE, &input);
         let (receipt, child, advice) = body_frame_evidence(&current, &input);
@@ -952,8 +944,7 @@ mod tests {
         assert!(accepts(&current, &input));
     }
 
-    #[test]
-    fn known_child_projection_refuses_consistently_replaced_producer_fields() {
+    pub fn known_child_projection_refuses_consistently_replaced_producer_fields() {
         let input = input();
         let current = unit(SOURCE, &input);
         let (receipt, child, advice) = body_frame_evidence(&current, &input);
@@ -1009,8 +1000,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn known_child_projection_refuses_foreign_and_retired_source_owner() {
+    pub fn known_child_projection_refuses_foreign_and_retired_source_owner() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         let current = unit(SOURCE, &input);

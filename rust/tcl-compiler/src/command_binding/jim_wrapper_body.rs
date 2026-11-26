@@ -19,6 +19,9 @@
 //! Conditional Jim wrapper bodies, separate from Native receiver execution.
 
 mod scope_body;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use scope_body::tests as scope_body_tests;
 
 use super::{
     Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, ModuleCommandBindings,
@@ -406,11 +409,10 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn jim_wrapper_body_keeps_a_distinct_opaque_future_world() {
-        tcl_spectcl::core_surfaces::ensure();
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
+    pub fn jim_wrapper_body_keeps_a_distinct_opaque_future_world() {
         let source = "class Point {x 0}; Point method m {arg} {missing_jim_method $arg $self}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "jim");
         let bindings = analysis
@@ -453,9 +455,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn jim_wrapper_namespace_follows_both_published_procedure_keys() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn jim_wrapper_namespace_follows_both_published_procedure_keys() {
         let source = "class n::C {}; n::C method {m::k} {} {missing_jim_method}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "jim");
         let bindings = analysis
@@ -479,9 +479,7 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn jim_wrapper_does_not_borrow_computed_or_recooked_body_geometry() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn jim_wrapper_does_not_borrow_computed_or_recooked_body_geometry() {
         for source in [
             "set body {missing_jim_method}; class C {}; C method m {} $body",
             "class C {}; C method m {} \"missing_jim_method\\n\"",

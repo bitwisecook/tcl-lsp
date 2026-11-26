@@ -250,16 +250,16 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod controls {
-    use super::*;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod controls {
+    use super::{Arc, OriginalJimStockSourceEffects, OriginalSourceAnalysisOwner};
     use crate::analyser::{Analyser, AnalysisResult};
     use crate::command_binding::source_transition_advice::{
         OriginalSourceTransitionSeed, SourceCommandTransitionObligation,
     };
 
     fn analysed(source: &str) -> AnalysisResult {
-        tcl_spectcl::core_surfaces::ensure();
         Analyser::new().analyse(source, "jimtcl")
     }
     fn seed(analysis: &AnalysisResult) -> OriginalSourceTransitionSeed {
@@ -336,8 +336,7 @@ mod controls {
         );
     }
 
-    #[test]
-    fn stock_source_effects_need_the_actual_analysis_owner_and_complete_publications() {
+    pub fn stock_source_effects_need_the_actual_analysis_owner_and_complete_publications() {
         let source = "class Point {x 0}\nproc {Point move} {dx} {return $dx}\n";
         let analysis = analysed(source);
         let retained = seed(&analysis);
@@ -383,8 +382,7 @@ mod controls {
         );
     }
 
-    #[test]
-    fn stock_source_effects_keep_unknown_operations_and_changed_dependencies_terminal() {
+    pub fn stock_source_effects_keep_unknown_operations_and_changed_dependencies_terminal() {
         let source = "class Point {x 0}\nputs OPAQUE\nproc {Point move} {dx} {return $dx}\n";
         let analysis = analysed(source);
         let receipt = member(source, &analysis);

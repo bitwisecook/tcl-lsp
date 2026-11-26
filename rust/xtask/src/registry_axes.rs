@@ -785,24 +785,44 @@ fn matching_close(toks: &[Tok], open: usize) -> Option<usize> {
     None
 }
 
-/// The token ranges a `#[cfg(test)]` attribute guards: the item after it, to
-/// its closing brace or semicolon.
+/// The token ranges a test gate guards: the item after a `#[cfg(test)]`, or
+/// after a `#[cfg(feature = "test-support")]` (test bodies another crate
+/// runs), to its closing brace or semicolon.
 fn test_guarded(text: &str, toks: &[Tok]) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut i = 0;
     while i + 6 < toks.len() {
-        let is_cfg_test = toks[i].kind == TokenKind::Pound
+        let opens_cfg = toks[i].kind == TokenKind::Pound
             && toks[i + 1].kind == TokenKind::OpenBracket
             && ident(text, &toks[i + 2]) == Some("cfg")
-            && toks[i + 3].kind == TokenKind::OpenParen
-            && ident(text, &toks[i + 4]) == Some("test")
-            && toks[i + 5].kind == TokenKind::CloseParen
-            && toks[i + 6].kind == TokenKind::CloseBracket;
-        if !is_cfg_test {
+            && toks[i + 3].kind == TokenKind::OpenParen;
+        let closes = |at: usize| {
+            toks.get(at)
+                .is_some_and(|t| t.kind == TokenKind::CloseParen)
+                && toks
+                    .get(at + 1)
+                    .is_some_and(|t| t.kind == TokenKind::CloseBracket)
+        };
+        let gate_len = if !opens_cfg {
+            None
+        } else if ident(text, &toks[i + 4]) == Some("test") && closes(i + 5) {
+            Some(1)
+        } else if ident(text, &toks[i + 4]) == Some("feature")
+            && toks.get(i + 5).is_some_and(|t| t.kind == TokenKind::Eq)
+            && toks
+                .get(i + 6)
+                .is_some_and(|t| &text[t.start..t.end] == "\"test-support\"")
+            && closes(i + 7)
+        {
+            Some(3)
+        } else {
+            None
+        };
+        let Some(gate_len) = gate_len else {
             i += 1;
             continue;
-        }
-        let mut j = i + 7;
+        };
+        let mut j = i + 6 + gate_len;
         let mut end = toks.len() - 1;
         while j < toks.len() {
             match toks[j].kind {
@@ -1460,6 +1480,9 @@ mod tests {
             assert!(!is_scanned(excluded), "{excluded}");
         }
         assert!(is_scanned("rust/tcl-compiler/src/lowering/structured.rs"));
+        // A `test-support` module holds test bodies, so it is skipped too.
+        let src = "#[cfg(feature = \"test-support\")]\npub mod tests {\n    fn g(w: &str) -> bool { w == \"then\" }\n}\nfn h(w: &str) -> bool { w == \"set\" }\n";
+        assert_eq!(lines(src), vec![5]);
         // A `#[cfg(test)]` item is skipped, and scanning resumes after it.
         let src = "fn f(w: &str) -> bool { w == \"else\" }\n#[cfg(test)]\nmod tests {\n    fn g(w: &str) -> bool { w == \"then\" }\n}\nfn h(w: &str) -> bool { w == \"set\" }\n";
         assert_eq!(lines(src), vec![1, 6]);

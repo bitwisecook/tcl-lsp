@@ -456,6 +456,9 @@ declarations are written in.
   - [392-error-codes.md](registry/model/392-error-codes.md) — typed error
     codes: what commands and procs raise, and what `catch` and `try` hold
     (392).
+  - [393-taint.md](registry/model/393-taint.md) — taint as SpecTcl 3
+    content: open colours, origins, typed sinks, sanitisers, validators,
+    summaries, and a run-time taint mode for the VM and runtime (393).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.

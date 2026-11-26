@@ -26,7 +26,6 @@ fn fixture(
     crate::analyser::AnalysisResult,
     Vec<crate::segmenter::SegmentedCommand>,
 ) {
-    tcl_spectcl::core_surfaces::ensure();
     let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
     let profile = environment.analyser_profile();
     let context = Arc::new(
@@ -53,8 +52,7 @@ fn fixture(
     (analyser, analysis, commands)
 }
 
-#[test]
-fn original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry() {
+pub fn original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry() {
     let source = "proc counter {} {{n 0}} {not_a_command_anywhere $n}; counter";
     let (analyser, analysis, commands) = fixture(source);
     let command = &commands[0];
@@ -93,8 +91,7 @@ fn original_jim_source_layout_keeps_statics_and_actual_body_in_shared_registry()
     );
 }
 
-#[test]
-fn original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion() {
+pub fn original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion() {
     let source = "proc counter {} {{n 0}} {return $n}";
     let (mut analyser, _analysis, commands) = fixture(source);
     let command = &commands[0];
@@ -108,7 +105,7 @@ fn original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion(
             .is_some()
     );
     let mut args = command.args().to_vec();
-    args[3] = "return FOREIGN".to_owned();
+    "return FOREIGN".clone_into(&mut args[3]);
     assert!(
         analyser
             .original_procedure_source_words_at(command.argv[0], &args, command.arg_tokens())
@@ -145,8 +142,7 @@ fn original_procedure_source_layout_refuses_foreign_values_tokens_and_expansion(
     );
 }
 
-#[test]
-fn original_procedure_source_layout_keeps_plain_and_rooted_jim_forms() {
+pub fn original_procedure_source_layout_keeps_plain_and_rooted_jim_forms() {
     let source = "foreach name {a b} {proc $name {} {{n 0}} {not_a_command_anywhere $n}}";
     let (_analyser, analysis, _commands) = fixture(source);
     let start = source.find("{not_a_command_anywhere").unwrap();

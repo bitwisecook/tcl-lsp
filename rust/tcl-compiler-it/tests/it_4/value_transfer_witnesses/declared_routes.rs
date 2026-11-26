@@ -178,7 +178,8 @@ pub(super) fn a_declared_implementation_folds_through_the_driver() {
 /// The value-transfer design's executable example: a private command
 /// a workspace pack declares under its own name, a second name, and a
 /// subcommand form whose operand sits one word later.
-const TENANT_PACK: &str = include_str!("../../fixtures/value_transfers/tenant.tclspec");
+const TENANT_PACK: &str =
+    include_str!("../../../../tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec");
 
 /// The example's three spellings, each taking the name as its last word.
 const TENANT_SPELLINGS: [&str; 3] = ["tenant::label", "tenant::tag", "tenant label"];

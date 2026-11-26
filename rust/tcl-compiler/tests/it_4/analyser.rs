@@ -63,7 +63,6 @@ use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_registry::model::ingress::static_context_for;
 
 mod aliases_and_renames;
-mod command_resolution;
 mod diagnostic_reports;
 mod lexical_checks;
 mod procedures;

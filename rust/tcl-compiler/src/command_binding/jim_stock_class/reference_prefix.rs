@@ -222,13 +222,12 @@ fn fresh_root_entry(
     selected
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
+    use super::{OriginalJimFreshReferencePrefix, SourceCommandBindings};
 
-    #[test]
-    fn global_incoming_values_cannot_donate_reference_freshness_through_the_memo() {
-        tcl_spectcl::core_surfaces::ensure();
+    pub fn global_incoming_values_cannot_donate_reference_freshness_through_the_memo() {
         let text = "class C {x 0}; C method m {} {missing_after_incoming $self $x}";
         let analysis = crate::analyser::Analyser::new().analyse(text, "jim");
         let input = analysis.resolved_input.as_ref().unwrap();

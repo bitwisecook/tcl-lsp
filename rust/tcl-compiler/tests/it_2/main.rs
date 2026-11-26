@@ -35,6 +35,5 @@ mod lsp_external_validation;
 mod phi_undef_memo;
 mod regex_source_oracle;
 mod static_name_consumers;
-mod value_transfer_witnesses;
 mod var_escape_cfg;
 mod w210_empty_loop_source;

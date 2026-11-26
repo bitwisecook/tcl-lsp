@@ -191,21 +191,35 @@ pub(super) fn scan<'a>(gate: Gate, path: &str, text: &'a str) -> Vec<Hit<'a>> {
     hits
 }
 
+/// The token ranges of modules gated to test code: `#[cfg(test)]`, or
+/// `#[cfg(feature = "test-support")]` (test bodies another crate runs).
 fn test_ranges(tokens: &[Token<'_>]) -> Vec<std::ops::Range<usize>> {
+    const GATES: [&[&str]; 2] = [&["test"], &["feature", "=", "\"test-support\""]];
     let mut ranges = Vec::new();
-    for (start, attribute) in tokens.windows(5).enumerate() {
+    for (start, attribute) in tokens.windows(4).enumerate() {
         if !attribute
             .iter()
             .map(|token| token.text)
-            .eq(["#", "[", "cfg", "(", "test"])
+            .eq(["#", "[", "cfg", "("])
         {
             continue;
         }
-        let rest = &tokens[start + 5..];
-        if !rest.iter().take(2).map(|token| token.text).eq([")", "]"]) {
+        let rest = &tokens[start + 4..];
+        let Some(gate) = GATES.iter().find(|gate| {
+            rest.len() >= gate.len() + 2
+                && rest[..gate.len()]
+                    .iter()
+                    .map(|token| token.text)
+                    .eq(gate.iter().copied())
+                && rest[gate.len()..gate.len() + 2]
+                    .iter()
+                    .map(|token| token.text)
+                    .eq([")", "]"])
+        }) else {
             continue;
-        }
-        let item = &rest[2..];
+        };
+        let head = 4 + gate.len() + 2;
+        let item = &tokens[start + head..];
         let Some(open) = item
             .iter()
             .position(|token| matches!(token.text, "{" | ";"))
@@ -223,7 +237,7 @@ fn test_ranges(tokens: &[Token<'_>]) -> Vec<std::ops::Range<usize>> {
                 _ => continue,
             }
             if depth == 0 {
-                ranges.push(start..start + 7 + open + offset + 2);
+                ranges.push(start..start + head + open + offset + 2);
                 break;
             }
         }
@@ -420,6 +434,20 @@ mod tests {
         let hits = scan(Gate::Release, "compiler.rs", text);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].rule, "release-facts");
+    }
+
+    #[test]
+    fn a_test_support_module_is_test_code() {
+        let source = "#[cfg(feature = \"test-support\")]\n#[doc(hidden)]\npub mod tests { fn t() { text.trim(); } } fn after() { text.trim(); }";
+        let tokens = tokens(source);
+        let ranges = test_ranges(&tokens);
+        assert_eq!(ranges.len(), 1);
+        let hidden: Vec<_> = tokens
+            .iter()
+            .enumerate()
+            .filter(|(at, token)| token.text == "trim" && ranges[0].contains(at))
+            .collect();
+        assert_eq!(hidden.len(), 1);
     }
 
     #[test]

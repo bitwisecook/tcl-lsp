@@ -38,6 +38,9 @@
 //! alias resolution.
 
 mod finite_foreach_source;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use finite_foreach_source::controls as finite_foreach_source_controls;
 
 pub(super) use finite_foreach_source::FiniteForeachReportingState;
 #[cfg(test)]
@@ -319,8 +322,9 @@ mod retained_static_context_tests;
 #[cfg(test)]
 mod constructed_projection_tests;
 
-#[cfg(test)]
-mod original_proc_source_layout_tests;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod original_proc_source_layout_tests;
 
 #[cfg(test)]
 mod direct_original_class_body_tests;

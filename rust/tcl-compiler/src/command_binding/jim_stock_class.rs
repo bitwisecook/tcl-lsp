@@ -24,6 +24,12 @@ mod method;
 mod reference_prefix;
 mod source_advice;
 pub(super) use entry::OriginalJimStockMethodEntry;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use reference_prefix::tests as reference_prefix_tests;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use source_advice::controls as source_advice_controls;
 pub(in crate::command_binding) use source_advice::{
     JimStockContinuationMemo, OriginalJimStockSourceEffects,
 };
@@ -580,12 +586,12 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
+    use super::{ModuleCommandBindings, NameBytes, NativeNameContext, SignatureSourceNameInput};
 
     fn state_before_unknown(prefix: &str) -> ModuleCommandBindings {
-        tcl_spectcl::core_surfaces::ensure();
         let source = format!("{prefix}\nmissing_stock_contract\n");
         let result = crate::analyser::Analyser::new().analyse(&source, "jim");
         let offset = u32::try_from(source.find("missing_stock_contract").unwrap()).unwrap();
@@ -600,8 +606,7 @@ mod tests {
             .clone()
     }
 
-    #[test]
-    fn empty_base_class_retains_every_stock_publication_without_native_entry() {
+    pub fn empty_base_class_retains_every_stock_publication_without_native_entry() {
         let state = state_before_unknown("class C {x 0}");
         assert!(!state.unclosed_command_world);
         assert!(!state.has_opaque_domain());
@@ -644,8 +649,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn earlier_unknown_and_changed_dependencies_do_not_recover_a_stock_world() {
+    pub fn earlier_unknown_and_changed_dependencies_do_not_recover_a_stock_world() {
         // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for source in [
             "eval [gets stdin]; class C {x 0}",
@@ -673,8 +677,7 @@ mod tests {
             );
         }
     }
-    #[test]
-    fn fresh_stock_method_retains_original_source_publication_without_entry() {
+    pub fn fresh_stock_method_retains_original_source_publication_without_entry() {
         let state = state_before_unknown(
             "class C {x 0}; C method m {arg} {missing_jim_method $arg $self $x}",
         );
@@ -703,8 +706,7 @@ mod tests {
         assert_eq!(publication.declaration_site(), method.registration());
     }
 
-    #[test]
-    fn stock_method_publication_keeps_missing_and_replaced_owners_opaque() {
+    pub fn stock_method_publication_keeps_missing_and_replaced_owners_opaque() {
         // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for prefix in [
             "class C {}; proc proc args {}; C method m {} {}",
@@ -722,8 +724,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn one_stock_parent_retains_alias_overwrite_allocations_and_variable_owners() {
+    pub fn one_stock_parent_retains_alias_overwrite_allocations_and_variable_owners() {
         let state = state_before_unknown("class Base {x 0}; class C Base {y 0}");
         assert!(!state.unclosed_command_world);
         assert!(!state.has_opaque_domain());
@@ -760,8 +761,7 @@ mod tests {
         assert!(state.original_publication_at(&baseclass, policy).is_some());
     }
 
-    #[test]
-    fn former_single_base_method_refusal_has_its_original_publication_owner() {
+    pub fn former_single_base_method_refusal_has_its_original_publication_owner() {
         let state = state_before_unknown("class Base {}; class C Base {}; C method m {} {}");
         assert!(!state.unclosed_command_world);
         assert!(!state.has_opaque_domain());
@@ -796,8 +796,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn extra_parent_commands_and_changed_parent_helpers_keep_inheritance_opaque() {
+    pub fn extra_parent_commands_and_changed_parent_helpers_keep_inheritance_opaque() {
         // jimsh 0.84 starts without `unknown`, so only dynamic input stays an unknown earlier mutation.
         for source in [
             "class Base {x 0}; proc {Base foreign} {} {}; class C Base {y 0}",

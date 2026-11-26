@@ -128,7 +128,7 @@ deny = [
     ] },
     { name = "tcl-compiler", wrappers = [
         "bigip-query-wasm", "bigip-report-gen-rust", "bpf-tcl-ir", "f5-xc", "tcl-cli",
-        "tcl-cli-support", "tcl-codegen", "tcl-debugger", "tcl-diagram", "tcl-engine-tclvm",
+        "tcl-cli-support", "tcl-codegen", "tcl-compiler-it", "tcl-debugger", "tcl-diagram", "tcl-engine-tclvm",
         "tcl-explorer", "tcl-fuzz", "tcl-irule-test", "tcl-irules", "tcl-lsp-core", "tcl-lsp-db",
         "tcl-lsp-server", "tcl-mcp", "tcl-spec-hooks", "tcl-spec-studio", "tcl-spectcl",
         "tcl-sslictcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm", "xtask",

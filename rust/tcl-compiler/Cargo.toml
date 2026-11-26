@@ -56,18 +56,13 @@ num-traits = "0.2"
 
 [features]
 # Test fixtures (`#[cfg(any(test, feature = "test-support"))]`) for crates whose
-# tests drive this one's internals: `tcl-codegen`'s emitter tests. Never a
-# production dependency.
+# tests drive this one's internals: `tcl-codegen`'s emitter tests, and the
+# bodies of the tests `tcl-compiler-it` runs once `tcl-spectcl` has seeded
+# Jim's core surface. Never a production dependency.
 test-support = []
 
 [lints]
 workspace = true
-
-# The value-transfer performance report: a plain `main` that prints
-# its tables; `cargo test --bench value_transfers` runs it at smoke sizes.
-[[bench]]
-name = "value_transfers"
-harness = false
 
 [dev-dependencies]
 # The shared reference-interpreter lookup the output witnesses compare
@@ -75,13 +70,9 @@ harness = false
 # `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
 tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
-# Concrete closed-consumer test ingress; production compiler remains VM-independent.
-tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 serde_json = { workspace = true }
 temp-env = "0.3"
 rayon = "1"
-# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
-# permits and `tcl-registry` already uses: the value-transfer completion test
-# loads its executable example, a `.tclspec` pack, through the pack loader
-# and the hook host, exactly as a workspace does.
-tcl-spectcl = { path = "../tcl-spectcl" }
+# Tests that need `tcl-spectcl` or `tcl-engine-tclvm`, both above this crate,
+# live in `tcl-compiler-it`: as dev-dependencies here they would be rebuilt
+# after every edit to this crate before its unit tests link.

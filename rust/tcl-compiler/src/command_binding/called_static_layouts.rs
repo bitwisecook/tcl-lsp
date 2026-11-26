@@ -63,15 +63,15 @@ impl SourceCommandBindings {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
     use super::super::declaration_layout::{
         DeclarationLayoutIssuer, OriginalDiagnosticFrameEntry, original_declaration_layouts,
     };
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
 
     fn input() -> crate::analyser::ResolvedAnalysisInput {
-        tcl_spectcl::core_surfaces::ensure();
         crate::analyser::Analyser::new()
             .prepare_analysis_input("jim")
             .unwrap()
@@ -93,8 +93,7 @@ mod tests {
         )
     }
 
-    #[test]
-    fn called_static_body_keeps_a_separate_original_declaration_layout() {
+    pub fn called_static_body_keeps_a_separate_original_declaration_layout() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         let source = "proc f {} {{n 0}} {return $n}; f";
@@ -135,8 +134,7 @@ mod tests {
         assert!(original.entry.owns_source(&site.source, offset));
     }
 
-    #[test]
-    fn called_static_layout_collection_does_not_publish_results_or_entered_inventories() {
+    pub fn called_static_layout_collection_does_not_publish_results_or_entered_inventories() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         let source = "proc f {} {{n 0}} {return $n}; f";
@@ -175,8 +173,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn static_layout_collection_does_not_reinterpret_other_callable_purposes() {
+    pub fn static_layout_collection_does_not_reinterpret_other_callable_purposes() {
         let input = input();
         let registry = input.borrowed_context_registry().commands();
         for source in [

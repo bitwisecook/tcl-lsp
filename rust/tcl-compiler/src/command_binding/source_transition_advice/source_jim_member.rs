@@ -492,14 +492,14 @@ fn own_member_obligation_trace_tag(obligation: &SourceCommandTransitionObligatio
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod tests {
     use super::OriginalAuthoredJimProcedureMember;
     use crate::analyser::{Analyser, AnalysisResult};
     use crate::registry_invocation::source_structure::source_authored_jim_procedure_members_at;
 
     fn analysed(source: &str) -> AnalysisResult {
-        tcl_spectcl::core_surfaces::ensure();
         let mut analyser = Analyser::new();
         analyser.analyse(source, "jimtcl")
     }
@@ -515,8 +515,7 @@ mod tests {
         receipts.pop().unwrap()
     }
 
-    #[test]
-    fn own_jim_member_keeps_before_and_after_factory_custody() {
+    pub fn own_jim_member_keeps_before_and_after_factory_custody() {
         for (source, marker) in [
             (
                 "class Point {x 0}\nproc {Point move} {dx} {return $dx}\n",
@@ -539,8 +538,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn own_jim_member_refuses_foreign_and_corrupt_recipes() {
+    pub fn own_jim_member_refuses_foreign_and_corrupt_recipes() {
         let source = "class Point {x 0}\nproc {Point move} {dx} {return $dx}\n";
         let analyser = analysed(source);
         let receipt = member(source, &analyser, "proc");
@@ -581,8 +579,7 @@ mod tests {
         assert!(retired.class_metadata(&analyser).is_none());
     }
 
-    #[test]
-    fn own_jim_member_refuses_rebound_class_and_replaced_initialisers() {
+    pub fn own_jim_member_refuses_rebound_class_and_replaced_initialisers() {
         for source in [
             "class Point {x 0}\nrename Point OldPoint\nproc {Point move} {dx} {return $dx}\n",
             "class Point {x 0}\nproc Point {} {return OTHER}\nproc {Point move} {dx} {return $dx}\n",
