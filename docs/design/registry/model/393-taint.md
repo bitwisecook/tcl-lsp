@@ -652,7 +652,7 @@ and `rust/tcl-vm` has no taint code. The only hits are Jim's `tainted`
 - **The iRules test framework** checks every simulated path dynamically. A `TAINT SINK header client` error becomes a failing case with the path that reached it.
 - **The differential fuzzer** (`rust/tcl-fuzz`, `contracts/differential-fuzzing.md`) runs `tclvm --taint=warn` beside the analyser on each seed. A static warning that no run confirms is a false-positive candidate. A run-time report with no static warning is a confirmed false negative, like the `foreach` one below.
 - **Safe and child interpreters** (`runtime/child-interp.md` section 6). Each interpreter keeps its own fact table. A value crossing `interp alias` or `interp eval` keeps its tag, so a parent can't launder taint through a child.
-- **Tcl hook bodies** (313) run in the VM with their input words tagged from the analyser's static facts, so a hook that echoes a tainted word into a fix template is caught.
+- **Tcl hook bodies** (313) run in the VM with their input words tagged from the analyser's static facts, so a hook that echoes a tainted word into a fix template is caught. This needs the run-time tag (item 475, deferred with the engine items): until it lands, rung-4 hooks run untagged.
 
 ```mermaid
 flowchart LR
@@ -725,9 +725,9 @@ raises. The analyser reports only W101: the T100 is lost through `foreach`
 - **391** (`:20`, `:315`, `:487`): `CHANNEL` leaves the colour table entirely; channel reads give an origin from the handle type.
 - **392**: add `errorclass TAINT { code {SINK} -fields {kind origin} }`, and `errors -message-from` so `catch` messages carry their origins.
 - **334** (`:196`): the VM-use column gains "sink rows at dispatch, taint builds only"; codegen stays at facts only.
-- **`runtime/refcount-contract.md` and `memory-management.md`**: add that the taint tag is copied by duplication and never retained.
-- **`runtime/child-interp.md`** section 6: values keep their tags across `interp alias` and `interp eval`.
-- **`compiler/vm-tcl-9-1.md` and `compiler/bytecode-image.md`**: state that taint is not in the image and is checked at invoke in taint builds.
+- **`runtime/refcount-contract.md` and `memory-management.md`**: add that the taint tag is copied by duplication and never retained. (Applied, deep review E10.)
+- **`runtime/child-interp.md`** section 6: values keep their tags across `interp alias` and `interp eval`. (Applied, deep review E10.)
+- **`compiler/vm-tcl-9-1.md` and `compiler/bytecode-image.md`**: state that taint is not in the image and is checked at invoke in taint builds. (Applied, deep review E10.)
 - **`compiler/taint-analysis.md`**: the `TaintColour flags` section describes the table, not 17 bits.
 - **`tcl-registry/src/taint.rs:89-94`**: the exhaustiveness promise is wrong today (four copies are not matches); 393a makes it true for `CoreColour`.
 
@@ -764,3 +764,4 @@ if {[string is digit -strict $x]} { exec sleep $x }'` reports T100 at 2:48, and 
 
 - **M2 (D-D).** `ProcTaintSummary` is keyed by `BodyUnitRef`.
 - **W12.** 244a's rows (`gets`, `read`, `chan gets`, `exec` sources and `argv` under 8.6, 9.0 and 9.1; re-run today: T100 on 8.6, none on 9.0 and 9.1 except `argv`) are 465/466 conformance rows.
+- **E10 (plan pass).** Rung-4 hooks run untagged until item 475; the runtime and engine corrections under *Corrections to other designs* are marked applied.

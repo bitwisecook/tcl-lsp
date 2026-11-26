@@ -389,7 +389,9 @@ through shims.
   - it lexes with `tcl-source` (compiler split, item 251);
   - it reads files through a source-store trait the entry point supplies.
 
-  It can then sit just above the registry core, below every analysis crate.
+  It sits in layer 6, above the core and beside the compiler, over
+  `tcl-source`; the declaration reader is its own crate, `tcl-decl-reader`,
+  directly above `tcl-source`.
 
 ## Libraries as data (decided by a spike)
 
@@ -491,3 +493,7 @@ flowchart LR
 6. **Every artefact ships source and images.** That includes the web bundle, which carries both the `.tclspec` source and the compiled image.
 7. **The Tcl core's hover and documentation become an image too.** Its hooks stay native.
 8. **Tk's 16 rows keyed "8.7" are re-keyed to the real Tk release** that introduced each one, read from the Tk sources in `tmp/tk*/`. This is part of item 302.
+
+## Review fixes (26 November 2026, deep review)
+
+- **Loader placement (workspace fixer, plan pass).** The loader sits in layer 6, above the core and beside the compiler, over `tcl-source`; the declaration reader is its own crate, `tcl-decl-reader`.

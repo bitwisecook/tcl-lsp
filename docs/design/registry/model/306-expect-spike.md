@@ -322,9 +322,15 @@ checks that both forms give the same visibility, arity and roles.
 
 ## Verification
 
-Measure with the compiled-surface plan's harnesses (`ci` profile, 4 vCPU):
-`surface_costs` per phase, `dialect_pair_bench.py` for server start and RSS,
-and callgrind for attribution.
+Measure with the compiled-surface plan's harnesses: `surface_costs` per
+phase, `dialect_pair_bench.py` for server start and RSS, and callgrind for
+attribution. Every timing runs under the one benchmark profile, `release`
+(thin LTO, one codegen unit), in CI's benchmark job or on the tank runner,
+never in an agent worktree, as items 106 and 483 and the split's latency
+record do ([crate split](../../compiler/crate-split-design.md)). The `ci`
+profile (`lto = false`, 16 codegen units) loses cross-crate inlining, so the
+baselines below are re-recorded under `release` before the spike compares
+against them.
 
 | Measurement | Baseline | Recorded as |
 |---|---|---|
@@ -337,13 +343,15 @@ and callgrind for attribution.
 | Bundle growth per artefact: each VSIX, the JetBrains zip, the web bundle, the WASI module | today's artefact sizes | bytes |
 | Equivalence | — | zero differences |
 
-**Decision thresholds for 307:**
+**Decision thresholds for 307**, all under the `release` profile, against
+baselines re-recorded under it; the server-start and size budgets are item
+106's single budget table, which this list cites:
 
 - **Data** (all libraries as images) if:
   - the 8.6-equivalent image loads within 5× native (≤ 7 ms);
   - Expect's lookups are within +10% of native;
-  - server start with every bundled image is no slower than today and uses no
-    more memory;
+  - server start with every bundled image is within item 106's server-start
+    budget: within 10% of today's start time and resident memory;
   - a one-command edit rebuilds only `tcl-catalogue` and the crates that
     link it: the binaries, the WASM hosts, `xtask` and the `-it` crates;
   - equivalence is exact.
@@ -402,3 +410,4 @@ decision is written into 307.
 - **C2 (Sublime):** Sublime downloads the release's bare binary, so it gets the embedded images.
 - **E4, O1 (D-A):** dev images are not tabulated; `--tabulate` runs only in release and packaging builds.
 - **F12:** *Risks*: each artefact may grow at most 10% over the spike's base, recorded per 307 PR alongside and gating nothing.
+- **F10, F11 (plan pass).** *Verification*: the timings and the decision thresholds are stated under the `release` benchmark profile, with the baselines re-recorded under it; server start cites item 106's budget (within 10%), which 416 also uses.

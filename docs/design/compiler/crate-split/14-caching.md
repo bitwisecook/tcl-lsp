@@ -117,7 +117,7 @@ become `tcl-db` queries if the gate above shows their cost:
 |---|---|---|
 | `source_analysis_cache` (`root_bindings`, 16 whole `SourceCommandBindings` per thread) and `source_analysis_driver` `MEMOS` (`OriginalSourceAnalysisMemo` per owner) | binding per file | `source_bindings(db, file, entry: SourceEntryKey) -> Arc<SourceCommandBindings>`, keyed on the step 7 `SourceAnalysisCacheKey` (content image, config, frame, registry key, entry) and, for child sources, the parent's `BodyReportKey` |
 | `SourceWordsMemo` (`analyser/types/result_caches.rs`), which binding reads through `memoise_source_words` | source file | `source_words(db, file) -> Arc<SourceWords>` |
-| `RetainedModules` (512-entry LRU in an input) | body unit | `lowered_document_module` already has `lru = 512` (`memoised_units.rs:132`). The table exists because a re-lowering after eviction mints new procedure identities, so every lattice key built from them is new (#2543, `memoised_units.rs:180–188`). The cause is `ProcedureIdIssuer`'s process-wide `NEXT_SCOPE` counter (`tcl-core-types/src/body_identity.rs:24`). It is deleted once item 274 derives procedure identities from a `tcl-db` input (file id, definition site, incarnation) and deletes `NEXT_SCOPE` ([step 3](03-tcl-names.md#identity-moves-in-with-274)), and kept until then as the one documented exception |
+| `RetainedModules` (512-entry LRU in an input) | body unit | `lowered_document_module` already has `lru = 512` (`memoised_units.rs:132`). The table exists because a re-lowering after eviction mints new procedure identities, so every lattice key built from them is new (#2543, `memoised_units.rs:180–188`). The cause is `ProcedureIdIssuer`'s process-wide `NEXT_SCOPE` counter (`tcl-core-types/src/body_identity.rs:24`). It is deleted once item 274 derives procedure identities from a `tcl-db` input (file id, definition site, incarnation) and deletes `NEXT_SCOPE` ([step 3](03-tcl-names.md#identity-with-274)), and kept until then as the one documented exception |
 
 The existing whole-file and per-body queries in `tcl-db` (analysis,
 compilation unit, compiler checks, tokens, symbols, folding, item bodies,
@@ -227,3 +227,4 @@ the verification below.
 - **F5:** the gate covers the integration design's § 5 queries; per-body fact slices start as "recompute, no memo".
 - **M3:** `RetainedModules`' cause is `NEXT_SCOPE`; 274 derives the issuer from a `tcl-db` input.
 - **C1 (D-C):** the feature queries leave `tcl-db` as plain functions, any memo in `tcl-lsp-session`.
+- **Plan pass (D-D revised).** The step-3 link points at the renamed *Identity with 274* section.

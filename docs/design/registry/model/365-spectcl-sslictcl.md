@@ -70,7 +70,8 @@ editor identity, header signature, closed world, a new policy `evaluation
 never`, and the library's document grammar as its root. Base Tcl stays
 visible, so completion resumes inside `predicate`. **Crates**, one per
 package: `tcl-lib-sslictcl` holds the vocabulary image and one hook;
-`tcl-sslictcl` keeps the model, engines, importers and the data images.
+`tcl-sslictcl` keeps the model, engines and importers, and `tcl-catalogue`
+embeds the data images (integration decision 2).
 
 ### 2. The surface as SpecTcl 3
 
@@ -159,7 +160,7 @@ flowchart LR
   pack["sslictcl.tclspec"] --> compile
   docs --> compile
   compile --> vimg["vocabulary image: tcl-lib-sslictcl"]
-  compile --> dimg["catalogue and trust images: tcl-sslictcl"]
+  compile --> dimg["catalogue and trust images: tcl-catalogue"]
 ```
 
 ### 3. Context: phases, attachments and the declaration graph
@@ -187,7 +188,7 @@ editing but never analysed; (3) **no evaluation**, replacing
 
 | Consumer | After 365 |
 |---|---|
-| Analyser and LSP | One generic **declaration reader** checks any document grammar from an image: domains, arity, openness, `required`, `exclusive`, references, header. It emits the codes the pack maps. Completion, hover, tokens, folding, outline, definition, references and rename read the same grammar. No `tcl-ide-sslictcl` is needed |
+| Analyser and LSP | One generic **declaration reader** checks any document grammar from an image: domains, arity, openness, `required`, `exclusive`, references, header. It emits the codes the pack maps. Completion, hover, tokens, folding, outline, definition, references and rename read the same grammar. The reader lives in `tcl-decl-reader`, not `tcl-spectcl`, and `tcl-ide-sslictcl` is deleted by 457 |
 | Formatter | Indents as now. Adds `layout { lead 1 }`, and `-frozen` on `raw-json-hex`, `der-base64` and `pem`. W111 no longer fires on frozen words; the shipped sample reports it at line 71 |
 | Minifier | Today it joins top-level statements only. After, it compacts separators inside bodies by the grammar. Frozen and opaque words are untouched. The check is that the minified and original documents load to equal `SslicModel`s (`model.rs:451`) |
 | Optimiser | Never runs (`evaluation never`). Today `tcl opt` echoes the input |
@@ -286,7 +287,8 @@ $ ./target/debug/tcl dis m.sslictcl   # the same two calls
 ## Work list
 
 **365a** §2's grammar rows, into 305 and 332c. **365b** The generic
-declaration reader in `tcl-spectcl`, on `tcl-source`. **365c**
+declaration reader in its own crate, `tcl-decl-reader`, over `tcl-source`
+and the registry core. **365c**
 `tcl-lib-sslictcl`: pack, image, hook; registry rows removed. **365d**
 Vocabulary 2 data, the Rust trust generator, the compile step in `make
 update-source-data`/`check-source-data`. **365e** `tcl-sslictcl` on
@@ -317,7 +319,7 @@ update-source-data`/`check-source-data`. **365e** `tcl-sslictcl` on
 - **Registry split `03-extract-crates.md`** places sslictcl in `tcl-lib-dsl`,
   and **307** order item 8 groups it with spectcl and bpf. The owner's
   one-crate-per-package rule gives it `tcl-lib-sslictcl`.
-- **289**'s `tcl-ide-sslictcl` has nothing left to hold. **305**'s
+- **289**'s `tcl-ide-sslictcl` has nothing left to hold; item 457 deletes it. **305**'s
   `signature` row takes only TEXT; a header needs `-header W -arg integer`.
 - **The vocabulary doc** says `hostname a b c` gives `E003`; the built
   `tcl diag` and `tcl lint` give only `SSLIC1005`. The header's hover
@@ -332,3 +334,7 @@ update-source-data`/`check-source-data`. **365e** `tcl-sslictcl` on
 
 - **D7:** SslicTcl's `substitution reject` is set by the namespaced pack dialect `sslictcl/decl` (`tcl` 9.0 with one changed axis), which the trust table allows a BundledPack to define. "Not a dialect" is withdrawn; the environment no longer changes an axis. The `-base` spelling is chapter 2's.
 - **D15:** today `tcl dis samples/sslictcl/example.sslictcl` compiles 68 instructions with exit 0; the refusal is item 457's.
+
+## Review fixes (26 November 2026, deep review)
+
+- **Plan pass (workspace fixer's handoff).** The declaration reader is `tcl-decl-reader` (§5, 365b), `tcl-ide-sslictcl` is deleted by 457, and `tcl-catalogue` embeds the data images (§1 and the flowchart; integration decision 2).

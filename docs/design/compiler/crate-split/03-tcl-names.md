@@ -1,7 +1,7 @@
 # Step 3: extract tcl-names
 
 Part of [splitting tcl-compiler](../crate-split-design.md). Plan item 248
-(the identity and key types move down unchanged), then item 274 (item 77's
+(the source-key types move down unchanged), then item 274 (item 77's
 redesign, inside the new crate). Builds on [step 2](02-tcl-source.md):
 `ExecutedScriptSource` and the namespace keys name `tcl-source`'s word and
 source-site types. Steps [4](04-tcl-values.md), [5](05-tcl-model.md) and
@@ -58,10 +58,11 @@ flowchart LR
 
 `CommandRef`, the other `*Ref` types, `IdentityInterner`, `Answer` and
 `Knowledge` are in `tcl-core-types` today (`semantic_identity.rs:76`,
-`answer.rs:64,101`). Item 248 does not move them. Under decision D-D,
-`tcl-names` owns identity, and item 274 moves the `*Ref` types,
-`IdentityInterner` and the issuers in later; `tcl-core-types` keeps
-`Answer`, `Knowledge` and `DiagCode` (*Identity moves in with 274*, below).
+`answer.rs:64,101`), and they stay there. Under decision D-D as revised,
+`tcl-core-types` keeps the identity types (`*Ref`, `IdentityKey`,
+`IdentityInterner`, the issuers) beside `Answer`, `Knowledge` and
+`DiagCode`, and `tcl-names` owns the source-key descriptors that intern to
+them (*Identity with 274*, below).
 
 ## Design
 
@@ -150,34 +151,33 @@ binding. Only the two pure name types, `SignatureNamespaceScope` and
 4. **No salsa.** As the overview says, `tcl-names` stays salsa-free so the VM
    and `tcl-runtime-api` adapters can use it.
 
-### Identity moves in with 274
+<a id="identity-moves-in-with-274"></a>
+
+### Identity with 274
 
 Today identity has three vocabularies: the `*Ref` types, `IdentityKey` and
 `ProcedureId` in `tcl-core-types`; the source keys this step moves; and the
-engines' `CommandId(u32)`/`NsId(u32)`. `tcl-names` owns the first two
-(decision D-D). Facts and summaries above it are keyed by `BodyUnitRef`,
-`VariablePlaceRef` and `CommandRef`/`SourceCommandKey`, never by display
-text, and every `Source*Key` that stands for an identity is a descriptor
-for the `*Ref` it interns to.
+engines' `CommandId(u32)`/`NsId(u32)`. Under decision D-D as the coordinator
+revised it (26 November 2026), the identity types (`*Ref`, `IdentityKey`,
+`IdentityInterner` and the issuers) stay in `tcl-core-types`, which is low
+and rarely edited. `tcl-names` owns the source-key descriptors
+(`SourceCommandKey`, `CommandAllocationSite`, `Place` and the rest of this
+step's types) and the rules that intern them to `*Ref`s: its only identity
+is the `*Ref` a descriptor interns to. Facts and summaries above it are
+keyed by `BodyUnitRef`, `VariablePlaceRef` and `CommandRef`/`SourceCommandKey`,
+never by display text.
 
-The move is item 274's and comes after Now 5, so it gates no extraction.
-It changes the crate's place in the stack, because `tcl-runtime-api` names
-the `*Ref` types (`rust/tcl-runtime-api/src/semantic_identity.rs:25`) and
-`tcl-bytecode` names `ProcedureId` and its issuer through it
-(`tcl-bytecode/src/lib.rs:560`). So, in the same item:
-
-- `tcl-runtime-api` depends on `tcl-names`, and `tcl-names` drops its edges
-  to `tcl-runtime-api` and the registry core. The two runtime-api types the
-  closure holds, `NativeInterpreterIdentity` and `NativeNamespaceContext`
-  (`native_compilation.rs:26,365`, plain identity data), move into
-  `tcl-names`, and `tcl_registry::FrameLevel` (`frame_effect.rs:81`) moves
-  with them; the registry names it from there.
-- `tcl-source` stays over `tcl-lexer`, `tcl-syntax` and `tcl-dialect` only,
-  as step 2 decides, so it can sit below `tcl-names` in the workspace
-  overview's layer 1, and `tcl-names` in layer 2.
-- The cost: after 274 a `tcl-names` edit rebuilds the registry core and
-  everything above it. The crate holds types only (principle 2), and the
-  rebuild-cost table in the overview records it.
+The identity types do not move because of build time. `tcl-runtime-api`
+names the `*Ref` types (`rust/tcl-runtime-api/src/semantic_identity.rs:25`),
+and `tcl-bytecode` names `ProcedureId` and its issuer through it
+(`tcl-bytecode/src/lib.rs:560`). Moving them into `tcl-names` would put
+`tcl-names` below `tcl-runtime-api` and the registry core, so every later
+`tcl-names` edit would rebuild the whole workspace. Instead `tcl-names`
+stays in the workspace overview's layer 4a, above the registry core, with
+its edges to `tcl-runtime-api` and the core, and a `tcl-names` edit
+rebuilds `tcl-values` and the crates above it. Item 274's work is the
+descriptor rules and the issuer below; it comes after Now 5 and gates no
+extraction.
 
 **The issuer.** `ProcedureIdIssuer::default()` draws its scope from a
 process-wide counter (`tcl-core-types/src/body_identity.rs:24`,
@@ -297,8 +297,8 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 - **The engines' tokens** through `tcl-runtime-api`, unchanged: the adapters
   produce `tcl-core-types` refs.
 
-274 runs alongside steps 4–13 and blocks none of them. Its done-when is item
-77's own:
+274 runs after Now 5 and blocks no extraction (D-D revised). Its done-when is
+item 77's own:
 
 - two different `CommandRef` incarnations over `dynamic/e09-delete-proc.tcl`
   and `rename-alias/r01-rename-basic.tcl`;
@@ -370,8 +370,8 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 
 ## Corrections to the overview
 
-- `CommandRef` is in `tcl-core-types` today. 248 does not move it; 274 does
-  (D-D).
+- `CommandRef` is in `tcl-core-types` today, and stays there: neither 248
+  nor 274 moves it (D-D revised).
 - `command_binding` → `signature_scan` is intra-crate in the target layout.
   It is not a reason to move the signature types down.
 - "Signature name and scope types" moves only `SignatureNamespaceScope` and
@@ -386,6 +386,6 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 
 ## Review fixes (26 November 2026, deep review)
 
-- **M1:** *Identity moves in with 274*: `tcl-names` owns identity (D-D); the move, after Now 5, puts it below `tcl-runtime-api`. 248 moves the keys as they are.
+- **M1:** *Identity with 274* (renamed from *Identity moves in with 274*; the old anchor still works): under D-D as revised, the identity types stay in `tcl-core-types`, and `tcl-names` owns the source-key descriptors that intern to them, so it stays in layer 4a and a `tcl-names` edit does not rebuild the workspace. 248 moves the keys as they are.
 - **M2:** facts keyed by identity, never display text; 274's grep runs over every crate.
 - **M3:** *The issuer*: derived from a `tcl-db` input; `NEXT_SCOPE` deleted.

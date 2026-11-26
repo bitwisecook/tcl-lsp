@@ -279,7 +279,7 @@ other.
 | Rank | Crate | Takes | Size (prod) | Direct users | Plan items that land here |
 |---|---|---|---|---|---|
 | 1 | `tcl-source` | `parsing` (CST), `segmenter`, `text`, the structured-word and source-site types (`ir::word_expr`, `ir::provenance`, `word_expr.rs`), `depth_guard`'s limits; `SourceMap` is already in `tcl-lexer` | ~5k | `tcl-sslictcl`, the SpecTcl loader, `tcl-lsp-core`, `tcl-codegen` | 82 (structured words), 41 (one segmentation) |
-| 2 | `tcl-names` | identity and key types: `SourceNamespaceKey`, `SourceCommandKey`, `CommandAllocationSite`, `SourceOriginId`, `ExecutedScriptSource`, `BindingKind`, `Place`, `VariableCellKey`, `VariableExecutionFrame`, `SignatureNamespaceScope`, `SignatureSourceNameKey`, moved as they are (248). It owns identity (decision D-D): item 274, after Now 5, moves in the `*Ref` types, `IdentityInterner` and the issuers from `tcl-core-types`, and the crate then sits below `tcl-runtime-api` ([step 3](crate-split/03-tcl-names.md#identity-moves-in-with-274)) | ~8k | every crate above | 77 (identity layer), 66 (frame value), 274 |
+| 2 | `tcl-names` | identity and key types: `SourceNamespaceKey`, `SourceCommandKey`, `CommandAllocationSite`, `SourceOriginId`, `ExecutedScriptSource`, `BindingKind`, `Place`, `VariableCellKey`, `VariableExecutionFrame`, `SignatureNamespaceScope`, `SignatureSourceNameKey`, moved as they are (248). It owns the source-key descriptors and the rules that intern them to `*Ref`s; the identity types (`*Ref`, `IdentityInterner`, the issuers) stay in `tcl-core-types` (decision D-D as revised), so the crate stays above the registry core and never sits below `tcl-runtime-api` ([step 3](crate-split/03-tcl-names.md#identity-with-274)) | ~8k | every crate above | 77 (identity layer), 66 (frame value), 274 |
 | 3 | `tcl-values` | item 81's single value kernel: the value lattice (`LatticeValue`, moved as it is), the `tcl_expr_eval` core, which carries binding's evidence types as a parameter, and `command_kernel`, the one entry for command semantics (D-G). `AbstractValue` over `tcl-cmd-core`'s `ExactValue` replaces `LatticeValue` after Now 5, as a semantic change | new | `tcl-model`, `tcl-binding`, `tcl-analysis`, the optimiser | 81 (kernels), 280 |
 | 4 | `tcl-model` | fact vocabulary with no algorithms: analysis inputs and settings, `ProcDef` and `ClassDef` (generic over binding's receipts), one `Diagnostic` (three shapes today; `Finding`'s is the model), the result lattices (`bounded_set`, completion codes), side-effect and result records (over the registry core's `SideEffectTarget`; the compiler's mirror is deleted), the plain records inside `AnalysisResult`, `semantic_optimisation`, `target_contract` (step 11), and later `DocumentFacts`, the binding-free consumer trait (D-C). `Answer`, `Knowledge`, `DiagCode` and `Severity` are already in `tcl-core-types` | ~16k | LSP, MCP, CLI, DB, every `tcl-ide-*` crate | 78 (answer types), 50–53 (typed IR facts) |
 | 5 | `tcl-ir` | IR and CFG data types (`Module`, `Procedure`, `Script`, `Statement`, `CommandTokens`, `cfg` types), generic over one `Facts` parameter for binding's annotations | ~8k | `tcl-codegen`, `bpf-tcl-ir`, `tcl-explorer`, `tcl-diagram`, `f5-xc` | 50–53 |
@@ -416,8 +416,8 @@ against the Now-1 baseline gates the next stage.
 
 | Edited crate | Reverse cone (a `cargo build --workspace` after the edit) | `cargo test -p <crate> --lib --no-run` rebuilds | 259 row | Must not regress against |
 |---|---|---|---|---|
-| `tcl-source` | everything above layer 1: the compiler, the registry core and up once `tcl-names` sits below `tcl-runtime-api` (274) | the crate only | `lexer` (extended) | today's `tcl-compiler --lib` edit: 1 crate, 29.8 s ([build-test-cost](../../work/build-test-cost/current-state.md#item-246-step-0-tcl-compiler-before--after)) |
-| `tcl-names` | the same as `tcl-source` after 274; before it, `tcl-values` and up | the crate only | `names` (new, handoff to 259) | 29.8 s; and the vocabulary must stay small (principle 2), since after 274 every edit rebuilds the workspace |
+| `tcl-source` | everything above layer 1 that reads source: `tcl-names`, `tcl-decl-reader` and the compiler crates above them, `tcl-spectcl` and up | the crate only | `lexer` (extended) | today's `tcl-compiler --lib` edit: 1 crate, 29.8 s ([build-test-cost](../../work/build-test-cost/current-state.md#item-246-step-0-tcl-compiler-before--after)) |
+| `tcl-names` | `tcl-values` and up; never the registry core or `tcl-runtime-api`, because the identity types stay in `tcl-core-types` (D-D revised) | the crate only | `names` (new, handoff to 259) | 29.8 s |
 | `tcl-model` | `tcl-ir` and up, every `tcl-ide-*` crate, the domain crates | the crate only | — | 29.8 s |
 | `tcl-binding` | `tcl-lowering`, `tcl-analysis`, `tcl-unit`, rank 10–12, `tcl-codegen`, `tcl-compile`, `bpf-tcl-ir`, `tcl-irules`, `tcl-ide-format`, the tools and entry points; no other `tcl-ide-*` crate | the crate only (~226k lines, the largest) | `binding` (new, handoff to 259) | 29.8 s for the test build; the reverse-cone time is recorded |
 | `tcl-analysis` | `tcl-unit` and up, `tcl-codegen`, `tcl-compile` | the crate only | — | 29.8 s |
@@ -498,9 +498,9 @@ flowchart LR
    loader and `tcl-sslictcl` onto it.
 3. **`tcl-names`** (248). The identity and key types move unchanged;
    `SourceInvocationBinding` stays with binding. Item 77's redesign continues
-   inside the new crate as 274, alongside the later steps; the `*Ref` move
-   and the issuer derived from a `tcl-db` input are 274's, after Now 5, and
-   gate no extraction.
+   inside the new crate as 274; its descriptor rules and the issuer derived
+   from a `tcl-db` input come after Now 5 and gate no extraction, and the
+   `*Ref` types stay in `tcl-core-types` (D-D revised).
 4. **`tcl-values`** (280). Item 81's value kernel moves below binding, before
    binding is extracted and before the rest of the analysis move, because
    binding calls `tcl_expr_eval`. `LatticeValue` and `ExactValue` move as
@@ -642,3 +642,4 @@ are updated in the step that changes the layout.
 - **F7:** *Rebuild cost per layer*.
 - **F10:** one benchmark profile, `release`, in CI's benchmark job; measurements never block.
 - **E7:** the `tcl-bytecode` split, in *The rest of the workspace*.
+- **D-D revised (plan pass).** The `tcl-names` crate-table row and the *Rebuild cost per layer* rows for `tcl-source` and `tcl-names`: the identity types stay in `tcl-core-types`, so a `tcl-names` edit rebuilds `tcl-values` and up, never the workspace (this supersedes M1's line above).

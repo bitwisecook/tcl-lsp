@@ -214,11 +214,15 @@ to the WASM runtime's answer, writes
 [wasm-command-backing.md](docs/generated/wasm-command-backing.md) from the
 two, and fails on a disagreement; a real gap goes on `KNOWN_UNBACKED` in
 `rust/xtask/src/command_backing.rs` until it gains a handler, and it is the
-only list. A runtime built without libtommath reports the handlers that need
-it as needing it, so the gate answers the same either way. The `wasm_stdlib`
-feature embeds Tcl scripts and the Tcl-level `tcltest` package in the runtime
-VFS; it is not a port of the C `test*` commands and does not bundle
-package-driven extensions. Pipeline:
+only list. The engines read core specs from `tcl-catalogue-core`'s images,
+which `command-backing` also reads. Library accelerators (`implementation
+-native` rows) are never a command's `runtime_backing`: both runtimes list
+them in a separate section of `backing_report`, and `command-backing --check`
+fails when the engines disagree on one. A runtime built without libtommath
+reports the handlers that need it as needing it, so the gate answers the
+same either way. The `wasm_stdlib` feature embeds Tcl scripts and the
+Tcl-level `tcltest` package in the runtime VFS; it is not a port of the C
+`test*` commands and does not bundle package-driven extensions. Pipeline:
 [wasm-codegen.md](docs/design/compiler/wasm-codegen.md); extensions:
 [wasm-extensions.md](docs/design/compiler/wasm-extensions.md).
 

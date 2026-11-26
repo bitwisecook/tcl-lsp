@@ -10,7 +10,7 @@ are in [the plan](../../../work/name-handling/plan.md) after item 392, and each
 source doc carries a "Plan numbers" note. The [integration design](../../compiler/compiler-analyser-spectcl-integration.md)'s
 steps INT-a to INT-m became items 480–487 after the plan review of 26 November
 2026, or folded into existing items; that review also split three items and
-added two (*Review renumbering*, below).
+added two, and the deep review added 106a and 496–498 (*Review renumbering*, below).
 
 ## Allocation
 
@@ -23,7 +23,7 @@ added two (*Review renumbering*, below).
 | 452–457 | SslicTcl | 400; 454 after 307's images |
 | 458–464 | eBPF | 307 |
 | 465–479 | taint: static (465–474) and run-time (475–479) | 400, 391, 392, 313 |
-| 480–487 | the [integration design](../../compiler/compiler-analyser-spectcl-integration.md#10-proposed-plan-steps)'s steps: `FactView`, every image in the catalogue, one `Certainty`, the summary framework, fact slices, grammar profile ids, consumer cones, § 9 as a row. 488–494 are unused | 262, 264, 305, 258, 286, 314 |
+| 480–487 | the [integration design](../../compiler/compiler-analyser-spectcl-integration.md#10-proposed-plan-steps)'s steps: `FactView`, every image in the catalogue, one `Certainty`, the summary framework, fact slices, grammar profile ids, consumer cones, § 9 as a row. 488–494 are unused; 496–498 are the deep review's new items (*Review renumbering*) | 262, 264, 305, 258, 286, 314 |
 
 ```mermaid
 flowchart LR
@@ -190,6 +190,10 @@ item, as 117a and 117b are, except 244a, which is its own row.
 | none | 244a | 393's bug 1: taint sources lost under `tcl9.0` and `tcl9.1` |
 | item 90's step 14 | 495 | the caching step had no item number |
 | INT-a to INT-m | 480–487, or folded (table above) | the integration design's steps |
+| 106 | 106 (the single budget table and its CI gate, stage 13), 106a (its harness, Now 1 beside 259) | the deep review's F1: every split step reports latency against one baseline, and the absolute gate does not hold Now 7 |
+| none | 496 | packaging on SpecTcl 3 facts (319's consumer 14), Now 8 wave 7 |
+| none | 497 | AGENTS.md § Invariants for the target (deep review O13), Now 6, gating nothing |
+| none | 498 | the `tcl-bytecode` split into `tcl-bytecode-tables` and `tcl-bytecode`, Now 3 beside 252 (a build win) |
 
 ## Example: one plan row and its crosswalk entry
 
@@ -228,7 +232,7 @@ framework; the consumers. The SpecTcl 3 items run in the last three:
   424–432 and 435, with 202's generator and 79's grammar axes before 301
   and 417. None of these gates a crate extraction in Now 1–5.
 - **Now 7:** 469–471 with 483, 484, 485 and 487.
-- **Now 8:** 414, 433, 436, 441 and 472 beside 313; 437–440; 442–451 (443
+- **Now 8:** 414, 433, 436, 392f, 441 and 472 beside 313; 496 in the last wave; 437–440; 442–451 (443
   performs 330's iRules upgrade); 452–457; 458–464; 473 and 474; 486.
 - **Waiting:** 412 after 308b, so after item 84; 421 with item 41 and 422 with
   item 39.
@@ -249,3 +253,4 @@ framework; the consumers. The SpecTcl 3 items run in the last three:
 
 - **M4.** INT-c's `Certainty` is `Knowledge<T>`'s projection.
 - **W2, W3, W4, W10, W12.** Merges for 120/242, 86, 210, 211, 212, 244a and 79/202; Now 6 carries D32 and the generator, and none of it gates Now 1–5.
+- **Plan pass.** *Review renumbering* adds 106a, 496, 497 and 498; *Where they run* puts 392f beside 313 (D-J) and 496 in Now 8.

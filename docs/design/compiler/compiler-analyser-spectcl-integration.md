@@ -56,7 +56,9 @@ proposed here are marked *design sketch*.
    `tcl-diagnostics` (§ 6).
 9. **Facts are keyed by identity, never display text:** `BodyUnitRef`,
    `VariablePlaceRef`, `CommandRef`/`SourceCommandKey` and the core's
-   `CommandKey`, all owned by `tcl-names` and the core (§ 3, § 9).
+   `CommandKey`: the `*Ref`s are `tcl-core-types`' identity types, interned
+   from `tcl-names`' source-key descriptors, and `CommandKey` is the core's
+   (§ 3, § 9; D-D as revised).
 
 ## 1. Where SpecTcl facts enter the compiler
 
@@ -321,7 +323,7 @@ One framework in three layers, following step 10's tiers:
 // design sketch: proposed here; record names provisional (spec chapter 7)
 // tcl-model
 pub struct ProcSummary {                       // one record per body, every domain in it
-    pub body: BodyUnitRef,                     // tcl-names identity: never a display name or BodyKey text
+    pub body: BodyUnitRef,                     // tcl-core-types identity, interned by tcl-names: never a display name or BodyKey text
     pub base: BaseSummary,                     // today's ProcSummary fields: arity, calls, purity, completes
     pub transfer: Option<TransferSummary>,
     pub returns: Knowledge<ExactValue>,        // item 78's lattice; ExactValue from tcl-cmd-core
@@ -970,7 +972,7 @@ Where the designs disagree about order:
 | C25 | 392:140: an unknown command raises `TCL LOOKUP COMMAND` and warns | 392:147: an unknown command raises `Any` | 392's owner: `Any`, and no warning |
 | C26 | § 3: one walk per body visit | 393:244-245: two seeded runs per parameter, and `param_sinks` has no per-sink transfer | 393's owner: one seeded walk with per-sink keeps and adds |
 | C27 | spec chapters 5 and 7: an image naming an ID the binary lacks is stale and recompiled from source | recompiling gives the same dangling ID | that hook is dormant and abstains, reported once; test loaders bind stubs (chapters 5 and 7) |
-| C28 | plan.md:33: item 77's types land in `tcl-names` | step 3: the `*Ref` types, `IdentityInterner`, `Answer` and `Knowledge` stay in `tcl-core-types` | `tcl-names` owns identity (D-D); `tcl-core-types` keeps `Answer`, `Knowledge`, `DiagCode`. `tcl-runtime-api` names the `*Ref` types (`semantic_identity.rs:25`), so the move puts `tcl-names` below `tcl-runtime-api`; it is item 274's, after Now 5, and 248 moves the keys as they are ([03](crate-split/03-tcl-names.md#identity-moves-in-with-274)) |
+| C28 | plan.md:33: item 77's types land in `tcl-names` | step 3: the `*Ref` types, `IdentityInterner`, `Answer` and `Knowledge` stay in `tcl-core-types` | step 3 holds (D-D as revised): the identity types (`*Ref`, `IdentityKey`, `IdentityInterner`, the issuers) stay in `tcl-core-types` with `Answer`, `Knowledge` and `DiagCode`, because `tcl-runtime-api` names the `*Ref` types (`semantic_identity.rs:25`) and moving them would put `tcl-names` below it and make every `tcl-names` edit rebuild the workspace. `tcl-names` owns the source-key descriptors that intern to them and stays in layer 4a; 248 moves the keys as they are, and 274's descriptor rules and issuer follow after Now 5 ([03](crate-split/03-tcl-names.md#identity-with-274)) |
 | C29 | item 77: no identity built from display text | 391, 392 and this doc's first § 9: `ProcSummary { name: "::save" }`, `BodyKey("body:1:0")` (a reporting label), `HandleValue { var: (…, "ch") }`, `FactView::visible(&str)`; code: `BindingTarget::Document(Arc<str>)` | facts and summaries keyed by `BodyUnitRef`, `VariablePlaceRef`, `CommandRef`/`SourceCommandKey` (§ 3, § 9); `visible` takes an interned path; `BindingTarget::Document` holds a `SourceCommandKey` |
 | C30 | INT-c and 392 G13: `ErrorSet` has no certainty | this doc's first § 9: `ErrorSet { …, certainty: Certainty::May }` | § 9 drops it; `FactView::visible` answers `Knowledge<CommandKey>` and the draft's `Visibility` retires (D-F) |
 | C31 | § 2: `bpf-tcl-ir` contributes `UnitRule`/`SiteRule`; § 6: `bpf-tcl-ir` takes `tcl_native_plan::target_contract` | step 12: the rule traits are in `tcl-diagnostics`, above `tcl-unit`; step 11: `target_contract` is in `tcl-native-plan`, rank 10; INT-k: `bpf-tcl-ir` stops at `tcl-lowering` | `target_contract` (no dependencies) moves to `tcl-model`; BPF rules go to `bpf-tcl-rules` above `tcl-diagnostics`; eBPF facts through `FactView` |
@@ -1299,3 +1301,4 @@ priority (refinements never gate an extraction).
 - **E7:** § 7's Now 3 row: the `tcl-bytecode` split beside `tcl-ir`.
 - **C6:** § 6 rows for the WASM and WASI hosts, BIG-IP tools, `tcl-debugger`, `tcl-fuzz`, `bpf-tcl`, `sslictcl-data` and packaging; `PackageLock` in § 5; C43.
 - **D-A:** § 1's generator paragraph, the target crate graph and INT-b's done-when; C41. **D-F:** C2, INT-c, C30. **D-H:** § 1 and § 5's `UserPack`. **D-I:** § 6; C42. **D-J:** § 7's deferred row.
+- **D-D revised (plan pass).** C28, decision 9 and the `ProcSummary` sketch: the identity types stay in `tcl-core-types`; `tcl-names` owns the source-key descriptors that intern to them and stays above the registry core.

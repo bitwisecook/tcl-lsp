@@ -74,13 +74,31 @@ analysis path and the execution path select differently:
   `scan.int_width` cells, where tclsh gives `-1 8589934591 4294967297
   -1294967296` (8.4) and `-1 2147483647 2147483647 18446744072414584320`
   (9.x).
+  Re-run on 26 November 2026 (deep review E11), `TCL_LIBRARY` unset:
+  `scan 4294967295 %d` is `4294967295` at every `tclvm` release (8.4, 8.6,
+  9.0, 9.1), against `-1` in tclsh 8.4, 9.0 and 9.1, so `scan` is wrong on
+  the VM's own releases too (item 420).
 - `clock` and `binary` follow 9.x in the engine under 8.4: `tclvm
   --tcl-version 8.4` accepts `clock add`, `clock scan -format` and `binary
   format m`, and gives `+0000` for `%Ez` under 8.5 and 9.0, where tclsh 8.5
   and on give `%Ez`.
-- `tclvm --tcl-version 8.6` and `9.1` abort the whole script at the first
-  `clock` call with `native compiler preflight provider required`, which
-  `catch` does not catch (exit 1).
+- `clock` depends on the Tcl library `tclvm` selects, not on its release.
+  Re-run on 26 November 2026 (deep review E11) with `puts a; puts [clock
+  format 0 -format %Y -gmt 1]; puts b`:
+  - with `TCL_LIBRARY` unset, `--tcl-version 9.0` (the default), `8.6` and
+    `9.1` exit 1 at `clock` and print nothing, not even the `a` written
+    before it; only `8.4` prints `a 1970 b`;
+  - with `TCL_LIBRARY` set to the 9.0.4 library, `--tcl-version 8.4`, `8.6`
+    and `9.1` first print an init failure; then 8.4 prints the date, 8.6
+    exits 1 with `can't find package tcl exactly 9.0.4`, and 9.1 exits 1
+    with `version conflict for package "tcl": have 9.1.0, need exactly
+    9.0.4`; 9.0 prints `a 1970 b`.
+
+  The root cause is library selection: `tclvm` reads `TCL_LIBRARY` whatever
+  release is selected and has no release-matched library (item 312). The
+  inline `tclvm -c` form of the same script under 8.6 prints `native
+  compiler preflight provider required` instead, which an earlier run
+  recorded here.
 
 These come from the axis runs below (`diff -a` of each tclsh output against
 `tclvm --tcl-version` on the same script).
@@ -946,8 +964,8 @@ unit's profile, an engine that cannot run it refuses instead.
   {expand}$l`, which jimsh 0.84 expands.
 - **Engine bug:** `tclvm --tcl-version 8.4` and `8.5` accept `format %b`.
 - **Engine bugs (26 November 2026):** `tclvm` ignores the release in `scan`
-  integer width and in `clock` under 8.4, and aborts at the first `clock`
-  call under 8.6 and 9.1 (see "Engines").
+  integer width (item 420) and in `clock` under 8.4, and `clock` fails
+  without a release-matched Tcl library (item 312; see "Engines").
 - **Compiler bug:** `tcl dis --dialect tcl8.4` emits an empty unit, exit 0,
   when one braced expression does not parse (worked example 2).
 
@@ -972,3 +990,4 @@ unit's profile, an engine that cannot run it refuses instead.
 ## Review fixes (26 November 2026, deep review)
 
 - **W3.** The release-facts generator and 79's operator, numeral, escape and character-model axes are Now 6 work, done once under 417.
+- **E11 (plan pass).** The `scan` and `clock` engine rows are re-run with `TCL_LIBRARY` both unset and set to 9.0.4: `scan` is wrong at every `tclvm` release, and the `clock` failures are library selection (item 312), not `clock`.
