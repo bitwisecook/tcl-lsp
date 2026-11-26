@@ -137,6 +137,16 @@ same machine, 26 November 2026:
 Both are incremental rebuilds of a warm target; the failset logs' 2–6
 minutes were taken under heavier load and colder caches.
 
+### Items 269-272 (steps 0b-0e): before → after
+
+`cargo test -p <crate> --no-run` after appending one line to a source file of
+that crate, warm target, same machine, 26 November 2026. Cones are unique
+workspace packages in `cargo tree -e normal,build,dev`.
+
+| Item | Crate | Edited file | Before | After | Test cone before → after |
+|---|---|---|---|---|---|
+| 269 | `tcl-registry` | `src/commands/irules/active_members.rs` | 11 crates (`tcl-registry`, `tcl-compiler`, `tcl-vm`, `tcl-irules`, `tcl-sslictcl`, `tcl-codegen`, `tcl-engine-tclvm`, `tcl-bigip`, `tcl-lsp-core`, `tcl-spec-hooks`, `tcl-spectcl`), 95.2 s | 1 crate, 9.2 s | 29 → 15 |
+
 ## 1. CLI start-ups in tests
 
 What changed:

@@ -23,6 +23,5 @@
 
 mod bigip_object_query;
 mod dialect_profile;
-mod registry_sweep;
 mod sslictcl_pack;
 mod tcl91_dialect;

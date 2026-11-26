@@ -30,7 +30,7 @@ through the registry.
 Presence is asserted **directly against the in-process registry** — no JSON
 wire, no golden dump to regenerate — in
 `rust/tcl-registry/tests/it_3/registry_commands.rs` and
-`rust/tcl-registry/tests/it_5/registry_sweep.rs`.
+`rust/tcl-spectcl/tests/it_5/registry_sweep.rs`.
 
 A golden-CSV safety net is deliberately *not* used. Comparing the live
 registry against a committed dump only ever restates what the dump was

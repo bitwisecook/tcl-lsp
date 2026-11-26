@@ -483,7 +483,13 @@ const OWNED: &[OwnedPattern] = &[
     // A consumer building its own bridge is a second vocabulary.
     OwnedPattern {
         needle: "command_binding_transitions",
-        owners: &["rust/tcl-registry/", "rust/tcl-compiler/src/alias.rs"],
+        // The registry's own sweeps, hosted by `tcl-spectcl` because they
+        // load the shipped packs.
+        owners: &[
+            "rust/tcl-registry/",
+            "rust/tcl-compiler/src/alias.rs",
+            "rust/tcl-spectcl/tests/it_4/analyser_hooks.rs",
+        ],
     },
     OwnedPattern {
         needle: "command_table_transitions",
@@ -502,6 +508,9 @@ const OWNED: &[OwnedPattern] = &[
         needle: "ESTABLISHES_VARIABLE_TRACE",
         owners: &[
             "rust/tcl-registry/",
+            // The registry sweep, hosted by `tcl-spectcl` because it loads
+            // the shipped packs.
+            "rust/tcl-spectcl/tests/it_5/registry_sweep.rs",
             "rust/tcl-compiler/src/command_binding/trace_registrations.rs",
             "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
         ],

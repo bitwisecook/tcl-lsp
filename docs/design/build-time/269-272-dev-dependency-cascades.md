@@ -440,3 +440,24 @@ Rebuild counts to record with item 259:
 - `tcl-codegen::codegen::helpers` is a façade re-export of
   `tcl_compiler::codegen_helpers`. That is against item 90's no-façade rule;
   item 292 removes it.
+
+## As built (26 November 2026)
+
+Owner decision, 26 November 2026: a test that leaves a crate goes through
+that crate's public API only. Nothing is widened for it and no test body
+stays in `src` behind a `test-support` feature (step 0a's as-built route,
+which item 267 is reworked to match). An assertion the public API cannot
+express is listed, not moved.
+
+### 269 as built
+
+As designed. The 55 tests (`it_4`'s `analyser_hooks` and seven
+`value_transfers` tests; `it_5`'s `registry_sweep`, whole) are in
+`rust/tcl-spectcl/tests/`, under their old module paths. In
+`value_transfers`, `pinned_route_stamps.rs` and `declared_implementations.rs`
+moved whole; `route_identity.rs` kept only
+`the_capability_is_part_of_the_route_identity`, and `cell_updates.rs` and
+`derived_transfers.rs` each gave up their one `full_registry()` caller. The
+heavy-test rows of the moved tests name `tcl-spectcl::it_4` and `::it_5`
+with their full module paths, and the `catalogue-callers` allowlist and the
+design and KCS references follow the files.

@@ -26,6 +26,7 @@ mod codegen_stamps;
 mod eda_environment_packs;
 mod environment_registration;
 mod native_normal_store;
+mod registry_sweep;
 mod surface_roster_trust;
 mod upf_hooks;
 mod variable_reference_boundaries;

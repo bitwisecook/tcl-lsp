@@ -129,7 +129,7 @@ compiled-in one — the loader builds the same `CommandSpec`.
 
 - `rust/tcl-registry/tests/it_3/registry_commands.rs` — presence and shape of every
   declared command.
-- `rust/tcl-registry/tests/it_5/registry_sweep.rs` — the registry-wide sweep.
+- `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` — the registry-wide sweep.
 - `rust/tcl-compiler/tests/it_5/checks.rs` — analyser behaviour driven by spec data.
 - `rust/tcl-irules/tests/event_emission.rs` — the command-to-event edges and
   the reachability they widen.

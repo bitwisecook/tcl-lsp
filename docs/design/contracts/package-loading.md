@@ -579,7 +579,7 @@ execute module initialisation.
   (`source_graph_inheritance_suppresses_w120_in_sourced_module`,
   `explicit_entry_point_config_suppresses_w120_project_wide`,
   `pull_path_applies_w120_package_refinement`).
-- `tcl-registry/tests/it_5/registry_sweep.rs` — registry-wide command / package
+- `tcl-spectcl/tests/it_5/registry_sweep.rs` — registry-wide command / package
   coverage.
 - `tcl-vm/tests/it_4/package_diagnostics_e2e.rs` — per-release diagnostic messages
   and `errorCode`; `runtime/rust/src/cmd_package.rs`

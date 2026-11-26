@@ -3529,7 +3529,7 @@ helper without reading the rationale:
   `sub_subcommand_resolution_honours_the_package_floor` for the request-time
   floor; `rust/tcl-registry/src/arity.rs` —
   `adjacent_windows_do_not_overlap_but_straddling_ones_do`;
-  `rust/tcl-registry/tests/it_5/registry_sweep.rs` —
+  `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` —
   `arity_window_gate_rejects_each_malformed_shape` (the shipped-spec
   side of the same invariant the pack loader only notices).
 - `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs` —

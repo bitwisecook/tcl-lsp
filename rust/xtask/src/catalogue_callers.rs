@@ -137,10 +137,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: catalogue profile invariants",
     ),
     (
-        "rust/tcl-registry/tests/it_5/registry_sweep.rs",
-        "tests: the registry sweep walks every catalogue profile",
-    ),
-    (
         "rust/tcl-spec-studio/src/environment.rs",
         "tests: the studio's environment seam agrees with every catalogue profile",
     ),
@@ -151,6 +147,10 @@ const ALLOWED: &[(&str, &str)] = &[
     (
         "rust/tcl-spectcl/src/pack.rs",
         "`could_collide` asks every profile's context whether two packages coexist",
+    ),
+    (
+        "rust/tcl-spectcl/tests/it_5/registry_sweep.rs",
+        "tests: the registry sweep walks every catalogue profile",
     ),
     (
         "rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs",

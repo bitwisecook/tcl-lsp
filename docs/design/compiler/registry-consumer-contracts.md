@@ -586,7 +586,7 @@ through the generic operations the interface contract names:
   synthetic domains, the interpreter-domain stack, export tombstone
   ordering, rename epochs, literal-iteration simulation, and value binding
   of a created interpreter. The drift test in
-  `rust/tcl-registry/tests/it_4/analyser_hooks.rs` pins the set. A hook variant
+  `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` pins the set. A hook variant
   whose handler implements one command's binding rules is command-specific
   is recorded in the current command-knowledge inventory's
   [compiler-owned handlers](value-transfers-migration.md#compiler-owned-handlers).
@@ -852,7 +852,7 @@ that a derivation is an explicit opt-in and never an implicit consequence
 of declaring the data it reads;
 `rust/tcl-compiler/tests/it_5/cfg.rs` and `analyser.rs` keep their `if` / `try`
 / loop cases as the behavioural parity gate; and
-`rust/tcl-registry/tests/it_5/registry_sweep.rs` holds a `Group` row's `layout`
+`rust/tcl-spectcl/tests/it_5/registry_sweep.rs` holds a `Group` row's `layout`
 to a real `repeated_args` entry
 (`clause_grammar_group_rows_cite_a_real_layout`) and a
 `conditional_binding` var-list slot away from `ArgRole::VarWrite`
@@ -1063,7 +1063,7 @@ form needs: `member_option` (so `method ?-export?` and `command
 ?-override?` are data), `-shift`, and the `SpecTcl` and `SslicTcl`
 families.
 
-**Tests.** `rust/tcl-registry/tests/it_5/registry_sweep.rs`'s
+**Tests.** `rust/tcl-spectcl/tests/it_5/registry_sweep.rs`'s
 `every_member_carries_an_effect_that_agrees_with_its_roles` holds the
 agreement rules: every `MemberSpec` carries an `effect`; a `Callable` row's
 `name_slot`, `params_slot`, and `body_slot` are exactly the *first*
@@ -1075,7 +1075,7 @@ arguments, not one list); a `Relation` row carries a `slot`, and itcl's
 list of class references; a `Retraction` row carries a `retraction`; and a
 `Visibility` row carries a `visibility_effect`.
 `no_member_effect_names_a_family` is the negative.
-`rust/tcl-registry/tests/it_4/analyser_hooks.rs`'s
+`rust/tcl-spectcl/tests/it_4/analyser_hooks.rs`'s
 `analyser_hook_stamps_are_disjoint_from_definer_families` keeps hook stamps
 and definer families apart. `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`
 is the hierarchy gate, and `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs`
@@ -1149,7 +1149,7 @@ body; the template-word plan is the value axis's
 by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
 `command_prefixes`, `CommandSpec::return_type_for_call`) share each
 query's rule rather than restating it, and
-`rust/tcl-registry/tests/it_5/registry_sweep.rs`'s
+`rust/tcl-spectcl/tests/it_5/registry_sweep.rs`'s
 `derived_queries_agree_with_the_by_name_answers` holds every query to the
 by-name answer on every shipped command of every loadable dialect; they
 differ only where the resolution's subcommand, selected under the release,
@@ -1509,7 +1509,7 @@ include `tp_no_switches_runs_every_substitution` and `lsearch -regexp
 -glob` searching the list `-regexp` for the glob pattern `-glob`, the
 boundary rule; `rust/tcl-registry/src/registry.rs`'s
 `substitutions_performed_answers_per_call_and_only_for_substituting_commands`
-is the projection's gate; `rust/tcl-registry/tests/it_5/registry_sweep.rs` holds
+is the projection's gate; `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` holds
 that every option with an `effect` names a declared family
 (`every_option_effect_names_a_declared_family`) and that a family's `base`
 mentions only axes its options mention
@@ -2484,7 +2484,7 @@ flowchart LR
 
 ## Test anchors
 
-- `rust/tcl-registry/tests/it_4/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
+- `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-codegen/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
 - `rust/tcl-cshim/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
@@ -2493,7 +2493,7 @@ flowchart LR
 - `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
 - `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
 - `rust/tcl-spec-studio/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
-- `rust/tcl-registry/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
+- `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit

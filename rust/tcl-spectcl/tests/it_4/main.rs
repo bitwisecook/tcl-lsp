@@ -21,6 +21,8 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
+mod analyser_hooks;
 mod jim_surface_roster;
 mod lazy_bundled;
 mod spectcl_dialect_analysis;
+mod value_transfers;

@@ -270,7 +270,7 @@ pub(in super::super) fn checked_lifecycle(
 /// Report a child lifecycle that reaches outside its parent's window.
 ///
 /// Notice-only, and the declaration is kept: the hard gate is the shipped-spec
-/// sweep (`tcl-registry/tests/it_5/registry_sweep.rs`), which asserts the same
+/// sweep (`tcl-spectcl/tests/it_5/registry_sweep.rs`), which asserts the same
 /// containment. Only releases the child declares **for itself** are compared —
 /// one it leaves open is the inherited one — and the narrowed window must
 /// still be a legal ordering, since a child introduced after its parent

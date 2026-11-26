@@ -47,10 +47,6 @@ serde_json = "1"
 # under (`witness_tclsh`), which fails a test whose release
 # `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
 tcl-test-support = { path = "../tcl-test-support" }
-# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
-# permits: the EDA vendor libraries are bundled `.tclspec` loadables, so the
-# tests load them through the pack loader like everything else does.
-tcl-spectcl = { path = "../tcl-spectcl" }
 
 [lints]
 workspace = true
