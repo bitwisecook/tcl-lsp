@@ -69,6 +69,10 @@ dependency graph (a crate can only use what it declares in
    need goes into `tcl-codegen`, and anything `tcl-compiler` itself needs
    from it (as constant folding needs the list/format folds) moves down into
    `tcl-compiler` instead of back-referencing the emitter.
+   `tcl-compiler` itself is being split into layered crates
+   ([design](../compiler/crate-split-design.md), plan item 90). As each crate
+   is extracted, this table and this rule name it, and the `cargo-deny`
+   wrappers list in `deny.toml` gives its allowed dependents.
 3. **The registry is data.**  Dialect spec packs live in `tcl-registry`;
    they describe commands (arity, subcommands, arg-roles) and are
    reload-safe — they do not reach into compiler internals such as

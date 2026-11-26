@@ -190,7 +190,13 @@ violated:
 2. `tcl-registry` owns command, dialect, argument, taint, effect, documentation,
    and hook metadata.
 3. `tcl-compiler` owns parsing above the lexer, IR, CFG, SSA, analysis,
-   lowering, optimisation, and codegen algorithms.
+   lowering, optimisation, and codegen algorithms. It is being split into
+   layered crates (`tcl-source`, `tcl-names`, `tcl-model`, `tcl-ir`,
+   `tcl-binding`, `tcl-lowering`, `tcl-analysis`, `tcl-native-plan`,
+   `tcl-diagnostics`, `tcl-optimiser`, then a unit crate); see
+   [splitting tcl-compiler](../compiler/crate-split-design.md). New code goes
+   in the module its target crate will hold, never in a way that adds a
+   back-edge to the `module-layers` ratchet.
 4. `tcl-lsp-core` owns pure LSP feature providers: folding, document symbols,
    hover, completion, references, rename, semantic tokens, diagnostics
    projection, and code actions.

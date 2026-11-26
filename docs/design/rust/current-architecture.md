@@ -81,6 +81,13 @@ and the workspace lints `unsafe_code = "forbid"`.
 | Lowering / codegen hook dispatch | `tcl-compiler` | `lowering_hooks`, `codegen::emitter::bytecoded` |
 | IR / CFG / SSA / dataflow | `tcl-compiler` | `ir` / `cfg` / `ssa` / `sccp` / `memory_ssa` |
 | Analyser + diagnostics | `tcl-compiler` | `analyser`, `compiler_checks` |
+
+The `tcl-compiler` rows are the state today. That crate is being split into
+layered crates ([splitting tcl-compiler](../compiler/crate-split-design.md),
+plan item 90). The CST and segmenter move to `tcl-source`, the IR types to
+`tcl-ir`, lowering, CFG building and SSA to `tcl-lowering`, dataflow to
+`tcl-analysis`, and the analyser and checks to `tcl-diagnostics`. Each row
+changes in the step that moves its module.
 | LSP feature providers | `tcl-lsp-core` | `folding`, `document_symbols`, `hover`, … |
 | Incremental query graph | `tcl-lsp-db` | `lib` |
 

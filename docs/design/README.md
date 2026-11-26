@@ -55,6 +55,9 @@ passes, and ownership matrices.
 - [closed-native-consumer.md](compiler/closed-native-consumer.md) — private Native execution, detached output and source-rewrite admission.
 - [architecture.md](compiler/architecture.md) — the high-level map of the
   pipeline, with diagrams and cross-links to the stage documents.
+- [crate-split-design.md](compiler/crate-split-design.md) — why
+  `tcl-compiler` is one cycle, the layered crates that replace it, and the
+  ordered, ratcheted steps (plan item 90).
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value

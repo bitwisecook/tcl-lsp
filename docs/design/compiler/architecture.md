@@ -8,6 +8,10 @@ diagnostics, code actions, and editor hints.  The bytecode backend also
 produces Tcl-compatible assembly for identity testing against reference
 `tclsh` implementations.
 
+The pipeline lives in `tcl-compiler` today. It is being split into one crate
+per layer ([splitting tcl-compiler](crate-split-design.md)), and the file
+paths below move with their modules.
+
 ## KCS quick map
 
 For targeted maintenance tasks, prefer these focused KCS notes before editing this file:

@@ -218,6 +218,19 @@ is off the critical path. The large wins in this area need the cycle in
 `tcl-compiler`'s production code broken by design, or the build-once CI
 pipeline of item 5.
 
+Next (26 November 2026): the cycle analysis and a layered split are designed in
+[splitting tcl-compiler](../../design/compiler/crate-split-design.md), and the
+name-handling plan runs it first as item 90, with items 117 and 118 shrinking
+`tcl-registry`. Two measurements set the order:
+
+- **The rebuild cascade.** The failset logs show every `tcl-compiler` edit
+  rebuilding 9 crates in 2–6 minutes before its lib tests run. `tcl-compiler`'s
+  dev-dependencies (`tcl-spectcl`, which depends on `tcl-lsp-core`, plus
+  `tcl-vm` and `tcl-engine-tclvm`) are built for `--lib` tests too. Moving the 35
+  test files that need them into their own crate is step 0.
+- **The linker.** Linking is not the cost. On the 183 MB test binary, the
+  bundled `rust-lld` takes 1.4–1.7 s, `mold` 1.2 s and GNU ld 6.5 s.
+
 ## 5. Integration-test binaries
 
 Merging every crate's tests into one binary would move all of a crate's tests
