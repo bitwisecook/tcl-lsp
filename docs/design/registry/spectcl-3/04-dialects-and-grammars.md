@@ -36,7 +36,8 @@ pub enum DialectId { Compiled(Family), Pack(DynamicFamilyId) }
   optional extensions, `JimMinimal` the default ones. An environment's
   `-capabilities {+json}` switches one, which covers a `--minimal
   --with-ext=json` build. `scriptd` carries `wordSize 4`.
-- **f5-tcl's ladder** is generated with the release facts (items 79 and 202)
+- **f5-tcl's ladder** is generated with the release facts (items 79 and 202,
+  whose generator and grammar axes are Now 6 work beside 417; deep review W3)
   from the K5902 list; its lower bound moves with that article. Its default
   release is open decision D15. Q11 decides whether a tmsh `cli script` runs
   on `scriptd` or a third build; until then `f5-tmsh` is `scriptd`. Q11 also
@@ -372,3 +373,7 @@ lowering, because Jim has no bytecode and TMM's is not ours.
 - **D11:** the 8.4 `tcl dis` row and the required runtime-error behaviour (item 423).
 - **D14:** code 5 under `tmm`, and the optimiser's barriers, are static analysis, unconfirmed.
 - **D15:** `tcl dis` labels and engine refusals are future work (items 434 and 457); `bpf` is `evaluation never`; iCall is listed under Q11.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W3.** The release-facts generator and 79's grammar axes are Now 6 work beside 417.

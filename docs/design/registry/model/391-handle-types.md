@@ -259,9 +259,10 @@ ProducerRow { command: "open", handle: HandleTypeId("file"),
 ConsumerRow { command: "puts", arg: ArgSlot::Positional(-2),
               accepts: HandleTypeId("channel"), needs: Cap("writable"),
               effect: HandleEffect::Borrow }
-// analyser output, keyed by scope as ObjectHandleFacts keys today
+// analyser output, keyed by identity (D-D), never by display text: ObjectHandleFacts'
+// (scope, name) key today becomes the variable place the name resolves to
 HandleFacts {
-    bindings: { (::w, "f") => HandleValue { ty: "file", caps: {writable},
+    bindings: { VariablePlaceRef(/* ::w's f */ v3) => HandleValue { ty: "file", caps: {writable},
                                             state: Live, certainty: Must, origin: Span(7..24) } },
     proven_reads: …,
 }
@@ -271,12 +272,12 @@ HandleFacts {
 
 `ObjectHandleFacts` becomes `HandleFacts`. The engine stays: scoped propagation, proc-parameter and return edges, instance variables, the union across contents versions, and `proven_reads`. These are the changes:
 
-1. **The value is a `HandleValue`, not a class set.** It holds a type (a lattice element, so a join of `file` and `socket` is `channel`), capabilities, a state (`Live`, `Released`, `Moved` or `Unknown`), certainty (`Must`/`May`, as in 308), and its origin.
+1. **The value is a `HandleValue`, not a class set.** It holds a type (a lattice element, so a join of `file` and `socket` is `channel`), capabilities, a state (`Live`, `Released`, `Moved` or `Unknown`), certainty (`Certainty`: `Must`/`May`, the projection of item 78's `Knowledge<T>` defined in [chapter 3](../spectcl-3/03-semantics.md#certainty)), and its origin. Handle facts are keyed by the `VariablePlaceRef` the variable resolves to and summaries by `BodyUnitRef`, never by display text (D-D: in tclsh 9.1, `proc p` in namespace `a:` and `proc :p` in `a` are two live commands that both render as `::a:::p`, and calling `::a:::p` fails).
 2. **Producers and consumers come from rows.** The analyser has no handle-specific code. A command row's producer or consumer facts drive it, so a user's pack for their Redis library gets the same tracking as `open`.
 3. **The state is a flow fact.** Release and move change state along the CFG. A use when the state is `Released` on every path is an error; on some paths it is a warning.
 4. **Interprocedural.** A proc's summary records the type it returns and the type each parameter needs. The needed type is inferred from how the body uses the parameter: `proc log {ch msg} {puts $ch $msg}` needs a writable channel. Callers are checked against the summary, and hover shows `ch: channel (writable)`.
 5. **Containers, kept bounded.** A handle stored in an array element, a dict value or a namespace variable is tracked by that key when the key is a literal, and otherwise widens to the type with `May` certainty. A write through a computed key (`set h($k) …`) demotes every key of that array to `May`, because it may have overwritten any of them. Handles built into callbacks (`chan event $ch readable [list h $ch]`) flow into the callback's parameters through 390f's callback signatures.
-6. **Frame effects demote.** Only summary edges cross bodies, so a summary also records the body's frame effects: writes through `upvar`, `global`, `uplevel` and `namespace upvar`, writes to namespace variables, and command-table changes (`rename`, `proc` over an existing name, `interp alias`). A call whose summary has any frame effect demotes every handle fact in scope from `Must` to `May` (the integration design's C24); a later refinement may narrow this to the variables the effect can reach, once that is proved. An unknown callee (`unknown_callee`) is "may write any variable it can reach, may release, may store", so it demotes every handle fact in scope. `Must Released` therefore needs no such call between the release and the use (worked example 6).
+6. **Frame effects demote.** Only summary edges cross bodies, so a summary also records the body's frame effects: writes through `upvar`, `global`, `uplevel` and `namespace upvar`, writes to namespace variables, and command-table changes (`rename`, `proc` over an existing name, `interp alias`). A call whose summary has any frame effect demotes every handle fact in scope from `Must` to `May` (the integration design's C24); a later refinement may narrow this to the variables the effect can reach, once that is proved. An unknown callee (`unknown_callee`) is "may write any variable it can reach, may release, may store", so it demotes every handle fact in scope. `Must Released` therefore needs no such call between the release and the use (worked example 6). A frame effect names the slot it reaches (a parameter-chosen `upvar` target, a `VariablePlaceRef`) or the `CommandRef` it rebinds, never a display name; until item 66's frame identity lands, frame effects are keyed by level relation.
 7. **Literal spellings.** A literal that matches a type's `spelling` (`puts file3 x`) is reported as a hard-coded handle, which is almost always a bug. The well-known `instances` are exempt.
 8. **Unknown stays quiet.** A value of unknown type passed where a handle is wanted produces no diagnostic. Only a proven wrong type, a proven dead handle or a proven leak is reported, so code the analyser can't see through stays clean. A wrong type is proven only when the value's producer row declares a handle type outside the accepted set; a command with no `result -handle` row proves nothing, so its result is of unknown handle type.
 
@@ -338,11 +339,12 @@ close $in
 **In memory:**
 ```rust
 // design sketch
-ProcSummary { name: "::log",
-    params: &[ParamNeed { name: "ch", accepts: HandleTypeId("channel"), needs: Cap("writable"),
+// keys are identities (D-D); the comments give the display text a reader would see
+ProcSummary { body: BodyUnitRef(/* proc ::log */ b1),
+    params: &[ParamNeed { param: 0 /* ch */, accepts: HandleTypeId("channel"), needs: Cap("writable"),
                           effect: HandleEffect::Borrow },
-              ParamNeed { name: "msg", accepts: NotAHandle, .. }] }
-HandleValue { var: (Global, "in"), ty: "file", caps: {readable}, state: Live, certainty: Must }
+              ParamNeed { param: 1 /* msg */, accepts: NotAHandle, .. }] }
+HandleValue { place: VariablePlaceRef(/* ::in */ v2), ty: "file", caps: {readable}, state: Live, certainty: Must }
 // call site check: caps {readable} lacks "writable"; warning at line 5
 ```
 
@@ -438,7 +440,7 @@ puts [catch {$s execute} m]:$m
 ```rust
 // design sketch; a user pack declares the parent link the code implements
 HandleType { id: "Stmt", kind: HandleKind::Object, parent: Some(("Conn", ReleasedWith)), .. }
-HandleValue { var: (Global, "s"), ty: "Stmt", state: Released /* by $c close */, certainty: Must }
+HandleValue { place: VariablePlaceRef(/* ::s */ v2), ty: "Stmt", state: Released /* by $c close */, certainty: Must }
 ```
 
 **Result:**
@@ -499,11 +501,14 @@ puts ok
 **In memory:**
 ```rust
 // design sketch: types proposed here
-ProcSummary { name: "::reopen", frame_effects: &[FrameEffect::UpvarWrite { level: 1, name: Param(0) }], .. }
-ProcSummary { name: "::swap",   frame_effects: &[FrameEffect::CommandTable { name: "close" }], .. }
-HandleValue { var: (Global, "f"), ty: "file", state: Released, certainty: Must }   // after line 4
-HandleValue { var: (Global, "f"), ty: "file", state: Live,     certainty: May  }   // after line 5: reopen writes f
-HandleValue { var: (Global, "f"), ty: "file", state: Released, certainty: May  }   // after line 8: close was renamed at line 7
+// keys are identities (D-D); the comments give the display text
+ProcSummary { body: BodyUnitRef(/* proc ::reopen */ b1),
+              frame_effects: &[FrameEffect::UpvarWrite { level: 1, place: SlotFrom::Param(0) }], .. }
+ProcSummary { body: BodyUnitRef(/* proc ::swap */ b2),
+              frame_effects: &[FrameEffect::CommandTable { command: CommandRef(/* ::close */ c1) }], .. }
+HandleValue { place: VariablePlaceRef(/* ::f */ v1), ty: "file", state: Released, certainty: Must }   // after line 4
+HandleValue { place: VariablePlaceRef(/* ::f */ v1), ty: "file", state: Live,     certainty: May  }   // after line 5: reopen writes f
+HandleValue { place: VariablePlaceRef(/* ::f */ v1), ty: "file", state: Released, certainty: May  }   // after line 8: close was renamed at line 7
 ```
 
 **Bytecode (tclsh 9.1.0):** `reopen`'s write reaches the caller's slot through `upvar`, which no parameter or return edge shows:
@@ -533,11 +538,29 @@ Both `puts $f` lines run. Without the frame-effect rule the analyser would repor
 
 `HandleType`, `ProducerRow`, `ConsumerRow` and `HandleEffect` live in the registry core. The core command families declare their rows in Rust or in their packs, and round-trip under 332's gate. `ChannelKind` and its option tables become per-type option tables. User packs and user classes add types at run time through the same structs, not a parallel path.
 
+## Who owns lifecycles
+
+This design owns every handle and instance lifecycle (deep review W4, owner
+decision D-L): channels, Tk windows, images and fonts, TclOO and other object
+instances, and library handles. Creation and release effects, the state
+lattice, use after close or `destroy`, writes to a read-only channel, leaks and
+the hover that shows kind, mode and creation site are 391's, and older plan
+items that asked for parts of this point here:
+
+| Plan item | What moves to 391 | What the item keeps |
+|---|---|---|
+| 212 (channel instance values) | all of it: creation by `open`, `socket`, `chan create`, `chan pipe` and `file tempfile`, mode from the access word, open, half-closed and closed state, use after close, read-only writes, leaks within one body, hover. Its done-when rows become 391b and 391c conformance rows | nothing: **merged into 391** |
+| 84 (one binding walk) | instance values with creation and destruction effects for objects, widgets, images and fonts, done once under 391b | the binding walk, one invocation record per reached command, and the per-site records 391b reads |
+| 16 (widget paths as values) | its use-after-`destroy` row, under 391d's Tk path cascades | following paths built from variables, duplicate and upper-case paths, W307 noise |
+
+The plan text for these is a handoff from the deep review; until it lands,
+this table is the owner record.
+
 ## Plan steps
 
-- **391a. The model.** Add `HandleType`, producer and consumer rows, and effects to the registry core and the SpecTcl 3 reader and printer, with the lattice and capabilities. Done when the core channel family, `zlib stream`, `after` and TclOO classes are expressed as rows, and they print and re-read equal.
+- **391a. The model.** Add `HandleType`, producer and consumer rows, and effects to the registry core and the SpecTcl 3 reader and printer, with the lattice and capabilities. Item 86's vocabulary folds in here (D32): an object system's classes are `handle` blocks of kind `object` with `superclass`, `mixin` and `filter`, and its method resolution order is `lookup NATIVE-ID` (`lookup::c3` and the rest, item 402's hooks by ID); 86 keeps its analysis orders. Done when the core channel family, `zlib stream`, `after` and TclOO classes are expressed as rows, and they print and re-read equal.
 - **391b. The engine.** Generalise `ObjectHandleFacts` into `HandleFacts`, with state as a flow fact, interprocedural parameter and return summaries, and frame effects in the summaries. Done when every existing object-type test passes unchanged, and the example above reports all three confusions at analysis time.
-- **391c. Channels on rows.** `ChannelKind` and `channel_options` become per-type tables, and `TaintColour::CHANNEL` is derived from them. Done when `rg 'enum ChannelKind' rust` is empty, and the `chan configure` validation tests pass.
+- **391c. Channels on rows.** `ChannelKind` and `channel_options` become per-type tables, and `TaintColour::CHANNEL` is derived from them. Item 210 folds in here (D32): each channel type's options are `option` rows in its `handle` block, release-gated by `available` facets (file `-stat` from 9.0, console `-inputmode`), and its value checks are `-values` rows; the parity row is 391a's print-and-re-read of those blocks against `HandleType`'s option tables. Done when `rg 'enum ChannelKind' rust` is empty, `CMD_OPTIONS` and the `fconfigure_.rs` copy are gone, and the `chan configure` validation tests pass.
 - **391d. Children and cascades.** `parent`, `-released-with`, `-child-of`, and Tk path cascades. Done when `$rs nextrow` after `$conn close` and `.a.b configure` after `destroy .a` are reported.
 - **391e. Lifetimes for iRules.** `connection`, `event` and `static` lifetimes, and the HSL, SIDEBAND and table handles as rows. Done when storing an `HSL::open` handle in `static::` is an error, and using it in a later event on the same connection is not.
 - **391f. Editor surfaces.** Completion, hover, references, the explorer view and MCP. Done when hover on `$db` after `sqlite3 db x.db` shows `sqlite3-db (live)`, and completion offers its subcommands from the user's pack alone.
@@ -554,3 +577,10 @@ Both `puts $f` lines run. Without the frame-effect rule the analyser would repor
 - **G12.** `open`'s access word is `{arg 1}` and its name `{arg 0}`; `thread::transfer` names its target `{arg id}`.
 - **G13.** Wrong type needs a producer row proving it; the HSL example no longer reports `[HTTP::host]`.
 - **R13.** Handle methods are `subcommand` rows in the `handle` block, not `command {$type method}`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M2 (D-D).** Sketches key facts by `VariablePlaceRef`, summaries by `BodyUnitRef`, and frame effects by slot or `CommandRef`; the display-text collision is a real tclsh 9.1 run.
+- **M4.** Handle certainty is chapter 3's projection of `Knowledge<T>`.
+- **W4 (D-L).** *Who owns lifecycles*: 212 merges into 391, 84 keeps the binding walk, 16's use-after-`destroy` row moves to 391d.
+- **W10 (D32).** 86's vocabulary folds into 391a (`lookup NATIVE-ID`), 210 into 391c.

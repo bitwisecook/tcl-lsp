@@ -110,7 +110,7 @@ puts [catch {$s get} m]:[string match {invalid command name*} $m]
 HandleType { id: HandleTypeId("zlib-stream"), kind: HandleKind::Command, supertypes: &[],
              parent: None, lifetime: Lifetime::Scope, spelling: None,
              subcommands: &[SubId("put"), SubId("get"), SubId("close")], .. }
-HandleValue { var: (Global, "s"), ty: "zlib-stream", state: Released, certainty: Must } // at line 5
+HandleValue { place: VariablePlaceRef(/* ::s */ v1), ty: "zlib-stream", state: Released, certainty: Must } // at line 5
 ```
 
 **Bytecode (tclsh 9.1.0):**
@@ -273,11 +273,15 @@ warning.
 ## D. Embedded-language ranges
 
 `arg sql -embedded sql -dialect sqlite` says a word's text is in another
-language. **No parser for it is linked by any crate** (owner decision). We
-generate, from the image: a TextMate injection grammar and `embeddedLanguages`
-map for VS Code; tree-sitter `injections.scm` for Zed, Helix and Neovim; a
-language-injection configuration for JetBrains; and for every client an
-`embedded` semantic-token modifier and a `tcl/embeddedRanges` request.
+language. **No parser for it is linked by any crate** (owner decision). Every
+client gets an `embedded` semantic-token modifier and a `tcl/embeddedRanges`
+request. Static injection (a TextMate grammar and `embeddedLanguages` map for
+VS Code, a language-injection configuration for JetBrains) covers only
+fixed-name `command` rows, because a handle's command name is the user's;
+handle rows reach VS Code through virtual-document middleware and JetBrains
+through an injector, both reading `tcl/embeddedRanges`. Zed, Helix, Neovim and
+Emacs get the modifier only (D-N; 390d). Generating the static grammars is
+item 328's work.
 Literal text is injected as written; a substitution is shown as a
 placeholder. `-sink sql` on the same row makes a Tcl substitution inside the
 string a taint sink (T107, from the `sink sql` row of the sqlite3 library), so
@@ -507,3 +511,8 @@ ex1r.tcl:3:6: warning T101     Tainted variable $out flows into puts; output may
 - **G15.** `name:command`; `variable env` carries its required flags and `-provider`.
 - **A6.** Frame effects and unknown callees demote handle facts to `May` (area A).
 - **A14.** Completion codes account for `return -level` and `finally` (392).
+
+## Review fixes (26 November 2026, deep review)
+
+- **M2 (D-D).** The zlib example keys its handle fact by `VariablePlaceRef`.
+- **C5 (D-N).** Static injection only for fixed-name `command` rows; handle rows through `tcl/embeddedRanges` and per-client code; Zed, Helix, Neovim and Emacs get the modifier only; generation is item 328's.

@@ -64,6 +64,13 @@ flowchart LR
 | INT-i and 318 | 318's done-when |
 | INT-k and 380's 386 | 464 |
 | INT-l and 393a | 465 |
+| 120 (one operation field, one effect descriptor) and 242 (native lowering) | 400 and 402, in the 3.0 vocabulary (D32) |
+| 86's vocabulary (object-system profiles, lookup orders) | 391a and 402 (D32); 86 keeps its analysis orders |
+| 210 (channel option tables) | 391c (D32) |
+| 211 (channel handler protocols) | 390f, with `-callback -protocol` and `required` (D32) |
+| 212 (channel instance values) | 391 (D-L); 84 keeps the binding walk, and 16's use-after-`destroy` row moves to 391d |
+| 244a (taint sources lost under 9.0 and 9.1) | conformance rows of 465 and 466; verified by 466 |
+| 79's grammar axes (operators, numerals, escapes, character model) and 202's generator | 417, in Now 6; 79 keeps the math-function and bundled-package rosters in stage 6 |
 
 ## Crosswalk
 
@@ -151,7 +158,7 @@ flowchart LR
 | 393x5 | [393](../model/393-taint.md) | 479 | Taint oracles |
 | INT-a | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 480 | `FactView` and `HookDispatch` in the registry core |
 | INT-b | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 481 | Every fact an image, every image in the catalogue |
-| INT-c | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 482 | One `Certainty` |
+| INT-c | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 482 | One `Certainty`, the projection of item 78's `Knowledge<T>` ([chapter 3](03-semantics.md#certainty)) |
 | INT-d | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 308 (308a, 308b) | The positioned context in `tcl-binding` |
 | INT-e | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 483 | The summary framework |
 | INT-f | [integration](../../compiler/compiler-analyser-spectcl-integration.md) | 470 | The new domains (with 391b and 392b–c) |
@@ -217,8 +224,9 @@ workspace; the dialect and library model with SpecTcl 3; the analysis
 framework; the consumers. The SpecTcl 3 items run in the last three:
 
 - **Now 6:** 400–411, 413, 415 and 416 with 305's reader and the
-  expect spike; 465–468; 482; 481 with 307; the dialect items 417–420,
-  424–432 and 435.
+  expect spike, 400 and 402 carrying 120's and 242's vocabulary (D32); 465–468; 482; 481 with 307; the dialect items 417–420,
+  424–432 and 435, with 202's generator and 79's grammar axes before 301
+  and 417. None of these gates a crate extraction in Now 1–5.
 - **Now 7:** 469–471 with 483, 484, 485 and 487.
 - **Now 8:** 414, 433, 436, 441 and 472 beside 313; 437–440; 442–451 (443
   performs 330's iRules upgrade); 452–457; 458–464; 473 and 474; 486.
@@ -236,3 +244,8 @@ framework; the consumers. The SpecTcl 3 items run in the last three:
 - **P2, P5:** 443 performs 330's iRules upgrade; *Where they run* follows the
   plan's Now stages.
 - **P9:** 419's D5 is the redesign's §11 D5, not chapter 11's.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M4.** INT-c's `Certainty` is `Knowledge<T>`'s projection.
+- **W2, W3, W4, W10, W12.** Merges for 120/242, 86, 210, 211, 212, 244a and 79/202; Now 6 carries D32 and the generator, and none of it gates Now 1–5.

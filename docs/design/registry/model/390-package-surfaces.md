@@ -212,11 +212,12 @@ command {dom parse} { arg xml -embedded xml }
 handle dom-node { kind command ; subcommand selectNodes { arg xpath -embedded xpath } }
 ```
 
-What we produce, per editor (no parsing on our side):
-- **VS Code:** a TextMate injection grammar generated from the image, covering string words in `-embedded` positions, plus an `embeddedLanguages` map. Hover and completion inside the range go through VS Code's request forwarding to a virtual document.
-- **Zed, Helix and Neovim:** a tree-sitter `injections.scm` generated from the same rows.
-- **JetBrains:** a language-injection configuration generated from the same rows.
-- **Every LSP client:** a semantic-token modifier `embedded` on the range, plus a custom `tcl/embeddedRanges` request that returns ranges with language IDs, for clients that want it.
+A static grammar sees syntax, not values, so it can follow only a command whose name is fixed. Two of the three rows above are handle subcommands, and a handle's command name is the user's (`sqlite3 db file` gives `db eval`). So delivery splits by row kind (D-N):
+
+- **Fixed-name `command` rows** (`dom parse`): static injection. VS Code gets a TextMate injection grammar and an `embeddedLanguages` map; JetBrains a language-injection configuration. Both are generated from the image by item 328.
+- **Handle rows** (`db eval`, `$node selectNodes`): the server's custom `tcl/embeddedRanges` request returns each range with its language ID, and per-client code applies it: VS Code middleware opens a virtual document so the editor's SQL or XPath support serves the range; a JetBrains injector does the same.
+- **Zed, Helix, Neovim and Emacs:** the `embedded` semantic-token modifier on the range, and nothing more. Zed uses upstream `tree-sitter-tcl` at a pinned revision, and `editors/helix`, `editors/emacs` and `editors/neovim` ship no queries, so a generated `injections.scm` would have no way to reach users.
+- **Every LSP client:** the `embedded` modifier and `tcl/embeddedRanges`, for clients that want them.
 
 Literal text is injected as written. A braced word is injected whole. A quoted word with substitutions is injected with each `$var` or `[cmd]` shown as a placeholder, because only the editor's own language server sees the inner text.
 
@@ -310,9 +311,13 @@ Each form has a Rust spelling and a round-trip gate, as 332 requires.
 - **390a. Handle types.** The `handle` form, `-creates` and `-releases`, and `HandleType` in the registry core. Gap 8's classes are re-expressed as handles of kind `object`. Done when `$s put` on a `zlib stream` handle gets arity checks and completion, a use after `close` is reported, and the Tk widget-path and channel trackers read handle rows instead of their own tables.
 - **390b. `throws`.** The form, `Throws`, a dead-`trap` warning, and trap-code completion. Done when the example above warns on a `trap {POSIX EBADF}` arm, and the conformance area runs every declared code of `open`, `file` and `socket` on tclsh 8.4–9.1 and the VM.
 - **390c. Result shapes.** `-dict`, `-list`, `-pairs`, `-array-of`, and following values into `dict get` and array reads. Done when `dict get [http::meta $t] Content-Typo` warns, and `file stat`'s keys complete.
-- **390d. Embedded ranges.** The `-embedded` role and the `tcl/embeddedRanges` request. Generate the VS Code injection grammar, the tree-sitter `injections.scm` and the JetBrains injection configuration from the image, then add `-sink`/`-sanitiser` roles and the SQL taint check. Done when SQL in `db eval` is highlighted by each editor's own SQL support, no SQL or XPath parser is linked by any crate, and `db eval "… $id"` with a tainted `$id` warns while the `:id` form does not.
+- **390d. Embedded ranges.** The `-embedded` role, the `embedded` token modifier and the `tcl/embeddedRanges` request. Generating the static injection grammars and configurations is item 328's work (Now 8), and the SQL taint check is item 473's (after 445 and 391). Done when, per editor:
+  - **VS Code:** SQL in `db eval` (a handle row) is served by VS Code's own SQL support through the virtual-document middleware, and `dom parse`'s XML through the generated TextMate injection;
+  - **JetBrains:** the injector applies `tcl/embeddedRanges` to `db eval`, and the generated injection configuration covers `dom parse`;
+  - **Zed, Helix, Neovim and Emacs:** the range carries the `embedded` token modifier;
+  - **every client:** `tcl/embeddedRanges` returns `db eval`'s range with language `sql`, and no SQL or XPath parser is linked by any crate.
 - **390e. `migrate`.** The form, the code action and the workspace action. Done when moving a file's range from 8.6 to 9.0 offers one action that rewrites every `trace variable` call and flags each callback whose op argument changes.
-- **390f. Callback signatures.** `-callback -appends` on the core commands (`trace`, `after`, `fileevent`, `chan event`, scrollbar and `-command` options), with 335's `bind` substitutions as the `%` case. Done when the `bad` example above is reported at analysis time.
+- **390f. Callback signatures.** `-callback -appends` on the core commands (`trace`, `after`, `fileevent`, `chan event`, scrollbar and `-command` options), with 335's `bind` substitutions as the `%` case. Item 211 folds in here (D32): a handler protocol is `-callback -protocol T`, with the methods as `subcommand` rows of `handle T` and the required set as `required` (refchan, transchan); `socket -server` and `fcopy -command` are plain `-appends` callbacks; the parity row is `CallbackSig { protocol }` beside `HandleType { required }`, and the measured call order (`c06`–`c09`) is a conformance row. Done when the `bad` example above is reported at analysis time.
 - **390g–390m.** One step each for areas G to M as described above. Each is done when its consumer has a test driven only by pack rows.
 
 ## Bugs found while writing the examples
@@ -333,3 +338,8 @@ These examples now parse under chapter 2 of the [consolidated specification](../
 - **G12.** The migration's ops word is `{arg 1}` (0-based after `trace variable`).
 - **R13, R33.** `handle T { kind … }`, `result -handle`, `releases self`; handle methods are `subcommand` rows; `throws-prefix` is `throws`; `-script` is `-role Body`.
 - **R8, R28.** `library core tcl 8.4-9`: the family is named, and the 8.x line is spelt as R28 spells it (`8.4-9.0` is the same set).
+
+## Review fixes (26 November 2026, deep review)
+
+- **C5 (D-N).** Area D and 390d split by row kind and per editor; generation is 328's and the SQL taint check 473's.
+- **W10 (D32).** Item 211 folds into 390f with `-callback -protocol` and `required`.

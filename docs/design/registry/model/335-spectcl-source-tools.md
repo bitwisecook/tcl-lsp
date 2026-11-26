@@ -213,12 +213,26 @@ occurrences.
 ```rust
 // design sketch: 335
 pub struct Abstain {
-    pub code: AbstainCode,          // dynamic-name | missing-fact | out-of-reach | frame | collision | …
+    pub code: AbstainCode,          // Lookup(UnknownReason) | missing-fact | out-of-reach | frame | collision | …
     pub at: Span,
     pub reason: String,             // the LSP `disabled.reason` / prepareRename error message
-    pub missing: Option<MissingFact>, // { command: CommandId, fact: FactKind } for `tcl spec check --consumer`
+    pub missing: Option<MissingFact>, // { command: CommandKey, fact: FactKind } for `tcl spec check --consumer`
+}
+pub enum AbstainCode {
+    Lookup(UnknownReason),          // every `Answer::Unknown(reason)` abstains with its own reason
+    MissingFact, OutOfReach, Frame, Collision, /* … */
 }
 ```
+
+`AbstainCode` is a superset of item 78's `UnknownReason`
+(`tcl-core-types/src/answer.rs:49`): a refactor that abstains because a
+lookup answered `Unknown(reason)` carries that reason as
+`AbstainCode::Lookup(reason)`, so `DynamicName`, `IncompleteLookup` and the
+rest are spelled once. `MissingFact` names the command by the registry's
+generation-independent `CommandKey` (`LibraryId`, interned command path), not
+the engine's `CommandId(u32)`. `Abstain` amends item 78's
+`EditorOutcome = Result<T, Refusal<R>>`: item 439 makes it the shared editor
+outcome, so item 78 is marked amended by 439 (a plan handoff).
 
 Renaming `::app::on_save` where `dispatch` calls `::app::on_$action`: the
 word's literal prefix `::app::on_` can spell both the old name and
@@ -229,7 +243,7 @@ word's literal prefix `::app::on_` can spell both the old name and
 ```rust
 // design sketch: 335
 Abstain {
-    code: AbstainCode::DynamicName,
+    code: AbstainCode::Lookup(UnknownReason::DynamicName),
     at: Span { start: 156, end: 173 },     // `::app::on_$action`, dyn-before.tcl
     reason: "`::app::on_$action` can name ::app::on_save; no edit keeps it consistent".into(),
     missing: None,
@@ -650,3 +664,8 @@ no `missing-fact` on its own commands.
 3. **Where `example` rows live.** In the pack, or in a sibling test file
    that the pack names? Settled by the size of tcllib's rows.
 4. **Tk in CI.** Tk rows need `wish` and Xvfb. This machine has no `wish`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M5.** `AbstainCode` is a superset of `UnknownReason` (`Lookup(reason)`); `Abstain` amends item 78's editor outcome through item 439 (plan handoff).
+- **M6 (this doc's part).** `MissingFact` names a `CommandKey`, not the engine's `CommandId`.

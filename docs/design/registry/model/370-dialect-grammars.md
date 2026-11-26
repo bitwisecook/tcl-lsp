@@ -258,7 +258,10 @@ dialect f5-tcl {
 ```
 
 The release lines are illustrative: the shipped ladder is the K5902 list,
-generated with the release facts (items 79 and 202).
+generated with the release facts (items 79 and 202). That generator lands
+in Now 6, ahead of 417; 79's operator, numeral, escape and character-model
+axes are these grammar rows, so they are done once under 417 and 79 is
+merged in part (deep review W3).
 
 Release windows use `-from`:
 
@@ -301,7 +304,8 @@ pub struct GrammarRow { pub axis: GrammarAxis, pub from: Option<LineId>, pub bui
 
 The round-trip gate compares the Rust rows with the printed and re-read
 pack, row for row, as 332 does for command specs. The rows are generated
-with the release facts (items 79, 202) where an oracle decides them.
+with the release facts (items 79, 202) where an oracle decides them; the
+generator and these axes are Now 6 work (W3, above).
 
 ### Reaching every parser: fixing D5
 
@@ -964,3 +968,7 @@ unit's profile, an engine that cannot run it refuses instead.
 - **D12:** Jim values without the 0.76–0.83 windows; the f5-tcl example uses K5902 lines; the Risks row no longer calls Jim windows unmeasured.
 - **D13:** 9.1 adds 21 math functions, not 23.
 - The axis table was rebuilt from the probe under "How the table was measured", with the commands shown; the runs also found the `tclvm` drift listed under "Engines".
+
+## Review fixes (26 November 2026, deep review)
+
+- **W3.** The release-facts generator and 79's operator, numeral, escape and character-model axes are Now 6 work, done once under 417.

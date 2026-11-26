@@ -87,6 +87,7 @@ Each is one word unless the definition says list word.
 | `TEMPLATE` | a word with chapter 5's placeholders (`{arg N}`, `{value WORDREF}`, `{library L}`, `{dialect}`) |
 | `PARAMS`, `BODY` | a Tcl parameter list word and a Tcl script word, compiled to tbcx (rung 4); never evaluated by the reader |
 | `NATIVE-ID`, `IMPL-ID` | `crate::path::name`, one word, naming a compiled-in hook or implementation |
+| `OP-ID` | a variant name in the closed Rust catalogue the `OPERATION` head names (`INTRINSICS` for `intrinsic`, `LOWERING_HOOKS` for `structured`; `rust/tcl-spectcl/src/loader/value_parsers/descriptor_values.rs:598`), spelt as 2.x's `semantic_operation` spells it: `StringRange` |
 | `DIAGCODE` | a built-in diagnostic code word: `[A-Z]+[0-9]+` (`W144`, `T100`, `IRULE3003`) |
 | `SEVERITY` | `error`, `warning`, `info` or `hint` |
 | `FILE` | a sibling file name: no `/`, no `..` |
@@ -358,7 +359,7 @@ cmd-row     := avail-row | facet-block | arity-row | arg-row | option | subcomma
              | layout | optimise | refactor | report | rewrite | implementation
              | runtime-row | event-row | ebpf-row | presentation | snippet
              | refines | errors-row | 'taint' '-complete' LIB-RANGE
-             | test | legacy-row
+             | test | operation | legacy-row
 avail-row   := 'available' LIB-RANGE avail-flag*
              | 'deprecated' LIB-RANGE dep-flag*
              | 'retired' LIB-POINT                      ; gone from this version on (exclusive)
@@ -379,6 +380,7 @@ arg-flag    := '-role' ROLE-SPEC | '-values' LIST | '-values+' LIST | '-values-'
              | '-in' CONTAINER | '-frozen' | '-binds-vars' 'data' | '-object-kind' OBJECT-KIND
              | '-frame' FRAME | '-appends' (N | LIST) | '-percent-subst' | '-concat'
              | '-callback' | '-embedded' LANG | '-dialect' ANYWORD   ; -dialect only with -embedded
+             | '-protocol' HANDLE-TYPE                ; only with -callback (D32)
              | '-handle' HANDLE-TYPE | '-needs' LIST                 ; LIST of CAP
              | '-releases' | '-moves-to' WORDREF | '-transforms' | '-stores'   ; at most one of these four
              | '-creates' HANDLE-TYPE | '-reads'
@@ -414,6 +416,8 @@ name-row    := 'constructs' CONSTRUCT ('-from' LIST)?
                  ('-name-interp' WORDREF)? ('-target-interp' WORDREF)?
              | 'transition' 'tmsh' ('begin'|'commit'|'cancel')
              | 'mode-default' OPTNAME
+operation   := 'operation' OPERATION                  ; at most one per command, subcommand or form (D32)
+OPERATION   := 'invoke' | '{' 'intrinsic' OP-ID '}' | '{' 'structured' OP-ID '}'
 CONSTRUCT   := 'words' | 'script' | 'current-namespace' | 'qualified' | 'which'
              | 'method-prefix' | '{' 'method-prefix' '-receiver' 'self' '}'
 legacy-row  := LEGACY-WORD ANYWORD*
@@ -443,7 +447,7 @@ unchanged: `traits`, `implementation_namespace`, `warn_missing_import`,
 `is_namespace_exported`, `unsafe_command`, `excluded_events`,
 `safe_on_uninit`, `deprecated_replacement`, `deprecated_replacement_drop_in`,
 `source_deprecation_advice`, `alias_of`, `xc_translatable`,
-`reserved_trailing_words`, `option_prefix_words`, `assigns_variable_at`,
+`reserved_trailing_words`, `option_prefix_words`,
 `creates_instance_at`, `defines_command_at`, `body_arg_implicit_args`,
 `body_kind`, `variable_receivers`, `allow_unknown_subcommands`,
 `dynamic_surface`, `unknown_members`, `prefix_matching`,
@@ -460,8 +464,7 @@ unchanged: `traits`, `implementation_namespace`, `warn_missing_import`,
 `option_conflict`, `option_requires`, `option_requires_one_of`,
 `option_forbids`, `option_placement`, `case_list`, `definition_body`,
 `manufacturer`, `clause_grammar`, `binds_handle`, `object_class`,
-`oo_context_fact`, `semantic_operation`, `detail`, `synopsis`, `pure`,
-`mutator`, `header_write`, `destructive`, `returns_path`,
+`oo_context_fact`, `detail`, `synopsis`, `header_write`, `destructive`, `returns_path`,
 `source_index_bounds`, `source_path_operation`,
 `source_configuration_reference`, `is_unescape`, `loop_list_header`,
 `creates_scope_alias`, `arg_values_accept_prefix`, `cfg_rewrite_name`,
@@ -470,10 +473,68 @@ unchanged: `traits`, `implementation_namespace`, `warn_missing_import`,
 pack can write today (`evaluation_context`, `callback_protocol`,
 `body_interpreter`, `variable_write_min_args`, `event_emits`,
 `event_emission_form`, `irules_top_level_effect`, `teardown_argument_layout`,
-`remote_method`, `dispatch_dependencies`, `native_lowering`). Each keeps its
+`remote_method`, `dispatch_dependencies`). Each keeps its
 2.x words after the keyword (`ANYWORD*`), and the manifest row for each word
 names its own word shape, which the reader checks. `hover` is the one with a
 block, spelt in full under *Hover* below.
+
+**One operation, one effect descriptor (D32).** Item 120's single operation
+field and item 242's native lowering are 3.0 vocabulary, so the vocabulary
+freezes once:
+
+- `operation` is the one statement of what a call does for lowering, codegen,
+  native compilation and the successful-completion handler. Its value is
+  2.x's `semantic_operation` value in 3.0 spelling (`operation {intrinsic
+  StringRange}` for `Intrinsic StringRange`). On a command whose operation is
+  not `invoke`, the `lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
+  `native_compilation` and `successful_handler` hooks are derived from the
+  operation's catalogue entry, and a pack that also writes one of them gets
+  a load error. `operation` is facetable (today's
+  `semantic_operation_windows`).
+- Native lowering (NLIR and AOT) is carried by the operation: it is a
+  `Derived` Rust table keyed by `OP-ID`, not by command (D8 keeps it
+  Rust-only), so `native_lowering` is no longer a word.
+- The effect rows (`side_effects`, `effect`, `effects -complete`, the
+  `-writes`/`VarWrite` roles and the per-subcommand taint rows) are the one
+  effect descriptor. Purity, the mutator flag, `assigns_variable_at`, the
+  effect bits of `traits` and the taint subcommand lists are derived from
+  them, never written beside them.
+- The synopsis is stated once: when a command has `form` rows, the printer
+  omits a `synopsis` equal to the first form, and the reader derives it.
+  The words stay legal (332's printed `file home` still parses).
+
+The 2.x words `semantic_operation`, `pure`, `mutator` and
+`assigns_variable_at` are shim words in 3.0: `semantic_operation X` reads as
+`operation X`, and the other three are checked against what the effect rows
+and roles derive (`pure` against `side_effects none`, `assigns_variable_at N`
+against a `VarWrite` role at `N`); a disagreement is a shim notice, and the
+derived value wins. 2.x's `native_lowering` row is dropped with a notice.
+
+**Protocols and lookup orders (D32).** `-callback -protocol T` says the
+prefix is called as `prefix METHOD word…`, one call shape per `subcommand`
+row of the `handle T` block, and `required` lists the methods a handler must
+answer (item 211's channel handlers). `lookup NATIVE-ID` names an object
+system's method resolution order from the closed catalogue (`lookup::c3`,
+`lookup::dfs-keep-last`, `lookup::dfs-refuse-repeats`; item 86); a custom
+order is a BuiltIn or BundledPack `-native` hook, as D3 allows. In tclsh 8.6,
+9.0 and 9.1 a refchan handler whose `initialize` omits `watch` fails `chan
+create` with `does not support all required methods`, and 8.6 refuses a
+`truncate` method that 9.0 accepts:
+
+```spectcl
+speclib refchan-demo 3 {
+    handle refchan-handler {
+        kind command
+        required initialize finalize watch
+        subcommand initialize { arity 2 }
+        subcommand read { arity 2 }
+        subcommand truncate { available core tcl 9.0- ; arity 2 }
+    }
+    command {chan create} {
+        arg 1 -callback -protocol refchan-handler
+    }
+}
+```
 
 The 2.x words `dialects`, `required_package`, `tcllib_package`,
 `introduced_version`, `deprecated_version`, `retired_version`,
@@ -522,6 +583,8 @@ handle-row  := 'kind' HANDLE-KIND
              | 'lifetime' ('scope'|'interp'|'thread'|'connection'|'event'|'static')
              | 'spelling' ANYWORD | 'instances' NAME+ | 'capability' CAP+
              | 'superclass' HANDLE-TYPE+ | 'mixin' HANDLE-TYPE+ | 'filter' NAME+   ; kind object
+             | 'lookup' NATIVE-ID                     ; kind object: the method resolution order (D32)
+             | 'required' NAME+                       ; a protocol: the subcommands a handler must have (D32)
              | subcommand | option | hover
 HANDLE-KIND := 'token' | 'command' | 'object' | 'path'
 errorclass  := 'errorclass' ERRCLASS '{' ec-row* '}'
@@ -729,7 +792,7 @@ code is the default.
 
 | Minor | Forms |
 |---|---|
-| 3.0 | everything above not tagged `[3.1]`: identity, `include`, dialects and grammars, libraries and dependencies, `versions unknown`, `extend`, environments, commands and facets, `deprecated`/`retired`, `check`, hooks, consumer rows (`layout`, `optimise`, `refactor`, `rewrite`, `implementation`), name and frame facts, `handle`, `errorclass`/`throws`/`throws -complete`, `result` shapes, `-embedded`, `-callback -appends`, `migrate`, `event`/`flow`/`precedes`/`profile`/`connection`, iApps and tmsh rows, SslicTcl's `domain`/`document`/`data`, eBPF's `compile ebpf`/`context`/`helper`/`map-type`/`limit`, `test`, `mock`, `presentation`, `snippet`, reserved `message`/`doc LOCALE`, the taint forms (`colour`, `origin`, `sink`, `header-class`, `refines`, `-sink`, `result -origin`/`-adds`) |
+| 3.0 | everything above not tagged `[3.1]`: identity, `include`, dialects and grammars, libraries and dependencies, `versions unknown`, `extend`, environments, commands and facets, `deprecated`/`retired`, `check`, hooks, consumer rows (`layout`, `optimise`, `refactor`, `rewrite`, `implementation`), name and frame facts, `handle`, `errorclass`/`throws`/`throws -complete`, `result` shapes, `-embedded`, `-callback -appends`, `migrate`, `event`/`flow`/`precedes`/`profile`/`connection`, iApps and tmsh rows, SslicTcl's `domain`/`document`/`data`, eBPF's `compile ebpf`/`context`/`helper`/`map-type`/`limit`, `test`, `mock`, `presentation`, `snippet`, `operation`, `-callback -protocol`, `required`, `lookup` (D32), reserved `message`/`doc LOCALE`, the taint forms (`colour`, `origin`, `sink`, `header-class`, `refines`, `-sink`, `result -origin`/`-adds`) |
 | 3.1 | `catalogue`, project `scope`, `virtual-event`, `style`, `option-class`, `token` |
 
 `mock` is a 3.0 form; packaging fakes for `tcltest` users (chapter 9, area K)
@@ -789,3 +852,7 @@ Item 400 owns this grammar's manifest; items 401 (errors), 408 (identity and
 - **D8 (grammar side).** `expr-profile` removed as a form; `-expr-profile` selects a value of the expr `arithmetic` axis.
 - **Dialect fixer handoffs (399f9915).** `index` grammar; `-base` on namespaced dialects (`sslictcl/decl`); `unmeasured` on every axis; the new chapter 4 axes listed; `enables events` and `-scope` on `disables`/`enables events`; SslicTcl's `substitution reject -code` only maps a code.
 - **A7 (grammar side).** `refines … -switches LIST`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W2, W10 (D32).** `operation` (one operation statement; lowering, codegen, native-compilation and handler hooks derive from it; native lowering keyed by `OP-ID`), the effect rows as the one effect descriptor, `semantic_operation`/`pure`/`mutator`/`assigns_variable_at` as shim words, `native_lowering` dropped, the synopsis stated once by a printer rule; `-callback -protocol` and `required` (item 211), `lookup NATIVE-ID` (item 86), with a refchan example from real runs on tclsh 8.6, 9.0 and 9.1.

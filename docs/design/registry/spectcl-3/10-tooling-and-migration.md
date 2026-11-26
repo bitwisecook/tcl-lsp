@@ -201,17 +201,25 @@ replays the diff and reports conflicts.
 build into `tcl-catalogue/images/`; `cargo xtask spec-images --check` (item
 119) fails on any byte difference, naming the pack and section.
 
+Shipped packs resolve the same way on every host (D-H): the image that
+`tcl-catalogue` embeds is the BundledPack default for the native server, the
+WASM and WASI builds, the explorer and every editor. A `specs/` source on disk,
+or in the browser's mount, overrides it only when its hash differs from the
+embedded image's `source_hash`; it is then compiled into the user image cache
+and installed as a `UserPack` input with tier BundledPack. No `.tclimg` ships
+beside a binary: the binary already embeds the same build's bytes.
+
 | Artefact | Ships |
 |---|---|
-| VS Code VSIX (universal and platform targets) | `specs/*.tclspec` and `specs/*.tclimg` beside each server binary |
-| VS Code web | `dist/web/specs/` with both, listed in `index.json` |
-| VS Code WASI server, JetBrains `.zip` | both, beside the module or binary |
-| Zed, Neovim, Emacs, Helix and other bare-binary clients | the images embedded by `tcl-catalogue`, as the fallback |
-| Sublime | no server, no packs |
+| VS Code VSIX (universal and platform targets) | `specs/*.tclspec` beside each server binary, sources only |
+| VS Code web | `dist/web/specs/*.tclspec`, listed in `index.json`; a changed source compiles into an in-memory per-session cache |
+| VS Code WASI server, JetBrains `.zip` | the sources, beside the module or binary |
+| Zed, Neovim, Emacs, Helix, Sublime and other bare-binary clients | the images embedded by `tcl-catalogue`; Sublime's LSP-Tcl downloads the native `tcl-lsp-server` from the release (`editors/sublime-text/README.md`) |
 
-Every artefact ships the source beside the image (owner decision), so a user
-can read and replace a vendor pack. A replaced `specs/` source fails its image
-hash and is compiled into the user cache. Editor keyword grammars, snippets,
+Every artefact that ships packs ships them as sources (owner decision), so a
+user can read and replace a vendor pack. The user image cache is rooted
+through `tcl-userdirs`; the browser keeps it in memory for the session.
+Editor keyword grammars, snippets,
 diagnostic catalogues and AI prompts are generated from the catalogue and
 every image (item 328): each library's words get their own scope
 (`support.function.library.<lib>.tcl`), on by default only for ambient
@@ -222,10 +230,10 @@ answer.
 flowchart LR
   sources["crate packs, specs, core-surfaces"] --> xtask["tcl-spec-images, checked by cargo xtask spec-images --check"]
   xtask --> embedded["include_bytes! in tcl-catalogue"]
-  xtask --> staged["specs NAME.tclimg beside NAME.tclspec"]
-  staged --> vsix["VSIX, JetBrains zip, WASI"]
-  staged --> web["web bundle index.json"]
-  embedded --> bare["bare-binary clients"]
+  embedded --> hosts["every host's BundledPack default"]
+  sources --> shipped["specs NAME.tclspec, sources only"]
+  shipped --> vsix["VSIX, JetBrains zip, WASI, web index.json"]
+  vsix -- "hash differs" --> cache["user image cache, a UserPack with tier BundledPack"]
   xtask --> gens["make codegen: grammars, snippets, catalogues, prompts"]
 ```
 
@@ -251,3 +259,7 @@ only `{context, line, message}` (`Notice`, `rust/tcl-spectcl/src/loader/notices.
 ## Review fixes (26 November 2026)
 
 - **Rust/integration fixer handoffs (a43df812).** `tcl-spec-images` (`cargo spec-images`) generates the images into `tcl-catalogue/images/`; bare-binary clients get the images embedded by `tcl-catalogue`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C2 (D-H).** Editor bundles ship sources only; the embedded image is every host's BundledPack default; a differing source compiles into the `tcl-userdirs` cache (in memory in the browser). Sublime is a bare-binary client: LSP-Tcl downloads `tcl-lsp-server` (`editors/sublime-text/README.md`).

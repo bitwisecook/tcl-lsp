@@ -295,7 +295,7 @@ flowchart LR
   reader --> pack3["Pack3"]
   shims --> pack3
   pack3 --> compile["compile_image"]
-  compile --> image["tclimg, checked in or cached"]
+  compile --> image["tclimg, embedded or cached"]
   image --> filter["tier filter at install, 340"]
   filter --> view["ImageView"]
   view --> surface["Surface with SpecSource::Image, 344"]
@@ -411,3 +411,7 @@ These worked examples now parse under chapter 2 of the [consolidated specificati
 - **G15, R8.** `retired` takes a `LIB-POINT` (`retired core tcl 9.0`); `core` names its family.
 - **G2.** The iRules event example uses `profiles {any HTTP}` and a `flow` with `-profiles` and `step` rows (360's form); the bare `flow` row is gone.
 - **R24.** "Before 21.1" is `0-21.1`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C2 (D-H).** Images are embedded or cached, never checked in.

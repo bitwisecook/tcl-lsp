@@ -51,8 +51,8 @@ build and capability. A facet is a list of `(FacetKey, value)` rows:
   earlier block is refused with a coded notice (item 400).
 - **Facetable words only.** The manifest marks which rows may sit inside
   `versions`. Availability, arity, options, subcommands, roles, effects,
-  returns, value sets, deprecation, documentation, `limit`, `throws` and
-  result shapes are facetable; identity rows (`alias_of`, `runtime_backing`)
+  returns, value sets, deprecation, documentation, `limit`, `throws`,
+  `operation` (D32) and result shapes are facetable; identity rows (`alias_of`, `runtime_backing`)
   are not (open decision D7).
 
 `string is` shows a value-set facet. Each release's `bad class` error lists
@@ -326,6 +326,28 @@ and a diagnostic needs the strong value of its family:
 There is no `Must` error pattern: `catch {open $p}` may succeed, so an error
 set says what a body *may* raise and whether that list is complete.
 
+**`Certainty` is a projection, not a second lattice.** The lattice is item
+78's `Knowledge<T>` (`tcl-core-types/src/answer.rs:64`): `Proven(T)`,
+`BoundedSet { values, includes_absent }`, `Absent` and `Unknown(reason)`.
+The `Must`/`May` words above, and the `Certainty` type that records carry,
+are read off it, so the `includes_absent` bit is never lost:
+
+| `Knowledge<T>` | `Certainty` | Meaning |
+|---|---|---|
+| `Proven(v)` | `Must` | one value on every path |
+| `BoundedSet { includes_absent: false }` | `Must` (of the set) | one of these candidates on every path, none absent |
+| `BoundedSet { includes_absent: true }` | `May` | present on some paths, absent on others |
+| `Absent` | (no fact) | absent on every path |
+| `Unknown(reason)` | `Unknown` | no closed answer; the `UnknownReason` says why |
+
+A fact demoted by a frame effect (391's A6) becomes a set with
+`includes_absent` set, so it reads as `May`; several candidates with none
+absent stay `Must` of that set. Item 482 owns the move: `BindingKnowledge`
+becomes `Knowledge<BindingTarget>`, 308's `LibraryChoice` and 391's handle
+certainty read the projection, and the integration design's `Visibility`,
+`TkFactCertainty` and `EventEmissionCertainty` are mapped onto it or retired.
+An `ErrorSet` carries no certainty: it is open or complete (the table above).
+
 - **`check` atoms** over an unknown value are unknown. A rule emits only when
   its predicate is proved true. Over a version set, `library` and `dialect`
   atoms are true when they hold for every member, false when they hold for
@@ -377,3 +399,8 @@ set says what a body *may* raise and whether that list is complete.
 - **G15.** `retired` takes a `LIB-POINT`.
 - **A2.** Error sets are open unless claimed complete, and carry the implicit `TCL LIMIT`, `TCL READ`, `TCL WRITE` and `TCL LOOKUP VARNAME` codes.
 - **A12 (this chapter's part).** A set atom over a mixed version set is unknown, so `not` does not emit.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M4 (D-F).** `Certainty` defined as the projection of item 78's `Knowledge<T>`, with the mapping table; frame-effect demotion sets `includes_absent`; `BindingKnowledge`, `Visibility`, `TkFactCertainty` and `EventEmissionCertainty` mapped or retired by item 482; `ErrorSet` carries no certainty.
+- **W2 (D32).** `operation` is facetable.

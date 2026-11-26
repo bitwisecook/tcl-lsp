@@ -239,8 +239,9 @@ per `TaintBasis`, 17 runs each. With an open set that does not scale. The
 summary becomes a gen/kill transfer per parameter, and per parameter and sink:
 
 ```rust
-// design sketch: proposed in this doc
+// design sketch: proposed in this doc; keyed by identity (D-D), never display text
 ProcTaintSummary {
+    body: BodyUnitRef(/* the proc's body */ b1),
     returns: TaintTransfer { base: TaintFact::CLEAN,
         from_params: &[ParamTransfer { param: 0, passes_origins: true,
                                        keeps: ColourSet::ALL, adds: ColourSet::of(&["crlf-free"]) }] },
@@ -700,7 +701,7 @@ raises. The analyser reports only W101: the T100 is lost through `foreach`
 ## Proposed steps
 
 - **393a. Colour table.** `CoreColour`, `TaintColourId`, `ColourSet` and `TaintTable` in `tcl-registry`; the `colour` form with `implies` and `concat`. Done when `rg 'TaintBasis|TAINT_BITS|flag_labels' rust` is empty, the compiler has no `bitflags!` for colours, and `colour sql.bound` loads from a pack.
-- **393b. Sink kinds.** `CoreSinkKind`, `SinkRow` and the `sink` form; every `taint_*sink*` field becomes a row. Done when `sink_colour_mitigated`, `T102_SAFE`, `CRLF_SAFE` and `REDIRECT_SAFE` are gone and the T/IRULE corpus reports the same set.
+- **393b. Sink kinds.** `CoreSinkKind`, `SinkRow` and the `sink` form; every `taint_*sink*` field becomes a row. Done when `sink_colour_mitigated`, `T102_SAFE`, `CRLF_SAFE` and `REDIRECT_SAFE` are gone and the T/IRULE corpus reports the same set, and item 244a's rows are conformance rows of 465 and 466, green under `tcl8.6`, `tcl9.0` and `tcl9.1`: `set x [gets stdin]; eval $x` draws T100, and so do the same source with `read stdin`, `chan gets stdin` and `exec cat` as the source; `argv` keeps T100; the integration design's `save` example draws T101 under all three. 244a is marked "verified by 466" (deep review W12): its fix lands on the 465 colour table, not on the `TaintBasis` path 465 deletes.
 - **393c. Origins and secrets.** Split `TAINTED` into origins; `secret`, `header-class` and T108. Done when example 6 reports T108, and W310 reads `-secret` rows instead of `credential_options`.
 - **393d. Spelling and parity.** The 3.0 forms, the 2.x shim and 332's round-trip for `TaintRow`. Done when every shipped spec round-trips and `body_statements.rs` has no `taint_` field arm.
 - **393e. Validators.** `refines`, `-adds-from-pattern`, `-switches`, and refinement at `Terminator::Branch` for the call, `!call`, and decomposed `&&`/`||` shapes. Done when `if {[string is digit -strict $x]} { exec sleep $x }` and the anchored `regexp` guard draw no T100, and worked example 7's `integer`, `-line`, `||` and `subst` cases still draw it.
@@ -758,3 +759,8 @@ if {[string is digit -strict $x]} { exec sleep $x }'` reports T100 at 2:48, and 
 - **G12.** `{string is}` refines `{arg end}` with the class at `{arg 0}`; `regexp` names `{arg exp}` and `{arg string}`.
 - **G15.** Sink codes pick by dialect family (`f5-tcl`); `variable` carries its required flags and `-provider`.
 - **R13.** `db eval` is a `subcommand` of the `sqlite3-db` handle.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M2 (D-D).** `ProcTaintSummary` is keyed by `BodyUnitRef`.
+- **W12.** 244a's rows (`gets`, `read`, `chan gets`, `exec` sources and `argv` under 8.6, 9.0 and 9.1; re-run today: T100 on 8.6, none on 9.0 and 9.1 except `argv`) are 465/466 conformance rows.

@@ -369,7 +369,7 @@ foreach p {/nonexistent/x /tmp/e39x-empty} {
 **In memory:**
 ```rust
 // design sketch
-ProcSummary { name: "::fetch",
+ProcSummary { body: BodyUnitRef(/* proc ::fetch */ b1),   // keyed by identity (D-D), not display text
     raises: ErrorSet { patterns: &[ErrorPattern(&["POSIX"]), ErrorPattern(&["ARITH"]),
                                    ErrorPattern(&["TCL", "WRONGARGS"]),   // from the default rows
                                    ErrorPattern(&["TCL", "LIMIT"]),       // implicit, every call
@@ -612,3 +612,7 @@ rc=1 ec=FIN X during=ORIG X
 - **G11.** Codes a target never raises, and forms some targets lack, are the portability class.
 - **G12.** `error` is `{arg 2}`, `throw` `{arg 0}`, `{dict get}` `argc >= 2`.
 - **G13.** `ErrorSet` has no certainty field: patterns are "may raise", and `other` marks an open set.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M2 (D-D).** `ProcSummary` is keyed by `BodyUnitRef`.

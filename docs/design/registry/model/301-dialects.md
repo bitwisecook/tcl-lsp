@@ -289,6 +289,8 @@ command row may require a capability (302's `CapabilityPredicate`), so Jim's
 | `closed_load_time_resolution`, `declaration_only_top_level` | `Family::F5Irules` methods | the iRules library's policy (304) |
 | BIG-IP version | `VersionKey`/`KeyedAxis::BigipVersion` | f5-tcl's release axis; 303 removes both enums |
 | `Release::F5_TCL_TMOS`, `F5_IRULES_TMM` (46 production sites) | single-release ladders | f5-tcl lines; `tmm` becomes a build |
+| `TclVersion` (`tcl-dialect/src/version.rs:94`, five variants, 8,804 references in `rust/`) | the closed fold-semantic release enum; `from_profile` reads a dialect name | the point's `Release` (`DialectPoint::release()`, `point.rs:50`) for a Tcl-family release, or the dialect id for Jim and f5-tcl, which fold through their `ancestry` anchor. `TclVersion` stays as a projection of the point, like `DialectProfile` (decision 4), under an only-shrinks count in the `registry-axes` ledger; a sixth release adds a `Release` constant, not a variant |
+| package version strings | `tcl-pkg-model/src/version.rs:44`: a semver regex (`v?`, three components, `-pre`, `rc\d+`) | `tcl_dialect::Version` (`model/version_set.rs:175`, the `tclPkg.c` grammar). tclsh 9.1 accepts `package provide x 1.2.3.4` and rejects `v1.2` and `1.0rc1` (`expected version number`), which the regex does the other way round; `tcl-pkg-model` already depends on `tcl-dialect` |
 
 ### Retiring `CATALOG`
 
@@ -376,7 +378,12 @@ environment model.
    and `CapabilityOverrides`. Move `closed_load_time_resolution` and
    `declaration_only_top_level` to a `tcl-lib-irules` policy type (304).
 2. `release_facts` (item 202): generate `F5_LINES` with provenance from the
-   evidence manifest, and add a `--check` gate.
+   evidence manifest, and add a `--check` gate. This step needs 202's
+   generator in Now 6, before this item and 417, not in stage 6 where the
+   plan has it; 79's grammar-axis part (operators, numerals, escapes, the
+   character model) overlaps 417 and 424 and is done once there. Only the
+   math-function and bundled-package rosters stay in stage 6 (deep review W3,
+   a plan handoff).
 3. `point.rs`: `DialectPoint` gains `patch` and `capabilities`, and
    `lexer_grammar()`.
 4. `tcl-lexer/src/lexer/config.rs`: add `for_point` and `for_file_point`, and
@@ -388,6 +395,9 @@ environment model.
    vocabulary).
 7. Migrate `DialectProfile` readers crate by crate, lexer first. Each crate's
    PR removes its `for_profile` calls.
+8. `tcl-pkg-model`: parse versions with `tcl_dialect::Version`, and delete
+   the semver regex; `TclVersion` readers move to the point's `Release` under
+   the same only-shrinks count as `DialectProfile`.
 
 ## Verification
 
@@ -437,3 +447,8 @@ environment model.
 ## Review fixes (26 November 2026)
 
 - **D12:** the f5-tcl conformance matrix is the K5902 lines (the oldest, the default and 21.1), not {15.0, 16.1, 17.1, 21.1}.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M10.** Rows for `TclVersion` (a projection of the point's `Release`, or the dialect id) and package versions (`tcl_dialect::Version`, measured on tclsh 9.1); work list step 8.
+- **W3.** Step 2 needs 202's generator in Now 6; 79's grammar axes are done once under 417.
