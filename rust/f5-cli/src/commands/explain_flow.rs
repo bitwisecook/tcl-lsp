@@ -52,11 +52,12 @@ static EVENTS: LazyLock<tcl_registry::events::EventRegistry> =
     LazyLock::new(tcl_registry::events::EventRegistry::build);
 
 /// iRule command invocation inside `[ ... ]`.
-static HUD_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]").expect("hud regex")
+static STATE_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]")
+        .expect("state token regex")
 });
 
-/// One HUD annotation: `(source-line excerpt, command, captured value)`.
+/// One state annotation: `(source-line excerpt, command, captured value)`.
 type Annotation = (String, String, String);
 /// One iRule event body: `(rule path, event name, body text)`.
 type EventBlock = (String, String, String);
@@ -402,7 +403,7 @@ fn expected_event_sequence(
 /// Resolve an iRule command token like `HTTP::host` against *conn*.
 // One flat arm per iRule command token; splitting the dispatch would obscure it.
 #[allow(clippy::too_many_lines)]
-fn hud_value_for(token: &str, conn: &Connection) -> Option<String> {
+fn state_value_for(token: &str, conn: &Connection) -> Option<String> {
     let f = &conn.client;
     let s = conn.server.as_ref();
     let ne = |x: &str| -> Option<String> {
@@ -516,7 +517,7 @@ fn annotate_event_block(body: &str, conn: &Connection) -> Vec<Annotation> {
         if stripped.is_empty() || stripped.starts_with('#') {
             continue;
         }
-        for caps in HUD_TOKEN_RE.captures_iter(line) {
+        for caps in STATE_TOKEN_RE.captures_iter(line) {
             let ns = caps.get(1).expect("group 1").as_str();
             let rest = caps.get(2).expect("group 2").as_str().trim();
             let full = if ns == "SNI" {
@@ -524,7 +525,7 @@ fn annotate_event_block(body: &str, conn: &Connection) -> Vec<Annotation> {
             } else {
                 format!("{ns}{rest}")
             };
-            if let Some(value) = hud_value_for(&full, conn) {
+            if let Some(value) = state_value_for(&full, conn) {
                 out.push((stripped.to_owned(), full, value));
                 break;
             }
@@ -825,7 +826,7 @@ fn compute_explain_flow(
         }
 
         // iRule event chain: ordered firing sequence, verbatim bodies, and
-        // HUD annotations tying iRule commands to captured connection state.
+        // State annotations tying iRule commands to captured connection state.
         let mut event_sequence: Vec<String> = Vec::new();
         let mut event_blocks: Vec<EventBlock> = Vec::new();
         let mut event_annotations: Vec<EventAnnotation> = Vec::new();
@@ -1089,7 +1090,7 @@ fn format_report(report: &ExplainFlowReport) -> String {
             }
         }
         if !se.event_annotations.is_empty() {
-            lines.push("  HUD-state captured for iRule commands:".to_owned());
+            lines.push("  State captured for iRule commands:".to_owned());
             for (rule, ev, anns) in &se.event_annotations {
                 lines.push(format!("    --- {rule} :: when {ev} ---"));
                 for (line_excerpt, cmd, value) in anns {
@@ -1254,7 +1255,7 @@ fn py_splitlines(s: &str) -> Vec<&str> {
     out
 }
 
-/// Render a `bool` as the capitalised `True`/`False` tokens the HUD uses.
+/// Render a `bool` as the capitalised `True`/`False` tokens the annotations use.
 fn py_bool(b: bool) -> &'static str {
     if b { "True" } else { "False" }
 }
@@ -1265,7 +1266,7 @@ fn py_list_repr(values: &[String]) -> String {
     format!("[{}]", inner.join(", "))
 }
 
-/// Render a string in repr form for the HUD annotations
+/// Render a string in repr form for the state annotations
 /// (single-quoted, with `\\`, `\'`, `\n`, `\r`, `\t` escapes).
 fn py_repr(s: &str) -> String {
     let use_double = s.contains('\'') && !s.contains('"');
