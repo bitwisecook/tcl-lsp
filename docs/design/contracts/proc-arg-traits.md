@@ -39,6 +39,38 @@ depend on:
 `ProcArgTrait::as_str` is the stable lower-case serialisation used on the
 wire (MCP, explorer payloads); it is the only place the spellings are fixed.
 
+## Script contracts
+
+`Eval` and `Body` say a parameter's value runs as a script, not where.
+`ProcDef::script_parameters` adds that: a `ScriptParameter { frame, timing }`
+for each formal the body runs as a whole script.
+
+| Use in the body | `frame` | `timing` |
+|---|---|---|
+| `uplevel 1 $p` | `Caller(1)` | `Now` |
+| `uplevel 2 $p` | `Caller(2)` | `Now` |
+| `eval $p`, `catch $p`, `while 1 $p` | `Own` | `Now` |
+| `uplevel #0 $p` | `Global` | `Now` |
+| `after 0 $p` | `Global` | `Deferred` |
+
+The frame comes from the registry, not the command's name: the selected
+descriptor's `EvaluationContext` for the `Body` argument, and for a
+level-selected activation its frame-effect grammar on the successful path
+(`ResolvedInvocation::script_argument_context`, carried on
+`InvocationFacts::script_contexts`). The scan records one
+`ProcArgTrait::Script` entry per use and `param_traits::take_script_parameters`
+reduces them to the contract; the entries never reach
+`ProcDef::param_traits`. A formal gets `ScriptParameter::UNKNOWN` when its
+uses disagree, when it is only part of a script (`eval $p extra`, `subst $p`),
+when the candidate set is open, or when it reaches a lambda, whose frames
+count from the lambda's own activation. A formal reassigned before it runs,
+or run by a lone computed `uplevel $p` (the level split is decided at run
+time), gets no contract. The deep pass also reads the command substitutions a
+braced expression evaluates, so `if {[catch {uplevel 1 $s} r]} …` is found.
+
+The frames were measured under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and
+9.1.0, which agree.
+
 ## Original input provenance
 
 Positioned scans retain the declaration's original formal recipe, exact body
@@ -139,5 +171,5 @@ observation fired at all, so a parameter's trait set is never empty.
 | File | Role |
 |---|---|
 | `rust/tcl-compiler/src/analyser/param_traits.rs` | shallow + deep inference |
-| `rust/tcl-compiler/src/analyser/types.rs` | `ProcArgTrait`, `ProcDef::param_traits` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `ProcArgTrait`, `ScriptParameter`, `ProcDef::param_traits`, `ProcDef::script_parameters` |
 | `rust/tcl-compiler/src/interprocedural.rs` | the dataflow-side trait enum and `ProcSummary::param_traits` |

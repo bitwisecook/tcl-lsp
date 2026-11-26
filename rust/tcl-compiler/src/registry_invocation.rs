@@ -1063,6 +1063,8 @@ pub struct RegistryInvocationShape {
     pub possible_traits: tcl_registry::Traits,
     /// Declared candidate result type, never an established runtime value type.
     pub nominal_return_type: Option<tcl_registry::TclType>,
+    /// Frame and timing of each `Body` role's script, keyed like [`Self::roles`].
+    pub script_contexts: Vec<(u8, tcl_registry::evaluation_context::ScriptArgumentContext)>,
     /// Alias-composed source words and original argument indices.
     pub effective: EffectiveCommandWords,
 }

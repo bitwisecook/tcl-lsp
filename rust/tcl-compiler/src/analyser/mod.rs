@@ -132,9 +132,10 @@ pub use types::{
     DefinitionAbortKind, Diagnostic, FactoryMember, FactoryWord, FixSafety,
     LogicalSourceObjectMembers, ManufacturerSpec, MemberRetractionRecord, MemberSide,
     MetaclassProvenance, MethodDef, ObjectMemberState, ObjectMethodDef, ProcArgTrait, ProcDef,
-    PropertyDef, QualifiedVarRef, RenamedMember, Scope, ScopeKind, Severity, StubFlags,
-    SubclassProvidedMethods, UnknownProcInfo, VarDef, class_constructor_key, class_destructor_key,
-    class_member_key, class_property_key,
+    PropertyDef, QualifiedVarRef, RenamedMember, Scope, ScopeKind, ScriptParameter,
+    ScriptParameterFrame, ScriptParameterTiming, Severity, StubFlags, SubclassProvidedMethods,
+    UnknownProcInfo, VarDef, class_constructor_key, class_destructor_key, class_member_key,
+    class_property_key,
 };
 // The one `# noqa` / `# tcl-lsp: disable=…` suppression contract, beside the
 // pre-scan that builds the map it reads. Every diagnostic surface — the

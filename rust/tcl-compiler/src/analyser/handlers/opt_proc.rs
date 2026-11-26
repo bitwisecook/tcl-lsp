@@ -137,7 +137,9 @@ impl Analyser {
         combined_params.extend(opt_locals.iter().cloned());
 
         let body_text = &args[2];
-        let (param_traits, caller_frame_params, caller_frame_literals) =
+        // `tcl::OptProc`'s callers pass an option list, never a formal's
+        // script, so its optlist locals carry no script contract.
+        let (param_traits, caller_frame_params, caller_frame_literals, _) =
             self.infer_proc_param_traits(&combined_params, body_text, body_tok.span);
 
         let proc = ProcDef {
@@ -158,6 +160,7 @@ impl Analyser {
             param_traits,
             caller_frame_params,
             caller_frame_literals,
+            script_parameters: std::collections::HashMap::new(),
         };
 
         // The optlist's locals remain distinct from native formal syntax;

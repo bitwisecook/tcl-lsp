@@ -396,7 +396,7 @@ fn role_for_trait(t: ProcArgTrait) -> Option<&'static str> {
         // An eval'd argument and a control body are both scripts as far as the
         // registry's role vocabulary is concerned; the difference is captured
         // in the traits, not the role.
-        ProcArgTrait::Eval | ProcArgTrait::Body => Some("Body"),
+        ProcArgTrait::Eval | ProcArgTrait::Body | ProcArgTrait::Script(_) => Some("Body"),
         ProcArgTrait::VarWrite => Some("VarWrite"),
         ProcArgTrait::VarRead => Some("VarRead"),
         ProcArgTrait::Expr => Some("Expr"),
@@ -432,7 +432,7 @@ fn traits_for(t: ProcArgTrait) -> &'static [&'static str] {
         ProcArgTrait::Expr => &["HAS_BOOLEAN_COND"],
         ProcArgTrait::LoopList => &["LOOP_LIST_HEADER"],
         ProcArgTrait::Command => &["BUILDS_COMMAND_PREFIX", "INVOKES_USER_PROC"],
-        ProcArgTrait::DynamicNameLocal => &[],
+        ProcArgTrait::DynamicNameLocal | ProcArgTrait::Script(_) => &[],
     }
 }
 
@@ -447,6 +447,7 @@ fn evidence(param: &str, t: ProcArgTrait) -> String {
         ProcArgTrait::LoopList => "is iterated as a list",
         ProcArgTrait::DynamicNameLocal => "names one of the proc's own locals",
         ProcArgTrait::Command => "is invoked as a command",
+        ProcArgTrait::Script(_) => "is run as a whole script",
     };
     format!("`{param}` {what}")
 }

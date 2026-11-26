@@ -24,6 +24,7 @@ mod caller_frame;
 mod command_traits;
 mod original_parameter_roles;
 mod resolved_heads;
+mod script_parameters;
 
 fn assert_trait(
     traits: &HashMap<String, HashSet<ProcArgTrait>>,

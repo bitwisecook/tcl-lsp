@@ -795,3 +795,30 @@ fn analyse_without_stub_directive_leaves_body_untyped() {
         proc.param_traits.get("body"),
     );
 }
+
+/// The declaration carries each formal's script contract, and the reported
+/// traits keep their established vocabulary.
+#[test]
+fn a_procedure_records_the_frame_it_runs_a_script_parameter_in() {
+    use crate::analyser::{ProcArgTrait, ScriptParameterFrame};
+    let result = crate::analyser::Analyser::new().analyse(
+        "proc t {label script} {uplevel 1 $script}\nproc g {s} {uplevel #0 $s}\n",
+        "tcl8.6",
+    );
+    let t = result.all_procs.get("::t").expect("::t");
+    assert_eq!(
+        t.script_parameters.get("script").map(|c| c.frame),
+        Some(ScriptParameterFrame::Caller(1))
+    );
+    assert!(!t.script_parameters.contains_key("label"));
+    assert!(
+        !t.param_traits["script"]
+            .iter()
+            .any(|item| matches!(item, ProcArgTrait::Script(_)))
+    );
+    let g = result.all_procs.get("::g").expect("::g");
+    assert_eq!(
+        g.script_parameters.get("s").map(|c| c.frame),
+        Some(ScriptParameterFrame::Global)
+    );
+}

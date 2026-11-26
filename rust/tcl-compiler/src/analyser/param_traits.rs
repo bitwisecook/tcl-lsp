@@ -70,7 +70,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::model::DocumentCommandSurface;
 
-use super::types::ProcArgTrait;
+use super::types::{ProcArgTrait, ScriptParameter};
 #[cfg(test)]
 use crate::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
@@ -349,6 +349,34 @@ where
         merged.entry(param).or_default().extend(deep_traits);
     }
     merged
+}
+
+/// Remove the per-use [`ProcArgTrait::Script`] entries from `traits` and
+/// reduce each formal's uses to its [`ScriptParameter`] contract.
+/// Parameters left with no trait are dropped.
+pub fn take_script_parameters<S, H>(
+    traits: &mut HashMap<String, HashSet<ProcArgTrait, H>, S>,
+) -> HashMap<String, ScriptParameter>
+where
+    S: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+{
+    let mut contracts = HashMap::new();
+    for (param, set) in traits.iter_mut() {
+        let mut script_uses = Vec::new();
+        set.retain(|item| match item {
+            ProcArgTrait::Script(contract) => {
+                script_uses.push(*contract);
+                false
+            }
+            _ => true,
+        });
+        if let Some(contract) = ScriptParameter::of_uses(script_uses) {
+            contracts.insert(param.clone(), contract);
+        }
+    }
+    traits.retain(|_, set| !set.is_empty());
+    contracts
 }
 
 /// Drop parameters with no detected trait and convert the

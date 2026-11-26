@@ -32,15 +32,17 @@ struct ResolvedProcedureReportingName {
     pub(super) resolved: String,
 }
 
-/// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
+/// The four per-proc facts [`Analyser::infer_proc_param_traits`] derives from
 /// one view of a proc body: the per-parameter trait map, the caller-frame
-/// parameter names ([`super::super::types::ProcDef::caller_frame_params`]), and the
+/// parameter names ([`super::super::types::ProcDef::caller_frame_params`]), the
 /// literal caller-frame targets
-/// ([`super::super::types::ProcDef::caller_frame_literals`], name → written-through-alias).
+/// ([`super::super::types::ProcDef::caller_frame_literals`], name → written-through-alias),
+/// and the script contracts ([`super::super::types::ProcDef::script_parameters`]).
 pub(super) type ProcParamFacts = (
     std::collections::HashMap<String, std::collections::HashSet<super::super::types::ProcArgTrait>>,
     std::collections::HashSet<String>,
     std::collections::HashMap<String, bool>,
+    std::collections::HashMap<String, super::super::types::ScriptParameter>,
 );
 
 /// Bundled arguments for [`Analyser::walk_proc_body_in_new_scope`] — kept
@@ -410,7 +412,7 @@ impl Analyser {
             body_text,
             env,
         );
-        let traits = if self.deep_param_traits {
+        let mut traits = if self.deep_param_traits {
             let deep = super::super::param_traits::infer_param_traits_deep_in_document(
                 &param_names,
                 body_text,
@@ -433,7 +435,13 @@ impl Analyser {
                 caller_frame_literals.len()
             );
         }
-        (traits, caller_frame_params, caller_frame_literals)
+        let script_parameters = super::super::param_traits::take_script_parameters(&mut traits);
+        (
+            traits,
+            caller_frame_params,
+            caller_frame_literals,
+            script_parameters,
+        )
     }
 
     fn procedure_words_for_analyser(
@@ -831,9 +839,8 @@ impl Analyser {
         // command is truly unresolved.
         self.retain_unknown_procedure_info(&qualified, &args[words.body], &params, body_tok);
 
-        let body_text = &args[words.body];
-        let (param_traits, caller_frame_params, caller_frame_literals) =
-            self.infer_proc_param_traits(&params, body_text, body_tok.span);
+        let (param_traits, caller_frame_params, caller_frame_literals, script_parameters) =
+            self.infer_proc_param_traits(&params, &args[words.body], body_tok.span);
 
         let proc = ProcDef {
             source_name,
@@ -848,6 +855,7 @@ impl Analyser {
             param_traits,
             caller_frame_params,
             caller_frame_literals,
+            script_parameters,
         };
 
         // Register globally and in the current scope. ``scope.procs``

@@ -18,7 +18,7 @@
 
 //! The traits one command gives the parameters it uses: evaluation and argument roles, selected aliases and definite writes.
 
-use super::super::types::ProcArgTrait;
+use super::super::types::{ProcArgTrait, ScriptParameter};
 use super::{Aliases, ArgumentValues, ScanCtx};
 use std::collections::{HashMap, HashSet};
 use tcl_registry::arg_role::ArgRole;
@@ -126,6 +126,16 @@ pub(super) fn scan_command<'p>(
     if !view.parameter_role_advice().is_closed() {
         aliases.clear();
         apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
+        // An open candidate set cannot place a script it may run.
+        for &(index, role) in &view.declared_roles {
+            if role == ArgRole::Body
+                && let Some(set) = values
+                    .argument(index)
+                    .and_then(|param| traits.get_mut(param))
+            {
+                set.insert(ProcArgTrait::Script(ScriptParameter::UNKNOWN));
+            }
+        }
         return;
     }
     // An unresolved replacement may have no parameter-evaluation grammar.
@@ -155,16 +165,23 @@ fn apply_possible_evaluation_traits<'p>(
     use tcl_registry::Traits;
     for candidate in candidates {
         for (index, role) in candidate.written_argument_roles() {
-            if role == ArgRole::Body
-                && !braced.get(index).copied().unwrap_or(false)
-                && candidate.possible_traits.intersects(
-                    Traits::EVALUATES_CODE | Traits::DYNAMIC_EVAL_BODY | Traits::DEFERS_BODY,
-                )
-                && let Some(param) = values.argument(index)
-                && let Some(set) = traits.get_mut(param)
-            {
+            if role != ArgRole::Body || braced.get(index).copied().unwrap_or(false) {
+                continue;
+            }
+            let Some(set) = values
+                .argument(index)
+                .and_then(|param| traits.get_mut(param))
+            else {
+                continue;
+            };
+            if candidate.possible_traits.intersects(
+                Traits::EVALUATES_CODE | Traits::DYNAMIC_EVAL_BODY | Traits::DEFERS_BODY,
+            ) {
                 set.insert(ProcArgTrait::Eval);
             }
+            set.insert(ProcArgTrait::Script(ScriptParameter::from_registry(
+                candidate.script_context_at_written(index),
+            )));
         }
         if candidate
             .possible_traits
@@ -188,6 +205,11 @@ fn apply_possible_evaluation_traits<'p>(
                     && let Some(set) = traits.get_mut(param)
                 {
                     set.insert(ProcArgTrait::Eval);
+                    // A value concatenated with further words is only part
+                    // of the script, so no call site can place it.
+                    if first + 2 < candidate.effective.words.len() {
+                        set.insert(ProcArgTrait::Script(ScriptParameter::UNKNOWN));
+                    }
                 }
             }
         }
@@ -203,6 +225,7 @@ fn apply_possible_evaluation_traits<'p>(
                     && let Some(set) = traits.get_mut(param)
                 {
                     set.insert(ProcArgTrait::Eval);
+                    set.insert(ProcArgTrait::Script(ScriptParameter::UNKNOWN));
                 }
             }
         }

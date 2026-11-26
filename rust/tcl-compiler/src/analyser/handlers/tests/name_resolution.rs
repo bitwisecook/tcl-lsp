@@ -117,6 +117,7 @@ fn resolve_proc_call_qualified_relative_name() {
             param_traits: std::collections::HashMap::new(),
             caller_frame_params: std::collections::HashSet::new(),
             caller_frame_literals: std::collections::HashMap::new(),
+            script_parameters: std::collections::HashMap::new(),
         },
     );
     let resolved = a.resolve_proc_call("a::b", &[]);
@@ -150,6 +151,7 @@ fn resolve_proc_call_relative_dotted_name_prefers_current_namespace() {
                 param_traits: std::collections::HashMap::new(),
                 caller_frame_params: std::collections::HashSet::new(),
                 caller_frame_literals: std::collections::HashMap::new(),
+                script_parameters: std::collections::HashMap::new(),
             },
         );
     }

@@ -56,6 +56,18 @@ impl RegistryInvocationShape {
             })
     }
 
+    /// Frame and timing of the `Body` script at written argument `written`,
+    /// when the candidate's descriptor places it.
+    pub(crate) fn script_context_at_written(
+        &self,
+        written: usize,
+    ) -> Option<tcl_registry::evaluation_context::ScriptArgumentContext> {
+        self.script_contexts.iter().find_map(|&(index, context)| {
+            let effective = self.argument_offset.checked_add(usize::from(index))?;
+            (self.effective.written_argument(effective) == Some(written)).then_some(context)
+        })
+    }
+
     fn from_hosted_source(
         registry: &CommandRegistry,
         context: InvocationMetadataContext<'_>,
@@ -93,6 +105,7 @@ impl RegistryInvocationShape {
             roles_complete: facts.arg_roles_complete,
             possible_traits: facts.traits,
             nominal_return_type: facts.return_type,
+            script_contexts: facts.script_contexts.clone(),
             effective,
         }
     }

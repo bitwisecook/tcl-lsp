@@ -1009,7 +1009,8 @@ pub use occurrence_records::{
 };
 pub use procedures::{
     DefinedSymbol, EnsembleSubcommandTarget, PendingCtorArity, PendingNextArity,
-    PendingUserCallArity, ProcArgTrait, ProcDef, UnknownProcInfo,
+    PendingUserCallArity, ProcArgTrait, ProcDef, ScriptParameter, ScriptParameterFrame,
+    ScriptParameterTiming, UnknownProcInfo,
 };
 pub use result_caches::{HierarchyCache, SourceWordsMemo};
 pub(super) use scopes::InterpreterSourceBody;

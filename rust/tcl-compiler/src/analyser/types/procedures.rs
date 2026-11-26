@@ -125,6 +125,96 @@ pub enum ProcArgTrait {
     /// therefore names a command, which a consumer can resolve (call graph) or
     /// highlight as a command.
     Command,
+    /// One use of the parameter's value as a whole script, with the frame
+    /// and timing that use runs it in. A parameter carries one entry per
+    /// distinct use; [`ScriptParameter::of_uses`] reduces them to the
+    /// formal's contract.
+    Script(ScriptParameter),
+}
+
+/// The frame a script parameter's argument runs in, from the caller's view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScriptParameterFrame {
+    /// `N` frames above the procedure: `Caller(1)` is the calling frame
+    /// (`uplevel 1 $p`, `uplevel $p`).
+    Caller(u32),
+    /// The procedure's own frame, where the caller's locals do not exist
+    /// (`eval $p`, `catch $p`, `if 1 $p`).
+    Own,
+    /// The global frame (`uplevel #0 $p`, `after 0 $p`).
+    Global,
+    /// A run-time level, a namespace, or uses that disagree.
+    Unknown,
+}
+
+/// When a script parameter's argument runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScriptParameterTiming {
+    /// Before the procedure returns.
+    Now,
+    /// Later, from the event loop (`after`, `chan event`).
+    Deferred,
+}
+
+/// A procedure formal whose value the body runs as a script.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ScriptParameter {
+    /// Frame the script runs in.
+    pub frame: ScriptParameterFrame,
+    /// When it runs.
+    pub timing: ScriptParameterTiming,
+}
+
+impl ScriptParameter {
+    /// A use whose frame is not known, so a call site abstains.
+    pub const UNKNOWN: Self = Self {
+        frame: ScriptParameterFrame::Unknown,
+        timing: ScriptParameterTiming::Now,
+    };
+
+    /// The contract of one use, from the registry's description of the
+    /// command the parameter reaches. The registry counts frames from the
+    /// procedure's own activation.
+    #[must_use]
+    pub fn from_registry(
+        context: Option<tcl_registry::evaluation_context::ScriptArgumentContext>,
+    ) -> Self {
+        use tcl_registry::evaluation_context::ScriptFrame;
+        let Some(context) = context else {
+            return Self::UNKNOWN;
+        };
+        let timing = match context.timing {
+            tcl_registry::ScriptTiming::SameInvocation => ScriptParameterTiming::Now,
+            tcl_registry::ScriptTiming::Deferred => ScriptParameterTiming::Deferred,
+            tcl_registry::ScriptTiming::ReferenceOnly => return Self::UNKNOWN,
+        };
+        let frame = match context.frame {
+            ScriptFrame::Relative(0) => ScriptParameterFrame::Own,
+            ScriptFrame::Relative(level) => ScriptParameterFrame::Caller(level),
+            ScriptFrame::Global => ScriptParameterFrame::Global,
+            ScriptFrame::Unknown => ScriptParameterFrame::Unknown,
+        };
+        Self { frame, timing }
+    }
+
+    /// The formal's contract from every use the body makes of it: one
+    /// agreed frame and timing, or [`Self::UNKNOWN`] when uses disagree.
+    #[must_use]
+    pub fn of_uses(uses: impl IntoIterator<Item = Self>) -> Option<Self> {
+        let mut uses = uses.into_iter();
+        let first = uses.next()?;
+        Some(if uses.all(|other| other == first) {
+            first
+        } else {
+            Self::UNKNOWN
+        })
+    }
+
+    /// Whether a call site can place the argument's script.
+    #[must_use]
+    pub const fn is_known(self) -> bool {
+        !matches!(self.frame, ScriptParameterFrame::Unknown)
+    }
 }
 
 impl ProcArgTrait {
@@ -140,6 +230,7 @@ impl ProcArgTrait {
             ProcArgTrait::LoopList => "loop_list",
             ProcArgTrait::DynamicNameLocal => "dynamic_name_local",
             ProcArgTrait::Command => "command",
+            ProcArgTrait::Script(_) => "script",
         }
     }
 }
@@ -229,6 +320,13 @@ pub struct ProcDef {
     /// the body binds none.
     /// Readonly source usage, never a successful caller store or physical cell.
     pub caller_frame_literals: std::collections::HashMap<String, bool>,
+    /// Formals the body runs as a whole script, with the frame and timing it
+    /// runs them in (`uplevel 1 $p` is [`ScriptParameterFrame::Caller`]`(1)`,
+    /// `eval $p` [`ScriptParameterFrame::Own`], `uplevel #0 $p` and `after 0
+    /// $p` [`ScriptParameterFrame::Global`]). Inferred by the same pass as
+    /// [`Self::param_traits`]; a formal whose uses disagree carries
+    /// [`ScriptParameter::UNKNOWN`].
+    pub script_parameters: std::collections::HashMap<String, ScriptParameter>,
 }
 
 impl ProcDef {

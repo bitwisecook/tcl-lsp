@@ -18,7 +18,7 @@
 
 //! The walk over a procedure body: the shallow command scan, the bounded descent into substitutions and the deep scan through bodies and lambda literals.
 
-use super::super::types::ProcArgTrait;
+use super::super::types::{ProcArgTrait, ScriptParameter};
 use super::caller_frame::record_direct_caller_effects;
 use super::command_traits::scan_command;
 use super::{
@@ -244,6 +244,23 @@ pub(super) fn scan_deep<'p>(
             }
         }
 
+        // A braced expression evaluates its command substitutions in this
+        // same frame (`if {[catch {uplevel 1 $script} r]} …`).
+        if ctx.original_logical_body.is_none() && ctx.original_logical_lambda.is_none() {
+            let expressions: HashSet<usize> = roles
+                .iter()
+                .filter_map(|&(index, role)| (role == ArgRole::Expr).then_some(index))
+                .collect();
+            for idx in expressions {
+                if let (Some(text), Some(token)) = (cmd_args.get(idx), seg.argv.get(idx + 1))
+                    && token.kind == TokenType::Str
+                    && seg.single_token_word.get(idx + 1).copied().unwrap_or(false)
+                {
+                    scan_deep_expression(text, token, ctx, traits, &body_aliases, depth);
+                }
+            }
+        }
+
         // `apply {argList body ?ns?} …` — an apply body runs in a *fresh*
         // call frame with its own parameters; recursing into it with the
         // enclosing proc's own `ctx`/`traits` (as a plain `Body` arg would)
@@ -411,10 +428,15 @@ fn scan_deep_lambda<'p>(
     }
     for (param_name, outer_param) in lambda_input_bindings(view, idx, &lambda_param_defs, values) {
         if let Some(lambda_param_traits) = lambda_traits.get(&param_name) {
+            // A lambda's frames count from its own activation, one below
+            // this procedure's, so its script uses are not placed here.
             traits
                 .entry(outer_param)
                 .or_default()
-                .extend(lambda_param_traits.iter().copied());
+                .extend(lambda_param_traits.iter().map(|item| match item {
+                    ProcArgTrait::Script(_) => ProcArgTrait::Script(ScriptParameter::UNKNOWN),
+                    other => *other,
+                }));
         }
     }
 }
@@ -528,6 +550,44 @@ fn lambda_input_bindings<'p>(
             Some((formals[parameter].name.clone(), values.argument(original)?))
         })
         .collect()
+}
+
+/// Scan the command substitutions a braced expression evaluates, each as a
+/// nested script of the same frame.
+fn scan_deep_expression<'p>(
+    expression: &str,
+    token: &tcl_lexer::Token,
+    ctx: &ScanCtx<'p, '_>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    aliases: &Aliases<'p>,
+    depth: u8,
+) {
+    let Some(profile) = ctx.surface.commands().profile() else {
+        return;
+    };
+    let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+    context.lexer_grammar = ctx.config.grammar_over(context.lexer_grammar);
+    let Some(commands) =
+        tcl_syntax::expr::command_substitutions_in_checked_expression(expression, &context)
+    else {
+        return;
+    };
+    let nested = ctx.nested(token, expression);
+    for span in commands {
+        let (Some(start), Some(end)) = (span.start().checked_add(1), span.end().checked_sub(1))
+        else {
+            continue;
+        };
+        let Some(inner) = usize::try_from(start)
+            .ok()
+            .zip(usize::try_from(end).ok())
+            .and_then(|(start, end)| expression.get(start..end))
+        else {
+            continue;
+        };
+        let inner_ctx = nested.nested_at(Some(start), inner);
+        scan_deep(inner, &inner_ctx, traits, &mut aliases.clone(), depth + 1);
+    }
 }
 
 fn scan_deep_body<'p>(
