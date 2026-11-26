@@ -492,16 +492,7 @@ type PromotionKey = (String, u64, u64, u64);
 ///
 /// [`ResolvedContext::inherited_surface_admits`]: crate::model::ResolvedContext::inherited_surface_admits
 fn roster_axis_of(environment: &DocumentEnvironment) -> u64 {
-    let reimplements = environment.definition.core.is_some_and(|core| {
-        core.family.ancestry().is_some_and(|ancestry| {
-            ancestry.lineage == tcl_dialect::model::family::Lineage::Reimplementation
-        })
-    });
-    if reimplements {
-        environment.inherited_surfaces.generation()
-    } else {
-        0
-    }
+    crate::model::assembly::roster_axis(&environment.definition, &environment.inherited_surfaces)
 }
 
 fn promotion_key(environment: &DocumentEnvironment) -> PromotionKey {

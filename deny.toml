@@ -124,7 +124,7 @@ deny = [
     ] },
     { name = "tcl-codegen", wrappers = [
         "tcl-cli", "tcl-debugger", "tcl-engine-tclvm", "tcl-explorer", "tcl-fuzz", "tcl-irule-test",
-        "tcl-lsp-core", "tcl-lsp-db", "tcl-mcp", "tcl-spectcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm",
+        "tcl-lsp-db", "tcl-mcp", "tcl-spectcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-wasm",
     ] },
     { name = "tcl-compiler", wrappers = [
         "bigip-query-wasm", "bigip-report-gen-rust", "bpf-tcl-ir", "f5-xc", "tcl-cli",

@@ -146,6 +146,7 @@ workspace packages in `cargo tree -e normal,build,dev`.
 | Item | Crate | Edited file | Before | After | Test cone before → after |
 |---|---|---|---|---|---|
 | 269 | `tcl-registry` | `src/commands/irules/active_members.rs` | 11 crates (`tcl-registry`, `tcl-compiler`, `tcl-vm`, `tcl-irules`, `tcl-sslictcl`, `tcl-codegen`, `tcl-engine-tclvm`, `tcl-bigip`, `tcl-lsp-core`, `tcl-spec-hooks`, `tcl-spectcl`), 95.2 s | 1 crate, 9.2 s | 29 → 15 |
+| 270 | `tcl-lsp-core` | `src/folding.rs` | 2 crates (`tcl-lsp-core`, `tcl-spectcl`), 11.3 s | 1 crate, 8.5 s | 29 → 21 |
 
 ## 1. CLI start-ups in tests
 

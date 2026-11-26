@@ -628,6 +628,28 @@ pub fn registry_for_environment_if_built(
     )
 }
 
+/// The surface-roster generation an assembly for `environment` answers
+/// under: the roster store's for a family that reimplements an ancestor, `0`
+/// for every other environment, whose answers no roster reaches. The
+/// assembly cache and `static_context_for`'s promotion key both read it, so
+/// a roster change rebuilds exactly the assemblies it can change and the
+/// promoted view stays the allocation the cache holds.
+pub(crate) fn roster_axis(
+    environment: &EnvironmentDefinition,
+    inherited_surfaces: &tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+) -> u64 {
+    let reimplements = environment.core.is_some_and(|core| {
+        core.family.ancestry().is_some_and(|ancestry| {
+            ancestry.lineage == tcl_dialect::model::family::Lineage::Reimplementation
+        })
+    });
+    if reimplements {
+        inherited_surfaces.generation()
+    } else {
+        0
+    }
+}
+
 pub(crate) fn registry_for_environment_with_surfaces(
     environment: &Arc<EnvironmentDefinition>,
     identity: &EnvironmentIdentity,
@@ -642,7 +664,7 @@ pub(crate) fn registry_for_environment_with_surfaces(
         environment.point(),
         keyed.content_hash(),
         overlay,
-        inherited_surfaces.generation(),
+        roster_axis(environment, &inherited_surfaces),
         crate::cache::core_surface_generation(),
     );
     if let Some(generation) = cache

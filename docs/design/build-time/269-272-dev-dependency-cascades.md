@@ -143,9 +143,12 @@ crate.
   crates and already depends on everything these tests name.
 - After the registry split, the EDA vendor libraries stay SpecTcl packs loaded
   by `tcl-spectcl` ([registry split](../registry/registry-split-design.md)).
-  `tcl-catalogue` cannot host the tests: `tcl-spectcl`'s
-  `registry_for_dialect_from` will depend on the catalogue, so a catalogue
-  dev-dependency on SpecTcl would rebuild the cascade.
+  `tcl-catalogue` cannot host the tests: they need `tcl-spectcl`, and a
+  catalogue dev-dependency on it would put the loader's cone in the
+  catalogue's test target. `registry_for_dialect_from` takes its `&SurfaceSet`
+  from the caller and never depends on the catalogue (integration § 1, row 5),
+  because `tcl-sslictcl` → `tcl-bigip` → `tcl-lsp-core` would carry a
+  catalogue edge up the stack.
 
 **What moves.**
 - The four files.
@@ -461,3 +464,25 @@ moved whole; `route_identity.rs` kept only
 heavy-test rows of the moved tests name `tcl-spectcl::it_4` and `::it_5`
 with their full module paths, and the `catalogue-callers` allowlist and the
 design and KCS references follow the files.
+
+### 270 as built
+
+As designed, with one fixture choice and one fix it exposed.
+
+- The roster fixture admits every name the default registry knows except
+  `coroutine`, not a short list. The roster store is process-wide and the
+  lib's other tests run beside this one; a short roster would withdraw Tcl's
+  surface from a concurrent Jim test, where the broad one answers as the
+  fail-open empty store does. It registers once, as the shipped seed did.
+- The `coroutine` assertion for the shipped roster already exists:
+  `core_surfaces::tests::the_roster_carries_what_jimsh_has_and_not_what_it_lacks`.
+- The shipped seed had also registered Jim's compiled-in commands, which moved
+  the core-surface generation. Without it, a roster-only change showed a
+  mismatch in `tcl-registry`: the assembly cache keyed on the roster
+  generation for every environment, while `static_context_for`'s promotion
+  key carries it only for a reimplementing family. After a Jim roster change,
+  `tcl9.1` got a new assembly behind its old `&'static` view, and
+  `references::configured_callback_variable_tests` (which asserts the two are
+  one allocation) failed. Both keys now read `model::assembly::roster_axis`,
+  so a roster change rebuilds only the assemblies it can change.
+- `deny.toml` no longer lists `tcl-lsp-core` as a `tcl-codegen` wrapper.

@@ -40,8 +40,8 @@ fn inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual
         allow_unknown_methods: false,
         method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
     };
-    tcl_spectcl::core_surfaces::ensure();
     let mut registry = CommandRegistry::build_default();
+    register_jim_roster_without_coroutine(&registry);
     registry.insert(CommandSpec {
         name: "RosterChild",
         object_class: Some(&CHILD),
@@ -77,4 +77,32 @@ fn inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual
     assert!(context.spec_available(surface_owner));
     assert!(context.resolve_spec(&registry, "coroutine").is_none());
     assert!(registry_method_items(&analysis, &registry, "RosterChild", profile).is_none());
+}
+
+/// Register a fixture Jim roster of Tcl's surface: every name the default
+/// registry knows except `coroutine`, which Jim's shipped roster also leaves
+/// out (`tcl_spectcl::core_surfaces`' tests hold that). The roster store is
+/// process-wide, so the fixture admits everything else, as the fail-open store
+/// does, and is registered once, as the shipped seed was: another test's cached
+/// context sees one generation change, not two.
+fn register_jim_roster_without_coroutine(registry: &CommandRegistry) {
+    use tcl_dialect::model::{Family, InheritedSurface, Provenance, VersionAxisId, VersionSet};
+    static REGISTERED: std::sync::Once = std::sync::Once::new();
+    REGISTERED.call_once(|| {
+        let every_release =
+            VersionSet::from_requirements(VersionAxisId::core(Family::Jim), &["0-"])
+                .expect("an open window");
+        let names = registry
+            .command_names()
+            .filter(|name| *name != "coroutine")
+            .map(|name| (std::sync::Arc::from(name), every_release.clone()))
+            .collect();
+        let outcome = tcl_dialect::model::register_inherited_surfaces(vec![InheritedSurface {
+            target: Family::Jim,
+            source: Family::Tcl,
+            names,
+            provenance: Provenance::BuiltIn,
+        }]);
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+    });
 }
