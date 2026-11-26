@@ -453,6 +453,9 @@ declarations are written in.
   - [391-handle-types.md](registry/model/391-handle-types.md) — typed
     handles of any kind, their producers, consumers, lifetimes and analyser
     tracking (391).
+  - [392-error-codes.md](registry/model/392-error-codes.md) — typed error
+    codes: what commands and procs raise, and what `catch` and `try` hold
+    (392).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.

@@ -120,6 +120,8 @@ The VM has no `zlib` yet; that is engine work already tracked under the channel 
 
 ## B. Error codes
 
+[Typed error codes](392-error-codes.md) gives the full design: error classes and fields, what each command and proc raises, and what `catch` and `try` hold. This section is the summary.
+
 `throws` lists the `-errorcode` prefixes a command can raise, with an optional condition. It is versioned like any facet.
 
 **Source:**
