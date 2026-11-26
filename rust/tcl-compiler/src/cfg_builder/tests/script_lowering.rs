@@ -69,10 +69,9 @@ fn structured_cfg_writes_keep_literal_name_data_and_dynamic_unknowns() {
     );
 }
 
-fn for_initialisation_runs_at_least_once(source: &str, registry: &CommandRegistry) -> bool {
+fn native_for_statement(source: &str, registry: &CommandRegistry) -> Statement {
     let profile = registry.profile().unwrap();
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-    let builder = CfgBuilder::new(true, registry).with_lexer_config(config);
     let module = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
         tcl_runtime_api::ProcedureCompileTarget {
             source,
@@ -85,47 +84,61 @@ fn for_initialisation_runs_at_least_once(source: &str, registry: &CommandRegistr
         false,
         None,
     );
-    let statement = &module.top_level.statements[0];
-    let Statement::For { raw_tokens, .. } = statement else {
+    let statement = module.top_level.statements.into_iter().next().unwrap();
+    let Statement::For { raw_tokens, .. } = &statement else {
         panic!("original bytecode for grammar: {statement:?}");
     };
     assert!(raw_tokens.as_deref().is_some());
-    builder.for_runs_at_least_once(statement)
+    statement
 }
 
 #[test]
-fn for_initialisation_does_not_publish_array_elements_as_scalar_constants() {
+fn for_initialisation_preserves_exact_scalar_bindings() {
     let registry = native_registry();
-    for (name, condition, expected) in [
-        ("a", "$a == 1", true),
-        ("$a", "${$a} == 1", true),
-        ("", "${} == 1", true),
-        ("a(key)", "$a == 1", false),
-        ("$a(key)", "${$a} == 1", false),
+    let builder = CfgBuilder::new(true, &registry);
+    for (name, scalar) in [
+        ("a", true),
+        ("$a", true),
+        ("", true),
+        ("a(key)", false),
+        ("$a(key)", false),
     ] {
-        let source = format!("for {{set {{{name}}} 1}} {{{condition}}} {{}} {{}}");
-        assert_eq!(
-            for_initialisation_runs_at_least_once(&source, &registry),
-            expected,
-            "{source}",
-        );
+        let source = format!("for {{set {{{name}}} {{010}}}} {{1}} {{}} {{}}");
+        let Statement::For { init, .. } = native_for_statement(&source, &registry) else {
+            unreachable!();
+        };
+        let bindings = builder.for_initialisation_bindings(&init);
+        assert_eq!(bindings.len(), usize::from(scalar), "{source}");
+        if scalar {
+            assert!(
+                matches!(bindings.get(name), Some(crate::tcl_expr_eval::EnvValue::Str(value)) if value.bytes == "010" && value.numeric.is_none()),
+                "{source}: {bindings:?}"
+            );
+        }
     }
 }
 
 #[test]
-fn for_initialisation_uses_selected_numeric_grammar_and_exact_text() {
+fn for_initialisation_declines_unproved_conditions() {
     let registry = CommandRegistry::build_default().project_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
-    for (condition, expected) in [
-        ("$i == 8", true),
-        ("$i == 10", false),
-        (r#"$i eq "010""#, true),
-        (r#"$i eq "10""#, false),
+    let builder = CfgBuilder::new(true, &registry);
+    for (initial, condition, expected) in [
+        ("010", "1", true),
+        ("010", "$i == 8", false),
+        ("NaN", "$i", false),
+        ("", "NaN", false),
+        ("{x}y", "1 ni $i", false),
+        (
+            "01000000000000000000000",
+            "$i != 9223372036854775808",
+            false,
+        ),
     ] {
-        let source = format!("for {{set i 010}} {{{condition}}} {{}} {{}}");
+        let source = format!("for {{set i {{{initial}}}}} {{{condition}}} {{}} {{}}");
         assert_eq!(
-            for_initialisation_runs_at_least_once(&source, &registry),
+            builder.for_runs_at_least_once(&native_for_statement(&source, &registry)),
             expected,
             "{source}",
         );
