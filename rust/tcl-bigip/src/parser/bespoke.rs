@@ -387,7 +387,7 @@ fn split_compact_props(body: &str, known: &[String]) -> HashMap<String, String> 
 }
 
 /// Map a profile type string to a [`ProfileType`].
-fn classify_profile(type_str: &str) -> ProfileType {
+pub(crate) fn classify_profile(type_str: &str) -> ProfileType {
     match type_str.to_lowercase().as_str() {
         "aimcp" => ProfileType::Aimcp,
         "http" | "http2" | "http-compression" | "http-proxy-connect" | "web-acceleration" => {

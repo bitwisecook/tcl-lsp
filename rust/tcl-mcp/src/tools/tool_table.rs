@@ -617,6 +617,37 @@ pub(super) const TOOLS: &[ToolDef] = &[
         handler: crate::bigip::irule_with_context,
     },
     ToolDef {
+        name: "hud_chain",
+        description: "HUD chain of each virtual server in a BIG-IP config: profiles as HUD filters (type, layer, side), \
+                      attached iRules in rule-list order, and every `when` handler merged into one table per event, \
+                      ordered by priority then rule position (F5's documented order, unmeasured), with \
+                      equal-priority ties and whether the profiles raise each event.",
+        params: &[
+            (
+                "config_text",
+                "string",
+                "BIG-IP config text (bigip.conf/scf)",
+            ),
+            (
+                "config_paths",
+                "array",
+                "Paths to config files to merge (optional)",
+            ),
+            (
+                "virtual",
+                "string",
+                "Virtual server full path or name (optional; default all)",
+            ),
+            (
+                "rule_path",
+                "string",
+                "Only virtual servers that attach this iRule (optional)",
+            ),
+        ],
+        required: &[],
+        handler: crate::bigip::hud_chain,
+    },
+    ToolDef {
         name: "help",
         description: "Search the KCS feature knowledge base (empty topic → full catalogue).",
         params: &[

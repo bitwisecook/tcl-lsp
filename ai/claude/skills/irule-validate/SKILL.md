@@ -16,7 +16,8 @@ allowed-tools: mcp__tcl-lsp__validate, Read
    a one-line fix (`docs/generated/diagnostic_codes.md`), then per-category
    totals. A clean file gets an explicit pass. Validation covers this rule
    alone: say that profile availability and conflicts with other iRules on
-   the virtual server need `/irule-hud` with the BIG-IP config.
+   the virtual server need `/irule-hud` (the `hud_chain` tool) with the
+   BIG-IP config.
 
 ## Output
 

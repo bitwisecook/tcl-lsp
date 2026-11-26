@@ -215,6 +215,7 @@ mod protocol_tests {
                 json!({"source": "set x 1", "dialect": "klingon"}),
             ),
             ("irule_with_context", json!({"config_paths": ["\u{0}"]})),
+            ("hud_chain", json!({"config_paths": ["\u{0}"]})),
         ] {
             let (is_error, payload) = wire_payload(name, &args);
             assert!(is_error, "{payload}");

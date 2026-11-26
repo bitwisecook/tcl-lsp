@@ -1,7 +1,7 @@
 ---
 name: irule-diff
 description: "Compare two iRule versions and explain the semantic differences, security implications, performance changes, and breaking changes. Uses LSP analysis on both files. Use when comparing iRule versions, diffing F5 iRules, analysing iRule change impact, or reviewing iRule modifications."
-allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, Bash, Read
+allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, mcp__tcl-lsp__hud_chain, Read
 ---
 
 # iRule Diff
@@ -24,6 +24,6 @@ allowed-tools: mcp__tcl-lsp__analyze, mcp__tcl-lsp__irule_with_context, Bash, Re
    handlers against another iRule, `event disable` or `return` changes, a
    new command whose profile the virtual server may lack. With a config,
    check them against each attached virtual server's HUD chain
-   (`f5-query explain virtual VS CONF --json`).
+   (`mcp__tcl-lsp__hud_chain` with `rule_path`).
 
 $ARGUMENTS

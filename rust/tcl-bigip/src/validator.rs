@@ -56,6 +56,7 @@ use tcl_registry::profiles::ProfileFacts;
 use tcl_registry::relation::RelationVerdict;
 
 use crate::canonical::Canon;
+use crate::hud_chain::registry_profile_name;
 use crate::lint::{ModelView, resolve_name};
 use crate::model::ProfileType;
 use crate::parser::driver::BigipConfig;
@@ -297,18 +298,18 @@ fn iter_class_dg_references(source: &str) -> Vec<(usize, usize, String)> {
     out
 }
 
-/// Profile types attached to a virtual server.
+/// Profile types attached to a virtual server, including profiles of the
+/// shipped base configuration that the supplied files only reference.
 fn profile_types_for_virtual(
     view: &ModelView<'_>,
     vs: &crate::model::BigipVirtualServer,
 ) -> Vec<ProfileType> {
     let mut types: Vec<ProfileType> = Vec::new();
-    for pref in vs.profiles.paths() {
-        if let Some(resolved) = resolve_name(&pref, &view.profiles, view.default_partition)
-            && let Some(p) = view.profiles.get(&resolved)
-            && !types.contains(&p.profile_type)
+    for (_, _, kind, _) in crate::hud_chain::attached_profile_types(view, vs) {
+        if let Some(kind) = kind
+            && !types.contains(&kind)
         {
-            types.push(p.profile_type);
+            types.push(kind);
         }
     }
     types
@@ -678,22 +679,6 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
     }
 }
 
-/// Convert the typed BIG-IP model spelling to the profile registry's canonical
-/// stack vocabulary. The model deliberately preserves the tmsh-ish
-/// `CLIENT_SSL` / `SERVER_SSL` names; the event/profile graph owns the compact
-/// `CLIENTSSL` / `SERVERSSL` names.
-fn registry_profile_name(profile: ProfileType) -> &'static str {
-    match profile {
-        ProfileType::ClientSsl => "CLIENTSSL",
-        ProfileType::ServerSsl => "SERVERSSL",
-        ProfileType::OneConnect => "ONECONNECT",
-        ProfileType::Websocket => "WS",
-        ProfileType::Persistence => "PERSIST",
-        ProfileType::Other => "OTHER",
-        _ => profile.py_name(),
-    }
-}
-
 /// BIGIP6038: compare authored handlers with Registry event-profile requirements.
 fn check_virtual_event_profile_graph(
     view: &ModelView<'_>,
@@ -703,11 +688,16 @@ fn check_virtual_event_profile_graph(
     let event_registry = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
     for (_path, vs) in view.virtual_servers.iter() {
+        let attachments = crate::hud_chain::attached_profile_types(view, vs);
+        // A profile neither the supplied files nor the base configuration
+        // types leaves the stack open: requirements cannot be judged.
+        let stack_closed = attachments
+            .iter()
+            .all(|(_, _, kind, _)| kind.is_some_and(|k| registry_profile_name(k).is_some()));
         let profile_types = profile_types_for_virtual(view, vs);
         let mut active: Vec<&str> = profile_types
             .iter()
-            .map(|profile| registry_profile_name(*profile))
-            .filter(|name| *name != "OTHER")
+            .filter_map(|profile| registry_profile_name(*profile))
             .collect();
         // TCP is the transport default on a standard LTM virtual. It is
         // inherited rather than explicitly listed in many SCFs and must not
@@ -774,7 +764,7 @@ fn check_virtual_event_profile_graph(
                     // not a profile false positive.
                     continue;
                 };
-                if !profiles.stack_satisfies(props.implied_profiles, &active) {
+                if stack_closed && !profiles.stack_satisfies(props.implied_profiles, &active) {
                     let requirements = props.implied_profiles.join(" or ");
                     out.push(ConfigDiagnostic {
                         code: DiagCode::Bigip6038.as_str().to_owned(),
@@ -1315,10 +1305,9 @@ pub fn collect_profile_default_evidence(
     let view = ModelView::build(config);
     let mut evidence = Vec::new();
     for (_path, profile) in view.profiles.iter() {
-        let profile_type = registry_profile_name(profile.profile_type);
-        if profile_type == "OTHER" {
+        let Some(profile_type) = registry_profile_name(profile.profile_type) else {
             continue;
-        }
+        };
         let fields = profile.canon_fields();
         let Some(fields) = fields.as_object() else {
             continue;
