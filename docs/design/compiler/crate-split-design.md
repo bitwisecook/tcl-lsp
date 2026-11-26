@@ -1,6 +1,6 @@
 # Splitting tcl-compiler into layered crates
 
-Status: proposal, 26 November 2026. Refines the "Crates" table in
+Status: proposal, 26 November 2026; tracked as part of plan item 77. Refines the "Crates" table in
 [architecture-tidy-plan](../../work/name-handling/architecture-tidy-plan.md#crates)
 and answers the blocker recorded in
 [build-test-cost §4](../../work/build-test-cost/current-state.md): "any further
@@ -46,9 +46,12 @@ not from algorithms that truly need each other:
    move.
 4. **The registry rule is unchanged.** Per-command knowledge stays in
    `tcl-registry`, and `registry-axes` covers every new crate.
-5. **`tcl-compiler` stays as the façade.** It keeps `CompilationUnit`,
-   `source_graph` and `pub use tcl_analyser as analyser` style re-exports, so the
-   25 consumers can move one at a time and none breaks on day one.
+5. **No façade.** A crate that re-exports everything keeps every consumer
+   depending on every layer, which undoes the split. Each extraction rewrites its
+   consumers to the new crate in the same change (most of the ~6.5k
+   `tcl_compiler::` paths map one-to-one), and `retired_api_gate` forbids the old
+   path from then on. What remains of `tcl-compiler` is the unit crate, and it
+   re-exports nothing.
 
 ## Proposed crates (bottom up)
 
@@ -68,7 +71,7 @@ and `tcl-cmd-core`.
 | `tcl-analyser` | `analyser`, `compiler_checks`, `irules_checks`; implements binding's body-report trait | ~115k | LSP stack, MCP, CLI |
 | `tcl-optimiser` | `optimiser`, `semantic_optimisation` | ~22k | `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI |
 | `tcl-native-plan` | `executable_ir`, `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry` | ~20k | `tcl-codegen`, `bpf-tcl-ir` |
-| `tcl-compiler` (façade) | `compilation_unit`, `source_graph`, `auto_path_eval`, re-exports | ~15k | existing consumers, unchanged at first |
+| `tcl-compiler` (unit crate; possibly renamed `tcl-unit`) | `compilation_unit`, `source_graph`, `auto_path_eval`; no re-exports | ~15k | whole-unit consumers (`CompilationUnit`) |
 
 ```
 tcl-lexer / tcl-syntax / tcl-registry / tcl-dialect / tcl-runtime-api
@@ -83,7 +86,7 @@ tcl-lexer / tcl-syntax / tcl-registry / tcl-dialect / tcl-runtime-api
            ┌───┴───────┐
      tcl-analyser  tcl-optimiser
            └─────┬─────┘
-           tcl-compiler (façade: CompilationUnit, session, re-exports)
+           tcl-compiler (unit: CompilationUnit, source_graph; no re-exports)
 ```
 
 `tcl-binding` remains the largest crate. Once its shared types have moved, the
@@ -96,8 +99,8 @@ placed below binding.
   binding or analyser.
 - **`tcl-sslictcl`** needs only `tcl-source`.
 - **`tcl-codegen`** stops rebuilding when the analyser or optimiser changes.
-- **The LSP crates** keep the façade, or depend on `tcl-analyser` and
-  `tcl-model` directly.
+- **The LSP crates** depend on `tcl-analyser`, `tcl-model` and, for whole-unit
+  work, the unit crate.
 - **An edit to the analyser** (its 92k test lines make it the busiest area)
   rebuilds the analyser and what sits above it, not binding, lowering or
   dataflow.
@@ -136,6 +139,8 @@ delta.
    - Re-point the roots of `walker-ownership`, `registry-axes`,
      `owner-resolution`, `segmentation-drift` and `parser-ownership`, as the
      codegen split did.
+7. **Façade retired.** `tcl-compiler` keeps only the unit code and re-exports
+   nothing. This step is tracked in plan item 77.
 
 ## Risks
 
@@ -146,5 +151,5 @@ delta.
   `pub`. Keep a crate-level `api` module and mark the rest `#[doc(hidden)]`, and
   make the ratchet count it.
 - **Caching.** The salsa database (see [caching](../../work/name-handling/caching-design.md))
-  lives in the façade or `tcl-lsp-db`, and the lower crates expose pure functions
+  lives in the unit crate or `tcl-lsp-db`, and the lower crates expose pure functions
   over inputs.
