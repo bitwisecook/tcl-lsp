@@ -424,6 +424,29 @@ declarations are written in.
   - [319-consumer-migration.md](registry/model/319-consumer-migration.md) —
     moving every tooling consumer onto SpecTcl facts and hooks, and the
     consumer-purity gate (319–330).
+  - [331-library-dependencies.md](registry/model/331-library-dependencies.md)
+    — library-to-library dependencies in SpecTcl 3 and the registry (331).
+  - [332-rust-spectcl-parity.md](registry/model/332-rust-spectcl-parity.md) —
+    keeping Rust specs and SpecTcl 3 packs on par (332).
+  - [333-spectcl-3-gap-analysis.md](registry/model/333-spectcl-3-gap-analysis.md)
+    — the gaps SpecTcl 3 must close for every consumer (333).
+  - [334-spectcl-codegen-vm-runtime.md](registry/model/334-spectcl-codegen-vm-runtime.md)
+    — SpecTcl facts for codegen, the VM and the runtime (334).
+  - [335-spectcl-source-tools.md](registry/model/335-spectcl-source-tools.md)
+    — SpecTcl for the formatter, minifier, optimiser and refactors (335).
+  - [350-spectcl-across-dialects.md](registry/model/350-spectcl-across-dialects.md)
+    — SpecTcl 3 across C Tcl, Jim and f5-tcl (350).
+  - [360-spectcl-f5-integration.md](registry/model/360-spectcl-f5-integration.md)
+    — iRules events, profiles, the connection graph and the test framework
+    from SpecTcl facts (360).
+  - [361-spectcl-f5-iapps-tmsh.md](registry/model/361-spectcl-f5-iapps-tmsh.md)
+    — iApps, tmsh and one symbolic config graph (361).
+  - [365-spectcl-sslictcl.md](registry/model/365-spectcl-sslictcl.md) —
+    SslicTcl as one SpecTcl 3 pack plus data documents (365).
+  - [370-dialect-grammars.md](registry/model/370-dialect-grammars.md) —
+    grammar profiles that configure every lexer and parser per dialect (370).
+  - [380-spectcl-ebpf.md](registry/model/380-spectcl-ebpf.md) — the eBPF
+    backend's vocabulary and kernel facts as libraries (380).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
