@@ -96,7 +96,7 @@ run_naming_owner tcl-vm 'exec::native_uplevel_tests::' -p tcl-vm --lib
 run_naming_owner tcl-vm-it 'exec::native_uplevel_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_namespace::' -p tcl-vm --lib
 run_naming_owner tcl-vm-it 'cmd_namespace::' -p tcl-vm-it --test it_5
-run_naming_owner tcl-vm 'cmd_package::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_package::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_trace::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_oo::' -p tcl-vm --lib
 run_naming_owner tcl-vm-it 'cmd_oo::' -p tcl-vm-it --test it_5
