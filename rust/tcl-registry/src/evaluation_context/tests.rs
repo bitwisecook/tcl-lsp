@@ -475,3 +475,65 @@ fn global_variable_option_scope_overrides_a_broader_caller_context() {
     assert_eq!(context.frame, EvaluationFrame::Global);
     assert_eq!(context.timing, ScriptTiming::ReferenceOnly);
 }
+
+/// Frame and timing of a script operand in each measured wrapper shape
+/// (`script-parameters-design.md`, tclsh 8.4.20 to 9.1.0).
+#[test]
+fn script_argument_context_places_each_measured_wrapper_shape() {
+    use crate::hover::ScriptTiming;
+    let registry = CommandRegistry::build_default();
+    let dialect = Some(tcl_dialect::model::SurfaceQuery::core(
+        tcl_dialect::model::Family::Tcl,
+        "8.6",
+    ));
+    let resolve = |name: &'static str, arguments: &[InvocationWord<'static>]| {
+        let arguments = arguments.to_vec();
+        let words = InvocationWords::structured(InvocationWord::Literal(name), &arguments)
+            .with_dialect(crate::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            ));
+        let invocation = registry
+            .resolve_structured_invocation(words, dialect)
+            .resolved()
+            .unwrap();
+        // The script is the last word; a lone computed `uplevel` operand is
+        // the script on the successful path, so it is asked by position.
+        invocation.script_argument_context(arguments.len() - 1)
+    };
+    let now = |frame| ScriptArgumentContext {
+        frame,
+        timing: ScriptTiming::SameInvocation,
+    };
+    let script = InvocationWord::Dynamic;
+    assert_eq!(
+        resolve("uplevel", &[InvocationWord::Literal("1"), script]),
+        Some(now(ScriptFrame::Relative(1)))
+    );
+    assert_eq!(
+        resolve("uplevel", &[script]),
+        Some(now(ScriptFrame::Relative(1)))
+    );
+    assert_eq!(
+        resolve("uplevel", &[InvocationWord::Literal("#0"), script]),
+        Some(now(ScriptFrame::Global))
+    );
+    assert_eq!(
+        resolve("uplevel", &[InvocationWord::Literal("2"), script]),
+        Some(now(ScriptFrame::Relative(2)))
+    );
+    assert_eq!(
+        resolve("eval", &[script]),
+        Some(now(ScriptFrame::Relative(0)))
+    );
+    assert_eq!(
+        resolve("catch", &[script]),
+        Some(now(ScriptFrame::Relative(0)))
+    );
+    assert_eq!(
+        resolve("after", &[InvocationWord::Literal("0"), script]),
+        Some(ScriptArgumentContext {
+            frame: ScriptFrame::Global,
+            timing: ScriptTiming::Deferred,
+        })
+    );
+}

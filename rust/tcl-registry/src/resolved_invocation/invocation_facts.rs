@@ -194,6 +194,9 @@ pub struct InvocationFacts {
     pub body_interpreter: BodyInterpreter,
     /// Frame-crossing argument grammar, when declared.
     pub frame_effect: Option<FrameEffectSpec>,
+    /// Frame and timing of each `Body` argument's script, keyed like
+    /// [`Self::arg_roles`]. A body without a descriptor is absent.
+    pub script_contexts: Vec<(u8, crate::evaluation_context::ScriptArgumentContext)>,
 }
 
 /// Selected runtime variable-name receiver grammar, independently of lexical
@@ -847,6 +850,24 @@ impl ResolvedInvocation<'_, '_> {
         Some((offset.checked_add(usize::from(namespace))?, body))
     }
 
+    /// Frame and timing of each selected `Body` role, keyed like `roles`.
+    fn body_script_contexts(
+        &self,
+        roles: &[(u8, ArgRole)],
+    ) -> Vec<(u8, crate::evaluation_context::ScriptArgumentContext)> {
+        roles
+            .iter()
+            .filter(|(_, role)| *role == ArgRole::Body)
+            .filter_map(|&(index, _)| {
+                let argument = self
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(index))?;
+                Some((index, self.script_argument_context(argument)?))
+            })
+            .collect()
+    }
+
     fn facts_on_edge(&self, successful: bool) -> InvocationFacts {
         let (transitions, transition_effect_coverage) = if successful {
             self.semantics
@@ -858,6 +879,7 @@ impl ResolvedInvocation<'_, '_> {
                 .resolve_with_effect_coverage(self.words.arguments())
         };
         let (arg_roles, arg_roles_complete) = self.argument_roles_on_edge(successful);
+        let script_contexts = self.body_script_contexts(&arg_roles);
         let mut facts = InvocationFacts {
             purity: self.derived_purity(),
             source_callback_retention: self.selected_source_callback_retention(),
@@ -937,6 +959,7 @@ impl ResolvedInvocation<'_, '_> {
             body_execution: self.semantics.body_execution,
             body_interpreter: self.semantics.body_interpreter,
             frame_effect: self.semantics.frame_effect,
+            script_contexts,
         };
         if successful
             && let Some(effects) = facts.successful_value_leaf_world(self.words.arguments())

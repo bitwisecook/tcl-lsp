@@ -221,6 +221,16 @@ impl ResolvedInvocation<'_, '_> {
             .iter()
             .find(|(at, _)| *at == argument)
             .map_or(ArgRole::Value, |(_, role)| *role);
+        self.argument_evaluation_context_as(argument, role)
+    }
+
+    /// [`Self::argument_evaluation_context`] for an argument already known to
+    /// carry `role`, such as one the successful-edge role layout selected.
+    fn argument_evaluation_context_as(
+        &self,
+        argument: usize,
+        role: ArgRole,
+    ) -> Option<EvaluationContext> {
         let descriptor = self
             .selected
             .form
@@ -289,6 +299,70 @@ impl ResolvedInvocation<'_, '_> {
                 })
                 .collect(),
         )
+    }
+}
+
+/// The frame a script argument runs in, counted from the invoking activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScriptFrame {
+    /// `N` activations up from the invoking one; `Relative(0)` is the invoking
+    /// activation itself (`eval`, `catch`, `if`), `Relative(1)` its caller
+    /// (`uplevel 1`).
+    Relative(u32),
+    /// The interpreter's global activation (`uplevel #0`, `after`).
+    Global,
+    /// A run-time level, a namespace or another activation the descriptor
+    /// does not place relative to the invoking one.
+    Unknown,
+}
+
+/// Where and when one selected script argument runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScriptArgumentContext {
+    /// Activation, counted from the invoking one.
+    pub frame: ScriptFrame,
+    /// Whether the script runs before the invocation returns or later.
+    pub timing: ScriptTiming,
+}
+
+impl ResolvedInvocation<'_, '_> {
+    /// Frame and timing of the script a `Body` argument runs, read from the
+    /// selected descriptor's evaluation context and, for a level-selected
+    /// activation, its frame-effect grammar on the successful path. `None`
+    /// when no descriptor describes the argument or it is only referenced.
+    #[must_use]
+    pub fn script_argument_context(&self, argument: usize) -> Option<ScriptArgumentContext> {
+        use crate::frame_effect::{FrameArgumentResolution, FrameLevel};
+        let context = self.argument_evaluation_context_as(argument, ArgRole::Body)?;
+        if context.timing == ScriptTiming::ReferenceOnly
+            || context.interpreter != BodyInterpreter::Current
+        {
+            return None;
+        }
+        let frame = match context.frame {
+            EvaluationFrame::Invoking => ScriptFrame::Relative(0),
+            EvaluationFrame::Global => ScriptFrame::Global,
+            EvaluationFrame::LevelSelected => match self
+                .semantics
+                .frame_effect
+                .map(|effect| effect.successful_layout(self.words.arguments()).layout)
+            {
+                Some(FrameArgumentResolution::Valid {
+                    level: FrameLevel::Relative(level),
+                    ..
+                }) => ScriptFrame::Relative(level),
+                Some(FrameArgumentResolution::Valid {
+                    level: FrameLevel::Absolute(0),
+                    ..
+                }) => ScriptFrame::Global,
+                _ => ScriptFrame::Unknown,
+            },
+            _ => ScriptFrame::Unknown,
+        };
+        Some(ScriptArgumentContext {
+            frame,
+            timing: context.timing,
+        })
     }
 }
 
