@@ -138,8 +138,12 @@ Rules:
   Codegen reads them and does not build them.
 - **Unused items become private.** The 47 items no outside crate names become
   `pub(crate)`, or are deleted if nothing inside uses them either.
-- **Fixtures go behind `test-support`.** The 9 test fixtures become
-  `#[cfg(feature = "test-support")] pub`, as step 0 did.
+- **Fixtures stay with their tests.** The 9 test fixtures are not widened
+  and are not put behind a `test-support` feature (owner rule, AGENTS.md
+  "What tests test"). Each test that uses one is rewritten against the
+  crate's public API, or against an oracle or conformance row, and moves to
+  the `-it` crate; a test that only pins internals stays a `#[cfg(test)]`
+  unit test in the owning crate, or is listed for deletion.
 - **Hidden modules are replaced.** The 15 hidden `mod` items (`compile_84`,
   `depth_guard`, `environment_ingress`, `lattice_rebase`,
   `native_byte_compilation`, `compiled_preflight`, `compiler_inventory`,
@@ -282,3 +286,7 @@ flowchart TB
 ## Review fixes (26 November 2026, deep review)
 
 - **O9:** `target_contract` moves to `tcl-model`; `bpf-tcl-ir` no longer depends on this crate or `tcl-analysis`; BPF diagnostics go to `bpf-tcl-rules`.
+
+## Review fixes (26 November 2026, deep review)
+
+- W1: the fixture bullet no longer prescribes `test-support`; fixtures follow AGENTS.md "What tests test" (public API or oracle rows; internals stay `#[cfg(test)]`).
