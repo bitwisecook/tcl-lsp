@@ -1208,6 +1208,9 @@ pub struct SourceCommandBindings {
     deferred_outcomes: SharedSourceInventory<Vec<SourceDeferredOutcome>>,
     future_bodies: SharedSourceInventory<Vec<SourceFutureBodyInventory>>,
     active_calls: BTreeSet<DeferredImplementationId>,
+    /// Formals of the entered activations bound from a caller's braced
+    /// literal, innermost last. Walk-time state, outside equality.
+    script_formal_sources: Vec<source_walk::ScriptFormalSource>,
     /// Activations whose recursive back-edge assumed the call leaves the
     /// shared command world unchanged; verified when the activation ends.
     recursive_assumptions: BTreeSet<DeferredImplementationId>,

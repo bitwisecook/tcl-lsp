@@ -737,13 +737,39 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         let context = boxed_body_operand_context(index, operands, state, context);
-        let Some(script) = retained_script_operand(
-            index,
-            operands,
-            state,
-            context.invocation_offset,
+        let formal = self.script_formal_operand(
+            state.current_source_origin.as_ref(),
+            operands.written_word(index),
+            operands.arguments.literal_at(index),
             context.config,
-        ) else {
+        );
+        // `uplevel 1` in the entered body selects the activation whose
+        // literal this is, which the walk knows by name.
+        let caller_frame = formal
+            .as_ref()
+            .filter(|_| {
+                matches!(
+                    context.frame,
+                    crate::var_resolve::VariableExecutionFrame::Selected {
+                        selector: tcl_registry::FrameLevel::Relative(1),
+                        ..
+                    }
+                )
+            })
+            .map(|(_, frame)| frame.clone());
+        let context = match &caller_frame {
+            Some(frame) => Box::new(SourceExecutionContext { frame, ..*context }),
+            None => context,
+        };
+        let Some(script) = formal.map(|(script, _)| script).or_else(|| {
+            retained_script_operand(
+                index,
+                operands,
+                state,
+                context.invocation_offset,
+                context.config,
+            )
+        }) else {
             return opaque_source_invocation(state);
         };
         let Some(origin) = &state.current_source_origin else {

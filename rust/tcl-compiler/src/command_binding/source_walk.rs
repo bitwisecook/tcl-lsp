@@ -46,6 +46,7 @@ mod native_definition;
 mod native_target;
 mod native_transfer;
 mod outcomes;
+mod script_formals;
 mod substitution_walk;
 mod target_walk;
 
@@ -78,6 +79,7 @@ pub(super) use outcomes::{
     SourceConditionalHandlerNormal, SourceNativeNormalCompletion, boxed_source_branch,
     opaque_source_invocation, publish_source_branch,
 };
+pub(super) use script_formals::ScriptFormalSource;
 #[cfg(test)]
 pub(super) use substitution_walk::{original_variable_arena, original_variable_source};
 pub(super) use target_walk::{

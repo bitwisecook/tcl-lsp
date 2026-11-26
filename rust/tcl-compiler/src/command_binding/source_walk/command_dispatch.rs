@@ -631,7 +631,31 @@ impl SourceCommandBindings {
             target,
             receiver: None,
         };
+        let formals = self.script_formal_sources.len();
+        if let (Some(words), Some(source), Some(grammar)) = (
+            original_words,
+            state.current_source_origin.as_ref(),
+            state
+                .source_variables
+                .invocation_dialect
+                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+        ) {
+            let call = super::super::command_identity::CommandAllocationSite {
+                source: Arc::clone(source),
+                offset: site,
+            };
+            self.script_formal_sources
+                .extend(super::script_formals::script_formal_sources(
+                    &call,
+                    words,
+                    &body,
+                    target.prepended.len(),
+                    grammar,
+                    &state.variable_frame,
+                ));
+        }
         let mut result = self.walk_called_body(site, effective, state, selected, &body, context);
+        self.script_formal_sources.truncate(formals);
         if self.recursive_assumptions.remove(&implementation)
             && (!result.preserves_command_world(&entry)
                 || !self.recursive_body_preserves_command_world(
