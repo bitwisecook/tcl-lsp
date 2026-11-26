@@ -33,6 +33,68 @@ fn opt_under_jim(source: &str) -> String {
     ])
 }
 
+#[test]
+fn opt_preserves_constant_fixture_outcomes() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/work/name-handling/handover/oo-dispatch-probe/constants/folds");
+    let oracles = tclshs_from("8.4");
+    let script = std::env::temp_dir().join(format!(
+        "value-transfers-cli-{}-constant-fixtures.tcl",
+        std::process::id()
+    ));
+    for (name, must_rewrite) in [
+        ("c13-number-forms.tcl", false),
+        ("c14-float-format.tcl", false),
+        ("c18-octal-release.tcl", true),
+        ("e06-float.tcl", true),
+        ("e07-float-text.tcl", true),
+    ] {
+        let source = std::fs::read_to_string(fixtures.join(name)).expect("original fold fixture");
+        for series in RELEASES {
+            // File output has no optimiser report, so even whitespace and
+            // comments participate in the source comparison.
+            run_tcl(&[
+                "opt",
+                "--source",
+                &source,
+                "--profile",
+                "full",
+                "--dialect",
+                tcl_dialect::TclVersion::profile_name_for(series).expect("modelled release"),
+                "--output",
+                script.to_str().expect("UTF-8 oracle script path"),
+            ]);
+            let optimised = std::fs::read(&script).expect("optimised fixture bytes");
+            assert_eq!(
+                source.as_bytes() != optimised,
+                must_rewrite,
+                "tcl{series} {name}: unexpected source bytes {optimised:?}"
+            );
+            if let Some((_, tclsh)) = oracles.iter().find(|(release, _)| *release == series) {
+                let tclsh = Path::new(tclsh);
+                // Tcl includes this path in an uncaught error's traceback.
+                std::fs::write(&script, &source).expect("write original fixture");
+                let before = tcl_test_support::run_script_file(tclsh, &script)
+                    .expect("run original fixture");
+                std::fs::write(&script, &optimised).expect("write optimised fixture");
+                let after = tcl_test_support::run_script_file(tclsh, &script)
+                    .expect("run optimised fixture");
+                let expected_status = i32::from(series == "8.4" && name == "c14-float-format.tcl");
+                assert_eq!(
+                    before.exit_code,
+                    Some(expected_status),
+                    "tclsh{series} {name}: {before:?}"
+                );
+                assert_eq!(
+                    before, after,
+                    "tclsh{series} {name}: native outcome changed"
+                );
+            }
+            std::fs::remove_file(&script).expect("remove oracle script");
+        }
+    }
+}
+
 /// Run `source` and its `opt` rewrite under the reference tclsh of each of
 /// `releases`: both print `printed`.
 fn both_print(source: &str, releases: &[&str], printed: &str) {

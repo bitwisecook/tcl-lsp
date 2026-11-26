@@ -137,7 +137,7 @@ impl CfgBuilder<'_> {
     /// Conservative: a condition referencing an unbound variable (or
     /// a command-substitution condition) evaluates to `None` → not guaranteed.
     pub(crate) fn for_runs_at_least_once(&self, stmt: &Statement) -> bool {
-        use crate::tcl_expr_eval::TclValue;
+        use crate::tcl_expr_eval::{EnvValue, TclValue};
         let Statement::For {
             init, condition, ..
         } = stmt
@@ -155,7 +155,7 @@ impl CfgBuilder<'_> {
                         if let Some((root, _)) = tcl_syntax::naming::split_element_ref(&name) {
                             env.remove(root);
                         } else {
-                            env.insert(name, coerce_scalar(value));
+                            env.insert(name, EnvValue::text(value.as_str()));
                         }
                     }
                 }
@@ -183,17 +183,4 @@ impl CfgBuilder<'_> {
             None => false,
         }
     }
-}
-
-/// Coerce a literal assignment value to int/float when possible (else str),
-/// for the `for`-init constant environment.
-fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
-    use crate::tcl_expr_eval::{EnvValue, TclValue};
-    if let Ok(i) = text.parse::<i64>() {
-        return EnvValue::Number(TclValue::Int(i));
-    }
-    if let Ok(f) = text.parse::<f64>() {
-        return EnvValue::Number(TclValue::Float(f));
-    }
-    EnvValue::text(text)
 }

@@ -379,7 +379,7 @@ fn const_value_repr(c: &ConstValue) -> String {
         ConstValue::Number(NumericValue::Float(value)) => {
             format_constant(c).unwrap_or_else(|| ConstantReturn::float(*value).text())
         }
-        _ => format_constant(c).unwrap_or_default(),
+        ConstValue::Number(_) => format_constant(c).unwrap_or_default(),
     }
 }
 

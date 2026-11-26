@@ -775,7 +775,7 @@ fn assert_constset_strs(v: &LatticeValue, want: &[&str]) {
         .iter()
         .map(|c| match c {
             ConstValue::String(s) => s.as_str().to_owned(),
-            other => panic!("expected string members, got {other:?}"),
+            other @ ConstValue::Number(_) => panic!("expected string members, got {other:?}"),
         })
         .collect();
     got.sort();

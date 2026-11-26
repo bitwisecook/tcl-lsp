@@ -69,12 +69,33 @@ fn structured_cfg_writes_keep_literal_name_data_and_dynamic_unknowns() {
     );
 }
 
+fn for_initialisation_runs_at_least_once(source: &str, registry: &CommandRegistry) -> bool {
+    let profile = registry.profile().unwrap();
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+    let builder = CfgBuilder::new(true, registry).with_lexer_config(config);
+    let module = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
+        tcl_runtime_api::ProcedureCompileTarget {
+            source,
+            namespace: "",
+            parameters: &[],
+        },
+        registry,
+        config,
+        Some(profile),
+        false,
+        None,
+    );
+    let statement = &module.top_level.statements[0];
+    let Statement::For { raw_tokens, .. } = statement else {
+        panic!("original bytecode for grammar: {statement:?}");
+    };
+    assert!(raw_tokens.as_deref().is_some());
+    builder.for_runs_at_least_once(statement)
+}
+
 #[test]
 fn for_initialisation_does_not_publish_array_elements_as_scalar_constants() {
     let registry = native_registry();
-    let profile = registry.profile().unwrap();
-    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-    let builder = CfgBuilder::new(true, &registry).with_lexer_config(config);
     for (name, condition, expected) in [
         ("a", "$a == 1", true),
         ("$a", "${$a} == 1", true),
@@ -83,27 +104,30 @@ fn for_initialisation_does_not_publish_array_elements_as_scalar_constants() {
         ("$a(key)", "${$a} == 1", false),
     ] {
         let source = format!("for {{set {{{name}}} 1}} {{{condition}}} {{}} {{}}");
-        let module = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
-            tcl_runtime_api::ProcedureCompileTarget {
-                source: &source,
-                namespace: "",
-                parameters: &[],
-            },
-            &registry,
-            config,
-            Some(profile),
-            false,
-            None,
-        );
-        let statement = &module.top_level.statements[0];
-        let Statement::For { raw_tokens, .. } = statement else {
-            panic!("original bytecode for grammar: {statement:?}");
-        };
-        assert!(raw_tokens.as_deref().is_some());
         assert_eq!(
-            builder.for_runs_at_least_once(statement),
+            for_initialisation_runs_at_least_once(&source, &registry),
             expected,
-            "{source}"
+            "{source}",
+        );
+    }
+}
+
+#[test]
+fn for_initialisation_uses_selected_numeric_grammar_and_exact_text() {
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
+    for (condition, expected) in [
+        ("$i == 8", true),
+        ("$i == 10", false),
+        (r#"$i eq "010""#, true),
+        (r#"$i eq "10""#, false),
+    ] {
+        let source = format!("for {{set i 010}} {{{condition}}} {{}} {{}}");
+        assert_eq!(
+            for_initialisation_runs_at_least_once(&source, &registry),
+            expected,
+            "{source}",
         );
     }
 }
