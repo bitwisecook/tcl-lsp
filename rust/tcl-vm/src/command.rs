@@ -441,7 +441,6 @@ pub(crate) fn register_builtins_with_native_core(
     }
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
-    crate::cmd_thread::register(vm);
     // `string` last, as the registration order has always had it.
     crate::cmd_string::register(vm);
     // With the command table complete, attach the registry's identities to the

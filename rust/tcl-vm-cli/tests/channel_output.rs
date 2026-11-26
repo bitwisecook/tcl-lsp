@@ -181,7 +181,7 @@ fn binary_configuration_is_queried_and_worker_output_is_encoded_before_sharing()
     assert_eq!(query.stdout, b"iso8859-1 lf replace {}");
 
     let worker = run(
-        "set w [thread::create]; \
+        "package require Thread; set w [thread::create]; \
          thread::send $w {fconfigure stdout -translation binary; \
              puts -nonewline [binary format H* ff41]}; \
          thread::release $w",

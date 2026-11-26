@@ -82,7 +82,13 @@ enum Job {
 
 /// The outcome of a synchronous `thread::send`, carried back to the sender.
 enum JobResult {
-    Guest { ok: bool, result: Vec<u8> },
+    /// `error_code` is the worker's `errorCode` after a failure, which the
+    /// sender's error carries.
+    Guest {
+        ok: bool,
+        result: Vec<u8>,
+        error_code: Option<Vec<u8>>,
+    },
     Host(tcl_runtime_api::NativeExecutionError),
 }
 
@@ -141,12 +147,53 @@ pub(crate) struct ThreadSystem {
     shared: Option<Arc<Shared>>,
     this_id: u64,
     inbox: Option<Receiver<Job>>,
+    /// `thread::send -async` calls with a result variable, still awaiting
+    /// their reply.
+    pending: Vec<PendingReply>,
+}
+
+/// An asynchronous send whose result is written to `var` once it arrives.
+struct PendingReply {
+    reply: Receiver<JobResult>,
+    var: Value,
 }
 
 impl ThreadSystem {
     fn is_enabled(&self) -> bool {
         self.shared.is_some()
     }
+
+    /// Whether an asynchronous reply is still owed, so a wait has an event
+    /// source.
+    pub(crate) fn awaits_reply(&self) -> bool {
+        !self.pending.is_empty()
+    }
+}
+
+/// Deliver the asynchronous replies that have arrived: each result is written
+/// to its variable in the global frame, as an event would. Returns whether any
+/// was delivered.
+pub(crate) fn deliver_async_replies(vm: &mut Vm) -> bool {
+    let mut arrived = Vec::new();
+    vm.thread
+        .pending
+        .retain(|pending| match pending.reply.try_recv() {
+            Ok(result) => {
+                arrived.push((pending.var.clone(), result));
+                false
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => true,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => false,
+        });
+    let delivered = !arrived.is_empty();
+    for (var, result) in arrived {
+        if let JobResult::Guest { result, .. } = result {
+            let name = var.to_str().to_string();
+            let _ = vm
+                .with_event_global_frame(|vm| vm.set_var(&name, Value::from_string_bytes(result)));
+        }
+    }
+    delivered
 }
 
 /// An output adapter routing a worker's `puts` to the shared `Send` sink.
@@ -172,7 +219,8 @@ impl Write for SharedOut {
 }
 
 impl Vm {
-    /// Enable the `thread` package on this (main) interpreter. `factory` builds a
+    /// Offer the `Thread` package on this (main) interpreter: `package require
+    /// Thread` installs its commands. `factory` builds a
     /// compiler for each worker's `Vm`; `output` is the shared `puts` sink. Sets
     /// `tcl_platform(threaded)` to `1`. Idempotent-ish: a second call re-seeds
     /// the shared block (existing workers keep the old one).
@@ -195,12 +243,16 @@ impl Vm {
             shared: Some(shared),
             this_id: MAIN_ID,
             inbox: None,
+            pending: Vec::new(),
         };
         let _ = self.write_array_raw("tcl_platform", "threaded", Value::string("1"));
+        offer_thread_package(self);
     }
 }
 
-pub(crate) fn register(vm: &mut Vm) {
+/// What `load {} Thread` runs: the extension's commands, installed on the
+/// first `package require Thread` (a worker has them from its start).
+fn install_thread_commands(vm: &mut Vm) {
     vm.register_stock_builtin("thread::id", cmd_thread_id);
     vm.register_stock_builtin("thread::create", cmd_thread_create);
     vm.register_stock_builtin("thread::send", cmd_thread_send);
@@ -227,6 +279,81 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register_stock_builtin("tsv::lappend", cmd_tsv_lappend);
     vm.register_stock_builtin("tsv::keys", cmd_tsv_keys);
     vm.register_stock_builtin("tsv::names", cmd_tsv_names);
+    vm.register_stock_builtin("tsv::array", cmd_tsv_array);
+    if let Some(release) = thread_release(vm) {
+        vm.provide_package("Thread", thread_version(release));
+    }
+}
+
+/// The C release this interpreter's package protocol follows.
+fn thread_release(vm: &Vm) -> Option<tcl_dialect::TclVersion> {
+    match vm
+        .actual_native_invocation_dialect()
+        .native_package_protocol()
+    {
+        Some(tcl_registry::native_package::NativePackageProtocol::C(release)) => Some(release),
+        _ => None,
+    }
+}
+
+/// Thread 3.0 is the Tcl 9 line; Thread 2.8 serves 8.x.
+fn thread_version(release: tcl_dialect::TclVersion) -> &'static str {
+    if release >= tcl_dialect::TclVersion::V9_0 {
+        "3.0.4"
+    } else {
+        "2.8.13"
+    }
+}
+
+/// Make `package require Thread` available: the `package ifneeded` entry and
+/// the `load` that a static package is initialised through.
+fn offer_thread_package(vm: &mut Vm) {
+    vm.register_stock_builtin("load", cmd_load);
+    if let Some(release) = thread_release(vm) {
+        vm.set_package_ifneeded(
+            "Thread",
+            thread_version(release),
+            b"load {} Thread",
+            release,
+        );
+    }
+}
+
+/// `load fileName ?pkgName? ?interp?` for statically linked packages only:
+/// an empty file name asks for the package `pkgName` linked into the shell.
+fn cmd_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let words: Vec<Value> = args
+        .iter()
+        .filter(|word| !matches!(&*word.to_str(), "-global" | "-lazy" | "--"))
+        .cloned()
+        .collect();
+    let (file, package) = match words.as_slice() {
+        [file] => (file.to_str().to_string(), String::new()),
+        [file, package] | [file, package, _] => {
+            (file.to_str().to_string(), package.to_str().to_string())
+        }
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"load ?-global? ?-lazy? ?--? fileName ?packageName? ?interp?\"",
+            );
+        }
+    };
+    if file.is_empty() {
+        if package.is_empty() {
+            return err("must specify either file name or package name");
+        }
+        if package.eq_ignore_ascii_case("thread") {
+            install_thread_commands(vm);
+            return ok(Value::empty());
+        }
+        return err(format!(
+            "no library with prefix \"{package}\" is loaded statically"
+        ));
+    }
+    err(format!(
+        "couldn't load file \"{file}\": {file}: cannot open shared object file: No such file or directory"
+    ))
 }
 
 /// Fetch the shared block, or the standard "not available" error.
@@ -310,6 +437,8 @@ fn worker_vm(shared: &Arc<Shared>, pin: tcl_registry::model::PinnedContext) -> O
         "worker command surface must remain compatible with its dialect"
     );
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
+    offer_thread_package(&mut vm);
+    install_thread_commands(&mut vm);
     Some(vm)
 }
 
@@ -331,6 +460,7 @@ fn run_worker(
         shared: Some(Arc::clone(shared)),
         this_id: id,
         inbox: Some(inbox),
+        pending: Vec::new(),
     };
     let _ = vm.eval_source(script);
     // The body returned (or `thread::wait` was released): the thread is gone.
@@ -378,9 +508,17 @@ fn cmd_thread_send(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
 
     if is_async {
+        let reply = resultvar.map(|var| {
+            let (tx, rx) = channel::<JobResult>();
+            vm.thread.pending.push(PendingReply {
+                reply: rx,
+                var: var.clone(),
+            });
+            tx
+        });
         let _ = sender.send(Job::Eval {
             script: script.to_str().to_string(),
-            reply: None,
+            reply,
         });
         return ok(Value::empty());
     }
@@ -546,12 +684,22 @@ fn job_result(vm: &mut Vm, comp: Result<Completion<Value>, TclError>) -> JobResu
         Ok(completion) => completion,
         Err(error) => crate::command::completion_from_tcl_error(vm, error),
     };
-    match vm.take_host_boundary_refusal() {
-        Some(refusal) => JobResult::Host(refusal),
-        None => JobResult::Guest {
-            ok: completion.code.is_ok(),
-            result: completion.result.string_bytes().to_vec(),
-        },
+    if let Some(refusal) = vm.take_host_boundary_refusal() {
+        return JobResult::Host(refusal);
+    }
+    let ok = completion.code.is_ok();
+    let error_code = if ok {
+        None
+    } else {
+        crate::command::opt_get_checked(vm, &completion.options, b"-errorcode")
+            .ok()
+            .flatten()
+            .map(|code| code.string_bytes().to_vec())
+    };
+    JobResult::Guest {
+        ok,
+        result: completion.result.string_bytes().to_vec(),
+        error_code,
     }
 }
 
@@ -560,8 +708,12 @@ fn finish_job_result(
     result: JobResult,
     resultvar: Option<&Value>,
 ) -> Completion<Value> {
-    let (succeeded, result) = match result {
-        JobResult::Guest { ok, result } => (ok, result),
+    let (succeeded, result, error_code) = match result {
+        JobResult::Guest {
+            ok,
+            result,
+            error_code,
+        } => (ok, result, error_code),
         JobResult::Host(refusal) => {
             if vm.execution_refusal.is_none() {
                 vm.retain_native_execution_refusal(refusal);
@@ -576,6 +728,21 @@ fn finish_job_result(
     }
     if succeeded {
         ok(Value::from_string_bytes(result))
+    } else if let Some(code) = error_code {
+        // The package hands the worker's `errorCode` over as one list element.
+        let options = crate::command::options_dict(
+            tcl_runtime_api::Code::Error,
+            0,
+            &[(
+                "-errorcode",
+                Value::list(vec![Value::from_string_bytes(code)]),
+            )],
+        );
+        Completion::new_error_metadata(
+            tcl_runtime_api::Code::Error,
+            Value::from_string_bytes(result),
+            options,
+        )
     } else {
         err(result)
     }
@@ -917,6 +1084,7 @@ fn run_pool_worker(
         shared: Some(Arc::clone(shared)),
         this_id: id,
         inbox: None,
+        pending: Vec::new(),
     };
     if let Some(ic) = initcmd {
         let _ = vm.eval_source(ic);
@@ -1466,6 +1634,94 @@ fn cmd_tsv_keys(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match keys {
         Ok(keys) => ok(filtered_list(keys, pattern.as_deref())),
         Err(e) => e,
+    }
+}
+
+/// `tsv::array option array ?arg?` — whole-array access to a shared array:
+/// `names`, `size`, `exists`, `get`, `set` and `reset`.
+fn cmd_tsv_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [option, arr, rest @ ..] = args else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::array option array ?arg ...?\"",
+        );
+    };
+    let name = arr.to_str().to_string();
+    let option = option.to_str().to_string();
+    let result = match (option.as_str(), rest) {
+        ("names", [] | [_]) => {
+            let pattern = rest.first().map(|p| p.to_str().to_string());
+            with_tsv(vm, |t| {
+                let keys = t
+                    .get(&name)
+                    .map_or_default(|m| m.keys().cloned().collect::<Vec<_>>());
+                filtered_list(keys, pattern.as_deref())
+            })
+        }
+        ("size", []) => with_tsv(vm, |t| {
+            Value::string(t.get(&name).map_or(0, HashMap::len).to_string())
+        }),
+        ("exists", []) => with_tsv(vm, |t| {
+            Value::string(if t.contains_key(&name) { "1" } else { "0" })
+        }),
+        ("get", [] | [_]) => {
+            let pattern = rest.first().map(|p| p.to_str().to_string());
+            with_tsv(vm, |t| {
+                let mut pairs = t.get(&name).map_or_default(|m| {
+                    m.iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect::<Vec<_>>()
+                });
+                pairs.retain(|(k, _)| {
+                    pattern
+                        .as_deref()
+                        .is_none_or(|p| tcl_syntax::glob::string_match(p, k))
+                });
+                pairs.sort();
+                Value::list(
+                    pairs
+                        .into_iter()
+                        .flat_map(|(k, v)| [Value::string(k), Value::new_native_string_bytes(v)])
+                        .collect::<Vec<_>>(),
+                )
+            })
+        }
+        ("set" | "reset", [list]) => {
+            let items = match vm.list_elements(list) {
+                Ok(items) => items,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            };
+            if items.len() % 2 != 0 {
+                return err("list must have an even number of elements");
+            }
+            let replace = option == "reset";
+            let pairs: Vec<(String, Vec<u8>)> = items
+                .chunks(2)
+                .map(|pair| {
+                    (
+                        pair[0].to_str().to_string(),
+                        pair[1].string_bytes().to_vec(),
+                    )
+                })
+                .collect();
+            with_tsv(vm, |t| {
+                let array = t.entry(name.clone()).or_default();
+                if replace {
+                    array.clear();
+                }
+                array.extend(pairs);
+                Value::empty()
+            })
+        }
+        _ => {
+            return err(format!(
+                "bad option \"{option}\": must be exists, get, names, reset, set or size"
+            ));
+        }
+    };
+    match result {
+        Ok(value) => ok(value),
+        Err(completion) => completion,
     }
 }
 

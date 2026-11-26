@@ -54,13 +54,7 @@ fn compiler() -> Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>> {
 
 /// Compile and run `src` on a thread-enabled VM; return `(ok, result, stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry =
-        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
-            .commands();
-    let ir = lower_to_ir(src, registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
-
+    let src = &format!("package require Thread\n{src}");
     let buf = Arc::new(Mutex::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_for(
         tcl_vm::test_support::DEFAULT_ENVIRONMENT,
@@ -71,7 +65,9 @@ fn run(src: &str) -> (bool, String, String) {
         Arc::new(compiler),
         Arc::new(Mutex::new(Box::new(SharedBuf(Arc::clone(&buf))))),
     );
-    let completion = vm.run_module(&asm);
+    // The VM's own compile entry certifies the extension's commands, which a
+    // `package require` installs at run time.
+    let completion = vm.try_eval_source(src).expect("the VM's own compile entry");
 
     let out = String::from_utf8(buf.lock().unwrap().clone()).expect("utf-8 output");
     (
@@ -91,7 +87,7 @@ fn result(src: &str) -> String {
 fn assert_workers_inherit_a_separate_host_command_surface() {
     let dialect = DialectProfile::irules();
     let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
+    let source = "package require Thread; set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
 
     // The iRules source dialect has no native core of its own: it runs on the
     // host release's engine.
@@ -131,6 +127,71 @@ fn workers_inherit_a_separate_host_command_surface_in_release() {
 fn thread_id_and_platform_flag() {
     // The main interpreter is thread 1, and the package advertises itself.
     assert_eq!(result("list [thread::id] $tcl_platform(threaded)"), "1 1");
+}
+
+/// Evaluate `src` on a thread-enabled VM through its own compile entry,
+/// without the `package require Thread` the other tests prepend.
+fn run_unrequired(src: &str) -> String {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let mut vm = tcl_vm::test_support::native_vm_for(
+        tcl_vm::test_support::DEFAULT_ENVIRONMENT,
+        Box::new(SharedBuf(Arc::clone(&buf))),
+    );
+    vm.set_compiler(compiler());
+    vm.enable_threads(
+        Arc::new(compiler),
+        Arc::new(Mutex::new(Box::new(SharedBuf(Arc::clone(&buf))))),
+    );
+    let completion = vm.try_eval_source(src).expect("the VM's own compile entry");
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    completion.result.to_str().to_string()
+}
+
+#[test]
+fn thread_commands_exist_only_after_package_require() {
+    // tclsh with Thread installed (3.0.4 on 9.0.4): no `thread::` command and
+    // no provided package until `package require Thread`.
+    assert_eq!(
+        run_unrequired(
+            "list [llength [info commands ::thread::create]] [llength [info commands ::tsv::set]] \
+             [package provide Thread] [expr {[package ifneeded Thread [lindex [package versions Thread] 0]] ne {}}]"
+        ),
+        "0 0 {} 1"
+    );
+    assert_eq!(
+        run_unrequired(
+            "set v [package require Thread]; \
+             list [expr {$v eq [package provide Thread]}] [llength [info commands ::thread::create]] \
+             [llength [info commands ::tsv::array]]"
+        ),
+        "1 1 1"
+    );
+}
+
+#[test]
+fn an_async_send_with_a_variable_is_waited_for_with_vwait() {
+    assert_eq!(
+        run_unrequired(
+            "package require Thread; set t [thread::create {thread::wait}]; \
+             thread::send -async $t {expr {1 + 1}} ::res; vwait ::res; thread::release $t; set ::res"
+        ),
+        "2"
+    );
+}
+
+#[test]
+fn a_caught_sync_error_carries_the_workers_error_code_once() {
+    // tclsh 9.0.4 with Thread 3.0.4: the sender's `-errorcode` is the
+    // worker's `errorCode` as one list element, and the next send is clean.
+    assert_eq!(
+        run_unrequired(
+            "package require Thread; set t [thread::create {thread::wait}]; \
+             set c [catch {thread::send $t {error boom {} {MY CODE}}} m o]; \
+             set next [thread::send $t {expr {2 + 3}}]; thread::release $t; \
+             list $c $m [dict get $o -errorcode] $next"
+        ),
+        "1 boom {{MY CODE}} 5"
+    );
 }
 
 #[test]

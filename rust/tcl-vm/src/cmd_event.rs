@@ -391,7 +391,7 @@ fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let mut completion = None;
     while !flag.get() {
-        if vm.events.is_empty() {
+        if vm.events.is_empty() && !vm.thread.awaits_reply() {
             completion = Some(failure(
                 vm,
                 ValueError::CommandProtocolUnavailable("host event-source inventory"),
@@ -490,6 +490,9 @@ fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 fn service_ready(vm: &mut Vm, idle_only: bool) -> bool {
+    if crate::cmd_thread::deliver_async_replies(vm) {
+        return true;
+    }
     let Some(turn) = vm.events.begin_turn(Instant::now(), idle_only) else {
         return false;
     };
@@ -503,6 +506,10 @@ fn service_ready(vm: &mut Vm, idle_only: bool) -> bool {
 }
 fn process_one(vm: &mut Vm) {
     if service_ready(vm, false) {
+        return;
+    }
+    if vm.thread.awaits_reply() && vm.events.earliest_deadline().is_none() {
+        std::thread::sleep(Duration::from_millis(1));
         return;
     }
     if let Some(deadline) = vm.events.earliest_deadline() {
