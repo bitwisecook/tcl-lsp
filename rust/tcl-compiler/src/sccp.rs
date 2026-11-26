@@ -215,14 +215,13 @@ fn transfer_terminator<'a>(
 
 /// Canonical [`ConstValue`] ordering for deterministic set merges.
 ///
-/// [`ConstValue::Float`] is not [`Eq`], so we rely on byte-level
-/// equality of the `to_bits` representation for hashing/sorting.
+/// Use the double's bits to agree with lattice equality.
 fn cv_key(v: &ConstValue) -> (u8, String) {
     match v {
         ConstValue::Int(i) => (0, i.to_string()),
         ConstValue::Float(f) => (1, format!("{:016x}", f.to_bits())),
         ConstValue::Bool(b) => (2, b.to_string()),
-        ConstValue::String(s) => (3, s.clone()),
+        ConstValue::String(s) => (3, s.as_str().to_owned()),
     }
 }
 
@@ -264,7 +263,7 @@ pub fn join(old: &LatticeValue, new: &LatticeValue) -> LatticeValue {
     let new_set = to_set(new).unwrap_or_default();
     let mut merged: Vec<ConstValue> = old_set.clone();
     for v in &new_set {
-        if !merged.iter().any(|m| cv_eq(m, v)) {
+        if !merged.contains(v) {
             merged.push(v.clone());
         }
     }
@@ -302,18 +301,6 @@ pub fn set_value<S: std::hash::BuildHasher>(
     }
     values.insert(key, merged);
     true
-}
-
-/// Equality check that treats `Float` values via bitwise
-/// comparison so NaN sorts deterministically into its own bucket.
-fn cv_eq(a: &ConstValue, b: &ConstValue) -> bool {
-    match (a, b) {
-        (ConstValue::Int(x), ConstValue::Int(y)) => x == y,
-        (ConstValue::Float(x), ConstValue::Float(y)) => x.to_bits() == y.to_bits(),
-        (ConstValue::Bool(x), ConstValue::Bool(y)) => x == y,
-        (ConstValue::String(x), ConstValue::String(y)) => x == y,
-        _ => false,
-    }
 }
 
 // Driver

@@ -118,6 +118,13 @@ impl TclValue {
         value.to_i64().map_or(Self::Big(value), Self::Int)
     }
 
+    fn canonical_clone(&self) -> Self {
+        match self {
+            Self::Big(value) => Self::from_big(value.clone()),
+            _ => self.clone(),
+        }
+    }
+
     /// Return the raw float representation (converting integer → float
     /// when necessary). Used by arithmetic that promotes mixed operands.
     /// A bignum converts with the same precision loss (to ±∞ past the
@@ -181,7 +188,7 @@ pub(crate) fn const_to_env_value(c: &crate::analyses::ConstValue) -> EnvValue {
         ConstValue::Int(i) => EnvValue::Int(*i),
         ConstValue::Float(f) => EnvValue::Float(*f),
         ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
-        ConstValue::String(s) => EnvValue::text(s.as_str()),
+        ConstValue::String(s) => EnvValue::Str(s.clone().into_exact()),
     }
 }
 
@@ -441,9 +448,9 @@ fn saturating_f64_to_i64(f: f64) -> i64 {
 /// read the rounded value.
 fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSyntax) -> bool {
     match value {
-        FoldValue::Big(_) => true,
-        FoldValue::Float(f) => f.is_infinite(),
-        FoldValue::Int(_) => false,
+        FoldValue::Number(TclValue::Big(_)) => true,
+        FoldValue::Number(TclValue::Float(f)) => f.is_infinite(),
+        FoldValue::Number(TclValue::Int(_)) => false,
         FoldValue::RetainedNativeObject { value, .. } => past_the_wide_tower(value, octal, numbers),
         FoldValue::Str(text) => match strict_number_for_dialect(value, octal, numbers) {
             Some(TclValue::Big(_)) => true,
@@ -736,7 +743,7 @@ fn native_result_dependency(
                 existing_value,
             })
         }
-        _ => None,
+        FoldValue::Number(_) => None,
     }
 }
 

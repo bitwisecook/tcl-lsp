@@ -455,7 +455,7 @@ where
         // The lattice value is the variable's runtime string; splitting it as a
         // `foreach` list uses Tcl list semantics (nested-brace aware), not a
         // whitespace split.
-        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s, rules)),
+        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s.as_str(), rules)),
         _ => None,
     }
 }
@@ -532,5 +532,5 @@ pub(super) fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::Build
 #[must_use]
 pub fn parse_literal_value(text: &str) -> ConstValue {
     crate::value_transfer::exact_to_const(&ExactValue::from_literal(text))
-        .unwrap_or_else(|| ConstValue::String(text.to_owned()))
+        .unwrap_or_else(|| ConstValue::String(text.into()))
 }

@@ -285,39 +285,62 @@ pub fn run(check: bool) -> Result<ExitCode> {
 fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
     const COMPILER: &str = "rust/tcl-compiler/src";
     let mut problems = Vec::new();
-    for (file, name, variant) in [
+    for (file, name, variant, payload) in [
         (
             "rust/tcl-registry/src/value_transfer/const_ops.rs",
             "ConstValue",
             None,
+            "ExactValue",
         ),
         (
             "rust/tcl-compiler/src/interprocedural.rs",
             "ConstantReturn",
             None,
+            "ExactValue",
+        ),
+        (
+            "rust/tcl-compiler/src/analyses.rs",
+            "LatticeText",
+            None,
+            "ExactValue",
+        ),
+        (
+            "rust/tcl-compiler/src/analyses.rs",
+            "ConstValue",
+            Some("String"),
+            "LatticeText",
         ),
         (
             "rust/tcl-compiler/src/tcl_expr_eval.rs",
             "EnvValue",
             Some("Str"),
+            "ExactValue",
         ),
         (
             "rust/tcl-compiler/src/tcl_expr_eval/fold_ops.rs",
             "FoldValue",
             Some("Str"),
+            "ExactValue",
+        ),
+        (
+            "rust/tcl-compiler/src/tcl_expr_eval/fold_ops.rs",
+            "FoldValue",
+            Some("Number"),
+            "TclValue",
         ),
         (
             "rust/tcl-compiler/src/sccp/original_value_facts/math_expressions.rs",
             "FoldedExpressionContents",
             Some("Exact"),
+            "ExactValue",
         ),
     ] {
         let source =
             fs::read_to_string(root.join(file)).with_context(|| format!("reading {file}"))?;
-        if !has_exact_value_view(&source, name, variant) {
+        if !has_value_payload(&source, name, variant, payload) {
             let name =
                 variant.map_or_else(|| name.to_owned(), |variant| format!("{name}::{variant}"));
-            problems.push(format!("{file}: {name} must retain one ExactValue payload"));
+            problems.push(format!("{file}: {name} must retain one {payload} payload"));
         }
     }
 
@@ -343,30 +366,31 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
-fn has_exact_value_view(source: &str, name: &str, variant: Option<&str>) -> bool {
+fn has_value_payload(source: &str, name: &str, variant: Option<&str>, payload: &str) -> bool {
     syn::parse_file(source).is_ok_and(|file| {
         file.items.iter().any(|item| match (item, variant) {
             (syn::Item::Struct(item), None) if item.ident == name => {
-                has_single_exact_value_field(&item.fields)
+                has_single_value_field(&item.fields, payload)
             }
             (syn::Item::Enum(item), Some(variant)) if item.ident == name => item
                 .variants
                 .iter()
-                .any(|item| item.ident == variant && has_single_exact_value_field(&item.fields)),
+                .any(|item| item.ident == variant && has_single_value_field(&item.fields, payload)),
             _ => false,
         })
     })
 }
 
-fn has_single_exact_value_field(fields: &syn::Fields) -> bool {
+fn has_single_value_field(fields: &syn::Fields, payload: &str) -> bool {
     let syn::Fields::Unnamed(fields) = fields else {
         return false;
     };
     fields.unnamed.len() == 1
+        && matches!(fields.unnamed[0].vis, syn::Visibility::Inherited)
         && matches!(
             &fields.unnamed[0].ty,
             syn::Type::Path(field)
-                if field.path.segments.last().is_some_and(|segment| segment.ident == "ExactValue")
+                if field.path.segments.last().is_some_and(|segment| segment.ident == payload)
         )
 }
 
@@ -1215,25 +1239,41 @@ mod tests {
 
     #[test]
     fn constant_views_require_one_exact_value_payload() {
-        assert!(has_exact_value_view(
+        assert!(has_value_payload(
             "struct View(ExactValue<String>);",
             "View",
             None,
+            "ExactValue",
         ));
-        assert!(!has_exact_value_view(
+        assert!(!has_value_payload(
             "struct View(String, ExactValue);",
             "View",
             None,
+            "ExactValue",
         ));
-        assert!(has_exact_value_view(
-            "enum View { Text(ExactValue<String>), Number(i64) }",
+        assert!(!has_value_payload(
+            "struct View(pub ExactValue<String>);",
+            "View",
+            None,
+            "ExactValue",
+        ));
+        assert!(has_value_payload(
+            "enum View { Text(ExactValue<String>), Number(TclValue) }",
             "View",
             Some("Text"),
+            "ExactValue",
         ));
-        assert!(!has_exact_value_view(
+        assert!(!has_value_payload(
             "enum View { Text(String), Number(ExactValue) }",
             "View",
             Some("Text"),
+            "ExactValue",
+        ));
+        assert!(has_value_payload(
+            "enum View { Text(ExactValue<String>), Number(TclValue) }",
+            "View",
+            Some("Number"),
+            "TclValue",
         ));
     }
 

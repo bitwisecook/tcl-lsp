@@ -159,7 +159,7 @@ fn a_return_that_leaves_the_procedure_widens_nothing() {
     };
     assert_eq!(
         value_of_es("return -code error -errorinfo $es msg"),
-        Some(LatticeValue::Const(ConstValue::String("abc".to_owned())))
+        Some(LatticeValue::Const(ConstValue::String("abc".into())))
     );
     assert_eq!(
         value_of_es("eval $script; return $es"),
@@ -475,7 +475,7 @@ fn a_value_refinement_holds_where_every_path_carries_it() {
         &registry,
         false,
     );
-    let a = LatticeValue::Const(ConstValue::String("a".to_owned()));
+    let a = LatticeValue::Const(ConstValue::String("a".into()));
     let p = cu.function("::p").expect("procedure analysed");
     let x = (p.ssa.var_symbol("x").expect("x"), 0);
     let held: Vec<Option<&LatticeValue>> = puts_blocks(p)

@@ -704,7 +704,7 @@ fn propagated_operand_values(
                 .find(|(symbol, _)| function.ssa.var_name(**symbol) == name)
                 .and_then(|(symbol, version)| function.sccp.values.get(&(*symbol, *version)));
             if let Some(LatticeValue::Const(ConstValue::String(value))) = constant {
-                values.push((operand.span(), value.clone()));
+                values.push((operand.span(), value.as_str().to_owned()));
             }
         }
     }

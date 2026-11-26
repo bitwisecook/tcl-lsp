@@ -132,7 +132,7 @@ fn native_parent_store_uses_the_actual_pack_implementation_normal_outcome() {
         let symbol = function.ssa.var_symbol("known").unwrap();
         let value = match function.sccp.values.get(&(symbol, 1)) {
             Some(LatticeValue::Const(ConstValue::Int(value))) => Some(value.to_string()),
-            Some(LatticeValue::Const(ConstValue::String(value))) => Some(value.clone()),
+            Some(LatticeValue::Const(ConstValue::String(value))) => Some(value.as_str().to_owned()),
             _ => None,
         };
         assert_eq!(value.as_deref(), expected, "{definition}\n{call}");

@@ -60,7 +60,7 @@ pub(crate) fn const_into_exact(c: ConstValue) -> ExactValue {
         ConstValue::Int(i) => ExactValue::int(i),
         ConstValue::Float(f) => ExactValue::shortest_double(f),
         ConstValue::Bool(b) => ExactValue::boolean(b),
-        ConstValue::String(s) => ExactValue::text(s),
+        ConstValue::String(s) => s.into_exact().into_byte_value(),
     }
 }
 
@@ -86,7 +86,7 @@ pub(crate) fn exact_to_const(value: &ExactValue) -> Option<ConstValue> {
         Some(NumericValue::Int(i)) => ConstValue::Int(i),
         Some(NumericValue::Float(f)) => ConstValue::Float(f),
         Some(NumericValue::Bool(b)) => ConstValue::Bool(b),
-        None => ConstValue::String(value.as_str().ok()?.to_owned()),
+        None => ConstValue::String(value.as_str().ok()?.into()),
     })
 }
 

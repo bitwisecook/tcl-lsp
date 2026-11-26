@@ -117,7 +117,8 @@ fn assert_const_int(fu: &FunctionUnit, name: &str, version: u32, want: i64) {
 fn assert_const_str(fu: &FunctionUnit, name: &str, version: u32, want: &str) {
     match lat(fu, name, version) {
         Some(LatticeValue::Const(ConstValue::String(s))) => assert_eq!(
-            s, want,
+            s.as_str(),
+            want,
             "({name:?}, {version}) expected Const(String({want:?})), got {s:?}"
         ),
         other => panic!("({name:?}, {version}) expected Const(String({want:?})), got {other:?}"),
@@ -625,7 +626,9 @@ proc wire_namespace_vars {} {
             .filter(|v| v.kind() == LatticeKind::Const)
             .collect();
         assert!(!cs.is_empty(), "single-element foreach var must be Const");
-        assert!(matches!(cs[0], LatticeValue::Const(ConstValue::String(s)) if s == "only"));
+        assert!(
+            matches!(cs[0], LatticeValue::Const(ConstValue::String(s)) if s.as_str() == "only")
+        );
     }
 
     #[test]
@@ -769,7 +772,7 @@ fn assert_constset_strs(v: &LatticeValue, want: &[&str]) {
     let mut got: Vec<String> = vs
         .iter()
         .map(|c| match c {
-            ConstValue::String(s) => s.clone(),
+            ConstValue::String(s) => s.as_str().to_owned(),
             other => panic!("expected string members, got {other:?}"),
         })
         .collect();

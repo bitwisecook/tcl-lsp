@@ -20,7 +20,9 @@
 
 use super::arithmetic::{apply_binary, apply_irules_string_op, numeric_cmp, split_tcl_list};
 use super::fold_policy::{FoldPolicy, math_func_ceiling_for_dialect, widens_past_a_wide};
-use super::numerals::{parse_literal_in, strict_number, strict_number_for_dialect};
+use super::numerals::{
+    format_with_double_format, parse_literal_in, strict_number, strict_number_for_dialect,
+};
 use super::{
     ConstantCompilation, Env, EnvValue, FoldNativeInputs, FoldOps, IntrinsicMathQuery,
     NativeCoercionKind, NativeCoercionObligation, ResolvedMathQuery, RetainedNativeOperandProof,
@@ -92,9 +94,7 @@ pub(super) fn make_fold_ops<'a>(
 /// string-compare behaviour (`5.00 eq 5.0` → 0) is preserved.
 #[derive(Clone)]
 pub(crate) enum FoldValue {
-    Int(i64),
-    Big(num_bigint::BigInt),
-    Float(f64),
+    Number(TclValue),
     Str(ExactValue<String>),
     /// An environment value retains an actual runtime object. Missing evidence
     /// cannot erase a representation-changing conversion of a shared object.
@@ -108,6 +108,10 @@ pub(crate) enum FoldValue {
 }
 
 impl FoldValue {
+    pub(super) const fn int(value: i64) -> Self {
+        Self::Number(TclValue::Int(value))
+    }
+
     pub(super) fn text(text: impl Into<String>) -> Self {
         Self::Str(ExactValue::utf8(text))
     }
@@ -115,9 +119,7 @@ impl FoldValue {
     /// Interpret as a number, or `None` when the text isn't numeric.
     pub(super) fn to_number(&self, numbers: NumberSyntax) -> Option<TclValue> {
         match self {
-            FoldValue::Int(i) => Some(TclValue::Int(*i)),
-            FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
-            FoldValue::Float(f) => Some(TclValue::Float(*f)),
+            FoldValue::Number(value) => Some(value.canonical_clone()),
             FoldValue::Str(s) => parse_literal_in(&s.bytes, numbers),
             FoldValue::RetainedNativeObject {
                 proof,
@@ -137,9 +139,7 @@ impl FoldValue {
     ) -> Option<String> {
         Some(match self {
             FoldValue::Str(s) => s.bytes.clone(),
-            FoldValue::Int(i) => i.to_string(),
-            FoldValue::Big(b) => b.to_string(),
-            FoldValue::Float(f) => tcl_syntax::number::format_double_selected(*f, format?),
+            FoldValue::Number(value) => format_with_double_format(value, format)?,
             FoldValue::RetainedNativeObject {
                 proof,
                 integer_contents,
@@ -153,13 +153,6 @@ impl FoldValue {
                         .map(|receipt| receipt.contents().to_owned())
                 })?,
         })
-    }
-    fn from_tcl(v: TclValue) -> FoldValue {
-        match v {
-            TclValue::Int(i) => FoldValue::Int(i),
-            TclValue::Big(b) => FoldValue::Big(b),
-            TclValue::Float(f) => FoldValue::Float(f),
-        }
     }
 }
 
@@ -269,29 +262,12 @@ pub(super) fn classify_operand(
     octal: Option<bool>,
     numbers: NumberSyntax,
 ) -> Operand {
-    let s = match value {
-        FoldValue::Int(_) | FoldValue::Big(_) | FoldValue::Float(_) => {
-            // Already numeric — `to_number` cannot reach the literal parser
-            // here, so the grammar it is given is immaterial.
-            return Operand::Num(value.to_number(NumberSyntax::default()).unwrap());
-        }
-        FoldValue::Str(s) => s.bytes.as_str(),
-        FoldValue::RetainedNativeObject {
-            proof,
-            integer_contents,
-            ..
-        } => {
-            return proof
-                .as_ref()
-                .map(|proof| Operand::Num(proof.value.clone()))
-                .or_else(|| {
-                    integer_contents
-                        .as_ref()
-                        .map(|receipt| Operand::Num(receipt.number().clone()))
-                })
-                .unwrap_or(Operand::Ambiguous);
-        }
+    let FoldValue::Str(text) = value else {
+        return value
+            .to_number(numbers)
+            .map_or(Operand::Ambiguous, Operand::Num);
     };
+    let s = text.bytes.as_str();
     if is_bare_leading_zero(s) {
         return match octal {
             None => Operand::Ambiguous,
@@ -338,13 +314,20 @@ impl FoldOps<'_> {
         format: Option<tcl_dialect::DoubleFormat>,
     ) -> Option<String> {
         let spelled = match value {
-            FoldValue::Int(i) => tcl_syntax::number::spell_wide(*i, self.spelling),
+            FoldValue::Number(TclValue::Int(i)) => {
+                tcl_syntax::number::spell_wide(*i, self.spelling)
+            }
             // A program that may set the precision leaves a computed double
             // no spelling known here ([`NumberSpelling::doubles`]).
-            FoldValue::Float(_) if self.spelling.doubles().is_none() => None,
+            FoldValue::Number(TclValue::Float(_)) if self.spelling.doubles().is_none() => None,
             value => value.to_string_val(format),
         };
-        if spelled.is_none() && matches!(value, FoldValue::Int(_) | FoldValue::Float(_)) {
+        if spelled.is_none()
+            && matches!(
+                value,
+                FoldValue::Number(TclValue::Int(_) | TclValue::Float(_))
+            )
+        {
             self.decline(DeclineReason::Unspellable);
         }
         spelled
@@ -459,8 +442,8 @@ impl FoldOps<'_> {
         )
         .map_err(|_| ())?
         {
-            Num::Int(i) => Ok(FoldValue::Int(i)),
-            Num::Float(f) => Ok(FoldValue::Float(f)),
+            Num::Int(i) => Ok(FoldValue::int(i)),
+            Num::Float(f) => Ok(FoldValue::Number(TclValue::Float(f))),
             Num::Big(never) => match never {},
         }
     }
@@ -475,7 +458,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         if self.arithmetic == tcl_dialect::NativeArithmetic::JimWide
             && let Some(number) = self.strict_number(&value)
         {
-            return Ok(FoldValue::from_tcl(number));
+            return Ok(FoldValue::Number(number));
         }
         Ok(value)
     }
@@ -495,8 +478,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         let value = match self.env.get(name) {
-            Some(EnvValue::Int(i)) => FoldValue::Int(*i),
-            Some(EnvValue::Float(f)) => FoldValue::Float(*f),
+            Some(EnvValue::Int(i)) => FoldValue::int(*i),
+            Some(EnvValue::Float(f)) => FoldValue::Number(TclValue::Float(*f)),
             Some(EnvValue::Str(value)) => FoldValue::Str(value.clone()),
             None => return Err(()), // unbound → can't fold
         };
@@ -666,9 +649,9 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         )
         .map_err(|_| ())?
         {
-            Num::Int(i) => Ok(FoldValue::Int(i)),
+            Num::Int(i) => Ok(FoldValue::int(i)),
             Num::Float(f) => {
-                let value = FoldValue::Float(f);
+                let value = FoldValue::Number(TclValue::Float(f));
                 self.within_tower(&[&value])?;
                 Ok(value)
             }
@@ -702,10 +685,10 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 return Err(());
             }
             return tcl_syntax::expr::wide::binary(self.arithmetic, op, *x, *y)
-                .map(FoldValue::Int)
+                .map(FoldValue::int)
                 .map_err(|_| ());
         }
-        let value = apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())?;
+        let value = apply_binary(op, a, b).map(FoldValue::Number).ok_or(())?;
         self.within_tower(&[&value])?;
         Ok(value)
     }
@@ -717,7 +700,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             && let TclValue::Int(value) = self.strict_number(&value).ok_or(())?
         {
             return tcl_syntax::expr::wide::unary(self.arithmetic, op, value)
-                .map(FoldValue::Int)
+                .map(FoldValue::int)
                 .map_err(|_| ());
         }
         let result = match op {
@@ -737,7 +720,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     TclValue::Float(f) if f.is_nan() => return Err(()),
                     v => v.is_truthy(),
                 };
-                Ok(FoldValue::Int(i64::from(!truthy)))
+                Ok(FoldValue::int(i64::from(!truthy)))
             }
             // Arithmetic/bitwise unaries reject boolean words like the binary
             // arithmetic path (`expr {-true}`, `expr {~yes}` are errors), and
@@ -748,25 +731,25 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     // `+NaN` is "can't use non-numeric floating-point value as
                     // operand" in C — never a foldable value.
                     TclValue::Float(f) if f.is_nan() => Err(()),
-                    v => Ok(FoldValue::from_tcl(v)),
+                    v => Ok(FoldValue::Number(v)),
                 }
             }
             UnaryOp::Neg => match self.strict_number(&value).ok_or(())? {
                 TclValue::Int(i) => Ok(match i.checked_neg() {
-                    Some(n) => FoldValue::Int(n),
+                    Some(n) => FoldValue::int(n),
                     // −i64::MIN promotes to the bignum tier, exactly as C.
-                    None => FoldValue::from_tcl(TclValue::from_big(-num_bigint::BigInt::from(i))),
+                    None => FoldValue::Number(TclValue::from_big(-num_bigint::BigInt::from(i))),
                 }),
-                TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b))),
+                TclValue::Big(b) => Ok(FoldValue::Number(TclValue::from_big(-b))),
                 // `-NaN` is the same operand error as `+NaN` — decline.
                 TclValue::Float(f) if f.is_nan() => Err(()),
-                TclValue::Float(f) => Ok(FoldValue::Float(-f)),
+                TclValue::Float(f) => Ok(FoldValue::Number(TclValue::Float(-f))),
             },
             UnaryOp::BitNot => {
                 match self.strict_number(&value).ok_or(())? {
-                    TclValue::Int(i) => Ok(FoldValue::Int(!i)),
+                    TclValue::Int(i) => Ok(FoldValue::int(!i)),
                     // Two's-complement `~x` is `-x - 1` at any width.
-                    TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
+                    TclValue::Big(b) => Ok(FoldValue::Number(TclValue::from_big(-b - 1))),
                     TclValue::Float(_) => Err(()),
                 }
             }
@@ -932,7 +915,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
 
     fn bool_value(&mut self, b: bool) -> FoldValue {
-        FoldValue::Int(i64::from(b))
+        FoldValue::int(i64::from(b))
     }
     fn unsupported(&mut self, _what: &str) {}
 
@@ -957,7 +940,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             &self.text_of(left, format).ok_or(())?,
             &self.text_of(right, format).ok_or(())?,
         )
-        .map(FoldValue::from_tcl)
+        .map(FoldValue::Number)
         .ok_or(())
     }
 }

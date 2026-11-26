@@ -31,18 +31,15 @@ use super::*;
 fn a_literal_keeps_its_surrounding_whitespace() {
     assert_eq!(
         parse_literal_value(" again"),
-        ConstValue::String(" again".to_owned()),
+        ConstValue::String(" again".into()),
     );
     assert_eq!(
         parse_literal_value("trailing "),
-        ConstValue::String("trailing ".to_owned()),
+        ConstValue::String("trailing ".into()),
     );
     // An integer with whitespace around it is not the integer: rendering
     // it back as `5` would drop the space just as surely.
-    assert_eq!(
-        parse_literal_value(" 5"),
-        ConstValue::String(" 5".to_owned()),
-    );
+    assert_eq!(parse_literal_value(" 5"), ConstValue::String(" 5".into()),);
     // The bare integer still folds.
     assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
     assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));

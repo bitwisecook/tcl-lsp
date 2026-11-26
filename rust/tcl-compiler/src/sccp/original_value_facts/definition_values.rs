@@ -392,7 +392,7 @@ fn fold_iteration_value<S: std::hash::BuildHasher>(
                     reference_config,
                 )
             {
-                return Some(split_list_values(&s, policy.word_rules));
+                return Some(split_list_values(s.as_str(), policy.word_rules));
             }
             None
         });

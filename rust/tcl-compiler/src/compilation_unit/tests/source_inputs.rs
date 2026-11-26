@@ -616,7 +616,7 @@ fn semantic_value_projection_uses_actual_jim_entry_over_c_catalogue() {
     assert!(facts.contents_iter().any(|(_, value)| {
         *value
             == crate::analyses::LatticeValue::Const(crate::analyses::ConstValue::String(
-                "003".to_owned(),
+                "003".into(),
             ))
     }));
     assert!(facts.expression_iter().any(|(_, analysis)| {

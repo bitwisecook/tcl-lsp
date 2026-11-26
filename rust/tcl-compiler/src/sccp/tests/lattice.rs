@@ -49,6 +49,29 @@ fn join_identical_const_stays_const() {
 }
 
 #[test]
+fn repeated_nan_does_not_change_the_lattice() {
+    let candidate = LatticeValue::Const(ConstValue::Float(f64::NAN));
+    let mut values = HashMap::new();
+    let key = (Symbol(0), 1);
+
+    assert_eq!(join(&candidate, &candidate), candidate);
+    assert!(set_value(&mut values, key, &candidate));
+    assert!(!set_value(&mut values, key, &candidate));
+}
+
+#[test]
+fn joining_signed_zeros_preserves_both_members() {
+    let positive = ConstValue::Float(0.0);
+    let negative = ConstValue::Float(-0.0);
+    let expected = LatticeValue::ConstSet(vec![positive.clone(), negative.clone()]);
+    let positive = LatticeValue::Const(positive);
+    let negative = LatticeValue::Const(negative);
+
+    assert_eq!(join(&positive, &negative), expected);
+    assert_eq!(join(&negative, &positive), expected);
+}
+
+#[test]
 fn join_distinct_consts_widens_to_set() {
     let a = LatticeValue::Const(ConstValue::Int(1));
     let b = LatticeValue::Const(ConstValue::Int(2));

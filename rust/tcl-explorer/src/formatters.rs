@@ -372,7 +372,7 @@ pub fn format_taint(tl: &TaintLattice) -> String {
 /// [`format_return_shape`] reads the same value.
 fn const_value_repr(c: &ConstValue) -> String {
     match c {
-        ConstValue::String(s) => py_repr_str(s),
+        ConstValue::String(s) => py_repr_str(s.as_str()),
         // No release is selected here, so the fold has no proved spelling for
         // a double; the view shows the one a constant return shows.
         ConstValue::Float(value) => {
@@ -522,7 +522,7 @@ mod tests {
             (ConstValue::Float(f64::INFINITY), "const(Inf)"),
             (ConstValue::Bool(true), "const(1)"),
             (ConstValue::Bool(false), "const(0)"),
-            (ConstValue::String("a b".to_owned()), "const('a b')"),
+            (ConstValue::String("a b".into()), "const('a b')"),
         ] {
             assert_eq!(format_lattice(&LatticeValue::Const(constant)), shape);
         }

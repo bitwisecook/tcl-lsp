@@ -446,7 +446,7 @@ impl LatticeDriver<'_> {
                     && let Some((LatticeValue::Const(ConstValue::String(s)), _)) =
                         self.fold_cmd_subst_routes(arg, None, uses, values, ssa)
                 {
-                    return Some(split_list_values(&s, rules));
+                    return Some(split_list_values(s.as_str(), rules));
                 }
                 None
             });

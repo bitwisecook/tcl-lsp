@@ -31,18 +31,15 @@ use super::*;
 fn a_literal_keeps_its_surrounding_whitespace() {
     assert_eq!(
         parse_literal_value(" again"),
-        ConstValue::String(" again".to_owned()),
+        ConstValue::String(" again".into()),
     );
     assert_eq!(
         parse_literal_value("trailing "),
-        ConstValue::String("trailing ".to_owned()),
+        ConstValue::String("trailing ".into()),
     );
     // An integer with whitespace around it is not the integer: rendering
     // it back as `5` would drop the space just as surely.
-    assert_eq!(
-        parse_literal_value(" 5"),
-        ConstValue::String(" 5".to_owned()),
-    );
+    assert_eq!(parse_literal_value(" 5"), ConstValue::String(" 5".into()),);
     // The bare integer still folds.
     assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
     assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));
@@ -206,7 +203,7 @@ fn fused_expr_stmt(
 /// does not widen declines it.
 #[test]
 fn a_fused_expression_answers_its_full_value() {
-    let text = |s: &str| LatticeValue::Const(ConstValue::String(s.to_owned()));
+    let text = |s: &str| LatticeValue::Const(ConstValue::String(s.into()));
     let int = |i: i64| LatticeValue::Const(ConstValue::Int(i));
     let under = |name: &str| {
         let profile = tcl_dialect::DialectProfile::find(name).expect(name);
@@ -478,7 +475,7 @@ fn assert_value_and_constant_rows<const N: usize>(
 #[test]
 fn a_fused_expression_has_a_value_and_maybe_an_execution_constant() {
     let int = |value: i64| LatticeValue::Const(ConstValue::Int(value));
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let float = |value: f64| LatticeValue::Const(ConstValue::Float(value));
     let none = LatticeValue::Overdefined;
     let rows: [(&str, &str, LatticeValue, bool, &str); 16] = [

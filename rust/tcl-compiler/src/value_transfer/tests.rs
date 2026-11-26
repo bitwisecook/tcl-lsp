@@ -1131,10 +1131,7 @@ fn run_over_frame(script: &str, policy: NestedPolicy) -> ScriptRun {
     let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (s, 1), (g, 1)]);
     let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
         ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
-        (
-            (s, 1),
-            LatticeValue::Const(ConstValue::String("a".to_owned())),
-        ),
+        ((s, 1), LatticeValue::Const(ConstValue::String("a".into()))),
         ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
     ]);
     driver
@@ -1639,10 +1636,24 @@ fn lattice_projection_keeps_noncanonical_numeric_bytes_and_declines_nontext() {
     value.numeric = Some(NumericValue::Int(10));
     assert_eq!(
         exact_to_const(&value),
-        Some(ConstValue::String("010".to_owned()))
+        Some(ConstValue::String("010".into()))
     );
     value.bytes = vec![0xff];
     assert_eq!(exact_to_lattice(&value), LatticeValue::Overdefined);
+}
+
+#[test]
+fn lattice_text_joins_equal_contents_without_retaining_native_representation() {
+    use tcl_registry::value_transfer::RepresentationEvidence;
+
+    let text = ExactValue::text("key value");
+    let mut list = text.clone();
+    list.representation = RepresentationEvidence::Constructed(tcl_registry::TclType::List);
+    let joined = crate::sccp::join(&exact_to_lattice(&text), &exact_to_lattice(&list));
+    let LatticeValue::Const(value) = joined else {
+        panic!("equal contents should remain one constant, got {joined:?}");
+    };
+    assert_eq!(const_to_exact(&value), text);
 }
 
 #[test]

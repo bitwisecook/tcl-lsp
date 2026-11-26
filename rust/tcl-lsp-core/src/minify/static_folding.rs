@@ -446,7 +446,7 @@ fn fold_string_via_sccp(
 fn const_to_string(cv: &ConstValue) -> Option<String> {
     match cv {
         ConstValue::Int(n) => Some(n.to_string()),
-        ConstValue::String(s) => Some(s.clone()),
+        ConstValue::String(s) => Some(s.as_str().to_owned()),
         ConstValue::Bool(_) | ConstValue::Float(_) => None,
     }
 }

@@ -331,7 +331,7 @@ fn dictionary_suppression_literal(
         match fu.diagnostic_value_facts().values().get(&(symbol, version)) {
             Some(crate::analyses::LatticeValue::Const(crate::analyses::ConstValue::String(
                 value,
-            ))) => Some(value.clone()),
+            ))) => Some(value.as_str().to_owned()),
             _ => None,
         }
     });

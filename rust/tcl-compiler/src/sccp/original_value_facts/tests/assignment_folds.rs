@@ -78,7 +78,7 @@ fn evaluate_def_assign_value_folds_list_cmd() {
     let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
     let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
     match result {
-        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
+        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s.as_str(), "a b c"),
         other => panic!("expected Const(String), got {other:?}"),
     }
 }
@@ -166,7 +166,7 @@ fn evaluate_def_assign_value_folds_format_literal() {
     let mut ssa = bare_ssa();
     let stmt = assign_value_stmt(&mut ssa, "s", "[format \"%d-%d\" 1 2]", 1);
     match evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()) {
-        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
+        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s.as_str(), "1-2"),
         other => panic!("expected Const(String), got {other:?}"),
     }
 }

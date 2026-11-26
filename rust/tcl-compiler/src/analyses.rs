@@ -24,6 +24,8 @@
 //! (`sccp`, `type_infer`, `taint`, …); this module provides only the data
 //! types that downstream consumers (diagnostics, codegen, optimiser) read.
 
+use tcl_registry::value_transfer::ExactValue;
+
 /// Maximum number of values in a [`LatticeValue::ConstSet`] before widening to
 /// [`LatticeValue::Overdefined`].
 pub const MAX_CONSTSET_SIZE: usize = 32;
@@ -46,7 +48,7 @@ pub enum LatticeKind {
 /// A Tcl value in the SCCP constant-propagation lattice.
 ///
 /// Progression: `Unknown → Const(v) → ConstSet({v1, v2, …}) → Overdefined`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LatticeValue {
     /// No information.
     Unknown,
@@ -58,8 +60,9 @@ pub enum LatticeValue {
     Overdefined,
 }
 
-/// A constant value in the SCCP lattice.
-#[derive(Debug, Clone, PartialEq)]
+/// A constant value in the SCCP lattice. Doubles compare by their bits,
+/// since signed zero and NaN payloads are distinct lattice members.
+#[derive(Debug, Clone)]
 pub enum ConstValue {
     /// Integer constant.
     Int(i64),
@@ -68,8 +71,65 @@ pub enum ConstValue {
     /// Boolean constant.
     Bool(bool),
     /// String constant.
-    String(String),
+    String(LatticeText),
 }
+
+impl PartialEq for ConstValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Int(left), Self::Int(right)) => left == right,
+            (Self::Float(left), Self::Float(right)) => left.to_bits() == right.to_bits(),
+            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::String(left), Self::String(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ConstValue {}
+
+/// Exact UTF-8 text in the contents lattice. Native representation and
+/// release-dependent numeric readings require separate evidence at a read.
+#[derive(Clone)]
+pub struct LatticeText(ExactValue<String>);
+
+impl LatticeText {
+    /// The string's exact UTF-8 contents.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0.bytes
+    }
+
+    pub(crate) fn into_exact(self) -> ExactValue<String> {
+        self.0
+    }
+}
+
+impl From<String> for LatticeText {
+    fn from(text: String) -> Self {
+        Self(ExactValue::utf8(text))
+    }
+}
+
+impl From<&str> for LatticeText {
+    fn from(text: &str) -> Self {
+        Self::from(text.to_owned())
+    }
+}
+
+impl std::fmt::Debug for LatticeText {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.as_str(), formatter)
+    }
+}
+
+impl PartialEq for LatticeText {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for LatticeText {}
 
 impl LatticeValue {
     /// The bottom element.

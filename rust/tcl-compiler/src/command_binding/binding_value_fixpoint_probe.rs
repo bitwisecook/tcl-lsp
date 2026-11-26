@@ -175,7 +175,7 @@ fn discovered_values(
             else {
                 return None;
             };
-            Some(((start, end), value.clone()))
+            Some(((start, end), value.as_str().to_owned()))
         })
         .collect()
 }

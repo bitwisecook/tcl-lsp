@@ -1177,14 +1177,13 @@ command it names, effect-free, so the page's correlated pairs written with
 ## Exact values, types, and representation
 
 **Ingress preserves the exact result.** `parse_literal_value` in
-`rust/tcl-compiler/src/sccp.rs` begins with `text.trim()`, and the string
-fallback trims too; `string range { a } 0 end` returns the three-character
-string ` a `, and passing that through the helper would store `a`. A
-computed value is a value, not a source token, so the value-ingress API
-preserves leading and trailing whitespace, NUL, backslashes, leading-zero
-numerals, signed zero, and Unicode exactly. Numeric classification adds a
-fact; it never replaces the observable spelling without proof that the
-value has that canonical spelling.
+`rust/tcl-compiler/src/sccp/evaluation.rs` passes decoded literal bytes to
+`ExactValue`. This keeps whitespace, NUL, backslashes, leading zeros,
+signed zero and Unicode. Numeric classification adds evidence alongside
+the original spelling. SCCP's `LatticeText` holds the exact UTF-8 contents.
+Native representation evidence belongs to the original read, since aliases
+can change the representation without changing those contents. SCCP compares
+doubles by their bits in both joins and change detection.
 
 **Three separate facts, three joins.** The exact value, the semantic type
 or shape, and the representation evidence are distinct, and `TclType` alone

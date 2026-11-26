@@ -597,7 +597,7 @@ fn semantic_solver_keeps_selected_native_result_bytes_separate_from_number() {
             .result
             .values
             .values()
-            .any(|value| { *value == LatticeValue::Const(ConstValue::String("003".to_owned())) })
+            .any(|value| { *value == LatticeValue::Const(ConstValue::String("003".into())) })
     );
     assert!(
         facts

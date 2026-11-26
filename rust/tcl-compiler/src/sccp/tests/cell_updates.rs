@@ -232,7 +232,7 @@ fn evaluate_def_append_var_piece_reads_the_lattice_exactly() {
     // tclsh 8.6.18 and 9.0.4 print `<hello again> <a b {c d}>
     // <helloCHANGED>` for these three bodies: a read trace may replace
     // the piece, so a traced piece settles nothing.
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     assert_eq!(
         settled(
             "tcl8.6",
