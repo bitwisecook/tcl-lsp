@@ -69,6 +69,18 @@
 #                               checked-in aliases. Run binaries the same way:
 #                               `cargo run --profile test -p tcl`.
 #
+#   RUSTC_WRAPPER=sccache, SCCACHE_DIR=$HOME/.cache/sccache, SCCACHE_CACHE_SIZE=20G
+#                            -> only when `sccache --version` succeeds: one
+#                               compiler cache per machine, shared by every
+#                               worktree (plan item 260). With sccache v0.18.0
+#                               it shares third-party libraries only, since
+#                               workspace crates are incremental (test) or
+#                               keyed by their absolute CARGO_MANIFEST_DIR
+#                               (dev); the units cargo builds do not change.
+#
+# Stale unit and incremental directories are removed by
+# scripts/dev/prune-targets.py (`--dry-run` lists them).
+#
 # CARGO_HOME (the registry/git dependency cache) is deliberately left alone:
 # sharing it across worktrees is safe — only workspace-member artefacts
 # exhibit the collision.
@@ -88,6 +100,10 @@ agent_build_env__main() {
     local target_dir="${worktree_root}/target"
     local test_incremental=true
     local test_opt_level="${TCL_LSP_AGENT_TEST_OPT_LEVEL:-1}"
+    local sccache_dir=""
+    if command -v sccache >/dev/null 2>&1 && sccache --version >/dev/null 2>&1; then
+        sccache_dir="${HOME}/.cache/sccache"
+    fi
     local xtask_alias="run --profile test --package xtask --"
     local xtask_backing_alias="run --profile test --package xtask-backing --"
     if [ "${TCL_LSP_AGENT_INCREMENTAL:-1}" = 0 ]; then
@@ -105,6 +121,11 @@ agent_build_env__main() {
             printf 'export CARGO_PROFILE_TEST_OPT_LEVEL=%q\n' "${test_opt_level}"
             printf 'export CARGO_ALIAS_XTASK=%q\n' "${xtask_alias}"
             printf 'export CARGO_ALIAS_XTASK_BACKING=%q\n' "${xtask_backing_alias}"
+            if [ -n "${sccache_dir}" ]; then
+                printf 'export RUSTC_WRAPPER=sccache\n'
+                printf 'export SCCACHE_DIR=%q\n' "${sccache_dir}"
+                printf 'export SCCACHE_CACHE_SIZE=20G\n'
+            fi
             ;;
         --check)
             echo "worktree root:            ${worktree_root}"
@@ -116,6 +137,13 @@ agent_build_env__main() {
             echo "CARGO_PROFILE_TEST_OPT_LEVEL: ${test_opt_level}"
             echo "CARGO_ALIAS_XTASK:        ${xtask_alias}"
             echo "CARGO_ALIAS_XTASK_BACKING: ${xtask_backing_alias}"
+            if [ -n "${sccache_dir}" ]; then
+                echo "RUSTC_WRAPPER:            sccache"
+                echo "SCCACHE_DIR:              ${sccache_dir}"
+                echo "SCCACHE_CACHE_SIZE:       20G"
+            else
+                echo "RUSTC_WRAPPER:            (unset: sccache is not installed)"
+            fi
             if [ -n "${CARGO_TARGET_DIR:-}" ] \
                 && [ "${CARGO_TARGET_DIR}" != "${target_dir}" ]; then
                 echo "WARNING: CARGO_TARGET_DIR is currently" \
@@ -133,6 +161,11 @@ agent_build_env__main() {
             export CARGO_PROFILE_TEST_OPT_LEVEL="${test_opt_level}"
             export CARGO_ALIAS_XTASK="${xtask_alias}"
             export CARGO_ALIAS_XTASK_BACKING="${xtask_backing_alias}"
+            if [ -n "${sccache_dir}" ]; then
+                export RUSTC_WRAPPER=sccache
+                export SCCACHE_DIR="${sccache_dir}"
+                export SCCACHE_CACHE_SIZE=20G
+            fi
             ;;
         *)
             echo "usage: source agent-build-env.sh | agent-build-env.sh --print | --check" >&2

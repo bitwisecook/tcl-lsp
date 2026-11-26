@@ -210,6 +210,25 @@ compiles of `tcl-compiler` and `tcl-lsp-core` in `xtask`'s feature set. The
 gates' 3x speed-up is opt-level 1 itself. `CARGO_ALIAS_SPEC_IMAGES` waits for
 `tcl-spec-images` (item 307), which does not exist yet.
 
+**260, the shared cache and pruning.** The cache is configured but not
+measured: sccache is not installed in this container, and the design's
+three-worktree run needs worktrees and a disk with 60 GB free. With
+`sccache --version` succeeding, `agent-build-env.sh` sets `RUSTC_WRAPPER`,
+`SCCACHE_DIR` and `SCCACHE_CACHE_SIZE=20G` (checked with a stub `sccache` on
+`PATH`); without it the output is unchanged. `scripts/dev/prune-targets.py`
+(`make prune-targets`, tests in `make check-prune-targets-script` under
+`xtask-check`) deletes unit directories built by an older rustc, those
+superseded by three newer ones with the same fingerprint key, empty ones and
+those older than three days, and incremental directories older than three
+days, under cargo's own lock. On this checkout's target:
+
+| Run | Unit directories deleted | Freed |
+|---|---:|---:|
+| first, `--keep 3` | 432 superseded, 175 empty | 9,187 MB |
+| after two failset runs, `--keep 2` | – | 3,344 MB |
+
+`target/debug/build` was 41 GB before the first run and is 30 GB now.
+
 **299, build scripts.** `tcl-version`'s build script, in an unstamped dev or
 test build, emits `<CARGO_PKG_VERSION>-dev` (plus `+g<GIT_HASH>` when that is
 set) and watches no git path; stamped and release builds are unchanged.

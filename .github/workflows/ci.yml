@@ -1415,7 +1415,7 @@ jobs:
 
       # rust-cache restores dependency artefacts, but intentionally removes
       # workspace crates before saving. sccache remains source-aware, but the
-      # pinned v0.17 Rust backend does not provide a proven cross-checkout-root
+      # pinned v0.18.0 Rust backend does not provide a proven cross-checkout-root
       # remapping here; measure cross-registration hits rather than assuming
       # that registrations with different absolute workspace paths share them.
       - name: Set up sccache

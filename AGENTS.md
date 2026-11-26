@@ -99,6 +99,11 @@ Tiers, policies, and the CI redundancy contract:
   `cargo xtask-backing` at the test profile, so the gates reuse the units
   `cargo test` built; run a binary the same way, `cargo run --profile test
   -p tcl`, never a plain dev `cargo run`. Check and clippy stay on dev.
+  Where `sccache` is installed it also sets `RUSTC_WRAPPER=sccache` with one
+  20 GB cache per machine (`~/.cache/sccache`), which shares third-party
+  crates across worktrees and changes no unit. `make prune-targets`
+  (`DRY_RUN=1` to list) deletes a target's superseded, empty and
+  three-day-old unit and incremental directories.
   What one isolated edit costs a worktree under this environment is
   measured by
   `scripts/dev/worktree-cost.py`
