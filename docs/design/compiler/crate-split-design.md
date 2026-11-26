@@ -13,8 +13,10 @@ A clean rearchitecture of the workspace into many small shared crates. Each has
 a clean interface and supports every consumer that needs it: the LSP, MCP, the
 CLI, the VM, codegen, the eBPF back end, the explorer, the SpecTcl tooling and
 the BIG-IP tools. The aims are fast builds, little caching, and good runtime
-performance. `tcl-compiler` is the first and largest piece; `tcl-registry`
-(items 117 and 118) is the second. On this branch the tree may stay broken for
+performance. `tcl-compiler` is the first and largest piece. `tcl-registry` is the second:
+it becomes a core plus one crate per dialect profile and per package
+([registry split](../registry/registry-split-design.md), item 261), and items 117
+and 118 move its native algorithms and BIG-IP data out. On this branch the tree may stay broken for
 a long time while the layout changes. The order is chosen for the least total
 work and the cleanest result, not to keep every step green.
 
@@ -30,9 +32,10 @@ touches. Five things decide that:
   compiles 54 crates, `tcl-compiler` 80 and `tcl-lsp-core` 179. Every Tcl-facing
   crate sits above the 583k-line registry.
   - The split makes cones small.
-  - Items 117 and 118, and later splitting the registry's per-command data from
-    its lookup code, keep the registry out of cones that only need the lookup
-    vocabulary.
+  - The [registry split](../registry/registry-split-design.md) (item 261) keeps
+    per-command data out of every generic crate's cone. Generic crates depend
+    on the registry core only, and only entry points select surfaces. Items 117
+    and 118 shrink the core further.
 - **Dev-dependency hygiene.** A crate's tests may not depend on a crate above
   it, because that puts the whole upper stack into every worktree that tests
   it. Step 0 removes today's case. Once the split is done, the `module-layers`
@@ -152,7 +155,7 @@ because binding reads IR types while lowering reads binding.
 | `tcl-semantic` (later) | the query API and fact store | new | every feature | 85 (phase 6) |
 
 ```
-tcl-lexer / tcl-syntax / tcl-registry (+ 117, 118 data crates) / tcl-dialect / tcl-runtime-api
+tcl-lexer / tcl-syntax / tcl-registry core / tcl-dialect / tcl-runtime-api   (surface crates and tcl-surfaces: entry points only)
         │
    tcl-source ── tcl-names ── tcl-model ── tcl-ir
                      │
