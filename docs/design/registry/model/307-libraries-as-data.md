@@ -40,6 +40,35 @@ and everything above it (registry split, Problem).
 surfaces are authored once in SpecTcl 3 and embedded as images. Each crate
 holds `NAME.tclspec`, `NAME.tclimg` and its native hooks, and nothing else.
 
+For Expect, the spike's subject, the layout changes like this:
+
+**Before:**
+
+```text
+rust/tcl-registry/src/commands/expect/
+    mod.rs  close.rs  debug.rs  expect_cmd.rs  log_user.rs  send.rs  spawn.rs  …
+    (36 files, 2,742 lines of CommandSpec literals, inside the 583k-line crate)
+```
+
+**After:**
+
+```text
+rust/tcl-lib-expect/
+    expect.tclspec      the pack, SpecTcl 3
+    expect.tclimg       its image, checked in under spec-images --check
+    src/                the Surface over the image; its one hook shape is the core's -native Switch
+```
+
+306's outcome decides how far this goes:
+
+```mermaid
+flowchart TB
+  spike["306 measurements"] --> outcome{"decision"}
+  outcome -- data --> all["every library and the non-core dialects as images; the Tcl core stays Rust"]
+  outcome -- "data except hook-heavy" --> most["the same line: Tcl core native, the rest data"]
+  outcome -- native --> withdrawn["307 withdrawn; only the equivalence-pack deletion proceeds"]
+```
+
 ### Which surfaces stay native
 
 The Tcl core surface (`tcl-dialect-tcl`) stays native Rust, because 746 of
@@ -75,13 +104,25 @@ equivalence run:
 5. **`tcllib`**: 214 modules, multi-train, `TCLLIB_MODULES` folded into the
    library rows.
 6. **`iapps`/tmsh**, then **`irules`**, the largest at 63k lines. The iRules
-   events and their lifecycle data move too. iRules depends on the BIG-IP
-   schema crate (item 118), whose data stays Rust or its own generated data
-   per item 300.
+   events and their lifecycle data move too. iRules has no edge to the BIG-IP
+   schema crate (item 118), because no command spec reads the schema
+   (registry split step 3, decision 3).
 7. **Jim**, whose core surface is already SpecTcl
    (`core-surfaces/jim*.tclspec`), switches from evaluation to its image.
 8. **The DSL libraries**: `spectcl` and `bpf`. `sslictcl` changes with its
    consumers, with no shim, in the same PR as `tcl-sslictcl`.
+
+```mermaid
+flowchart LR
+  expect["1 Expect"] --> small["2 Itcl, Thread, argparse, ticklecharts"]
+  small --> stdlib["3 stdlib"]
+  stdlib --> tk["4 Tk"]
+  tk --> tcllib["5 tcllib"]
+  tcllib --> f5["6 iApps and tmsh, then iRules"]
+  f5 --> jim["7 Jim"]
+  jim --> dsl["8 spectcl and bpf; sslictcl"]
+  vocab["305 widget-class, option-database and co-provide forms"] -.-> tk
+```
 
 ### What is deleted
 

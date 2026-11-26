@@ -80,7 +80,44 @@ pub fn object_graph_snapshot() -> Json;
 
 Consumers rewrite `tcl_registry::bigip::…`, `tcl_registry::base_objects::…`
 and `tcl_registry::profile_defaults::…` to `tcl_bigip_schema::…` in the same
-change. `tcl-registry`'s root re-export (`lib.rs:448`) goes. `tcl-registry`
+change. In `tcl-bigip`, for example:
+
+**Before:**
+
+```rust
+use tcl_registry::bigip::BigipRegistry;                         // tmsh_emit.rs
+use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults}; // tls.rs
+```
+
+**After:**
+
+```rust
+use tcl_bigip_schema::BigipRegistry;
+use tcl_bigip_schema::profile_defaults::{BigipVersion, profile_field_defaults};
+```
+
+Where the parts go, and who reads the new crate:
+
+```mermaid
+flowchart LR
+  subgraph registry["tcl-registry today"]
+    bigip["bigip/"]
+    base["base_objects/"]
+    defaults["profile_defaults/"]
+    f5["f5/"]
+  end
+  bigip --> schema["tcl-bigip-schema"]
+  base --> schema
+  defaults --> schema
+  f5 -. "stays in the core; item 301 moves it" .-> tclDialect["tcl-dialect"]
+  tclBigip["tcl-bigip"] --> schema
+  query["tcl-bigip-query"] --> schema
+  report["bigip-report-gen"] --> schema
+  cli["f5-cli"] --> schema
+  lsp["tcl-lsp-core, bigip.rs"] --> schema
+  xtask["xtask bigip_data_schema"] --> schema
+  schema --> tclDialect
+``` `tcl-registry`'s root re-export (`lib.rs:448`) goes. `tcl-registry`
 has no edge to the new crate.
 
 In step 4's [crate roles](04-dependency-hygiene.md#crate-roles) the crate has
@@ -101,6 +138,14 @@ annotations, as Q4 decided:
 - **The gate** is `--check`, which `xtask-check` runs as for the other
   generators (item 119). It fails when `model/gen/` differs from what the
   schema and the annotations produce.
+
+```mermaid
+flowchart LR
+  schema["tcl-bigip-schema"] --> gen["cargo xtask gen-bigip-model"]
+  notes["annotation table in tcl-bigip"] --> gen
+  gen --> model["tcl-bigip model/gen/"]
+  gen -. "--check in xtask-check" .-> model
+```
 
 The 216 comparisons move onto typed schema facts. A kind is compared by
 `BigipObjectKindSpec` identity, a property by its `BigipPropertySpec`, and a

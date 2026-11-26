@@ -49,6 +49,23 @@ excluded), 26 November 2026:
 | `iApps` | tracks host | `{any on f5-tcl, build scriptd}` | ambient in `f5-iapps` | `tcl-lib-iapps` |
 | `tmsh` | tracks host | `{any on f5-tcl, build scriptd}` | ambient in `f5-iapps` and `f5-tmsh` | `tcl-lib-iapps` |
 
+The family, its builds, the libraries on them and the environments that
+place them:
+
+```mermaid
+flowchart LR
+  f5["f5-tcl"] --> tmm["build Tmm"]
+  f5 --> scriptd["build Scriptd"]
+  tmm --> irules["iRules, tracks host"]
+  scriptd --> iapps["iApps, tracks host"]
+  scriptd --> tmsh["tmsh, tracks host"]
+  irules --> envIrules["f5-irules"]
+  iapps --> envIapps["f5-iapps"]
+  tmsh --> envIapps
+  tmsh --> envTmsh["f5-tmsh"]
+  schema["BIG-IP schema"] --> envBigip["f5-bigip, no dialect"]
+```
+
 The BIG-IP schema (`f5-bigip-schema`) is the `f5-bigip` environment's
 library and stays with item 118's crate. The f5-tcl **core** surface (the 8.4.6
 fork as BIG-IP ships it) is `tcl-dialect-f5`'s and is common to both builds.
@@ -73,7 +90,24 @@ impl LibraryPolicy for IrulesPolicy {
 pub trait LibraryPolicy: Send + Sync { /* the methods above, with permissive defaults */ }
 ```
 
-The registry core asks every *present* library's policy. A query with no
+The registry core asks every *present* library's policy. Under `f5-irules`
+a lookup goes like this; under plain Tcl the iRules library is absent and
+no policy is asked:
+
+```mermaid
+sequenceDiagram
+  participant C as consumer
+  participant R as registry core lookup
+  participant E as ResolvedEnvironment
+  participant P as IrulesPolicy
+  C->>R: resolve a command at a site
+  R->>E: which libraries are present?
+  E-->>R: iRules, tracking f5-tcl 16.1
+  R->>P: admits(spec, RuleLoader)
+  P-->>R: admitted, or one of the 15 refused
+  R-->>C: the spec, or a refusal
+```
+ A query with no
 iRules library never sees a rule-loader realm. `InvocationRealm` moves from
 `tcl-dialect` to the core as a `RealmId` that libraries register.
 `InterpreterRuntime` is the dialect's realm and becomes the default.
@@ -108,6 +142,31 @@ pub mod f5 {                                    // in tcl-lib-irules, re-exporte
 | "is the build `tmm`" (exec absent, `wordSize`, `tcl_platform` facts) | `env.build() == Some(Build::Tmm)` |
 | `"f5-iapps"` strict-ASCII W108 | `env.policy.strict_ascii` (already data) |
 
+In code, one check of each kind (a sketch over the table's rows):
+
+**Before:**
+
+```rust
+if profile.is_irules() {
+    // semantic tokens: colour iRules event names
+}
+if profile.is_irules() {
+    // binding: closed world, declaration-only top level
+}
+```
+
+**After:**
+
+```rust
+if env.has_library(f5::IRULES) {
+    // semantic tokens: colour iRules event names
+}
+if let Some(policy) = env.policy::<IrulesPolicy>() {
+    let world = policy.world();         // WorldPolicy::Closed
+    let top_level = policy.top_level(); // declaration-only
+}
+```
+
 `irules_checks` (`tcl-compiler/src/irules_checks.rs`) is iRules-specific
 analysis. It stays an analysis pass, registered by the entry points when the
 iRules library is linked. That answers compiler split step 257's open
@@ -133,7 +192,9 @@ the work list as an environment-id use (it stays, through a
 
 ### Dependencies
 
-`tcl-lib-irules` depends on the core and the BIG-IP schema crate (item 118).
+`tcl-lib-irules` depends on the core only. No command spec reads the BIG-IP
+schema, so it has no edge to item 118's crate (registry split step 3,
+decision 3).
 Generic crates depend on the core only. They name `f5::IRULES` through the
 core's library-id facade, which is a constant and not a crate edge (item 265's
 gate).

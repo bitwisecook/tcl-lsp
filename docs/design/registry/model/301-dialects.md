@@ -90,6 +90,45 @@ impl DialectPoint {
   `F5Scriptd32` becomes `Scriptd`, and its 32-bit word size becomes a property
   of that build (`wordSize 4`, measurements §4).
 
+The three families, their builds and their ancestry:
+
+```mermaid
+flowchart LR
+  tcl["tcl: 8.4 to 9.1"] --> canonical["Canonical"]
+  jim["jim: 0.76 to 0.84"] --> jimFull["JimFull"]
+  jim --> jimMin["JimMinimal"]
+  jim --> jimCanon["Canonical: minimal through 0.81, full from 0.82"]
+  f5["f5-tcl: the BIG-IP lines"] --> tmm["Tmm"]
+  f5 --> scriptd["Scriptd, wordSize 4"]
+  f5 -. "fork at 8.4.6" .-> tcl
+  jim -. "reimplementation at 8.6" .-> tcl
+```
+
+The enum loses its library variant and gains builds:
+
+**Before:**
+
+```rust
+pub enum Family { Tcl, F5Tcl, F5Irules, Jim }
+pub enum BuildProfileId { Canonical, JimFull, JimMinimal, F5Scriptd32, Unknown }
+```
+
+**After:**
+
+```rust
+pub enum Family { Tcl, Jim, F5Tcl }
+pub enum Build { Canonical, JimFull, JimMinimal, Tmm, Scriptd, Unknown }
+```
+
+What a dialect owns is visible from plain scripts. The numerals differ by
+family and release (tclsh 8.4–9.1 and jimsh 0.84, checked):
+
+```tcl
+puts [expr {010}]             ;# 8 on tcl 8.4-8.6; 10 on tcl 9.0, 9.1 and jim 0.84
+puts [string is integer 08]   ;# 0 on tcl 8.4-8.6; 1 on tcl 9.0, 9.1 and jim 0.84
+puts [expr {0o10}]            ;# 8 from tcl 8.5; a syntax error on 8.4
+```
+
 `F5_FORK_POINT = "8.4.6"` and the `ancestry()` edges stay. `f5-tcl` → `tcl` at
 8.4 is a fork, and `jim` → `tcl` at 8.6 is a reimplementation. The
 `f5-tcl`-from-`F5Tcl` edge for iRules goes away with the variant.
