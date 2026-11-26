@@ -73,8 +73,36 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(r["units_compiled"], {"workspace": 2, "third_party": 1, "total": 3})
         self.assertEqual(r["workspace_compiled"], ["tcl-a", "tcl-b"])
         self.assertEqual(r["units_by_profile"], {"opt0": 1, "opt0-check": 1, "opt1-test": 1})
-        self.assertEqual(r["build_scripts_run"], {"libc": 1})
+        self.assertEqual(r["build_scripts_run"], {})
+        self.assertEqual(r["build_scripts_unknown"], {"libc": 1})
         self.assertEqual(wc.feature_variants([r]), {"tcl-a": 2, "tcl-b": 1})
+
+    def test_replayed_build_scripts_are_not_counted_as_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build = Path(tmp)
+            messages = []
+            for pkg, age in (("ran", 0), ("fresh", -3600), ("legacy", 0)):
+                unit = build / pkg / "0123456789abcdef"
+                (unit / "out").mkdir(parents=True)
+                record = unit / ("output" if pkg == "legacy" else "run/stdout")
+                record.parent.mkdir(parents=True, exist_ok=True)
+                record.write_text("")
+                stamp = 2_000_000_000 + age
+                os.utime(record, (stamp, stamp))
+                messages.append(json.dumps({
+                    "reason": "build-script-executed",
+                    "package_id": REG.format(pkg),
+                    "out_dir": str(unit / "out"),
+                }))
+            messages.append(json.dumps({
+                "reason": "build-script-executed",
+                "package_id": REG.format("norecord"),
+                "out_dir": str(build / "missing" / "out"),
+            }))
+            r = wc.parse_messages(messages, started=2_000_000_000 - 60)
+        self.assertEqual(r["build_scripts_run"], {"legacy": 1, "ran": 1})
+        self.assertEqual(r["build_scripts_replayed"], {"fresh": 1})
+        self.assertEqual(r["build_scripts_unknown"], {"norecord": 1})
 
     def test_package_names(self):
         self.assertEqual(wc.package_name(WS.format("tcl-compiler")), "tcl-compiler")

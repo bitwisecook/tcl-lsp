@@ -211,12 +211,35 @@ def restore_edit(root: Path, edit: Edit) -> None:
 # ---------------------------------------------------------------- cargo JSON
 
 
-def parse_messages(lines) -> dict:
+def build_script_ran_since(out_dir: str, started: float) -> bool | None:
+    """Whether the build script owning `out_dir` ran at or after `started`.
+
+    Cargo reports `build-script-executed` for a fresh script too, replaying
+    its recorded output, so the message alone does not say it ran. A run
+    rewrites the unit's run record: `run/invoked.timestamp` and `run/stdout`
+    beside `out/` in cargo's build-dir layout, `output` in the older one.
+    None when no record is found.
+    """
+    unit = Path(out_dir).parent
+    times = []
+    for record in ("run/invoked.timestamp", "run/stdout", "output"):
+        try:
+            times.append((unit / record).stat().st_mtime)
+        except OSError:
+            continue
+    if not times:
+        return None
+    return max(times) >= started
+
+
+def parse_messages(lines, started: float | None = None) -> dict:
     """Count compiled units in cargo's JSON message stream."""
     workspace = registry = 0
     by_profile: dict[str, int] = {}
     features: dict[str, set[tuple[str, ...]]] = {}
     build_scripts: dict[str, int] = {}
+    replayed: dict[str, int] = {}
+    unknown: dict[str, int] = {}
     compiled: list[str] = []
     for line in lines:
         line = line.strip()
@@ -230,7 +253,13 @@ def parse_messages(lines) -> dict:
         package_id = msg.get("package_id", "")
         name = package_name(package_id)
         if reason == "build-script-executed":
-            build_scripts[name] = build_scripts.get(name, 0) + 1
+            ran = (
+                None
+                if started is None or not msg.get("out_dir")
+                else build_script_ran_since(msg["out_dir"], started)
+            )
+            bucket = build_scripts if ran else replayed if ran is False else unknown
+            bucket[name] = bucket.get(name, 0) + 1
             continue
         if reason != "compiler-artifact":
             continue
@@ -259,7 +288,10 @@ def parse_messages(lines) -> dict:
         "workspace_compiled": sorted(set(compiled)),
         "units_by_profile": dict(sorted(by_profile.items())),
         "features": {k: sorted(map(list, v)) for k, v in sorted(features.items())},
+        # Reruns only; a fresh script's replayed output is not a run.
         "build_scripts_run": dict(sorted(build_scripts.items())),
+        "build_scripts_replayed": dict(sorted(replayed.items())),
+        "build_scripts_unknown": dict(sorted(unknown.items())),
     }
 
 
@@ -428,6 +460,7 @@ def run_measured(argv: list[str], cwd: Path, env: dict, target: Path, harness=No
     """Run one cargo command, returning its measurements."""
     before = allocated_bytes(target)
     load = os.getloadavg()[0]
+    started_wall = time.time()
     start = time.monotonic()
     proc = subprocess.Popen(
         argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
@@ -447,7 +480,7 @@ def run_measured(argv: list[str], cwd: Path, env: dict, target: Path, harness=No
     wall = time.monotonic() - start
     sampler.stop()
     after = allocated_bytes(target)
-    result = parse_messages(lines)
+    result = parse_messages(lines, started_wall)
     result.update(
         {
             "argv": argv,
