@@ -97,6 +97,8 @@ passes, and ownership matrices.
 - [bytecode-image.md](compiler/bytecode-image.md) — serialised bytecode
   (`tclbc`): C Tcl's instruction encoding in a versioned, pointer-free image,
   for pack hook bodies and AOT artefacts (plan item 311).
+- [vm-tcl-9-1.md](compiler/vm-tcl-9-1.md) — the VM's Tcl 9.1 opcode base
+  and release gating (plan item 312).
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value
