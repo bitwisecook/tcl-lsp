@@ -1,6 +1,6 @@
 # Splitting tcl-registry: a core plus one crate per surface
 
-Status: designed 26 November 2026. Plan item 261 leads it, with steps 262–265. The crate units follow [dialects, libraries and environments](dialects-and-libraries.md) (items 266–272).
+Status: designed 26 November 2026. Plan item 261 leads it, with steps 262–265. The crate units follow [dialects, libraries and environments](dialects-and-libraries.md) (items 301–307).
 It is a companion to [splitting tcl-compiler](../compiler/crate-split-design.md),
 and runs ahead of the other stages for the same reason: build and iteration
 time. It builds on the four-layer model in
@@ -128,9 +128,9 @@ run when the crates build again.
 
 Items 117 (native algorithms out) and 118 (BIG-IP schema crate) are
 independent of these steps and can run in parallel. `tcl-lib-irules` and
-`tcl-lib-iapps` depend on 118's crate. The model changes (items 266–269) follow
+`tcl-lib-iapps` depend on 118's crate. The model changes (items 301–304) follow
 step 3, because they change types the new crates already hold. Whether a library
-crate holds Rust data or a SpecTcl-sourced image is decided by item 271.
+crate holds Rust data or a SpecTcl-sourced image is decided by item 306.
 
 ## Risks
 

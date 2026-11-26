@@ -208,7 +208,7 @@ rows become one crate.
 | `tcl-semantic` (later) | the query API and fact store | new | every feature | 85 (phase 6) |
 
 ```
-tcl-lexer / tcl-syntax / tcl-registry core / tcl-dialect / tcl-runtime-api   (surface crates and tcl-surfaces: entry points only)
+tcl-lexer / tcl-syntax / tcl-registry core / tcl-dialect / tcl-runtime-api   (dialect, library and catalogue crates: entry points only)
         │
    tcl-source ── tcl-names ── tcl-values ── tcl-model ── tcl-ir
                                   │
