@@ -71,6 +71,17 @@ braced expression evaluates, so `if {[catch {uplevel 1 $s} r]} …` is found.
 The frames were measured under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and
 9.1.0, which agree.
 
+At a call, a braced argument at a formal with a known contract is analysed
+as a body in that frame (`analyser/handlers/script_parameters.rs`): the
+calling scope for `Caller(1)`, a fresh scope for `Own`, the global scope for
+`Global`. It needs the binding owner to have run the word: when the source
+walk enters a call, it remembers each formal bound from a braced literal, and
+a script body there that reads the whole unchanged formal is walked from the
+caller's word (`command_binding/source_walk/script_formals.rs`), with
+`uplevel 1` selecting the recorded calling activation. The call-site contract
+is inferred on demand per callee with the deep pass, so normal analysis does
+not run the deep pass for every procedure.
+
 ## Original input provenance
 
 Positioned scans retain the declaration's original formal recipe, exact body

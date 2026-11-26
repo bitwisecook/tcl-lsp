@@ -31,6 +31,7 @@ mod namespaces;
 mod procedures;
 mod safe_interpreters;
 mod scope_aliases;
+mod script_parameters;
 mod value_provenance;
 mod written_variables;
 

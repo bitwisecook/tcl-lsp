@@ -342,9 +342,82 @@ impl Analyser {
         body_text: &str,
         body_span: tcl_lexer::Span,
     ) -> ProcParamFacts {
-        let Some(registry) = self.registry.as_deref() else {
-            return ProcParamFacts::default();
-        };
+        self.with_proc_trait_scan(params, body_text, body_span, |names, text, env, offset| {
+            #[cfg(debug_assertions)]
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+                eprintln!(
+                    "ORIGINAL_PARAM_ROLES begin body={}..{} parameters={} executed_source={} deep={}",
+                    body_span.start(),
+                    body_span.end(),
+                    params.len(),
+                    env.executed_source.is_some(),
+                    self.deep_param_traits
+                );
+            }
+            let super::super::param_traits::ShallowProcedureTraits {
+                traits: shallow,
+                caller_frame_params,
+                caller_frame_literals,
+            } = super::super::param_traits::infer_param_traits_with_caller_frame(names, text, env);
+            let mut traits = if self.deep_param_traits {
+                let deep = super::super::param_traits::infer_param_traits_deep_in_document(
+                    names,
+                    text,
+                    env,
+                    &self.source,
+                    &self.result,
+                    offset,
+                );
+                super::super::param_traits::merge_traits(shallow, deep)
+            } else {
+                shallow
+            };
+            #[cfg(debug_assertions)]
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+                eprintln!(
+                    "ORIGINAL_PARAM_ROLES end body={} traits={} caller_parameters={} caller_literals={}",
+                    body_span.start(),
+                    traits.len(),
+                    caller_frame_params.len(),
+                    caller_frame_literals.len()
+                );
+            }
+            let script_parameters = super::super::param_traits::take_script_parameters(&mut traits);
+            (
+                traits,
+                caller_frame_params,
+                caller_frame_literals,
+                script_parameters,
+            )
+        })
+        .unwrap_or_default()
+    }
+
+    /// [`Self::infer_proc_param_traits`] for a declaration, which also keeps
+    /// the body for a later call's on-demand script-parameter contract.
+    fn declared_proc_param_traits(
+        &mut self,
+        params: &[crate::signature_scan::types::ParamDef],
+        body_text: &str,
+        body_span: tcl_lexer::Span,
+    ) -> ProcParamFacts {
+        self.retain_script_parameter_body(params, body_text, body_span);
+        self.infer_proc_param_traits(params, body_text, body_span)
+    }
+
+    /// Run `scan` over one proc body under the document's trait-scan
+    /// environment: the dialect-aware registry and the document's
+    /// declarations, the body's retained original source, and its offset in
+    /// the document. `None` outside an active `analyse` run or when the
+    /// executed source cannot be read.
+    pub(super) fn with_proc_trait_scan<R>(
+        &self,
+        params: &[crate::signature_scan::types::ParamDef],
+        body_text: &str,
+        body_span: tcl_lexer::Span,
+        scan: impl FnOnce(&[&str], &str, super::super::param_traits::TraitScanEnv<'_>, Option<u32>) -> R,
+    ) -> Option<R> {
+        let registry = self.registry.as_deref()?;
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         // Use one document command surface for the shallow and deep scans.
         let input = self.resolved_analysis_input();
@@ -383,65 +456,11 @@ impl Analyser {
                 realm.original_written_word_at_span_in_source(image, body_span, config)?;
             word.content_span().ok().map(tcl_lexer::Span::start)
         });
-        #[cfg(debug_assertions)]
-        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
-            eprintln!(
-                "ORIGINAL_PARAM_ROLES begin body={}..{} parameters={} executed_source={} deep={}",
-                body_span.start(),
-                body_span.end(),
-                params.len(),
-                env.executed_source.is_some(),
-                self.deep_param_traits
-            );
-        }
         let body_text = match env.executed_source {
-            Some(source) => {
-                let Ok(text) = source.try_text() else {
-                    return ProcParamFacts::default();
-                };
-                text
-            }
+            Some(source) => source.try_text().ok()?,
             None => body_text,
         };
-        let super::super::param_traits::ShallowProcedureTraits {
-            traits: shallow,
-            caller_frame_params,
-            caller_frame_literals,
-        } = super::super::param_traits::infer_param_traits_with_caller_frame(
-            &param_names,
-            body_text,
-            env,
-        );
-        let mut traits = if self.deep_param_traits {
-            let deep = super::super::param_traits::infer_param_traits_deep_in_document(
-                &param_names,
-                body_text,
-                env,
-                &self.source,
-                &self.result,
-                original_body_offset,
-            );
-            super::super::param_traits::merge_traits(shallow, deep)
-        } else {
-            shallow
-        };
-        #[cfg(debug_assertions)]
-        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
-            eprintln!(
-                "ORIGINAL_PARAM_ROLES end body={} traits={} caller_parameters={} caller_literals={}",
-                body_span.start(),
-                traits.len(),
-                caller_frame_params.len(),
-                caller_frame_literals.len()
-            );
-        }
-        let script_parameters = super::super::param_traits::take_script_parameters(&mut traits);
-        (
-            traits,
-            caller_frame_params,
-            caller_frame_literals,
-            script_parameters,
-        )
+        Some(scan(&param_names, body_text, env, original_body_offset))
     }
 
     fn procedure_words_for_analyser(
@@ -840,7 +859,7 @@ impl Analyser {
         self.retain_unknown_procedure_info(&qualified, &args[words.body], &params, body_tok);
 
         let (param_traits, caller_frame_params, caller_frame_literals, script_parameters) =
-            self.infer_proc_param_traits(&params, &args[words.body], body_tok.span);
+            self.declared_proc_param_traits(&params, &args[words.body], body_tok.span);
 
         let proc = ProcDef {
             source_name,

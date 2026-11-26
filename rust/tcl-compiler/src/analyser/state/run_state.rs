@@ -110,6 +110,8 @@ impl Analyser {
         // deferred calls into the next.
         self.deferred_class_creations.clear();
         self.concatenated_windows.clear();
+        self.script_parameter_bodies.clear();
+        self.script_parameter_contracts.clear();
         self.proven_sites.clear();
         self.interval_index_sites.clear();
         self.loop_candidates.clear();

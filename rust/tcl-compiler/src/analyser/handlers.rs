@@ -66,6 +66,7 @@ mod opt_proc;
 mod procedures;
 mod regex_patterns;
 mod scope_aliases;
+mod script_parameters;
 mod symbol_definitions;
 mod written_variables;
 

@@ -200,6 +200,8 @@ impl Analyser {
             cmd_tok.span.start(),
             scope_path,
         );
+        // A braced argument a proved user procedure runs as a script.
+        self.dispatch_script_parameter_arguments(args, arg_tokens, cmd_tok, scope_path);
     }
 
     /// Resolve the [`AnalyserHookId`] for a command head through the shared

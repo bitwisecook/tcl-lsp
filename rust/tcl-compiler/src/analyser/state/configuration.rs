@@ -120,6 +120,8 @@ impl Analyser {
             concatenated_script: false,
             literal_foreach_bindings: Vec::new(),
             concatenated_windows: Vec::new(),
+            script_parameter_bodies: HashMap::new(),
+            script_parameter_contracts: HashMap::new(),
             recovered_tail: None,
             safe_interp_stack: Vec::new(),
             interp_var_bindings: HashMap::new(),

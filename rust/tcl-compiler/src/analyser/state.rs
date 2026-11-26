@@ -587,6 +587,19 @@ pub struct Analyser {
     /// Every fully static concatenated script walked, by its in-place source
     /// window, for the registry's count errors on its commands.
     pub(super) concatenated_windows: Vec<(String, tcl_lexer::Span)>,
+    /// Each proc body a call may ask script-parameter contracts of, by body
+    /// span: its formals and body text.
+    pub(super) script_parameter_bodies: HashMap<
+        tcl_lexer::Span,
+        (
+            Vec<crate::signature_scan::types::ParamDef>,
+            std::sync::Arc<str>,
+        ),
+    >,
+    /// Contracts already inferred for a body in
+    /// [`Self::script_parameter_bodies`].
+    pub(super) script_parameter_contracts:
+        HashMap<tcl_lexer::Span, std::sync::Arc<HashMap<String, super::types::ScriptParameter>>>,
     /// The first syntax cut of such a document and the registry's verdicts
     /// on the commands recovered after it, published once every other
     /// emitter has run.
