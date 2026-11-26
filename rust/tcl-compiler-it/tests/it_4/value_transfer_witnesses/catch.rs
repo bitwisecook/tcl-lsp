@@ -539,7 +539,7 @@ fn the_catch_rows_every_release_reads_alike() {
             let unit = unit_of(&source, dialect);
             assert_eq!(
                 value_at(&unit, "::p", "c", 1),
-                Some(LatticeValue::Const(ConstValue::Int(code))),
+                Some(LatticeValue::Const(ConstValue::int(code))),
                 "{dialect}: the code of {script}"
             );
             assert_eq!(
@@ -585,7 +585,7 @@ fn the_catch_row_that_splits_on_an_absent_cell() {
         if let Some((code, result)) = expected {
             assert_eq!(
                 code_fact,
-                Some(LatticeValue::Const(ConstValue::Int(code))),
+                Some(LatticeValue::Const(ConstValue::int(code))),
                 "{dialect}: the code"
             );
             assert_eq!(
@@ -729,7 +729,7 @@ fn a_flattened_catch_gives_its_result_variable_what_its_script_returned() {
 /// optimiser.
 #[test]
 fn a_flattened_catch_runs_its_script_over_the_state_before_it() {
-    let int = |n: i64| Some(LatticeValue::Const(ConstValue::Int(n)));
+    let int = |n: i64| Some(LatticeValue::Const(ConstValue::int(n)));
     let programs: [(&str, &str, i64); 4] = [
         (
             "proc p {} {\n    set x 1\n    catch {incr x} m\n    puts \"$m|$x\"\n}\np\n",
@@ -897,7 +897,7 @@ fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
     for dialect in DIALECTS {
         assert_ne!(
             last_value(value_form, dialect, "::p", "c"),
-            LatticeValue::Const(ConstValue::Int(0)),
+            LatticeValue::Const(ConstValue::int(0)),
             "{dialect}: `y` may be an array"
         );
         let held = last_value(flattened, dialect, "::p", "m");
@@ -934,7 +934,7 @@ fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
             match code {
                 Some(code) => assert_eq!(
                     held,
-                    Some(LatticeValue::Const(ConstValue::Int(code))),
+                    Some(LatticeValue::Const(ConstValue::int(code))),
                     "{dialect}: {body}"
                 ),
                 None => assert!(
@@ -951,17 +951,17 @@ fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
     for dialect in DIALECTS {
         assert_eq!(
             value_at(&unit_of(into_an_array, dialect), "::p", "c", 1),
-            Some(LatticeValue::Const(ConstValue::Int(0))),
+            Some(LatticeValue::Const(ConstValue::int(0))),
             "{dialect}"
         );
         assert_eq!(
             last_value(flattened_proved, dialect, "::p", "r"),
-            LatticeValue::Const(ConstValue::Int(1)),
+            LatticeValue::Const(ConstValue::int(1)),
             "{dialect}"
         );
         assert_eq!(
             top_value_at(&unit_of(top_proved, dialect), "r", 1),
-            Some(LatticeValue::Const(ConstValue::Int(2))),
+            Some(LatticeValue::Const(ConstValue::int(2))),
             "{dialect}"
         );
     }

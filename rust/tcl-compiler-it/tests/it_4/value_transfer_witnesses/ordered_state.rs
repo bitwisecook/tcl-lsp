@@ -337,7 +337,7 @@ const ORDERED_STATE: [(&str, &str, &str); 6] = [
 #[test]
 fn the_seven_ordered_state_witnesses() {
     for (expression, value, after) in ORDERED_STATE {
-        let int = |text: &str| Some(LatticeValue::Const(ConstValue::Int(text.parse().unwrap())));
+        let int = |text: &str| Some(LatticeValue::Const(ConstValue::int(text.parse().unwrap())));
         let top = format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n");
         let in_proc = format!(
             "proc p {{}} {{\n    set x 1\n    set r [expr {expression}]\n    puts $r\n    puts $x\n}}\np\n"
@@ -408,7 +408,7 @@ fn the_seven_ordered_state_witnesses() {
         );
         assert_eq!(
             value_at(&unit_of(caught[1], dialect), "::p", "x", 2),
-            Some(LatticeValue::Const(ConstValue::Int(2))),
+            Some(LatticeValue::Const(ConstValue::int(2))),
             "{dialect}"
         );
         for source in caught {
@@ -487,7 +487,7 @@ fn a_nested_write_outside_the_state_declines() {
     for dialect in DIALECTS {
         assert_eq!(
             value_at(&unit_of(unreached, dialect), "::p", "r", 1),
-            Some(LatticeValue::Const(ConstValue::Int(0))),
+            Some(LatticeValue::Const(ConstValue::int(0))),
             "{dialect}"
         );
     }
@@ -675,7 +675,7 @@ impl PrefixProgram {
             {
                 Claim::Holds
             }
-            Some(LatticeValue::Const(ConstValue::Int(held)))
+            Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(held))))
                 if texts.contains(&held.to_string()) =>
             {
                 Claim::Holds

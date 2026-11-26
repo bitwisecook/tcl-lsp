@@ -1239,7 +1239,7 @@ mod tests {
             assert_ne!(
                 cu.top_level.sccp.values.get(&(reference.symbol, version)),
                 Some(&crate::analyses::LatticeValue::Const(
-                    crate::analyses::ConstValue::Int(4)
+                    crate::analyses::ConstValue::int(4)
                 )),
                 "the actual callee mutation must withdraw the old global value",
             );

@@ -135,7 +135,7 @@ fn the_shared_lattice_declines_a_renamed_head() {
         let unit = unit_of(body, dialect);
         assert_eq!(
             value_at(&unit, "::p", "n", 2),
-            Some(LatticeValue::Const(ConstValue::Int(2))),
+            Some(LatticeValue::Const(ConstValue::int(2))),
             "{dialect}"
         );
         assert_eq!(
@@ -245,7 +245,7 @@ fn a_store_a_global_reading_callee_observes_is_kept() {
 #[test]
 fn a_value_position_set_reads_the_variable() {
     let source = "proc p {} {set x hello; set r [set x]; set w [set x 10]; return $r$w}\n";
-    let ten = Some(LatticeValue::Const(ConstValue::Int(10)));
+    let ten = Some(LatticeValue::Const(ConstValue::int(10)));
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"] {
         let unit = unit_of(source, dialect);
         assert_eq!(
@@ -270,7 +270,7 @@ fn program_three_folds_in_every_consumer() {
         let unit = unit_of(source, dialect);
         assert_eq!(
             value_at(&unit, "::p", "n", 3),
-            Some(LatticeValue::Const(ConstValue::Int(4))),
+            Some(LatticeValue::Const(ConstValue::int(4))),
             "{dialect}"
         );
         assert_eq!(

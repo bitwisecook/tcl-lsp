@@ -136,7 +136,7 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
             let unit = unit_of(&source, dialect);
             assert_eq!(
                 last_value(&source, dialect, "::p", place),
-                LatticeValue::Const(ConstValue::Int(amount)),
+                LatticeValue::Const(ConstValue::int(amount)),
                 "{dialect}: `{body}` creates its cell"
             );
             assert_eq!(last_existence(&unit, "::p", place), SCALAR, "{dialect}");

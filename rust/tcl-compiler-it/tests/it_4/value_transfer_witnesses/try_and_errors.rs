@@ -52,7 +52,10 @@ fn a_throw_between_two_writes_is_a_state_the_handler_sees() {
             );
             let held = last_value(source, dialect, "::p", name);
             assert!(
-                !matches!(held, LatticeValue::Const(ConstValue::Int(1 | 3))),
+                !matches!(
+                    held,
+                    LatticeValue::Const(ConstValue::Number(NumericValue::Int(1 | 3)))
+                ),
                 "{dialect}: the handler may see 2, not a constant 1 or 3: {held:?}"
             );
         }
@@ -754,7 +757,10 @@ fn a_try_body_is_thrown_to_from_between_its_stores() {
     for dialect in ["tcl8.6", "tcl9.0"] {
         let held = last_value(issue, dialect, "::p", "x");
         assert!(
-            !matches!(held, LatticeValue::Const(ConstValue::Int(1))),
+            !matches!(
+                held,
+                LatticeValue::Const(ConstValue::Number(NumericValue::Int(1)))
+            ),
             "{dialect}: the handler may see 2, not a constant 1: {held:?}"
         );
     }
@@ -841,7 +847,10 @@ fn a_split_try_body_keeps_what_its_handlers_were_proved() {
         );
         let held = last_value(breaks_after_stores, dialect, "::p", "x");
         assert!(
-            !matches!(held, LatticeValue::Const(ConstValue::Int(1))),
+            !matches!(
+                held,
+                LatticeValue::Const(ConstValue::Number(NumericValue::Int(1)))
+            ),
             "{dialect}: the handler may see 5, not a constant 1: {held:?}"
         );
     }

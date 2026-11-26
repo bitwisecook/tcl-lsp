@@ -18,6 +18,8 @@
 
 //! The value one definition takes: retained expression words, original substitutions, iteration bindings and normal stores.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use super::super::{
     BuiltinFoldInputs, extract_foreach_elements, parse_literal_value,
     resolve_foreach_list_via_lattice,
@@ -141,7 +143,7 @@ pub(super) fn evaluate_def_with_math<S: std::hash::BuildHasher>(
                 .cloned()
                 .unwrap_or(LatticeValue::Unknown);
             let base_int = match &base {
-                LatticeValue::Const(ConstValue::Int(i)) => *i,
+                LatticeValue::Const(ConstValue::Number(NumericValue::Int(i))) => *i,
                 LatticeValue::Unknown => return LatticeValue::Unknown,
                 // Overdefined or a non-integer Const widens.
                 _ => return LatticeValue::Overdefined,
@@ -160,7 +162,7 @@ pub(super) fn evaluate_def_with_math<S: std::hash::BuildHasher>(
                         reference_config,
                     ) {
                         match amount {
-                            LatticeValue::Const(ConstValue::Int(i)) => i,
+                            LatticeValue::Const(ConstValue::Number(NumericValue::Int(i))) => i,
                             LatticeValue::Unknown => return LatticeValue::Unknown,
                             _ => return LatticeValue::Overdefined,
                         }
@@ -172,7 +174,7 @@ pub(super) fn evaluate_def_with_math<S: std::hash::BuildHasher>(
             base_int
                 .checked_add(amt)
                 .map_or(LatticeValue::Overdefined, |v| {
-                    LatticeValue::Const(ConstValue::Int(v))
+                    LatticeValue::Const(ConstValue::int(v))
                 })
         }
         _ => LatticeValue::Overdefined,

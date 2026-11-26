@@ -1006,9 +1006,9 @@ mod tests {
             )
             .map(|env| env.get("i").cloned())
         };
-        assert_eq!(under("tcl8.6"), Some(Some(StaticValue::Int(20))));
-        assert_eq!(under("tcl9.0"), Some(Some(StaticValue::Int(20))));
-        assert_eq!(under("f5-irules"), Some(Some(StaticValue::Int(20))));
+        assert_eq!(under("tcl8.6"), Some(Some(StaticValue::int(20))));
+        assert_eq!(under("tcl9.0"), Some(Some(StaticValue::int(20))));
+        assert_eq!(under("f5-irules"), Some(Some(StaticValue::int(20))));
         assert_eq!(under("tcl"), None, "no release: the counter is ambiguous");
     }
 
@@ -1050,7 +1050,7 @@ mod tests {
             },
         )
         .expect("summarised");
-        assert_eq!(env.get("i"), Some(&StaticValue::Int(5)));
+        assert_eq!(env.get("i"), Some(&StaticValue::int(5)));
     }
 
     #[test]
@@ -1073,8 +1073,8 @@ mod tests {
             },
         )
         .expect("summarised");
-        assert_eq!(env.get("total"), Some(&StaticValue::Int(3)));
-        assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
+        assert_eq!(env.get("total"), Some(&StaticValue::int(3)));
+        assert_eq!(env.get("i"), Some(&StaticValue::int(3)));
     }
 
     #[test]
@@ -1238,8 +1238,8 @@ mod tests {
             },
         )
         .expect("summarised");
-        assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
-        assert_eq!(env.get("x"), Some(&StaticValue::Int(20)));
+        assert_eq!(env.get("i"), Some(&StaticValue::int(3)));
+        assert_eq!(env.get("x"), Some(&StaticValue::int(20)));
     }
 
     #[test]
@@ -1262,7 +1262,7 @@ mod tests {
             },
         )
         .expect("summarised");
-        assert_eq!(env.get("v"), Some(&StaticValue::Int(1)));
+        assert_eq!(env.get("v"), Some(&StaticValue::int(1)));
     }
 
     /// The simulator runs the command's own selection, so the mode its
@@ -1271,8 +1271,8 @@ mod tests {
     /// case, `-regexp` runs the engine, and a `-` body supplies the next.
     #[test]
     fn summarise_honours_the_mode_of_a_switch() {
-        let taken = Some(StaticValue::Int(1));
-        let default = Some(StaticValue::Int(9));
+        let taken = Some(StaticValue::int(1));
+        let default = Some(StaticValue::int(9));
         let cases = [
             (
                 &["-glob", "--"][..],
@@ -1354,7 +1354,7 @@ mod tests {
             }
             statement
         };
-        assert_eq!(v_after(inline("a"), "a"), Some(StaticValue::Int(1)));
+        assert_eq!(v_after(inline("a"), "a"), Some(StaticValue::int(1)));
         assert_eq!(v_after(inline("$pat"), "a"), None);
     }
 
@@ -1406,6 +1406,6 @@ mod tests {
             },
         )
         .expect("summarised");
-        assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
+        assert_eq!(env.get("i"), Some(&StaticValue::int(2)));
     }
 }

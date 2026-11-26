@@ -18,6 +18,8 @@
 
 //! Element facts of lists and dictionaries: what a builder's words contribute and how an in-place write evolves them.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use super::WordTypingCtx;
 use super::word_types::value_word_type;
 use crate::analyses::{ConstValue, LatticeValue};
@@ -238,7 +240,8 @@ fn constant_index<S: std::hash::BuildHasher>(
         return Some(i);
     }
     if ctx.is_variable_word(word)
-        && let Some(LatticeValue::Const(ConstValue::Int(i))) = ctx.constant_of_word(word)
+        && let Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(i)))) =
+            ctx.constant_of_word(word)
     {
         return usize::try_from(*i).ok();
     }

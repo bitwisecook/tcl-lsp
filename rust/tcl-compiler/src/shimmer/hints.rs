@@ -32,7 +32,7 @@
 
 use std::borrow::Cow;
 
-use tcl_registry::value_transfer::RepresentationEvidence;
+use tcl_registry::value_transfer::{NumericValue, RepresentationEvidence};
 use tcl_registry::{CommandRegistry, TclType};
 use tcl_syntax::boolean::parse_boolean_word;
 use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
@@ -484,9 +484,9 @@ fn const_string_forms(value: &LatticeValue) -> Option<Vec<Cow<'_, str>>> {
 fn const_value_string(value: &ConstValue) -> Cow<'_, str> {
     match value {
         ConstValue::String(s) => Cow::Borrowed(s.as_str()),
-        ConstValue::Int(i) => Cow::Owned(i.to_string()),
-        ConstValue::Bool(b) => Cow::Borrowed(if *b { "1" } else { "0" }),
-        ConstValue::Float(f) => Cow::Owned(number::format_double(*f)),
+        ConstValue::Number(NumericValue::Int(i)) => Cow::Owned(i.to_string()),
+        ConstValue::Number(NumericValue::Bool(b)) => Cow::Borrowed(if *b { "1" } else { "0" }),
+        ConstValue::Number(NumericValue::Float(f)) => Cow::Owned(number::format_double(*f)),
     }
 }
 
@@ -919,7 +919,7 @@ mod tests {
     /// using it as a list is free — the define-time numeric shape is irrelevant.
     #[test]
     fn uncommitted_const_int_used_as_list_is_free() {
-        let v = LatticeValue::Const(ConstValue::Int(5));
+        let v = LatticeValue::Const(ConstValue::int(5));
         assert!(is_uncommitted_first_conversion(
             TclType::Int,
             TclType::List,
@@ -946,7 +946,7 @@ mod tests {
     /// the merge is still a free promotion.
     #[test]
     fn uncommitted_constset_all_valid_lists_is_free() {
-        let v = LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::String("a b".into())]);
+        let v = LatticeValue::ConstSet(vec![ConstValue::int(1), ConstValue::String("a b".into())]);
         assert!(is_uncommitted_first_conversion(
             TclType::Int,
             TclType::List,

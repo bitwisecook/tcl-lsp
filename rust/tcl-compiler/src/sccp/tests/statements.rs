@@ -18,6 +18,8 @@
 
 //! What a statement leaves in the values: opaque `switch` arms, callback writes, nested writes, a raise in the middle and unseen calls.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use super::*;
 
 #[test]
@@ -100,7 +102,7 @@ fn an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_ex
         false,
     );
     let f = cu.function("::f").expect("procedure analysed");
-    assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::Int(1)));
+    assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::int(1)));
 }
 
 /// What a command an arm runs does to the frame is as real as a write the
@@ -133,7 +135,7 @@ fn an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettle
         false,
     );
     let f = cu.function("::f").expect("procedure analysed");
-    assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::Int(1)));
+    assert_eq!(last_value(f, "go"), LatticeValue::Const(ConstValue::int(1)));
 }
 
 /// The names a callback script writes — `after`, `after idle`, a
@@ -169,7 +171,7 @@ fn the_names_a_callback_writes_are_never_constant() {
     let f = cu.function("::top").expect("top level analysed");
     assert_eq!(
         last_value(f, "unrelated"),
-        LatticeValue::Const(ConstValue::Int(0))
+        LatticeValue::Const(ConstValue::int(0))
     );
 }
 
@@ -197,7 +199,7 @@ type NestedWriteCase = (&'static str, &'static str, [(&'static str, i64); 2]);
 /// operand is substituted first; at the top level and in a procedure.
 #[test]
 fn a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result() {
-    let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+    let int = |n: i64| LatticeValue::Const(ConstValue::int(n));
     let cases: [NestedWriteCase; 10] = [
         ("$x + [incr x] + $x", "::p", [("r", 5), ("x", 2)]),
         ("$y + [incr x] + $y", "::p", [("r", 12), ("x", 2)]),
@@ -261,7 +263,7 @@ fn a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_t
 #[test]
 fn a_write_a_commands_word_makes_is_a_write_of_the_statement() {
     let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
-    let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+    let int = |n: i64| LatticeValue::Const(ConstValue::int(n));
     let appended = "proc p {} {set s a; set r [expr {[string length [append s bc]] + [string length $s]}]; return $s}\n";
     assert_eq!(
         last_values(appended, "::p", &["r", "s"]),
@@ -311,7 +313,7 @@ fn a_write_only_some_inputs_make_is_joined_over_the_members() {
         let mut ints: Vec<i64> = members
             .iter()
             .map(|member| match member {
-                ConstValue::Int(n) => *n,
+                ConstValue::Number(NumericValue::Int(n)) => *n,
                 other => panic!("an integer: {other:?}"),
             })
             .collect();
@@ -332,7 +334,7 @@ fn a_write_only_some_inputs_make_is_joined_over_the_members() {
 /// no handler is thrown to the statement is not evaluated at all.
 #[test]
 fn an_error_in_the_middle_leaves_the_writes_made_before_it_inside_a_catch() {
-    let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
+    let int = |n: i64| LatticeValue::Const(ConstValue::int(n));
     let in_proc = "proc p {} {set x 1; catch {set r [expr {[incr x] + [error mid]}]}; return $x}\n";
     assert_eq!(last_values(in_proc, "::p", &["x"]), [int(2)]);
     let statement = "proc p {} {set x 1; catch {expr {[incr x] + [error mid]}}; return $x}\n";
@@ -432,7 +434,7 @@ fn an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one() {
     assert_eq!(top.ssa.binding_version(symbol, 2), 1);
     assert_eq!(
         top.sccp.values.get(&(symbol, 1)),
-        Some(&LatticeValue::Const(ConstValue::Int(1)))
+        Some(&LatticeValue::Const(ConstValue::int(1)))
     );
     assert_eq!(
         top.sccp.values.get(&(symbol, 2)),
@@ -440,11 +442,11 @@ fn an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one() {
     );
     assert_eq!(
         last_value(top, "y"),
-        LatticeValue::Const(ConstValue::Int(2))
+        LatticeValue::Const(ConstValue::int(2))
     );
     assert_eq!(
         last_value(top, "x"),
-        LatticeValue::Const(ConstValue::Int(3))
+        LatticeValue::Const(ConstValue::int(3))
     );
     let cu = crate::compilation_unit::CompilationUnit::build_for(
         "proc p {} { set x 1; foo; puts $x }\n",
@@ -461,7 +463,7 @@ fn an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one() {
     let top = cu.function("::top").expect("top level analysed");
     assert_eq!(
         last_value(top, "x"),
-        LatticeValue::Const(ConstValue::Int(1))
+        LatticeValue::Const(ConstValue::int(1))
     );
     // The `::` spelling is externally mutable whatever the call.
     let cu = crate::compilation_unit::CompilationUnit::build_for(

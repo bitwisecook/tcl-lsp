@@ -26,11 +26,11 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
-use tcl_registry::value_transfer::Existence;
 #[cfg(test)]
 use tcl_registry::value_transfer::{
     BindingKind, DependencyEvidence, DomainFact, ExactValue, FactDomain, FactView,
 };
+use tcl_registry::value_transfer::{Existence, NumericValue};
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -218,9 +218,9 @@ fn transfer_terminator<'a>(
 /// Use the double's bits to agree with lattice equality.
 fn cv_key(v: &ConstValue) -> (u8, String) {
     match v {
-        ConstValue::Int(i) => (0, i.to_string()),
-        ConstValue::Float(f) => (1, format!("{:016x}", f.to_bits())),
-        ConstValue::Bool(b) => (2, b.to_string()),
+        ConstValue::Number(NumericValue::Int(i)) => (0, i.to_string()),
+        ConstValue::Number(NumericValue::Float(f)) => (1, format!("{:016x}", f.to_bits())),
+        ConstValue::Number(NumericValue::Bool(b)) => (2, b.to_string()),
         ConstValue::String(s) => (3, s.as_str().to_owned()),
     }
 }

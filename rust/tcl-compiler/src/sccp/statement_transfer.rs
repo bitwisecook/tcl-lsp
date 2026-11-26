@@ -127,8 +127,8 @@ mod tests {
     fn barrier_history_keeps_positioned_reads_and_widens_unpositioned_reads() {
         let x = Symbol(0);
         let out = Symbol(1);
-        let seed = LatticeValue::Const(ConstValue::Int(1));
-        let prior = LatticeValue::Const(ConstValue::Int(2));
+        let seed = LatticeValue::Const(ConstValue::int(1));
+        let prior = LatticeValue::Const(ConstValue::int(2));
         let mut values = HashMap::from([((x, 0), seed.clone()), ((x, 1), prior.clone())]);
         let defs = HashMap::from([(out, 1)]);
         assert!(widen_barrier_values(
@@ -156,7 +156,7 @@ mod tests {
     fn fresh_clobbers_preserve_only_the_selected_prior_versions() {
         let parameter = Symbol(0);
         let other = Symbol(1);
-        let value = LatticeValue::Const(ConstValue::Int(42));
+        let value = LatticeValue::Const(ConstValue::int(42));
         let marker = HashMap::from([(parameter, (1, 2)), (other, (1, 2))]);
         let initial = HashMap::from([
             ((parameter, 0), value.clone()),

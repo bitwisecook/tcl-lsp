@@ -49,7 +49,7 @@ use tcl_compiler::static_loops::{
 use tcl_compiler::tcl_expr_eval::FoldPolicy;
 use tcl_core_types::DiagCode;
 use tcl_registry::model::ingress::{resolve_environment, static_context_for};
-use tcl_registry::value_transfer::{BindingKind, Existence};
+use tcl_registry::value_transfer::{BindingKind, Existence, NumericValue};
 
 mod branch_selection;
 mod catch;
@@ -248,7 +248,7 @@ fn prints_under_releases_from(source: &str, expected: &str, first: &str) {
 /// `None` where it declines.
 fn lattice_text(value: LatticeValue) -> Option<String> {
     match value {
-        LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
+        LatticeValue::Const(ConstValue::Number(NumericValue::Int(i))) => Some(i.to_string()),
         LatticeValue::Const(ConstValue::String(s)) => Some(s.as_str().to_owned()),
         _ => None,
     }
@@ -259,7 +259,7 @@ fn lattice_text(value: LatticeValue) -> Option<String> {
 fn seeded(text: &str) -> StaticValue {
     tcl_registry::value_transfer::ExactValue::from_literal(text)
         .as_int()
-        .map_or_else(|| StaticValue::String(text.into()), StaticValue::Int)
+        .map_or_else(|| StaticValue::String(text.into()), StaticValue::int)
 }
 
 /// Serialises the tests that publish a hook plan: the published plan is the

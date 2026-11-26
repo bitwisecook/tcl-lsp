@@ -311,6 +311,12 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
             "LatticeText",
         ),
         (
+            "rust/tcl-compiler/src/analyses.rs",
+            "ConstValue",
+            Some("Number"),
+            "NumericValue",
+        ),
+        (
             "rust/tcl-compiler/src/tcl_expr_eval.rs",
             "EnvValue",
             Some("Str"),

@@ -116,7 +116,7 @@ fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
             else {
                 panic!("fixed complete scalar expression: {source}");
             };
-            let initial = StaticEnv::from([(name.to_owned(), StaticValue::Int(0))]);
+            let initial = StaticEnv::from([(name.to_owned(), StaticValue::int(0))]);
             let empty = empty_script();
             let summary = summarise_static_for_selected(
                 &empty,
@@ -133,7 +133,7 @@ fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
                 policy,
             )
             .expect("the selected zero operand ends the loop without changing its name");
-            assert_eq!(summary.values.get(name), Some(&StaticValue::Int(0)));
+            assert_eq!(summary.values.get(name), Some(&StaticValue::int(0)));
             if policy.native_family == Some(tcl_dialect::model::Family::Jim) {
                 let evaluated = crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
                     &expression,
@@ -270,8 +270,8 @@ fn semantic_loop_values_retain_each_native_conversion() {
     let analysis =
         analyse_for_statement_with_dependencies(&statement, &StaticEnv::new(), 20, policy, None)
             .expect("semantic values retain native evaluation");
-    assert_eq!(analysis.values.get("i"), Some(&StaticValue::Int(10)));
-    assert_eq!(analysis.values.get("j"), Some(&StaticValue::Int(5)));
+    assert_eq!(analysis.values.get("i"), Some(&StaticValue::int(10)));
+    assert_eq!(analysis.values.get("j"), Some(&StaticValue::int(5)));
     assert_eq!(analysis.increment_obligations.len(), 15);
     assert_eq!(analysis.expression_obligations.len(), 21);
     assert!(
@@ -407,7 +407,7 @@ fn original_increment_amount_keeps_braced_data_separate_from_reads() {
                 supported
             );
             if supported {
-                assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
+                assert_eq!(environment.get("n"), Some(&StaticValue::int(3)));
                 assert_eq!(increments.borrow().len(), 1);
             } else {
                 assert_eq!(environment.get("n"), Some(&StaticValue::String("1".into())));
@@ -472,7 +472,7 @@ fn original_increment_reads_use_whole_words_and_decode_literal_escapes() {
                 supported
             );
             if supported {
-                assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
+                assert_eq!(environment.get("n"), Some(&StaticValue::int(3)));
                 assert_eq!(increments.borrow().len(), 1);
             } else {
                 assert_eq!(environment.get("n"), Some(&StaticValue::String("1".into())));
@@ -750,7 +750,7 @@ fn analyse_counts_iterations_to_five() {
         selected_analysis_policy(),
     )
     .expect("summarised");
-    assert_eq!(env.get("i"), Some(&StaticValue::Int(5)));
+    assert_eq!(env.get("i"), Some(&StaticValue::int(5)));
 }
 
 #[test]
@@ -770,8 +770,8 @@ fn analyse_body_accumulates_counter() {
         selected_analysis_policy(),
     )
     .expect("summarised");
-    assert_eq!(env.get("total"), Some(&StaticValue::Int(3)));
-    assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
+    assert_eq!(env.get("total"), Some(&StaticValue::int(3)));
+    assert_eq!(env.get("i"), Some(&StaticValue::int(3)));
 }
 
 #[test]
@@ -882,7 +882,7 @@ fn analyse_resolves_if_else_branch_in_body() {
         selected_analysis_policy(),
     )
     .expect("summarised");
-    assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
+    assert_eq!(env.get("i"), Some(&StaticValue::int(3)));
     assert_eq!(env.get("x"), Some(&StaticValue::String("20".into())));
 }
 
@@ -950,7 +950,7 @@ fn analyse_forwards_for_statement_helper() {
     )
     .expect("analysed")
     .values;
-    assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
+    assert_eq!(env.get("i"), Some(&StaticValue::int(2)));
 }
 
 // evaluate_expr_with_constants
@@ -958,7 +958,7 @@ fn analyse_forwards_for_statement_helper() {
 #[test]
 fn evaluate_expr_integer() {
     let mut env = StaticEnv::new();
-    env.insert("x".into(), StaticValue::Int(5));
+    env.insert("x".into(), StaticValue::int(5));
     assert_eq!(
         evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
         None

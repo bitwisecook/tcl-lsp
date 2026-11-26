@@ -63,6 +63,8 @@
 //! a deliberate sound over-approximation (it never fires a false W210); those
 //! cases assert the conservative `false` return and say so.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use crate::body_identity;
 use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
@@ -305,7 +307,7 @@ fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
             && matches!(
                 lv,
                 tcl_compiler::analyses::LatticeValue::Const(
-                    tcl_compiler::analyses::ConstValue::Int(3)
+                    tcl_compiler::analyses::ConstValue::Number(NumericValue::Int(3))
                 )
             )
     })

@@ -802,7 +802,7 @@ fn a_declared_route_refuses_a_call_outside_its_arity() {
         (
             EXPRESSION,
             "review::label {1 + 2}",
-            LatticeValue::Const(ConstValue::Int(3)),
+            LatticeValue::Const(ConstValue::int(3)),
         ),
     ] {
         // The derived pack's one notice is the pack-text advisory.

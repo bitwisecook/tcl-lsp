@@ -354,7 +354,7 @@ fn bump_decides_through_both_o103_paths() {
     for dialect in DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "n"),
-            LatticeValue::Const(ConstValue::Int(2)),
+            LatticeValue::Const(ConstValue::int(2)),
             "{dialect}"
         );
         let p = summary_of(source, dialect, "::p");
@@ -387,7 +387,7 @@ fn an_embedded_call_applies_its_summary() {
     for dialect in DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "n"),
-            LatticeValue::Const(ConstValue::Int(2)),
+            LatticeValue::Const(ConstValue::int(2)),
             "{dialect}"
         );
         let s = summary_of(source, dialect, "::s");
@@ -469,12 +469,12 @@ fn the_seven_summary_witnesses() {
     for dialect in DIALECTS {
         assert_eq!(
             top_level_value(&bump_twice, dialect, "n"),
-            LatticeValue::Const(ConstValue::Int(4)),
+            LatticeValue::Const(ConstValue::int(4)),
             "{dialect}"
         );
         assert_eq!(
             top_level_value(&twice, dialect, "t"),
-            LatticeValue::Const(ConstValue::Int(3)),
+            LatticeValue::Const(ConstValue::int(3)),
             "{dialect}"
         );
         assert!(
@@ -539,12 +539,12 @@ fn two_callers_share_one_summary() {
     for dialect in DIALECTS {
         assert_eq!(
             top_level_value(source, dialect, "n"),
-            LatticeValue::Const(ConstValue::Int(2)),
+            LatticeValue::Const(ConstValue::int(2)),
             "{dialect}"
         );
         assert_eq!(
             top_level_value(source, dialect, "other"),
-            LatticeValue::Const(ConstValue::Int(11)),
+            LatticeValue::Const(ConstValue::int(11)),
             "{dialect}"
         );
         let (rewritten, _) = optimised(source, dialect);
@@ -569,12 +569,12 @@ fn a_nested_caller_keeps_the_callee_whole() {
     for dialect in DIALECTS {
         assert_eq!(
             top_level_value(source, dialect, "n"),
-            LatticeValue::Const(ConstValue::Int(2)),
+            LatticeValue::Const(ConstValue::int(2)),
             "{dialect}"
         );
         assert_eq!(
             top_level_value(source, dialect, "m"),
-            LatticeValue::Const(ConstValue::Int(11)),
+            LatticeValue::Const(ConstValue::int(11)),
             "{dialect}"
         );
         let (rewritten, _) = optimised(source, dialect);
@@ -724,7 +724,7 @@ fn an_omitted_name_argument_names_its_default() {
         for source in [&after, &before] {
             assert_eq!(
                 top_level_value(source, dialect, "n"),
-                LatticeValue::Const(ConstValue::Int(3)),
+                LatticeValue::Const(ConstValue::int(3)),
                 "{dialect}: {source}"
             );
             assert!(
@@ -734,12 +734,12 @@ fn an_omitted_name_argument_names_its_default() {
         }
         assert_eq!(
             last_value(&both, dialect, "::p", "n"),
-            LatticeValue::Const(ConstValue::Int(2)),
+            LatticeValue::Const(ConstValue::int(2)),
             "{dialect}"
         );
         assert_eq!(
             last_value(&both, dialect, "::q", "n"),
-            LatticeValue::Const(ConstValue::Int(3)),
+            LatticeValue::Const(ConstValue::int(3)),
             "{dialect}"
         );
         let (rewritten, _) = optimised(&both, dialect);
@@ -915,7 +915,7 @@ fn a_raising_substitution_is_labelled_by_its_completion() {
 /// after the optimiser.
 #[test]
 fn code_that_never_runs_keeps_the_function_constant() {
-    let zero = LatticeValue::Const(ConstValue::Int(0));
+    let zero = LatticeValue::Const(ConstValue::int(0));
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         for source in [
             "set n 0\nif {$n} {puts a} else {puts b}\nputs $n\n",

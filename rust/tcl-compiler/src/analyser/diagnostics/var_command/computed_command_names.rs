@@ -626,7 +626,7 @@ fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<Stri
             .iter()
             .map(|cv| match cv {
                 ConstValue::String(s) => Some(s.as_str().to_owned()),
-                _ => None,
+                ConstValue::Number(_) => None,
             })
             .collect::<Option<Vec<_>>>(),
         _ => None,

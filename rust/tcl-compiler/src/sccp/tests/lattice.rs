@@ -24,14 +24,14 @@ use super::*;
 
 #[test]
 fn join_unknown_absorbs() {
-    let c = LatticeValue::Const(ConstValue::Int(7));
+    let c = LatticeValue::Const(ConstValue::int(7));
     assert_eq!(join(&LatticeValue::Unknown, &c), c);
     assert_eq!(join(&c, &LatticeValue::Unknown), c);
 }
 
 #[test]
 fn join_overdefined_is_absorbing() {
-    let c = LatticeValue::Const(ConstValue::Int(7));
+    let c = LatticeValue::Const(ConstValue::int(7));
     assert_eq!(
         join(&LatticeValue::Overdefined, &c),
         LatticeValue::Overdefined
@@ -44,13 +44,13 @@ fn join_overdefined_is_absorbing() {
 
 #[test]
 fn join_identical_const_stays_const() {
-    let c = LatticeValue::Const(ConstValue::Int(7));
+    let c = LatticeValue::Const(ConstValue::int(7));
     assert_eq!(join(&c, &c), c);
 }
 
 #[test]
 fn repeated_nan_does_not_change_the_lattice() {
-    let candidate = LatticeValue::Const(ConstValue::Float(f64::NAN));
+    let candidate = LatticeValue::Const(ConstValue::float(f64::NAN));
     let mut values = HashMap::new();
     let key = (Symbol(0), 1);
 
@@ -61,8 +61,8 @@ fn repeated_nan_does_not_change_the_lattice() {
 
 #[test]
 fn joining_signed_zeros_preserves_both_members() {
-    let positive = ConstValue::Float(0.0);
-    let negative = ConstValue::Float(-0.0);
+    let positive = ConstValue::float(0.0);
+    let negative = ConstValue::float(-0.0);
     let expected = LatticeValue::ConstSet(vec![positive.clone(), negative.clone()]);
     let positive = LatticeValue::Const(positive);
     let negative = LatticeValue::Const(negative);
@@ -72,9 +72,21 @@ fn joining_signed_zeros_preserves_both_members() {
 }
 
 #[test]
+fn joining_integers_and_booleans_keeps_both_kinds() {
+    let integer = ConstValue::int(1);
+    let boolean = ConstValue::boolean(true);
+    let expected = LatticeValue::ConstSet(vec![integer.clone(), boolean.clone()]);
+
+    assert_eq!(
+        join(&LatticeValue::Const(integer), &LatticeValue::Const(boolean)),
+        expected,
+    );
+}
+
+#[test]
 fn join_distinct_consts_widens_to_set() {
-    let a = LatticeValue::Const(ConstValue::Int(1));
-    let b = LatticeValue::Const(ConstValue::Int(2));
+    let a = LatticeValue::Const(ConstValue::int(1));
+    let b = LatticeValue::Const(ConstValue::int(2));
     let merged = join(&a, &b);
     match merged {
         LatticeValue::ConstSet(ref vs) => {
@@ -86,8 +98,8 @@ fn join_distinct_consts_widens_to_set() {
 
 #[test]
 fn join_existing_set_absorbs_member() {
-    let a = LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]);
-    let b = LatticeValue::Const(ConstValue::Int(1));
+    let a = LatticeValue::ConstSet(vec![ConstValue::int(1), ConstValue::int(2)]);
+    let b = LatticeValue::Const(ConstValue::int(1));
     // Adding a member already in the set returns `old` unchanged.
     assert_eq!(join(&a, &b), a);
 }
@@ -95,10 +107,10 @@ fn join_existing_set_absorbs_member() {
 #[test]
 fn join_widens_large_sets_to_overdefined() {
     let big: Vec<ConstValue> = (0..MAX_CONSTSET_SIZE)
-        .map(|i| ConstValue::Int(i64::try_from(i).unwrap()))
+        .map(|i| ConstValue::int(i64::try_from(i).unwrap()))
         .collect();
     let a = LatticeValue::ConstSet(big);
-    let b = LatticeValue::Const(ConstValue::Int(999));
+    let b = LatticeValue::Const(ConstValue::int(999));
     assert_eq!(join(&a, &b), LatticeValue::Overdefined);
 }
 
@@ -109,17 +121,17 @@ fn set_value_tracks_change() {
     assert!(set_value(
         &mut values,
         key,
-        &LatticeValue::Const(ConstValue::Int(1))
+        &LatticeValue::Const(ConstValue::int(1))
     ));
     assert!(!set_value(
         &mut values,
         key,
-        &LatticeValue::Const(ConstValue::Int(1))
+        &LatticeValue::Const(ConstValue::int(1))
     ));
     assert!(set_value(
         &mut values,
         key,
-        &LatticeValue::Const(ConstValue::Int(2))
+        &LatticeValue::Const(ConstValue::int(2))
     ));
 }
 

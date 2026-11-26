@@ -64,7 +64,7 @@ fn a_rule_procedure_folds_its_cell_updates_as_advice() {
     );
     assert_eq!(
         last_advice(&unit, "n"),
-        Some(LatticeValue::Const(ConstValue::Int(4)))
+        Some(LatticeValue::Const(ConstValue::int(4)))
     );
     assert_eq!(
         rewrites_of(

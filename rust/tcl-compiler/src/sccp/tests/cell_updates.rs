@@ -59,10 +59,10 @@ fn evaluate_def_incr_default_amount() {
     let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(5)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(6))
+        LatticeValue::Const(ConstValue::int(6))
     );
 }
 
@@ -72,10 +72,10 @@ fn evaluate_def_incr_integer_literal_amount() {
     let stmt = incr_stmt(&mut ssa, "x", Some("10"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(3)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(13))
+        LatticeValue::Const(ConstValue::int(13))
     );
 }
 
@@ -85,10 +85,10 @@ fn evaluate_def_incr_negative_literal_amount() {
     let stmt = incr_stmt(&mut ssa, "x", Some("-2"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(10)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(8))
+        LatticeValue::Const(ConstValue::int(8))
     );
 }
 
@@ -101,11 +101,11 @@ fn evaluate_def_incr_var_ref_amount() {
     let y = ssa.intern_var("y");
     stmt.uses.insert(y, 1);
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
-    values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(6)));
+    values.insert((y, 1), LatticeValue::Const(ConstValue::int(4)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(10))
+        LatticeValue::Const(ConstValue::int(10))
     );
 }
 
@@ -131,7 +131,7 @@ fn evaluate_def_without_the_trust_fact_answers_for_no_command() {
     let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(5)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -144,7 +144,7 @@ fn evaluate_def_without_the_trust_fact_answers_for_no_command() {
     );
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(6))
+        LatticeValue::Const(ConstValue::int(6))
     );
 }
 
@@ -167,7 +167,7 @@ fn evaluate_def_incr_non_integer_amount_widens() {
     let stmt = incr_stmt(&mut ssa, "x", Some("2.5"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(1)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
         LatticeValue::Overdefined
@@ -342,7 +342,7 @@ fn evaluate_def_call_without_a_plan_widens() {
 #[test]
 fn evaluate_def_incr_lifts_over_one_finite_input() {
     let ints = |members: [i64; 2]| {
-        LatticeValue::ConstSet(members.into_iter().map(ConstValue::Int).collect())
+        LatticeValue::ConstSet(members.into_iter().map(ConstValue::int).collect())
     };
     assert_eq!(
         settled_at(
@@ -386,7 +386,7 @@ fn evaluate_def_incr_lifts_over_one_finite_input() {
 fn evaluate_def_incr_reads_the_base_under_the_targets_release() {
     let under =
         |dialect: &str, base: &str| settled_body(dialect, &format!("set x {base}; incr x"), "x");
-    let int = |value: i64| LatticeValue::Const(ConstValue::Int(value));
+    let int = |value: i64| LatticeValue::Const(ConstValue::int(value));
     assert_eq!(under("tcl8.4", "010"), int(9));
     assert_eq!(under("tcl8.6", "010"), int(9));
     assert_eq!(under("tcl9.0", "010"), int(11));
@@ -418,7 +418,7 @@ fn a_missing_use_declines_the_prior_store() {
     let stmt = assign_value_stmt(&mut ssa, "x", "[incr n]", 1);
     assert!(!stmt.uses.contains_key(&n), "the host holds no use of n");
     let mut values = HashMap::new();
-    values.insert((n, 1), LatticeValue::Const(ConstValue::Int(1)));
+    values.insert((n, 1), LatticeValue::Const(ConstValue::int(1)));
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
         LatticeValue::Overdefined,
@@ -428,6 +428,6 @@ fn a_missing_use_declines_the_prior_store() {
     let incr = incr_stmt(&mut ssa, "n", None, 1, 2);
     assert_eq!(
         evaluate_pristine(&incr, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(2))
+        LatticeValue::Const(ConstValue::int(2))
     );
 }

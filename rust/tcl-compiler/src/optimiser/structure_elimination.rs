@@ -645,7 +645,9 @@ fn resolve_subject(
     let normalised = normalise_var_name(&var_ref).to_owned();
     let value = env.get(&name).or_else(|| env.get(&normalised))?;
     match value {
-        EnvValue::Number(number) => crate::tcl_expr_eval::format_tcl_value_with_policy(number, policy),
+        EnvValue::Number(number) => {
+            crate::tcl_expr_eval::format_tcl_value_with_policy(number, policy)
+        }
         EnvValue::Str(value) => Some(value.bytes.clone()),
     }
 }
@@ -1248,7 +1250,7 @@ mod tests {
         for (read, value) in reads.iter().zip([7, 9]) {
             function.sccp.values.insert(
                 (read.symbol, read.version.unwrap()),
-                LatticeValue::Const(ConstValue::Int(value)),
+                LatticeValue::Const(ConstValue::int(value)),
             );
         }
         let env = sccp_env_for(function);

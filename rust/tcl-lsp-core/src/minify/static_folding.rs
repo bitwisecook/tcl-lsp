@@ -41,6 +41,7 @@ use tcl_lexer::Span;
 #[cfg(test)]
 use tcl_lexer::close_quote_offset_in;
 use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::NumericValue;
 
 // Static-substring folding: the aggressive tier's pass between the
 // optimiser rewrites and name compaction.
@@ -445,9 +446,9 @@ fn fold_string_via_sccp(
 /// float (rendering is ambiguous, so folding bails for safety).
 fn const_to_string(cv: &ConstValue) -> Option<String> {
     match cv {
-        ConstValue::Int(n) => Some(n.to_string()),
+        ConstValue::Number(NumericValue::Int(n)) => Some(n.to_string()),
         ConstValue::String(s) => Some(s.as_str().to_owned()),
-        ConstValue::Bool(_) | ConstValue::Float(_) => None,
+        ConstValue::Number(NumericValue::Bool(_) | NumericValue::Float(_)) => None,
     }
 }
 

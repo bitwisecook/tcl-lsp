@@ -1211,7 +1211,7 @@ mod tests {
         // Simulate a mixed / Overdefined lattice for x.
         values.insert(
             (x, 1),
-            LatticeValue::ConstSet(vec![ConstValue::Int(0), ConstValue::Int(1)]),
+            LatticeValue::ConstSet(vec![ConstValue::int(0), ConstValue::int(1)]),
         );
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),

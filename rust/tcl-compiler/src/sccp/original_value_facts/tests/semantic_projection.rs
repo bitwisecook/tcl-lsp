@@ -18,6 +18,8 @@
 
 //! The semantic-value projection: lazy construction, retained math dependencies, native result protocols and the expression environment at a point.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use super::*;
 
 #[test]
@@ -419,32 +421,32 @@ fn native_result_protocols_do_not_become_contents_only_execution_constants() {
         (
             "tcl8.4",
             "set result [expr {2 + 2}]",
-            ConstValue::Int(4),
+            ConstValue::int(4),
             true,
         ),
         (
             "tcl8.6",
             "set result [expr {2 + 2}]",
-            ConstValue::Int(4),
+            ConstValue::int(4),
             true,
         ),
-        ("jim", "set result [expr {2 + 2}]", ConstValue::Int(4), true),
+        ("jim", "set result [expr {2 + 2}]", ConstValue::int(4), true),
         (
             "tcl8.4",
             "set result [expr {1 / 4.0}]",
-            ConstValue::Float(0.25),
+            ConstValue::float(0.25),
             false,
         ),
         (
             "jim",
             "set result [expr {1 / 4.0}]",
-            ConstValue::Float(0.25),
+            ConstValue::float(0.25),
             false,
         ),
         (
             "tcl8.6",
             "set result [expr {1 / 4.0}]",
-            ConstValue::Float(0.25),
+            ConstValue::float(0.25),
             true,
         ),
     ] {
@@ -553,7 +555,9 @@ fn lambda_body_execution_constants_use_retained_preparation() {
             for (&symbol, &version) in &statement.defs {
                 assert!(matches!(
                     function.sccp.values.get(&(symbol, version)),
-                    Some(LatticeValue::Const(ConstValue::Int(4)))
+                    Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(
+                        4
+                    ))))
                 ));
             }
         }
@@ -639,7 +643,7 @@ fn point_expression_environment_preserves_alias_spelling_and_retargeting() {
             let version = statement.uses[&symbol];
             let values = HashMap::from([(
                 (symbol, version),
-                LatticeValue::Const(ConstValue::Int(expected)),
+                LatticeValue::Const(ConstValue::int(expected)),
             )]);
             let env = env_from_uses(&statement.uses, &values, lookup);
             assert!(

@@ -1185,6 +1185,10 @@ Native representation evidence belongs to the original read, since aliases
 can change the representation without changing those contents. SCCP compares
 doubles by their bits in both joins and change detection.
 
+SCCP and static loops use `ExactValue`'s `NumericValue` payload as their
+numeric view. The lattice keeps booleans and integers distinct. It stores
+numbers without a rendered spelling and materialises bytes at the consumer.
+
 Expression environment bindings and the folder share `TclValue` for numbers
 and `ExactValue<String>` for text. A numeric binding carries the computed
 number. The selected release and precision govern its rendered text, and the

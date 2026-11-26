@@ -41,8 +41,8 @@ fn a_literal_keeps_its_surrounding_whitespace() {
     // it back as `5` would drop the space just as surely.
     assert_eq!(parse_literal_value(" 5"), ConstValue::String(" 5".into()),);
     // The bare integer still folds.
-    assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
-    assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));
+    assert_eq!(parse_literal_value("5"), ConstValue::int(5));
+    assert_eq!(parse_literal_value("-17"), ConstValue::int(-17));
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn evaluate_def_assign_const_produces_int_or_string() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(42))
+        LatticeValue::Const(ConstValue::int(42))
     );
     let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
     assert_eq!(
@@ -92,7 +92,7 @@ fn evaluate_def_assign_expr_retains_numeric_precision_and_conversion() {
             .sccp
             .values
             .values()
-            .any(|value| { *value == LatticeValue::Const(ConstValue::Int(5)) }),
+            .any(|value| { *value == LatticeValue::Const(ConstValue::int(5)) }),
         "a contents value alone cannot erase its retained-object conversion"
     );
 }
@@ -160,7 +160,7 @@ fn evaluate_def_folds_irules_word_operator_only_under_an_irules_policy() {
             irules,
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(1)),
+        LatticeValue::Const(ConstValue::int(1)),
         "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
     );
     // TN: without the dialect fact the fold is declined, not guessed.
@@ -216,7 +216,7 @@ fn evaluate_def_incr_default_amount() {
     let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(5)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -225,7 +225,7 @@ fn evaluate_def_incr_default_amount() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(6))
+        LatticeValue::Const(ConstValue::int(6))
     );
 }
 
@@ -235,7 +235,7 @@ fn evaluate_def_incr_integer_literal_amount() {
     let stmt = incr_stmt(&mut ssa, "x", Some("10"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(3)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(3)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -244,7 +244,7 @@ fn evaluate_def_incr_integer_literal_amount() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(13))
+        LatticeValue::Const(ConstValue::int(13))
     );
 }
 
@@ -254,7 +254,7 @@ fn evaluate_def_incr_negative_literal_amount() {
     let stmt = incr_stmt(&mut ssa, "x", Some("-2"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(10)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(10)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -263,7 +263,7 @@ fn evaluate_def_incr_negative_literal_amount() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(8))
+        LatticeValue::Const(ConstValue::int(8))
     );
 }
 
@@ -276,8 +276,8 @@ fn evaluate_def_incr_var_ref_amount() {
     let y = ssa.intern_var("y");
     stmt.uses.insert(y, 1);
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(6)));
-    values.insert((y, 1), LatticeValue::Const(ConstValue::Int(4)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(6)));
+    values.insert((y, 1), LatticeValue::Const(ConstValue::int(4)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -286,7 +286,7 @@ fn evaluate_def_incr_var_ref_amount() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(10))
+        LatticeValue::Const(ConstValue::int(10))
     );
 }
 
@@ -333,7 +333,7 @@ fn evaluate_def_incr_non_integer_amount_widens() {
     let stmt = incr_stmt(&mut ssa, "x", Some("2.5"), 1, 2);
     let x = ssa.var_symbol("x").unwrap();
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(1)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -459,7 +459,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
     let mut uses = HashMap::new();
     uses.insert(x, 1);
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(7)));
     assert_eq!(
         resolve_simple_var_ref(
             "$x",
@@ -468,7 +468,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
             &ssa,
             Some(tcl_lexer::LexerConfig::default())
         ),
-        Some(LatticeValue::Const(ConstValue::Int(7)))
+        Some(LatticeValue::Const(ConstValue::int(7)))
     );
     assert_eq!(
         resolve_simple_var_ref(
@@ -478,7 +478,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
             &ssa,
             Some(tcl_lexer::LexerConfig::default())
         ),
-        Some(LatticeValue::Const(ConstValue::Int(7)))
+        Some(LatticeValue::Const(ConstValue::int(7)))
     );
     assert_eq!(
         resolve_simple_var_ref(

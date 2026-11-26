@@ -54,7 +54,7 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use tcl_dialect::{NumberSpelling, NumberSyntax, StringCharacterModel};
-use tcl_registry::value_transfer::{DeclineReason, ExactValue};
+use tcl_registry::value_transfer::{DeclineReason, ExactValue, NumericValue};
 #[cfg(test)]
 use tcl_registry::value_transfer::{DomainFact, FactView};
 
@@ -183,9 +183,9 @@ pub(crate) fn const_to_env_value(c: &crate::analyses::ConstValue) -> EnvValue {
     use crate::analyses::ConstValue;
 
     match c {
-        ConstValue::Int(i) => EnvValue::Number(TclValue::Int(*i)),
-        ConstValue::Float(f) => EnvValue::Number(TclValue::Float(*f)),
-        ConstValue::Bool(b) => EnvValue::Number(TclValue::Int(i64::from(*b))),
+        ConstValue::Number(NumericValue::Int(i)) => EnvValue::Number(TclValue::Int(*i)),
+        ConstValue::Number(NumericValue::Float(f)) => EnvValue::Number(TclValue::Float(*f)),
+        ConstValue::Number(NumericValue::Bool(b)) => EnvValue::Number(TclValue::Int(i64::from(*b))),
         ConstValue::String(s) => EnvValue::Str(s.clone().into_exact()),
     }
 }

@@ -41,8 +41,8 @@ fn a_literal_keeps_its_surrounding_whitespace() {
     // it back as `5` would drop the space just as surely.
     assert_eq!(parse_literal_value(" 5"), ConstValue::String(" 5".into()),);
     // The bare integer still folds.
-    assert_eq!(parse_literal_value("5"), ConstValue::Int(5));
-    assert_eq!(parse_literal_value("-17"), ConstValue::Int(-17));
+    assert_eq!(parse_literal_value("5"), ConstValue::int(5));
+    assert_eq!(parse_literal_value("-17"), ConstValue::int(-17));
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn evaluate_def_assign_const_produces_int_or_string() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(42))
+        LatticeValue::Const(ConstValue::int(42))
     );
     let s_str = assign_const_stmt(&mut ssa, "x", "hello", 1);
     assert_eq!(
@@ -81,7 +81,7 @@ fn evaluate_def_assign_expr_folds_with_lattice() {
             "proc p {} {set a 2; set x [expr {$a + 3}]; return $x}",
             "x"
         ),
-        LatticeValue::Const(ConstValue::Int(5))
+        LatticeValue::Const(ConstValue::int(5))
     );
 }
 
@@ -148,7 +148,7 @@ fn evaluate_def_folds_irules_word_operator_only_under_an_irules_policy() {
             irules,
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(1)),
+        LatticeValue::Const(ConstValue::int(1)),
         "`$s contains \"cd\"` with $s = abcde must fold to 1 under an iRules policy"
     );
     // TN: without the dialect fact the fold is declined, not guessed.
@@ -204,7 +204,7 @@ fn fused_expr_stmt(
 #[test]
 fn a_fused_expression_answers_its_full_value() {
     let text = |s: &str| LatticeValue::Const(ConstValue::String(s.into()));
-    let int = |i: i64| LatticeValue::Const(ConstValue::Int(i));
+    let int = |i: i64| LatticeValue::Const(ConstValue::int(i));
     let under = |name: &str| {
         let profile = tcl_dialect::DialectProfile::find(name).expect(name);
         (
@@ -225,7 +225,7 @@ fn a_fused_expression_answers_its_full_value() {
         (
             "tcl8.6",
             r#""1.50""#,
-            LatticeValue::Const(ConstValue::Float(1.5)),
+            LatticeValue::Const(ConstValue::float(1.5)),
         ),
         ("tcl8.6", r#""010""#, int(8)),
         ("tcl9.0", r#""010""#, int(10)),
@@ -380,7 +380,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
     let mut uses = HashMap::new();
     uses.insert(x, 1);
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(7)));
     assert_eq!(
         resolve_simple_var_ref(
             "$x",
@@ -389,7 +389,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
             &ssa,
             tcl_lexer::LexerConfig::default()
         ),
-        Some(LatticeValue::Const(ConstValue::Int(7)))
+        Some(LatticeValue::Const(ConstValue::int(7)))
     );
     assert_eq!(
         resolve_simple_var_ref(
@@ -399,7 +399,7 @@ fn resolve_simple_var_ref_accepts_bare_and_braced() {
             &ssa,
             tcl_lexer::LexerConfig::default()
         ),
-        Some(LatticeValue::Const(ConstValue::Int(7)))
+        Some(LatticeValue::Const(ConstValue::int(7)))
     );
     assert_eq!(
         resolve_simple_var_ref(
@@ -474,9 +474,9 @@ fn assert_value_and_constant_rows<const N: usize>(
 /// that release (8.4.20, 8.6.18, 9.0.4).
 #[test]
 fn a_fused_expression_has_a_value_and_maybe_an_execution_constant() {
-    let int = |value: i64| LatticeValue::Const(ConstValue::Int(value));
+    let int = |value: i64| LatticeValue::Const(ConstValue::int(value));
     let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
-    let float = |value: f64| LatticeValue::Const(ConstValue::Float(value));
+    let float = |value: f64| LatticeValue::Const(ConstValue::float(value));
     let none = LatticeValue::Overdefined;
     let rows: [(&str, &str, LatticeValue, bool, &str); 16] = [
         // A comparison of two string variables is false, but the numeric

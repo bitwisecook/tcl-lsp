@@ -29,6 +29,7 @@
 //! fits the selected signed native width, or its evidence explicitly requires
 //! a checked operation whose overflow edge resumes boxed Tcl arithmetic.
 
+use tcl_registry::value_transfer::NumericValue;
 use tcl_registry::{CommandRegistry, DispatchDependencies};
 use tcl_syntax::expr::ast::{BinOp, ExprNode};
 
@@ -1063,9 +1064,11 @@ fn range_from_sccp(
 
 fn const_range(value: &ConstValue) -> Result<Interval, NativeIntegerDeclineReason> {
     match value {
-        ConstValue::Int(value) => Ok(crate::intervals::constant(*value)),
-        ConstValue::Bool(value) => Ok(crate::intervals::constant(i64::from(*value))),
-        ConstValue::Float(_) | ConstValue::String(_) => {
+        ConstValue::Number(NumericValue::Int(value)) => Ok(crate::intervals::constant(*value)),
+        ConstValue::Number(NumericValue::Bool(value)) => {
+            Ok(crate::intervals::constant(i64::from(*value)))
+        }
+        ConstValue::Number(NumericValue::Float(_)) | ConstValue::String(_) => {
             Err(NativeIntegerDeclineReason::NonIntegerOperand)
         }
     }

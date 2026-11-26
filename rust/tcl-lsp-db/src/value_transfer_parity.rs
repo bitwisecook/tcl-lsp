@@ -179,7 +179,7 @@ fn the_memoised_lattice_declines_a_renamed_head() {
                 LatticeValue::Overdefined,
                 "declined: rebinding-suspected",
             ),
-            (body, LatticeValue::Const(ConstValue::Int(2)), "evaluated"),
+            (body, LatticeValue::Const(ConstValue::int(2)), "evaluated"),
         ] {
             let db = TclDatabase::default();
             let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
@@ -266,8 +266,8 @@ fn value_position_routes_agree_on_both_paths() {
             for (name, version, want) in [
                 ("r", 1, text("hello")),
                 ("l", 1, text("a {b c}")),
-                ("n", 1, LatticeValue::Const(ConstValue::Int(2))),
-                ("m", 1, LatticeValue::Const(ConstValue::Int(5))),
+                ("n", 1, LatticeValue::Const(ConstValue::int(2))),
+                ("m", 1, LatticeValue::Const(ConstValue::int(5))),
                 ("d", 2, keyed.clone()),
             ] {
                 assert_eq!(
@@ -293,7 +293,7 @@ fn a_trace_installation_invalidates_the_lattice() {
     for unit in [&*memoised, &direct] {
         assert_eq!(
             value_at(unit, "::p", "n", 2),
-            Some(LatticeValue::Const(ConstValue::Int(2)))
+            Some(LatticeValue::Const(ConstValue::int(2)))
         );
     }
     file.set_text(&mut db)
@@ -381,7 +381,7 @@ fn destructuring_agrees_on_both_paths() {
             // one past it.
             assert_eq!(
                 value_at(unit, "::p", "c", 2),
-                Some(LatticeValue::Const(ConstValue::Int(12))),
+                Some(LatticeValue::Const(ConstValue::int(12))),
                 "{dialect} {path}: %d converts $c"
             );
             assert_eq!(
@@ -392,12 +392,12 @@ fn destructuring_agrees_on_both_paths() {
             // `lassign` writes each named target its position takes.
             assert_eq!(
                 value_at(unit, "::p", "e", 1),
-                Some(LatticeValue::Const(ConstValue::Int(1))),
+                Some(LatticeValue::Const(ConstValue::int(1))),
                 "{dialect} {path}: lassign writes $e"
             );
             assert_eq!(
                 value_at(unit, "::p", "f", 1),
-                Some(LatticeValue::Const(ConstValue::Int(2))),
+                Some(LatticeValue::Const(ConstValue::int(2))),
                 "{dialect} {path}: lassign writes $f"
             );
         }
@@ -457,7 +457,7 @@ fn the_seven_ordered_state_witnesses() {
         ("\"$x + [incr x]\"", 3, 2),
     ];
     const CAUGHT: &str = "catch {expr {[incr x] + [error mid]}} msg\nputs $msg\nputs $x\n";
-    let int = |value: i64| Some(LatticeValue::Const(ConstValue::Int(value)));
+    let int = |value: i64| Some(LatticeValue::Const(ConstValue::int(value)));
     // Each program as a procedure's body and as the top level, with what its
     // `r#1` and `x#2` hold, or `None` where the expression has no value.
     let mut programs: Vec<(String, String, Option<i64>, Option<i64>)> = EXPRESSIONS
@@ -537,7 +537,7 @@ fn a_rename_invalidates_every_summary() {
     let body = "proc f {a {b 5}} {}\nproc p {} {info default f b v; return $v}\n";
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, body.to_owned(), "tcl8.6".to_owned(), None);
-    let int = |value: i64| Some(LatticeValue::Const(ConstValue::Int(value)));
+    let int = |value: i64| Some(LatticeValue::Const(ConstValue::int(value)));
     for (edit, want) in [
         (body.to_owned(), int(5)),
         (
