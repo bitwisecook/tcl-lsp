@@ -205,3 +205,7 @@ Rules:
 - `semantic_optimisation` goes to `tcl-model`, not `tcl-optimiser`. It is
   pass configuration with no dependencies, and executable-IR analysis
   reads it.
+
+## Owner decision (26 November 2026)
+
+`tcl-codegen` splits into the emitters (`tcl-codegen`) and a driver crate (`tcl-compile`) above the unit crate, per [292](../../build-time/292-codegen.md). Where this doc keeps one `tcl-codegen`, read it as the emitter crate. The driver modules (`compile_service`, the WASM pipeline, `inlining`) go to `tcl-compile`.

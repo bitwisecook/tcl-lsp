@@ -79,7 +79,7 @@ Split `tcl-compiler` along the layers where doing so removes a cycle or a duplic
 | `tcl-binding` | `command_binding`, the registry adapter, frame and lookup owners, instance values | absorbs the analyser and signature-scan walks |
 | `tcl-lowering` | lowering, CFG building, SSA, memory SSA | every body kind |
 | `tcl-analysis` | SCCP, value domains, intervals, GVN, interprocedural, escape, taint engine | one summary per fact |
-| `tcl-native-plan` | executable IR, native lowering, AOT plan | what `tcl-codegen` and `bpf-tcl-ir` consume |
+| `tcl-native-plan` | native lowering, AOT plan (executable IR sits in `tcl-analysis`) | what `tcl-codegen` consumes; `bpf-tcl-ir` also needs `tcl-lowering` and `tcl-analysis` |
 | `tcl-semantic` | the query API and fact store | phase 6; the only analysis interface consumers see |
 | `tcl-diagnostics` | rules over the semantic model | starts as the analyser and checks; stops walking in phase 6 |
 | `tcl-optimiser` | passes and rewrites | reads the same facts |

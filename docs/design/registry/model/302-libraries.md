@@ -166,8 +166,8 @@ pub fn resolve_libraries(
    candidate set the selection is the newest train that still meets it.
    `require struct::graph 1.2` therefore picks the 1.x train even though 2.4.4
    exists. Over a range, every satisfiable train stays in the set.
-4. **Requirements of the library itself** (`snit 2.x requires Tcl 8.5 and
-   TclOO`) narrow both sides: a train whose requirement fails on the dialect
+4. **Requirements of the library itself** (`snit 2.x requires Tcl 8.5 or 9`,
+   `snit2.tcl:18`) narrow both sides: a train whose requirement fails on the dialect
    selection leaves the set.
 5. **Empty set.** A present library with an empty set reports why (an
    unsatisfiable require, or no compatible row). That is a new diagnostic

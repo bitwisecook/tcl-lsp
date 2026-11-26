@@ -431,3 +431,7 @@ non-neutral silence ("the sink applies").
 - **307** says a library crate holds an image and hooks "and nothing else".
   It may also hold native accelerators behind a `runtime` feature, which
   adds `tcl-engine-api` to that feature's cone only.
+
+## Owner decisions (26 November 2026)
+
+- **Proved rewrites from user packs are on by default.** A rewrite from any trust tier that allows rewrites applies when its proof set covers the positioned target set. The proof harness's false-rewrite rate is still measured and reported.

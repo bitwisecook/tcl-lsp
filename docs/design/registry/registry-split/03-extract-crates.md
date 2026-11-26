@@ -140,9 +140,11 @@ re-export can return.
 
 ## Decisions
 
-1. **One crate per distribution, not per package.** The overview's rule. tcllib's
-   214 modules are one crate, and the `tmsh` view stays with `iapps`, its
-   source.
+1. **One crate per package** (owner decision, 26 November 2026, replacing
+   this doc's earlier per-distribution rule). Each tcllib package, each bundled
+   Tcl library, iApps and tmsh get their own crates. The `tmsh` view becomes the
+   `tcl-lib-tmsh` crate's own surface. After item 307 these crates are image plus
+   hooks, generated scaffolding.
 2. **`tcl-dialect-f5` waits for item 301.** Today f5-tcl's core surface is 58
    `SpecSurface` rows on Tcl specs, not data of its own (step 2, decision 3).
    Its evidence types are named by `tcl-compiler` and must stay below it. An

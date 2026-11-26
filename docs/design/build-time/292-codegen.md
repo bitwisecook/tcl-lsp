@@ -216,3 +216,7 @@ unchanged byte for byte on its fixtures.
 - The brief for this design listed `tcl-native-plan`, `tcl-lowering` and
   `tcl-ir` only. The code also needs `tcl-analysis` and `tcl-values` (value
   facts and escape), and `tcl-model` (`ResolvedAnalysisInput`).
+
+## Owner decision (26 November 2026)
+
+The split is adopted. `tcl-codegen` keeps the emitters, and the new `tcl-compile` crate holds the drivers above the unit crate. Step 11 follows this design.

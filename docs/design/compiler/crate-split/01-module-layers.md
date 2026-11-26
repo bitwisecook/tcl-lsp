@@ -65,7 +65,7 @@ largest are:
 
 | Pair | Count |
 |---|---|
-| `command_binding` → `analyser` | ~280 |
+| `command_binding` → `analyser` | 316 (production; it reads reports, step 7) |
 | `command_binding` → `signature_scan` | 317 |
 | `registry_invocation` → `command_binding` | 270 |
 | `ir` → `command_binding` | 54 |
