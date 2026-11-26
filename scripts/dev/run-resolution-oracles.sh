@@ -83,11 +83,11 @@ run_naming_owner tcl-vm 'interp::native_variable_names::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::execution_name_policy::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_variable_observers::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_mathop::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'exec::native_list_operations_tests::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'cmd_dict::native_rmw_fixture_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'exec::native_list_operations_tests::' -p tcl-vm-it --test it_5
+run_naming_owner tcl-vm-it 'cmd_dict::native_rmw_fixture_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_jim_lookup::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_jim_links::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'interp::native_rename::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'interp::native_rename::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_upvar_info_exists_tests::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_compiled_locals::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'exec::native_uplevel_tests::' -p tcl-vm --lib
@@ -95,7 +95,7 @@ run_naming_owner tcl-vm 'cmd_namespace::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_package::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_trace::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_oo::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'cmd_info::native_commands_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_info::native_commands_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'value::native_' -p tcl-vm --lib
 run_naming_owner tcl-runtime 'cmd_proc::' --manifest-path runtime/rust/Cargo.toml --lib
 run_naming_owner tcl-runtime 'interp::native_command_names::' --manifest-path runtime/rust/Cargo.toml --lib
