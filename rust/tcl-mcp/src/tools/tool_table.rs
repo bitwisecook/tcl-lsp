@@ -620,8 +620,8 @@ pub(super) const TOOLS: &[ToolDef] = &[
         name: "hud_chain",
         description: "HUD chain of each virtual server in a BIG-IP config: profiles as HUD filters (type, layer, side), \
                       attached iRules in rule-list order, and every `when` handler merged into one table per event, \
-                      ordered by priority then rule position, with equal-priority ties and whether the profiles raise \
-                      each event.",
+                      ordered by priority then rule position (F5's documented order, unmeasured), with \
+                      equal-priority ties and whether the profiles raise each event.",
         params: &[
             (
                 "config_text",

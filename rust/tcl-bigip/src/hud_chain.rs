@@ -22,9 +22,17 @@
 //! Filter facts (layer, side, the events a filter stack can raise) come from
 //! the registry's profile and event tables; handler priorities come from the
 //! same `tcl_irules` projection the validator's priority checks use. Handlers
-//! are ordered by priority, then rule-list position, then source position.
-//! Whether BIG-IP orders equal priorities by rule-list position is not on
-//! record, so such handlers carry `tied_with` instead of a proved order.
+//! are ordered by priority, then rule-list position, then source position:
+//! the order F5 documents, unmeasured on a device (plan Q16, Q31), so
+//! equal-priority handlers also carry `tied_with`.
+//!
+//! Profiles resolve to a config object, else a base-configuration profile,
+//! then to a registry type through `classify_profile`. Two of the stack
+//! assumptions are open lab questions: http2, http-compression and
+//! web-acceleration type as HTTP (Q18), and a non-UDP virtual without a
+//! transport profile gets TCP (Q19). Plan item 444 replaces the typing with
+//! `schema-kind` and projects the chain into the positioned context's
+//! `HostBinding`.
 
 use std::collections::HashMap;
 
@@ -97,7 +105,8 @@ pub struct HudHandler {
     pub ordinal: usize,
     /// Effective priority (explicit, inherited from `priority N`, or 500).
     pub priority: u16,
-    /// Other rules with a handler for this event at the same priority.
+    /// Other rules with a handler for this event at the same priority; their
+    /// relative order is F5-documented, not measured.
     pub tied_with: Vec<String>,
 }
 
@@ -128,7 +137,8 @@ pub struct HudChain {
     pub destination: Option<String>,
     /// Filters ordered client to server by registry layer, then as written.
     pub filters: Vec<HudFilter>,
-    /// Filters assumed but not listed (the TCP transport of a non-UDP virtual).
+    /// Filters assumed but not listed: TCP on a non-UDP virtual with no
+    /// transport profile (unmeasured, Q19).
     pub implied_filters: Vec<&'static str>,
     /// Attached iRules in rule-list order.
     pub rules: Vec<HudRule>,
@@ -159,7 +169,7 @@ pub fn hud_chains(config: &BigipConfig) -> Vec<HudChain> {
 /// The registry profile-stack name for a typed model profile, or `None` for
 /// a profile the model does not classify.
 #[must_use]
-pub fn registry_profile_name(profile: ProfileType) -> Option<&'static str> {
+pub(crate) fn registry_profile_name(profile: ProfileType) -> Option<&'static str> {
     Some(match profile {
         ProfileType::ClientSsl => "CLIENTSSL",
         ProfileType::ServerSsl => "SERVERSSL",

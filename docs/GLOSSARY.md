@@ -2040,7 +2040,9 @@ the iRules supply the handler bodies for those events, ordered by priority
 and then rule-list position. A `FlowChain` in `tcl_registry::events` is one
 event sequence that a HUD chain admits. The name comes from the film
 *The Hudsucker Proxy*. `tcl_bigip::hud_chain` builds it from a configuration
-and the `hud_chain` MCP tool returns it.
+and the `hud_chain` MCP tool returns it; the positioned context's planned
+`HostBinding` ([360](design/registry/model/360-spectcl-f5-integration.md))
+is its projection for one rule.
 
 See also: [Connection scope](design/compiler/connection-scope.md),
 [iRule Event Orchestrator](design/contracts/irule-test-framework.md).

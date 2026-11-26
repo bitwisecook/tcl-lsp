@@ -23,11 +23,15 @@ together.
      `side`, `context`. `typeSource` `baseObject` is a shipped profile
      (`/Common/http`); `unresolved` is defined outside the supplied files,
      so the stack is incomplete. `impliedFilters` lists the assumed TCP.
+     Two typings are unmeasured: http2, http-compression and
+     web-acceleration count as HTTP, and a virtual without a transport
+     profile gets TCP; say so when a finding depends on either.
    - `rules`: rule-list order; `handlersKnown: false` means the source
      could not be read.
    - `events`: each event's `handlers` in execution order (priority, then
-     rule position, then source order). `tiedWith` names other iRules at the
-     same priority: BIG-IP's order between them is not on record. `raised`
+     rule position, then source order: F5's documented order). `tiedWith`
+     names other iRules at the same priority, whose rule-list order is
+     documented but not measured on a device. `raised`
      is `false` when the profiles cannot raise the event, `null` when
      undecided.
 4. For conflicts, read each rule's source (`mcp__tcl-lsp__irule_with_context`
@@ -51,6 +55,7 @@ together.
 The HUD chain on one line (`tcp → client-ssl → http | rules: r1, r2`), the
 handler table (event, priority, iRule, one-line summary), then conflicts
 grouped by severity with a fix for each, then assumptions: unresolved
-profiles, missing config, and tie order the device decides.
+profiles, missing config, and documented-but-unmeasured behaviour (tie
+order, shared variables, `event disable` scope).
 
 $ARGUMENTS
