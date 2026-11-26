@@ -70,6 +70,22 @@ TEMPLATE}` or nothing. The optimiser splices each hole's *original word
 source*, and it proposes the replacement as an O-code edit, as
 `closed_consumer` proposals are proposed (`closed_consumer.rs:18`).
 
+The path from a rewrite row to an applied edit, where every "no" is an
+abstention:
+
+```mermaid
+flowchart TB
+  site["a call site with a rewrite row"] --> tier{"the pack's trust tier allows rewrites?"}
+  tier -- no --> abstain["abstain: the call is left as written"]
+  tier -- yes --> when{"-when proved, every hole word side-effect-free?"}
+  when -- no --> abstain
+  when -- yes --> known{"positioned target set known, 308?"}
+  known -- no --> abstain
+  known -- yes --> proof{"target set within the image's proof set?"}
+  proof -- no --> abstain
+  proof -- yes --> edit["splice the holes' original word source; propose an O-code edit"]
+```
+
 **Safety: proof sets.** Every rewrite, and every fold body, carries
 `-proof {RELEASES}`. `tcl spec prove` runs the pack's differential corpus
 (the left side, the right side, and error cases) under each release's real
@@ -106,12 +122,27 @@ command {struct::set contains} {          ;# sets_tcl.tcl:78: expr {[lsearch -ex
 }
 ```
 
+With that pack, over the target set `core 8.6-9.0`:
+
+**Before:**
+
 ```tcl
-set limit [math::max 3 7 5]          ;# -> set limit 7
-set odd   [math::max 08 3]           ;# unchanged: 3 on 8.6, 08 on 9.0 (checked with tclsh)
+set limit [math::max 3 7 5]
+set odd   [math::max 08 3]
 set hit   [struct::set contains $seen $k]
-                                     ;# -> set hit [expr {$k in $seen}]
 ```
+
+**After:**
+
+```tcl
+set limit 7
+set odd   [math::max 08 3]
+set hit   [expr {$k in $seen}]
+```
+
+The second line does not fold: `math::max 08 3` is 3 on 8.6 and 08 on 9.0
+(tclsh 8.6.18 and 9.0.4, tcllib's math 1.2.6), so the body abstains on the
+non-decimal word.
 
 `struct::set contains` and `in` agree on members, on non-members, on `01`
 against `1`, and on the error for a malformed list (`unmatched open brace
@@ -164,7 +195,24 @@ proc parse {args} {
 ```
 
 With the pack, the compact tier gives:
-`proc parse {args} {set a {};while {[cmdline::getopt args {v o.arg} b c]>0} {lappend a $b $c};return [list $a $args]}`.
+
+**Before:**
+
+```tcl
+proc parse {args} {
+    set flags {}
+    while {[cmdline::getopt args {v o.arg} opt val] > 0} {
+        lappend flags $opt $val
+    }
+    return [list $flags $args]
+}
+```
+
+**After:**
+
+```tcl
+proc parse {args} {set a {};while {[cmdline::getopt args {v o.arg} b c]>0} {lappend a $b $c};return [list $a $args]}
+```
 
 Without the pack, `opt` and `val` are literals of an unknown command, so
 those two names keep their spelling and only `flags` becomes `a`. Renaming
@@ -215,12 +263,16 @@ command exec {
 }
 ```
 
+With `max_line_length` 60, the formatter gives:
+
+**Before:**
+
 ```tcl
 ttk::button .b -text "Save file" -command [list save $path] -width 12 -style Accent.TButton
 exec grep -v {^#} config.txt | sort -u | awk {{print $1}} > out.txt
 ```
 
-With `max_line_length` 60, the formatter gives:
+**After:**
 
 ```tcl
 ttk::button .b \
@@ -266,6 +318,18 @@ The `exec` words are identical before and after (`[list …] eq [list …]` is
   survives of (a) is a **cache**: an image may carry a `TbcxUnit` (item 311,
   tbcx format) for the library's real source, keyed by that source's
   hash. A stale hash falls back to source, the way 306's images do.
+
+How a host picks a library's executable form:
+
+```mermaid
+flowchart TB
+  req["package require L"] --> resolve["normal resolution picks L V"]
+  resolve --> opt{"host opted in to accelerators?"}
+  opt -- no --> source["(c) source: the library's own package ifneeded script"]
+  opt -- yes --> table{"V in the crate table's version set?"}
+  table -- no --> source
+  table -- yes --> accel["(b) native HostCommand, then package provide L V"]
+```
 
 **Facts the VM uses.** These are pure and effect classes (folding at
 compile time and dead-call removal), `alias_of` (rung 2),
@@ -324,6 +388,45 @@ A StudioOverride takes the row of the workspace it edits.
 | lowering, codegen, inline codegen, return type | compiler, VM | native | Rust | 3 only (closed sets) | n/a | `tcl-codegen`, registry |
 | implementation | VM, runtime | `&[Value]` | Tcl completion | (c) source, (b) native | n/a | library crate `runtime` feature, `tcl-engine-api` |
 
+The same table as a graph, from family to consumer. The two new families
+are marked:
+
+```mermaid
+flowchart LR
+  roles["roles, prefix, timing"]
+  diag["diagnostic"]
+  trans["state transitions"]
+  fold["fold"]
+  rewrite["rewrite"]
+  layout["layout"]
+  native["lowering, codegen, inline codegen, return type"]
+  impl["implementation"]
+  analyser["analyser"]
+  minifier["minifier"]
+  formatter["formatter"]
+  optimiser["optimiser and SCCP"]
+  compiler["compiler and codegen"]
+  vm["VM and runtime"]
+  roles --> analyser
+  roles --> minifier
+  roles --> formatter
+  roles --> compiler
+  diag --> analyser
+  trans --> analyser
+  trans --> minifier
+  fold --> optimiser
+  fold --> compiler
+  fold --> minifier
+  rewrite --> optimiser
+  rewrite --> minifier
+  layout --> formatter
+  native --> compiler
+  native --> vm
+  impl --> vm
+  classDef new stroke-width:3px;
+  class rewrite,layout new;
+```
+
 All families share one convention: `{words ctx}`, fuel, isolation per pack,
 and quarantine (spec-packs.md). An error, a blown budget, no answer or an
 uncovered proof set is an **abstention**. Abstention means no fold, no
@@ -357,13 +460,14 @@ non-neutral silence ("the sink applies").
 
 ### Open questions
 
-- **Do rewrites from User packs ship on by default?** This is settled by
-  the false-rewrite rate of the proof harness on the 307 corpus.
-- **One `hook_abi` or one per consumer table?** This is settled by how
-  often each native table changed in the last year (`git log` on `hooks.rs`
-  against the optimiser IDs).
-- **Do accelerators go in the editor binaries, or only `tclvm`?** This is
-  settled by the binary-size growth that 306 records.
+All three are now settled by the owner decisions at the end of this
+document.
+
+- **Do rewrites from User packs ship on by default?** Yes, when the proof set
+  covers the target set. The false-rewrite rate is still measured.
+- **One `hook_abi` or one per consumer table?** One for all consumers.
+- **Do accelerators go in the editor binaries, or only `tclvm`?** They may
+  ship in the editor binaries, opt-in per host.
 
 ## Work list
 
@@ -405,8 +509,9 @@ non-neutral silence ("the sink applies").
 ## Risks
 
 - **Proof corpora are thin.** A passing corpus is evidence, not proof.
-  Mitigation: proofs include error cases, and rewrites from User packs stay
-  off by default until the harness has numbers.
+  Mitigation: proofs include error cases, a rewrite applies only where its
+  proof set covers the positioned target set, and the harness's
+  false-rewrite rate is measured and reported.
 - **Accelerators diverge.** Mitigation: they are pinned to exact versions,
   opt-in, and run through the fuzzer's differential mode (`tcl-fuzz`)
   against the source library.
@@ -415,8 +520,8 @@ non-neutral silence ("the sink applies").
 
 ## Corrections to 305, 306 and 307
 
-- **305** says "Only the hook runner (rung 3) links `tcl-vm`". Tcl bodies
-  are rung 4, and rung 3 is native.
+- **305** said "Only the hook runner (rung 3) links `tcl-vm`". Tcl bodies
+  are rung 4, and rung 3 is native. 305 now says rung 4.
 - **305's `kinds` words** (`literal var command script expand`) differ from
   the shipped vocabulary (`literal known-bytes dynamic expanded opaque`,
   `pack_hooks/hook_inputs.rs:194`). 3 needs one set. The rewrite `-when`
@@ -435,3 +540,10 @@ non-neutral silence ("the sink applies").
 ## Owner decisions (26 November 2026)
 
 - **Proved rewrites from user packs are on by default.** A rewrite from any trust tier that allows rewrites applies when its proof set covers the positioned target set. The proof harness's false-rewrite rate is still measured and reported.
+
+- **Native accelerators can ship,** including in the editor binaries. They
+  stay opt-in per host configuration, and still never win version selection.
+- **One hook ABI version for all consumers.** Every native hook table in an
+  image carries the same `hook_abi` number, so a change to any consumer's
+  calling convention bumps it once and the images regenerate. That costs one
+  image rebuild, and images rebuild on every build anyway.

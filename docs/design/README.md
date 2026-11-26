@@ -421,6 +421,9 @@ declarations are written in.
   - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md) — SpecTcl
     facts and hooks for the optimiser, minifier, formatter, VM and runtime
     (313).
+  - [319-consumer-migration.md](registry/model/319-consumer-migration.md) —
+    moving every tooling consumer onto SpecTcl facts and hooks, and the
+    consumer-purity gate (319–330).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.

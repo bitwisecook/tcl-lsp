@@ -51,6 +51,20 @@ Sources:
   3. `u32` aux items, each tagged;
   4. `u32` exception ranges. Each is `type u8` (loop or catch), then `nesting`, `codeOffset`, `numCodeBytes`, `continue`, `break` and `catch`, all `u32`. `0xFFFFFFFF` means "none";
   5. an epilogue: `maxStack u32`, `policy u32`, `numLocals u32`, then the local names as LPStrings, indexed by frame slot.
+
+The file, in order. Every block has the same five parts:
+
+```mermaid
+flowchart LR
+  header["header: magic, format, tcl_version, top-block counts, sourcePath"] --> top["top block"]
+  top --> procs["procs: name, namespace, args, source, block"]
+  procs --> classes["classes: names only"]
+  classes --> methods["methods: class, kind, scope, origin, name, args, source, block"]
+  methods --> eof["exact EOF"]
+  subgraph grpBlock["each block"]
+    code["code bytes"] --> literals["tagged literals"] --> aux["tagged aux items"] --> ranges["exception ranges"] --> epilogue["maxStack, policy, locals"]
+  end
+```
 - **Literal tags:**
   - 0 bignum, 1 boolean, 2 bytearray, 3 dict (insertion order), 4 double;
   - 5 list, 6 string, 7 wideint, 8 wideuint;
@@ -77,6 +91,24 @@ Sources:
   - method bodies become `"#\x01tbcx-method-stub"` (`tbcx.h`);
   - the loader's shims swap in the precompiled bodies when the top level runs `proc` or `oo::define`.
 - So a tbcx block is **not** `tclsh`'s default compile. It is what `tclsh` 9.1 compiles under an execution trace with a command limit active.
+
+The top-level rewrite on a two-line script. The marker index counts procs from
+0 (`tbcxsave.c:6530`), and the loader's `proc` shim swaps the precompiled
+body in when the top level runs:
+
+**Before:**
+
+```tcl
+proc greet {name} { return "hello $name" }
+puts [greet world]
+```
+
+**After:**
+
+```tcl
+proc greet {name} "\x01TBCX0"
+puts [greet world]
+```
 
 **Positions.** None are kept.
 - The loaded `ByteCode` has `numCommands = 0` and no command-location map (`tbcxload.c:4202`).
@@ -139,6 +171,18 @@ pub mod tbcx {
 
 **The extension table** (extended units only) follows the methods section: `u32` count, then `(tag u32, block)` pairs. Tag 1 is `TOP_LEVEL_BODY`, `ModuleAsm::top_level_body` (`lib.rs:558`). The file ends after the table. A reader that does not know the revision refuses the unit, and the caller compiles from source.
 
+The first twelve header bytes of each kind, little-endian. An interop unit
+for 9.1.0, and an extended unit (first revision) targeting 8.6.18:
+
+```text
+offset  interop unit    extended unit
+0       54 42 43 58     54 42 43 58     magic 0x58434254, "TBCX"
+4       5d 00 00 00     5d 00 01 80     format 93 / 0x8001005D
+8       02 00 01 09     02 12 06 08     tcl_version 0x09010002 / 0x08061202
+```
+
+C Tcl 9.1 with tbcx reads the second file's format word and stops there.
+
 ### Decisions
 
 1. **The interop guarantee.** It holds both ways, at an exact patchlevel.
@@ -196,6 +240,19 @@ pub mod tbcx {
    - Procs follow definition order, which the marker indices need, and classes are sorted.
    - Literal tags depend only on the literal's text: `STRING`, or a numeric tag only when the text is the value's canonical form (the hazard above).
    - The same module writes the same bytes, which `cargo xtask spec-images --check` needs (306).
+
+   Some literal texts and the tag the rule gives them. The canonical form is
+   what `tclsh` 9.1 prints for `expr {$text}`:
+
+   | Literal text | Canonical form | Tag |
+   |---|---|---|
+   | `16` | `16` | 7, wideint |
+   | `0x10` | `16` | 6, string |
+   | `007` | `7` | 6, string |
+   | `1.0` | `1.0` | 4, double |
+   | `1e3` | `1000.0` | 6, string |
+   | `18446744073709551616` | the same | 0, bignum |
+   | `abc` | none | 6, string |
 10. **Validation on load.** It runs before anything executes. A unit that fails any check never runs:
     - every tbcx check listed under Research, including the header-to-top-block cross-check and exact EOF;
     - the kind matches the content: an interop unit has stamp 9.1, no private codes, no extension aux and no extension table;
@@ -205,11 +262,29 @@ pub mod tbcx {
     - `UnitMeta` has one entry per function, its ranges and pcs fall in the code, and its profile id is known and matches the dialect point.
 11. **Order relative to 312.** 311 needs 312's steps 1–3 first (`code`/`from_code`, `admitted`, `encode`/`decode`), with codes 0–210 equal to 9.1.0's. tbcx validates against the running 9.1 table. It needs 312's emit-time wide forms only for extended 9.1 units.
 
+How a unit is loaded, from decisions 1, 4 and 10:
+
+```mermaid
+flowchart TB
+  bytes["bytes from a file or BODIES"] --> fmt{"format word"}
+  fmt -- "93" --> stamp{"stamp is a pinned 9.1.x with 9.1.0's table?"}
+  stamp -- "no" --> unknown["ImageError::UnknownProducer"]
+  fmt -- "extended bit set" --> rev{"revision known?"}
+  rev -- "no" --> refuse["refused: the caller compiles from source"]
+  fmt -- "anything else" --> rejected["rejected"]
+  stamp -- "yes" --> checks["validate: every tbcx check, kind against content, admission, aux kinds, nesting, stack depth"]
+  rev -- "yes" --> checks
+  checks -- "fails" --> never["never runs"]
+  checks -- "passes" --> meta{"UnitMeta present and current?"}
+  meta -- "yes" --> full["load with its profile, command map and native fields"]
+  meta -- "no or stale" --> foreign["foreign: plain tcl 9.1 profile, plain dispatch, no positions"]
+```
+
 ### Open questions
 
-1. **Should we read methods and execute them?** 311 parses, validates and dumps method and class records. Executing them needs the VM's TclOO to accept precompiled bodies, the way tbcx's OOShim does. Until then a foreign unit with methods is `Unsupported(methods)`. *Settled by* demand for foreign OO files, or by item 313 needing them.
-2. **Must 311 land before 306?** 306 found one dynamic Tcl hook (`306-expect-spike.md`, "Hooks in the image"). *Settled by* the load-against-compile measurement below.
-3. **What when tbcx moves past format 93, or C Tcl releases 9.1.1?** Both refuse our old files. *Settled by* the owner: re-export on each pin bump (a `spec-images`-style check), or keep a stamp per supported patchlevel.
+1. **Should we read methods and execute them?** 311 parses, validates and dumps method and class records. Executing them needs the VM's TclOO to accept precompiled bodies, the way tbcx's OOShim does. Until then a foreign unit with methods is `Unsupported(methods)`. *Settled by* demand for foreign OO files, or by item 313 needing them. *Settled:* in scope, by the owner decisions below.
+2. **Must 311 land before 306?** 306 found one dynamic Tcl hook (`306-expect-spike.md`, "Hooks in the image"). *Settled by* the load-against-compile measurement below. *Settled:* no, by the owner decisions below.
+3. **What when tbcx moves past format 93, or C Tcl releases 9.1.1?** Both refuse our old files. *Settled by* the owner: re-export on each pin bump (a `spec-images`-style check), or keep a stamp per supported patchlevel. *Settled:* re-export on each pin bump, by the owner decisions below.
 
 ## Work list
 
@@ -230,7 +305,7 @@ pub mod tbcx {
 Done when:
 - **Round trip:** `read(write(u)) == u` and `into_module(from_module(m)) == m` for every corpus module, at each target release 8.4–9.1.
 - **Out:** for every corpus fixture, tbcx 1.2.1 in `tclsh` 9.1.0 loads our interop unit, and its result matches `source`.
-- **In:** our VM loads every `tbcx::save` fixture, with the same result as C. Method records are refused until open question 1 is settled.
+- **In:** our VM loads every `tbcx::save` fixture, with the same result as C. Method records execute too (owner decisions), once the VM's TclOO accepts precompiled bodies.
 - **Byte identity:** each block's code bytes equal `tbcx::save`'s, or the fixture is on a listed divergence list. Literal tags that differ but carry equal data form one listed class.
 - **Parity:** running each unit matches compiling its source, native and in `tcl-vm-wasm`, as a differential test in the conformance runner.
 - **Rejection:** one fixture per validation check. The fuzz arm runs clean for a recorded campaign.
@@ -252,3 +327,17 @@ Record:
 
 - Plan item 311 still says "`tclbc`", "a research step on `tbcload` interop" and "byte identity with `tclsh` 9.0". The replacement text is in this design's handoff. (Applied 26 November 2026.)
 - `313-consumer-hooks.md` (lines 266, 341 and 429) says `BODIES` holds "`tclbc` (311, tbcload-shaped)". It should read "`TbcxUnit` (311, tbcx format)". (Applied 26 November 2026.)
+
+## Owner decisions (26 November 2026)
+
+- **TclOO methods in foreign files are in scope.** The VM's TclOO accepts
+  precompiled method bodies the way tbcx's loader does, so method records in
+  C Tcl's `.tbcx` files execute, not refused.
+- **Re-export on pin bumps.** When the Tcl patchlevel pin or the tbcx format
+  moves, every interop unit we ship is re-exported. There is one stamp: the
+  current pin.
+- **Upstream risk is accepted, and tracked.** The fixtures pin a tbcx commit.
+  Checking tbcx upstream and bumping the pin is part of every dependency
+  update (AGENTS.md, "Build and release").
+- **Item 311 does not block item 306.** The Expect spike can store hook source
+  and compile on first call, and switches to `TbcxUnit` when 311 lands.

@@ -294,6 +294,11 @@ history belongs in git, not the final PR, documentation or code comments.
   `tag`) benchmarks the release and regenerates the release-notes graphs;
   never hand-edit the `## Performance` section of `RELEASE_NOTES.md`. The
   `release` skill drives the whole flow.
+- **Updating dependencies includes tracked upstreams.** When you update
+  dependencies, also check upstream tools we pin by commit and format, such
+  as tbcx (`docs/design/compiler/bytecode-image.md`). Bump the pin, rerun its
+  fixtures, and re-export the interop units when the Tcl patchlevel pin or the
+  tbcx format moves.
 - The embedded SslicTcl trust-store data is refreshed only deliberately
   (`make update-source-data`, then `make check-source-data`):
   [sslictcl-source-data.md](docs/design/contracts/sslictcl-source-data.md).
