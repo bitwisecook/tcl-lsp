@@ -23,12 +23,12 @@ in `docs/work/name-handling/ownership/`:
   `crate`, `rank`.
   - The ranks follow the [design](../crate-split-design.md#crates-bottom-up):
     `tcl-source` 1, `tcl-names` 2, `tcl-values` 3, `tcl-model` 4, `tcl-ir` 5,
-    `tcl-binding` 6, `tcl-lowering` 7, `tcl-analysis` 8, `tcl-native-plan` 8,
-    `tcl-diagnostics` 9, `tcl-optimiser` 9, and the unit crate 10.
-  - Binding's rank against `tcl-lowering` is undecided until item 278. If it
-    chooses co-location, ranks 6 and 7 become one crate; the seeded ledger
-    reports binding → lowering and SSA edges either way, so 278 has its
-    inventory.
+    `tcl-binding` 6, `tcl-lowering` 7, `tcl-analysis` 8, the unit crate
+    (`tcl-unit`) 9, `tcl-native-plan`, `tcl-diagnostics` and `tcl-optimiser`
+    10, and `tcl-db` 11 ([step 13](13-unit-and-db.md)).
+  - Binding sits below `tcl-lowering`: item 278 chose inversion
+    ([step 7](07-binding-fixpoint.md)). The seeded ledger reports binding →
+    lowering and SSA edges as back-edges, which item 279 clears.
   - Equal ranks may not name each other.
   - Splitting a module across two crates is recorded as rows for its
     submodules (`analyser::types` → `tcl-model`).

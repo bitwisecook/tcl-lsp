@@ -25,9 +25,12 @@ There are three kinds of thing, and nothing is both.
      | `jim` | 0.76–0.84 | `full`, `minimal`, plus capability flags for its optional extensions (`binary`, `ensemble`, `json`, `tclprefix`, `zlib`) |
      | `f5-tcl` | the BIG-IP releases, its real version axis | `tmm` (the traffic interpreter that runs iRules) and `scriptd` (the configuration interpreter that runs iApps and tmsh scripts) |
 
-   - A grammar difference that belongs to one F5 interpreter, such as
-     `irules_brace_separator`, is a property of the `tmm` build, not of a
-     library.
+   - The F5 grammar axes, `irules_brace_separator` and
+     `brace_line_continuation`, belong to the f5-tcl family under both
+     builds: TMM, `TmshCliScript` and `IAppImplementation` read source the
+     same way ([301](model/301-dialects.md)). The rule-loader flags
+     (`closed_load_time_resolution`, `declaration_only_top_level`) are the
+     iRules library's policy, not the dialect's.
 2. **A library is a provider of commands on top of dialects.** Tk, the
    libraries Tcl bundles (http, msgcat, tcltest, …), each tcllib module, Expect,
    Itcl, Thread, iRules, iApps, tmsh and the EDA vendor libraries are all
@@ -42,8 +45,10 @@ There are three kinds of thing, and nothing is both.
        "Thread 2.8 on tcl 8.6", "Thread 3.0 on tcl 9.0–9.1",
        "iRules (tracks host) on f5-tcl, any release, build tmm".
    - **Requirements on other libraries,** with ranges on each side. For
-     example, "tcllib's `snit` 2.x requires Tcl 8.5 and TclOO" or "Tk 8.6
-     requires tcl 8.6".
+     example, "Tk 8.6 requires tcl 8.6". A requirement can differ per train:
+     tcllib's `snit` 2.x requires only Tcl 8.5 or 9 and does not load TclOO,
+     while snit 1.x also runs on 8.4, so today's `TcllibModule.core_floor`
+     becomes a per-train row ([302](model/302-libraries.md)).
    - **Commands.** Each command, subcommand and option carries a window on the
      library's own axis (introduced, deprecated, retired). It may add a
      dialect constraint where a library command depends on the host release.
@@ -87,9 +92,11 @@ environment.
 
 A library a dialect release ships with gets an ambient or bundled placement in
 that release's environments, at the bundled version. The bundled versions come
-from each pinned source tree's `pkgs/package.list.txt` and the library
-directory. That table is generated with the release facts (items 79 and 202),
-never written by hand.
+from each pinned source tree's `library/*/pkgIndex.tcl` and
+`pkgs/<dir>/configure.ac`. (`pkgs/package.list.txt` maps directory names to
+package names and carries no versions.) `fetch-tcl-source` must keep the
+`pkgs/` trees for the generator. That table is generated with the release
+facts (items 79 and 202), never written by hand.
 
 TclOO is the worked example:
 - It is a library on tcl 8.5 (the `TclOO` package).
@@ -107,7 +114,7 @@ TclOO is the worked example:
 | a spec's applicability: `SpecSurface` rows (one provider each, OR'd) + `required_package` + `tcllib_package` + `lifecycle` on whichever axis `lifecycle_axis` picks | one `Availability`: a window on the library's axis ∧ an optional dialect constraint; library-level compatibility rows |
 | package windows in SpecTcl `available` parsed and dropped (D17-P); `package require` read as a lower bound only | windows carried; requirements read as full ranges with trains |
 | Jim builds and capabilities not selectable | selectable through the environment; libraries and commands may require a capability |
-| the surface list kept in four disagreeing copies | one catalogue crate lists the shipped dialects and libraries |
+| the surface list kept in six disagreeing copies | one catalogue crate lists the shipped dialects and libraries |
 
 ## SpecTcl 3
 
@@ -147,7 +154,7 @@ through shims.
 
 ## Libraries as data (decided by a spike)
 
-The surfaces are 185k lines of Rust command data plus 174k lines of BIG-IP
+The surfaces are 185k lines of Rust command data plus 171k lines of BIG-IP
 schema data. Every per-command fix recompiles Rust. Separately, the
 compiled-surface plan measures 1.3 ms to build native Tcl 8.6 against 697 ms
 to load the same surface from SpecTcl, and `SpecArena`/`CompiledSurface` are
@@ -181,8 +188,12 @@ hook-heavy ones (the Tcl core surface).
   `"f5-irules"` strings become queries on the resolved environment:
   - "is the iRules library present";
   - "is the build `tmm`".
-- **`irules_checks`** belongs to the iRules library side. That decides the
-  open question in compiler split step 257.
+- **`irules_checks`** and `analyser/irules_event_checks.rs` move to
+  `tcl-irules`, the domain crate, not to `tcl-lib-irules`. They plug in
+  through the `UnitRule` and `SiteRule` traits that `tcl-diagnostics`
+  defines, and the entry points register them through a `RuleSet`
+  ([compiler split step 12](../compiler/crate-split/12-diagnostics-optimiser.md),
+  item 285).
 - **The lexer** receives the dialect core profile only.
 - **The VM and the runtime** receive the dialect plus the libraries they can
   execute.

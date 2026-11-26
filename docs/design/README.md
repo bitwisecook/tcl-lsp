@@ -45,17 +45,6 @@ How the analyser decides what a name denotes and what a value holds.
   registry-driven widget-tree and geometry model behind the editor and MCP
   previews, with its abstention, size-bound, and stale-document rules.
 
-## build-time/
-
-Build costs, caches, and dependency changes.
-
-- [259-worktree-cost.md](build-time/259-worktree-cost.md)
-- [260-shared-cache.md](build-time/260-shared-cache.md)
-- [269-272-dev-dependency-cascades.md](build-time/269-272-dev-dependency-cascades.md)
-- [291-vm.md](build-time/291-vm.md)
-- [292-codegen.md](build-time/292-codegen.md)
-- [296-300-build-levers.md](build-time/296-300-build-levers.md)
-
 ## compiler/
 
 The multi-pass compiler: pipeline stages, analyses, codegen, optimisation
@@ -68,23 +57,46 @@ passes, and ownership matrices.
   pipeline, with diagrams and cross-links to the stage documents.
 - [crate-split-design.md](compiler/crate-split-design.md) — why
   `tcl-compiler` is one cycle, the layered crates that replace it, and the
-  ordered, ratcheted steps (plan item 90).
-  - [00-test-dependencies.md](compiler/crate-split/00-test-dependencies.md) — remove the upper stack from compiler tests.
-  - [01-module-layers.md](compiler/crate-split/01-module-layers.md) — map the modules to their intended layers.
-  - [02-tcl-source.md](compiler/crate-split/02-tcl-source.md)
-  - [03-tcl-names.md](compiler/crate-split/03-tcl-names.md)
-  - [04-tcl-values.md](compiler/crate-split/04-tcl-values.md)
-  - [05-tcl-model.md](compiler/crate-split/05-tcl-model.md)
-  - [06-tcl-ir.md](compiler/crate-split/06-tcl-ir.md)
-  - [07-binding-fixpoint.md](compiler/crate-split/07-binding-fixpoint.md)
-  - [08-tcl-binding.md](compiler/crate-split/08-tcl-binding.md)
-  - [09-tcl-lowering.md](compiler/crate-split/09-tcl-lowering.md)
-  - [10-tcl-analysis.md](compiler/crate-split/10-tcl-analysis.md)
-  - [11-tcl-native-plan.md](compiler/crate-split/11-tcl-native-plan.md)
+  ordered, ratcheted steps (plan item 90). Each step has its own design in
+  `crate-split/`, which holds where it and the overview disagree:
+  - [00-test-dependencies.md](compiler/crate-split/00-test-dependencies.md) —
+    step 0: the upper stack out of `tcl-compiler`'s tests (items 246, 266–268).
+  - [01-module-layers.md](compiler/crate-split/01-module-layers.md) — step 1:
+    the `module-layers` gate, its ledgers and the crate ranks (247, 273).
+  - [02-tcl-source.md](compiler/crate-split/02-tcl-source.md) — step 2: the
+    CST, segmenter and source-site types, and the SpecTcl loader and
+    `tcl-sslictcl` onto them (251, 281).
+  - [03-tcl-names.md](compiler/crate-split/03-tcl-names.md) — step 3: the
+    identity and key closure, and item 77's redesign inside it (248, 274).
+  - [04-tcl-values.md](compiler/crate-split/04-tcl-values.md) — step 4: the
+    value kernel below binding (280).
+  - [05-tcl-model.md](compiler/crate-split/05-tcl-model.md) — step 5: inputs,
+    generic `ProcDef`/`ClassDef`, result records and one `Diagnostic`
+    (249, 275–277).
+  - [06-tcl-ir.md](compiler/crate-split/06-tcl-ir.md) — step 6: the IR
+    generic over binding's `Facts` (252).
+  - [07-binding-fixpoint.md](compiler/crate-split/07-binding-fixpoint.md) —
+    step 7: the edge inventory, the inversion decision and the body-report
+    trait (278, 250, 279).
+  - [08-tcl-binding.md](compiler/crate-split/08-tcl-binding.md) — step 8:
+    `tcl-binding`, and why `tcl-invocation` is not extracted (253, 282).
+  - [09-tcl-lowering.md](compiler/crate-split/09-tcl-lowering.md) — step 9:
+    lowering, CFG building and the SSA family (254).
+  - [10-tcl-analysis.md](compiler/crate-split/10-tcl-analysis.md) — step 10:
+    the per-function passes and executable IR, and item 117b (255).
+  - [11-tcl-native-plan.md](compiler/crate-split/11-tcl-native-plan.md) —
+    step 11: the native plan above the unit, and the hidden API (256, 283).
   - [12-diagnostics-optimiser.md](compiler/crate-split/12-diagnostics-optimiser.md)
-  - [13-unit-and-db.md](compiler/crate-split/13-unit-and-db.md)
-  - [14-caching.md](compiler/crate-split/14-caching.md)
-- [bytecode-image.md](compiler/bytecode-image.md)
+    — step 12: `tcl-diagnostics`, `tcl-optimiser`, and the iRules rules in
+    `tcl-irules` (257, 284, 285).
+  - [13-unit-and-db.md](compiler/crate-split/13-unit-and-db.md) — step 13:
+    `tcl-unit`, `tcl-db` and `tcl-compiler-it` (258, 286, 287).
+  - [14-caching.md](compiler/crate-split/14-caching.md) — step 14: a
+    disposition for every memo, and the three caches that may become
+    database queries.
+- [bytecode-image.md](compiler/bytecode-image.md) — serialised bytecode
+  (`tclbc`): C Tcl's instruction encoding in a versioned, pointer-free image,
+  for pack hook bodies and AOT artefacts (plan item 311).
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value
@@ -367,25 +379,43 @@ declarations are written in.
   target model: fundamental dialects (tcl, jim, f5-tcl), libraries with
   compatibility over dialect and library version ranges, environments, and
   SpecTcl 3 with shims for old packs (plan items 301–307).
-  - [301-dialects.md](registry/model/301-dialects.md)
-  - [302-libraries.md](registry/model/302-libraries.md)
-  - [303-environments.md](registry/model/303-environments.md)
-  - [304-f5-libraries.md](registry/model/304-f5-libraries.md)
-  - [305-spectcl-3.md](registry/model/305-spectcl-3.md)
-  - [306-expect-spike.md](registry/model/306-expect-spike.md)
-  - [307-libraries-as-data.md](registry/model/307-libraries-as-data.md)
-  - [308-positioned-context.md](registry/model/308-positioned-context.md)
-  - [309-310-migration-and-authoring.md](registry/model/309-310-migration-and-authoring.md)
-  - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md)
 - [registry-split-design.md](registry/registry-split-design.md) — the
   registry as a core plus one crate per dialect and per library distribution
-  (plan items 261–265).
-  - [01-surface-input.md](registry/registry-split/01-surface-input.md)
+  (plan items 261–265). Its step designs, in `registry-split/`:
+  - [01-surface-input.md](registry/registry-split/01-surface-input.md) — the
+    core takes its surfaces as input (262).
   - [02-behaviour-to-surfaces.md](registry/registry-split/02-behaviour-to-surfaces.md)
-  - [03-extract-crates.md](registry/registry-split/03-extract-crates.md)
+    — the core's references into the Tcl surface become registrations (263).
+  - [03-extract-crates.md](registry/registry-split/03-extract-crates.md) — the
+    dialect and library crates and `tcl-catalogue` (264).
   - [04-dependency-hygiene.md](registry/registry-split/04-dependency-hygiene.md)
-  - [117-native-model.md](registry/registry-split/117-native-model.md)
-  - [118-bigip-schema.md](registry/registry-split/118-bigip-schema.md)
+    — the gate that keeps generic crates off surface crates (265).
+  - [117-native-model.md](registry/registry-split/117-native-model.md) — the
+    `native_*` algorithms into `tcl-native-model`, and the evaluation move
+    (117a, 117b).
+  - [118-bigip-schema.md](registry/registry-split/118-bigip-schema.md) — the
+    BIG-IP configuration-schema crate (118).
+- The dialect and library model's step designs, in `registry/model/`:
+  - [301-dialects.md](registry/model/301-dialects.md) — three families,
+    F5 releases and builds, selectable Jim builds (301).
+  - [302-libraries.md](registry/model/302-libraries.md) — version trains,
+    compatibility rows and one `Availability` per command (302).
+  - [303-environments.md](registry/model/303-environments.md) — environments
+    as data, with one alias table (303).
+  - [304-f5-libraries.md](registry/model/304-f5-libraries.md) — iRules, iApps
+    and tmsh as libraries on f5-tcl (304).
+  - [305-spectcl-3.md](registry/model/305-spectcl-3.md) — SpecTcl 3, a
+    declarative pack language with shims for 1.x and 2.x (305).
+  - [306-expect-spike.md](registry/model/306-expect-spike.md) — the
+    libraries-as-data spike on Expect (306).
+  - [307-libraries-as-data.md](registry/model/307-libraries-as-data.md) —
+    shipped libraries as SpecTcl-sourced images (307).
+  - [308-positioned-context.md](registry/model/308-positioned-context.md) —
+    one positioned library and dialect query (308).
+  - [309-310-migration-and-authoring.md](registry/model/309-310-migration-and-authoring.md)
+    — upgrading user packs to SpecTcl 3, and authoring tools that emit 3
+    (309, 310).
+  - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md)
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
@@ -513,6 +543,45 @@ The Rust package manager for Tcl.
   operator hooks, and the layered, admin-lockable policy, with the
   supply-chain threat model that drives it.
 
+## workspace/
+
+The target layers for the whole workspace, beside the compiler and registry
+splits (plan items 288–295 and 314–318).
+
+- [overview.md](workspace/overview.md) — every crate's layer, the dependency
+  rules, and the rank gate that enforces them.
+- [288-spectcl-edge.md](workspace/288-spectcl-edge.md) — the
+  `tcl-spectcl` → `tcl-lsp-core` edge removed through `tcl-source-store`.
+- [289-lsp-core.md](workspace/289-lsp-core.md) — `tcl-lsp-core` into eleven
+  `tcl-ide-*` feature crates and two domain adapters.
+- [290-lsp-server.md](workspace/290-lsp-server.md) — `tcl-lsp-server` into a
+  session crate, handler crates and the transport.
+- [293-mcp.md](workspace/293-mcp.md) — `tcl-mcp` off the CLIs.
+- [294-explorer.md](workspace/294-explorer.md) — `tcl-explorer`'s
+  dependencies.
+- [295-hub-crates.md](workspace/295-hub-crates.md) — the top and low hub
+  crates, and how each stops being one.
+
+## build-time/
+
+Build and iteration cost: the measurements and the levers beside the crate
+splits.
+
+- [259-worktree-cost.md](build-time/259-worktree-cost.md) — the script that
+  measures what an isolated edit costs a worktree (item 259).
+- [260-shared-cache.md](build-time/260-shared-cache.md) — a compiler cache
+  shared across worktrees, and what sccache v0.18.0 can share (260).
+- [269-272-dev-dependency-cascades.md](build-time/269-272-dev-dependency-cascades.md)
+  — the other crates' dev-dependency cascades, step 0b–0e (269–272).
+- [291-vm.md](build-time/291-vm.md) — `tcl-vm` after the native-model crate
+  (291).
+- [292-codegen.md](build-time/292-codegen.md) — `tcl-codegen` after the
+  compiler split, with the emitter and driver split still an owner decision
+  (292).
+- [296-300-build-levers.md](build-time/296-300-build-levers.md) — feature
+  variants, profiles, `xtask`'s engines, build scripts and generated tables
+  (296–300).
+
 ## templates/
 
 Starting shapes for a new design document.
@@ -520,18 +589,6 @@ Starting shapes for a new design document.
 - [templates/README.md](templates/README.md) — the templates (contract,
   reference, ownership matrix), what a design doc looks like here, and the
   checklist to run before merging one.
-
-## workspace/
-
-Crate boundaries for the rest of the workspace.
-
-- [288-spectcl-edge.md](workspace/288-spectcl-edge.md)
-- [289-lsp-core.md](workspace/289-lsp-core.md)
-- [290-lsp-server.md](workspace/290-lsp-server.md)
-- [293-mcp.md](workspace/293-mcp.md)
-- [294-explorer.md](workspace/294-explorer.md)
-- [295-hub-crates.md](workspace/295-hub-crates.md)
-- [overview.md](workspace/overview.md)
 
 ## spec-dsl-examples/
 
