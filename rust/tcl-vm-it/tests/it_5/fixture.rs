@@ -25,6 +25,11 @@ use std::rc::Rc;
 
 use tcl_vm::{Vm, host_native::NativeHost};
 
+/// A native core of `profile` with no compiler, writing output nowhere.
+pub fn core(profile: &'static tcl_dialect::DialectProfile) -> Vm {
+    core_with_output(profile, Box::new(std::io::sink()))
+}
+
 /// A native core of `profile` with no compiler, writing output to `output`.
 pub fn core_with_output(
     profile: &'static tcl_dialect::DialectProfile,
@@ -144,4 +149,30 @@ pub fn call(
 ) -> tcl_runtime_api::Completion<tcl_vm::Value> {
     vm.try_invoke_command(name, arguments)
         .unwrap_or_else(|refusal| panic!("{name}: {refusal:?}"))
+}
+
+/// `package` invoked with object words.
+pub fn package(
+    vm: &mut Vm,
+    arguments: &[tcl_vm::Value],
+) -> tcl_runtime_api::Completion<tcl_vm::Value> {
+    call(vm, "package", arguments)
+}
+
+/// The value of `key` in a return-options dictionary.
+pub fn option(options: &tcl_vm::Value, key: &str) -> Option<tcl_vm::Value> {
+    options
+        .as_list()
+        .ok()?
+        .chunks(2)
+        .find(|pair| pair[0].string_bytes().as_ref() == key.as_bytes())
+        .map(|pair| pair[1].clone())
+}
+
+/// `package` invoked with object words, keeping a host refusal visible.
+pub fn try_package(
+    vm: &mut Vm,
+    arguments: &[tcl_vm::Value],
+) -> Result<tcl_runtime_api::Completion<tcl_vm::Value>, tcl_runtime_api::NativeExecutionError> {
+    vm.try_invoke_command("package", arguments)
 }

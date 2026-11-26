@@ -51,20 +51,6 @@ impl Vm {
         self.selected_package_state().package_file_inventory_active
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_package_file_object<R>(
-        &self,
-        name: &[u8],
-        callback: impl FnOnce(&Value) -> R,
-    ) -> R {
-        callback(
-            self.selected_package_state()
-                .package_files
-                .get(name)
-                .expect("retained package file header"),
-        )
-    }
-
     pub(crate) fn package_file_object(&self, name: &[u8]) -> Value {
         self.selected_package_state()
             .package_files

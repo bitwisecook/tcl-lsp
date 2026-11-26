@@ -694,7 +694,7 @@ checks the frames both report.
 - `scripts/dev/rust-test-binary-shards.tsv` gains the `xtask-backing` binary
   that item 298 left out.
 
-**Batch 3, tests that never compiled source (26 November 2026).** 124 `src`
+**Batch 3, tests that never compiled source (26 November 2026).** 65 `src`
 tests built their VM with `native_fixture::interpreter*` but never evaluate,
 compile or define source: they drive commands, values and frames directly.
 They now build it with `native_fixture::core*` and stay as unit tests, which
@@ -708,3 +708,22 @@ evaluate `expr` source per release (`native_integer_arithmetic_uses_the_selected
 `tcl-vm-it` unchanged in substance. The other 13 call `eval_expr` or the
 expression workers directly, which needs no source compiler, and stay in
 `tcl-vm` on the core. Nothing deleted; no new or fixed failure.
+
+**Batch 5, `cmd_package` (26 November 2026).** Of 34 tests in 2 files, 30 move to
+`tcl-vm-it` under their old module paths and 4 are deleted.
+- `package` is called as a command (`try_invoke_command`); provided and
+  registered versions are read back with `package provide` and
+  `package versions`; the embedding-host tests keep their software
+  formatter and read the refusal from `try_invoke_command`'s error.
+- `malformed_requirements_precede_an_active_loader_cycle` now builds the
+  cycle with `package ifneeded` and compares both messages with tclsh
+  8.6.18 and 9.0.4.
+- Deleted, with no script-visible behaviour: `package_files_headers_match_all_native_10_windows_and_scope_lifetimes`
+  and `shared_package_files_append_is_an_outer_native_fatal_condition`
+  (private package-file scopes), `original::tests::original_package_unknown_and_loader_restore_before_original_currency_settlement`
+  and `…::original_package_pending_host_precedes_operand_materialisation_and_table_effects`
+  (private loader state and refusal fields read from inside a callback), and
+  the two `selected_loader` probes inside `package_commands_apply_the_pinned_plus_suffix_policy`.
+- Also: a further core trial moved 3 more tests off the compiler, and batch
+  3's count is corrected to 65 (measured as the drop in tests that reach a
+  compiler, 547 to 482). No new failure in the lib and `it_5` suites.

@@ -746,7 +746,7 @@ mod tests {
 mod checked_projection_tests {
     use super::*;
     fn native() -> crate::Vm {
-        crate::native_fixture::interpreter(
+        crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
         )
     }

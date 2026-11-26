@@ -189,8 +189,8 @@ f0a3802f893d	3	0	1	tcl-lsp-core	lib	formatting::keywords::tests::expansion_can_b
 0638a719a5f1	2	0	2	tcl-compiler	it_5	unused_var_tricky_features::read_before_set_tps::tp_plain_read_before_set	rust/tcl-compiler/tests/it_5/unused_var_tricky_features.rs	351	W210
 071b8a386ebf	2	0	2	tcl-lsp-core	it_2	references_rename::namespaces::proc_rename_unambiguous_callsite_unaffected	rust/tcl-lsp-core/tests/it_2/references_rename/namespaces.rs	862	
 071b8a386ebf	2	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::rename_proc_from_call_site_rewrites_declaration_too	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	88	
-07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias	rust/tcl-vm/src/cmd_package/tests.rs	286	
-07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_interpreter_handle_isolation	rust/tcl-vm/src/cmd_package/tests.rs	302	
+07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias	rust/tcl-vm-it/tests/it_5/cmd_package/tests.rs	286	
+07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_interpreter_handle_isolation	rust/tcl-vm-it/tests/it_5/cmd_package/tests.rs	302	
 0773ae5c8596	2	0	1	tcl-spectcl	it_2	export::a_canonical_environment_block_round_trips_byte_identically	rust/tcl-spectcl/tests/it_2/export.rs	414	
 0773ae5c8596	2	0	1	tcl-spectcl	it_2	export::an_environment_block_with_kind_and_short_name_round_trips_byte_identically	rust/tcl-spectcl/tests/it_2/export.rs	426	
 07ab78e98967	2	0	2	tcl-lsp-core	lib	definition::tests::variables::jump_to_var_definition	rust/tcl-lsp-core/src/definition/tests/variables.rs	94	

@@ -1637,6 +1637,3 @@ fn requirements_satisfied(
             .any(|requirement| vsatisfies(version.as_bytes(), requirement.as_bytes(), release))
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -107,20 +107,6 @@ impl Vm {
             .map(|state| state.package_state.loaded_libraries.as_slice())
     }
 
-    #[cfg(test)]
-    pub(crate) fn package_version(&self, name: impl AsRef<[u8]>) -> Option<&str> {
-        self.package_version_bytes(name)
-            .map(|version| version.try_utf8().expect("Unicode test version"))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn package_ifneeded_versions(&self, name: impl AsRef<[u8]>) -> Vec<String> {
-        self.package_ifneeded_versions_bytes(name)
-            .into_iter()
-            .map(|version| version.try_utf8().expect("Unicode test version").to_owned())
-            .collect()
-    }
-
     /// Native table inventory; failed require shells affect table growth without
     /// becoming visible package names.
     pub(crate) fn package_names(
@@ -282,18 +268,6 @@ impl Vm {
     }
 
     /// Cleanup remains tolerant of a loader forgetting its own package.
-    #[cfg(test)]
-    pub(crate) fn end_package_loading(
-        &mut self,
-        name: impl AsRef<[u8]>,
-        version: impl AsRef<[u8]>,
-    ) {
-        let tracks_files = self
-            .selected_package_protocol()
-            .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files);
-        self.end_package_loading_using(name, version, tracks_files);
-    }
-
     pub(in super::super) fn end_package_loading_using(
         &mut self,
         name: impl AsRef<[u8]>,

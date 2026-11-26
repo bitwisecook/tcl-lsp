@@ -36,45 +36,27 @@ fn entered_child_completions_match_forty_eight_real_engine_controls() {
     for (engine, table) in [
         (
             "tcl8.4",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/8.4.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/8.4.tsv"),
         ),
         (
             "tcl8.5",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/8.5.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/8.5.tsv"),
         ),
         (
             "tcl8.6",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/8.6.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/8.6.tsv"),
         ),
         (
             "tcl9.0",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/9.0.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/9.0.tsv"),
         ),
         (
             "tcl9.1",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/9.1.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/9.1.tsv"),
         ),
         (
             "jim",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-vm/tests/data/native_child_completion/jim.tsv"
-            )),
+            include_str!("../../../../tcl-vm/tests/data/native_child_completion/jim.tsv"),
         ),
     ] {
         for row in table.lines() {
@@ -217,45 +199,39 @@ fn original_coroutine_execution_matches_seventy_eight_engine_controls() {
     for (engine, table) in [
         (
             "tcl8.4",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.4.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.4.tsv"
+            ),
         ),
         (
             "tcl8.5",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.5.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.5.tsv"
+            ),
         ),
         (
             "tcl8.6",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.6.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-8.6.tsv"
+            ),
         ),
         (
             "tcl9.0",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-9.0.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-9.0.tsv"
+            ),
         ),
         (
             "tcl9.1",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-9.1.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-9.1.tsv"
+            ),
         ),
         (
             "jim",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../tcl-registry/tests/data/native_coroutine_compilation/runtime-jim.tsv"
-            )),
+            include_str!(
+                "../../../../tcl-registry/tests/data/native_coroutine_compilation/runtime-jim.tsv"
+            ),
         ),
     ] {
         for row in table.lines() {

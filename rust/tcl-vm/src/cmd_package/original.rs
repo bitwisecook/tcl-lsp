@@ -229,6 +229,3 @@ fn original_tcl_failure(error: &CmdError) -> crate::TclError {
             .clone(),
     )
 }
-
-#[cfg(test)]
-mod tests;

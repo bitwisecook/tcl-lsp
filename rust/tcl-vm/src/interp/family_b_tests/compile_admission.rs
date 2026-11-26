@@ -158,7 +158,7 @@ fn compile_service_capabilities_and_host_definitions_preserve_typed_refusal() {
 
 #[test]
 fn jim_math_numeric_results_follow_the_measured_native_protocol() {
-    let mut vm = crate::native_fixture::interpreter(release_profile("jim"));
+    let mut vm = crate::native_fixture::core(release_profile("jim"));
     for (source, expected) in [
         ("pow(2,2)", "4"),
         ("pow(2.0,2)", "4.0"),
@@ -223,7 +223,7 @@ fn moved_math_handler_keeps_its_registered_implementation_identity() {
 
 #[test]
 fn jim_expression_preparation_uses_native_tree_and_eager_fixed_function_pass() {
-    let mut vm = crate::native_fixture::interpreter(release_profile("jim"));
+    let mut vm = crate::native_fixture::core(release_profile("jim"));
     for (source, expected) in [("abs(pow(2),2)", "4"), ("abs(-3)", "3")] {
         let value = Value::string(source);
         // A warm conventional AST must never bypass native reassociation.

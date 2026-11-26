@@ -32,6 +32,7 @@ mod cmd_info;
 mod cmd_lseq;
 mod cmd_namespace;
 mod cmd_oo;
+mod cmd_package;
 mod cmd_try;
 mod command;
 mod command_mutation_deopt_e2e;
