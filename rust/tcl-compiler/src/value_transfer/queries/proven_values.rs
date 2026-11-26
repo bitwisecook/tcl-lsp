@@ -20,7 +20,7 @@
 
 use super::super::argument_words::{OperandSource, call_arguments};
 use super::super::folded_type::FoldedType;
-use super::super::lattice_inputs::{const_to_exact, exact_of_bytes, variable_name};
+use super::super::lattice_inputs::{const_to_exact, variable_name};
 use super::super::{ArgWord, ProvenReadFacts};
 use crate::analyses::LatticeValue;
 use crate::ir::{CommandTokens, Statement};
@@ -434,7 +434,7 @@ fn proven_command_word(
         crate::const_subst::RetainedCalls::new(&calls),
         metadata,
     )
-    .map(|text| exact_of_bytes(text.into_bytes()))
+    .map(|text| ExactValue::from_literal_bytes(text.into_bytes()))
 }
 
 /// The names the statement `at` writes, when one of the command
@@ -518,7 +518,9 @@ fn proven_substitution(
         ));
     }
     let parts = match decompose(text.as_bytes(), SubstFlags::default(), config) {
-        WordBody::Literal(bytes) => return Some((exact_of_bytes(bytes.to_vec()), None)),
+        WordBody::Literal(bytes) => {
+            return Some((ExactValue::from_literal_bytes(bytes.to_vec()), None));
+        }
         WordBody::Parts(parts) => parts,
     };
     let mut bytes = Vec::with_capacity(text.len());
@@ -532,5 +534,5 @@ fn proven_substitution(
             Part::Command(_) | Part::Expression(_) | Part::ParseError(_) => return None,
         }
     }
-    Some((exact_of_bytes(bytes), None))
+    Some((ExactValue::from_literal_bytes(bytes), None))
 }

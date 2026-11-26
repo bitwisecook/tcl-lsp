@@ -20,7 +20,7 @@
 
 use super::argument_words::{amount_word, typed_node_commands, view_of};
 use super::expressions::{Expression, truth_of};
-use super::lattice_inputs::{exact_of_bytes, variable_name};
+use super::lattice_inputs::variable_name;
 use super::queries::statement_selection;
 use super::{
     ArgWord, ExpressionEvaluation, LatticeDriver, StateInputs, binding_of, place_named, split_head,
@@ -175,7 +175,7 @@ impl StateInputs<'_> {
             SubstFlags::default(),
             self.driver.lexer_config,
         ) {
-            WordBody::Literal(bytes) => return Ok(exact_of_bytes(bytes.to_vec())),
+            WordBody::Literal(bytes) => return Ok(ExactValue::from_literal_bytes(bytes.to_vec())),
             WordBody::Parts(parts) => parts,
         };
         let mut bytes = Vec::with_capacity(text.len());
@@ -218,7 +218,7 @@ impl StateInputs<'_> {
             };
             bytes.extend_from_slice(&value.bytes);
         }
-        Ok(exact_of_bytes(bytes))
+        Ok(ExactValue::from_literal_bytes(bytes))
     }
 
     /// The one command of `script` run over the state by its declared route —
