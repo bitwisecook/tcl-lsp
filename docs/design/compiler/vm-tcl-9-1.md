@@ -8,7 +8,7 @@
 - the pinned oracles in `rust/tcl-dialect/data/reference-toolchains.tsv` (9.1 is `9.1.0`, tag `core-9-1-0`).
 
 **Feeds:**
-- item 311, [serialised bytecode](bytecode-image.md), whose `.tbc` payload carries 9.1-numbered code bytes;
+- item 311, [serialised bytecode](bytecode-image.md), in the tbcx format (format 93), whose units carry 9.1-numbered code bytes. tbcx validates code against the running C Tcl 9.1 table, so slots 0–210 must equal 9.1.0's;
 - item 88's engine convergence, through `runtime/rust`'s shared use of `tcl-bytecode`.
 
 ## Problem
@@ -95,7 +95,8 @@ pub fn admitted(release: tcl_dialect::TclVersion, op: Op) -> bool;
   - each pinned release's `tclInstructionTable[]`, mapped by name and width onto 9.1 numbering;
   - plus the private opcodes that the release's dialect admits (8.4: `CALL_FUNC1`, `LAND`, `LOR`, `LNOT`; iRules: `IRULE_*`).
 
-  Codegen asserts admission, and item 311's loader rejects an image that breaks it.
+  Codegen asserts admission, and item 311's loader rejects a unit that breaks it.
+- **Export lowering** is a column of the same table. It gives, per private opcode, the standard 9.1 sequence that item 311's interop export substitutes (`LNOT`→`not`, `LAND`/`LOR`, `STR_REPEAT`/`STR_REVERSE`), or none (`CALL_FUNC1`, `IRULE_*`).
 
 ### Semantics base: 9.1 for every opcode
 
@@ -122,7 +123,7 @@ Three gates, each with one owner:
 ### Decisions
 
 - **Width-explicit names, generated numbers.** This avoids churn and the 9.1 name reuse. The C table is the source of truth, and a `--check` gate keeps the generated file current.
-- **One numbering for every target.** Images are 9.1-numbered even for 8.x targets. C Tcl byte identity is promised for 9.0 and 9.1 targets only, because 9.0's slots are a prefix of 9.1's. 8.x targets are checked by disassembly, as now.
+- **One numbering for every target.** Serialised units (311) are 9.1-numbered even for 8.x targets. Units for targets below 9.1 are tbcx *extended* units, which C Tcl does not load. C Tcl byte identity against `getbytecode` is promised for 9.0 and 9.1 targets only, because 9.0's slots are a prefix of 9.1's. 8.x targets are checked by disassembly, as now. Only 9.1 interop units are C-loadable, through tbcx at an exact patchlevel.
 - **Private codes from the top.** C grows upward, and the gap is checked.
 - **Do not port `REMOVE_DEPRECATED_OPCODES`.** Older targets need those opcodes.
 
@@ -171,10 +172,10 @@ Record:
 - **Width selection moves jump layout.** Shortening runs before widening today. Emitting wide directly changes offsets in 9.1 output only. The goldens show it.
 - **Mnemonic-keyed code breaks silently on 9.1.** Grep for opcode lookups by name (`format.rs`, the explorer, `tcl dis`) and route them through `code()`.
 - **A 9.2 that compacts opcodes.** TIP 720 proposes a "level 2" that renumbers. That would be a new base. The generator makes it a regenerated table, not a hand port.
-- **Private codes.** `IRULE_*` images are never C-loadable, which is intended. The admission table keeps them out of `tcl` dialect images.
+- **Private codes.** A unit holding a private code is a tbcx *extended* unit, which tbcx refuses at its format word. That is intended for `IRULE_*`. The admission table keeps them out of `tcl` dialect units.
 
 ## Corrections to the overview
 
-- `bytecode-image.md` (the earlier version) and `lib.rs:22` say `Op` "matches Tcl 9.0.2". It is the 9.0 set plus 17 of 9.1's 20 additions plus 16 private opcodes, and it has no opcode numbers. The reference pin for 9.0 is 9.0.4, not 9.0.2.
+- The first `bytecode-image.md` (the `tclbc` design) and `lib.rs:22` say `Op` "matches Tcl 9.0.2". It is the 9.0 set plus 17 of 9.1's 20 additions plus 16 private opcodes, and it has no opcode numbers. The reference pin for 9.0 is 9.0.4, not 9.0.2.
 - `tcl-bytecode`'s crate doc lists `tcl-syntax` as its only dependency. `Cargo.toml` lists `tcl-dialect`, `tcl-lexer`, `tcl-runtime-api` and `tcl-syntax`.
 - `tclvm-opcode-status.md` counts 191 instructions and cites `rust/tcl-bytecode/src/lib.rs` for `Op`. `Op` is in `op.rs`.

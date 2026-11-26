@@ -1037,19 +1037,20 @@ BIG-IP names and addresses (Q8; [BIG-IP names and addresses](bigip-addresses-des
    - The `spec-author` skill and the AI system prompts are rewritten for 3: the lowest rung first, `check` rules before hooks, no templating, and a validation loop.
    - The examples and KCS how-tos move to 3, with the 2.x files kept as shim fixtures.
    - Done when: no SpecTcl writer in the tree emits a declaration below 3. The skill's eval suite passes: three sample libraries, each producing a pack that passes `spectcl_check`, covers every exported command, uses a `check` rule where one suffices, and has no templating. `spectcl_check` rejects templating in a 3 pack.
-311. **[designed]** (before items 305 and 306 store hook bodies; [design](../../design/compiler/bytecode-image.md)) Serialised bytecode, `tclbc`.
-   - It is C Tcl's instruction encoding in a versioned, little-endian, pointer-free container. The tables are shaped like C Tcl's `ByteCode`: literals, compiled locals, exception ranges, aux data and the command map. A metadata section holds our provenance and native-compilation fields.
-   - It has an opcode-set id and is validated on load.
-   - The writer and reader live in `tcl-bytecode`.
-   - It includes a research step on `tbcload` interop, which decides an optional exporter.
+311. **[designed]** (after item 312's steps 1–3; before items 305 and 306 store hook bodies; [design](../../design/compiler/bytecode-image.md)) Serialised bytecode in the tbcx format (owner decision, 26 November 2026: tbcload stops at Tcl 9.0).
+   - Units use tbcx's binary format 93. *Interop* units load in C Tcl 9.1 with tbcx 1.2.1 at the stamped patchlevel, and we load theirs from any pinned 9.1.x. They target Tcl 9.1 with the plain `tcl` profile, and are compiled as tbcx compiles: plain dispatch, `startCommand` kept, and tbcx's proc and method rewrite.
+   - *Extended* units (format word `0x8001_005D`) cover targets below 9.1, other dialects and private opcodes. C Tcl refuses them at the header. Interop export lowers private opcodes where a 9.1 sequence with the same semantics exists, and refuses otherwise.
+   - Our metadata (profile, source namespace, native-compilation fields, specialisation stamps, source hash, command map) goes in a `TbcxUnit` wrapper in pack images, and in a `.tbcx.meta` sidecar for standalone files. There is one binary codec.
+   - The writer and reader live in `tcl-bytecode::tbcx`. Validation runs on load, before anything executes.
    - Done when:
-     - Round trip: `read(write(m)) == m` over the bytecode-compare corpus.
-     - Byte identity: the encoded code bytes match `tclsh` 9.0's, or appear on a listed divergence list.
-     - Execution: running scripts from their images matches compiling them, native and WASM.
-     - Rejection: corrupted images are rejected, with a `tcl-fuzz` target.
-     - Use: pack images store hook bodies as `tclbc`.
+     - `read(write(u)) == u` and `into_module(from_module(m)) == m` hold over the bytecode-compare corpus for 8.4–9.1;
+     - tbcx 1.2.1 in `tclsh` 9.1.0 loads every corpus interop unit with results equal to `source`, and our VM loads every `tbcx::save` fixture (method records stay refused until decided);
+     - each block's code bytes equal `tbcx::save`'s, or the block is on a listed divergence list;
+     - native and WASM execution agree;
+     - there is one rejection fixture per check, and a `tcl-fuzz` `tbcx-decode` campaign runs clean;
+     - pack images store hook bodies as `TbcxUnit`.
 312. **[designed]** (owner decision, 26 November 2026: brought forward, not deferred; before or alongside item 311; [design](../../design/compiler/vm-tcl-9-1.md)) The VM on a Tcl 9.1 base.
-   - `Op` gets C Tcl 9.1 opcode numbers. They are generated from the pinned 9.1.0 `tclInstructionTable[]` by `cargo xtask opcode-table --check`, with private opcodes numbered from 255 downward and a per-release admission table.
+   - `Op` gets C Tcl 9.1 opcode numbers. They are generated from the pinned 9.1.0 `tclInstructionTable[]` by `cargo xtask opcode-table --check`, with private opcodes numbered from 255 downward and a per-release admission table. Codes 0–210 must equal the pinned 9.1.0 table, because tbcx validates against the running C Tcl. The admission table gains an export-lowering column, which item 311's interop export uses.
    - The missing `dictRemove`, `arithSeries` and `foreach_index` opcodes are added.
    - Every dispatch arm follows 9.1 semantics, and deprecated opcodes stay executable for 8.4–9.0 targets.
    - Codegen selects operand width at emit time.

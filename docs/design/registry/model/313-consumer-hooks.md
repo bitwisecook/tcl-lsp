@@ -4,7 +4,7 @@ Status: proposed 26 November 2026, as a new plan item 313. It builds on
 [305](305-spectcl-3.md) (rungs, hook context, images), [306](306-expect-spike.md)
 (the image format), [307](307-libraries-as-data.md) (library crates),
 [308](308-positioned-context.md) (positioned versions) and item 311
-([`tclbc`](../../compiler/bytecode-image.md)). The codegen rungs it extends are
+([`TbcxUnit`](../../compiler/bytecode-image.md), tbcx format). The codegen rungs it extends are
 [registry-consumer-contracts.md § Four rungs of codegen meeting
 `.tclspec`](../../compiler/registry-consumer-contracts.md#four-rungs-of-codegen-meeting-tclspec).
 Built on by the optimiser and formatter crate steps (items 284 and the
@@ -263,8 +263,8 @@ The `exec` words are identical before and after (`[list …] eq [list …]` is
   a copy of the library that drifts from it silently. `BodySource::PackText`
   already says so (`runtime_backing.rs:152`), and its use stays limited to
   the workspace's own package as a reference body (`capability.rs:84`). What
-  survives of (a) is a **cache**: an image may carry `tclbc` (item 311,
-  tbcload-shaped) for the library's real source, keyed by that source's
+  survives of (a) is a **cache**: an image may carry a `TbcxUnit` (item 311,
+  tbcx format) for the library's real source, keyed by that source's
   hash. A stale hash falls back to source, the way 306's images do.
 
 **Facts the VM uses.** These are pure and effect classes (folding at
@@ -338,7 +338,7 @@ non-neutral silence ("the sink applies").
 | `RULES` | `check` trees, rewrite templates, `layout` rows |
 | `TABLES` (was `ROLE_TABLES`) | tabulated answers, tagged by family |
 | `HOOKS` | `(family u16, native_id u32 \| body_id u32, inputs)` |
-| `BODIES` (new) | Tcl hook bodies as `tclbc` (311), with source kept for the hash and the fallback |
+| `BODIES` (new) | Tcl hook bodies as `TbcxUnit` (311, tbcx format), with source kept for the hash and the fallback |
 | `IMPLEMENTATIONS` (new) | `(command, backing kind, native id or package path, version set)` |
 | `PROOFS` (new) | per rewrite and fold body: the release set that passed, and the corpus hash |
 
@@ -426,7 +426,7 @@ non-neutral silence ("the sink applies").
   `side_effects` and `effects` as unchanged rows. `const_fold_versioned`
   folds into `const_fold`.
 - **306's `HOOKS` section** stores source for lack of a serialiser, but item
-  311 now supplies `tclbc`. Add `BODIES`, `IMPLEMENTATIONS` and `PROOFS`,
+  311 now supplies `TbcxUnit` (tbcx format). Add `BODIES`, `IMPLEMENTATIONS` and `PROOFS`,
   and rename `ROLE_TABLES` to `TABLES` with a family tag.
 - **307** says a library crate holds an image and hooks "and nothing else".
   It may also hold native accelerators behind a `runtime` feature, which
