@@ -32,6 +32,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import select
 import shutil
 import signal
@@ -406,6 +407,9 @@ class Sampler(threading.Thread):
 # ---------------------------------------------------------------- target sizing
 
 
+TEST_EXE = re.compile(r"^[a-z0-9_]+-[0-9a-f]{16}$")
+
+
 def allocated_bytes(path: Path) -> dict[str, int]:
     """Allocated size under `path`, hard links once, split by top-level kind."""
     seen: set[tuple[int, int]] = set()
@@ -437,7 +441,7 @@ def allocated_bytes(path: Path) -> dict[str, int]:
             size = st.st_blocks * 512
             split["total"] += size
             k = kind(full.relative_to(path))
-            if k == "deps" and os.access(full, os.X_OK) and "." not in name:
+            if k != "incremental" and TEST_EXE.match(name) and os.access(full, os.X_OK):
                 k = "tests"
             split[k] += size
     return split
@@ -511,8 +515,10 @@ def command_argv(kind: str, crate: str, jobs: int | None) -> list[str]:
 
 
 def harness_matcher(target: Path, crate: str):
-    prefix = str(target / "debug" / "deps" / crate.replace("-", "_")) + "-"
-    return lambda exe: exe.startswith(prefix)
+    """Test harness processes: cargo names them `<crate>-<hash>` wherever the
+    build-dir layout puts them."""
+    prefix = crate.replace("-", "_") + "-"
+    return lambda exe: Path(exe).name.startswith(prefix)
 
 
 # ---------------------------------------------------------------- rust-analyzer
