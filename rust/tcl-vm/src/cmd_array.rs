@@ -946,9 +946,5 @@ mod tests {
 }
 
 #[cfg(test)]
-#[path = "cmd_array/native_unset_tests.rs"]
-mod native_unset_tests;
-
-#[cfg(test)]
 #[path = "cmd_array/original_argument_tests.rs"]
 mod original_argument_tests;

@@ -1178,7 +1178,3 @@ mod tests {
         );
     }
 }
-
-#[cfg(test)]
-#[path = "cmd_info/native_commands_tests.rs"]
-mod native_commands_tests;

@@ -16,65 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-mod commands {
-    mod command_tokens {
-        mod semantic_identity_tests {
-            use tcl_runtime_api::{Namespaces, ROOT_NS, semantic_identity::CommandIdentityTokens};
-
-            #[test]
-            fn command_refs_survive_rename_and_split_on_recreation() {
-                let mut vm = tcl_vm::test_support::native_vm();
-                vm.set_compiler(Box::new(
-                    tcl_codegen::compile_service::BytecodeCompileService::default(),
-                ));
-                assert!(
-                    vm.try_eval_source("proc p {} {return p}")
-                        .unwrap()
-                        .code
-                        .is_ok()
-                );
-                let initial_handle = vm.find_command(ROOT_NS, "p").unwrap();
-                let initial = vm.command_ref(initial_handle).into_proven().unwrap();
-                assert!(vm.try_eval_source("rename p q").unwrap().code.is_ok());
-                let moved_handle = vm.find_command(ROOT_NS, "q").unwrap();
-                assert_eq!(initial, vm.command_ref(moved_handle).into_proven().unwrap());
-                assert!(
-                    vm.try_eval_source("proc p {} {return newp}")
-                        .unwrap()
-                        .code
-                        .is_ok()
-                );
-                let recreated = vm.find_command(ROOT_NS, "p").unwrap();
-                assert_ne!(initial, vm.command_ref(recreated).into_proven().unwrap());
-                assert!(
-                    vm.try_eval_source("rename q {}; proc q {} {return fresh}")
-                        .unwrap()
-                        .code
-                        .is_ok()
-                );
-                let fresh = vm.find_command(ROOT_NS, "q").unwrap();
-                assert_ne!(initial, vm.command_ref(fresh).into_proven().unwrap());
-                assert_eq!(
-                    initial,
-                    vm.command_ref(initial_handle).into_proven().unwrap()
-                );
-                let mut counts = tcl_core_types::answer::ConformanceCounts::default();
-                counts.observe(
-                    &vm.command_ref(moved_handle)
-                        .map(|reference| reference == initial),
-                    Some(&true),
-                );
-                counts.observe(
-                    &vm.command_ref(recreated)
-                        .map(|reference| reference != initial),
-                    Some(&true),
-                );
-                counts.observe(
-                    &vm.command_ref(fresh).map(|reference| reference != initial),
-                    Some(&true),
-                );
-                println!("vm: {counts}");
-            }
-        }
-    }
-}
+mod commands;
+mod jim_table_key_tests;
+mod native_command_holder_tests;
+mod native_compiled_append;
+mod native_definition_registration_tests;
+mod native_execution_constants;
+mod native_interpreter_paths;
+mod native_jim_import;
+mod native_namespace_names;
+mod native_oo_bootstrap_inventory_tests;
+mod native_precision_tests;
+mod native_rename;
+mod native_substitution_entry_tests;
+mod native_variable_inventory_policy_tests;

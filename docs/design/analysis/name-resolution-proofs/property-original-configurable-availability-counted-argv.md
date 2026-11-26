@@ -40,7 +40,7 @@ No appliance launch is attached.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/cmd_oo/native_property_counted_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_property_counted_tests.rs), `cmd_oo::native_property_counted_tests::original_configurable_availability_matches_native_counted_argv_without_source_preflight` (linked): Recreates authentic per-profile native core and exact original counted object vectors; compares availability/factory/class-create codes and bytes against this finite original-argv capture, while source preflight and C9 property access remain separate.
+- [rust/tcl-vm-it/tests/it_5/cmd_oo/native_property_counted_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_oo/native_property_counted_tests.rs), `cmd_oo::native_property_counted_tests::original_configurable_availability_matches_native_counted_argv_without_source_preflight` (linked): Recreates authentic per-profile native core and exact original counted object vectors; compares availability/factory/class-create codes and bytes against this finite original-argv capture, while source preflight and C9 property access remain separate.
 
 ## Evidence
 

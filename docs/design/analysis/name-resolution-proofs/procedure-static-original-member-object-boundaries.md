@@ -40,7 +40,7 @@ No appliance execution is attached.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/command/native_static_original_tests.rs](../../../../rust/tcl-vm/src/command/native_static_original_tests.rs), `command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture` (linked): Recreates original native list members and counted names; compares all recorded declaration codes/messages, literal/copy/reference result identity and bytes, plus atomic missing/duplicate command absence, in six independently selected VM contexts.
+- [rust/tcl-vm-it/tests/it_5/command/native_static_original_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_static_original_tests.rs), `command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture` (linked): Recreates original native list members and counted names; compares all recorded declaration codes/messages, literal/copy/reference result identity and bytes, plus atomic missing/duplicate command absence, in six independently selected VM contexts.
 - [runtime/rust/src/cmd_proc/native_static_original_tests.rs](../../../../runtime/rust/src/cmd_proc/native_static_original_tests.rs), `cmd_proc::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture` (linked): Separately compares original Runtime object pointers, counted declaration/value bytes and atomic failed publication against every listed provider row. No Rust execution result is inferred.
 
 ## Evidence

@@ -1243,23 +1243,12 @@ mod native_substitution_tests;
 mod native_catch_formal_alias_tests;
 
 #[cfg(test)]
-#[path = "command/native_formal_alpha_tests.rs"]
-mod native_formal_alpha_tests;
-
-#[cfg(test)]
-mod native_subst_operand_tests;
-
-#[cfg(test)]
 #[path = "command/native_lambda_tests.rs"]
 mod native_lambda_tests;
 
 #[cfg(test)]
 #[path = "command/native_apply_original_tests.rs"]
 mod native_apply_original_tests;
-
-#[cfg(test)]
-#[path = "command/native_static_original_tests.rs"]
-mod native_static_original_tests;
 
 #[cfg(test)]
 mod native_completion_option_tests;

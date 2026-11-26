@@ -38,27 +38,10 @@ mod native_each;
 #[cfg(test)]
 #[path = "exec/native_fixed_math_tests.rs"]
 mod native_fixed_math_tests;
-#[cfg(test)]
-mod native_limit_error_tests;
-#[cfg(test)]
-#[path = "exec/native_list_index_tests.rs"]
-mod native_list_index_tests;
 mod native_list_insertion;
-#[cfg(test)]
-#[path = "exec/native_list_operations_tests.rs"]
-mod native_list_operations_tests;
 #[cfg(test)]
 mod native_namespace_string_tests;
 mod native_scalar;
-#[cfg(test)]
-#[path = "exec/native_string_result_effect_tests.rs"]
-mod native_string_result_effect_tests;
-#[cfg(test)]
-#[path = "exec/native_string_trim_tests.rs"]
-mod native_string_trim_tests;
-#[cfg(test)]
-#[path = "exec/native_try_tests.rs"]
-mod native_try_tests;
 #[cfg(test)]
 #[path = "exec/native_uplevel_tests.rs"]
 mod native_uplevel_tests;
@@ -1314,10 +1297,6 @@ mod original_activation_cleanup_tests;
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-#[path = "exec/native_missing_command_result_tests.rs"]
-mod native_missing_command_result_tests;
 
 #[cfg(test)]
 #[path = "exec/active_manifest_tests.rs"]

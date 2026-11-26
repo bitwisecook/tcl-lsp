@@ -23,16 +23,27 @@
 
 mod builtins_e2e;
 mod clock_compilation_e2e;
+mod cmd_array;
+mod cmd_coro;
+mod cmd_dict;
+mod cmd_event;
 mod cmd_event_e2e;
+mod cmd_info;
 mod cmd_lseq;
+mod cmd_namespace;
+mod cmd_oo;
 mod cmd_try;
+mod command;
 mod command_mutation_deopt_e2e;
 mod cross_version_escapes_e2e;
 mod dict_canonicalisation_parity;
+mod exec;
 mod fixture;
 mod interp;
+mod native_switch;
 mod opcode_c_parity;
 mod opcode_catch_parity;
+mod prelude;
 mod safe_interp_e2e;
 mod string_map_identity_receipt;
 mod tailcall_uplevel_e2e;

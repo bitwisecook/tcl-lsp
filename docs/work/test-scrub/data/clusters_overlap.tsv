@@ -764,7 +764,7 @@ df1bc9c220b4	2	0	1	tcl-compiler	lib	analyser::oo::tests::member_effects::a_secon
 e0a2a047ad91	2	0	1	tcl-compiler	it_4	dataflow::dataflow_alias_detection	rust/tcl-compiler/tests/it_4/dataflow.rs	428	
 e0a2a047ad91	2	0	1	tcl-compiler	it_4	dataflow::dataflow_alias_info_present	rust/tcl-compiler/tests/it_4/dataflow.rs	460	
 e143c9d90904	2	0	2	tcl-runtime	lib	cmd_proc::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture	runtime/rust/src/cmd_proc/native_static_original_tests.rs	93	
-e143c9d90904	2	0	2	tcl-vm	lib	command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture	rust/tcl-vm/src/command/native_static_original_tests.rs	169	
+e143c9d90904	2	0	2	tcl-vm	lib	command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture	rust/tcl-vm-it/tests/it_5/command/native_static_original_tests.rs	169	
 e199d2f148ac	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::symbols_global_set_emits_variable	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	292	
 e199d2f148ac	2	0	2	tcl-lsp-core	it_5	lsp_providers::doc_symbols_global_set_emits_variable	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	488	
 e1f66b3a3208	2	0	2	tcl-compiler	it_3	taint::colours::taint_colours::http_uri_getter_has_path_colour	rust/tcl-compiler/tests/it_3/taint/colours.rs	27	T100

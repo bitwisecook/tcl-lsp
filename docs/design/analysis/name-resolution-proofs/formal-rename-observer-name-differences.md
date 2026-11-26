@@ -40,7 +40,7 @@ No appliance capture for this exact counted formal/body/argv question.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/command/native_formal_alpha_tests.rs](../../../../rust/tcl-vm/src/command/native_formal_alpha_tests.rs), `command::native_formal_alpha_tests::formal_renaming_observer_controls_report_the_distinct_names` (linked): Compares actual local/formal introspection and C trace-name controls, with independent Jim trace absence; this does not claim arbitrary observer equivalence.
+- [rust/tcl-vm-it/tests/it_5/command/native_formal_alpha_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_formal_alpha_tests.rs), `command::native_formal_alpha_tests::formal_renaming_observer_controls_report_the_distinct_names` (linked): Compares actual local/formal introspection and C trace-name controls, with independent Jim trace absence; this does not claim arbitrary observer equivalence.
 
 ## Evidence
 

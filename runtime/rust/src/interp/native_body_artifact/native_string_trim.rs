@@ -97,6 +97,9 @@ mod tests {
     use crate::obj;
     use crate::obj::Owned;
     include!("../../../../../rust/tcl-registry/tests/data/native_string_trim_compilation/cases.rs");
+    include!(
+        "../../../../../rust/tcl-registry/tests/data/native_string_trim_compilation/header.rs"
+    );
     fn trim_interpreter(engine: &str) -> Interp {
         if engine != "jim" {
             return super::super::tests::interpreter(engine);

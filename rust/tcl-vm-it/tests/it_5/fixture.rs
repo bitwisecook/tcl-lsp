@@ -16,8 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Interpreters over an explicit release's native core, with that release's
-//! source compiler installed, built through `tcl-vm`'s public constructor.
+//! Interpreters over an explicit release's native core, built through
+//! `tcl-vm`'s public constructor, with or without that release's source
+//! compiler.
 
 use std::io::Write;
 use std::rc::Rc;
@@ -29,9 +30,17 @@ pub fn core_with_output(
     profile: &'static tcl_dialect::DialectProfile,
     output: Box<dyn Write>,
 ) -> Vm {
+    core_with_output_and_host(profile, output, Rc::new(NativeHost::new()))
+}
+
+fn core_with_output_and_host(
+    profile: &'static tcl_dialect::DialectProfile,
+    output: Box<dyn Write>,
+    host: Rc<dyn tcl_platform::Host>,
+) -> Vm {
     Vm::with_native_core(
         output,
-        Rc::new(NativeHost::new()),
+        host,
         profile,
         tcl_registry::special_vars::NativeBootstrapInputs {
             package_path: Vec::new(),
@@ -39,6 +48,13 @@ pub fn core_with_output(
         },
     )
     .expect("an actual native core for the profile")
+}
+
+fn with_compiler(mut vm: Vm, profile: &'static tcl_dialect::DialectProfile) -> Vm {
+    vm.set_compiler(Box::new(
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
+    ));
+    vm
 }
 
 /// [`core`] with `profile`'s source compiler installed.
@@ -51,9 +67,60 @@ pub fn interpreter_with_output(
     profile: &'static tcl_dialect::DialectProfile,
     output: Box<dyn Write>,
 ) -> Vm {
-    let mut vm = core_with_output(profile, output);
+    with_compiler(core_with_output(profile, output), profile)
+}
+
+/// [`interpreter`] with every scripted distribution library loaded, as the
+/// release's own shell starts.
+pub fn distribution(profile: &'static tcl_dialect::DialectProfile) -> Vm {
+    distribution_with_output(profile, Box::new(std::io::sink()))
+}
+
+/// [`distribution`] writing output to `output`.
+pub fn distribution_with_output(
+    profile: &'static tcl_dialect::DialectProfile,
+    output: Box<dyn Write>,
+) -> Vm {
+    with_compiler(
+        tcl_vm::test_support::native_vm_for_profile(profile, output),
+        profile,
+    )
+}
+
+struct EntryCapture(Rc<std::cell::RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>);
+
+impl tcl_runtime_api::CompileService for EntryCapture {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "entry capture only".into(),
+        ))
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        _: tcl_runtime_api::ScriptCompileTarget<'_>,
+        _: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        *self.0.borrow_mut() = Some(entry.clone());
+        self.compile("")
+    }
+}
+
+/// The compilation entry `vm` hands its compiler for a global-level script,
+/// captured through the public compiler seam. The release's own
+/// compiler is installed again afterwards.
+pub fn root_compilation_entry(vm: &mut Vm) -> tcl_runtime_api::NativeCompilationEntry {
+    let captured = Rc::new(std::cell::RefCell::new(None));
+    vm.set_compiler(Box::new(EntryCapture(Rc::clone(&captured))));
+    assert!(vm.try_compile_function("list").is_err());
+    let profile = vm.dialect_profile();
     vm.set_compiler(Box::new(
         tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
     ));
-    vm
+    captured
+        .take()
+        .expect("a global-level script reaches the compiler with its entry")
 }

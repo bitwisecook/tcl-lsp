@@ -1,0 +1,143 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Same-original range and ordered assignment: completions and the original argument.
+use tcl_vm::Value;
+include!("../../../../tcl-registry/tests/data/native_list_operations/cases.rs");
+include!("../../../../tcl-registry/tests/data/native_list_operations/tables.rs");
+include!("../../../../tcl-registry/tests/data/native_list_assignment_order/cases.rs");
+fn unhex(value: &str) -> Vec<u8> {
+    value
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+fn run(engine: &str, body: &str, result: &[&str], original: &[&str]) {
+    let profile = tcl_registry::model::resolve_environment(engine).unit_profile();
+    let mut vm = crate::fixture::interpreter(profile);
+    vm.try_eval_source(&format!("set ::log {{}}; proc tap {{v}} {{lappend ::log $v;return $v}}; proc p {{name idx}} {{set x $name;set a(1) $name;{body}}}")).unwrap();
+    let arguments = [
+        Value::new_native_string_bytes(b"{A} B C".as_slice()),
+        Value::new_native_string_bytes(b"1".as_slice()),
+    ];
+    let completion = vm
+        .try_invoke_command("p", &arguments)
+        .unwrap_or_else(|refusal| panic!("{engine}/{body}: {refusal:?}"));
+    assert_eq!(
+        completion.code.as_int().to_string(),
+        result[2],
+        "{engine}/{body}"
+    );
+    assert_eq!(
+        completion.result.to_str().as_bytes(),
+        unhex(result[6]),
+        "{engine}/{body}: result bytes"
+    );
+    assert_eq!(arguments[0].to_str().as_bytes(), unhex(original[5]));
+}
+#[test]
+fn original_range_and_assignment_match_84_native_completion_and_original_header_pairs() {
+    // Native proof: naming.list.assignment-interleaved-target-effects
+    // docs/design/analysis/name-resolution-proofs/list.assignment-interleaved-target-effects.md
+
+    // Native proof: naming.list.original-assign-objects-and-instructions
+    // docs/design/analysis/name-resolution-proofs/list.original-assign-objects-and-instructions.md
+
+    // Native proof: naming.list.original-range-objects-and-instructions
+    // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
+
+    let mut windows = 0;
+    for &(engine, list, order) in LIST_TABLES {
+        for (rows, bodies, cases) in [
+            (list, CASES, &[0usize, 1, 2, 3, 4, 11, 12, 13, 14, 28][..]),
+            (order, ORDER_CASES, &[0usize, 1, 2, 3][..]),
+        ] {
+            for line in rows.lines().filter(|line| line.starts_with("R|")) {
+                let result = line.split('|').collect::<Vec<_>>();
+                let case = result[1].parse::<usize>().unwrap();
+                if !cases.contains(&case) {
+                    continue;
+                }
+                let prefix = format!("O|{case}|");
+                let original = rows
+                    .lines()
+                    .find(|line| line.starts_with(&prefix))
+                    .unwrap()
+                    .split('|')
+                    .collect::<Vec<_>>();
+                run(engine, bodies[case], &result, &original);
+                windows += 1;
+            }
+        }
+    }
+    assert_eq!(windows, 84);
+}
+
+#[test]
+fn original_c86_insertion_matches_five_native_result_and_original_header_pairs() {
+    let rows =
+        include_str!("../../../../tcl-registry/tests/data/native_list_operations/8.6.18.txt");
+    let mut windows = 0;
+    for line in rows.lines().filter(|line| line.starts_with("R|")) {
+        let result = line.split('|').collect::<Vec<_>>();
+        let case = result[1].parse::<usize>().unwrap();
+        if ![5, 6, 7, 8, 29].contains(&case) {
+            continue;
+        }
+        let prefix = format!("O|{case}|");
+        let original = rows
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .unwrap()
+            .split('|')
+            .collect::<Vec<_>>();
+        run("tcl8.6", CASES[case], &result, &original);
+        windows += 1;
+    }
+    assert_eq!(windows, 5);
+}
+
+#[test]
+fn original_c9_insertion_matches_fourteen_native_result_and_original_header_pairs() {
+    let mut windows = 0;
+    for &(engine, rows, _) in LIST_TABLES {
+        if !["tcl9.0", "tcl9.1"].contains(&engine) {
+            continue;
+        }
+        for line in rows.lines().filter(|line| line.starts_with("R|")) {
+            let result = line.split('|').collect::<Vec<_>>();
+            let case = result[1].parse::<usize>().unwrap();
+            if ![5, 6, 7, 8, 9, 10, 29].contains(&case) {
+                continue;
+            }
+            let prefix = format!("O|{case}|");
+            let original = rows
+                .lines()
+                .find(|line| line.starts_with(&prefix))
+                .unwrap()
+                .split('|')
+                .collect::<Vec<_>>();
+            run(engine, CASES[case], &result, &original);
+            windows += 1;
+        }
+    }
+    assert_eq!(windows, 14);
+}

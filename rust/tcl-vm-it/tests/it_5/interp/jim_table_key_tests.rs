@@ -1,0 +1,97 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Original public Jim key spelling controls, separate from key header identity.
+
+fn original_result(rows: &str) -> (i64, Vec<u8>) {
+    let fields: Vec<_> = rows
+        .lines()
+        .find(|line| line.starts_with("ORIGINAL|"))
+        .unwrap()
+        .split('|')
+        .collect();
+    (
+        fields[1].parse().unwrap(),
+        fields[2]
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect(),
+    )
+}
+
+type OriginalControl = (&'static str, &'static [u8], [&'static str; 6]);
+const CONTROLS: &[OriginalControl] = &[
+    ("root-replacement", include_bytes!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/root-replacement.tcl").as_slice(), [
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.4/root-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.5/root-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.6/root-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl9.0/root-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl9.1/root-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/jim/root-replacement/stdout"),
+    ]),
+    ("rename-and-fresh-publication", include_bytes!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/rename-and-fresh-publication.tcl").as_slice(), [
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.4/rename-and-fresh-publication/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.5/rename-and-fresh-publication/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl8.6/rename-and-fresh-publication/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl9.0/rename-and-fresh-publication/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/tcl9.1/rename-and-fresh-publication/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys340/jim/rename-and-fresh-publication/stdout"),
+    ]),
+    ("namespace-replacement", include_bytes!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/namespace-replacement.tcl").as_slice(), [
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/tcl8.4/namespace-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/tcl8.5/namespace-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/tcl8.6/namespace-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/tcl9.0/namespace-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/tcl9.1/namespace-replacement/stdout"),
+        include_str!("../../../../tcl-registry/tests/data/native_jim_command_table_keys341/jim/namespace-replacement/stdout"),
+    ]),
+ ];
+
+#[test]
+fn original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources() {
+    // Native proof: naming.jim.original-command-table-key-publication
+    // docs/design/analysis/name-resolution-proofs/jim-original-command-table-key-publication.md
+    // Complete original public output does not establish private original key/header identity.
+    let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+    let mut comparisons = 0;
+    for &(case, source, columns) in CONTROLS {
+        for (engine, column) in providers.iter().zip(columns) {
+            let (expected_code, expected_result) = original_result(column);
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::fixture::distribution(profile);
+            let completion = vm
+                .try_eval_source(std::str::from_utf8(source).unwrap())
+                .unwrap();
+            assert_eq!(
+                completion.code.as_int(),
+                expected_code,
+                "{engine}/{case}: {completion:?}",
+            );
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                expected_result.as_slice(),
+                "{engine}/{case}"
+            );
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 18);
+}

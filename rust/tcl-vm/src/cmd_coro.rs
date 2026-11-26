@@ -1240,6 +1240,3 @@ mod original_operand_tests {
 
 #[cfg(test)]
 mod native_injection_tests;
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod native_original_holder_tests;

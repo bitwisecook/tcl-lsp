@@ -47,7 +47,7 @@ No appliance observation for these exact inputs.
 ## Consumer bindings
 
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `finish_catch`: Store through the original result-variable object using the selected native setter purpose.
-- [rust/tcl-vm/src/command/native_subst_operand_tests.rs](../../../../rust/tcl-vm/src/command/native_subst_operand_tests.rs), `command::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls` (linked): Compare exact catch result codes and counted output-name reads, plain/replacement sibling values and native result bytes for the three independent original byte inputs. No option table, alias, observer, normal completion or Rust execution is inferred.
+- [rust/tcl-vm-it/tests/it_5/command/native_subst_operand_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_subst_operand_tests.rs), `command::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls` (linked): Compare exact catch result codes and counted output-name reads, plain/replacement sibling values and native result bytes for the three independent original byte inputs. No option table, alias, observer, normal completion or Rust execution is inferred.
 - [runtime/rust/src/builtins/native_subst_operand_tests.rs](../../../../runtime/rust/src/builtins/native_subst_operand_tests.rs), `builtins::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls` (linked): Compare exact catch result codes and counted output-name reads, plain/replacement sibling values and native result bytes for the three independent original byte inputs. No option table, alias, observer, normal completion or Rust execution is inferred.
 
 ## Evidence

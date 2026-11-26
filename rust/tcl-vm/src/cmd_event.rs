@@ -618,9 +618,6 @@ fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventPr
     }
 }
 
-#[cfg(test)]
-mod native_original_tests;
-
 #[cfg(all(test, debug_assertions))]
 mod original_numeric_consumer_tests {
     use super::*;

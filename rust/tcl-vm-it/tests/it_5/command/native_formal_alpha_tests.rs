@@ -1,0 +1,265 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Whole-object return comparisons against actual counted formal/body inputs.
+
+use tcl_runtime_api::Completion;
+use tcl_syntax::value::ValueOps;
+use tcl_vm::{Vm, value::Value};
+
+fn unhex(value: &str) -> Vec<u8> {
+    value
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+fn call(vm: &mut Vm, head: &[u8], arguments: &[Value]) -> Completion<Value> {
+    vm.try_invoke_command(std::str::from_utf8(head).unwrap(), arguments)
+        .expect("no host refusal")
+}
+
+fn assert_row(vm: &mut Vm, result: &Completion<Value>, rows: &str, label: &str) {
+    let fields: Vec<_> = rows
+        .lines()
+        .find(|row| row.starts_with(&format!("{label}|")))
+        .unwrap()
+        .split('|')
+        .collect();
+    assert_eq!(
+        result.code.as_int(),
+        fields[1].parse::<i64>().unwrap(),
+        "{label}"
+    );
+    assert_eq!(
+        ValueOps::native_string_bytes(vm, &result.result)
+            .unwrap()
+            .as_ref(),
+        unhex(fields[3]),
+        "{label}"
+    );
+}
+
+#[test]
+fn counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries() {
+    // Native proof: naming.formal.whole-object-return-renaming
+    // docs/design/analysis/name-resolution-proofs/formal-whole-object-return-renaming.md
+    // Native proof: naming.formal.raw-zero-list-and-binding-renaming
+    // docs/design/analysis/name-resolution-proofs/formal-raw-zero-list-and-binding-renaming.md
+    for (engine, rows) in [
+        (
+            "tcl8.4",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.4/stdout.tsv"),
+        ),
+        (
+            "tcl8.5",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.5/stdout.tsv"),
+        ),
+        (
+            "tcl8.6",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.6/stdout.tsv"),
+        ),
+        (
+            "tcl9.0",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl9.0/stdout.tsv"),
+        ),
+        (
+            "tcl9.1",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl9.1/stdout.tsv"),
+        ),
+        (
+            "jimtcl",
+            include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/jim/stdout.tsv"),
+        ),
+    ] {
+        for input in rows.lines().filter(|row| row.starts_with("INPUT|")) {
+            let fields: Vec<_> = input.split('|').collect();
+            let name = fields[1];
+            let parameter = unhex(fields[2]);
+            let body = unhex(fields[3]);
+            let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
+            for (head, parameter, body, label) in [
+                (
+                    b"original".as_slice(),
+                    parameter.as_slice(),
+                    body.as_slice(),
+                    format!("{name}_DECLARE_ORIGINAL"),
+                ),
+                (
+                    b"renamed".as_slice(),
+                    b"a".as_slice(),
+                    b"return $a".as_slice(),
+                    format!("{name}_DECLARE_RENAMED"),
+                ),
+            ] {
+                let arguments = [head, parameter, body].map(Value::new_native_string_bytes);
+                let result = call(&mut vm, b"proc", &arguments);
+                assert_row(&mut vm, &result, rows, &label);
+            }
+            let prefix = format!("VALUE|{name}_");
+            for value in rows.lines().filter(|row| row.starts_with(&prefix)) {
+                let fields: Vec<_> = value.split('|').collect();
+                let bytes = unhex(fields[2]);
+                let argument = Value::new_native_string_bytes(bytes.as_slice());
+                for (head, suffix) in [
+                    (b"original".as_slice(), "ORIGINAL"),
+                    (b"renamed".as_slice(), "RENAMED"),
+                ] {
+                    let result = call(&mut vm, head, std::slice::from_ref(&argument));
+                    assert_row(&mut vm, &result, rows, &format!("{}_{suffix}", fields[1]));
+                }
+            }
+        }
+    }
+}
+
+const FORMAL_OBSERVER_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.4/stdout.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.5/stdout.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl8.6/stdout.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl9.0/stdout.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/tcl9.1/stdout.tsv"),
+    ),
+    (
+        "jimtcl",
+        include_str!("../../../../tcl-vm/tests/data/native_formal_alpha/v2/jim/stdout.tsv"),
+    ),
+];
+
+fn traced_formal_body(parameter: &[u8], legacy: bool) -> Vec<u8> {
+    [
+        if legacy {
+            b"trace variable ".as_slice()
+        } else {
+            b"trace add variable ".as_slice()
+        },
+        parameter,
+        if legacy {
+            b" r observe;return $".as_slice()
+        } else {
+            b" read observe;return $".as_slice()
+        },
+        parameter,
+    ]
+    .concat()
+}
+
+#[test]
+fn formal_renaming_observer_controls_report_the_distinct_names() {
+    // Native proof: naming.formal.rename-observer-name-differences
+    // docs/design/analysis/name-resolution-proofs/formal-rename-observer-name-differences.md
+    for (engine, rows) in FORMAL_OBSERVER_ROWS {
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
+        let argument = Value::new_native_string_bytes(b"VALUE".as_slice());
+        for (head, parameter) in [
+            (b"original".as_slice(), b"longargument".as_slice()),
+            (b"renamed".as_slice(), b"a".as_slice()),
+        ] {
+            assert_eq!(
+                call(
+                    &mut vm,
+                    b"proc",
+                    &[head, parameter, b"info locals"].map(Value::new_native_string_bytes)
+                )
+                .code,
+                tcl_runtime_api::Code::Ok
+            );
+        }
+        for (head, suffix) in [
+            (b"original".as_slice(), "ORIGINAL"),
+            (b"renamed".as_slice(), "RENAMED"),
+        ] {
+            let result = call(&mut vm, head, std::slice::from_ref(&argument));
+            assert_row(&mut vm, &result, rows, &format!("LOCALS_{suffix}"));
+            let result = call(
+                &mut vm,
+                b"info",
+                &[b"args".as_slice(), head].map(Value::new_native_string_bytes),
+            );
+            assert_row(&mut vm, &result, rows, &format!("ARGS_{suffix}"));
+        }
+        if tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()).family()
+            == Some(tcl_dialect::model::Family::Jim)
+        {
+            let result = call(
+                &mut vm,
+                b"info",
+                &[b"commands".as_slice(), b"trace"].map(Value::new_native_string_bytes),
+            );
+            assert_row(&mut vm, &result, rows, "TRACE_AVAILABILITY");
+            continue;
+        }
+        assert_eq!(
+            call(
+                &mut vm,
+                b"proc",
+                &[b"observe".as_slice(), b"name index op", b"set ::seen $name"]
+                    .map(Value::new_native_string_bytes)
+            )
+            .code,
+            tcl_runtime_api::Code::Ok
+        );
+        let legacy = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+            .tcl_version
+            == Some(tcl_dialect::TclVersion::V8_4);
+        for (head, parameter, suffix) in [
+            (
+                b"original".as_slice(),
+                b"longargument".as_slice(),
+                "ORIGINAL",
+            ),
+            (b"renamed".as_slice(), b"a".as_slice(), "RENAMED"),
+        ] {
+            let body = traced_formal_body(parameter, legacy);
+            assert_eq!(
+                call(
+                    &mut vm,
+                    b"proc",
+                    &[head, parameter, body.as_slice()].map(Value::new_native_string_bytes)
+                )
+                .code,
+                tcl_runtime_api::Code::Ok
+            );
+            let result = call(&mut vm, head, std::slice::from_ref(&argument));
+            assert_row(&mut vm, &result, rows, &format!("TRACE_RETURN_{suffix}"));
+            let result = call(
+                &mut vm,
+                b"set",
+                &[Value::new_native_string_bytes(b"::seen".as_slice())],
+            );
+            assert_row(&mut vm, &result, rows, &format!("TRACE_NAME_{suffix}"));
+        }
+    }
+}

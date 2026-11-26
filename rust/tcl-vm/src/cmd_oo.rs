@@ -823,18 +823,9 @@ mod native_byte_name_tests;
 mod original_bootstrap_namespace_tests;
 
 #[cfg(test)]
-mod tcloo_version_tests;
-
-#[cfg(test)]
-mod export_visibility_tests;
-
-#[cfg(test)]
 mod original_call_argv_tests;
 
 mod native_properties;
-
-#[cfg(test)]
-mod native_private_tests;
 
 /// Same-entry OO observation captured from actual backend allocations and tables.
 pub(crate) fn native_bootstrap_inventory(
@@ -848,16 +839,7 @@ pub(crate) fn native_bootstrap_inventory(
 mod native_info_option_tests;
 
 #[cfg(test)]
-mod native_explicit_variable_tests;
-
-#[cfg(test)]
 mod native_method_info_tests;
-
-#[cfg(test)]
-mod native_property_counted_tests;
-
-#[cfg(test)]
-mod native_original_holder_tests;
 
 #[cfg(test)]
 mod native_method_report_tests;

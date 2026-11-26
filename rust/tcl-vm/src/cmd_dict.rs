@@ -1488,13 +1488,3 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod native_rmw_fixture_tests;
-
-#[cfg(test)]
-#[path = "cmd_dict/scripted_tests.rs"]
-mod scripted_tests;
-
-#[cfg(test)]
-mod native_path_publication_tests;

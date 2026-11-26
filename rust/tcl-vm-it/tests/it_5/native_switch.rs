@@ -1,0 +1,166 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+mod tests {
+    use crate::prelude::*;
+    use std::rc::Rc;
+    use tcl_core_types::Code;
+    fn bytes(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+    #[test]
+    fn registered_switch_instructions_match_56_native_controls() {
+        let mut compared = 0;
+        for row in include_str!("../../../tcl-registry/tests/data/registered-switch56.tsv").lines()
+        {
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
+            let profile = tcl_dialect::DialectProfile::find(match fields[0] {
+                "8.5.19" => "tcl8.5",
+                "8.6.18" => "tcl8.6",
+                "9.0.4" => "tcl9.0",
+                "9.1.0" => "tcl9.1",
+                _ => panic!("native version"),
+            })
+            .unwrap();
+            let mut vm = Vm::with_native_core(
+                Box::new(Vec::<u8>::new()),
+                Rc::new(tcl_vm::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            vm.set_compiler(Box::new(
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
+            ));
+            let body = Value::new_native_string_bytes(bytes(fields[2]));
+            assert_eq!(
+                vm.invoke_command(
+                    "proc",
+                    &[
+                        Value::new_native_string_bytes(b"p".as_slice()),
+                        Value::new_native_string_bytes(b"x".as_slice()),
+                        body
+                    ]
+                )
+                .code,
+                Code::Ok
+            );
+            let result = vm.invoke_command("p", &[Value::new_native_string_bytes(b"A".as_slice())]);
+            assert_eq!(
+                result.code,
+                Code::from_int(fields[3].parse().unwrap()),
+                "{}/{}: {:?}",
+                fields[0],
+                fields[1],
+                result
+            );
+            assert_eq!(
+                result
+                    .result
+                    .native_string_bytes(
+                        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+                            .native_string_protocol()
+                            .unwrap()
+                    )
+                    .unwrap()
+                    .as_ref(),
+                bytes(fields[4]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, 56);
+    }
+    #[test]
+    fn registered_switch_instructions_match_56_native_branch_controls() {
+        let mut compared = 0;
+        for row in include_str!("../../../tcl-registry/tests/data/registered-switch-branches56.tsv")
+            .lines()
+        {
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
+            let profile = tcl_dialect::DialectProfile::find(match fields[0] {
+                "8.5.19" => "tcl8.5",
+                "8.6.18" => "tcl8.6",
+                "9.0.4" => "tcl9.0",
+                "9.1.0" => "tcl9.1",
+                _ => panic!("native version"),
+            })
+            .unwrap();
+            let mut vm = Vm::with_native_core(
+                Box::new(Vec::<u8>::new()),
+                Rc::new(tcl_vm::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            vm.set_compiler(Box::new(
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
+            ));
+            assert_eq!(
+                vm.invoke_command(
+                    "proc",
+                    &[
+                        Value::new_native_string_bytes(b"p".as_slice()),
+                        Value::new_native_string_bytes(b"x".as_slice()),
+                        Value::new_native_string_bytes(bytes(fields[2]))
+                    ]
+                )
+                .code,
+                Code::Ok
+            );
+            let argument = Value::from_native_byte_array(
+                Rc::from(bytes(fields[3])),
+                tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+            )
+            .unwrap();
+            let result = vm.invoke_command("p", &[argument]);
+            assert_eq!(
+                result.code,
+                Code::from_int(fields[4].parse().unwrap()),
+                "{}/{}: {:?}",
+                fields[0],
+                fields[1],
+                result
+            );
+            assert_eq!(
+                result
+                    .result
+                    .native_string_bytes(
+                        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+                            .native_string_protocol()
+                            .unwrap()
+                    )
+                    .unwrap()
+                    .as_ref(),
+                bytes(fields[5]),
+                "{}/{}",
+                fields[0],
+                fields[1]
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, 56);
+    }
+}

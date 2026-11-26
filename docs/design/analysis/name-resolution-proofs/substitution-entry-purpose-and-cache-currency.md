@@ -34,10 +34,10 @@ This record is a Rust implementation contract; no native or Rust execution is cl
 - `rust/tcl-compiler/src/codegen/native_substitution.rs`, `CodegenCtx::emit_substitution`: Shared actual native word parts plus native substitution completion branches.
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::prepare_original_substitution`: Original source getter before current snapshot and independently validated substcode cache.
 - [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs), `Interp::prepare_original_c_substitution`: Independent runtime original template artifact and strong borrowed local-name ownership.
-- [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs), `interp::native_substitution_entry_tests::substitution_entry_requires_selected_handler_and_independent_source_context` (linked): Genuine entry positive; opaque handler, foreign interpreter, unknown engine/string recipe, mismatched recipe, Document and script-only service negatives; legacy/Jim cannot acquire compiled purpose.
+- [rust/tcl-vm-it/tests/it_5/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/interp/native_substitution_entry_tests.rs), `interp::native_substitution_entry_tests::substitution_entry_requires_selected_handler_and_independent_source_context` (linked): Genuine entry positive; opaque handler, foreign interpreter, unknown engine/string recipe, mismatched recipe, Document and script-only service negatives; legacy/Jim cannot acquire compiled purpose.
 
 ## Evidence
 
 - [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs)
-- [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs)
+- [rust/tcl-vm-it/tests/it_5/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/interp/native_substitution_entry_tests.rs)
 - [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs)

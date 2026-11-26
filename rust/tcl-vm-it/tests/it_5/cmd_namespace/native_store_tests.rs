@@ -1,0 +1,142 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Namespace stores use the actual entered frame and release-specific fallback.
+use crate::prelude::*;
+
+fn decode(bytes: &str) -> Vec<u8> {
+    bytes
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect()
+}
+
+const NAMESPACE_STORE_ROWS: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.4/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.5/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl8.6/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.0/namespace.stdout"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/tcl9.1/namespace.stdout"
+        ),
+    ),
+    (
+        "jim",
+        include_str!(
+            "../../../../tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stdout"
+        ),
+    ),
+];
+
+#[test]
+fn namespace_stores_match_native_existing_root_fresh_and_declared_controls() {
+    // Native proof: naming.variable.namespace-store-frame-and-fallback
+    // docs/design/analysis/name-resolution-proofs/namespace-store-frame-and-fallback.md
+    let cases = [
+        (
+            "EXISTING_ROOT",
+            "N",
+            "set x VALUE; list [set x] [catch {set ::N::x} local] $local [set ::x]",
+            true,
+        ),
+        (
+            "FRESH_NO_ROOT",
+            "Fresh",
+            "set x VALUE; list [set x] [catch {set ::Fresh::x} local] $local [catch {set ::x} root] $root",
+            false,
+        ),
+        (
+            "EXPLICIT_VARIABLE",
+            "Explicit",
+            "variable x VALUE; list [set x] [catch {set ::Explicit::x} local] $local [set ::x]",
+            true,
+        ),
+    ];
+    for (engine, rows) in NAMESPACE_STORE_ROWS {
+        for (label, namespace, script, has_root) in cases {
+            let mut vm = crate::fixture::interpreter(
+                tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+            );
+            if has_root {
+                assert_eq!(
+                    vm.invoke_command(
+                        "set",
+                        &[
+                            Value::new_native_string_bytes(b"::x".as_slice()),
+                            Value::new_native_string_bytes(b"ROOT".as_slice())
+                        ]
+                    )
+                    .code,
+                    Code::Ok
+                );
+            }
+            let result = vm
+                .try_invoke_command(
+                    "namespace",
+                    &[
+                        Value::new_native_string_bytes(b"eval".as_slice()),
+                        Value::new_native_string_bytes(namespace.as_bytes()),
+                        Value::new_native_string_bytes(script.as_bytes()),
+                    ],
+                )
+                .unwrap_or_else(|error| panic!("{engine}/{label}: {error}"));
+            let row = rows
+                .lines()
+                .find(|row| row.starts_with(&format!("CASE|{label}|")))
+                .unwrap();
+            let fields: Vec<_> = row.split('|').collect();
+            assert_eq!(
+                result.code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{engine}/{label}: {result:?}"
+            );
+            assert_eq!(
+                ValueOps::native_string_bytes(&mut vm, &result.result)
+                    .unwrap()
+                    .as_ref(),
+                decode(fields[3]),
+                "{engine}/{label}"
+            );
+        }
+    }
+}

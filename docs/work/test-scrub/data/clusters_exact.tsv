@@ -57,7 +57,7 @@ fa61f58ca6cd	3	0	3	tcl-vm	legacy_variable_traces_e2e	legacy_variable_trace_forms
 4d09d5d3f4d4	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_expr_cmd_subst	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	155	
 4d09d5d3f4d4	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_expr_cmd_subst	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	235	
 55205d9f9e85	2	1	2	tcl-runtime	lib	interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs	runtime/rust/src/interp/native_body_artifact/native_list_operations.rs	645	
-55205d9f9e85	2	1	2	tcl-vm	lib	exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs	rust/tcl-vm/src/exec/native_list_operations_tests.rs	78	
+55205d9f9e85	2	1	2	tcl-vm	lib	exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs	rust/tcl-vm-it/tests/it_5/exec/native_list_operations_tests.rs	78	
 574d4d08c09b	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::foreach_lists::extract_foreach_elements_single_element_braced_list_not_double_stripped	rust/tcl-compiler/src/sccp/original_value_facts/tests/foreach_lists.rs	104	
 574d4d08c09b	2	0	2	tcl-compiler	lib	sccp::tests::foreach_lists::extract_foreach_elements_single_element_braced_list_not_double_stripped	rust/tcl-compiler/src/sccp/tests/foreach_lists.rs	107	
 5da08a122aff	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::http_uri_no_t102	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	154	T102
@@ -101,7 +101,7 @@ fa61f58ca6cd	3	0	3	tcl-vm	legacy_variable_traces_e2e	legacy_variable_trace_forms
 8cd1a6ee3b69	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_llength_literal	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	87	
 8cd1a6ee3b69	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_llength_literal	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	172	
 8d95ae64a8e7	2	0	2	tcl-runtime	lib	interp::native_body_artifact::native_list_operations::tests::original_c9_insertion_matches_fourteen_native_result_and_original_header_pairs	runtime/rust/src/interp/native_body_artifact/native_list_operations.rs	708	
-8d95ae64a8e7	2	0	2	tcl-vm	lib	exec::native_list_operations_tests::original_c9_insertion_matches_fourteen_native_result_and_original_header_pairs	rust/tcl-vm/src/exec/native_list_operations_tests.rs	139	
+8d95ae64a8e7	2	0	2	tcl-vm	lib	exec::native_list_operations_tests::original_c9_insertion_matches_fourteen_native_result_and_original_header_pairs	rust/tcl-vm-it/tests/it_5/exec/native_list_operations_tests.rs	139	
 9956638bea83	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_plain_literal	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	24	
 9956638bea83	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_plain_literal	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	109	
 9d20b57b57c6	2	0	2	tcl-compiler	lib	cfg_layout::tests::touching_endpoints_count_as_overlap	rust/tcl-compiler/src/cfg_layout.rs	213	

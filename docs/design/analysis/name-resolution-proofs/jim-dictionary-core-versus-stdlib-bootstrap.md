@@ -65,7 +65,7 @@ This exact probe selects Jim API core and Jim_stdlibInit; no bigip API/CLI/appli
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_array.rs](../../../../runtime/rust/src/cmd_array.rs), `cmd_array::tests::jim_dictionary_worker_requires_explicit_distribution_initialisation` (linked): Explicit core ingress catches the missing worker and retains BEFORE/body-zero; shared distribution installation admits the same caller-value projection. The separate enumeration field supplies no binding inference.
-- [rust/tcl-vm/src/cmd_dict/scripted_tests.rs](../../../../rust/tcl-vm/src/cmd_dict/scripted_tests.rs), `cmd_dict::scripted_tests::native_jim_dictionary_worker_requires_explicit_distribution_initialisation` (linked): VM same-interpreter core-before/shared-installer-after control compares exact selected invocation/caller-value fields of original Native191 source. Equal empty info commands enumeration is excluded from availability inference; no executed Rust result is claimed.
+- [rust/tcl-vm-it/tests/it_5/cmd_dict/scripted_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_dict/scripted_tests.rs), `cmd_dict::scripted_tests::native_jim_dictionary_worker_requires_explicit_distribution_initialisation` (linked): VM same-interpreter core-before/shared-installer-after control compares exact selected invocation/caller-value fields of original Native191 source. Equal empty info commands enumeration is excluded from availability inference; no executed Rust result is claimed.
 
 ## Exact original-source349 software outcomes
 

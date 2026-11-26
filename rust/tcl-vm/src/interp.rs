@@ -105,8 +105,6 @@ mod authored_tmm_static;
 pub(crate) mod closed_native_execution;
 mod execution_name_policy;
 pub(crate) mod jim_local;
-#[cfg(test)]
-mod jim_table_key_tests;
 mod jim_table_keys;
 mod jim_teardown;
 pub(crate) mod namespace_context;
@@ -122,8 +120,6 @@ mod native_append;
 mod native_bootstrap;
 #[cfg(test)]
 mod native_cache_tests;
-#[cfg(test)]
-mod native_command_holder_tests;
 mod native_command_names;
 pub(crate) use native_command_names::ResolvedHead;
 #[cfg(test)]
@@ -186,8 +182,6 @@ pub(crate) mod native_numeric_ops;
 pub(crate) mod native_operation_currency;
 mod native_original_lookup;
 mod native_package_files;
-#[cfg(test)]
-mod native_precision_tests;
 mod native_procedure_artifacts;
 mod native_rename;
 pub(crate) mod native_scalar_ingress;
@@ -1724,28 +1718,14 @@ mod native_result_tests;
 mod definition_compiler_registration_tests;
 
 #[cfg(test)]
-#[path = "interp/native_substitution_entry_tests.rs"]
-mod native_substitution_entry_tests;
-
-#[cfg(test)]
 #[path = "interp/native_command_resolver_tests.rs"]
 mod native_command_resolver_tests;
-
-#[cfg(test)]
-mod native_definition_registration_tests;
-
-#[cfg(test)]
-mod native_oo_bootstrap_inventory_tests;
 
 #[cfg(test)]
 mod native_child_alias_publication_tests;
 
 #[cfg(test)]
 mod byte_array_result_tests;
-
-#[cfg(test)]
-#[path = "interp/native_variable_inventory_policy_tests.rs"]
-mod native_variable_inventory_policy_tests;
 
 #[cfg(test)]
 mod debug_owned_cell_tests;

@@ -621,3 +621,43 @@ compiler only through `native_fixture::interpreter*`: counting test functions
 whose body, or a same-file helper, reaches it, 653 tests in 172 files (940
 tests in those files in all). While any of them stays, both dev-dependencies
 stay and a `tcl-compiler` edit still rebuilds `tcl-vm`'s tests.
+
+**Rewrite, batch 1: the 42 blocks that name no private type.** 80 tests in
+42 files now run in `tcl-vm-it/tests/it_5` under their old module paths
+(`exec::native_list_index_tests::…` and so on), through
+`it_5/fixture.rs` (native core, release compiler, full scripted
+distribution, and the global-level compilation entry captured through the
+public `CompileService` seam). What changed in them:
+- Calls to private entry points became their public forms:
+  `try_invoke_command` for the object-vector entry and its refusal check,
+  `ValueOps` for counted string bytes,
+  `InvocationDialect::of_static_profile(vm.dialect_profile())` for the
+  selected dialect and its protocols, `fixture::distribution` for a VM with
+  its scripted libraries, `namespace current`, `interp exists`,
+  `info commands`, `namespace which` and `namespace parent` for the state
+  they read.
+- Assertions on object headers, reference counts, object identity, cached
+  internal representations and interpreter fields were deleted. The rows'
+  completion codes and result bytes, which the tclsh and jimsh captures
+  record, stay.
+- `native_limit_error_tests` now drives the limit through `interp limit`
+  on a child, and compares `-errorinfo` with tclsh 8.6.18 and 9.0.4. The VM
+  omits tclsh's last frame (`invoked from within "c eval budget_loop"`);
+  the test checks the frames both report.
+- 4 tests were deleted as pure implementation detail:
+  `exec::native_list_index_tests::original_objects::original_index_list_and_returned_child_have_independent_real_owners`
+  (reference counts of a private call),
+  `interp::native_execution_constants::tests::array_existence_results_share_only_the_selected_native_environment_constant`
+  and `…::compiled_match_results_keep_native_constant_and_c84_pattern_owners`
+  (shared-constant object identity; the values stay covered by the match-order
+  test beside them and the e2e suites), and
+  `interp::native_namespace_names::jim_parent::tests::unchanged_parent_retains_the_result_published_during_the_original_getter`
+  (a private getter callback).
+- `tcl-registry/tests/data/native_string_trim_compilation/header.rs` now
+  holds the header formatter that only `runtime/rust` still asserts.
+
+Parity: `-p tcl-vm -p tcl-vm-it --no-fail-fast` gives 3150 passed and 80
+failed. No new failure; the two `native_list_operations_tests` C rows now
+pass, having failed only on object headers. Left: 575 tests in 130 files,
+which name private types (`NativeOperationScope`, `Command`, `BinOp`,
+`OriginalNameConsumerScope` and others) and need rewriting by hand.

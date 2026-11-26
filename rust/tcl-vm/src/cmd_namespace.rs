@@ -936,16 +936,10 @@ fn ns_text_op(vm: &mut Vm, rest: &[Value], tail: bool) -> Completion<Value> {
 mod tests;
 
 #[cfg(test)]
-mod native_upvar_fixture_tests;
-
-#[cfg(test)]
 mod original_export_tests;
 
 #[cfg(test)]
 mod original_ensemble_tests;
-
-#[cfg(test)]
-mod native_store_tests;
 
 #[cfg(test)]
 mod native_map_prefix_tests;

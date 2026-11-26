@@ -1,0 +1,118 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+mod tests {
+    use tcl_core_types::Code;
+    use tcl_syntax::value::ValueOps;
+    use tcl_vm::Value;
+
+    mod inputs {
+        include!("../../../../tcl-registry/tests/data/native_each_try_compilation/cases.rs");
+    }
+    fn bytes(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn original_compiled_each_matches_95_native_completions() {
+        let engines = [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../../tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../../tcl-registry/tests/data/native_each_try_compilation/8.5.19.tsv"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../../tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv"
+                ),
+            ),
+        ];
+        let mut compared = 0;
+        for (profile, fixture) in engines {
+            let profile = tcl_dialect::DialectProfile::find(profile).unwrap();
+            for row in fixture.lines().skip(1).take(19) {
+                let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
+                let index = fields[0].parse::<usize>().unwrap();
+                let (label, original) = inputs::CASES[index];
+                let mut vm = crate::fixture::interpreter(profile);
+                let defined = vm
+                    .try_invoke_command(
+                        "proc",
+                        &[
+                            Value::new_native_string_bytes(b"p".as_slice()),
+                            Value::empty(),
+                            Value::new_native_string_bytes(original),
+                        ],
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!("{}/{label} definition: {error:?}", profile.name)
+                    });
+                assert_eq!(
+                    defined.code,
+                    Code::Ok,
+                    "{}/{label}: {defined:?}",
+                    profile.name
+                );
+                let completion = vm.try_invoke_command("p", &[]).unwrap_or_else(|error| {
+                    panic!("{}/{label} activation: {error:?}", profile.name)
+                });
+                assert_eq!(
+                    completion.code,
+                    Code::from_int(fields[1].parse().unwrap()),
+                    "{}/{label}: {completion:?}",
+                    profile.name
+                );
+                assert_eq!(
+                    ValueOps::native_string_bytes(&mut vm, &completion.result)
+                        .unwrap()
+                        .as_ref(),
+                    bytes(fields[2]),
+                    "{}/{label}",
+                    profile.name
+                );
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 95);
+    }
+}
