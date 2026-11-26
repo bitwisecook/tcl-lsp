@@ -44,16 +44,20 @@ keep it inside the core:
 ## Design
 
 The crates follow [the target model](dialects-and-libraries.md): a registry
-core, one crate per dialect, one crate per library distribution, and a
-catalogue. A distribution can hold several packages: tcllib's 214 modules are
-one crate, and Tcl's bundled libraries are one crate.
+core, one crate per dialect, one crate per library package (owner decision,
+26 November 2026), and a catalogue. The table below names the crates by
+today's modules. Each row that holds several packages becomes one crate per
+package: every tcllib package, each bundled Tcl library (http, msgcat,
+tcltest, …), iApps and tmsh separately, and Itcl, Thread, argparse and
+ticklecharts separately. After item 307 a package crate is an image plus its
+hooks, so most of these crates are generated scaffolding.
 
 | Crate | Takes today | Depends on |
 |---|---|---|
 | `tcl-registry` (core) | the vocabulary (`CommandSpec`, roles, arity, effects, forms, hooks API); the library, compatibility and environment model and its resolution; lookup over the dialects and libraries it is given | `tcl-dialect`, `tcl-lexer`, `tcl-syntax`, `tcl-cmd-core`, `tcl-runtime-api` |
 | `tcl-dialect-tcl` | `commands/tcl` (48k): the Tcl 8.4–9.1 core surface, its folds, grammars and hooks. The Jim and iRules logic that sits there today moves out. | core, `tcl-cmd-core` |
 | `tcl-dialect-jim` | Jim's roster and own commands (today SpecTcl in `tcl-spectcl/core-surfaces`) and the `native_jim_*` semantics | core, `tcl-dialect-tcl` (its roster narrows Tcl 8.6's surface) |
-| `tcl-dialect-f5` | the f5tcl core surface (the 8.4.6 fork as it ships in BIG-IP), for both builds | core, `tcl-dialect-tcl` |
+| `tcl-dialect-f5` | the f5-tcl core surface (the 8.4.6 fork as it ships in BIG-IP), for both builds | core, `tcl-dialect-tcl` |
 | `tcl-lib-tcl-bundled` | `commands/stdlib` (12k): http, msgcat, tcltest and the other libraries Tcl releases bundle | core |
 | `tcl-lib-tk`, `tcl-lib-tcllib`, `tcl-lib-expect` | `commands/tk` (22k), `commands/tcllib` (27k) + `TCLLIB_MODULES`, `commands/expect` | core |
 | `tcl-lib-irules` | `commands/irules` (64k) and the iRules policy | core, the BIG-IP schema crate (item 118) |
@@ -138,7 +142,7 @@ crate holds Rust data or a SpecTcl-sourced image is decided by item 306.
   installs it. Mitigation: the loud failure above, and one test per entry point
   that it installs before first use.
 - **Cross-surface helpers.** A surface that today borrows another's helpers
-  (Tk's from Tcl, f5tcl's from Tcl) depends on that crate, never on a
+  (Tk's from Tcl, f5-tcl's from Tcl) depends on that crate, never on a
   copy.
 - **Lazy construction.** Today's lazily built, leaked spec groups keep their
   laziness per surface. The SpecTcl compiled-surface work

@@ -105,7 +105,7 @@ the editors and are not aliases. A spelling that is both (`tcl-irule`,
 `tclspec`) appears once, as an identity, and the resolver tries identities
 after aliases, as today's four-tier index does (`environment.rs:900`).
 
-Old spellings from 301 join the table: `f5-tcl` → `f5tcl`'s default
+Old spellings from 301 join the table: `f5-tcl` → `f5-tcl`'s default
 environment (`f5-tmsh`). The `f5-irules` id is unchanged.
 
 ### The compiled-in environments in `tcl-catalogue`
@@ -121,9 +121,9 @@ contribution:
 | `tk` (`wish`) | tcl 8.4–9.1, default 8.6 | Tk ambient; Itcl hosted |
 | `jim` (`jimsh`, `jimtcl`) | jim 0.76–0.84, `Canonical` | none |
 | `jim-minimal` (new) | jim 0.82–0.84, `JimMinimal` | none |
-| `f5-irules` | f5tcl lines 15.0–21.1, default 16.1, `Tmm` | iRules ambient (tracks host) |
-| `f5-iapps` | f5tcl, `Scriptd` | iApps and tmsh ambient |
-| `f5-tmsh` | f5tcl, `Scriptd` (301 open question) | tmsh ambient |
+| `f5-irules` | f5-tcl lines 15.0–21.1, default 16.1, `Tmm` | iRules ambient (tracks host) |
+| `f5-iapps` | f5-tcl, `Scriptd` | iApps and tmsh ambient |
+| `f5-tmsh` | f5-tcl, `Scriptd` (301 open question) | tmsh ambient |
 | `f5-bigip` | none | BIG-IP schema (tracks the BIG-IP axis) |
 | `expect` | tcl 8.6 | Expect 5.45.4 ambient |
 | `spectcl`, `sslictcl`, `bpf` | tcl 9.0 | their DSL library ambient, closed world |
@@ -149,18 +149,18 @@ the verification below pins.
 
 `tclLsp.targets` and `# tcl-lsp: supports NAME RANGE` stay as they are
 (redesign §5.4, `targets_from_clauses`). The one change is where they land.
-`NAME` resolves through the catalogue: a family name (`tcl`, `jim`, `f5tcl`)
+`NAME` resolves through the catalogue: a family name (`tcl`, `jim`, `f5-tcl`)
 or a library id or alias (`Tk`, `itcl`, `iRules`). The range intersects the
 selector's release set or the library's placed range. A range on a library
 the environment does not place is an error notice, not a silent drop.
-`--bigip-version` and `tclLsp.bigipVersion` become a target on the f5tcl
+`--bigip-version` and `tclLsp.bigipVersion` become a target on the f5-tcl
 axis.
 
 ### Removing `VersionKey` and `KeyedAxis`
 
 | Variant | Becomes |
 |---|---|
-| `BigipVersion` | f5tcl's release axis (301). iRules, iApps, tmsh and the schema track the host |
+| `BigipVersion` | f5-tcl's release axis (301). iRules, iApps, tmsh and the schema track the host |
 | `ToolVersion` | each EDA library's own axis (`vivado`, `quartus`, …) |
 | `SdcVersion` | the `sdc` library's own axis |
 | `UpfVersion` | the `upf` library's own axis |
@@ -190,7 +190,7 @@ generators (`gen-editor-dialects`, `gen-editor-extensions`), the CLI's
 3. **A `jim-minimal` environment, not a setting.** Detection and editor
    identity are per environment, and a build change alters the lexer and the
    surface.
-4. **f5tcl's default release is 16.1, and its baseline is 15.0.** These keep
+4. **f5-tcl's default release is 16.1, and its baseline is 15.0.** These keep
    today's answers.
 
 ### Open questions
@@ -217,7 +217,7 @@ generators (`gen-editor-dialects`, `gen-editor-extensions`), the CLI's
 5. Re-point `gen-bundled-environments`, `gen-editor-dialects` and
    `gen-editor-extensions` at the catalogue, with `--check`.
 6. Settings: `tclLsp.targets` names resolve through the catalogue, and
-   `bigipVersion` maps to an f5tcl target.
+   `bigipVersion` maps to an f5-tcl target.
 
 ## Verification
 
@@ -253,3 +253,7 @@ generators (`gen-editor-dialects`, `gen-editor-extensions`), the CLI's
 - The overview does not name the surface list's "four copies". The ones
   found in production are `shared_group!`, `lookup.rs`,
   `SOURCE_AUTHORING_ENVIRONMENT_SURFACES` and `CATALOG`'s `base_layers`.
+
+## Owner decision (26 November 2026)
+
+Bundled vendor packs may change their own aliases. A bundled pack's `alias` rows enter the one alias table like the compiled-in environments' rows, and collisions are load-time errors as today.

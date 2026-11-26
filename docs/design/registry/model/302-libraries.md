@@ -194,7 +194,7 @@ dialect release set.
 | `TcllibModule.trains` | `Library.trains` |
 | `TcllibModule.core_floor` | per-train `CompatibilityRow { library: train, dialect: tcl FLOOR- }`, read from each `package ifneeded`'s guard |
 | `LibraryPin::TracksBase` | a bundled placement at the generated version |
-| `LibraryPin::Keyed(BigipVersion)` | `LibraryAxis::TracksHost` on f5tcl |
+| `LibraryPin::Keyed(BigipVersion)` | `LibraryAxis::TracksHost` on f5-tcl |
 
 ### Worked examples
 
@@ -205,7 +205,7 @@ dialect release set.
 | Tk | own axis; `{8.4 on tcl 8.4}` … `{9.0 on tcl 9.0}` (one per line), `requires tcl = same line` | `wish` 8.6 → {8.6}; `require Tk 8.5` on 8.6 → {8.6} (8.6 satisfies 8.5); `text -insertunfocussed` visible at 8.6 |
 | TclOO | library `TclOO`, train 1 = `0.6-1.1`, `{TclOO on tcl 8.5}` only; core `oo::*` items `library: None, dialect: tcl 8.6-` | 8.5 + `require TclOO` → library items visible; 8.6 → core items visible, and the require is satisfied by the core's provided `TclOO 1.1.0` (`generated_release_facts.rs:1093`) |
 | snit (multi-train tcllib) | trains 2 = `2.3.4`, 1 = `1.4.3`; `{2.x on tcl 8.5-9.2}` (the `pkgIndex.tcl` guard and `snit2.tcl:18`'s `package require Tcl 8.5 9`), `{1.x on tcl 8.4-9.2}` | 8.4 + `require snit` → {1.4.3}; 8.6 → {2.3.4}; `require snit 1` → {1.4.3} |
-| iRules | tracks host, `{any on f5tcl, build tmm}` | f5tcl 16.1/tmm → iRules {16.1}; `HTTP2::header` visible; 15.1 → not visible; scriptd → iRules absent |
+| iRules | tracks host, `{any on f5-tcl, build tmm}` | f5-tcl 16.1/tmm → iRules {16.1}; `HTTP2::header` visible; 15.1 → not visible; scriptd → iRules absent |
 
 TclOO's bundled placement is generated from `provided_packages`. A require
 of a core-provided package is satisfied without making it a library surface.
@@ -280,7 +280,7 @@ hover, completion and MCP), and the SpecTcl loader (305).
   registry's `resolve_spec`, the version gate's diagnostic, completion's
   candidate list and hover's "since" line. The matrix is Tcl 8.4–9.1 × the
   six worked libraries × {no require, bare require, ranged, `-exact`,
-  conditional}, plus f5tcl {15.0, 16.1, 17.1, 21.1} × {tmm, scriptd} for
+  conditional}, plus f5-tcl {15.0, 16.1, 17.1, 21.1} × {tmm, scriptd} for
   iRules. Expected cells come from the oracles: tclsh `package require` in
   each pinned tree with tcllib 2.0 on `auto_path`, and the iRules lifecycle
   data.

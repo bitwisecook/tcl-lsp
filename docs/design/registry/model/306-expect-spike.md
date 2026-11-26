@@ -103,7 +103,7 @@ in process: slower, never wrong.
 
 | Pack kind | Placement | Load |
 |---|---|---|
-| Core dialect and library images (Tcl, Jim, f5tcl, Tk, tcllib, Expect, iRules, …) | `include_bytes!` in their crate | at registry install, with zero parsing |
+| Core dialect and library images (Tcl, Jim, f5-tcl, Tk, tcllib, Expect, iRules, …) | `include_bytes!` in their crate | at registry install, with zero parsing |
 | Replaceable vendor packs (`specs/*`) | `specs/NAME.tclimg` beside `NAME.tclspec`, in every artefact that stages `specs/`; also `include_bytes!` in the bare-binary fallback, replacing today's `include_str!` | lazily, through demand loading (`tcl-spectcl/src/demand.rs`, `demand::enable`; the manifest-only path in spec-packs.md) |
 
 The web build fetches `dist/web/specs/*.tclimg` by the same `index.json`.
@@ -240,3 +240,8 @@ decision is written into 307.
   Emacs uses the bare binary.
 - The EDA packs are in `specs/` at the repository root, not in
   `rust/tcl-spectcl/specs/`.
+
+## Owner decisions (26 November 2026)
+
+- **Every artefact ships source and images,** the web bundle included: the `.tclspec` source beside each compiled image.
+- **The Tcl core's hover and documentation become an image too.** Its hooks stay native. That is a fixed decision, not one the spike's size breakdown decides.

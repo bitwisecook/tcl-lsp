@@ -1,8 +1,8 @@
-# Step 304: iRules, iApps and tmsh as libraries on f5tcl
+# Step 304: iRules, iApps and tmsh as libraries on f5-tcl
 
 Status: designed 26 November 2026. Plan item 304, step 4 of
 [dialects, libraries and environments](../dialects-and-libraries.md). Builds on
-[301](301-dialects.md) (f5tcl, `tmm` and `scriptd`), [302](302-libraries.md)
+[301](301-dialects.md) (f5-tcl, `tmm` and `scriptd`), [302](302-libraries.md)
 (tracks-host libraries) and [303](303-environments.md) (`ResolvedEnvironment`).
 [305](305-spectcl-3.md)'s shims translate `f5-irules` tokens onto it.
 
@@ -45,12 +45,12 @@ excluded), 26 November 2026:
 
 | Library | Axis | Compatibility | Placement | Crate |
 |---|---|---|---|---|
-| `iRules` | tracks host | `{any on f5tcl, build tmm}` | ambient in `f5-irules` | `tcl-lib-irules` |
-| `iApps` | tracks host | `{any on f5tcl, build scriptd}` | ambient in `f5-iapps` | `tcl-lib-iapps` |
-| `tmsh` | tracks host | `{any on f5tcl, build scriptd}` | ambient in `f5-iapps` and `f5-tmsh` | `tcl-lib-iapps` |
+| `iRules` | tracks host | `{any on f5-tcl, build tmm}` | ambient in `f5-irules` | `tcl-lib-irules` |
+| `iApps` | tracks host | `{any on f5-tcl, build scriptd}` | ambient in `f5-iapps` | `tcl-lib-iapps` |
+| `tmsh` | tracks host | `{any on f5-tcl, build scriptd}` | ambient in `f5-iapps` and `f5-tmsh` | `tcl-lib-iapps` |
 
 The BIG-IP schema (`f5-bigip-schema`) is the `f5-bigip` environment's
-library and stays with item 118's crate. The f5tcl **core** surface (the 8.4.6
+library and stays with item 118's crate. The f5-tcl **core** surface (the 8.4.6
 fork as BIG-IP ships it) is `tcl-dialect-f5`'s and is common to both builds.
 The interpreter-absent commands are a property of the `tmm` build's core
 surface, measured as absent even through `eval`. The compiler-refused
@@ -102,7 +102,7 @@ pub mod f5 {                                    // in tcl-lib-irules, re-exporte
 | `"f5-irules"` as an environment-id comparison | `env.has_library(IRULES)` (or the id, where the id itself is the subject: detection, settings and the registry dump) |
 | `"f5-irules"` as a 1.x surface token | the 305 shim only |
 | `Family::F5Irules` in surfaces (`SpecSurface::IRULES`, 48 registry sites) | `Availability { library: IRULES }` |
-| `Family::F5Irules` in grammar or ancestry (`tcl-dialect`, 44) | gone. The grammar is f5tcl's (301) |
+| `Family::F5Irules` in grammar or ancestry (`tcl-dialect`, 44) | gone. The grammar is f5-tcl's (301) |
 | `InvocationRealm::RuleLoader` as the default | `InterpreterRuntime` by default; `RuleLoader` only where `IRULES` is present |
 | `irules_policy` in `context.rs` and `lookup.rs` | `LibraryPolicy::admits`, called for present libraries |
 | "is the build `tmm`" (exec absent, `wordSize`, `tcl_platform` facts) | `env.build() == Some(Build::Tmm)` |

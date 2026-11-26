@@ -23,7 +23,7 @@ There are three kinds of thing, and nothing is both.
      |---|---|---|
      | `tcl` | 8.4, 8.5, 8.6, 9.0, 9.1 | canonical |
      | `jim` | 0.76–0.84 | `full`, `minimal`, plus capability flags for its optional extensions (`binary`, `ensemble`, `json`, `tclprefix`, `zlib`) |
-     | `f5tcl` | the BIG-IP releases, its real version axis | `tmm` (the traffic interpreter that runs iRules) and `scriptd` (the configuration interpreter that runs iApps and tmsh scripts) |
+     | `f5-tcl` | the BIG-IP releases, its real version axis | `tmm` (the traffic interpreter that runs iRules) and `scriptd` (the configuration interpreter that runs iApps and tmsh scripts) |
 
    - A grammar difference that belongs to one F5 interpreter, such as
      `irules_brace_separator`, is a property of the `tmm` build, not of a
@@ -40,7 +40,7 @@ There are three kinds of thing, and nothing is both.
      - Rows are a disjunction; each row is a conjunction.
      - Examples: "Itcl 3.4 on tcl 8.4–8.5", "Itcl 4.x on tcl 8.6–9.1",
        "Thread 2.8 on tcl 8.6", "Thread 3.0 on tcl 9.0–9.1",
-       "iRules (tracks host) on f5tcl, any release, build tmm".
+       "iRules (tracks host) on f5-tcl, any release, build tmm".
    - **Requirements on other libraries,** with ranges on each side. For
      example, "tcllib's `snit` 2.x requires Tcl 8.5 and TclOO" or "Tk 8.6
      requires tcl 8.6".
@@ -61,7 +61,7 @@ There are three kinds of thing, and nothing is both.
 
    It also carries the policy (open or closed world), the editor identity,
    detection rows and aliases. `tcl8.6`, `wish` (tcl + Tk ambient),
-   `f5-irules` (f5tcl/tmm + iRules ambient), `f5-iapps` (f5tcl/scriptd + iApps
+   `f5-irules` (f5-tcl/tmm + iRules ambient), `f5-iapps` (f5-tcl/scriptd + iApps
    and tmsh), `expect` and the EDA shells are environments.
 
 Resolution for a document runs in three steps:
@@ -101,8 +101,8 @@ TclOO is the worked example:
 
 | Today | Target |
 |---|---|
-| `Family { Tcl, F5Tcl, F5Irules, Jim }`; F5 has one release, `tmos`/`tmm`; BIG-IP versions sit on a keyed side axis defaulting to 16.1.0 | `{ tcl, jim, f5tcl }`; f5tcl's releases are BIG-IP releases; `tmm` and `scriptd` are builds |
-| iRules is a core family for its surface and a keyed package for versions; `irules_policy` sits in generic visibility | iRules is a library on f5tcl/tmm that tracks its host; iRules policy hangs off the library's presence |
+| `Family { Tcl, F5Tcl, F5Irules, Jim }`; F5 has one release, `tmos`/`tmm`; BIG-IP versions sit on a keyed side axis defaulting to 16.1.0 | `{ tcl, jim, f5-tcl }`; f5-tcl's releases are BIG-IP releases; `tmm` and `scriptd` are builds |
+| iRules is a core family for its surface and a keyed package for versions; `irules_policy` sits in generic visibility | iRules is a library on f5-tcl/tmm that tracks its host; iRules policy hangs off the library's presence |
 | `DialectProfile` `CATALOG`: 19 rows mixing dialects and environments; Jim has no row; aliases kept twice | `tcl-dialect` holds dialects only; environments are data with one alias table |
 | a spec's applicability: `SpecSurface` rows (one provider each, OR'd) + `required_package` + `tcllib_package` + `lifecycle` on whichever axis `lifecycle_axis` picks | one `Availability`: a window on the library's axis ∧ an optional dialect constraint; library-level compatibility rows |
 | package windows in SpecTcl `available` parsed and dropped (D17-P); `package require` read as a lower bound only | windows carried; requirements read as full ranges with trains |
@@ -194,7 +194,7 @@ hook-heavy ones (the Tcl core surface).
 | 301 | The dialect model: three families, F5 releases and builds, selectable Jim builds and capabilities, and `tcl-dialect` cleared of environments |
 | 302 | The library model: version trains, compatibility rows, requirements, bundling, one `Availability` per command, D17-P fixed, full `package require` ranges |
 | 303 | Environments as data over 301 and 302, with one alias table and one catalogue |
-| 304 | iRules, iApps and tmsh as libraries on f5tcl; consumers move to environment queries |
+| 304 | iRules, iApps and tmsh as libraries on f5-tcl; consumers move to environment queries |
 | 305 | SpecTcl 3 with 1.x/2.x shims, the loader on `tcl-source`, and `tcl spec upgrade` to 3 |
 | 306 | The libraries-as-data spike on Expect, which decides 307 |
 | 307 | Shipped libraries as SpecTcl-sourced images (conditional on 306) |
@@ -209,3 +209,19 @@ hook-heavy ones (the Tcl core surface).
 4. **SpecTcl.** 305 needs 302's vocabulary and the compiler split's
    `tcl-source` (item 251).
 5. **The spike.** 306 follows 305, and 307 follows 306.
+
+## Owner decisions (26 November 2026)
+
+1. **One crate per package, not per distribution.**
+   - Each library package is its own crate: tmsh and iApps are separate, and every tcllib package is its own crate.
+   - After item 307, a package crate is an image plus its native hooks, so the crates are generated scaffolding rather than hand-kept code.
+2. **The tmsh `cli script` interpreter.** Whether it is the `scriptd` build or a third f5-tcl build is question Q11 in the plan's [BIG-IP and iRules questions](../../work/name-handling/plan.md#big-ip-and-irules-questions). An agent answers it with an appliance probe.
+3. **No rename.** The family keeps its existing spelling, `f5-tcl`.
+4. **Bundled vendor packs may change their own aliases.**
+5. **Generators stay, as user tooling.**
+   - Pack generators ship alongside `tcl spec upgrade` and `tcl spec compile`.
+   - Hand-editing a generated pack is allowed.
+   - Reconciling hand edits with a regenerated library update is the job of the user or the AI tooling (item 310), not the loader's.
+6. **Every artefact ships source and images.** That includes the web bundle, which carries both the `.tclspec` source and the compiled image.
+7. **The Tcl core's hover and documentation become an image too.** Its hooks stay native.
+8. **Tk's 16 rows keyed "8.7" are re-keyed to the real Tk release** that introduced each one, read from the Tk sources in `tmp/tk*/`. This is part of item 302.

@@ -192,3 +192,9 @@ Then delete the equivalence packs and their generator.
 - "Deleting the native Rust catalogue" cannot include the Tcl core if the
   core stays native. The deletion is about 136k of the 185k lines, not all of
   them.
+
+## Owner decisions (26 November 2026)
+
+- **One crate per package,** not per distribution: each tcllib package, each bundled Tcl library, iApps and tmsh each get their own crate. A package crate is an image plus hooks, so these crates are generated scaffolding.
+- **The Tcl core's hover and documentation become an image.** Only its hooks stay native Rust.
+- **Every artefact ships the `.tclspec` source beside the image.**

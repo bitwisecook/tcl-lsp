@@ -301,7 +301,7 @@ point:
 
 - Tcl 8.4–9.1;
 - jim 0.76–0.84 under both builds;
-- f5tcl {15.0, 16.1, 17.1, 21.1} under each build;
+- f5-tcl {15.0, 16.1, 17.1, 21.1} under each build;
 - each library's trains.
 
 At each point, both forms must agree on:
@@ -381,3 +381,8 @@ format change together in one commit.
 - The overview's rung list has four rungs. With `check`, SpecTcl 3 has five.
 - No option in the registry is deprecated from 9.0. The 9.0 boundary
   examples are retirements (`trace variable`/`vdelete`/`vinfo`).
+
+## Owner decisions (26 November 2026)
+
+- **Generators stay, as user tooling.** The family keeps its spelling `f5-tcl`. Pack generators (the vendor-library generators and a programmed 2.x pack's extracted generator) ship as tooling users can run. A SpecTcl 3 pack stays declarative.
+- **Hand edits are allowed.** Editing a generated pack by hand is allowed, and reconciling hand edits with a regenerated library update is the job of the user or the AI tooling (item 310).
