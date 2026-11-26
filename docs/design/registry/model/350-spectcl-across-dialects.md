@@ -420,3 +420,10 @@ and line 7's severity becomes an error.
   analysis lowerings. A Jim unit cannot exist as Jim bytecode, and TMM's
   bytecode is not ours. `IRULE_*` names opcodes that tmsh and iApps also
   have (measurements §4b).
+
+## Owner decisions (26 November 2026)
+
+1. **iRules load-time failures match the appliance.** Under f5-tcl `tmm`, an unknown, absent or refused command head, `proc` inside `when`, and the inert `{*}` trap report at the severity the appliance's rule loader gives them: an error where the rule fails to load. That holds even though it adds errors across existing user corpora (item 360's proposal is adopted).
+2. **Only F5-supported BIG-IP releases are modelled.** iRules `proc` and `call` arrived in v10, which is older than any release we support. The f5-tcl release ladder covers only the BIG-IP versions still in public support according to F5's K5902 article. Its lower bound moves with that article, and nothing older needs dating. Command history before the oldest supported release is irrelevant, and rows start at that release.
+3. **F5-bundled iApp packages are modelled now, with unknown versions.** `http`, `uri`, `sha256` and the other packages listed in the iApp context become F5-bundled libraries on f5-tcl `scriptd` whose versions are unknown until probed. The question is F5 question Q12 in the plan.
+4. **Jim: the latest release only, for now.** Only the latest Jim release (0.84) is supported. A Jim version range can come later. As a principle, a dialect gets release boundaries only where a release makes big changes to the language, as C Tcl's do. Jim's minor releases don't, so `jim` is one point until a release changes the language. The 0.76–0.84 span in today's environment narrows to 0.84 (item 356 becomes "jim 0.84 full and minimal").

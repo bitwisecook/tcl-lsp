@@ -1201,3 +1201,11 @@ Before the final PR, move useful contracts and real experiments/tests into durab
 
   **Open.** For an agent with access to the lab BIG-IP on `tank`: in a `cli script`, in an iApp template's implementation and in iRules (where it applies), compare `tcl_platform` (including `wordSize`), `info patchlevel`, `info vartype` behaviour, `info commands` and the parse-parity cases in [the parser measurements](../../design/f5/bigip-irule-parser-measurements.md). Record the evidence under `evidence/bigip/`, and answer: `scriptd`, or a third build named by the evidence.
 
+- **Q12. F5-bundled packages in the iApp context.** Which versions of `http`, `uri`, `uuencode`, `sha256` and the other packages that `package names` lists in an iApp implementation ship with each supported BIG-IP release? Are they F5's own copies or tcllib's?
+
+  **Open.** For now they are modelled as F5-bundled libraries on f5-tcl `scriptd` with unknown versions (owner decision, 26 November 2026). For an agent with the lab BIG-IP on `tank`, in an iApp template's implementation and in a `cli script`:
+  - run `package names`, then `package require` each name;
+  - record `package present`, `info loaded`, and the `package ifneeded` script for each package;
+  - record the results under `evidence/bigip/`, and replace the unknown versions with the measured ones.
+- **Supported BIG-IP releases (owner decision, 26 November 2026).** Only releases still in public support according to F5's K5902 article are modelled. The f5-tcl release ladder's lower bound follows that article, and command history before it is not dated.
+

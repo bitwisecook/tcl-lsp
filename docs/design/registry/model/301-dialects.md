@@ -427,3 +427,8 @@ environment model.
   root.
 - **The F5 release list is mostly unmeasured.** Only 21.1.0.1 is measured.
   Every other line is a data key or a tmsh-accepted version.
+
+## Owner decisions (26 November 2026)
+
+- **f5-tcl's release ladder** is the BIG-IP releases still in public support per F5's K5902 article, and nothing older.
+- **Jim** is supported at its latest release (0.84) only, under the `full` and `minimal` builds. A dialect gets release boundaries only where a release makes big language changes, as C Tcl's do.
