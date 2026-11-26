@@ -581,14 +581,18 @@ Decided against, with the evidence:
 - **Splitting `tcl-lsp-server/src/lib.rs` (73k lines).** Modules within one
   crate compile as one unit with incremental off, so a module split buys no
   build time. A crate split means untangling `Backend` while other sessions
-  edit the file daily.
+  edit the file daily. *Reopened 26 November 2026* under the crate split's
+  goal of many small crates (name-handling plan item 290). `lib.rs` itself is
+  now 1,359 lines, with `Backend`'s `impl` blocks spread over 120 files.
 - **Dropping `aws-lc-sys`.** It costs about 65 CPU-seconds, off the critical
   path. `ring` would drop `rustls`'s post-quantum key exchange and change
   `russh`'s backend for SSH to BIG-IPs. That is the BIG-IP client owners'
   call.
 - **Thinner `xtask`.** Only `wasm-backing` needs `tcl-vm` and `tcl-runtime`.
   An opt-in feature would make the CI drift leg build `xtask` twice (batch
-  and single gates). As a default feature it changes nothing.
+  and single gates). As a default feature it changes nothing. *Reopened
+  26 November 2026* as name-handling plan item 298: a separate binary for
+  `wasm-backing` instead of a feature.
 - **Shared wasm32 cache key.** The three wasm jobs build different
   workspaces, lockfiles and targets. A shared key would only make them
   overwrite each other.

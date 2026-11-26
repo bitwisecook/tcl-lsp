@@ -16,8 +16,8 @@ source scans, walk declarations and name-resolution declarations in the
 analysis and editor crates. Migrate these consumers to the owner's proof for
 the same site before removing their rows.
 
-[Analysis memos](memos.tsv) tracks independent caches until the relevant query
-moves into the database. [Release tables](release-tables.tsv) tracks potential
+[Analysis memos](memos.tsv) tracks independent caches until the memo is
+deleted or its query moves into the database. [Release tables](release-tables.tsv) tracks potential
 hand-written release facts outside `tcl-dialect` and the registry. The dependency
 check reads the protected crate layers from the wrapper lists in `deny.toml`. [cargo-deny wrapper configuration](https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html#wrappers)
 

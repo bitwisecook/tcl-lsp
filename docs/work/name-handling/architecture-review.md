@@ -67,7 +67,7 @@ The review also found **six contradictions** between the new design and the earl
    - in the release branch, take only phase 0's correctness backlog items that touch the LSP;
    - mark engine convergence, the crate split, salsa rework and the licence change as post-release.
 
-   Superseded for the crate split (26 November 2026): `work` has no release target (item 96), and build and iteration time now come first. The split is plan item 90 ([design](../../design/compiler/crate-split-design.md)), scheduled ahead of every other stage with items 117 and 118.
+   Superseded for the crate split and the salsa rework (26 November 2026): `work` has no release target (item 96), and build and iteration time now come first. The split is plan item 90 ([design](../../design/compiler/crate-split-design.md)), scheduled ahead of every other stage with items 117 and 118, and it ends by deleting the hand-written memos. The caching tiers (items 101 and 103, and 46–49 and 73) come late, after phases 4 and 5.
 
 ## Reconciliations (not conflicts, but must be stated)
 

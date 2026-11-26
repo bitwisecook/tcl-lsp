@@ -1,6 +1,6 @@
 # Caching, indices and lookup layers
 
-How analysis results, registries, indices and names are cached, interned and invalidated across the compiler, registry, SpecTcl, the LSP core, the salsa database and the server, and what one architected layer would need. Part of [tidying the architecture](architecture-tidy-plan.md); fault 15 of the [cross-cutting review](cross-cutting-review.md).
+How analysis results, registries, indices and names are cached, interned and invalidated across the compiler, registry, SpecTcl, the LSP core, the salsa database and the server, and the rule that replaces them: pure functions below, one database at the top. Part of [tidying the architecture](architecture-tidy-plan.md); fault 15 of the [cross-cutting review](cross-cutting-review.md).
 
 **Verdict:** salsa memoises the top layer (whole documents and some per-body results). Underneath sit about 110 caches salsa cannot see, using five staleness mechanisms that do not compose (pointer and `Weak` identity, ad hoc generation counters, salsa revisions, content fingerprints, size-triggered clear-all). Registries and spec packs are treated as static but are versioned, so they are held in process-global maps keyed by generation, several of them leaked on purpose. The server analyses the same document through several pipelines, each with its own cache. The result is slow incremental work, a large resident footprint and memory that ratchets on pack churn.
 
@@ -70,18 +70,20 @@ A rerun at `508b801b` on a 4-core Intel Xeon (2.30 GHz) re-executed the same sin
 
 ## One architected layer
 
-- **Everything versioned is a salsa input:** the registry, pack sets, rosters, environments and dialect profiles become inputs (or interned values) with `Arc` handles; no `Box::leak`, no generation-keyed globals. The registry is built once per input revision and projected per profile as a query, not by rebuilding the default.
-- **Granularity follows the [architecture plan](architecture-tidy-plan.md)'s layers:** source file → structured words → binding per file → body unit → summaries per unit → semantic queries. An edit inside one procedure re-runs that body's queries; secondary indices are tracked queries keyed by (document, body), not by pointer identity.
-- **No interior-mutable memos inside memoised values:** query-scoped scratch arenas dropped when the query returns; anything worth keeping is its own query.
-- **One analysis pipeline:** the fresh-analysis cache, workspace scan, recovery, class analyses and provider sources become salsa queries with open, closed and workspace tiers; the document text lives once.
-- **Interning in the database:** names, namespaces, commands and places as salsa interned identities ([cross-cutting review](cross-cutting-review.md) fault 1), replacing the leak interners and un-deduplicated `NameBytes` where identity matters.
-- **Memory is accounted and bounded per layer:** byte budgets and LRU at query level, a registry of every remaining static with size probes behind a debug-memory command, and a gate that forbids new `Mutex`/`OnceLock`/`thread_local!` memo types and `Box::leak` outside the database.
+The rule (26 November 2026, with the crate split of plan item 90): cache as little as possible, in one place.
+
+- **Lower crates are pure functions.** Every crate below the top exposes functions over its inputs and holds no cache: no interior-mutable memos inside values, no process-global statics, no `Box::leak`. Query-scoped scratch is dropped when the call returns.
+- **One database at the top.** A single database crate above the unit crate (`tcl-db`, today's `tcl-lsp-db`, renamed by plan item 286), used by the LSP server, MCP and the CLI, caches only at unit boundaries where re-computation has measured cost. Candidates follow the [architecture plan](architecture-tidy-plan.md)'s layers: source file, binding per file, body unit, summaries per unit, semantic queries. A boundary is cached only once a measurement shows re-computing it costs more than the cache.
+- **Every other hand-written memo is deleted.** Deleting them is the last step of item 90. The per-body and workspace tiers (items 101 and 103, and 46–49 and 73) come late, after items 83 and 84 (step 4 below).
+- **Versioned inputs live in the database, not in the crates.** The registry, pack sets, rosters, environments and dialect profiles enter the database as inputs with `Arc` handles; no generation-keyed globals. The registry crate itself does not depend on salsa.
+- **No salsa interning for identity types.** Names, namespaces, commands and places are identities in `tcl-names` ([cross-cutting review](cross-cutting-review.md) fault 1), interned there if at all, so `tcl-names` and the registry stay salsa-free and the VM can use them. They replace the leak interners and un-deduplicated `NameBytes` where identity matters.
+- **Memory is accounted and bounded:** byte budgets and LRU at query level in the database, size probes for anything that remains behind a debug-memory command, and a gate that forbids new `Mutex`/`OnceLock`/`thread_local!` memo types and `Box::leak` outside the database.
 - **Determinism is tested:** fresh-versus-warm differentials, randomised in-process test order, and per-cache growth tests under pack churn, plus the timings above as a regression budget (per-keystroke latency on the analysis-performance corpus).
 
 ## Plan
 
 1. **Measure and bound now:** expose sizes for every static and memo through a debug-memory command; add the probe above and a pack-churn loop to the analysis-performance suite; cap or evict the generation-keyed ingress maps and the overlay-0 assembly entries; stop leaking per generation.
-2. **Registry as an input:** version registries, packs, rosters and profiles as salsa inputs; build each once and project per profile as a query; delete the duplicate default registry.
-3. **Move memos into queries:** replace the memos inside analysis values and the process-global compiler memos with tracked queries or per-query scratch; retire `RetainedModules`' private LRU.
+2. **Registry as an input:** version registries, packs, rosters and profiles as inputs of the one database, with the registry crate itself salsa-free; build each once and project per profile; delete the duplicate default registry.
+3. **Delete the memos:** delete the memos inside analysis values and the process-global compiler memos, or replace them with per-call scratch; only where re-computation at a unit boundary has measured cost does one become a database query. Retire `RetainedModules`' private LRU. This is the last step of the crate split (item 90).
 4. **One pipeline and finer granularity:** fold the server's extra analyses into salsa tiers; make secondary indices tracked queries; reach per-body re-analysis on edits once the binding walk is per body (architecture plan phases 4–5).
-5. **Gates:** no new memo or leak outside the database; determinism and growth tests; latency and memory budgets in CI.
+5. **Gates:** no memo or leak outside the database; determinism and growth tests; latency and memory budgets in CI.

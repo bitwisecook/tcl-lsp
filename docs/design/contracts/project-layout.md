@@ -82,6 +82,13 @@ dependency graph (a crate can only use what it declares in
    server crate owns the `tower-lsp-server` wiring and the `ServerCapabilities`
    advertised during `initialize`.
 
+   *Being retired (26 November 2026):* plan item 288 removes this upward
+   edge, which the [tidy plan](../../work/name-handling/architecture-tidy-plan.md#crates)'s
+   dependency rules forbid. It also found the edge is wider than described:
+   `tcl-spectcl` names `vfs` (`SourceStore`, `MemoryStore`, `NativeStore`,
+   `SourcePathOrigin`), `code_actions` and `definition::LspRange`. Until the
+   item is done:
+
    One crate reaches *up* into `tcl-lsp-core` deliberately: `tcl-spectcl`,
    for `tcl_lsp_core::vfs::SourceStore` alone.  That trait is the single
    seam every closed file the server reads comes through, and `.tclspec`

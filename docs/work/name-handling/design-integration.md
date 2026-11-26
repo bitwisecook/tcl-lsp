@@ -107,7 +107,7 @@ The dependencies the pages state, applied to the plan:
   - cross-file exports as contracts (the second half of 68);
   - constants (62, 63, 65 after 59);
   - lists and containers (45).
-- **Phase 7:** crates and caching (90, 46–49, 73).
+- **Phase 7:** the caching tiers (101, 103, 46–49, 73), late, after phases 4 and 5. The crate split (90) is not part of this phase: it runs first, ahead of every other stage (26 November 2026), and ends by deleting the hand-written memos.
 - **Phase 8:** new object systems, SpecTcl profiles and value grammars (86, Order 5–7; 87; 6–10; 15–17).
 - **Alongside phases 3–5:** engine work (18, 20, 30, 34, 38, 42, 72, 88).
 

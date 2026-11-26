@@ -234,6 +234,12 @@ registry contract — typed enums or generated constants, never bare `u16`s.
 Every PR leaves the extension fully working: `make prep-pr` passes, every editor
 package still builds, and no existing test regresses.
 
+**`work` branch exception.** On `work`, the crate split (plan item 90) may
+leave the tree broken between steps while crates move, and a step moves code
+directly rather than building shims to stay green. The gates, failset
+comparisons and measurements run when each crate first builds again. See the
+[crate split's sequence](../compiler/crate-split-design.md#sequence).
+
 One change = one logical surface. Good: "implement brace-string lexing", "add
 the branch-folding optimiser pass", "port `backslash_subst`". Bad: "port the
 whole lexer" (too big to review for correctness), "rewrite `tcl-compiler`",
