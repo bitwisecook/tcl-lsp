@@ -472,8 +472,16 @@ impl Analyser {
                     .then(|| peer.protocol.params.iter().cloned().collect::<HashSet<_>>())
             })
             .unwrap_or_default();
+        let handler_uses = self.result.channel_handler_uses(&ir_proc.qualified_name);
         for (idx, param) in unused {
             if protocol_params.contains(&param) {
+                continue;
+            }
+            // A channel protocol fixes these words; the handler cannot drop them.
+            if handler_uses.iter().any(|handler| {
+                (handler.baked..handler.baked + handler.protocol.max_appended_count())
+                    .contains(&idx)
+            }) {
                 continue;
             }
             let message = format!(

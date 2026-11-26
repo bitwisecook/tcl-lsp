@@ -57,6 +57,12 @@ reads them only at an independently classified original command-prefix
 operand, preserving ensemble offsets, selected options and unknown layouts.
 This query provides documentation and signature metadata. It proves neither
 handler installation, native entry, a future invocation, nor edit completeness.
+`InvocationFacts::callback_protocol` gives the same answer per prefix
+operand, and the binding owner keeps it on `OriginalCallbackPrefix`. Hover on
+a handler word lists the protocol's calls for the selected release
+(`ChannelCallbackProtocol::describe`), and the unused-parameter hint (W214)
+skips the formals from the prefix's written words up to the protocol's widest
+call (`max_appended_count`).
 The `chan event` body uses the shared deferred Channel-trigger descriptor.
 Socket accept and channel-copy prefixes declare deferred global evaluation
 contexts. Reflected handlers include immediate `initialize` calls and later

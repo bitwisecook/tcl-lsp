@@ -278,3 +278,18 @@ fn tp_resolved_indirect_head_hovers_the_command_it_reaches() {
         h.value
     );
 }
+
+#[test]
+fn hover_on_a_channel_handler_word_lists_its_protocol() {
+    let src = "proc rc {cmd id args} {return}\nset c [chan create read rc]\n";
+    let analysis = analyse(src);
+    let (line, column) = position_of(src, "rc]");
+    let h = hover(src, line, column, &analysis, None).expect("hover on the handler word");
+    assert!(h.value.contains("Reflected channel handler"), "{}", h.value);
+    assert!(
+        h.value.contains("`initialize channel mode` (required)"),
+        "{}",
+        h.value
+    );
+    assert!(!h.value.contains("truncate"), "{}", h.value);
+}
