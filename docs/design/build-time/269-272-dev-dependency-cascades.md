@@ -290,7 +290,7 @@ The five `src` files use `use super::*;` and name crate items such as
   `tcl-vm` and `tcl-codegen` through `tcl-spec-hooks` even after item 288
   removes its `tcl-lsp-core` edge.
 - The crate's dev-dependencies are:
-  - `tcl-lsp-db` with a new `test-support` feature;
+  - `tcl-lsp-db`, through its public API;
   - `tcl-spectcl`;
   - `tcl-vm`;
   - `tcl-bytecode`;
@@ -301,9 +301,10 @@ The five `src` files use `use super::*;` and name crate items such as
   - the 60 SpecTcl tests, keeping their module paths as directories;
   - the one VM test, with its `Module` type rewritten to
     `tcl_bytecode::ModuleAsm`, so no `tcl-codegen` dependency remains.
-- `tcl-lsp-db` exposes the items those tests reach, as
-  `#[cfg(feature = "test-support")] pub`, the step-0a precedent. Where several
-  reach one type, add a fixture in a `test_support` module.
+- Moved tests go through `tcl-lsp-db`'s public API, or become an oracle or
+  conformance row. A test that only pins internals stays `#[cfg(test)]` in
+  `tcl-lsp-db`, or is listed for deletion. No test body or fixture goes into
+  `src` behind a `test-support` feature, and nothing is widened for a test.
 - Item 286 renames the database crate to `tcl-db`. It renames this crate to
   `tcl-db-it` in the same change.
 
@@ -342,17 +343,18 @@ Its dev-dependencies are `tcl-vm` with `test-support`, `tcl-codegen`,
 
 **What moves.**
 - **The 74 `tests/` files.** They move unchanged. They use the public API and
-  `tcl_vm::test_support`, which `tcl-vm-it` gets through the feature that
-  already exists.
+  the existing `tcl_vm::test_support` constructors, which `tcl-vm-it` gets
+  through the feature that already exists; no new item joins it.
 - **The two examples.** They move to `tcl-vm-cli`, which already depends on
   `tcl-compiler` and `tcl-codegen`.
-- **The 41 `src` test blocks.** They follow step 0a's pattern: blocks that reach
-  only public items move as they are. Blocks that reach crate internals expose
-  them under `tcl-vm`'s existing `test-support` feature, adding no new
-  feature. An inventory comes first (work list item 4).
-  [Item 296](296-300-build-levers.md#296-test-support-feature-unification)
-  recommends making that feature unconditional. If it is adopted, the widened
-  items are `#[doc(hidden)] pub` with no feature.
+- **The 41 `src` test blocks.** An inventory comes first (work list item 4).
+  A block that reaches only public items moves as it is. A block that asserts
+  internal state is rewritten to assert the public behaviour or contract it
+  guards, through the public API or an oracle or conformance row against real
+  tclsh. A block that only pins an implementation detail stays
+  `#[cfg(test)]` in `tcl-vm` if it guards a real invariant, or is listed for
+  deletion. No test body or fixture goes into `src` behind `test-support`,
+  and no item is widened for a test.
 - **What stays.** The 69 `tests/` files and 440 `src` files that name neither
   crate.
 
@@ -390,7 +392,7 @@ Its dev-dependencies are `tcl-vm` with `test-support`, `tcl-codegen`,
    - Run the one-test experiment.
    - Create `rust/tcl-lsp-db-it`.
    - Move the SpecTcl tests that need it and the VM test.
-   - Add `test-support` to `tcl-lsp-db`.
+   - Move them through `tcl-lsp-db`'s public API; widen nothing.
    - Drop the three dev-dependencies, and `tcl-runtime-api`, whose only
      user moved.
 4. **272.**
@@ -423,11 +425,11 @@ Rebuild counts to record with item 259:
 
 ## Risks
 
-- **Two new `test-support` features** (`tcl-lsp-db`, and wider use of
-  `tcl-vm`'s) add build variants
-  ([item 296](296-300-build-levers.md#296-test-support-feature-unification)).
-  Prefer the experiment in 271 and unconditional test fixtures where the
-  owner accepts them.
+- **Test-only surface.** A `test-support` feature adds a build variant
+  ([item 296](296-300-build-levers.md#296-test-support-feature-unification)),
+  and item 247's gate holds the `test-support` modules in `src` to today's
+  known list. These steps add none: a test that cannot move through the
+  public API stays `#[cfg(test)]` where it is, or is listed.
 - **Global state in moved tests.** The roster store and the hook host are
   process-wide. A test that seeded them alone in one binary may meet another
   test's state in the new binary. The failset comparison catches it.
