@@ -539,7 +539,6 @@ fn supplied_hosted_source_entry_retains_advice_without_activation() {
         assert_eq!(entry.vendor_source_input.as_ref(), Some(&input));
         assert!(entry.native_entry.is_none());
         assert!(entry.logical_source_input.is_none());
-        assert!(entry.hosted_execution_context.is_none());
         // Documented correction (user decision 2026-10-21T00:10Z,
         // "realm-aware command world"): a hosted document supplied without
         // an entry is a fresh rule load where the dialect admits the
@@ -554,9 +553,19 @@ fn supplied_hosted_source_entry_retains_advice_without_activation() {
                 tcl_dialect::model::InvocationRealm::RuleLoader
             );
             assert_eq!(entry.execution_name_policy, fresh.execution_name_policy);
+            // The fresh load selects its environment's hosted context, so
+            // an iRule's handlers address TMM's `::static`.
+            assert_eq!(
+                entry.hosted_execution_context,
+                tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+                    &input.availability_context().environment.id
+                )
+            );
+            assert!(entry.native_entry.is_none());
         } else {
             assert!(entry.unknown_entry);
             assert!(entry.execution_name_policy.is_none());
+            assert!(entry.hosted_execution_context.is_none());
         }
     }
 }

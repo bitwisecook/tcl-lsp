@@ -359,6 +359,11 @@ impl ConditionalLogicalScalarStore {
             CellOwner::Activation(activation) => {
                 after.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
             }
+            CellOwner::NamespaceIdentity(_)
+                if hosted && is_hosted_worker_namespace_cell(cell, after) =>
+            {
+                true
+            }
             // A hosted handler's namespace cell is its own only at the global
             // level, where the handler has no activation (`RULE_INIT`).
             CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_)
@@ -377,6 +382,27 @@ impl ConditionalLogicalScalarStore {
         };
         local.then_some(place)
     }
+}
+
+/// A hosted rule's worker-owned namespace cell (`::static` under TMM): the
+/// hosted context's storage policy names the authored namespace the walk
+/// resolved. Authored keys carry no native geometry, so the cell itself
+/// holds no storage domain; a native or presentation owner never qualifies.
+pub(crate) fn is_hosted_worker_namespace_cell(
+    cell: &crate::place::CellIdentity,
+    context: &ResolveContext,
+) -> bool {
+    let (Some(hosted), CellOwner::NamespaceIdentity(identity)) =
+        (context.hosted_execution_context, &cell.owner)
+    else {
+        return false;
+    };
+    let crate::command_binding::SourceNamespaceKey::Authored(namespace) = identity.as_ref() else {
+        return false;
+    };
+    cell.storage_domain.is_none()
+        && tcl_registry::f5::namespace_storage_domain(hosted, namespace)
+            == tcl_registry::f5::VariableStorageDomain::WorkerNamespace
 }
 
 /// Reaching binding environment before every operation and terminator.

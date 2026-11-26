@@ -389,37 +389,36 @@ fn canonical_namespace_storage_scope(
     canonical: &crate::var_resolve::VariableCellKey,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> (StorageScope, Option<String>) {
+    // Authored source keeps the descriptive iRules policy: it names the
+    // namespace a hosted rule writes, and supplies no native TMM owner.
+    let authored = |namespace: &str| {
+        let worker = crate::taint::is_irules_dialect(dialect)
+            && tcl_registry::f5::namespace_storage_domain(
+                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                namespace,
+            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace;
+        Some((namespace == "::", Some(namespace.to_owned()), worker))
+    };
     let namespace = if let Some(identity) = canonical.namespace_identity() {
-        let root = identity
-            .exact_native_path()
-            .is_some_and(tcl_core_types::ByteNamespacePath::is_root);
-        let worker = place.cell.as_ref().is_some_and(|cell| {
-            cell.storage_domain == Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
-        });
-        Some((root, identity.display(), worker))
+        if let crate::command_binding::SourceNamespaceKey::Authored(namespace) = identity {
+            authored(namespace)
+        } else {
+            let root = identity
+                .exact_native_path()
+                .is_some_and(tcl_core_types::ByteNamespacePath::is_root);
+            let worker = place.cell.as_ref().is_some_and(|cell| {
+                cell.storage_domain
+                    == Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+            });
+            Some((root, identity.display(), worker))
+        }
     } else {
         match canonical.root() {
             crate::var_resolve::VariableCellKey::Authored(_) => {
                 match place.cell.as_ref().map(|cell| &cell.owner) {
-                    Some(crate::place::CellOwner::Namespace(namespace)) => {
-                        // This authored classification supplies no native TMM owner.
-                        let worker = crate::taint::is_irules_dialect(dialect)
-                            && tcl_registry::f5::namespace_storage_domain(
-                                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
-                                namespace,
-                            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace;
-                        Some((namespace == "::", Some(namespace.clone()), worker))
-                    }
-                    None => {
-                        // A resolved legacy symbolic place has no native cell.
-                        let namespace = &place.ns;
-                        let worker = crate::taint::is_irules_dialect(dialect)
-                            && tcl_registry::f5::namespace_storage_domain(
-                                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
-                                namespace,
-                            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace;
-                        Some((namespace == "::", Some(namespace.clone()), worker))
-                    }
+                    Some(crate::place::CellOwner::Namespace(namespace)) => authored(namespace),
+                    // A resolved legacy symbolic place has no native cell.
+                    None => authored(&place.ns),
                     _ => None,
                 }
             }
