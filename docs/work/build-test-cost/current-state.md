@@ -149,6 +149,7 @@ workspace packages in `cargo tree -e normal,build,dev`.
 | 270 | `tcl-lsp-core` | `src/folding.rs` | 2 crates (`tcl-lsp-core`, `tcl-spectcl`), 11.3 s | 1 crate, 8.5 s | 29 → 21 |
 | 271 | `tcl-lsp-db` | `rust/tcl-vm/src/lib.rs` (a crate below the removed edges) | 5 crates (`tcl-vm`, `tcl-lsp-db`, `tcl-engine-tclvm`, `tcl-spec-hooks`, `tcl-spectcl`), 9.0 s | 0 crates, 0.3 s | 30 → 22 |
 | 271 | `tcl-lsp-db` | `src/display_queries.rs` | 1 crate, 8.2 s | 1 crate, 6.6 s | |
+| 272 | `tcl-vm` | `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` (a crate above the edges) | 3 crates (`tcl-compiler`, `tcl-codegen`, `tcl-vm`: lib test harness, 15 test binaries), 21.9 s | not yet: both dev-dependencies stay until the 575 remaining `src` tests are rewritten | 19 → 17 (design) |
 
 ### Build levers (items 296–300 and 260): before → after
 
