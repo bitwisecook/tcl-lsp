@@ -20,7 +20,7 @@
 //! analogue of `runtime/rust`'s `run_script --init`, for comparing tcltest
 //! pass/fail/skip performance between the two runtimes.
 //!
-//! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm --example run_test --
+//! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm-cli --example run_test --
 //! <file.test> [--match <test-glob-list>] [--tcl-version <release>]`
 //!
 //! The VM sources the selected library's real `init.tcl`, then obtains tcltest

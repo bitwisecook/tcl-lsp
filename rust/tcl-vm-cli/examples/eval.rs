@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Minimal VM script evaluator (no tcltest, no traces) — for isolating VM bugs.
-//! Usage: `echo '<script>' | cargo run -p tcl-vm --example eval`
+//! Usage: `echo '<script>' | cargo run -p tcl-vm-cli --example eval`
 
 use std::io::Read;
 

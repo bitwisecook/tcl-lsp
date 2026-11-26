@@ -138,7 +138,7 @@ own. `var_trace_may_fire` keeps the untraced fast path
 for ordinary variables while the hook is the only trace: an access then needs
 the trace walk only when its name contains `env`, or once a link has reached
 the hooked array or one of its elements under another name. Witnesses:
-`rust/tcl-vm/tests/it_2/env_host_sync_e2e.rs`.
+`rust/tcl-vm-it/tests/it_2/env_host_sync_e2e.rs`.
 
 Command/execution traces remain the command-side tables described below. The
 VM also needs one extra piece of state that the tree-walker does not: because
@@ -148,7 +148,7 @@ compiled bodies that would otherwise skip the per-command step hook. An
 epoch counter, bumped on every `trace add|remove execution … enterstep`,
 drives that invalidation.
 
-Behaviour is pinned end-to-end in `rust/tcl-vm/tests/command_traces_e2e.rs`:
+Behaviour is pinned end-to-end in `rust/tcl-vm-it/tests/command_traces_e2e.rs`:
 names arrive fully qualified, an enter-trace error aborts the command, a
 leave-trace error replaces its result, `rename`/`delete` callback errors are
 ignored, traces follow a `rename`, and a redefinition fires the `delete`
@@ -401,5 +401,5 @@ not here.
 | `rust/tcl-vm/src/cmd_trace.rs` | the `trace` command for the bytecode VM |
 | `rust/tcl-vm/src/interp.rs` | VM trace tables, the step-trace epoch, `cmd_trace_entries` |
 | `runtime/rust/tests/trace_semantics.rs` | tclsh-pinned transcripts for the tree-walker, including the `rename` window |
-| `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution/variable trace vectors, including firing order |
-| `rust/tcl-vm/tests/legacy_variable_traces_e2e.rs` | tclsh-pinned cross-version vectors for `trace variable`/`vdelete`/`vinfo` |
+| `rust/tcl-vm-it/tests/command_traces_e2e.rs` | tclsh-pinned command/execution/variable trace vectors, including firing order |
+| `rust/tcl-vm-it/tests/legacy_variable_traces_e2e.rs` | tclsh-pinned cross-version vectors for `trace variable`/`vdelete`/`vinfo` |

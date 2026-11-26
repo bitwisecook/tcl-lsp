@@ -2,7 +2,7 @@
 # `run_fresh`, `eval`), the result helpers and the inline `compiler` module
 # (a compile service for the tests that need real Tcl setup). Modules follow
 # the opcode families of the file's section comments.
-file = "rust/tcl-vm/tests/it_5/opcode_c_parity.rs"
+file = "rust/tcl-vm-it/tests/it_5/opcode_c_parity.rs"
 
 [[module]]
 name = "variable_access"

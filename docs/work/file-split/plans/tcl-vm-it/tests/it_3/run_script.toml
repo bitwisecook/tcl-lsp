@@ -2,7 +2,7 @@
 # the hand-assembled `run_asm` with `pushv`), the output capture and the
 # basic dispatch test. The file had no sections; tests are grouped by the
 # command family they exercise.
-file = "rust/tcl-vm/tests/it_3/run_script.rs"
+file = "rust/tcl-vm-it/tests/it_3/run_script.rs"
 
 [[module]]
 name = "traces_and_errors"

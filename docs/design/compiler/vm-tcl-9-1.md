@@ -387,7 +387,7 @@ without the feature runs the opcodes unchanged.
    - Emit-time width selection, then delete `operand_width.rs`'s post-pass.
    - Lowering for the new commands.
    - Admission asserts.
-6. **VM arms** for `dictRemove`, `arithSeries` and `foreach_index`, with 9.1 semantics, and conformance rows in `rust/tcl-vm/tests/it_5/opcode_c_parity.rs`.
+6. **VM arms** for `dictRemove`, `arithSeries` and `foreach_index`, with 9.1 semantics, and conformance rows in `rust/tcl-vm-it/tests/it_5/opcode_c_parity.rs`.
 7. **Opcode status.** Rewrite `docs/design/runtime/tclvm-opcode-status.md` in 9.1 slot order (211 rows plus a private-opcode section).
 8. **bytecode-compare.**
    - Add release-aware goldens for 9.1, so `-v 9.1` compares goldens and not a cache.

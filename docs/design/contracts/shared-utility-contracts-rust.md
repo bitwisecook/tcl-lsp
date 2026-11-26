@@ -3414,18 +3414,18 @@ helper without reading the rationale:
 - `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
   ensemble subcommand scan's empty-word divergence, and the
   comma-before-`or` enumeration.
-- `rust/tcl-vm/tests/it_3/namespace_surface_e2e.rs` and the
+- `rust/tcl-vm-it/tests/it_3/namespace_surface_e2e.rs` and the
   `cmd_namespace.rs` test module in `runtime/rust` — the `namespace`
   command surface (`which -variable`, `origin`, `export`/`import`
   leading options, teardown, `ensemble`) pinned against tclsh 8.6.16
   and 9.0.4 on both engines.
 - `rust/tcl-cmd-core/src/sort.rs` —
   `parse_wide_shares_the_canonical_integer_grammar`.
-- `rust/tcl-vm/tests/it_2/namespace_colon_runs_e2e.rs` — colon-run
+- `rust/tcl-vm-it/tests/it_2/namespace_colon_runs_e2e.rs` — colon-run
   resolution/creation pinned against tclsh8.6.
-- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
+- `rust/tcl-vm-it/tests/it_2/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
   texts pinned against tclsh.
-- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `builtins.rs` /
+- `rust/tcl-vm-it/tests/it_5/builtins_e2e.rs` and the `builtins.rs` /
   `cmd_alias.rs` test modules in `runtime/rust` —
   `interp_debug_option_uses_c_noun_and_abbreviates`,
   `interp_limit_type_word_resolves_like_tcl_get_index_from_obj`,
@@ -3435,46 +3435,46 @@ helper without reading the rationale:
   pinned against tclsh 8.6.16 and 9.0.4 on both engines
   (`runtime/rust/tests/rename_interp_semantics.rs` pins the runtime's
   deliberately shortened enumeration).
-- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `cmd_package.rs` test
+- `rust/tcl-vm-it/tests/it_5/builtins_e2e.rs` and the `cmd_package.rs` test
   module in `runtime/rust` —
   `package_option_words_resolve_like_tcl_get_index_from_obj`, with the
   release axis of `package`'s table (`prefer` from 8.5, `files` from
   9.0) pinned in
-  `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs`.
-- `rust/tcl-vm/tests/it_5/cmd_event_e2e.rs` /
+  `rust/tcl-vm-it/tests/it_4/cross_version_command_surface_e2e.rs`.
+- `rust/tcl-vm-it/tests/it_5/cmd_event_e2e.rs` /
   `cmd_control_e2e.rs` / `builtins_e2e.rs` and the `cmd_event.rs`,
   `cmd_error.rs`, `cmd_chan.rs` test modules in `runtime/rust` —
   `update_and_after_words_resolve_like_tcl_get_index_from_obj`,
   `try_handler_type_resolves_like_tcl_get_index_from_obj`, and
   `seek_origin_resolves_like_tcl_get_index_from_obj`.
-- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs` —
+- `rust/tcl-vm-it/tests/it_2/cmd_info_prefix_e2e.rs` —
   `info_and_file_ensemble_misses_carry_the_full_option_list`; the
   `cmd_info.rs` / `cmd_fs.rs` test modules in `runtime/rust` carry the
   matching `*_ensemble_miss_carries_the_full_option_list` rows.
-- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs`
+- `rust/tcl-vm-it/tests/it_2/cmd_info_prefix_e2e.rs`
   (`prefix_ensemble_and_match_options_resolve_like_tclsh`),
   `cmd_string_e2e.rs` (`string_subcommand_dispatch`, tightened from
   `starts_with` to the full tclsh 9.0.4 text), and the `cmd_string.rs`
   test module in `runtime/rust`
   (`string_and_prefix_ensembles_resolve_like_tclsh`, which also pins
   `string is`'s `class` and `option` nouns).
-- `rust/tcl-vm/tests/it_2/cmd_collections_e2e.rs`
+- `rust/tcl-vm-it/tests/it_2/cmd_collections_e2e.rs`
   (`array_bad_subcommand`, `dict_bad_subcommand` — both tightened from
   `starts_with` to full text) and the `cmd_array.rs` / `cmd_dict.rs`
   test modules in `runtime/rust`, plus
   `prefix.rs::dict_filter_type_noun_and_abbreviations` for the owner's
   own `filterType` row.
-- `rust/tcl-vm/tests/it_5/builtins_e2e.rs`
+- `rust/tcl-vm-it/tests/it_5/builtins_e2e.rs`
   (`ensemble_subcommand_words_resolve_like_tclsh`) and the
   `cmd_binary.rs`, `cmd_misc.rs`, `cmd_zlib.rs`, `cmd_namespace.rs`
   test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
   `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
   tables (C's order is `-header, -level`, not alphabetical).
-- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `cmd_fs.rs` test module in
+- `rust/tcl-vm-it/tests/it_5/builtins_e2e.rs` and the `cmd_fs.rs` test module in
   `runtime/rust` — `glob_option_words_resolve_like_tcl_get_index_from_obj`
   on each side, covering rejection of an unknown option
   as well as the shared abbreviation verdicts.
-- `rust/tcl-vm/tests/it_3/cmd_oo_e2e.rs`
+- `rust/tcl-vm-it/tests/it_3/cmd_oo_e2e.rs`
   (`info_object_isa_category_resolves_like_tcl_get_index_from_obj`,
   `tip558_configurable_property_abbreviates`) and the `cmd_oo.rs` test
   module in `runtime/rust`
@@ -3491,14 +3491,14 @@ helper without reading the rationale:
   `backslash_newline_absorbs_the_following_space_run` and
   `delimiter_errors_keep_their_dict_wording_and_fragment` (the dict scan
   riding the shared list codec).
-- `rust/tcl-vm/tests/it_2/cmd_collections_e2e.rs` —
+- `rust/tcl-vm-it/tests/it_2/cmd_collections_e2e.rs` —
   `duplicate_dict_keys_canonicalise_last_value_wins` (every VM dict path
   through `ValueOps::dict_pairs`, including the compile-time
   `dict create` fold) and
   `dict_parse_errors_use_the_dict_noun_and_error_code`;
-  `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs` — the
+  `rust/tcl-vm-it/tests/it_4/cross_version_command_surface_e2e.rs` — the
   *foldable* `dict create` availability vector.
-- `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` — the cross-crate
+- `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs` — the cross-crate
   gate for `canonical_dict_slots`. The canonicalisation rule is
   "first-occurrence key position, last value wins". The suite feeds
   duplicate-key and odd-shape inputs through every binding: the `ValueOps`
@@ -3512,14 +3512,14 @@ helper without reading the rationale:
   is its leg of the same gate.
 - `rust/tcl-lexer/src/ranges.rs` —
   `braced_var_name_end_follows_the_release_rule`;
-  `rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs` —
+  `rust/tcl-vm-it/tests/it_4/cross_version_vars_e2e.rs` —
   `subst_braced_var_close_rule_follows_the_emulated_release`,
   `unterminated_braced_var_raises_on_both_releases` and their
   tclsh-pinned sibling; `runtime/rust/src/subst.rs` —
   `braced_var_close_rule_follows_the_emulated_release`;
   `runtime/rust/src/builtins.rs` —
   `unterminated_braced_var_raises_missing_close_brace`.
-- `rust/tcl-vm/tests/it_4/language_e2e.rs` —
+- `rust/tcl-vm-it/tests/it_4/language_e2e.rs` —
   `zero_length_array_name_is_an_array_element` and
   `link_commands_reject_element_looking_names` (`split_element_ref`).
 - `rust/tcl-spectcl/src/loader.rs` — `ArgRows::seal`, the single projection

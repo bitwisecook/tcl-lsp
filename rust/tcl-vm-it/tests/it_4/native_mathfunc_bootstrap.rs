@@ -292,7 +292,7 @@ fn check_authentic_max_birth_currency(profile: &'static DialectProfile) {
     run_cached_body(&mut vm, &cached_body);
     let source = format!(
         "namespace eval ::tcl::mathfunc {{\n{}\n}}\nset marker after",
-        include_str!("../data/native_c86_init_max.tcl")
+        include_str!("../../../tcl-vm/tests/data/native_c86_init_max.tcl")
     );
     let completion = vm
         .try_eval_source_bytes(source.as_bytes())

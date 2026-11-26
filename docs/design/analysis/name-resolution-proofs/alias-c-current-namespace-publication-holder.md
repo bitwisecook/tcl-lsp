@@ -65,7 +65,7 @@ No appliance execution answers this exact API/input question; stock C/Jim public
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api` (linked): Independent Runtime alias conformance compares the complete original measured public rows after provider-version metadata through the selected supported API; no extra native process, private key/cell or frame identity follows.
-- [rust/tcl-vm/tests/native_compilation_conformance.rs](../../../../rust/tcl-vm/tests/native_compilation_conformance.rs), `native_compilation_conformance::alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api` (linked): Full original source and retained provider stdout bind VM public conformance after version metadata; actual assertions require separate validation receipts and do not establish private interpreter storage or API equivalence.
+- [rust/tcl-vm-it/tests/native_compilation_conformance.rs](../../../../rust/tcl-vm-it/tests/native_compilation_conformance.rs), `native_compilation_conformance::alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api` (linked): Full original source and retained provider stdout bind VM public conformance after version metadata; actual assertions require separate validation receipts and do not establish private interpreter storage or API equivalence.
 
 ## Evidence
 

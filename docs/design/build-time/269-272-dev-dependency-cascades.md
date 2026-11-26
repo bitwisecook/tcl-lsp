@@ -583,3 +583,41 @@ none of the private API). The probe was not kept.
 | `interp::native_error_variables` | 16 | 130 | 25 |
 | `interp::native_variable_names::tests` | 28 | 137 | 34 |
 | `interp::native_operation_currency` | 30 | 201 | 138 |
+
+### 272 as built
+
+**Structural move.**
+- `rust/tcl-vm-it` (no library code) holds every `tests/` file that compiles
+  Tcl, under its old harness and module path, so `tcl-vm-it::it_3` is the old
+  `tcl-vm::it_3`. Its dev-dependencies are `tcl-vm` with `test-support`,
+  `tcl-codegen`, `tcl-compiler`, `tcl-test-support` and the lower crates the
+  tests name.
+- Five files that need no compiler stay in `tcl-vm` as `tests/it_5`:
+  `expr_surface_e2e`, `library_bootstrap_presence`, `native_byte_literals`,
+  `native_variable_declaration` and `thread_exit_retirement`. The design's
+  "69 files that name neither crate" were mostly nested modules of files that
+  do, or top-level files that reach the compiler through `tests/common`.
+- `tests/data` and `tests/fixtures` stay in `tcl-vm`. `runtime/rust` and the
+  VM's own unit tests read them, and the moved tests reach them through
+  `../tcl-vm/tests/data`.
+- The examples are in `tcl-vm-cli`
+  (`cargo run -p tcl-vm-cli --example run_test`), and `xtask tcltest-sweep`
+  builds them there.
+- The 4 import-only `src` tests are in `tcl-vm-it/tests/it_5` under their old
+  module paths (`cmd_lseq::tests`, `cmd_try::native_fixture_tests`,
+  `interp::commands::command_tokens::semantic_identity_tests`). Their
+  interpreter is built through `Vm::with_native_core` and `set_compiler`
+  (`it_5/fixture.rs`).
+- The shard map, the heavy-test rows, the package path list and `deny.toml`
+  name `tcl-vm-it`.
+
+**Parity.** `cargo test -p tcl-vm --no-fail-fast` before, and
+`-p tcl-vm -p tcl-vm-it --no-fail-fast` after: 3152 passed and 82 failed on
+both sides, and `failset.py compare` finds no new or fixed failure.
+
+**The `src` tests are larger than the inventory.** The inventory compiled the
+41 blocks that name `tcl_codegen` or `tcl_compiler`. Many more reach the
+compiler only through `native_fixture::interpreter*`: counting test functions
+whose body, or a same-file helper, reaches it, 653 tests in 172 files (940
+tests in those files in all). While any of them stays, both dev-dependencies
+stay and a `tcl-compiler` edit still rebuilds `tcl-vm`'s tests.

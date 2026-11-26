@@ -38,7 +38,7 @@ use std::process::Command;
 
 /// `…/rust/tcl-vm`.
 fn crate_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tcl-vm")
 }
 
 /// A short, filesystem-safe key derived from `path`'s absolute form —

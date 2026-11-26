@@ -21,8 +21,8 @@
 # The VM library stays compiler-optional (the `CompileService` injection point
 # keeps it off `tcl-compiler`); this binary crate supplies the concrete
 # compiler-backed `CompileService` and the host wiring, so the lib itself never
-# grows a `tcl-compiler` dependency. Mirrors the `tcl-vm` examples (`eval` /
-# `run_test`), promoted to a shipping `tclvm` binary that runs script files,
+# grows a `tcl-compiler` dependency. Its examples (`eval` / `run_test`) are
+# the single-purpose drivers it grew from; the `tclvm` binary runs script files,
 # evaluates inline scripts, pipes stdin, and offers an interactive REPL.
 [package]
 name = "tcl-vm-cli"
@@ -60,6 +60,9 @@ static-extensions = ["dep:tcl-cshim", "dep:tcl-engine-tclvm"]
 
 [dev-dependencies]
 tcl-test-support = { path = "../tcl-test-support" }
+# The `eval` and `run_test` examples.
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-syntax = { path = "../tcl-syntax" }
 
 [lints]
 workspace = true

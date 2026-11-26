@@ -153,7 +153,7 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the registry sweep walks every catalogue profile",
     ),
     (
-        "rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs",
+        "rust/tcl-vm-it/tests/it_4/cross_version_command_surface_e2e.rs",
         "tests: the VM's profile pin agrees with every catalogue profile",
     ),
     (

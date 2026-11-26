@@ -1,7 +1,7 @@
 # The parent keeps the module documentation, the output capture and the
 # drivers every topic shares: `profile_output`, `vm_for_profile`, `vm_output`
 # and the real-`tclsh` oracle `tclsh_output`.
-file = "rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs"
+file = "rust/tcl-vm-it/tests/it_4/cross_version_command_surface_e2e.rs"
 
 [[module]]
 name = "compile_service_profiles"

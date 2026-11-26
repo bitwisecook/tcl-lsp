@@ -35,7 +35,7 @@ lets tcltest print its `Total N Passed X Skipped Y Failed Z` summary:
 
 ```
 TCL_LIBRARY=~/src/tcl9.0.4/library \
-  cargo run -p tcl-vm --example run_test -- \
+  cargo run -p tcl-vm-cli --example run_test -- \
   ~/src/tcl9.0.4/tests/<stem>.test --match '<test-id-glob>'
 ```
 
@@ -132,5 +132,5 @@ highest-leverage fix.
   ladder (what each tier means, which files belong to it, why the order matters).
 - [`tcl-conformance-harness.md`](../design/runtime/tcl-conformance-harness.md) —
   source/oracle discovery, exact-patch rules, and ownership.
-- `rust/tcl-vm/examples/run_test.rs` — the single-file VM driver.
+- `rust/tcl-vm-cli/examples/run_test.rs` — the single-file VM driver.
 - `rust/xtask/src/tcltest_sweep.rs` — the sweep + scoreboard generator.

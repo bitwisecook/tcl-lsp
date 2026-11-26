@@ -661,7 +661,7 @@ fn name_delimiter_ledger_round_trips_and_skips_owner_and_tests() {
         ("rust/tcl-vm/src/exec.rs", true),
         ("rust/tcl-syntax/src/naming.rs", false),
         ("rust/tcl-syntax/src/naming/autoload.rs", false),
-        ("rust/tcl-vm/tests/it_3/main.rs", false),
+        ("rust/tcl-vm-it/tests/it_3/main.rs", false),
         ("rust/tcl-vm/src/exec_tests.rs", false),
         ("rust/xtask/src/owner_resolution.rs", false),
     ] {

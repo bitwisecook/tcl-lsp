@@ -19,8 +19,8 @@
 //! Tcl 9 `regexp.test` (the `regexp`/`regsub` command suite) as a Rust
 //! cargo test: each case's body is run end-to-end through the VM (compiled
 //! bytecode → the `tcl-regex` ARE engine) and its result compared against the
-//! value real `tclsh` produced. The corpus in `tests/data/regexp_cmd_cases.tsv`
-//! was extracted by `tests/data/dump_regexp_cmd.tcl` driving the real `tcltest`
+//! value real `tclsh` produced. The corpus in `rust/tcl-vm/tests/data/regexp_cmd_cases.tsv`
+//! was extracted by `rust/tcl-vm/tests/data/dump_regexp_cmd.tcl` driving the real `tcltest`
 //! shell over `regexp.test`.
 //!
 //! `regexp.test` is written for the full `tcltest` framework (inter-test
@@ -46,7 +46,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-const CORPUS: &str = include_str!("data/regexp_cmd_cases.tsv");
+const CORPUS: &str = include_str!("../../tcl-vm/tests/data/regexp_cmd_cases.tsv");
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);

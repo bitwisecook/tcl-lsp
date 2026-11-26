@@ -75,7 +75,7 @@ not default it — set `TCL_BACKEND_CONSTRAINTS` yourself for a manual
 
 Where each harness sources it:
 
-- `rust/tcl-vm/examples/run_test.rs` builds the driver script
+- `rust/tcl-vm-cli/examples/run_test.rs` builds the driver script
   `source <tcltest>` → `namespace import -force ::tcltest::*` → *overlay* →
   `source <testfile>`, so the overlay lands after tcltest is available and
   before the test file's own body.
@@ -88,7 +88,7 @@ Where each harness sources it:
 # tcl-vm bytecode VM, evaluated as the WASI backend
 TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \
 TCL_WASI_SPEC=preview1 \
-  cargo run -p tcl-vm --release --example run_test -- tmp/tcl9.0.4/tests/socket.test
+  cargo run -p tcl-vm-cli --release --example run_test -- tmp/tcl9.0.4/tests/socket.test
 
 # runtime/rust tree-walk runtime, evaluated as eBPF
 TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \

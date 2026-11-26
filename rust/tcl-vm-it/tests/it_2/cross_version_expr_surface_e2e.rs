@@ -48,7 +48,7 @@
 //! A vector that expects a rejection prints a fixed word rather than the
 //! interpreter's message: the claim under test is *which release* rejects the
 //! operator, and the message wording is already pinned by
-//! `tcl-vm/tests/expr_surface_e2e.rs` and the registry's own surface tests.
+//! `tcl-vm/tests/it_5/expr_surface_e2e.rs` and the registry's own surface tests.
 
 use std::cell::RefCell;
 use std::rc::Rc;

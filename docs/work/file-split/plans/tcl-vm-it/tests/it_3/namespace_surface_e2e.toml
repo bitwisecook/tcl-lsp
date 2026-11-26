@@ -1,7 +1,7 @@
 # The parent keeps the output capture and the `run`, `run_at` and
 # `run_flipping` drivers, and one test of the compound projection that
 # belongs to no namespace topic.
-file = "rust/tcl-vm/tests/it_3/namespace_surface_e2e.rs"
+file = "rust/tcl-vm-it/tests/it_3/namespace_surface_e2e.rs"
 
 [[module]]
 name = "which_origin"

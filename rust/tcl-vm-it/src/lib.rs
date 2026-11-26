@@ -16,30 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-vm` integration tests assigned to CI shard 3, one module per
-//! former test binary, linked once instead of 22 times
-//! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
-//! module; a new top-level `tests/*.rs` is a binary of its own.
-
-mod c_error_paths_e2e;
-mod cmd_control_e2e;
-mod cmd_math_expr_e2e;
-mod cmd_oo_e2e;
-mod coro_error_trace_e2e;
-mod cross_version_info_surface_e2e;
-mod cross_version_lset_e2e;
-mod embed_api_e2e;
-mod error_info_text_e2e;
-mod info_worker_e2e;
-mod literal_index_encoding_e2e;
-mod mathfunc_derivation_e2e;
-mod namespace_surface_e2e;
-mod release_number_semantics_e2e;
-mod release_running_bytecode_e2e;
-mod rename_return_source_e2e;
-mod return_code_boundary_e2e;
-mod run_script;
-mod tclsh_parity_e2e;
-mod tricky_resolution_e2e;
-mod uplevel_coro_e2e;
-mod word_value_resolution_e2e;
+//! No library code: `tcl-vm`'s tests that compile Tcl through `tcl-compiler`
+//! and `tcl-codegen` before the VM runs it. Keeping them out of `tcl-vm`'s
+//! own dev-dependencies means a compiler or code-generator edit does not
+//! rebuild `tcl-vm`'s tests.

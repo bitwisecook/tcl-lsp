@@ -16,7 +16,7 @@ The 24 fixtures in [`oo-dispatch-probe/frames-semantics/`](handover/oo-dispatch-
 | same through `nextto`, and through a chained constructor | level `2` | level `3` |
 | `filter` in an `oo::class create` definition script | accepted | `invalid command name "filter"` |
 
-A plain method and `my` are correct in the VM. The runtime keeps a `next`-chained method at the original level with `push_same_level`; the VM's level is always its stack index (`rust/tcl-vm/src/interp/frames.rs`), so it has no equivalent. The VM also does not implement `info frame` (pinned as an error in `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs`); the runtime does.
+A plain method and `my` are correct in the VM. The runtime keeps a `next`-chained method at the original level with `push_same_level`; the VM's level is always its stack index (`rust/tcl-vm/src/interp/frames.rs`), so it has no equivalent. The VM also does not implement `info frame` (pinned as an error in `rust/tcl-vm-it/tests/it_2/cmd_info_prefix_e2e.rs`); the runtime does.
 
 **Analysis** (the same correct programs; any diagnostic is false):
 

@@ -407,7 +407,7 @@ axis, and the axis's owner in the tree decides each bit:
 | `FORMAT_VERBS` | the `format` conversion set | `format::is_available`, `format::is_verb` |
 | `STRING_CLASSES` | the `string is` class set and its bounds | `string_is::resolve_class`, `NumberSyntax::is_tcl9_or_later` |
 | `REGEXP_FEATURES` | ARE syntax, flags, and engine limits | `tcl_regex::cmd_core::AreEngine`, `regex::RegexFlags` |
-| `LIST_RENDERING` | the canonical quoting of a list result | `tcl_syntax::list`, `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` |
+| `LIST_RENDERING` | the canonical quoting of a list result | `tcl_syntax::list`, `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs` |
 | `DICT_ORDER` | canonical key order and the duplicate rule | `ValueOps::dict_pairs` |
 | `COLLATION` | case folding and ordering in a comparison | `string::simple_upper` / `simple_lower` / `simple_title`, `switch::select` |
 | `BYTE_STRINGS` | how a code point above `U+00FF` crosses to bytes | `TclVersion::byte_string_encoding`, whose two answers are `ByteStringEncoding::LegacyTruncate` up to 8.6 and `CheckedLatin1` from 9.0 |
@@ -2238,7 +2238,7 @@ implementation against the library's real behaviour.
 - `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from, and `a_derived_body_runs_under_the_release_the_call_is_analysed_under`, the rows that hold against each release's own `tclsh`; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
 - `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
 - `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` — the generated field reference
-- `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
+- `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
 - `rust/tcl-regex/tests/it_2/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them
 - `rust/tcl-registry/src/pack_hooks.rs` — `host_install_and_quarantine_bump_the_generation`; `runtime/rust/tests/common/engine_cases.rs` and `rust/tcl-engine-tclvm/src/lib.rs` — `set_release_pins_the_numeral_grammar`

@@ -59,6 +59,7 @@ rust/tcl-userdirs
 rust/tcl-value-syntax
 rust/tcl-version
 rust/tcl-vm
+rust/tcl-vm-it
 rust/tcl-vm-cli
 rust/xtask
 rust/xtask-backing

@@ -174,7 +174,7 @@ fn string_to_dict_shimmer() {
 /// `Tcl_DictObjPut` per insert) rather than in one walk over the elements.
 /// That makes it exactly the shape the owner cannot enforce by
 /// construction, so it is pinned by agreement instead — the same corpus
-/// the cross-crate gate `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs`
+/// the cross-crate gate `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs`
 /// drives through the other bindings.
 #[test]
 fn duplicate_keys_canonicalise_like_the_shared_owner() {

@@ -2,7 +2,7 @@
 # `invoke`, `sole_compiled_procedure`, the output capture, and the
 # `OptimisedOnlyCompilerSvc` and `CountingCompilerSvc` compile services.
 # A fixture used by one topic moves with that topic's tests.
-file = "rust/tcl-vm/tests/it_5/command_mutation_deopt_e2e.rs"
+file = "rust/tcl-vm-it/tests/it_5/command_mutation_deopt_e2e.rs"
 
 [[module]]
 name = "inlined_procedures"

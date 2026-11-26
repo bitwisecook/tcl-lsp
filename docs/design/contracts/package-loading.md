@@ -581,11 +581,11 @@ execute module initialisation.
   `pull_path_applies_w120_package_refinement`).
 - `tcl-spectcl/tests/it_5/registry_sweep.rs` — registry-wide command / package
   coverage.
-- `tcl-vm/tests/it_4/package_diagnostics_e2e.rs` — per-release diagnostic messages
+- `tcl-vm-it/tests/it_4/package_diagnostics_e2e.rs` — per-release diagnostic messages
   and `errorCode`; `runtime/rust/src/cmd_package.rs`
   `package_error_codes_follow_the_pinned_release`.
-- `tcl-vm/tests/it_2/package_coro_e2e.rs` — coroutine suspension through package
-  loading; `tcl-vm/tests/it_4/tcltest_load.rs` runs upstream package-3.54.
+- `tcl-vm-it/tests/it_2/package_coro_e2e.rs` — coroutine suspension through package
+  loading; `tcl-vm-it/tests/it_4/tcltest_load.rs` runs upstream package-3.54.
 
 ## Cross-reference: tclpkg
 

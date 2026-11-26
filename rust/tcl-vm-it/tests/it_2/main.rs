@@ -16,21 +16,29 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-vm` integration tests assigned to CI shard 4, one module per
-//! former test binary, linked once instead of 13 times
+//! `tcl-vm-it` integration tests assigned to CI shard 2, one module per
+//! former test binary, linked once
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
-mod capability;
-mod cmd_thread_e2e;
-mod cross_version_command_surface_e2e;
-mod cross_version_vars_e2e;
-mod formal_slot_identity;
-mod language_e2e;
-mod name_lookup_issue_witnesses;
-mod native_mathfunc_bootstrap;
-mod package_diagnostics_e2e;
-mod selected_frame_coroutines;
-mod string_is_failindex_receipt;
-mod tcltest_load;
-mod thread_exit_retirement;
+mod cmd_collections_e2e;
+mod cmd_coro_e2e;
+mod cmd_info_prefix_e2e;
+mod cmd_string_e2e;
+mod cross_interp_reentry_e2e;
+mod cross_version_expr_surface_e2e;
+mod cross_version_numerals_e2e;
+mod dictionary_worker_receipt;
+mod encoding_e2e;
+mod env_host_sync_e2e;
+mod expanded_invoke_e2e;
+mod integer_argument_reads_e2e;
+mod namespace_colon_runs_e2e;
+mod numeric_tower_e2e;
+mod opcode_dispatch_coverage;
+mod package_coro_e2e;
+mod regexp_e2e;
+mod string_map_worker_receipt;
+mod switch_integer_e2e;
+mod wasm_coro_e2e;
+mod word_parts_owner_e2e;

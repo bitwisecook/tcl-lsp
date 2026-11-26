@@ -18,7 +18,7 @@
 
 //! **Scripts read, compiled and reported as each `tclsh` does** (#2474).
 //!
-//! Each `tests/data/tclsh_parity/<name>.tcl` runs as the script file
+//! Each `rust/tcl-vm/tests/data/tclsh_parity/<name>.tcl` runs as the script file
 //! `tclsh` is given (`Vm::eval_file`, its uncaught error reported by its
 //! `errorInfo`) and on its stdin (`Vm::eval_source_commands`, each failed
 //! chunk reported by its result after the output, as `tclsh` writes it to
@@ -74,7 +74,7 @@ const RELEASES: [TclVersion; 5] = [
 const FILE_NAME: &str = "parity.tcl";
 
 fn data_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/tclsh_parity")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tcl-vm/tests/data/tclsh_parity")
 }
 
 /// The vectors: every script in the data directory.

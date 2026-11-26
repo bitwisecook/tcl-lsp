@@ -68,6 +68,7 @@ members = [
     "rust/tcl-codegen",
     "rust/tcl-diagram",
     "rust/tcl-vm",
+    "rust/tcl-vm-it",
     "rust/tcl-vm-cli",
     "rust/tcl-engine-api",
     "rust/tcl-engine-tclvm",

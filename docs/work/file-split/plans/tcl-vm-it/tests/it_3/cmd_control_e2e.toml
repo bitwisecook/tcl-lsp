@@ -1,7 +1,7 @@
 # The parent keeps the module documentation and the shared fixtures: the
 # output capture, `run`, and the plain-dispatch compile service with
 # `run_with_plain_runtime_compiler`.
-file = "rust/tcl-vm/tests/it_3/cmd_control_e2e.rs"
+file = "rust/tcl-vm-it/tests/it_3/cmd_control_e2e.rs"
 
 [[module]]
 name = "catch_bodies"

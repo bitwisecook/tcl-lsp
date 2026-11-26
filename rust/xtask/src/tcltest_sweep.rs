@@ -24,7 +24,7 @@
 //! native-stack overflow can't stall the sweep), and `tcltest` itself prints
 //! the `Total N Passed X Skipped Y Failed Z` summary the sweeper parses.
 //!
-//! - VM backend = the `run_test` example (`rust/tcl-vm/examples/run_test.rs`),
+//! - VM backend = the `run_test` example (`rust/tcl-vm-cli/examples/run_test.rs`),
 //!   built `--release` once and invoked per stem.
 //! - C backend  = the locally-built reference `tclsh9.0`; its results are the
 //!   stable baseline, cached in `tests/baselines/tcl9-tcltest/c-tclsh.ndjson`.
@@ -425,12 +425,12 @@ fn run_one(
 
 /// Build the VM `run_test` example once (`--release`) and return its binary path.
 fn build_vm_runner(root: &Path) -> Result<PathBuf> {
-    eprintln!("==> building tcl-vm run_test example (release)…");
+    eprintln!("==> building tcl-vm-cli run_test example (release)…");
     let status = Command::new(std::env::var("CARGO").as_deref().unwrap_or("cargo"))
         .args([
             "build",
             "-p",
-            "tcl-vm",
+            "tcl-vm-cli",
             "--example",
             "run_test",
             "--release",
@@ -439,7 +439,7 @@ fn build_vm_runner(root: &Path) -> Result<PathBuf> {
         .status()
         .context("spawning cargo build for run_test")?;
     if !status.success() {
-        bail!("cargo build -p tcl-vm --example run_test --release failed");
+        bail!("cargo build -p tcl-vm-cli --example run_test --release failed");
     }
     let bin = root.join("target/release/examples/run_test");
     if !bin.is_file() {

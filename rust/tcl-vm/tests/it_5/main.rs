@@ -16,23 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-vm` integration tests assigned to CI shard 5, one module per
-//! former test binary, linked once instead of 15 times
-//! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
-//! module; a new top-level `tests/*.rs` is a binary of its own.
+//! `tcl-vm`'s integration tests that need no source compiler: they drive the
+//! VM through its public API, `test_support` constructors and hand-built
+//! bytecode. Tests that compile Tcl are in `tcl-vm-it`.
 
-mod builtins_e2e;
-mod clock_compilation_e2e;
-mod cmd_event_e2e;
-mod command_mutation_deopt_e2e;
-mod cross_version_escapes_e2e;
-mod dict_canonicalisation_parity;
+mod expr_surface_e2e;
 mod library_bootstrap_presence;
 mod native_byte_literals;
 mod native_variable_declaration;
-mod opcode_c_parity;
-mod opcode_catch_parity;
-mod safe_interp_e2e;
-mod string_map_identity_receipt;
-mod tailcall_uplevel_e2e;
-mod variable_container_models;
+mod thread_exit_retirement;

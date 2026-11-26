@@ -1,7 +1,7 @@
 # The parent keeps the module documentation, the output capture, `run` and
 # `out_eq`. The file had no sections; tests are grouped by the command family
 # they exercise.
-file = "rust/tcl-vm/tests/it_5/builtins_e2e.rs"
+file = "rust/tcl-vm-it/tests/it_5/builtins_e2e.rs"
 
 [[module]]
 name = "lists_arrays_dicts"

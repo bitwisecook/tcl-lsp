@@ -5254,6 +5254,28 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
+]
+
+[[package]]
+name = "tcl-vm-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-cmd-core",
+ "tcl-codegen",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-host-native",
+ "tcl-lexer",
+ "tcl-platform",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
 ]
