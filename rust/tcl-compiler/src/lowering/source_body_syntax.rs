@@ -49,7 +49,7 @@ impl SourceBodySyntaxOwner {
                 SourcePurpose::Native,
                 card.site().source.source_image(),
                 card.body_span()?,
-                card.namespace().display()?,
+                card.namespace()?.display()?,
             )),
             Self::Logical(card) => Some((
                 SourcePurpose::Logical,

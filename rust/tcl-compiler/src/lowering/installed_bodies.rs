@@ -172,7 +172,8 @@ impl Lowerer<'_> {
             card.name().map(str::to_owned),
             card.reporting_label(),
             card.parameters_text().map(str::to_owned),
-            card.namespace().display(),
+            card.namespace()
+                .and_then(crate::command_binding::SourceNamespaceKey::display),
         )
         else {
             return;
@@ -199,7 +200,7 @@ impl Lowerer<'_> {
             });
         self.readonly_native_declaration_body = previous;
         self.native_source_children = previous_children;
-        body.namespace_context = Some(Box::new(card.namespace().clone()));
+        body.namespace_context = card.namespace().cloned().map(Box::new);
         let card = std::sync::Arc::new(
             card.as_ref()
                 .clone()

@@ -83,8 +83,7 @@ impl DeclaredProcedureBody {
             return required(false, "declared.body-end");
         };
         let Some(namespace) =
-            tcl_syntax::naming::checked_namespace_path_key(scope.namespace_recipe())
-                .map(super::super::SourceNamespaceKey::authored)
+            super::super::SourceNamespaceKey::authored_path(scope.namespace_recipe())
         else {
             return required(false, "declared.namespace");
         };
@@ -478,9 +477,7 @@ fn standalone_procedure_body_recipe(
         &tcl_core_types::ByteNamespacePath::root(),
         name.as_bytes(),
     )?;
-    let namespace = super::super::SourceNamespaceKey::authored(
-        tcl_syntax::naming::checked_namespace_path_key(&coordinate.namespace)?,
-    );
+    let namespace = super::super::SourceNamespaceKey::authored_path(&coordinate.namespace)?;
     observation
         .snapshot
         .state

@@ -144,9 +144,10 @@ impl OriginalLogicalProcedureBody {
                 .map(String::as_str)
                 .eq(self.parameters.iter().map(|p| p.name.as_str()))
             && procedure.body.namespace_context.as_deref()
-                == tcl_syntax::naming::checked_namespace_path_key(self.scope.namespace_recipe())
-                    .map(crate::command_binding::SourceNamespaceKey::authored)
-                    .as_ref()
+                == crate::command_binding::SourceNamespaceKey::authored_path(
+                    self.scope.namespace_recipe(),
+                )
+                .as_ref()
             && procedure.body.executed_source.is_none()
             && procedure.body_offset == self.scope.scope_body().content_span().start()
             && procedure.body_source.as_deref()

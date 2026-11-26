@@ -45,7 +45,10 @@ pub(crate) struct OriginalNativeSourceDeclaration {
     name: SignatureSourceNameInput,
     formals: OriginalFormalTopology,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
-    namespace: SourceNamespaceKey,
+    /// Authored key derived from `scope`; absent when the retained
+    /// components have no authored spelling (non-UTF-8 or colon-bearing).
+    namespace: Option<SourceNamespaceKey>,
+    /// Structured namespace identity retained from the declaration slot.
     scope: SignatureNamespaceScope,
 }
 impl PartialEq for OriginalNativeSourceDeclaration {
@@ -73,8 +76,9 @@ impl OriginalNativeSourceDeclaration {
     pub(crate) fn declaration_slot(&self) -> &tcl_core_types::ByteCommandSlot {
         &self.procedure.declaration_slot
     }
-    pub(crate) fn namespace(&self) -> &SourceNamespaceKey {
-        &self.namespace
+    /// Authored namespace key, when the structured scope has one.
+    pub(crate) fn namespace(&self) -> Option<&SourceNamespaceKey> {
+        self.namespace.as_ref()
     }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
         &self.parameters
@@ -135,7 +139,7 @@ impl OriginalNativeSourceDeclaration {
             && self.procedure.declaration.dialect().parameter_grammar()
                 == Some(self.formals.parameter_grammar())
             && self.procedure.declaration_slot == self.procedure.slot
-            && self.namespace.display().as_deref() == self.scope.display().as_deref()
+            && self.namespace == SourceNamespaceKey::authored_scope(&self.scope)
     }
 }
 impl SourceCommandBindings {
@@ -212,7 +216,7 @@ impl SourceCommandBindings {
                         )
                     }
                 };
-                let namespace = SourceNamespaceKey::authored(scope.display()?);
+                let namespace = SourceNamespaceKey::authored_scope(&scope);
                 let card = OriginalNativeSourceDeclaration {
                     analysis_owner: Arc::clone(analysis_owner),
                     input: input.clone(),
@@ -1000,6 +1004,74 @@ mod may_terminal_tests {
                 .as_ref()
                 .unwrap()
                 .original_native_source_may_owner(&changed, "not-declared", &module, registry)
+        );
+    }
+}
+
+#[cfg(test)]
+mod namespace_identity_tests {
+    use super::*;
+
+    fn declarations(source: &str) -> Vec<Arc<OriginalNativeSourceDeclaration>> {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input.clone())
+                .with_explicit_unknown_entry(),
+            source,
+        );
+        let bindings = module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .positioned_for_module(&module, context.commands())
+            .unwrap();
+        bindings
+            .original_native_source_declarations(&input)
+            .unwrap()
+    }
+
+    #[test]
+    fn non_utf8_namespace_path_keeps_its_declaration_card() {
+        // `\u0000` materialises as Tcl's modified UTF-8 `C0 80`, so the
+        // namespace component is not Rust UTF-8 and has no display text.
+        let cards =
+            declarations("namespace eval a\\u0000b {}\nproc a\\u0000b::f {x} {return $x}\n");
+        assert_eq!(cards.len(), 1);
+        let card = &cards[0];
+        let SignatureNamespaceScope::C(path) = &card.scope else {
+            panic!("C namespace scope expected");
+        };
+        assert_eq!(path.as_segments().len(), 1);
+        assert_eq!(path.as_segments()[0].as_bytes(), b"a\xc0\x80b");
+        assert!(card.scope.display().is_none());
+        assert!(card.namespace().is_none());
+        assert_eq!(card.declaration_slot().simple.as_bytes(), b"f");
+    }
+
+    #[test]
+    fn utf8_namespace_key_comes_from_the_structured_path() {
+        let cards = declarations("namespace eval ::a::b {}\nproc ::a::b::f {x} {return $x}\n");
+        assert_eq!(cards.len(), 1);
+        let SignatureNamespaceScope::C(path) = &cards[0].scope else {
+            panic!("C namespace scope expected");
+        };
+        assert_eq!(
+            cards[0].namespace(),
+            SourceNamespaceKey::authored_path(path).as_ref()
+        );
+        assert_eq!(
+            cards[0].namespace(),
+            Some(&SourceNamespaceKey::authored("::a::b"))
         );
     }
 }
