@@ -229,6 +229,39 @@ days, under cargo's own lock. On this checkout's target:
 
 `target/debug/build` was 41 GB before the first run and is 30 GB now.
 
+**296, dev-only features (measurement and decision).** For each crate whose
+test enables a dev-only feature, the packages whose resolved features differ
+from a dev `cargo build -p tcl-lsp-server` (`cargo tree -f '{p}|{f}'`, test
+graph with dev-dependencies against the server's normal graph), and the
+workspace crates of the server's graph that sit at or above the differing
+workspace crate in that test graph, so get a second unit hash:
+
+| Test of | Dev-only feature that differs | Duplicated workspace crates |
+|---|---|---|
+| `tcl-codegen` | `tcl-compiler/test-support` | `tcl-compiler`, `tcl-codegen` (2) |
+| `tcl-compiler-it` | `tcl-compiler/test-support` | `tcl-compiler`, `tcl-codegen`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks`, `tcl-engine-tclvm`, `tcl-bigip`, `tcl-irules`, `tcl-sslictcl` (9) |
+| `tcl-vm`, `tcl-irule-test` | `tcl-vm/test-support` | `tcl-vm` (1) |
+| `tcl-engine-tclvm` | `tcl-vm/test-support` | `tcl-vm`, `tcl-engine-tclvm` (2) |
+| `tcl-spectcl` | `tcl-vm/test-support` | `tcl-vm`, `tcl-engine-tclvm`, `tcl-spec-hooks`, `tcl-spectcl` (4) |
+| `tcl-lsp-server` | `tcl-lsp-core/{truth-table, transport-fixtures}` | `tcl-lsp-core`, `tcl-lsp-db`, `tcl-spectcl`, `tcl-explorer`, `f5-xc`, `tcl-lsp-server` (6) |
+| `tcl-cli` | `tcl-lsp-core` and `tcl-explorer` features | `tcl-lsp-core`, `tcl-explorer`, `tcl-spectcl` (3) |
+| `tcl-mcp` | `tcl-lsp-core`, `tcl-irules/test-instrumentation`, `tcl-explorer` and `tcl-bigip-query` features | `tcl-lsp-core`, `tcl-irules`, `tcl-bigip`, `tcl-bigip-query`, `tcl-explorer`, `tcl-diagram`, `tcl-spectcl`, `f5-xc` (8) |
+
+Each row is two variants of those crates (with and without the feature).
+Third-party packages also differ between any two roots (the server's graph
+turns on `serde_json/preserve_order`, `syn/full` and others), which is not a
+dev-only-feature cost. On this checkout's disk, the test-profile lib unit of
+the feature variant is 284 MB for `tcl-compiler`, 104 MB for `tcl-vm` (two
+units), 67 MB for `tcl-lsp-core` and 2 MB for `tcl-irules`, before the
+crates above them and their incremental state. Decision: no change in this
+item. The design marks no lever as a standalone win: `tcl-compiler`'s
+feature goes with items 266 and 292 (option 2, per crate), `tcl-vm`'s
+constructors with item 291 (option 2) while `native_conformance` keeps its
+feature (option 3), and the `tcl-lsp-core` fixtures wait for the
+`tcl-lsp-policy-table` check (option 1 or 2). `tcl-explorer`'s and
+`tcl-bigip-query`'s features in `tcl-cli`'s and `tcl-mcp`'s tests are not in
+the design's table yet.
+
 **299, build scripts.** `tcl-version`'s build script, in an unstamped dev or
 test build, emits `<CARGO_PKG_VERSION>-dev` (plus `+g<GIT_HASH>` when that is
 set) and watches no git path; stamped and release builds are unchanged.
