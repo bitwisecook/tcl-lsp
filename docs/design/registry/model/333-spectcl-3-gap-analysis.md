@@ -391,3 +391,10 @@ flowchart LR
   `body_interpreter` and `evaluation_contexts`, which no pack can write.
 - 306's cache key drops the tier and trust state that today's
   `EvalSnapshotKey` carries.
+
+## Owner decisions (26 November 2026)
+
+- **Version ranges use Tcl's own algebra everywhere.** A pack range means exactly what `package vsatisfies` means. `8.4-8.6` does not include 8.6.18; authors write `8.4-8.7` or `8.4-9` to include every 8.6 patch. There is one rule for packs, trains and a script's `package require`. The printer, the `tcl spec check` lint and the upgrade tool (item 309) flag ranges that probably meant the whole line, and the 1.x/2.x shims translate the old "whole line" reading into the equivalent algebraic range.
+- **iRules events become pack content:** `event` and `flow` forms in the iRules library's SpecTcl source, compiled into its image. That gives one source for the analyser, the LSP, the flow graph and the iRule test framework (gap 6; items 338 and 360).
+- **Localisation is prepared for, not shipped.** The 3.0 grammar reserves `message LOCALE` and `doc LOCALE` rows and the reader accepts them. Only English ships, and the editors select by locale once translations exist.
+- **No signing in 3.0.** Trust comes from provenance tiers, and untrusted workspace images are ignored and recompiled from source (gap 31; item 340).
