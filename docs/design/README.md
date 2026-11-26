@@ -447,6 +447,9 @@ declarations are written in.
     grammar profiles that configure every lexer and parser per dialect (370).
   - [380-spectcl-ebpf.md](registry/model/380-spectcl-ebpf.md) — the eBPF
     backend's vocabulary and kernel facts as libraries (380).
+  - [390-package-surfaces.md](registry/model/390-package-surfaces.md) —
+    handle types, error codes, result shapes, embedded-language ranges,
+    migrations, callbacks and other package-user surfaces (390).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
