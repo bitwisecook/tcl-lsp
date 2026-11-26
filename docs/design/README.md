@@ -58,6 +58,8 @@ passes, and ownership matrices.
 - [crate-split-design.md](compiler/crate-split-design.md) — why
   `tcl-compiler` is one cycle, the layered crates that replace it, and the
   ordered, ratcheted steps (plan item 90).
+  - [00-test-dependencies.md](compiler/crate-split/00-test-dependencies.md) — remove the upper stack from compiler tests.
+  - [01-module-layers.md](compiler/crate-split/01-module-layers.md) — map the modules to their intended layers.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value
@@ -331,6 +333,7 @@ declarations are written in.
   — the registration and resolution contract every consumer is held to, the
   gap rulings, the `tcl spec upgrade` specification, and the name-resolution
   oracle programme.
+- [registry-split-design.md](registry/registry-split-design.md) — the proposed registry crate boundaries and migration steps.
 - [dialect-profile-model.md](registry/dialect-profile-model.md) — the
   interned `DialectProfile` catalogue the lexer is keyed on.
 - [eda-library-packages.md](registry/eda-library-packages.md) — the EDA
