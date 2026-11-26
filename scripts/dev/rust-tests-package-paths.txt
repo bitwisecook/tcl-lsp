@@ -61,3 +61,4 @@ rust/tcl-version
 rust/tcl-vm
 rust/tcl-vm-cli
 rust/xtask
+rust/xtask-backing

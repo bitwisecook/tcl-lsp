@@ -1,0 +1,53 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "xtask-backing"
+publish.workspace = true
+description = "The command-backing gate: asks both engines what they register"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "xtask-backing"
+path = "src/main.rs"
+
+# A package of its own so that `xtask`, which every other gate builds, links
+# no engine of its own (plan item 298): only this gate needs the runtimes.
+[dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-host-native = { path = "../tcl-host-native" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-vm = { path = "../tcl-vm" }
+# The standalone WASM runtime, which the gate asks what it registers. It is
+# excluded from the workspace (it needs `unsafe`), so it is reached by path;
+# its `wasm_stdlib` feature embeds the Tcl library whose commands it reports
+# as defined by that library.
+tcl-runtime = { path = "../../runtime/rust", features = ["wasm_stdlib"] }
+clap = { version = "4", features = ["derive", "wrap_help"] }
+anyhow = "1"
+regex = "1"
+
+[lints]
+workspace = true

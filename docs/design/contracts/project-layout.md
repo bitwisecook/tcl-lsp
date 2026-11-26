@@ -37,6 +37,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-test-support` | Shared tclsh discovery and source-tree location for the conformance suites. |
 | `bpf-tcl`, `bpf-tcl-ir`, `bpf-tcl-codegen` | Experimental Tcl→BPF backend. |
 | `xtask` | Build / codegen / check-gate runner (`cargo xtask …`) — editor-settings and catalogue generation, DiagCode-table drift checks, docs index-link validation. |
+| `xtask-backing` | The `command-backing` gate (`cargo xtask-backing command-backing`): the one gate that links both engines, kept out of `xtask` so the other gates build neither. |
 
 The four shipped binaries are cargo bins: `tcl` (crate `tcl-cli`),
 `f5-query` (crate `f5-cli`), `tcl-lsp-server` (crate `tcl-lsp-server`),

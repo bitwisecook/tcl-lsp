@@ -150,6 +150,36 @@ workspace packages in `cargo tree -e normal,build,dev`.
 | 271 | `tcl-lsp-db` | `rust/tcl-vm/src/lib.rs` (a crate below the removed edges) | 5 crates (`tcl-vm`, `tcl-lsp-db`, `tcl-engine-tclvm`, `tcl-spec-hooks`, `tcl-spectcl`), 9.0 s | 0 crates, 0.3 s | 30 → 22 |
 | 271 | `tcl-lsp-db` | `src/display_queries.rs` | 1 crate, 8.2 s | 1 crate, 6.6 s | |
 
+### Build levers (items 296–300 and 260): before → after
+
+Measured 26 November 2026 in place on the main checkout (warm target, 11 GB
+free, so no fresh worktree), 4 vCPU, cargo 1.100.0, agent build environment.
+
+**298, `xtask` without the engines.** `command-backing` moved to its own
+package, `rust/xtask-backing` (`cargo xtask-backing command-backing --check`,
+run by `make xtask-command-backing` under `xtask-check`, out of the batch).
+
+| | Before | After |
+|---|---:|---:|
+| `cargo build -p xtask` units (dev) | 272 | 270 |
+| packages in `xtask`'s normal and build graph | 236 | 235 |
+| workspace crates in `xtask`'s normal graph | 36 | 35 |
+| `tcl-runtime` units in that build | 2 (build script; lib as rlib, cdylib and staticlib, 383 MB) | 0 |
+| `cargo build -p xtask` after touching `runtime/rust/src/lib.rs` | 27.0 s (`tcl-runtime` 17.8 s, `xtask` relink 9.1 s) | no `xtask` unit rebuilt |
+| `make xtask-gates`, warm build | 251 s, 50 gates | 248 s, 49 gates |
+| `cargo tree -p xtask -e normal -i tcl-runtime` | `xtask` | no match |
+
+`tcl-vm` stays in `xtask`'s cone only through `tcl-spectcl → tcl-spec-hooks →
+tcl-engine-tclvm`, as the design says. The cost of the split: `xtask-backing`
+resolves features alone, so 36 of its 101 units are variants `xtask` does not
+build (`tcl-registry`, `tcl-vm`, `tcl-runtime`, `tcl-cmd-core`, `tcl-regex`,
+`tcl-host-native`, `tcl-host-c-abi`, and third-party `serde`, `regex`, `clap`,
+`sha2` and their dependencies); its build took 44 s on a warm target. Only
+`xtask-check` (CI's drift leg) builds it, once. The gate run itself is 0.1 s
+either way; the saving is the `tcl-runtime` build in every gate run and every
+`xtask` relink after a runtime edit, and, once 297 moves `xtask` to the test
+profile, `tcl-runtime` at opt-level 1.
+
 ## 1. CLI start-ups in tests
 
 What changed:

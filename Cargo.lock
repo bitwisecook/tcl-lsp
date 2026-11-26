@@ -6463,14 +6463,28 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
- "tcl-runtime",
  "tcl-runtime-api",
  "tcl-spec-studio",
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
- "tcl-vm",
  "toml",
+]
+
+[[package]]
+name = "xtask-backing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "regex",
+ "tcl-dialect",
+ "tcl-host-native",
+ "tcl-registry",
+ "tcl-runtime",
+ "tcl-runtime-api",
+ "tcl-syntax",
+ "tcl-vm",
 ]
 
 [[package]]

@@ -28,7 +28,7 @@
 //! `pkgMkIndex.n`, and `packagens.n` were also fetched for all five versions
 //! and none of them mention it (`packagens.n` documents only `pkg::create`).
 //! The facts below instead come from `library/package.tcl` itself — confirmed
-//! as the backing file both by `xtask/src/command_backing.rs`'s `STDLIB`
+//! as the backing file both by `xtask-backing/src/command_backing.rs`'s `STDLIB`
 //! table and by fetching the real source — at the `core-8-4-20`,
 //! `core-8-5-19`, `core-8-6-18`, `core-9-0-4`, and `core-9-1-b0` release
 //! tags. `tclPkgSetup` lives in `package.tcl`, not `init.tcl`, in every one

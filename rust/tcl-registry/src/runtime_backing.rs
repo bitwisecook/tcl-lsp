@@ -30,7 +30,7 @@
 //!
 //! The default is [`RuntimeBacking::None`]: a spec that declares nothing claims
 //! that nothing executes the command in the target runtime, and the drift gate
-//! (`cargo xtask command-backing`) holds a runtime that registers such a
+//! (`cargo xtask-backing command-backing`) holds a runtime that registers such a
 //! command to account.
 //!
 //! [`CommandSpec::runtime_backing`]: crate::CommandSpec::runtime_backing

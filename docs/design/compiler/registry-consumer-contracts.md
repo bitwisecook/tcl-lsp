@@ -127,7 +127,7 @@ expression, and declared-implementation routes decide nothing here.
 > `BackingReport` are the vocabulary: `runtime/rust`'s `Interp::backing_report`
 > and `tcl-vm`'s `Vm::backing_report` say whether a name is a handler, a `TclOO`
 > object, defined by the Tcl library the runtime embeds, registered only to
-> refuse, or absent, and `cargo xtask command-backing` holds every core
+> refuse, or absent, and `cargo xtask-backing command-backing` holds every core
 > command's declared `runtime_backing` to the WASM runtime's answer, querying
 > the declared implementation identity for shipped builtins. A method-context
 > spelling such as `next` names `::oo::Helpers::next`; this backing declaration
@@ -360,7 +360,7 @@ Jim's surface, authored as SpecTcl and compiled in
 (`rust/tcl-spectcl/core-surfaces/jim.tclspec`).
 
 **Rationale.** The registry is the source of truth the drift gate reads:
-`rust/xtask/src/command_backing.rs` holds each core spec's declared
+`rust/xtask-backing/src/command_backing.rs` holds each core spec's declared
 `runtime_backing` to what `runtime/rust` and `tcl-vm` report registering and
 writes `docs/generated/wasm-command-backing.md`, accounting for the residue in
 one committed list (`KNOWN_UNBACKED`), and `tcl-runtime-api`'s shared
@@ -2061,7 +2061,7 @@ Nothing on the analyser side depends on it.
   builtin registered at its name, only while the command bound there is still
   that builtin. It runs once, at the end of registration, and the table
   survives the profile pin. The
-  `command-backing` gate (`rust/xtask/src/command_backing.rs`) asks each
+  `command-backing` gate (`rust/xtask-backing/src/command_backing.rs`) asks each
   runtime what it registered — `runtime/rust`'s `Interp::backing_report` and
   `tcl-vm`'s `Vm::backing_report` answer with a `RegisteredBacking` per name:
   a handler, a `TclOO` object, a definition from the embedded Tcl library, a
@@ -2479,7 +2479,7 @@ flowchart LR
 - `scripts/check_c_extension_wasm.py`, `scripts/check_c_api_ownership.py`, `Makefile` (`check-c-extension-wasm`, `check-c-api-ownership`) — the header's legs held to the runtime's and the shim's exports and to the wasm32 compiles, and the runtime's exports held to their ownership rows
 - `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
-- `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
+- `rust/xtask-backing/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
 
 ## Test anchors
@@ -2503,7 +2503,7 @@ flowchart LR
 - `rust/tcl-spectcl/tests/it_3/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
 - `rust/tcl-vm/tests/it_5/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
 - `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`
-- `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
+- `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask-backing/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
 - `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/tests/it_2/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 
 ## Related docs

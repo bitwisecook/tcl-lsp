@@ -26,7 +26,7 @@ and immediate refcount-driven free.
 
 Every command in `tcl-registry` needs backing here — a handler, an
 interpreter-fallback path, or an explicit not-required classification.
-`cargo xtask command-backing --check` cross-checks the two and writes
+`cargo xtask-backing command-backing --check` cross-checks the two and writes
 [`wasm-command-backing.md`](../../docs/generated/wasm-command-backing.md).
 
 Native core construction selects the engine's math-function entry points.

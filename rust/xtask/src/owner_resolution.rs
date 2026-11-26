@@ -93,6 +93,8 @@ use variable_consumers::{
 const CONTRACT_PATH: &str = "docs/design/contracts/shared-utility-contracts-rust.md";
 const MAKEFILE_PATH: &str = "Makefile";
 const XTASK_MAIN_PATH: &str = "rust/xtask/src/main.rs";
+/// The engine-backed gate's own binary (`cargo xtask-backing`, plan item 298).
+const XTASK_BACKING_MAIN_PATH: &str = "rust/xtask-backing/src/main.rs";
 const START_MARKER: &str = "<!-- owner-resolution-manifest -->";
 const END_MARKER: &str = "<!-- end-owner-resolution-manifest -->";
 const INTERNAL_START: &str = "<!-- owner-resolution-internal-manifest -->";
@@ -125,7 +127,7 @@ pub fn run() -> Result<ExitCode> {
     let root = crate::util::repo_root();
     let contract = read(&root, CONTRACT_PATH)?;
     let makefile = read(&root, MAKEFILE_PATH)?;
-    let xtask_main = read(&root, XTASK_MAIN_PATH)?;
+    let xtask_main = read(&root, XTASK_MAIN_PATH)? + &read(&root, XTASK_BACKING_MAIN_PATH)?;
 
     let mut problems = validate_manifest(&root, &contract, &makefile, &xtask_main);
     problems.extend(validate_command_object_consumers(&root)?);

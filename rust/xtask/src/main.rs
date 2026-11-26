@@ -89,7 +89,6 @@ mod callback_inventory;
 #[path = "smoke_targets.rs"]
 mod cargo_smoke;
 mod catalogue_callers;
-mod command_backing;
 mod diag_emission;
 mod diag_tables;
 mod diagnostic_presentation;
@@ -225,16 +224,6 @@ enum Command {
     /// Generate the registry-backed executable/callback surface inventory.
     CallbackInventory {
         /// Verify the committed JSON and Markdown reports instead of writing.
-        #[arg(long)]
-        check: bool,
-    },
-
-    /// Check the WASM runtime backs every core-Tcl registry command;
-    /// regenerate `docs/generated/wasm-command-backing.md`.
-    #[command(name = "command-backing")]
-    WasmBacking {
-        /// Verify backing + report are in sync instead of rewriting; exit
-        /// non-zero on a gap, a stale classification, or report drift.
         #[arg(long)]
         check: bool,
     },
@@ -750,7 +739,6 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         }
         Command::CallbackInventory { check } => callback_inventory::run(check),
         Command::EvaluationContexts { check } => evaluation_contexts::run(check),
-        Command::WasmBacking { check } => command_backing::run(check),
         Command::F5QueryBuiltinsDoc { check } => f5query_builtins_doc::run(check),
         Command::BigipDataSchema { check } => bigip_data_schema::run(check),
         Command::DiagTables { check } => diag_tables::run(check),

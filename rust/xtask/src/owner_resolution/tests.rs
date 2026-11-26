@@ -295,6 +295,19 @@ fn a_gate_alias_resolves_through_its_prerequisite() {
 }
 
 #[test]
+fn the_backing_gate_resolves_through_its_own_binary() {
+    let makefile =
+        "xtask-command-backing:\n\tcd $(ROOT) && cargo xtask-backing command-backing --check\n";
+    assert_eq!(
+        make_gate_command(makefile, "xtask-command-backing").as_deref(),
+        Some("command-backing"),
+    );
+    let root = crate::util::repo_root();
+    let main = read(&root, XTASK_BACKING_MAIN_PATH).expect("xtask-backing main");
+    assert!(xtask_dispatches(&main, "command-backing"));
+}
+
+#[test]
 fn owner_headings_are_limited_to_owner_section() {
     let md = "## Owners\n### `tcl-syntax` — owner\n## Decision rules\n### `not-an-owner`";
     assert_eq!(

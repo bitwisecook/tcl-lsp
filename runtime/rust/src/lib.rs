@@ -43,7 +43,7 @@
 //! Command coverage is a gate, not a convention: every `tcl-registry` command
 //! needs a handler, an interpreter-fallback path, or an explicit
 //! not-required classification here, cross-checked by
-//! `cargo xtask command-backing --check`.
+//! `cargo xtask-backing command-backing --check`.
 
 // On `wasm32-unknown-unknown` the native-only features — coroutines (native
 // stack swap + threads) and the libtommath bignum tower — are cfg-disabled (see

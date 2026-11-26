@@ -150,7 +150,7 @@ sites and are not debt.
   `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
   change (see *WASM command parity*), and declare the spec's
-  `runtime_backing` to match: `cargo xtask command-backing` holds a core
+  `runtime_backing` to match: `cargo xtask-backing command-backing` holds a core
   command's declaration to what the runtime reports registering.
 - Argument roles resolve `clause_grammar` → `arg_role_resolver` →
   `arg_roles` → `assigns_variable_at`; a clause grammar states where a
@@ -208,12 +208,12 @@ Every command in `tcl-registry` needs backing in `runtime/rust/` — a handler,
 a definition in the Tcl library the runtime embeds, or a declaration that
 nothing executes it there. The spec says which, in its `runtime_backing`;
 the runtimes say what they registered, through `Interp::backing_report`
-(`runtime/rust`) and `Vm::backing_report` (`tcl-vm`). `cargo xtask
-command-backing --check` asks both, holds every core command's declaration
+(`runtime/rust`) and `Vm::backing_report` (`tcl-vm`). `cargo xtask-backing
+command-backing --check` (its own package, so `xtask` builds no engine) asks both, holds every core command's declaration
 to the WASM runtime's answer, writes
 [wasm-command-backing.md](docs/generated/wasm-command-backing.md) from the
 two, and fails on a disagreement; a real gap goes on `KNOWN_UNBACKED` in
-`rust/xtask/src/command_backing.rs` until it gains a handler, and it is the
+`rust/xtask-backing/src/command_backing.rs` until it gains a handler, and it is the
 only list. The engines read core specs from `tcl-catalogue-core`'s images,
 which `command-backing` also reads. Library accelerators (`implementation
 -native` rows) are never a command's `runtime_backing`: both runtimes list

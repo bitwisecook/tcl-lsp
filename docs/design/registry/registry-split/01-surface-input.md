@@ -241,7 +241,7 @@ would embed tcllib's 214 images, iRules and Tk in every compiled program.
 the engines read (`errorclass` rows, taint sinks, `LIBRARY_UNITS`,
 `library_versions`) reach `tcl-engine-tclvm` through its host's installed
 `SurfaceSet` (standalone `tclvm` installs none), and reach a compiled WASM program as the
-projection codegen stamps into the module. `cargo xtask command-backing`
+projection codegen stamps into the module. `cargo xtask-backing command-backing`
 reads the core image's `runtime_backing` rows and asks `Interp::backing_report`
 and `Vm::backing_report` as before. Today the engines read
 `tcl_registry::default_registry()` at run time (`runtime/rust/src/cmd_namespace.rs:239`,

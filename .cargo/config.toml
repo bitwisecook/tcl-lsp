@@ -35,3 +35,6 @@ linker = "riscv64-linux-gnu-gcc"
 # replacement for the Python `scripts/` toolchain — track API-PYO3).
 [alias]
 xtask = "run --package xtask --"
+# `cargo xtask-backing command-backing` runs the one gate that asks the engines
+# what they register; it is a package of its own so `xtask` links no engine.
+xtask-backing = "run --package xtask-backing --"

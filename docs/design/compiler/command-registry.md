@@ -1886,7 +1886,7 @@ catalogue without ever adding one
 § *Rulings*). The backing gate holds each core spec's declared
 `runtime_backing` to what `runtime/rust` and `tcl-vm` report registering
 (`backing_report`), and carries one waiver list, `KNOWN_UNBACKED`
-(`rust/xtask/src/command_backing.rs`). Each field carries
+(`rust/xtask-backing/src/command_backing.rs`). Each field carries
 a plain-language explanation written for Tcl developers with a worked Tcl
 example of that field, and a Reference tab searches the whole vocabulary —
 every field, trait, argument role, and taint colour, each with its own.

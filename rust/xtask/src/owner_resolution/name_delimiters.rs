@@ -343,7 +343,8 @@ pub(super) fn name_delimiter_recipes(source: &str) -> usize {
 }
 
 /// Whether `relative` is production source the ledger counts: not the naming
-/// owner, not this gate, and not a test tree or test-only file.
+/// owner, not the gate tools (`xtask`, `xtask-backing`), and not a test tree
+/// or test-only file.
 pub(super) fn counts_name_delimiters(relative: &str) -> bool {
     let name = relative.rsplit('/').next().unwrap_or(relative);
     Path::new(relative)
@@ -352,6 +353,7 @@ pub(super) fn counts_name_delimiters(relative: &str) -> bool {
         && relative.contains("/src/")
         && !relative.starts_with("rust/tcl-syntax/src/naming")
         && !relative.starts_with("rust/xtask/")
+        && !relative.starts_with("rust/xtask-backing/")
         && !relative.contains("/tests/")
         && name != "tests.rs"
         && !name.ends_with("_tests.rs")

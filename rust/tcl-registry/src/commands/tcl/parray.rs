@@ -52,7 +52,7 @@ use tcl_dialect::model::SpecSurface;
 // override file registers a variant of its own. `parray` is also a Tcl-level
 // library proc — shipped as its own `library/parray.tcl` (confirmed
 // internally: both `runtime/rust/src/embedded_stdlib.rs`'s seed file list and
-// `xtask/src/command_backing.rs`'s `STDLIB` table name it separately from
+// `xtask-backing/src/command_backing.rs`'s `STDLIB` table name it separately from
 // `init.tcl`) — not a `Tcl_CreateObjCommand`-registered builtin, so it carries
 // no `CmdInfo` row and is absent from the exact C Tcl safe-interpreter
 // hidden-command table `Traits::SAFE_INTERP_HIDDEN` documents; that trait does

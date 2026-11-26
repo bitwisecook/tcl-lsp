@@ -235,7 +235,7 @@ fn alias_of_names_a_shipped_command_of_the_same_family() {
 }
 
 /// The core Tcl commands the runtime must back, as the WASM command-parity
-/// gate (`rust/xtask/src/command_backing.rs`) defines them: the Tcl family's
+/// gate (`rust/xtask-backing/src/command_backing.rs`) defines them: the Tcl family's
 /// built-in specs (no `required_package`) available at Tcl 9.0 or later.
 fn is_core_command(spec: &tcl_registry::CommandSpec) -> bool {
     spec.required_package.is_none()

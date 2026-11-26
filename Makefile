@@ -946,7 +946,6 @@ XTASK_GATES := \
 	'value-transfers --check' \
 	'registry-axes --check' \
 	'semantics-matrix --check' \
-	'command-backing --check' \
 	'callback-inventory --check' \
 	'evaluation-contexts --check' \
 	'audit-option-dialects --check' \
@@ -961,7 +960,7 @@ xtask-gates: ## Run every single-command xtask drift gate in one process
 	@echo "==> Running xtask drift gates in one process (cargo xtask batch)"
 	cd $(ROOT) && cargo xtask batch $(XTASK_GATES)
 
-xtask-check: check-tracked-size check-worktree-cost-script check-license-headers check-host-lockfiles check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm check-xtask-gates ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: check-tracked-size check-worktree-cost-script check-license-headers check-host-lockfiles check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-command-backing xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm check-xtask-gates ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -1209,9 +1208,10 @@ xtask-gen-ai-diagnostics: ## Verify MCP/AI diagnostic catalogues + AI prompt/ski
 	@echo "==> Checking generated MCP/AI diagnostic files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
+# Its own package, so the batched gates above build no engine (plan item 298).
 xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (drift + gap gate)
-	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
-	cd $(ROOT) && cargo xtask command-backing --check
+	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask-backing)"
+	cd $(ROOT) && cargo xtask-backing command-backing --check
 
 xtask-callback-inventory: ## Verify executable/callback registry coverage, the authored coverage manifest, and the generated reports (issue #1706)
 	@echo "==> Checking executable/callback surface inventory + coverage manifest (cargo xtask)"

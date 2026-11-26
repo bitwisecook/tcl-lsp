@@ -119,7 +119,8 @@ pub(super) fn make_gate_command(makefile: &str, target: &str) -> Option<String> 
     })
 }
 
-/// The `cargo xtask <verb>` this target's own recipe runs, if any.
+/// The `cargo xtask <verb>` (or `cargo xtask-backing <verb>`) this target's
+/// own recipe runs, if any.
 fn direct_gate_command(makefile: &str, target: &str) -> Option<String> {
     let target_prefix = format!("{target}:");
     let mut in_recipe = false;
@@ -136,7 +137,10 @@ fn direct_gate_command(makefile: &str, target: &str) -> Option<String> {
             }
             continue;
         }
-        let Some(command) = line.split_once("cargo xtask ").map(|(_, rest)| rest) else {
+        let Some(command) = ["cargo xtask ", "cargo xtask-backing "]
+            .iter()
+            .find_map(|runner| line.split_once(runner).map(|(_, rest)| rest))
+        else {
             continue;
         };
         return command.split_whitespace().next().map(str::to_owned);
