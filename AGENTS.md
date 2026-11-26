@@ -95,7 +95,10 @@ Tiers, policies, and the CI redundancy contract:
   `CARGO_INCREMENTAL`, `CARGO_PROFILE_*`, `RUSTFLAGS` or `CARGO_TARGET_DIR`
   yourself or in a subagent prompt: any difference changes cargo's
   fingerprint and rebuilds the workspace beside the old build. Elsewhere,
-  `source scripts/dev/agent-build-env.sh`.
+  `source scripts/dev/agent-build-env.sh`. What one isolated edit costs a
+  worktree under this environment is measured by
+  `scripts/dev/worktree-cost.py`
+  ([design](docs/design/build-time/259-worktree-cost.md)).
 - **Parallel agents:** a container builds one workspace at a time (a full
   test build needs ~30 GB and every core). Subagents share their parent's
   machine whatever isolation they ask for, so run them one at a time in one
