@@ -24,7 +24,7 @@ with no pack form, and its consumers keep their own copies. Counts from
 | Order | 74 `OrderEntry` rows (`events/event_order.rs`), 7 flow chains (`flow_chains.rs`) | `_event_data.tcl` (generated), `explain_flow.rs:353` event filter |
 | Profiles | 66 `ProfileSpec`, 113 `ProtocolNamespaceSpec`, 4 `StackModification` (`profiles.rs:537`) | `tcl-bigip` `classify_profile` (`parser/bespoke.rs:390`, 22 arms), `registry_profile_name` (`validator.rs:684`), `tcl-irule-test` `infer_profile_type` (`topology.rs:364`, name substrings) |
 | Command event validity | `event_requires` and `excluded_events` on 1,018 specs; 449 lost when printed (`equivalent_f5_irules.tclspec` `TODO(spectcl)`) | — |
-| Connection effects | 37-value `SideEffectTarget` (`side_effects.rs:32`), no field-level detail | 21 getters in `explain_flow.rs:405` `hud_value_for`; `TAINTED_REFS` (`tcl-mcp/src/irule_test.rs:53`); 95 mock procs in `command_mocks.tcl` (1,695 lines) |
+| Connection effects | 37-value `SideEffectTarget` (`side_effects.rs:32`), no field-level detail | 21 getters in `explain_flow.rs:405` `state_value_for`; `TAINTED_REFS` (`tcl-mcp/src/irule_test.rs:53`); 95 mock procs in `command_mocks.tcl` (1,695 lines) |
 | Drop, reject, discard | all three `IrulesSourceFlowSpec::DropsConnection` | the simulator closes the connection for `drop` and `reject` but not `discard` (`command_mocks.tcl:1315-1330`) |
 | Releases | 5 `introduced_in` rows over 1,018 command specs (16.1 and 21.1), 56 `deprecated_replacement` rows with no version | — |
 | Object names | `tcl-irules/data/irules_ref_specs.json`: 51 base specs, 17 pool templates, plus `class` and `persist` resolvers (`lib.rs:310`) | `tcl-diagram/src/attach.rs`, `tcl-bigip` graph |
@@ -251,8 +251,8 @@ command TCP::collect { writes connection tcp.client.collect ; emits CLIENT_DATA 
 - **The diagram** (`tcl-diagram`) labels action nodes from `decision` rows
   and draws a field edge for each write. `DIAGRAM_ACTION` is derived: a form
   with a `decision` is an action.
-- **`explain_flow`** fills its HUD from fields: a capture's parsed request
-  fills `http.request.*`, and `hud_value_for`'s 21 name arms go.
+- **`explain_flow`** fills its state annotations from fields: a capture's parsed request
+  fills `http.request.*`, and `state_value_for`'s 21 name arms go.
 
 ### 4. The iRule testing framework from facts
 
@@ -449,7 +449,7 @@ simulator itself cannot run on the 8.4 line f5-tcl forks. Event order and
 ## Verification
 
 - **Done when:** `rg 'HTTP_EVENTS|TAINTED_REFS|SECURITY_ACTIONS|fn classify_profile|fn infer_profile_type|fn registry_profile_name' rust` finds nothing;
-  `hud_value_for` has no name arms; `event_facts/generated.rs` is gone; the
+  `state_value_for` has no name arms; `event_facts/generated.rs` is gone; the
   printed iRules pack has no `TODO(spectcl)` for `event_requires`; the
   simulator's state layer and stub mocks are generated with `--check`.
 - **Unchanged answers:** 304's conformance set, plus every

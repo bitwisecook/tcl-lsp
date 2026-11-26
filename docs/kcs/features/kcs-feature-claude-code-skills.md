@@ -31,6 +31,7 @@ In Claude Code, type the skill name as a slash command:
 | `/irule-datagroup` | Suggest data-group extraction |
 | `/irule-diff` | Explain differences between two versions |
 | `/irule-event` | Show valid commands for an event |
+| `/irule-hud` | Check all iRules on a virtual server together (HUD chain, handler order, conflicts) |
 | `/irule-diagram` | Generate a Mermaid flowchart |
 | `/irule-migrate` | Convert nginx/Apache/HAProxy config to an iRule |
 | `/irule-xc` | Translate to F5 XC configuration |

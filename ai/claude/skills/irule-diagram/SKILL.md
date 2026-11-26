@@ -20,7 +20,8 @@ allowed-tools: mcp__tcl-lsp__diagram, Read
 
 - `flowchart TD`; one subgraph per event handler labelled with the event
   name, in provider-reported event order; a non-default priority (not 500) in
-  the label
+  the label; several handlers for one event are separate subgraphs, lower
+  priority first
 - `{Decision}` diamonds for `if` / `switch` (the subject in the diamond, the
   pattern or condition on each edge); `[Action]` rectangles for `pool`,
   `HTTP::respond`, `HTTP::redirect`, `HTTP::header`, `log`, …; `(Return)` for
