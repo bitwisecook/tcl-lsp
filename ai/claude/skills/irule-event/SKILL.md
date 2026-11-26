@@ -14,8 +14,10 @@ allowed-tools: mcp__tcl-lsp__event_info, mcp__tcl-lsp__command_info, Read
    `mcp__tcl-lsp__command_info` with `command_name`; unclear → ask. On an
    unknown name, report it and suggest similar names.
 3. Present the registry metadata as facts, then clearly separated guidance.
-   Events: when it fires, common commands, available request/response data,
-   performance and safety notes, a minimal example. Commands: syntax and
+   Events: when it fires and how often (multiplicity), the HUD filters
+   (`implied_profiles`) a virtual server needs for it to fire, common
+   commands, available request/response data, performance and safety notes,
+   a minimal example. Commands: syntax and
    options, valid and invalid events, typical usage, common mistakes.
 
 $ARGUMENTS

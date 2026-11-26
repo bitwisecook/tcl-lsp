@@ -558,7 +558,7 @@ The same surface is available outside VS Code: the
 [Claude Code skills](docs/kcs/features/kcs-feature-claude-code-skills.md)
 (`irule-create`, `irule-review`, `irule-fix`, `irule-diagram`, `irule-datagroup`,
 `irule-xc`, `irule-migrate`, `irule-convert`, `irule-dataflow`, `irule-diff`,
-`irule-event`, `irule-explain`, `irule-optimise`, `irule-scaffold`,
+`irule-event`, `irule-explain`, `irule-hud`, `irule-optimise`, `irule-scaffold`,
 `irule-validate`, plus `bigip-cleanup`, `f5-query`, and `explain-flow`) and the
 [MCP server](docs/kcs/features/kcs-feature-mcp-server.md) for any MCP-capable
 agent. See [AI tooling](README.md#ai-tooling) for the shared setup.
