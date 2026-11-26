@@ -92,6 +92,42 @@ Classes and codes are versioned facets like any other fact. Jim's dialect point 
 
 A library declares its own classes: `TDBC`, `HTTP`, a user application's `MYAPP`. Field roles let the analyser carry meaning through. For example, `TCL LOOKUP COMMAND`'s third word is a command name, so hover and go-to-definition work on it when it is matched.
 
+The classes form a prefix lattice. `Any` is the top, used for an unknown command or a computed code, and each level down narrows the pattern. A `trap` pattern names a node, and it matches that node and everything below it.
+
+```mermaid
+flowchart TB
+  any["Any (unknown command, computed code)"]
+  any --> posix["POSIX"]
+  any --> tcl["TCL"]
+  any --> arith["ARITH"]
+  any --> child["CHILDSTATUS / CHILDKILLED / CHILDSUSP"]
+  any --> none["NONE"]
+  any --> app["library or app classes: TDBC, HTTP, MYAPP"]
+  posix --> enoent["POSIX ENOENT"]
+  posix --> eacces["POSIX EACCES"]
+  tcl --> lookup["TCL LOOKUP"]
+  tcl --> wrongargs["TCL WRONGARGS"]
+  tcl --> value["TCL VALUE"]
+  lookup --> lcmd["TCL LOOKUP COMMAND name"]
+  lookup --> lvar["TCL LOOKUP VARNAME name"]
+  lookup --> ldict["TCL LOOKUP DICT key"]
+  value --> vindex["TCL VALUE INDEX"]
+  arith --> divzero["ARITH DIVZERO"]
+  arith --> domain["ARITH DOMAIN"]
+```
+
+Each node carries release windows, so the lattice depends on the positioned context. Under a target range of 8.4–9.1, an unknown command raises `NONE` on 8.4 and 8.5 and `TCL LOOKUP COMMAND` on 8.6 and later, and the analyser keeps both:
+
+```mermaid
+flowchart LR
+  call["call to an unknown command"] --> ctx{"target range (308)"}
+  ctx -- "8.4-8.5" --> n1["raises NONE"]
+  ctx -- "8.6-9.1" --> n2["raises TCL LOOKUP COMMAND name"]
+  ctx -- "8.4-9.1" --> both["raises NONE on 8.4-8.5, TCL LOOKUP COMMAND on 8.6-"]
+  ctx -- "jim" --> n3["raises NONE"]
+  both --> warn["a test for TCL LOOKUP COMMAND alone warns: it misses 8.4-8.5"]
+```
+
 ### What raises what
 
 Commands declare what they can raise with `throws`, which can depend on arguments and releases:
@@ -115,6 +151,23 @@ The same summary records the **completion codes** a body can produce, beside the
 - any custom `return -code N`.
 
 `catch`'s result is one of those codes.
+
+Summaries carry error sets across calls. Here `t` calls `fetch`, which calls `open` and `expr`:
+
+```mermaid
+sequenceDiagram
+  participant T as try in proc t
+  participant F as proc fetch
+  participant O as open
+  participant E as expr
+  O-->>F: throws POSIX (row)
+  E-->>F: throws ARITH (row)
+  F-->>T: summary raises POSIX and ARITH, completion 0 or 1
+  T->>T: trap POSIX ENOENT matches a sub-pattern: live
+  T->>T: trap ARITH DIVZERO matches a sub-pattern: live
+  T->>T: trap TDBC matches nothing in the set: dead arm, warning
+```
+
 
 ### The value at a `catch` or `try`
 
@@ -222,6 +275,198 @@ As in 391, `Other` (anything unknown) never produces a "cannot match" warning. O
 - **Engines and conformance.** The `errorclass` rows are the single table the VM and the runtime raise from, replacing the per-subsystem `Native*ErrorCode` enums. The conformance area runs every declared code of every command on tclsh 8.4–9.1, jimsh and both engines. The table above already found two VM bugs: `open` raises `NONE`, and `exec false` succeeds.
 - **iRules.** f5-tcl uses the 8.4 forms: `catch` with `?varName?` only, and no `try`. A failed iRules command aborts the rule. Which error codes the appliance sets, and whether `$::errorCode` is readable in a rule, are new F5 question Q26.
 - **Explorer and MCP.** A `raises` view per proc and per `catch` site.
+
+## Worked examples
+
+Every result below is a real run. The scripts are short enough to paste into `tclsh`.
+
+### 1. A dead `trap` arm, found through a summary
+
+**Source:**
+```tcl
+proc fetch {path} {
+    set f [open $path]
+    set n [expr {[string length [read $f]] / [file size $path]}]
+    close $f
+    return $n
+}
+foreach p {/nonexistent/x /tmp/e39x-empty} {
+    close [open /tmp/e39x-empty w]
+    try {
+        puts "$p -> [fetch $p]"
+    } trap {POSIX ENOENT} {} {
+        puts "$p -> missing"
+    } trap {ARITH DIVZERO} {} {
+        puts "$p -> empty file"
+    } trap {TDBC} {} {
+        puts "never: fetch raises no TDBC code"
+    }
+}
+```
+
+**In memory:**
+```rust
+// design sketch
+ProcSummary { name: "::fetch",
+    raises: ErrorSet { patterns: &[ErrorPattern(&["POSIX"]), ErrorPattern(&["ARITH"]),
+                                   ErrorPattern(&["TCL", "WRONGARGS"])],   // from the default rows
+                       other: false, certainty: May },
+    completion: CodeSet::of(&[0, 1]) }
+TrapArm { pattern: &["TDBC"], live: false }   // reported: no member of the set has prefix TDBC
+```
+
+**Bytecode (tclsh 9.1.0)**, for the same `try` in a proc. Each arm is a `dictGet` of `-errorcode` and then an `errorPrefixEq`:
+```text
+    (54) loadScalar %v1 	# temp var 1
+    (59) push 3 	# "-errorcode"
+    (64) dictGet 1 
+    (69) push 4 	# "POSIX ENOENT"
+    (74) errorPrefixEq 2 
+    (79) jumpFalse +78 	# pc 157
+    ...
+    (169) loadScalar %v1 	# temp var 1
+    (174) push 3 	# "-errorcode"
+    (179) dictGet 1 
+    (184) push 10 	# "ARITH DIVZERO"
+    (189) errorPrefixEq 2 
+```
+
+**Result:**
+```text
+$ tclsh9.1 e1.tcl                (tclsh8.6 prints the same)
+/nonexistent/x -> missing
+/tmp/e39x-empty -> empty file
+$ tclsh8.5 e1.tcl
+invalid command name "try"
+$ ./target/debug/tclvm e1.tcl
+couldn't open "/nonexistent/x": no such file or directory
+```
+
+The analyser reports the `TDBC` arm as dead. It reports `try` itself as an error under a target range that includes 8.5. The VM's failure is the `open` error-code bug: `open` raises `NONE`, so the `POSIX ENOENT` arm never matches.
+
+### 2. A code test that misses older releases
+
+**Source:**
+```tcl
+proc lookup {} {
+    if {[catch {nosuchcmd} m]} {
+        if {[lrange $::errorCode 0 2] eq {TCL LOOKUP COMMAND}} { return "unknown command" }
+        return "other: $::errorCode"
+    }
+}
+puts [lookup]
+```
+
+**Bytecode (tclsh 9.1.0):**
+```text
+  Command 5: "lrange $::errorCode 0 2..."
+    (50) push 2 	# "::errorCode"
+    (55) loadStk 
+    (56) listRangeImm 0 2 
+    (65) push 3 	# "TCL LOOKUP COMMAND"
+    (70) streq 
+    (71) jumpFalse +25 	# pc 96
+```
+
+**Result:**
+```text
+$ tclsh8.4 e2.tcl                (tclsh8.5 and jimsh 0.84 print the same)
+other: NONE
+$ tclsh8.6 e2.tcl                (tclsh9.1 and tclvm print the same)
+unknown command
+```
+
+The analyser follows `$::errorCode` from the `catch` into `lrange … 0 2` and the `streq`. The comparison can be true only on 8.6 and later, so under a target range of 8.4–9.1 it warns: "the error code is `NONE` on 8.4–8.5; this test misses those releases".
+
+### 3. Re-raising loses the code
+
+**Before:**
+```tcl
+proc wrap {p} {
+    if {[catch {open $p} m]} { error "wrap: $m" }
+}
+catch {wrap /nonexistent/x} m o
+puts [dict get $o -errorcode]
+```
+
+**After:**
+```tcl
+proc wrap {p} {
+    if {[catch {open $p} m o]} { return -options $o "wrap: $m" }
+}
+catch {wrap /nonexistent/x} m o
+puts [dict get $o -errorcode]
+```
+
+**Result:**
+```text
+$ tclsh8.6 before.tcl            (8.5, 9.1, tclvm and jimsh print the same)
+NONE
+$ tclsh8.6 after.tcl             (8.5 and 9.1 print the same)
+POSIX ENOENT {no such file or directory}
+$ ./target/debug/tclvm after.tcl
+NONE                             (the open error-code bug again)
+$ tclsh8.4 after.tcl
+wrong # args: should be "catch command ?varName?"
+```
+
+`wrap`'s summary before the fix raises `NONE`; after it, `POSIX`. The analyser's information diagnostic on `error "wrap: $m"` offers this rewrite. It doesn't offer it under 8.4, which has no options variable.
+
+### 4. Matching the message instead of the code
+
+**Before:**
+```tcl
+if {[catch {open /nonexistent/x} m]} {
+    if {[string match "*no such file*" $m]} { puts missing } else { puts other }
+}
+```
+
+**After:**
+```tcl
+try {
+    open /nonexistent/x
+} trap {POSIX ENOENT} {} {
+    puts missing
+} on error {} {
+    puts other
+}
+```
+
+**Result:**
+```text
+$ tclsh8.4 before.tcl            (8.5, 8.6, 9.1 and tclvm print the same)
+missing
+$ jimsh before.tcl
+other
+$ tclsh8.6 after.tcl             (tclsh9.1 prints the same)
+missing
+```
+
+The message test is fragile. Jim spells the message `/nonexistent/x: No such file or directory`, so the "before" script takes the wrong branch there. The fix is offered only under a target range of 8.6 or later, where `try` exists. Under a range that includes 8.4 or 8.5, the fix keeps `catch` and tests `[lrange $::errorCode 0 1] eq {POSIX ENOENT}` instead.
+
+### 5. Custom codes on every dialect
+
+**Source:**
+```tcl
+proc f {} { return -code error -errorcode {MYAPP E1} "boom" }
+catch f m o
+puts [dict get $o -errorcode]
+puts [catch {error boom {} {MYAPP E1}} m]:$m
+```
+
+**Result:**
+```text
+$ tclsh8.6 e5.tcl                (8.5, 9.1 and tclvm print the same)
+MYAPP E1
+1:boom
+$ jimsh e5.tcl
+MYAPP E1
+1:wrong # args: should be "error message ?stacktrace?"
+$ tclsh8.4 e5.tcl
+wrong # args: should be "catch command ?varName?"
+```
+
+`return -code error -errorcode` is the portable spelling for 8.5 and later, including Jim. On Jim, the analyser reports `error`'s third argument as a wrong-args error, and the summary of `f` raises `MYAPP E1` on every dialect.
 
 ## Rust parity
 

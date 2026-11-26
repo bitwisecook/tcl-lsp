@@ -104,6 +104,29 @@ The four kinds:
 
 Types form a lattice. `is` gives subtyping, so `file`, `pipe` and `socket` are all `channel`, and a command that takes `channel` accepts any of them. `capability` narrows a type: `open … r` gives a `file` that is `readable` but not `writable`, so `puts` on it is a warning.
 
+The core channel family as a lattice, with capabilities narrowing a type below it. An argument that accepts `channel` accepts every node under it. An argument that needs `writable` rejects a `file` opened with mode `r`.
+
+```mermaid
+flowchart TB
+  handle["any handle"] --> channel["channel"]
+  handle --> zs["zlib-stream (command)"]
+  handle --> afterid["after-id (token)"]
+  handle --> obj["TclOO object: one type per class"]
+  handle --> win["tk-window (path)"]
+  channel --> file["file"]
+  channel --> pipe["pipe"]
+  channel --> socket["socket"]
+  channel --> server["socket-server"]
+  channel --> serial["serial"]
+  channel --> console["console"]
+  channel --> refl["reflected"]
+  file --> fr["file, readable"]
+  file --> fw["file, writable"]
+  obj --> conn["tdbc-connection"]
+  conn -. "parent of" .-> stmt["tdbc-statement"]
+  stmt -. "parent of" .-> rs["tdbc-resultset"]
+```
+
 ### Producing handles
 
 A command declares what it produces. The handle type can depend on the arguments, using the `check` predicate language:
@@ -159,6 +182,23 @@ command {$tdbc-connection close}   { releases self }
 
 `$conn close` releases every statement and result set made from it, so a later `$rs nextrow` is a use after release. This holds even though the code never closed `$rs` itself.
 
+**Release cascades.** Closing a connection releases every handle made from it:
+
+```mermaid
+sequenceDiagram
+  participant U as user code
+  participant C as conn (tdbc-connection)
+  participant S as stmt (tdbc-statement)
+  participant R as rs (tdbc-resultset)
+  U->>C: prepare: produces stmt, child of conn
+  U->>S: execute: produces rs, child of stmt
+  U->>C: close: releases conn
+  C-->>S: released-with parent
+  S-->>R: released-with parent
+  U->>R: nextrow: use after release, error
+```
+
+
 ### Lifetimes
 
 `lifetime` says how long a handle can be expected to live, and so what a leak means:
@@ -167,6 +207,16 @@ command {$tdbc-connection close}   { releases self }
 - `connection` (iRules): lives for the client connection, so it is valid in any later event on the same connection;
 - `event`: valid only in the event that made it;
 - `static`: an iRules `static::` value. Storing a `connection` or `event` handle in one is an error, because it would outlive its connection.
+
+For iRules, the lifetimes follow the connection. An `HSL::open` handle made in `CLIENT_ACCEPTED` is valid in every later event on that connection. Stored in `static::`, it would outlive the connection that owns it:
+
+```mermaid
+flowchart LR
+  ca["CLIENT_ACCEPTED: set hsl [HSL::open -publisher /Common/lp]"] --> hr["HTTP_REQUEST: HSL::send $hsl ... (valid)"]
+  hr --> hs["HTTP_RESPONSE: HSL::send $hsl ... (valid)"]
+  hs --> cc["CLIENT_CLOSED: handle ends with the connection"]
+  ca -. "set static::hsl $hsl" .-> st["static:: lives across connections: error"]
+```
 
 ### Examples across the families
 
@@ -263,6 +313,168 @@ The codes are pack codes per 337. Core rows get stable built-in codes.
 - **iRules.** 360's connection graph shows handle lifetimes per event.
 - **Test framework.** 360's simulator and 390k's test doubles generate fake handles of the right type.
 - **Taint.** `TaintColour::CHANNEL` is derived as "has a handle type under `channel`", and stays only as long as taint consumers need it.
+
+## Worked examples
+
+Every Tcl result below is a real run. The iRules example is a design sketch, because there is no appliance run behind it.
+
+### 1. A parameter's need, inferred from the body
+
+**Source:**
+```tcl
+proc log {ch msg} { puts $ch $msg }
+set f [open /tmp/e39x-in w]; close $f
+set in [open /tmp/e39x-in r]
+log stdout "to stdout"
+puts [catch {log $in "to a read-only file"} m]:$m
+close $in
+```
+
+**In memory:**
+```rust
+// design sketch
+ProcSummary { name: "::log",
+    params: &[ParamNeed { name: "ch", accepts: HandleTypeId("channel"), needs: Cap("writable"),
+                          effect: HandleEffect::Borrow },
+              ParamNeed { name: "msg", accepts: NotAHandle, .. }] }
+HandleValue { var: (Global, "in"), ty: "file", caps: {readable}, state: Live, certainty: Must }
+// call site check: caps {readable} lacks "writable"; warning at line 5
+```
+
+**Bytecode (tclsh 9.1.0)** of `log`. The channel is only a loaded scalar, so the need comes from `puts`'s consumer row:
+```text
+  Command 1: "puts $ch $msg "
+    (0) push 0 	# "puts"
+    (5) loadScalar %v0 	# var "ch"
+    (10) loadScalar %v1 	# var "msg"
+    (15) invokeStk 3 
+    (20) done 
+```
+
+**Result:**
+```text
+$ tclsh9.1 h1.tcl                (tclsh8.6 and tclvm print the same)
+to stdout
+1:channel "fileN" wasn't opened for writing
+```
+
+The analyser reports at line 5: "`log` needs a writable channel for `ch`; `$in` was opened read-only at line 3". Hover on `ch` shows `channel (writable)`.
+
+### 2. A handle carried into a callback
+
+**Source:**
+```tcl
+set f [open "|echo hello" r]
+proc reader {ch} {
+    if {[gets $ch line] < 0} { close $ch; set ::done 1; return }
+    puts "read: $line"
+}
+fileevent $f readable [list reader $f]
+vwait ::done
+puts [catch {gets $f} m]:$m
+```
+
+**Result:**
+```text
+$ tclsh9.1 h2.tcl                (tclsh8.6 prints the same)
+read: hello
+1:can not find channel named "fileN"
+$ ./target/debug/tclvm h2.tcl
+command pipelines are not supported
+```
+
+`fileevent`'s script argument is a callback (390f), and `[list reader $f]` passes the `pipe` into `reader`'s `ch`. `reader` releases `ch` on end of file, so `$f` may be released after `vwait`. The analyser reports a warning on the final `gets` ("`$f` may have been closed by `reader`, line 3"), not an error, because the release happens on only one path of the callback.
+
+### 3. A silent no-op on the wrong token
+
+**Source:**
+```tcl
+set id [after 1000 {puts fired}]
+after cancel after#999
+puts [after info]
+after cancel $id
+puts [llength [after info]]
+```
+
+**Result:**
+```text
+$ tclsh9.1 h3.tcl                (tclsh8.6 and tclvm print the same)
+after#0
+0
+```
+
+`after cancel after#999` does nothing and raises nothing: the timer is still pending until the second cancel. `after#999` matches the `after-id` type's `spelling`, but it was never produced, so the analyser reports the hard-coded handle literal. Without types, this bug has no symptom at all.
+
+### 4. A cascade through child handles
+
+The example models a TDBC-style connection with TclOO, so it runs without TDBC installed.
+
+**Source:**
+```tcl
+oo::class create Conn {
+    variable stmts
+    constructor {} { set stmts {} }
+    method prepare {sql} { set s [Stmt new $sql]; lappend stmts $s; return $s }
+    method close {} { foreach s $stmts { $s destroy }; my destroy }
+}
+oo::class create Stmt {
+    variable sql
+    constructor {q} { set sql $q }
+    method execute {} { return "rows for: $sql" }
+}
+set c [Conn new]
+set s [$c prepare {SELECT 1}]
+puts [$s execute]
+$c close
+puts [catch {$s execute} m]:$m
+```
+
+**In memory:**
+```rust
+// design sketch; a user pack declares the parent link the code implements
+HandleType { id: "Stmt", kind: HandleKind::Object, parent: Some(("Conn", ReleasedWith)), .. }
+HandleValue { var: (Global, "s"), ty: "Stmt", state: Released /* by $c close */, certainty: Must }
+```
+
+**Result:**
+```text
+$ tclsh9.1 h4.tcl                (tclsh8.6 prints the same)
+rows for: SELECT 1
+1:invalid command name "::oo::Obj25"
+$ ./target/debug/tclvm h4.tcl
+rows for: SELECT 1
+1:invalid command name "::oo::Obj14::oo::Obj16"
+```
+
+The analyser reports `$s execute` after `$c close` as a use after release. The VM's message shows a separate bug: an object created by `new` inside a method gets the calling object's namespace prefixed to its name.
+
+### 5. iRules HSL (design sketch)
+
+**Source:**
+```spectcl
+handle hsl { kind token ; lifetime connection ; hover { summary {A High Speed Logging connection.} } }
+command {HSL::open} { result -handle hsl }
+command {HSL::send} { arg handle -handle hsl ; arg data }
+```
+
+```tcl
+when CLIENT_ACCEPTED {
+    set hsl [HSL::open -publisher /Common/lpAll]
+    set static::hsl $hsl
+}
+when HTTP_REQUEST {
+    HSL::send $hsl "[IP::client_addr] [HTTP::uri]"
+    HSL::send [HTTP::host] "oops"
+}
+```
+
+**Output:**
+```text
+line 3: error: an hsl handle lives for one connection; static::hsl outlives it
+line 7: error: HSL::send expects an hsl handle; [HTTP::host] returns a string
+```
+
+The `HSL::send $hsl` in `HTTP_REQUEST` is clean: the handle came from an earlier event on the same connection.
 
 ## Rust parity
 
