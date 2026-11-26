@@ -42,6 +42,87 @@ Recorded so a failure here is not mistaken for a regression from it:
   `retired-api-gate`, `value-transfers --check`, `registry-axes --check`,
   `command-backing --check`, `callback-inventory --check`.
 
+## Worktree cost baseline (item 259)
+
+Measured 26 November 2026 by `scripts/dev/worktree-cost.py`
+([design](../../design/build-time/259-worktree-cost.md)) on `work` at
+`a87feb87` (build inputs unchanged since `18040b3b`), on a 4-vCPU, 15.7 GB
+container with rustc and cargo 1.100.0 and the agent build environment.
+
+How it was run, and what that changes:
+
+- **In place, not in a fresh worktree** (`run --in-place`). The disk had
+  22 GB free and a fresh worktree needs 40 GB. So "cold" is the warm target
+  directory of the main checkout (34 GB before the run), not an empty one:
+  the cold rows measure what that checkout rebuilt to catch up, not a
+  worktree's first build. The after-edit rows are the per-edit cost.
+- **One edit and command per invocation** (`--edits`, `--commands`,
+  `--phases`, `--merge`), each under the session's 10-minute foreground
+  limit. Restoring an edited file changes its mtime, so the next command
+  on that crate rebuilds it once more (the lexer test run's 10 units).
+- **Skipped:** the test runs of `tcl-registry`, `tcl-compiler` and
+  `tcl-lsp-core` (the `tcl-compiler` suites alone take over 7 minutes), for
+  time; the whole baseline took about 50 minutes. rust-analyzer's memory:
+  not measured, the rustup proxy has no `rust-analyzer` component.
+- **Reproducibility does not hold in place.** A second after-edit test build
+  of the analyser edit compiled 40 units in 77 s (first: 31 in 338 s), and of
+  the registry edit 22 in 44 s (first: 22 in 99 s). The incremental cache
+  keeps the edited state of the first run, and the registry edit in between
+  made 9 more units stale. Wall times in place are an upper bound; unit
+  counts after an edit are exact only when nothing else ran between.
+- **Build scripts:** the count recorded with this baseline listed every
+  build script in the graph (cargo reports fresh scripts too). The script
+  now counts only reruns; this run compiled no third-party unit except the
+  `lsp` cold clippy, so no build script of a dependency reran.
+
+Units are cargo units (one per crate target), not crates. RSS is the
+process tree's summed peak (sampled every 200 ms) and the largest single
+process.
+
+| Edit | Crate | Phase | Command | Workspace units | Total units | Wall (s) | Peak RSS tree (MB) | Peak RSS single (MB) | Target growth (MB) | Test run RSS (MB) |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| analyser | `tcl-compiler` | warm | test_build | 0 | 0 | 0.4 | 79 | 79 | 0 | – |
+| analyser | `tcl-compiler` | after | test_build | 31 | 31 | 338.4 | 6232 | 5405 | 2135 | – |
+| analyser | `tcl-compiler` | warm | clippy | 32 | 32 | 143.5 | 5058 | 4976 | 0 | – |
+| analyser | `tcl-compiler` | after | clippy | 32 | 32 | 147.5 | 5059 | 4977 | 0 | – |
+| registry | `tcl-registry` | warm | test_build | 20 | 20 | 105.7 | 4307 | 3424 | 1062 | – |
+| registry | `tcl-registry` | after | test_build | 22 | 22 | 99.1 | 6098 | 3419 | 642 | – |
+| registry | `tcl-registry` | warm | clippy | 29 | 29 | 111.0 | 2897 | 2842 | 0 | – |
+| registry | `tcl-registry` | after | clippy | 22 | 22 | 107.5 | 2933 | 2842 | 0 | – |
+| lexer | `tcl-syntax` | warm | test_build | 12 | 12 | 17.1 | 1059 | 603 | 222 | – |
+| lexer | `tcl-syntax` | after | test_build | 10 | 10 | 1.5 | 682 | 409 | -1 | – |
+| lexer | `tcl-syntax` | warm | clippy | 15 | 15 | 4.5 | 779 | 446 | 4 | – |
+| lexer | `tcl-syntax` | after | clippy | 10 | 10 | 3.6 | 684 | 446 | 0 | – |
+| lexer | `tcl-syntax` | warm | test_run | 10 | 10 | 12.9 | 729 | 406 | 0 | 10 |
+| lexer | `tcl-syntax` | after | test_run | 10 | 10 | 13.4 | 668 | 410 | 0 | 10 |
+| lsp | `tcl-lsp-core` | warm | test_build | 27 | 27 | 455.3 | 6341 | 4912 | 4508 | – |
+| lsp | `tcl-lsp-core` | after | test_build | 11 | 11 | 13.5 | 2925 | 1937 | -9 | – |
+| lsp | `tcl-lsp-core` | warm | clippy | 32 | 57 | 112.5 | 2896 | 2841 | 165 | – |
+| lsp | `tcl-lsp-core` | after | clippy | 11 | 11 | 36.4 | 1822 | 1712 | 0 | – |
+
+Crates rebuilt by the test build after each edit:
+
+- analyser: 9 — `tcl-compiler`, then through its dev-dependencies
+  `tcl-spectcl`, `tcl-lsp-core`, `tcl-engine-tclvm`, `tcl-codegen`,
+  `tcl-bigip`, `tcl-irules`, `tcl-sslictcl`, `tcl-spec-hooks` (item 246's
+  target);
+- registry: 11 — the analyser's nine plus `tcl-registry` and `tcl-vm`,
+  through `tcl-registry`'s dev-dependency on `tcl-spectcl` (item 269);
+- lexer: 1 (`tcl-syntax`);
+- lsp: 2 (`tcl-lsp-core`, `tcl-spectcl`, which depends on it; item 270).
+
+Profiles (answers the design's open question): in the test builds every
+dependency unit is compiled at `opt_level` 1 with `test: false`, so the
+test profile's settings, not dev's, apply to dependencies. Clippy builds at
+opt-level 0 in check mode (`.rmeta` only).
+
+Variants: across the commands of this run every workspace package was built
+with one feature set, except `tcl-expr`, `tcl-numeric` and `tcl-syntax`
+(two each). The unit directories on disk are not a variant count in place:
+the checkout's `target/debug/build/` holds every unit since it was created
+(`tcl-compiler` 135, `tcl-vm` 88, `tcl-registry` 66); a fresh worktree is
+needed for that column.
+
 ## 1. CLI start-ups in tests
 
 What changed:
