@@ -163,22 +163,61 @@ verified:
   in that function. The function lives in binding. The key constructor lives
   here.
 
-  The Tcl rule the slot lookup keeps, checked in `tclsh` 8.6 and 9.0: a
+  The Tcl rule the slot lookup keeps, checked in `tclsh` 8.5 to 9.1: a
   relative `-map` target resolves in the ensemble's namespace, and does not
   fall back to the global command of the same name.
 
-  ```tcl
-  proc helper {} { return global }
-  namespace eval ns {
-      proc helper {} { return ns }
-      namespace ensemble create -command ::tool -map {run helper}
-  }
-  namespace eval ns2 {
-      namespace ensemble create -command ::tool2 -map {run helper}
-  }
-  tool run     ;# ns
-  tool2 run    ;# error: invalid command name "::ns2::helper"
-  ```
+**Source:**
+
+```tcl
+proc helper {} { return global }
+namespace eval ns {
+    proc helper {} { return ns }
+    namespace ensemble create -command ::tool -map {run helper}
+}
+namespace eval ns2 {
+    namespace ensemble create -command ::tool2 -map {run helper}
+}
+puts [tool run]
+puts [tool2 run]
+```
+
+**In memory:**
+
+```rust
+// these types exist today (command_binding/namespace_context.rs:32, :215);
+// the namespace key is shown in its authored form
+// `tool2 run` looks up `helper` in ::ns2's slot table
+SourceCommandKey::Slot {
+    namespace: SourceNamespaceKey::Authored("::ns2".into()),
+    simple: NameBytes::from("helper"),
+}
+// source_binding_at_slot → no binding; ::helper is never consulted
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+$ echo '…; proc q {} {tool run}; puts [::tcl::unsupported::disassemble proc q]' | tclsh9.1
+    (0) push 0 	# "tool"
+    (5) push 1 	# "run"
+    (10) invokeStk 2
+    (15) done
+```
+
+**Result:**
+
+```text
+$ tclsh8.5 ens.tcl   # and 8.6, 9.0, 9.1: the same two lines
+ns
+invalid command name "::ns2::helper"
+$ ./target/debug/tclvm ens.tcl
+ns
+invalid command name "::ns2::helper"
+```
+
+The ensemble call compiles to a plain `invokeStk`, so the rule lives in
+dispatch, and binding has to model it.
 
 **Before:**
 

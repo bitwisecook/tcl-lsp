@@ -84,7 +84,7 @@ flowchart LR
 
 **What the saved bytes are.** This matters for byte identity.
 - Saves of policy 1 or 2 compile with `DONT_COMPILE_CMDS_INLINE` set (`CompileScriptForArtifact`, `tbcxsave.c:1605`). Every command is then `push`…`invokeStk`, and no compile procs run (`tclCompile.c:2395`).
-- They also force a command limit, so 9.1 keeps `startCommand`. The compaction pass runs only without limits (`tclCompile.c:1170`).
+- They also force a command limit, which turns off the compaction pass (`tclCompile.c:1170`). But `startCommand` is emitted only around a compile proc (`CompileCmdCompileProc`, `tclCompile.c:2248`), and none runs at policy 1 or 2. So these blocks hold no `startCommand`; `greet` below shows it.
 - Script-body arguments reaching `invokeStk` (the bodies of `if`, `while`, `foreach`, `try`, `namespace eval` and others) get a fresh tag-10 record. Only that push operand is rewritten (`InstrScanBodyLiterals`, `tbcxsave.c:2162`).
 - The top-level script is itself rewritten before compiling:
   - proc bodies become markers `"\x01TBCX<n>"`;
@@ -108,6 +108,70 @@ puts [greet world]
 ```tcl
 proc greet {name} "\x01TBCX0"
 puts [greet world]
+```
+
+**Bytecode before (tclsh 9.1.0):**
+
+```text
+$ printf 'source greet.tcl\nputs [::tcl::unsupported::disassemble proc greet]\n' | tclsh9.1   # header dropped
+  Command 1: "return \"hello $name\"..."
+    (0) push 0 	# "hello "
+    (5) loadScalar %v0 	# var "name"
+    (10) strcat 2
+    (12) done
+```
+
+**Bytecode after (tclsh 9.1.0):**
+
+```text
+$ tclsh9.1 noinline.tcl   # greet compiled in a child with a command limit and an enterstep trace
+  Command 1: "return \"hello $name\"..."
+    (0) push 0 	# "return"
+    (5) push 1 	# "hello "
+    (10) loadScalar %v0 	# var "name"
+    (15) strcat 2
+    (17) invokeStk 2
+    (22) done
+```
+
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.1 greet.tcl   # ::greet only, label lines dropped
+ByteCode ::greet, 4 instructions, 13 bytes, 1 literals, 1 variables
+    (0) push 0	# "hello "
+    (5) loadScalar %v0	# var "name"
+    (10) strcat 2
+    (12) done
+```
+
+**Result:**
+
+```text
+$ tclsh8.6 greet.tcl; tclsh9.1 greet.tcl; ./target/debug/tclvm greet.tcl
+hello world
+hello world
+hello world
+```
+
+The first block is `tclsh`'s default compile, and our compiler matches it.
+The second sets the two conditions `CompileScriptForArtifact` sets (no inline
+compile, a command limit) without tbcx itself, which is not built here:
+`return` becomes `push`…`invokeStk`, and no `startCommand` appears. That
+second shape is the body an interop export must reproduce byte for byte.
+`noinline.tcl`:
+
+```tcl
+interp create child
+interp limit child commands -value 1000000
+child eval {
+    proc outer {} {
+        proc greet {name} { return "hello $name" }
+        ::tcl::unsupported::disassemble proc greet
+    }
+    trace add execution outer enterstep {apply {args {}}}
+    puts [outer]
+}
 ```
 
 **Positions.** None are kept.
@@ -164,7 +228,7 @@ pub mod tbcx {
 | `format` word | `93` | `0x8000_0000 \| revision<<16 \| 93`, first revision `0x8001_005D` |
 | `tcl_version` | producer stamp: the pinned 9.1 patchlevel, `0x09010002` | the **target** release, e.g. `0x08061202` for 8.6.18 |
 | Target and profile | Tcl 9.1, the plain `tcl` profile | any release 8.4–9.1, any profile (Jim, iRules, …) |
-| Code | the tbcx shape: plain dispatch, `startCommand` kept | our normal optimised codegen |
+| Code | the tbcx shape: plain dispatch, no compile procs, so no `startCommand` | our normal optimised codegen |
 | Opcodes | C Tcl 9.1's slots 0–210 only | slots 0–210 and private codes from 255 down |
 | Extras | none: the file is byte-valid tbcx 1.2.1 | aux tag `0x8000_0000` (`ForeachInfo`); a trailing extension table |
 | Loadable by C Tcl 9.1 + tbcx | yes, at the stamped patchlevel | no: refused at the header ("unknown magic or format") |
@@ -179,6 +243,17 @@ offset  interop unit    extended unit
 0       54 42 43 58     54 42 43 58     magic 0x58434254, "TBCX"
 4       5d 00 00 00     5d 00 01 80     format 93 / 0x8001005D
 8       02 00 01 09     02 12 06 08     tcl_version 0x09010002 / 0x08061202
+```
+
+**Result:**
+
+```text
+$ echo 'binary scan [binary format iii 0x58434254 93 0x09010002] H* h; puts $h' | tclsh9.1
+544243585d00000002000109
+$ echo 'binary scan [binary format iii 0x58434254 0x8001005D 0x08061202] H* h; puts $h' | tclsh9.1
+544243585d00018002120608
+$ echo 'puts [format 0x%08X [expr {9<<24 | 1<<16 | 0<<8 | 2}]]' | tclsh9.1
+0x09010002
 ```
 
 C Tcl 9.1 with tbcx reads the second file's format word and stops there.

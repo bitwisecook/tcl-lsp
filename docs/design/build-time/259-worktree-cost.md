@@ -56,6 +56,15 @@ scripts/dev/worktree-cost.py table  <run.json>             # Markdown rows
 scripts/dev/worktree-cost.py compare <before.json> <after.json>
 ```
 
+**Result:**
+
+```text
+$ scripts/dev/worktree-cost.py run --help | head -3
+usage: worktree-cost.py run [-h] [--edits EDITS] [--no-test-run]
+                            [--commands COMMANDS] [--phases PHASES] [--no-ra]
+                            [--jobs JOBS] [--in-place] [--merge] [--out OUT]
+```
+
 The script adds four options to this design. `--commands` and `--phases`
 pick a subset. `--merge` adds a run's edits to an existing `--out` document,
 so a long baseline can be taken one edit at a time; it refuses a document
@@ -275,6 +284,10 @@ $ scripts/dev/worktree-cost.py table target/worktree-cost/baseline.json
 | analyser | `tcl-compiler` | after | clippy | 32 | 32 | 147.5 | 5059 | 4977 | 0 | – |
 | analyser | `tcl-compiler` | after | test_build | 31 | 31 | 338.4 | 6232 | 5405 | 2135 | – |
 ```
+
+The file has since had the lexer, lsp and registry edits merged in
+(`--merge`); `table` now prints their rows too, and the analyser rows above
+are unchanged.
 
 Read with the document behind it:
 

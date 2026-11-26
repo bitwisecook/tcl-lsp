@@ -229,20 +229,34 @@ flowchart LR
 ```
 
 A compiler check that carries a `replacement` today, before and after 277.
-`Finding` already turns the replacement into a review fix, so the surfaces
-see no change:
+W201 (manual path concatenation, `path_concat.rs`) is one. Its producer
+already copies the replacement into a same-span review fix
+(`compiler_checks.rs:436`), so the merged type drops `replacement` and the
+surfaces see no change. The check's own test input:
+
+**Source:**
+
+```tcl
+set x 42
+set p "/tmp/$x"
+```
 
 **Before:**
 
 ```rust
-// compiler_checks::Diagnostic
+// compiler_checks::Diagnostic, from from_path_concat (real field values)
 Diagnostic {
-    code, span, severity, message,
-    fixes: vec![],
-    replacement: Some(new_text),
-    category: "gvn".to_string(),
+    span,                                   // the value word "/tmp/$x"
+    code: DiagCode::W201,
+    category: "taint".into(),
+    severity: Severity::Hint,
+    message: "Possible manual path concatenation. Use [file join] for portable path construction.".into(),
+    replacement: Some("[file join /tmp $x]".into()),
+    fixes: vec![CodeFix { span, new_text: "[file join /tmp $x]".into(),
+                          description: "Rewrite with `file join`".into(),
+                          safety: FixSafety::RequiresReview }],
     source_context: None,
-    payload,
+    payload: CheckPayload::PathConcatenation { variable: "p".into() },
 }
 ```
 
@@ -252,13 +266,23 @@ Diagnostic {
 // tcl_model::Diagnostic, inside tcl-diagnostics' Issued
 Issued {
     diagnostic: Diagnostic {
-        code, span, severity, message,
-        fixes: vec![CodeFix { span, new_text, description, safety: FixSafety::RequiresReview }],
-        producer: Producer::CompilerCheck(Category::Gvn),
+        code: DiagCode::W201, span, severity: Severity::Hint, message,
+        fixes: vec![CodeFix { span, new_text: "[file join /tmp $x]".into(),
+                              description: "Rewrite with `file join`".into(),
+                              safety: FixSafety::RequiresReview }],
+        producer: Producer::CompilerCheck(Category::Taint),
     },
-    evidence: Evidence::CompilerCheck { payload, source_context: None },
+    evidence: Evidence::CompilerCheck {
+        payload: CheckPayload::PathConcatenation { variable: "p".into() },
+        source_context: None,
+    },
 }
 ```
+
+The values come from `path_concat.rs`'s test
+`warning_includes_replacement_when_buildable` (`:585`), which accepts
+`$x` or `${x}` in the replacement. `tcl diag` does not show W201 on this input
+today; the test is the source.
 
 Decisions, with reasons:
 

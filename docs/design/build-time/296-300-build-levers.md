@@ -327,6 +327,17 @@ pub fn patchlevel(self) -> &'static str {
   `ReleaseFacts { version: TclVersion::V8_4, …, patchlevel: "8.4.20", … }`
   after.
 
+**Result:**
+
+```text
+$ grep '^8.4' rust/tcl-dialect/data/reference-toolchains.tsv
+8.4	8.4.20	core-8-4-20
+$ grep -m1 patchlevel rust/tcl-dialect/src/generated_release_facts.rs
+        patchlevel: "8.4.20",
+$ echo 'puts [info patchlevel]' | tclsh8.4
+8.4.20
+```
+
 ### Measurement plan
 
 Record the workspace units compiled by a dev `cargo build -p tcl-lsp-server`

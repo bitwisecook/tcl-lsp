@@ -71,14 +71,74 @@ What each tier can see, on a two-procedure file. SCCP over `double` alone
 cannot know `$x`; whether `$y` in `main` is 42 is a question about the call,
 and only the whole-unit tier reads `double`'s record from inside `main`'s:
 
+**Source:**
+
 ```tcl
 proc double {x} { expr {$x * 2} }
 proc main {} {
     set y [double 21]
-    puts $y          ;# 42
+    puts $y
 }
 main
 ```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+$ printf 'source two.tcl\nputs [::tcl::unsupported::disassemble proc main]\n' | tclsh9.1   # header dropped
+  Command 1: "set y [double 21]..."
+  Command 2: "double 21..."
+    (0) push 0 	# "double"
+    (5) push 1 	# "21"
+    (10) invokeStk 2
+    (15) storeScalar %v0 	# var "y"
+    (20) pop
+  Command 3: "puts $y..."
+    (21) push 2 	# "puts"
+    (26) loadScalar %v0 	# var "y"
+    (31) invokeStk 2
+    (36) done
+```
+
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.1 two.tcl   # ::main only, label lines dropped
+ByteCode ::main, 9 instructions, 37 bytes, 3 literals, 1 variables
+    (0) push 0
+    (5) push 1	# "21"
+    (10) invokeStk 2
+    (15) storeScalar %v0	# var "y"
+    (20) pop
+    (21) push 2
+    (26) loadScalar %v0
+    (31) invokeStk 2	# puts
+    (36) done
+```
+
+**Result:**
+
+```text
+$ tclsh8.4 two.tcl; tclsh9.1 two.tcl; ./target/debug/tclvm two.tcl
+42
+42
+42
+$ ./target/debug/tcl opt --dialect tcl9.1 two.tcl
+proc double {x} { expr {$x * 2} }
+proc main {} {
+    set y 42
+    puts $y
+}
+main
+
+
+# -------------
+# optimised: 1 rewrite(s)
+# O103  Fold pure-proc call to '::double' to its constant return
+```
+
+Neither compiler folds the call: `main`'s bytecode still invokes `double`. The
+optimiser's O103 does, because it reads `double`'s record from `main`'s.
 
 **Executable IR is analysis, not codegen.** `compilation_unit` computes a
 `SemanticAnalysisBundle` per function (`compilation_unit/function_build.rs:31`)

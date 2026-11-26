@@ -230,7 +230,7 @@ section's per-entry-point test can reuse:
 when HTTP_REQUEST {
     set static::c 1
 }
-# IRULE4001: a write to a static:: variable outside RULE_INIT
+# the analyser reports IRULE4001: a write to a static:: variable outside RULE_INIT
 ```
 
 **After:**
@@ -241,6 +241,28 @@ when RULE_INIT {
 }
 # no IRULE4001
 ```
+
+**Result before:**
+
+```text
+$ ./target/debug/tcl diag --dialect f5-irules before.irul
+no diagnostics
+diagnostics=0 across 1 input(s)
+```
+
+**Result after:**
+
+```text
+$ ./target/debug/tcl diag --dialect f5-irules after.irul
+no diagnostics
+diagnostics=0 across 1 input(s)
+```
+
+The pair holds in the analyser's tests (`irule4001_fires_for_static_write_outside_rule_init`,
+`irule4001_suppressed_in_rule_init`), which call `Analyser::analyse` directly.
+The CLI does not report IRULE4001 on either file today, though it does report
+other iRules checks (IRULE5001 on an ungated `log`). The risks section's
+per-entry-point test would catch this gap.
 
 ### Open questions
 

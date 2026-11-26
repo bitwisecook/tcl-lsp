@@ -129,15 +129,52 @@ flowchart TB
 ```
 
 `FoldPolicy` is why the dialect matters to a fold. The same expression gives
-different answers by release, in real `tclsh`:
+different answers by release. A leading 0 is octal up to 8.6 and decimal from
+9.0, and both compilers fold it to a constant:
+
+**Source:**
 
 ```tcl
-expr {010 + 1}
-# tclsh 8.4 and 8.6: 9   (a leading 0 is octal)
-# tclsh 9.0 and 9.1: 11  (decimal)
+puts [expr {010 + 1}]
 ```
 
-A binding call site, before and after:
+**Bytecode (tclsh 9.1.0):**
+
+```text
+$ echo 'puts [::tcl::unsupported::disassemble script {expr {010 + 1}}]' | tclsh9.1
+    (0) push 0 	# "11"
+    (5) done
+$ echo 'puts [::tcl::unsupported::disassemble script {expr {010 + 1}}]' | tclsh8.6
+    (0) push1 0 	# "9"
+    (2) done
+```
+
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.1 --source 'expr {010 + 1}'
+    (0) push 0	# "11"
+    (5) done
+$ ./target/debug/tcl dis --dialect tcl8.6 --source 'expr {010 + 1}'
+    (0) push1 0	# "9"
+    (2) done
+```
+
+**Result:**
+
+```text
+$ tclsh8.4 octal.tcl; tclsh8.5 octal.tcl; tclsh8.6 octal.tcl
+9
+9
+9
+$ tclsh9.0 octal.tcl; tclsh9.1 octal.tcl
+11
+11
+$ ./target/debug/tclvm octal.tcl
+11
+```
+
+A binding call site, before and after, on that expression:
 
 **Before:**
 
@@ -153,6 +190,26 @@ let number = crate::tcl_expr_eval::eval_tcl_expr_with_policy(&node, &env, policy
 // binding's ValueEnv supplies variables and carries its own evidence
 let evaluation = tcl_values::evaluate(&node, &mut env, policy);
 // Evaluation<E>, E being binding's evidence type; evaluation.value is an AbstractValue
+```
+
+**In memory before:**
+
+```rust
+// TclValue exists today (tcl_expr_eval.rs:97)
+Some(TclValue::Int(9))    // policy for tcl8.4–8.6
+Some(TclValue::Int(11))   // policy for tcl9.0, tcl9.1
+```
+
+**In memory after:**
+
+```rust
+// design sketch: these types are proposed above
+Evaluation {
+    value: AbstractValue::Exact(ExactValue::Int(11)),   // tcl9.0, tcl9.1
+    coercions: vec![],
+    result_dependency: None,
+    evidence: vec![],
+}
 ```
 
 ### What moves in

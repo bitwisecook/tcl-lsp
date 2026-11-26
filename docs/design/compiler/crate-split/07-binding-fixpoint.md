@@ -179,11 +179,98 @@ Spike 94's probe case `e01-computed-head` shows what the loop is for. The
 command word is a variable read that binding alone leaves open; SCCP can fold
 `lreverse {set}` to `set`, and the next round binds the command:
 
+**Source:**
+
 ```tcl
 set head [lreverse {set}]
 $head value 1
-puts $value      ;# 1, in tclsh 8.5 and later
+puts $value
 ```
+
+**In memory:**
+
+```rust
+// design sketch: ProvedOperands and ProvedValue are proposed below
+// SCCP's answer for the word `$head` on line 2, read by binding's second round
+ProvedValue { value: ExactValue::String("set".into()) }
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+$ echo 'puts [::tcl::unsupported::disassemble script [read [open head.tcl]]]' | tclsh9.1   # header dropped
+  Command 1: "set head [lreverse {set}]..."
+    (0) push 0 	# "head"
+  Command 2: "lreverse {set}..."
+    (5) push 1 	# "lreverse"
+    (10) push 2 	# "set"
+    (15) invokeStk 2
+    (20) storeStk
+    (21) pop
+  Command 3: "$head value 1..."
+    (22) push 0 	# "head"
+    (27) loadStk
+    (28) push 3 	# "value"
+    (33) push 4 	# "1"
+    (38) invokeStk 3
+    (43) pop
+  Command 4: "puts $value..."
+    (44) push 5 	# "puts"
+    (49) push 3 	# "value"
+    (54) loadStk
+    (55) invokeStk 2
+    (60) done
+```
+
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.1 head.tcl   # header and label lines dropped
+    (0) push 0	# "head"
+    (5) push 1	# "lreverse"
+    (10) push 2	# "set"
+    (15) invokeStk 2
+    (20) storeStk
+    (21) pop
+    (22) push 0	# "head"
+    (27) loadStk
+    (28) push 3	# "value"
+    (33) push 4	# "1"
+    (38) invokeStk 3	# ${head}
+    (43) pop
+    (44) push 5	# "puts"
+    (49) push 3	# "value"
+    (54) loadStk
+    (55) invokeStk 2	# puts
+    (60) done
+```
+
+**Result:**
+
+```text
+$ tclsh8.4 head.tcl   # first line of the error
+invalid command name "lreverse"
+$ tclsh8.5 head.tcl; tclsh8.6 head.tcl; tclsh9.0 head.tcl; tclsh9.1 head.tcl
+1
+1
+1
+1
+$ ./target/debug/tclvm head.tcl
+1
+$ ./target/debug/tcl opt --dialect tcl9.1 head.tcl
+set head set
+$head value 1
+puts $value
+
+
+# -------------
+# optimised: 1 rewrite(s)
+# O129  Fold constant builtin command substitution
+```
+
+Both compilers leave line 2 as a dynamic `invokeStk 3`: the command word is
+open until SCCP's fold (O129) reaches binding. `lreverse` is new in 8.5, so
+8.4 stops at line 1.
 
 ### Binding's interface for the loop
 

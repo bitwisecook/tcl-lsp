@@ -194,14 +194,29 @@ let word = tcl_syntax::list::list_element(source);
   as `tclsh`'s `list` does. The test's three values need no quoting; a space
   or an empty value does:
 
-```sh
-$ echo 'puts [list -ff]; puts [list ff+1]; puts [list zz]; puts [list {a b}]; puts [list {}]' | tclsh9.0
+**Source:**
+
+```tcl
+puts [list -ff]; puts [list ff+1]; puts [list zz]; puts [list {a b}]; puts [list {}]
+```
+
+**Result:**
+
+```text
+$ echo '…' | tclsh9.0     # tclsh8.4 and tclsh9.1 print the same
+-ff
+ff+1
+zz
+{a b}
+{}
+$ ./target/debug/tclvm -c '…'
 -ff
 ff+1
 zz
 {a b}
 {}
 ```
+
 - The roster test registers a fixture roster through
   `tcl_dialect::model::register_inherited_surfaces`, the call that
   `core_surfaces::seed` itself makes. The fixture is Jim, sourced from Tcl,

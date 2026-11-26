@@ -82,33 +82,110 @@ For example, `dict remove` inside a proc, from `tcl::unsupported::disassemble`
 in the pinned `tclsh` builds (header lines dropped). 9.0.4 invokes the
 command with one-byte operands; 9.1.0 emits wide forms and the new opcode:
 
+**Source:**
+
 ```tcl
 proc p {d} { dict remove $d a }
+puts [p {a 1 b 2}]
 ```
 
-**Before:**
+**Bytecode before (tclsh 9.0.4):**
 
 ```text
-tclsh 9.0.4
     (0) push1 0 	# "::tcl::dict::remove"
     (2) loadScalar1 %v0 	# var "d"
     (4) push1 1 	# "a"
-    (6) invokeStk1 3 
-    (8) done 
+    (6) invokeStk1 3
+    (8) done
 ```
 
-**After:**
+**Bytecode after (tclsh 9.1.0):**
 
 ```text
-tclsh 9.1.0
     (0) loadScalar %v0 	# var "d"
     (5) push 0 	# "a"
-    (10) dictRemove 
-    (11) done 
+    (10) dictRemove
+    (11) done
 ```
 
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.0 dr.tcl   # ::p only, label lines dropped
+    (0) push1 0	# "dict"
+    (2) push1 1	# "remove"
+    (4) loadScalar1 %v0
+    (6) push1 2	# "a"
+    (8) push1 3
+    (10) invokeReplace 4 2
+    (16) done
+$ ./target/debug/tcl dis --dialect tcl9.1 dr.tcl
+    (0) push 0
+    (5) push 1	# "remove"
+    (10) loadScalar %v0
+    (15) push 2	# "a"
+    (20) invokeStk 4	# dict
+    (25) done
+```
+
+**Result:**
+
+```text
+$ tclsh9.0 dr.tcl; tclsh9.1 dr.tcl; ./target/debug/tclvm dr.tcl
+b 2
+b 2
+b 2
+```
+
+Our compiler has the wide forms for 9.1 but no `dictRemove`, since `Op` has
+none (slot 202 above). For 9.0 it emits `invokeReplace`, where 9.0.4 pushes
+`::tcl::dict::remove` directly.
+
 `lseq 5` goes the same way: `push1`, `push1`, `invokeStk1 2` in 9.0.4, and
-four `push` and `arithSeries 13` in 9.1.0.
+four `push` and `arithSeries 13` in 9.1.0:
+
+**Source:**
+
+```tcl
+puts [lseq 5]
+```
+
+**Bytecode before (tclsh 9.0.4):**
+
+```text
+    (0) push1 0 	# "lseq"
+    (2) push1 1 	# "5"
+    (4) invokeStk1 2
+    (6) done
+```
+
+**Bytecode after (tclsh 9.1.0):**
+
+```text
+    (0) push 0 	# "0"
+    (5) push 1 	# ""
+    (10) push 2 	# "1"
+    (15) push 3 	# "5"
+    (20) arithSeries 13
+    (22) done
+```
+
+**Bytecode (tcl dis):**
+
+```text
+$ ./target/debug/tcl dis --dialect tcl9.1 --source 'lseq 5'   # label lines dropped
+    (0) push 0	# "lseq"
+    (5) push 1	# "5"
+    (10) invokeStk 2	# lseq
+    (15) done
+```
+
+**Result:**
+
+```text
+$ echo 'puts [lseq 5]' | tclsh9.1
+0 1 2 3 4
+```
 
 **Semantics with no new opcode.** `lseq` loses its `expr` behaviour ([TIP 746](https://core.tcl-lang.org/tips/doc/trunk/tip/746.md)), which is visible through `arithSeries`. The full list is in `tmp/tcl9.1.0/changes.md`. `subst` options, `timer`, `unicode`, the C99 math functions and regexp `\z` are command-level, and they stay registry facts.
 
@@ -129,6 +206,22 @@ impl Op {
 }
 /// Which opcodes a target release may contain, in 9.1 numbering.
 pub fn admitted(release: tcl_dialect::TclVersion, op: Op) -> bool;
+```
+
+**In memory:**
+
+```rust
+// design sketch: rows the generator would write. The slots are real: they are
+// the indices of tmp/tcl9.1.0/generic/tclCompile.c's tclInstructionTable[]
+// (211 named entries, 0–210)
+Op::DONE.code()      == 0     // "done"
+Op::PUSH1.code()     == 1     // "push1"
+Op::PUSH4.code()     == 2     // "push"
+Op::LREPLACE4.code() == 188   // "lreplace"
+Op::LREPLACE.code()  == 188   // "lreplace"
+Op::DICT_PUT.code()  == 201   // "dictPut"
+Op::UPLEVEL.code()   == 209   // "uplevel"
+Op::from_code(202)   == None  // "dictRemove": no Op variant yet
 ```
 
 - **C slots 0–210** are generated from `tmp/tcl9.1.0/generic/tclCompile.c`'s `tclInstructionTable[]`, by name plus width. `LREPLACE` and `LREPLACE4` both map to 188.
