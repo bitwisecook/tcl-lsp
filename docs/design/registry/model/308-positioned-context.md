@@ -65,7 +65,7 @@ pub enum Why {
    `forget` site (`AnalyserHookId::Package*`, which 305 moves to transition
    descriptors). Each records its alternatives, its `-exact` flag and its
    position. The state at a program point is the join over the paths that
-   reach it, the same lattice as binding's `BindingKnowledge` (`Must`/`May`).
+   reach it, `Knowledge<T>` projected to `Certainty` (spectcl-3/03).
    - **Straight-line code:** a require earlier in the same block is `Must`.
    - **Conditionals** (`if`, `catch`, `try`, `switch` arms): a require on one
      branch is `May` after the join, carried with its range. The require in
@@ -389,6 +389,18 @@ depend on the registry core (302 and 303 types), the binding results (item
 84) and the workspace package index. Consumers depend on the query through
 the database, never on each other.
 
+**The IDE crates read it without the database.** Hover, completion and
+signature help live in `tcl-ide-*` crates, which depend on `tcl-model` and
+the registry core only (D-C). Their caller (the LSP session, or `tcl-db`'s
+session-free batch constructor for the CLI and MCP) hands them
+`DocumentInput { text, environment, facts: FactView<'_>, context:
+&ContextIntervals, document: &dyn DocumentFacts }` (chapter 6). `context`
+is this query's answer per transition interval, and `facts` is the same
+generation the analyser read, so hover's `VersionLine`, completion and the
+version gate select facets through one path and cannot disagree. A
+document's `# tcl-lsp: stub` declarations are a per-file `UserPack` input
+with tier `Document` (chapter 7), so they appear in that `FactView`.
+
 ### Decisions
 
 1. **The answer is a set with provenance, never a floor.** A floor cannot say
@@ -420,7 +432,11 @@ the database, never on each other.
 4. Migrate hover, completion and signature help, then delete `DocumentFloor`.
 5. Delete `ResolvedContext::require_package`, or make it the query's internal
    step.
-6. MCP `command_info` and the CLI take an optional position.
+6. MCP `command_info` and the CLI take an optional position, through `tcl-db`'s
+   batch constructor.
+7. `tcl-ide-*`: hover, completion and signature help read `DocumentInput.facts`
+   and `.context`; no IDE crate names `tcl-db` (INT-a's done-when covers
+   them).
 
 ## Verification
 
@@ -500,3 +516,9 @@ silent.
 
 - **A5:** procedure entry states are computed top-down in `tcl-unit` after condensation, with the end-of-file `May` rule before that; *Dependencies* and the cross-file open question follow (integration C19).
 - **A12 (308's part):** opaque code (`source`, an unknown command, `eval`, `uplevel`) makes a hosted `Absent` library `Unknown`; W120 fires on `Absent` only; a new conformance row and the tclsh 8.6 and 9.1 run above.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O3 (D-C):** *Dependencies*: IDE crates read the answer through `DocumentInput { facts: FactView, context: &ContextIntervals, document }`, never `tcl-db`; work list item 7.
+- **O4 (D-C):** document stubs are a per-file `UserPack` input that appears in the same `FactView`.
+- **Language fixer handoff (D-F):** the join is `Knowledge<T>` projected to `Certainty` (spectcl-3/03), not `BindingKnowledge`.

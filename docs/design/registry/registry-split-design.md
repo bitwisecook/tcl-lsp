@@ -19,7 +19,7 @@ registry rule sends every per-command fix there. As a result:
 |---|---|---|
 | `commands/` | 185k | per-surface command data: `irules` 64k, `tcl` 48k, `tcllib` 27k, `tk` 22k, `stdlib` 12k, `expect`, `iapps`, `spectcl`, `sslictcl`, `bpf`, `thread`, `itcl`, `argparse`, `ticklecharts` |
 | `bigip/`, `base_objects/`, `profile_defaults/` | 171k | BIG-IP schema data (item 118) |
-| `f5/` | 5k | the f5-tcl evidence model, which `tcl-compiler` reads in 20 files; not schema, so item 301 moves it to `tcl-dialect` |
+| `f5/` | 5k | the f5-tcl evidence model, which `tcl-compiler` reads in 20 files; not schema. It splits three ways ([118, decision 1](registry-split/118-bigip-schema.md#decisions)): builds and releases to `tcl-dialect`, the iRules and iApps parts to their library crates, the execution context to the core |
 | `native_*` | 58k | interpreter algorithms (item 117a; 61k counts every file with `native` in its path) |
 | the rest | ~163k | the vocabulary (`CommandSpec`, roles, arity, evaluation contexts, effects, forms, hooks), lookup and resolution, the dialect, package and environment glue; about 14k lines of surface data outside `commands/` (the definer grammars and the iRules event and profile tables), which moves with its surface; `value_transfer` and `resolved_invocation` (35k: item 117b moves their analysis driver to `tcl-analysis` and their per-command semantics to the surface crates) |
 
@@ -68,16 +68,29 @@ depends on.
 | `tcl-dialect-tcl` | `commands/tcl` (48k): the Tcl 8.4–9.1 core surface, its folds, grammars and hooks. The Jim and iRules logic that sits there today moves out. After item 307 it keeps the hooks only, and its facts are an image | core, `tcl-cmd-core` |
 | `tcl-dialect-jim` | Jim's Rust rows (`commands/jim`, `definer/jim_source_stock.rs`). Jim's roster and own commands (today SpecTcl in `tcl-spectcl/core-surfaces`) join only after items 251 and 281 move the loader onto `tcl-source` | core, `tcl-dialect-tcl` (its roster narrows Tcl 8.6's surface) |
 | `tcl-dialect-f5` | the f5-tcl core surface (the 8.4.6 fork as it ships in BIG-IP), for both builds; created by item 301, not by step 3 | core, `tcl-dialect-tcl` |
-| `tcl-lib-tcl-bundled` | `commands/stdlib` (12k): http, msgcat, tcltest and the other libraries Tcl releases bundle | core |
-| `tcl-lib-tk`, `tcl-lib-tcllib`, `tcl-lib-expect` | `commands/tk` (22k), `commands/tcllib` (27k) + `TCLLIB_MODULES`, `commands/expect` | core |
+| `tcl-lib-http`, `tcl-lib-msgcat`, `tcl-lib-tcltest`, … (one per bundled library) | `commands/stdlib` (12k): http, msgcat, tcltest and the other libraries Tcl releases bundle | core |
+| `tcl-lib-tk`, `tcl-lib-expect`; one `tcl-lib-<package>` per tcllib package (generated) | `commands/tk` (22k), `commands/expect`; `commands/tcllib` (27k) + `TCLLIB_MODULES`, split by package | core |
 | `tcl-lib-irules` | `commands/irules` (64k), the iRules event and profile tables, and the iRules policy | core (no command spec reads the BIG-IP schema, so no edge to item 118's crate) |
-| `tcl-lib-iapps` | `commands/iapps`: iApps and tmsh | core |
-| `tcl-lib-small` (today's grouping; one crate per package: `tcl-lib-itcl`, `tcl-lib-thread`, `tcl-lib-argparse`, `tcl-lib-ticklecharts`) | `itcl`, `thread`, `argparse`, `ticklecharts` (each under 1k lines) | core |
-| `tcl-lib-dsl` (today's grouping; one crate per package) | `spectcl`'s own vocabulary, `bpf` (a restricted library on tcl 9.0), `sslictcl` (internal; changed freely with its consumers) | core |
-| `tcl-catalogue` | the shipped list of dialects and libraries, the compiled-in environments, and every image (item 307) | every dialect and library crate that has hooks, and never `tcl-spectcl`, which would put the loader and its cone under it |
+| `tcl-lib-iapps`, `tcl-lib-tmsh` | `commands/iapps`: iApps, and its `tmsh` view as its own surface | core |
+| `tcl-lib-itcl`, `tcl-lib-thread`, `tcl-lib-argparse`, `tcl-lib-ticklecharts` | `itcl`, `thread`, `argparse`, `ticklecharts` (each under 1k lines) | core |
+| `tcl-lib-spectcl`, `tcl-lib-bpf`, `tcl-lib-linux-ebpf`, `tcl-lib-sslictcl` | `spectcl`'s own vocabulary; `bpf` (a restricted library on tcl 9.0) and the kernel ABI library (380); `sslictcl` (internal; changed freely with its consumers, 365) | core |
+| `tcl-catalogue` | the shipped list of dialects and libraries, the compiled-in environments, and every image (item 307) | `tcl-catalogue-core`, every dialect and library crate that has hooks, and never `tcl-spectcl`, which would put the loader and its cone under it |
+| `tcl-catalogue-core` (new, 307) | the Tcl and Jim core images only, for the engines (`tclvm`, `runtime/rust`, `tcl-vm-wasm`, `tcl-engine-tclvm`), which install them at interpreter creation | the core |
+| `tcl-spec-images` (new, 306/307) | the image generator binary | `tcl-spectcl`'s reader, `tcl-source`, the core; no VM, compiler or codegen |
+| `tcl-spec-tabulate` (new, 307) | the opt-in `--tabulate` pass, release and packaging builds only | `tcl-spec-hooks` and the VM |
+| `tcl-lib-<pkg>-accel` (new, 313, 334 §3; for example `tcl-lib-tcllib-accel`) | a library's native accelerators, by `NativeImplId` | `tcl-engine-api`; linked by engine entry points that opt in, never by the library crate or the catalogue |
 
-The EDA vendor libraries stay SpecTcl packs, in the root `specs/` directory,
-loaded by `tcl-spectcl`.
+Every row with several packages is one crate per package (R16; plan item 264's
+done-when). A crate whose `HookTable` is empty sets `test = false` and
+`doctest = false`; its pack is tested through the catalogue's `-it` crate
+(307, *Packages with no hooks*).
+
+The EDA vendor libraries keep their sources in the root `specs/` directory.
+`tcl-spec-images` compiles them into `tcl-catalogue`'s images like every
+other pack, and the embedded image is the BundledPack default on every host;
+a `specs/` source whose hash differs overrides it through the user cache
+(chapter 7, *Shipped-pack resolution*). No library calls
+`tcl_spectcl::bundled`.
 
 Today every Tcl-facing crate sits on the whole registry:
 
@@ -104,14 +117,14 @@ flowchart TB
     dTcl["tcl-dialect-tcl"]
     dJim["tcl-dialect-jim"]
     dF5["tcl-dialect-f5, item 301"]
-    lBundled["tcl-lib-tcl-bundled"]
+    lBundled["tcl-lib-http, -msgcat, -tcltest, …"]
     lTk["tcl-lib-tk"]
-    lTcllib["tcl-lib-tcllib"]
+    lTcllib["tcl-lib-PACKAGE, one per tcllib package"]
     lExpect["tcl-lib-expect"]
     lIrules["tcl-lib-irules"]
-    lIapps["tcl-lib-iapps"]
-    lSmall["tcl-lib-small"]
-    lDsl["tcl-lib-dsl"]
+    lIapps["tcl-lib-iapps, tcl-lib-tmsh"]
+    lSmall["tcl-lib-itcl, -thread, -argparse, -ticklecharts"]
+    lDsl["tcl-lib-spectcl, -bpf, -linux-ebpf, -sslictcl"]
   end
   catalogue --> surfaces
   dJim --> dTcl
@@ -225,6 +238,26 @@ and can run in parallel; 117b waits for compiler-split item 255. Neither
 step 3, because they change types the new crates already hold. Whether a library
 crate holds Rust data or a SpecTcl-sourced image is decided by item 306.
 
+## AGENTS invariants in the target (draft)
+
+Several of AGENTS.md's invariants become false or lose their gate once the
+split, 307 and the server split (290) land. This is the draft text for the
+plan item that rewrites *§ Invariants* (deep review O13). Each sentence lands
+in AGENTS.md with the step that makes the old one false, never as a gate on
+a crate extraction (owner priority, 26 November 2026). Each invariant names
+its gate.
+
+| Invariant | Target wording | Lands with | Gate |
+|---|---|---|---|
+| the registry is the source of truth | "Per-command knowledge lives in the dialect or library crate that owns the command: its `.tclspec` rows, and its `HookTable` for what a row cannot say. Generic consumers read it through a `FactView`; none matches a command name." | 264, then each 307 surface | `registry-axes` (re-pointed by 264 and 307) |
+| EDA packs | "The EDA vendor packs are `.tclspec` sources in `specs/`, compiled into `tcl-catalogue`'s images like every pack. The embedded image is the default on every host; a `specs/` source with a different hash overrides it through the user cache. No library calls `tcl_spectcl::bundled`." | 307 (D-H) | `spec-images --check`; a `catalogue_callers` rule against `tcl_spectcl::bundled` outside entry points |
+| SpecTcl authoring | "SpecTcl 3 is read, never run. A 2.x pack loads by translation; a programmed 2.x pack needs the tool evaluator." (replaces "a SpecTcl 2.0 pack is evaluated, not walked") | 305's reader3 | `spectcl-parity` (item 405) |
+| WASM command parity | "Every core command in the Tcl core image needs backing in `runtime/rust`. The engines read the core image from `tcl-catalogue-core` and library facts from the entry point's `SurfaceSet`; a compiled WASM program carries a per-module fact projection. A library accelerator lives in its accelerator crate (`tcl-lib-<pkg>-accel`), and `runtime_backing` stays the library's source; the backing reports list accelerators separately (334 §3)." | 291 and 307 (D-B) | `command-backing`, reading the core image |
+| stubs | "A document's `# tcl-lsp: stub` declarations compile to a per-file `UserPack` input with tier `Document`, which every consumer reads through the same `FactView`, nearest-wins for that file." | integration § 5 (D-C) | an `it` row per consumer that a stub-declared role reaches binding, hover and lowering |
+| shared semantic owners | unchanged in substance; "dialect facts" are owned by the Tcl core image's `DIALECTS` section | 117a, 264, 307 | `owner-resolution`, with an image-row form (a manifest row may name `IMAGE:section/row` as well as a Rust path); 117a re-points 94 rows, and 264 and 307 re-point the other ~121 |
+| LSP handlers registered, push-only diagnostics | unchanged | 290 | the `capabilities.rs:224` test and `tests/smoke/diagnostics_delivery_smoke.rs`, which 290 moves to `tcl-lsp-it` and names as the gate |
+| closing delimiters; a stray `}` is `Esc` | unchanged | — | a named `tcl-lexer` conformance test for each, which today has none |
+
 ## Risks
 
 - **Install order.** Code that reads the registry before an entry point
@@ -243,3 +276,11 @@ crate holds Rust data or a SpecTcl-sourced image is decided by item 306.
 - **R6:** tests install through the unconditional `tcl_registry::testing` module, not a dev-only macro behind a feature.
 - **R12:** *What it buys* names every crate that links the catalogue, `xtask` included, and adds the post-307 spec row.
 - **R14:** lines 58, 71–72 and 166–172: package crates hold hooks only after item 307, images live in `tcl-catalogue`, and the grouped rows are marked as today's grouping under one crate per package.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O10, C2 (D-H):** the EDA packs are compiled into the catalogue's images; no library calls `tcl_spectcl::bundled`.
+- **O6:** the `f5/` row splits three ways, after 118's decision 1.
+- **O15, W11:** the crate table names one crate per package and adds `tcl-catalogue-core`, `tcl-spec-images`, `tcl-spec-tabulate` and the per-library accelerator crates.
+- **F8:** hookless crates set `test = false` and `doctest = false`.
+- **O13:** *AGENTS invariants in the target (draft)*, each with its gate and the step it lands with.

@@ -214,23 +214,40 @@ from the core.
 
 Each of these installs once, before its first registry read.
 
-| Entry point | Kind | Surfaces it needs |
-|---|---|---|
-| `tcl-lsp-server`, `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi`, `tcl` (`tcl-cli`), `tcl-mcp` | binaries and WASM hosts | all |
-| `f5-query` (`f5-cli`), `bigip-report-gen` (and its python and wasm builds), `bigip-query-wasm` | binaries | tcl, irules, iapps, tmsh |
-| `bpf-tcl` | binary | tcl, bpf |
-| `tclvm` (`tcl-vm-cli`), `tcl-vm-wasm`, `tcl-debug` | binaries | tcl, Jim |
-| `tcl-runtime` (`runtime/rust`, cdylib and staticlib) | library artefact | tcl, Jim (after item 117a: none) |
-| `tcl-fuzz`, `tcl-irule-test` | binaries | tcl, Jim, irules |
-| `sslictcl-data` | binary | tcl, sslictcl |
-| `tcl-spec-studio-wasm`, `tcl-explorer-wasm` | WASM hosts | all |
-| `xtask` | binary | all |
-| test harnesses | about 173 targets in the 33 crates that reach `tcl-registry` | see below |
+| Entry point | Kind | Surfaces it needs | Hook runner (D-I) |
+|---|---|---|---|
+| `tcl-lsp-server`, `tcl` (`tcl-cli`, which also serves the native Spec Studio), `tcl-mcp` | binaries | all | linked |
+| `tcl-lsp-server-wasm`, `tcl-lsp-server-wasi` | WASM hosts | all | not linked: tabulated answers only |
+| `f5-query` (`f5-cli`), `bigip-report-gen` (and its python and wasm builds), `bigip-query-wasm` | binaries | tcl, irules, iapps, tmsh | not linked |
+| `bpf-tcl` | binary | tcl, bpf, linux-ebpf | not linked |
+| `tclvm` (`tcl-vm-cli`), `tcl-vm-wasm`, `tcl-debug` | binaries | link `tcl-catalogue-core` and install tcl and Jim at interpreter creation; no library facts ([334 §3](../model/334-spectcl-codegen-vm-runtime.md#3-what-each-engine-installs-and-where-accelerators-report)) | the VM is the engine itself |
+| `tcl-runtime` (`runtime/rust`: cdylib, staticlib, WASI) | library artefact | links `tcl-catalogue-core` and installs tcl and Jim at interpreter creation (334 §3); a compiled WASM program links no catalogue and gets a per-module fact projection from codegen | — |
+| `tcl-fuzz`, `tcl-irule-test` | binaries | tcl, Jim, irules | not linked |
+| `sslictcl-data` | binary | tcl, sslictcl | not linked |
+| `tcl-spec-studio-wasm`, `tcl-explorer-wasm` | WASM hosts | all (the explorer installs the server's set) | Studio: linked, for the author tier; explorer: not linked |
+| `xtask` | binary | all | not linked |
+| test harnesses | about 173 targets in the 33 crates that reach `tcl-registry` | see below | only the hook crates' own tests |
 
-The libraries that only run inside one of these (`tcl-engine-tclvm`,
-`tcl-engine-wasm`, `tcl-cshim`) do not install. The overview's "the unit
-crate's session" means the same: the session receives the installed set from
-its binary and never selects one itself.
+The libraries that only run inside one of these (`tcl-engine-wasm`,
+`tcl-cshim`) do not install a registry. `tcl-engine-tclvm` installs the
+same as `tclvm` (tcl and Jim from `tcl-catalogue-core`, at interpreter
+creation), with library facts from its host's `SurfaceSet` (334 §3). The
+overview's "the unit crate's session" means the same: the session receives
+the installed set from its binary and never selects one itself.
+
+**How the engines get facts (D-B).** No engine links `tcl-catalogue`, which
+would embed tcllib's 214 images, iRules and Tk in every compiled program.
+`tcl-catalogue-core` embeds only the Tcl and Jim core images. Library facts
+the engines read (`errorclass` rows, taint sinks, `LIBRARY_UNITS`,
+`library_versions`) reach `tcl-engine-tclvm` through its host's installed
+`SurfaceSet` (standalone `tclvm` installs none), and reach a compiled WASM program as the
+projection codegen stamps into the module. `cargo xtask command-backing`
+reads the core image's `runtime_backing` rows and asks `Interp::backing_report`
+and `Vm::backing_report` as before. Today the engines read
+`tcl_registry::default_registry()` at run time (`runtime/rust/src/cmd_namespace.rs:239`,
+`tcl-vm/src/cmd_namespace.rs:277`) and register builtins from
+`&CommandSpec` (`registration.rs:180`); item 291 moves those reads to the
+installed core image.
 
 ### How tests get a registry
 
@@ -241,7 +258,8 @@ its binary and never selects one itself.
   their harness has installed. Each test harness installs once, at start-up,
   with a single line:
   `tcl_registry::testing::install_shipped!();` in this step, and
-  `tcl_catalogue::testing::install!(...)` from step 3 on. The macro expands to
+  `tcl_registry::testing::install!(...)` from step 3 on (the module stays in
+  the core, unconditional; step 4, rule 1). The macro expands to
   a `ctor` start-up function in the harness, so it runs once per process. That
   covers both `cargo test` (one process per binary) and nextest (one process
   per test).
@@ -368,3 +386,10 @@ fn lsort_is_known() {
 ## Review fixes (26 November 2026)
 
 - **R4:** the process-wide `install` is interim; the surface set's owner is the generation, one per `Generation` (chapter 7's naming table).
+
+## Review fixes (26 November 2026, deep review)
+
+- **E5, C4, O11 (D-B):** the entry-point table gives the engines `tcl-catalogue-core`'s images at interpreter creation and a codegen projection for WASM programs; *How the engines get facts* adds the `command-backing` source.
+- **C8 (D-I):** the table gains a hook-runner column.
+- **New:** the test macro from step 3 on is `tcl_registry::testing::install!`, not `tcl_catalogue::testing` (R2/R6 had left this line stale).
+- **Engine fixer handoff (D-B):** the engine rows follow 334 §3.

@@ -180,32 +180,57 @@ $ tclsh8.6 hdr.tcl      (tclsh9.1 and ./target/debug/tclvm print the same)
 
 | Pack | Placement | Opened |
 |---|---|---|
-| dialect and library images, the Tcl core's included | `include_bytes!` in `tcl-catalogue`, from its untracked `images/` directory, compiled per build by `tcl-spec-images` ([307](../model/307-libraries-as-data.md#images-per-build)) | when the library is present in some environment the process resolves |
-| replaceable vendor packs | `specs/NAME.tclimg` beside `NAME.tclspec` in every artefact; `include_bytes!` in `tcl-catalogue` for the bare-binary fallback, handed to the loader by the entry point | lazily, through demand loading |
-| user and workspace packs | the user cache: `spec-images/<source_hash>-<format>-<vocabulary>-<reader_build>-<vm>.tclimg`, where `vm` is the `tabulated_with_vm` bit | after a hash check; mapped read-only |
+| dialect and library images, the Tcl core's included | `include_bytes!` in `tcl-catalogue`, from its untracked `images/` directory, compiled per build by `tcl-spec-images` ([307](../model/307-libraries-as-data.md#images-per-build)); the Tcl and Jim core images through `tcl-catalogue-core`, which the engines link | when the library is present in some environment the process resolves |
+| replaceable vendor packs (`specs/`) | `include_bytes!` in `tcl-catalogue`, the BundledPack default on every host; `specs/NAME.tclspec` ships beside the binary and in the web mount as source only, never a `.tclimg` | lazily, through demand loading |
+| user and workspace packs, and replaced vendor packs | the user cache: `spec-images/<source_hash>-<format>-<vocabulary>-<reader_build>-<vm>.tclimg`, where `vm` is the `tabulated_with_vm` bit | after a hash check; mapped read-only |
+| document stubs (`# tcl-lsp: stub`) | compiled per file to a `UserPack` input with tier `Document` (not cached on disk), replacing `UnitBuildOptions::declared_commands` and `DocumentCommandSurface` | with the document; it answers nearest-wins for that file only, and as the lowest tier it adds assistance and never weakens a shipped fact |
+
+### Shipped-pack resolution
+
+One rule on every host:
+
+| Host | Default for a shipped pack | A `specs/` source that differs from the embedded image's `source_hash` | User cache |
+|---|---|---|---|
+| native server, CLI, MCP (VS Code, JetBrains, Zed, Helix, Neovim, Emacs, Sublime: all bare binaries or binaries beside `specs/`) | the image embedded in `tcl-catalogue` | compiled into the user cache as a `UserPack` with tier BundledPack, which overrides the embedded image | `tcl-userdirs`' cache directory |
+| VS Code web worker (`tcl-lsp-server-wasm`) | the same embedded image | the same, from the browser mount | in memory, per session |
+| WASI server | the same embedded image | the same, from the preopened `specs/` | `tcl-userdirs`' directory when the host preopens it, else in memory per session |
+| `tcl-explorer-wasm`, `tcl-spec-studio-wasm` | the same embedded image: the explorer installs the server's set, so it and the LSP agree on EDA files | the same, from the browser mount | in memory, per session |
+
+No artefact ships a `.tclimg` beside a binary: the binary embeds the same
+build's bytes, and a replaced source fails the hash and recompiles anyway.
+The owner decision "every artefact ships source and images" (306) holds with
+the image inside the binary or module. In the database (integration § 5) a
+replaced vendor pack is a `UserPack` input with tier BundledPack, so no
+further input kind is needed.
 
 **Tier-neutral images.** An image holds every row its source wrote. The
-install step filters rows by the pack's provenance (chapter 1's trust table),
+install step filters rows by the pack's trust tier (chapter 1's trust table),
 so one image serves every tier and the cache key needs no tier. Only BuiltIn
-and BundledPack images are opened from beside a source; any other image comes
-from the user cache only, so a `.tclimg` planted in an untrusted workspace is
-ignored and the pack is compiled from source (item 407). Writes are atomic
-(temp file, then rename). A corrupt entry fails the header checks and is
-rebuilt.
+and BundledPack images are ever embedded; any other image comes from the
+user cache only, so a `.tclimg` planted in an untrusted workspace is ignored
+and the pack is compiled from source (item 407). Writes are atomic (temp
+file, then rename). A corrupt entry fails the header checks and is rebuilt.
 
-**Tabulation and the VM.** A user pack compiled by a process without the
-hook VM has no tabulated Tcl-body answers and `tabulated_with_vm` clear; one
-compiled with the VM (Spec Studio's author tier) has them and the bit set.
-The bit is in the file name, so the same source never gives two byte strings
-under one key. A reader prefers the `1` entry and accepts either.
+**Tabulation and the VM.** Shipped images in a dev build come from `cargo
+spec-images --write`, with source-only `BODIES` and `tabulated_with_vm`
+clear; release and packaging builds add the `--tabulate` pass, which needs
+the VM and codegen and is keyed by their build (307). A user pack compiled
+by a process without the hook runner has no tabulated Tcl-body answers and
+the bit clear; one compiled with it (Spec Studio's author tier) has them and
+the bit set. The bit is in the file name, so the same source never gives two
+byte strings under one key. A reader prefers the `1` entry and accepts
+either. Where no hook runner is linked (D-I), tabulated answers cover the
+bundled packs of a release build and user Tcl-body hooks stay dormant.
 
 **Eviction.** Opening an entry touches its modification time. At most once a
 day a process removes entries unused for 30 days, then the oldest until the
-directory is under 256 MiB. Many worktrees then share one bounded cache.
+directory is under 256 MiB. Many worktrees then share one bounded cache. The
+cache's root and owner crate is `tcl-userdirs`; item 103's on-disk tier uses
+the same directory, key scheme and bounds (plan handoff).
 
 ```mermaid
 flowchart TB
-  pack["a pack to load"] --> tier{"BuiltIn or BundledPack with an image beside it?"}
+  pack["a pack to load"] --> tier{"an embedded BuiltIn or BundledPack image for it?"}
   tier -- yes --> header{"header ok: format, vocabulary 3 at our minor or older, hook_abi?"}
   tier -- no --> cache{"cached image for source_hash and reader build?"}
   header -- stale --> cache
@@ -226,7 +251,9 @@ flowchart TB
 images. An image opens only when its library is present; a per-image name
 index serves W002's universe without opening specs; cached images are mapped
 read-only and shared between the LSP, MCP and CLI processes. Budgets: server
-start with 300 images within 10% of today, and 50 user packs under 50 ms warm.
+start with 300 images within 10% of today, and 50 user packs under 50 ms warm
+on a native host; browser and in-memory WASI hosts recompile each session
+and record their figure beside it.
 
 **One lowering path.** Every pack becomes an image, in memory when not cached,
 and the registry reads images only (item 406). The registry core gains
@@ -367,8 +394,11 @@ edits.
 | a procedure summary | `ProcSummary` (391, 392, integration § 3; today purity only, `interprocedural.rs:264`) | `ProcSummary` (`tcl-model`), the product record with a slot per domain |
 | a procedure's taint summary | `ProcTaintSummary` (today `taint_interproc.rs:185`; placed in the core by this chapter's first draft) | `ProcTaintSummary` (`tcl-model`); the pack rows it is built from are core `TaintRow`s |
 | completion codes | `CompletionCodes` (392), `CodeSet` (integration), `CompletionCodeDomain` (today, `completion.rs:189`) | `CodeSet` (core); the lattice over it is `tcl-model`'s |
-| a library's certainty | `LibraryChoice::{Must, May}` (308), `BindingKnowledge` (today), `Certainty` (plan item 482, INT-c) | `tcl_core_types::Certainty`, inside `LibraryChoice::Present` |
+| a library's certainty | `LibraryChoice::{Must, May}` (308), `BindingKnowledge` (today), `Certainty` (plan item 482, INT-c) | `tcl_core_types::Certainty`, a projection of `Knowledge<T>` (chapter 3), inside `LibraryChoice::Present` |
 | the installed surface set | `installed()`, one per process (registry split step 1), the generation's surfaces (integration § 1) | a `SurfaceSet` per `Generation` (core); step 1's `install` and `installed()` survive only in entry points, as `install_host` does |
+| a registry command's stored identity | `SpecKey` (today: the address of a `&'static CommandSpec`, `tcl-registry/src/model/binding.rs:132`), `SpecId` (an index in one image), `CommandId` (335's `MissingFact`; but `tcl_core_types::CommandId(u32)` already means an engine command, `tcl-core-types/src/lib.rs:233`), "`CommandKey`" (integration § 1 and *Lifetimes* above, defined nowhere) | `CommandKey = (LibraryId, interned command path)` (core): independent of image and generation, so salsa values compare equal across generations. `SpecKey` retires; `BindingTarget::Spec` holds a `CommandKey`; 335's field becomes `command: CommandKey`. `SpecId` stays the in-image index and never leaves a generation |
+| a pack's trust tier | `Provenance` (`tcl-dialect/src/model/environment.rs:259`; chapter 1 "Provenance is today's `Provenance`") | `TrustTier` (`tcl-dialect`), with today's variants: `BuiltIn`, `BundledPack`, `User`, `WorkspaceTrusted`, `WorkspaceUntrusted`, `StudioOverride`, `Document` |
+| where an IR node came from | `Provenance` (`tcl-compiler/src/ir/provenance.rs:59`, moving to `tcl-source`) | `NodeOrigin` (`tcl-source`). `NamingProvenance` and `IdentityProvenance` (`tcl-core-types`) keep their names; `tcl-sslictcl`'s `trust::Provenance` (`trust.rs:197`) is a domain record and is left to 365 |
 
 ## Parity: one model, two front ends, one printer
 
@@ -405,7 +435,7 @@ deleted for 393's `SinkWhen`.
   `-native ID`;
 - `native_lowering`, `native_lowering_windows` and `dispatch_dependencies`
   are `Derived`: Rust-only native tables in `tcl-dialect-tcl`, keyed by
-  command (D8);
+  command (D8); `native_lowering` is keyed by `OP-ID` (D32);
 - `teardown_argument_layout`, `source_arity_with_option`,
   `pack_source_sandbox_helper` and `remote_method` get spellings in item
   403's tier-gated vocabulary, each with a ratchet entry until spelled.
@@ -477,6 +507,10 @@ under the round-trip gate** (item 405); "today" marks a type that exists.
 | `arg … -embedded LANG` | 390D | `Embedded { lang, dialect }` | 390d |
 | `migrate` | 390E | `Migration` | 390e |
 | `arg … -callback -appends` | 390F, 335 | `CallbackSig` (with `AppendedArity`) | 390f |
+| `arg … -callback -protocol T` | 390F | `CallbackSig { protocol: Option<HandleTypeId> }` | 390f |
+| `operation` | 400 | `CommandSpec.operation: Option<SemanticOperationId>`, with windows | 400, 402 |
+| `handle T { required … }` | 390F, 391 | `HandleType { required: &[SubId] }` | 390f, 391a |
+| `handle T { lookup NATIVE-ID }` | 391 | `HandleType { lookup: Option<NativeHookId> }` | 391a, 402 |
 | `catalogue`, `scope project`, `virtual-event`, `style`, `option-class`, `token` | 390G–M | `MsgCatalogue`, `PackScope`, `VirtualEvent`, `TtkStyle`, `OptionClass`, `TokenCategory` | 390g–390m |
 | `snippet`, `presentation`, `-ends-options`, `-exported` | 319/320 | `Snippet`, `Presentation`, `OptionSpec::ends_options`, `SubCommand::exported` | 320 |
 | `-scope`, `-resolve`, access, `-in`, `-frame`, `constructs`, `transition alias`, `-db`, `refactor -no` | 335 | `NameFacts`, `BodyFrame`, `Construct`, `AliasTransition`, `OptionDbName`, `RefactorPermissions` | 437 |
@@ -506,3 +540,14 @@ Each form's done-when includes "prints and re-reads equal under the gate".
 - **R13:** *Tabulation and the VM*.
 - **R14:** lines 80, 114 and 153 no longer place images per crate; the chapter names `tcl-catalogue`.
 - **A10:** test loaders bind missing IDs to stubs (*Dormant hooks*).
+
+## Review fixes (26 November 2026, deep review)
+
+- **C2, O10 (D-H):** the placement table and a new *Shipped-pack resolution* table: the embedded image is the default on every host, `specs/` ships sources only, a differing source becomes a `UserPack` with tier BundledPack, and the explorer installs the server's set. The Sublime row lives in chapter 10 (handed to its owner).
+- **C9 (D-H):** the cache is rooted through `tcl-userdirs`; the browser keeps an in-memory cache per session; WASI uses the directory when preopened; the 50 ms budget is native.
+- **O4 (D-C):** a placement row for document stubs, a per-file `UserPack` with tier `Document`.
+- **O1, E4 (D-A):** *Tabulation and the VM* covers shipped images: dev images untabulated, release images tabulated.
+- **M6 (D-D):** the naming table defines `CommandKey = (LibraryId, interned command path)`; `SpecKey` retires; `BindingTarget::Spec` holds a `CommandKey`.
+- **M11:** the naming table renames the trust tier `TrustTier` and the IR's `Provenance` `NodeOrigin`; the tier filter's wording follows.
+- **W14:** eviction names `tcl-userdirs` as the cache's owner and hands item 103's tier to the same policy (plan handoff).
+- **Language fixer handoffs (D-F, D-K):** parity rows for `operation`, `-callback -protocol`, `required` and `lookup`; `native_lowering` keyed by `OP-ID` (D32); `Certainty` as a projection of `Knowledge<T>`.

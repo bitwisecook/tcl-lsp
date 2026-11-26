@@ -705,8 +705,14 @@ Result runs use the Tk 8.6.18 and 9.1.0 builds under `tmp/`, loaded by a
   `info body`, `info procs` and the library's own bugs, which is what
   scripts observe. The existing `runtime_backing tcl-body {-package-source
   PATH}` already points the codegen rung 3 at that source.
-- **(b) Native accelerators by ID.** A library crate may ship Rust
-  implementations behind a `runtime` feature. Each is a `HostCommand`
+- **(b) Native accelerators by ID.** Rust implementations live in the
+  library's accelerator crate (`tcl-lib-<pkg>-accel`, over `tcl-engine-api`),
+  keyed by `NativeImplId`, never in the library crate and never behind a
+  cargo feature: a `runtime` feature on a library crate would be unified on
+  in every build that links the catalogue, and put `tcl-engine-api` under it.
+  Engine entry points that opt in link it by name; the catalogue and the
+  library crate never do ([334](334-spectcl-codegen-vm-runtime.md) §3).
+  Each is a `HostCommand`
   defined through `tcl_engine_api::Engine::define_command`, the interface
   the C shim uses, so tclvm, `runtime/rust` (`RuntimeEngine`) and WASM all
   get it. The pack writes `implementation -native ID -versions {L RANGE}`.
@@ -736,6 +742,13 @@ flowchart TB
   table -- no --> source
   table -- yes --> accel["(b) native HostCommand, then package provide L V"]
 ```
+
+**Who `runtime_backing` reports.** An accelerated library command's backing
+owner is the library's own source (`TclBody { PackageSource }`), which is
+what runs when the host has not opted in. `command-backing` and the WASM
+parity invariant hold core commands to `runtime/rust` and `tcl-vm`; the
+backing reports list linked accelerators in their own section, and an
+accelerator is never a command's backing (334 §3).
 
 **Facts the VM uses.** These are pure and effect classes (folding at
 compile time and dead-call removal), `alias_of` (rung 2),
@@ -870,10 +883,10 @@ tcllib's `source …/md5x.tcl`. With them on, the host's load script defines
 the native command and runs `package provide md5 2.0.9`. If the disk
 holds 2.0.10, it loads from source, because 2.0.10 is not in the table.
 
-**Trust tiers** (provenance from `tcl-dialect/src/model/environment.rs:259`;
+**Trust tiers** (`TrustTier`, today's `Provenance` in `tcl-dialect/src/model/environment.rs:259`;
 the `DependencyTier` gate in `capability.rs` still applies on top):
 
-| Provenance | Facts, `check` | `-native` refs | Tcl hook bodies | `rewrite` | Native implementations |
+| Trust tier | Facts, `check` | `-native` refs | Tcl hook bodies | `rewrite` | Native implementations |
 |---|---|---|---|---|---|
 | BuiltIn, BundledPack | yes | yes | yes | yes | yes, if the host opts in |
 | User, WorkspaceTrusted | yes | yes, to compiled-in IDs | sandboxed | templates and native only | no |
@@ -892,7 +905,7 @@ A StudioOverride takes the row of the workspace it edits.
 | rewrite (new) | optimiser, aggressive minify | kinds, argc, options, target set | `replace TEMPLATE` | 1, 3, 4 | when shape-only | `tcl-optimiser` (item 284) |
 | layout (new) | formatter | kinds, argc, options, values | `break-before`, `keep`, `group` | 1, 3, 4 | when shape-only | formatting crate |
 | lowering, codegen, inline codegen, return type | compiler, VM | native | Rust | 3 only (closed sets) | n/a | `tcl-codegen`, registry |
-| implementation | VM, runtime | `&[Value]` | Tcl completion | (c) source, (b) native | n/a | library crate `runtime` feature, `tcl-engine-api` |
+| implementation | VM, runtime | `&[Value]` | Tcl completion | (c) source, (b) native | n/a | the library's accelerator crate (`tcl-lib-<pkg>-accel`, over `tcl-engine-api`), linked by engine entry points; never a feature of the library crate |
 
 The same table as a graph, from family to consumer. The two new families
 are marked:
@@ -1014,7 +1027,8 @@ document.
   - image size growth from `BODIES` and `PROOFS`;
   - formatter latency with layout hooks on a 2,000-line file;
   - VM time for md5 with the accelerator against source;
-  - the build cone of a library crate with and without its `runtime` feature.
+  - the build cone of `tcl-catalogue` (it must not contain `tcl-engine-api`)
+    and of `tclvm` with `tcl-lib-tcllib-accel`.
 
 ## Risks
 
@@ -1043,9 +1057,9 @@ document.
 - **306's `HOOKS` section** stores source for lack of a serialiser, but item
   311 now supplies `TbcxUnit` (tbcx format). Add `BODIES`, `IMPLEMENTATIONS` and `PROOFS`,
   and rename `ROLE_TABLES` to `TABLES` with a family tag.
-- **307** says a library crate holds an image and hooks "and nothing else".
-  It may also hold native accelerators behind a `runtime` feature, which
-  adds `tcl-engine-api` to that feature's cone only.
+- **307:** a library crate holds an image and hooks only; native
+  accelerators live in a separate accelerator crate that engine entry points
+  link ([334](334-spectcl-codegen-vm-runtime.md) §3).
 
 ## Owner decisions (26 November 2026)
 
@@ -1061,3 +1075,8 @@ document.
 ## Review fixes (26 November 2026)
 
 - **A8:** the abstention paragraph gives each family its polarity and moves the sink gate to 393's `SinkWhen` predicate.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O16 (with the engine fixer's 334 §3):** accelerators live in a per-library accelerator crate (`tcl-lib-<pkg>-accel`), linked by named engine entry crates, never behind a `runtime` feature on a library crate; *Who `runtime_backing` reports* names the library's source as the backing owner. The table row, the measurement and the 307 correction follow.
+- **M11:** the trust table says `TrustTier`.

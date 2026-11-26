@@ -166,21 +166,42 @@ The table lives in the script as data, keyed by commit range. When a step moves
 one of these files, the step updates the row in the same change. The script
 fails if a row's file is missing.
 
-**After item 307, a fifth edit, `spec`.** Once a command's facts are a
+**After item 307, three more edits.** Once a command's facts are a
 `.tclspec` row, the `registry` row's Rust constant lands in a crate that holds
 only hooks, so it measures a hook edit, not a per-command one. The table
 gains:
 
 | Key | File | Crate tested | Edit |
 |---|---|---|---|
-| `spec` | `rust/tcl-dialect-tcl/tcl.tclspec` (the Tcl core's pack) | `tcl-analysis`, and the workspace | appends `# worktree-cost <n>`, which changes `source_hash` and so the image's bytes |
+| `spec` | `rust/tcl-lib-expect/expect.tclspec` (a library pack) | `tcl-analysis`, and the workspace | appends `# worktree-cost <n>`, which changes `source_hash` and so the image's bytes |
+| `spec-core` | `rust/tcl-dialect-tcl/tcl.tclspec` (the Tcl core's pack) | the same | the same |
+| `vm` | `rust/tcl-vm/src/cmd_lseq.rs` (one command handler) | `tcl-vm`, and the workspace | the usual `const _` line |
 
-For `spec` the script runs `cargo spec-images` first (307's generator). Then
-`cargo test -p tcl-analysis --lib --no-run` must compile no workspace unit,
-and `cargo build --workspace --all-targets` must rebuild only `tcl-catalogue`
-and the crates that link it: the binaries, the WASM hosts, `xtask` and the
-`-it` test crates. That is plan item 481's check (integration INT-b). The `registry` row
-becomes a hook edit in `rust/tcl-lib-irules/src`.
+For `spec` and `spec-core` the script runs `cargo spec-images` first (307's
+generator) and **times it**, cold and after the edit, as `generator_wall_s`.
+Then `cargo test -p tcl-analysis --lib --no-run` must compile no workspace
+unit. For `spec`, `cargo build --workspace --all-targets` must rebuild only
+`tcl-catalogue` and the crates that link it: the binaries, the WASM hosts,
+`xtask` and the `-it` test crates. That is plan item 481's check (integration
+INT-b). `spec-core` also rebuilds `tcl-catalogue-core` and the engines that
+link it (`runtime/rust`, `tcl-engine-tclvm` and what sits on them), which the
+row records rather than forbids. The `registry` row becomes a hook edit in
+`rust/tcl-lib-irules/src`.
+
+The `vm` row checks D-A: in a dev build a VM or codegen edit must rewrite no
+image (the generator links no VM, and `--tabulate` runs only in release and
+packaging builds), so `tcl-catalogue` and its consumers stay fresh. The row
+also records `cargo tree -p tcl-spec-images` having no `tcl-vm`,
+`tcl-compile`, `tcl-unit` or `tcl-codegen`. Until `tcl-spectcl` drops its
+`tcl-spec-hooks` edge (307, *Dependencies*), the generator reaches the VM, and
+the `spec` row's cold `generator_wall_s` includes building it; the row says
+so.
+
+**Workspace-wide rows.** Two commands run once per run, cold and after the
+`spec` edit, beside the per-crate ones: `cargo clippy --workspace
+--all-targets` and `cargo test --workspace --no-run`. They show what every
+new member costs (one crate per package adds about 230 hookless members,
+307), so they are recorded before 307's step 5 (tcllib) lands and after it.
 
 ### Commands measured per edit
 
@@ -212,6 +233,7 @@ both.
 | `test_peak_rss_mb` | for command 3, the same tree sampling restricted to the test harness processes (`target/debug/deps/<crate>-*` executables), so the test run's memory is separated from cargo's. |
 | `target_bytes` | the target directory's allocated size (`st_blocks * 512`, hard links counted once) before and after each command. The script also records the split into `build/`, `incremental/`, `deps`-style outputs and test executables. |
 | `ra_rss_mb` | see below. |
+| `generator_wall_s` | for the `spec` rows: `cargo spec-images` around the edit, build and run. |
 | `machine` | `nproc`, total memory, `-j`, rustc and cargo versions, the commit, and the cargo environment. |
 
 Cargo emits `build-script-executed` for a fresh build script too, replaying
@@ -337,6 +359,29 @@ build and adds one row of deltas under that section. Because the file is a
 current snapshot, earlier rows are replaced by a single "before → after" line
 per step.
 
+### Budgets
+
+The headline goal is many parallel worktrees on one machine without filling
+disk or memory. The baseline has only relative targets, so these absolute
+budgets are recorded beside every run. They are **targets, never a gate on a
+step** (owner priority, 26 November 2026): each item-90 or registry-split
+step records its numbers alongside, and later stages gate on regressions
+against the previous record, not on these figures.
+
+| Budget | Target | Today |
+|---|---|---|
+| fresh-worktree disk: `target/` after the four edits' three commands | 12 GiB | not measured fresh (the run needed 40 GB free and had 22) |
+| peak build RSS, process tree, at `-j4` | 4 GiB | 6.3 GB (`tcl-lsp-core` test build) |
+| rust-analyzer RSS after indexing the workspace | 3 GiB | not measured (no `rust-analyzer` component) |
+| worktrees on the reference machine (4 vCPU, 15.7 GB, the recorded free disk), one building and the others idle with rust-analyzer | 3 | 1 with headroom |
+| `cargo spec-images` (cold build and run / run after a one-spec edit) | 60 s / 5 s | — (307) |
+| `cargo clippy --workspace --all-targets` and `cargo test --workspace --no-run`, cold | recorded first; the target is set from the first fresh run | — |
+
+The fresh measurement runs where the disk allows it: a machine or container
+with at least 60 GB free, or the CI tank runner, never in place. Item 260
+owns the shared part of the disk (its cache) and the trade-off between
+incremental state and sharing (296/297).
+
 ### Decisions
 
 - **Fresh worktree, not the current checkout.** A warm target directory hides
@@ -419,6 +464,8 @@ Done when (item 259's own, tightened):
 - the baseline section exists in build-test-cost on the current tree, with
   all four edits, all three commands, cold and after-edit, and the variant
   counts;
+- the budget table above has a "today" figure for every row from a fresh
+  run (recorded alongside; it gates nothing);
 - `make check-worktree-cost-script` passes;
 - a second run on the same commit reproduces every unit count exactly and wall
   times within 15%. If it does not, the noise is recorded beside the table.
@@ -444,3 +491,9 @@ peak RSS, target growth, variants per package, and rust-analyzer's resident memo
 ## Review fixes (26 November 2026)
 
 - **R12:** a `spec` edit row for after item 307, with `xtask` in its expected rebuild set; the `registry` row becomes a hook edit.
+
+## Review fixes (26 November 2026, deep review)
+
+- **F6:** *Budgets*: absolute targets for fresh-worktree disk, peak RSS at `-j4`, rust-analyzer RSS and worktrees per machine, measured fresh on a 60 GB disk, recorded alongside and gating no step.
+- **F8:** workspace-wide `clippy` and `test --no-run` rows, before and after 307's step 5.
+- **F9, E4:** the `spec` rows time the generator (`generator_wall_s`, budget 60 s / 5 s); a `spec-core` row for the Tcl core's pack and a `vm` row that checks a VM edit rewrites no dev image.

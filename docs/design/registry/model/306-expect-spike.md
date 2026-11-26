@@ -45,9 +45,11 @@ compiles every shipped pack to an image in one run:
 - for the spike, `expect.tclspec`.
 
 The image bytes are platform-independent, so one build's images go into
-every artefact above. Images are compiled per build and never checked in
-(owner decision); `--check` (item 119) recompiles and fails if an image
-differs from what its source compiles to.
+every artefact above, inside its binary or WASM module. Images are compiled
+per build and never checked in (owner decision); `--check` (item 119)
+recompiles and fails if an image differs from what its source compiles to.
+Dev images are not tabulated: the VM pass (`--tabulate`, 307) runs only in
+release and packaging builds.
 
 From source to the registry, at build time and at run time:
 
@@ -58,11 +60,10 @@ flowchart LR
   jimSpec["core-surfaces/jim*.tclspec"] --> xtask
   xtask --> img["NAME.tclimg in tcl-catalogue/images, untracked"]
   img --> embed["include_bytes! in tcl-catalogue"]
-  img --> staged["specs/NAME.tclimg in each artefact"]
-  img --> web["dist/web/specs via index.json"]
   embed --> view["ImageView"]
-  staged --> view
-  web --> view
+  edaSpec --> staged["specs/NAME.tclspec in each artefact and the web mount"]
+  staged -- "hash differs" --> userCache["compiled into the user cache"]
+  userCache --> view
   view --> specView["SpecView per SpecId, read lazily"]
   specView --> surface["CompiledSurface"]
   surface --> registry["registry"]
@@ -123,28 +124,36 @@ only that hook dormant, since recompiling would give the same ID. The
 consolidated format, with section numbers and record layouts, is
 [chapter 7](../spectcl-3/07-image-and-rust-parity.md#the-image-format-1).
 
-### Two placements
+### One placement
 
 | Pack kind | Placement | Load |
 |---|---|---|
 | Dialect and library images (Tcl, Jim, f5-tcl, Tk, tcllib, Expect, iRules, …) | `include_bytes!` in `tcl-catalogue` | at registry install, with zero parsing |
-| Replaceable vendor packs (`specs/*`) | `specs/NAME.tclimg` beside `NAME.tclspec`, in every artefact that stages `specs/`; also `include_bytes!` in the bare-binary fallback, replacing today's `include_str!` | lazily, through demand loading (`tcl-spectcl/src/demand.rs`, `demand::enable`; the manifest-only path in spec-packs.md) |
+| Replaceable vendor packs (`specs/*`) | `include_bytes!` in `tcl-catalogue` too: the BundledPack default on every host, replacing today's `include_str!`. `specs/NAME.tclspec` ships beside the binary and in the web mount as source only | lazily, through demand loading (`tcl-spectcl/src/demand.rs`, `demand::enable`; the manifest-only path in spec-packs.md) |
 
-The web build fetches `dist/web/specs/*.tclimg` by the same `index.json`.
-`include_bytes!` works for `wasm32-unknown-unknown` and `wasm32-wasip1`
-because it is a compile-time constant. A byte image of the size measured
-below needs no special handling. The Sublime package ships no server and no
-packs, so nothing changes for it.
+No `.tclimg` ships beside a binary or in the web mount: the binary already
+embeds the same build's bytes, and a replaced source fails the hash and is
+recompiled anyway. A `specs/` source on disk or in the browser mount
+overrides the embedded image only when its hash differs; it is then compiled
+into the user cache as a `UserPack` with tier BundledPack (chapter 7's
+*shipped-pack resolution*). `include_bytes!` works for
+`wasm32-unknown-unknown` and `wasm32-wasip1` because it is a compile-time
+constant. The Sublime package ships no server and no packs, but LSP-Tcl
+downloads the release's `tcl-lsp-server` on first use
+(`editors/sublime-text/README.md`), so Sublime is a bare-binary client and
+gets the embedded images like Zed or Helix.
 
 ### Replaced and user packs
 
 Each image carries `source_hash`. At load:
 
-1. **A bundled pack replaced on disk.** This means a `specs/` file or
-   `TCL_LSP_SPEC_PACK_DIR`. Its source hash is compared with the image's, and
-   on a mismatch the image is ignored.
+1. **A bundled pack replaced on disk.** This means a `specs/` file,
+   `TCL_LSP_SPEC_PACK_DIR`, or a file in the browser mount. Its source hash
+   is compared with the embedded image's, and on a mismatch the embedded
+   image is ignored for that pack.
 2. **A pack with no current image** is compiled once with the 3 reader (no
-   VM). The image is cached under `tcl-userdirs`' cache directory as
+   VM). The image is cached under `tcl-userdirs`' cache directory (the
+   browser keeps an in-memory cache per session instead) as
    `spec-images/<source_hash>-<format>-<vocabulary>-<reader_build>-<vm>.tclimg`
    (chapter 7) and is reused on
    the next start. Writes are atomic (temp file plus rename). A corrupt cache
@@ -156,7 +165,7 @@ The load decision for one pack, as a flow:
 
 ```mermaid
 flowchart TB
-  pack["a pack to load"] --> hasImg{"an image beside it or embedded?"}
+  pack["a pack to load"] --> hasImg{"an embedded image?"}
   hasImg -- yes --> header{"header checks: format, vocabulary 3, hook_abi IDs"}
   header -- stale --> cache
   header -- ok --> hash{"source_hash matches the source on disk?"}
@@ -303,12 +312,12 @@ checks that both forms give the same visibility, arity and roles.
    `xtask-check`.
 3. `tcl-lib-expect`: the pack and its `HookTable`; the image in
    `tcl-catalogue`.
-4. Staging: `Makefile` copies `tcl-catalogue/images/*.tclimg` for each
-   `specs/*.tclspec` wherever it copies `*.tclspec` (`:353`, `:373`, `:402`,
-   `:2438`), and `copy-web-assets.cjs` adds them to `index.json`. The
-   bare-binary fallback's images move from `bundled.rs`'s `include_str!` to
-   `tcl-catalogue`, and the entry point hands them to the loader. The source
-   stays embedded for hash checks and the source fallback.
+4. Staging is unchanged: `Makefile` keeps copying `specs/*.tclspec` (`:353`,
+   `:373`, `:402`, `:2438`) and `copy-web-assets.cjs` keeps listing them in
+   `index.json`; no `.tclimg` is staged. The bare-binary fallback's packs move
+   from `bundled.rs`'s `include_str!` to images in `tcl-catalogue`, which
+   every host uses by default. The source's `source_hash` is in the image
+   header, so a staged source is checked without embedding it again.
 5. `tcl spec compile` in `tcl-cli`.
 
 ## Verification
@@ -350,11 +359,15 @@ decision is written into 307.
 
 ## Risks
 
-- **Marketplace size limits.** No size budget is recorded in the repository,
-  and the images add bytes to six platform VSIXes and the JetBrains zip.
-  Mitigation: record the growth, and drop the `.tclspec` sources from
-  artefacts that never let users replace packs (the web bundle) only if the
-  owner agrees.
+- **Marketplace size limits.** The images add bytes to every binary and
+  WASM module, so to six platform VSIXes and the JetBrains zip. Budget: each
+  artefact (each VSIX, the JetBrains zip, the web bundle, the WASI module,
+  the `tcl-lsp-server` binary) grows by at most 10% over its size at the
+  spike's base commit, compressed where it ships compressed, summed over the
+  whole of 307. Each 307 PR records its share alongside; crossing the
+  budget is reported to the owner and gates nothing (owner priority: measure
+  alongside, never block a step). Dropping `.tclimg` from `specs/`
+  (above) keeps each image in the artefact once.
 - **Hash drift between source and image.** `--check` in `xtask-check`, and
   the runtime source-hash comparison.
 - **A malformed user-cache image.** Bounds checks, the CRC and the fuzz
@@ -382,3 +395,10 @@ decision is written into 307.
 - **R4:** `ImageView` is the core's (`tcl_registry::image`); `tcl-spectcl` owns only the writer. The sketch's `VersionedSpec` is `CommandSpec`.
 - **R9:** versioning follows chapter 7: a minor at most the reader's, and an unknown ID makes the hook dormant.
 - **R12, R14:** lines 41, 46–48, 57–58, 125, 143, 280, 293 and 324: images are compiled per build and embedded by `tcl-catalogue`; rebuild claims name `xtask` and the `-it` crates.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C2, O10 (D-H):** *One placement*: the catalogue-embedded image is the BundledPack default on every host; `specs/` ships sources only, and a differing source compiles into the user cache (browser: in memory per session). The flowcharts and work list item 4 follow; the owner's "source and images" holds with the image inside the binary.
+- **C2 (Sublime):** Sublime downloads the release's bare binary, so it gets the embedded images.
+- **E4, O1 (D-A):** dev images are not tabulated; `--tabulate` runs only in release and packaging builds.
+- **F12:** *Risks*: each artefact may grow at most 10% over the spike's base, recorded per 307 PR alongside and gating nothing.

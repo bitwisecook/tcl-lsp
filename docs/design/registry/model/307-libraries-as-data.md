@@ -103,8 +103,14 @@ no native hook. Each is still its own crate (owner decision), holding its
 crate whose `HookTable` is empty: the generator reads the `.tclspec` from the
 crate's directory, and the image reaches the binaries through the
 catalogue's `images/`. Such a crate is a workspace member nothing depends
-on, so it costs one small rlib per worktree and no rebuild cascade. Item 259
-measures that cost.
+on, so it costs no rebuild cascade. It is not free under `--workspace
+--all-targets`: tcllib's 214 packages and the bundled libraries add about
+230 members to today's 57 (`cargo metadata --no-deps`), and each would add a check unit, a libtest harness
+and a rustdoc run. So a hookless crate's manifest sets `[lib] test = false`
+and `doctest = false`, and its pack is tested through the catalogue's `-it`
+crate (the pack's `test` rows run there). The crates are generated, so the
+generator writes those two lines. Item 259's workspace-wide rows measure
+what remains, before step 5 (tcllib) lands.
 
 **If 306 decides "data except hook-heavy"**, the owner decision above holds
 all the same. **If 306 decides "native"**, 307 is withdrawn, the registry
@@ -116,10 +122,13 @@ The order is smallest risk first, and each step is one PR with its
 equivalence run:
 
 1. **Expect** (the spike's output, already done).
-2. **The small libraries**: `itcl`, `thread`, `argparse` and `ticklecharts`
-   (`tcl-lib-small`). They exercise trains (Itcl 3/4, Thread 2/3) end to end.
-3. **`stdlib`** (`tcl-lib-tcl-bundled`), with the generated bundled versions
-   from 302.
+2. **The small libraries**: `itcl`, `thread`, `argparse` and `ticklecharts`,
+   one crate each (`tcl-lib-itcl`, `tcl-lib-thread`, `tcl-lib-argparse`,
+   `tcl-lib-ticklecharts`). They exercise trains (Itcl 3/4, Thread 2/3) end
+   to end.
+3. **`stdlib`**, one crate per bundled library (`tcl-lib-http`,
+   `tcl-lib-msgcat`, `tcl-lib-tcltest`, …), with the generated bundled
+   versions from 302.
 4. **`tk`.** It needs the widget-class, option-database and co-provide
    vocabulary (redesign §6.3), so it waits until those forms are in 305.
 5. **`tcllib`**: 214 modules, multi-train, `TCLLIB_MODULES` folded into the
@@ -130,7 +139,8 @@ equivalence run:
    (registry split step 3, decision 3).
 7. **Jim**, whose core surface is already SpecTcl
    (`core-surfaces/jim*.tclspec`), switches from evaluation to its image.
-8. **The DSL libraries**: `spectcl` and `bpf`. `sslictcl` changes with its
+8. **The DSL libraries**: `tcl-lib-spectcl`, then `tcl-lib-bpf` and
+   `tcl-lib-linux-ebpf` (380). `tcl-lib-sslictcl` (365) changes with its
    consumers, with no shim, in the same PR as `tcl-sslictcl`.
 9. **The Tcl core and its release facts.** The pack is exported once from
    the native surface with every hook as `-native ID`, and checked by 305's
@@ -172,15 +182,32 @@ Images are compiled per build and never checked in (owner decision). One
 generator writes every image (item 119):
 
 - **The generator** is `tcl-spec-images`, a small binary crate over
-  `tcl-spectcl` (reader3, `compile_image`) and `tcl-spec-hooks` (the VM, to
-  tabulate Tcl bodies). It links no catalogue and no surface crate, so a
-  fresh checkout runs it before anything that embeds an image builds. `cargo
-  spec-images` is its alias (`run -p tcl-spec-images --`), and the `make`
-  targets and the session-start hook run it before `cargo build`.
+  `tcl-spectcl`'s reader (reader3, `compile_image`), `tcl-source` and the
+  registry core only. It links no VM, no compiler, no codegen, no catalogue
+  and no surface crate, so a fresh checkout builds it in about the time the
+  core takes, and runs it before anything that embeds an image builds. `cargo
+  spec-images` is its alias; the agent environment points it at the test
+  profile (`CARGO_ALIAS_SPEC_IMAGES="run --profile test -p tcl-spec-images
+  --"`, item 297), so it adds no dev-build variant of the core.
 - **`--write`** compiles each `rust/tcl-dialect-*/NAME.tclspec`,
   `rust/tcl-lib-*/NAME.tclspec` and `specs/*.tclspec` into
   `rust/tcl-catalogue/images/NAME.tclimg`, untracked, and writes
-  `images/inputs.tsv`: each image with its source files and their xxh3.
+  `images/inputs.tsv`: each image with its source files and their xxh3. It
+  **writes a file only when its bytes change**, so an unchanged image keeps
+  its modification time and cargo relinks nothing.
+- **Base images are not tabulated.** A `--write` image has source-only
+  `BODIES` and `tabulated_with_vm` clear, which chapter 7 already allows. Its
+  shape-only Tcl bodies are answered live where the hook runner is linked
+  (D-I) and abstain where it is not. The shipped packs hold one dynamic Tcl
+  hook today (`upf.tclspec`'s resolver), so a dev build loses almost nothing.
+- **`--tabulate` is an opt-in second pass**, run by the release and
+  packaging targets only. It lives in its own package, `tcl-spec-tabulate`,
+  because cargo dependencies belong to the package (item 298's finding): that
+  package links `tcl-spec-hooks` and the VM, compiles each Tcl body to a
+  `TbcxUnit`, writes the rung-5 `TABLES`, and sets `tabulated_with_vm`. Its
+  output is keyed by the VM and codegen build (`reader_build` already holds
+  `HOOK_VM_REVISION` and the tbcx format), so a VM or codegen edit changes no
+  dev image and rebuilds no catalogue consumer.
 - **`tcl-catalogue` embeds them** with `include_bytes!`. Its build script has
   no workspace build-dependency, only `xxhash-rust`. It emits
   `rerun-if-changed` for every source in `inputs.tsv`, and fails the build
@@ -196,6 +223,22 @@ generator writes every image (item 119):
 - **Registered** in item 119's generator manifest, so the
   `@generated`-without-generator lint covers images. Images carry the
   `source_hash` header instead of a text `@generated` line.
+- **Every launch path runs it first.** `tcl-catalogue`'s build fails on a
+  missing image, so each path that builds an embedding crate generates the
+  images before it builds:
+
+  | Launch path | How it gets images |
+  |---|---|
+  | `make` targets, the session-start hook | a `spec-images` prerequisite |
+  | `scripts/tcl-mcp` (`cargo run --locked -p tcl-mcp`, every agent session) | runs `cargo spec-images --write` before `cargo run` |
+  | the compiler-explorer skill (`cargo run -p tcl-cli`) | the same, in its wrapper |
+  | rust-analyzer | the session-start hook's run; after a `.tclspec` edit, the build script's error names `cargo spec-images` |
+  | CI release builds in the ubi8 and riscv containers (`ci.yml:3207`, `:3256`, `:3280`) | a step running `--write` then `--tabulate` before `cargo build -p "$PACKAGE" --release` |
+  | WASM builds (`make lsp-server-wasm`, the WASI server, `explorer-wasm`, `spec-studio-wasm`, `bigip-query-wasm`, `tcl-vm-wasm`) | the `spec-images` prerequisite, plus `--tabulate` in packaging |
+
+  The images are platform-independent, so one run serves every target of a
+  build, cross targets included. Release and packaging builds always run
+  `--tabulate`; dev builds never do.
 
 The images could instead come from `tcl-catalogue`'s build script with the
 reader as a build-dependency. That is rejected: build-dependencies compile
@@ -228,6 +271,24 @@ crate depends on `tcl-spectcl`. The image reader lives in the core; only the
 generator (`tcl-spec-images`) and the user-pack path link the image
 compiler.
 
+The generator's small cone needs two changes below it: `tcl-spectcl` drops
+its normal edge to `tcl-spec-hooks` (the hook runner is a dependency the
+named entry crates link, D-I), and its reader parses with `tcl-source`
+(items 251 and 281). Until both land, `tcl-spec-images` reaches the VM
+through `tcl-spectcl`, and a fresh worktree builds `tcl-vm` before any
+catalogue consumer; item 259's `spec` row records that cost.
+
+**The engines' facts.** The engines do not link `tcl-catalogue`. A small
+`tcl-catalogue-core` crate embeds only the Tcl and Jim core images (from the
+same untracked `images/`, which `tcl-catalogue` then takes from it rather
+than embedding twice). `tclvm`, `runtime/rust` (cdylib and WASM),
+`tcl-vm-wasm` and `tcl-engine-tclvm` link it and install it when an
+interpreter is created. Library facts an engine needs (`errorclass` rows,
+taint sinks, `LIBRARY_UNITS`, `library_versions`) arrive through the
+entry point's installed `SurfaceSet`; a compiled WASM program gets a
+per-module fact projection stamped by codegen and links no catalogue. The
+install table is [registry split step 1's](../registry-split/01-surface-input.md#entry-points).
+
 ### Decisions
 
 1. **The Tcl core's facts and docs are an image in `tcl-catalogue`;
@@ -237,10 +298,16 @@ compiler.
    the earlier "the Tcl core stays Rust".
 2. **The equivalence packs are deleted, not kept as goldens.** They are
    generated restatements, and 305's equivalence test is the check.
-3. **One generator for all images.** One format, one `--check`, one place for
-   the format version.
+3. **One generator for all images, and one opt-in tabulation pass.** One
+   format, one `--check`, one place for the format version. Tabulation is a
+   separate package so the generator's cone holds no VM, compiler or
+   codegen (D-A).
 4. **Images per build, embedded only by `tcl-catalogue`** (owner decision),
-   from an untracked directory the generator fills.
+   from an untracked directory the generator fills; the Tcl and Jim core
+   images are embedded once, by `tcl-catalogue-core`, which `tcl-catalogue`
+   links.
+5. **Engines read the core images from `tcl-catalogue-core`**, and library
+   facts from the entry point's `SurfaceSet` (D-B; *Dependencies*).
 
 ### Open questions
 
@@ -257,11 +324,18 @@ Per surface, in the order above:
    by hand to SpecTcl 3 idiom (facets, `check`).
 2. Run the equivalence test against native until there are zero differences.
 3. `cargo spec-images --write`; `tcl-catalogue` embeds the image, and the
-   crate keeps only its `HookTable` (none if it has no hooks).
+   crate keeps only its `HookTable` (none if it has no hooks; then `test =
+   false` and `doctest = false`).
 4. Delete the Rust command files, and keep the hooks.
 5. Re-run `registry-axes`, which should report the same findings.
 
 Then delete the equivalence packs and their generator.
+
+Once, before step 1: create `tcl-spec-images` and `tcl-spec-tabulate`, and
+`tcl-catalogue-core` unless item 264 already cut it (334 §3: only where that
+costs the split nothing; no extraction waits for it); add the `spec-images` prerequisite to every launch path
+in *Images per build*; add `CARGO_ALIAS_SPEC_IMAGES` to `agent-build-env.sh`
+(item 297).
 
 ## Verification
 
@@ -272,12 +346,19 @@ Then delete the equivalence packs and their generator.
   crates, and no generic crate's test target. That is measured with item
   259's `spec` edit. A hook edit also rebuilds its crate and the test targets
   that dev-depend on it. Load time is within 306's budget. `rg -c '' -g
-  '*.tclspec' rust/tcl-spectcl/equivalence` finds no files.
+  '*.tclspec' rust/tcl-spectcl/equivalence` finds no files. `cargo tree -p
+  tcl-spec-images` lists no `tcl-vm`, `tcl-compile`, `tcl-unit` or
+  `tcl-codegen` (INT-b), and a VM or codegen edit rebuilds no image in a dev
+  build (259's `vm` row). A Tcl-core or Jim `.tclspec` edit also rebuilds
+  `tcl-catalogue-core` and the engines that link it; that set is 259's
+  `spec-core` row.
 - **Conformance:** every existing suite passes unchanged after each surface's
   PR: registry sweeps, compiler `it_*`, LSP snapshots, the iRules and iApps
   rows (304), and `library-visibility` (302).
 - **Measurements per PR:**
   - the crates rebuilt after a one-spec edit;
+  - the generator's wall time, cold and after a one-spec edit (budget in
+    259's `spec` row);
   - server start and RSS with `dialect_pair_bench.py`;
   - `resolve_spec` per lookup;
   - artefact size growth per editor bundle.
@@ -301,6 +382,8 @@ Then delete the equivalence packs and their generator.
   "images compiled per build" they are not; see *Images per build*.
 - The plan's done-when "a one-command edit recompiles that crate alone"
   omits `tcl-catalogue`, the binaries, `xtask` and the `-it` crates.
+- Plan item 318's "the reader, loader and image compiler need no VM" holds
+  for `tcl-spec-images` only once tabulation is the separate pass above.
 
 ## Owner decisions (26 November 2026)
 
@@ -314,3 +397,12 @@ Then delete the equivalence packs and their generator.
 - **R12:** every rebuild claim names `tcl-catalogue`, the binaries, the WASM hosts, `xtask` and the `-it` crates; hookless packages stay crates (owner decision) that the catalogue does not depend on. The finding's "data directories in `tcl-catalogue`" is not taken: it conflicts with one crate per package.
 - **R14:** lines 40–41, 55–60, 143, 171–174, 199 and 207–209: images are compiled per build into `tcl-catalogue`, not checked in beside each crate (*Images per build*).
 - **R16:** `crates/*` paths are `rust/tcl-lib-*` and `rust/tcl-dialect-*`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O1, E4, C3 (D-A):** *Images per build*: the generator is over the reader, `tcl-source` and the core only; `--tabulate` is a separate package (`tcl-spec-tabulate`) for release and packaging; images are written only when their bytes change; every launch path is listed; done-when gains INT-b's `cargo tree` check and 259's `vm` row; plan item 318's sentence is corrected (*Corrections*).
+- **F9:** the alias uses the test profile (`CARGO_ALIAS_SPEC_IMAGES`, 297); the generator's time is measured per PR; *Dependencies* records that `tcl-vm` builds first until `tcl-spectcl` drops its hook edge.
+- **E5, C4, O11 (D-B):** *Dependencies* and decision 5: `tcl-catalogue-core` gives the engines the Tcl and Jim images; library facts come through the `SurfaceSet`; WASM programs get a codegen projection.
+- **F8:** hookless crates set `test = false` and `doctest = false` and are tested through the catalogue's `-it` crate; the member count is 57 today, measured.
+- **W11, O15:** order steps 2, 3 and 8 name one crate per package (`tcl-lib-itcl`, …, `tcl-lib-bpf`, `tcl-lib-linux-ebpf`, `tcl-lib-sslictcl`).
+- **O10 (D-H):** the EDA packs are compiled into the catalogue like every other pack (unchanged here; the registry split's contrary line is fixed).

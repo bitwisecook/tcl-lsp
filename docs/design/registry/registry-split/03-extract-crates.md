@@ -39,14 +39,18 @@ profile tables (`events/`, `profiles/`, `event_facts/`: 7.2k).
 | `tcl-registry` (core) | the vocabulary, lookup, the environment model, `pack_hooks`, `Surface` and `SurfaceSet`; for now also `native_*` (item 117a), `value_transfer` and `resolved_invocation` (117b), and the BIG-IP schema (118) | `tcl-dialect`, `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-cmd-core`, `tcl-runtime-api`, `tcl-regex` |
 | `tcl-dialect-tcl` | `commands/tcl` (after step 2), its hook table, the TclOO grammars (`definer/tcloo.rs`), `tcl`'s closed-evidence rows | core, `tcl-cmd-core` |
 | `tcl-dialect-jim` | `commands/jim` (step 2), `definer/jim_source_stock.rs` | core, `tcl-dialect-tcl` |
-| `tcl-lib-tcl-bundled` | `commands/stdlib` | core |
+| `tcl-lib-http`, `tcl-lib-msgcat`, `tcl-lib-tcltest`, … (one per bundled library) | `commands/stdlib`, split by library | core |
 | `tcl-lib-tk` | `commands/tk`, the geometry-manager rows of `tk_geometry.rs` | core |
-| `tcl-lib-tcllib` | `commands/tcllib`, `model/tcllib.rs`'s module table, `definer/snit.rs`, `definer/clay.rs`, `value_transfer/tcllib.rs`, `tcllib`'s closed-evidence rows | core |
+| one `tcl-lib-<package>` per tcllib package (`tcl-lib-snit`, `tcl-lib-struct-set`, `tcl-lib-md5`, …, generated) | `commands/tcllib` split by package, `model/tcllib.rs`'s module table as each crate's library row, `definer/snit.rs` (to `tcl-lib-snit`), `definer/clay.rs` (to `tcl-lib-clay`), `value_transfer/tcllib.rs` by command, `tcllib`'s closed-evidence rows by package | core |
 | `tcl-lib-expect` | `commands/expect` | core |
-| `tcl-lib-irules` | `commands/irules`, the event and profile tables (`events/event_props_table.rs`, `events/flow_chains.rs`, `profiles/profile_table.rs`, `profiles/protocol_namespace_table.rs`, `event_facts/generated.rs`), `value_transfer/irules.rs` | core |
-| `tcl-lib-iapps` | `commands/iapps` with its `tmsh` view, `f5/iapp_metadata.rs`, `f5/tmsh_syntax.rs` | core |
-| `tcl-lib-small` | `itcl` (with `definer/itcl.rs`), `thread`, `argparse`, `ticklecharts` | core |
-| `tcl-lib-dsl` | `spectcl` and `sslictcl` (with `definer/spectcl.rs`, `definer/sslictcl.rs`), `bpf` | core |
+| `tcl-lib-irules` | `commands/irules`, `irules_policy`'s command lists, `f5/evidence.rs`'s command presence, the event and profile tables (`events/event_props_table.rs`, `events/flow_chains.rs`, `profiles/profile_table.rs`, `profiles/protocol_namespace_table.rs`, `event_facts/generated.rs`), `value_transfer/irules.rs` | core |
+| `tcl-lib-iapps` | `commands/iapps`, `f5/iapp_metadata.rs` | core |
+| `tcl-lib-tmsh` | the `tmsh` view of `commands/iapps` as its own surface, `f5/tmsh_syntax.rs` | core |
+| `tcl-lib-itcl` | `itcl`, with `definer/itcl.rs` | core |
+| `tcl-lib-thread`, `tcl-lib-argparse`, `tcl-lib-ticklecharts` | one module each | core |
+| `tcl-lib-spectcl` | `spectcl`, with `definer/spectcl.rs` | core |
+| `tcl-lib-sslictcl` | `sslictcl`, with `definer/sslictcl.rs` | core |
+| `tcl-lib-bpf` | `bpf` | core |
 | `tcl-catalogue` | `SHIPPED: &[&Surface]` (step 1's table), `install()`; after item 307, every image | every crate above that has hooks |
 
 `tcl-dialect-f5` is not created in this step (decision 2).
@@ -70,7 +74,8 @@ flowchart TB
 | `definer.rs`, `definer/member_effect.rs`, `member_arguments.rs`, `object_system_profile.rs`, `property_accessors.rs`, `slots.rs`, `builtin_methods.rs` | core | `MemberKind`, `MemberEffect` and `DefinitionBodyGrammar` are the vocabulary AGENTS.md names. |
 | the `*_GRAMMAR` constants | their surface crates | They are per-library data. Three production files in `tcl-compiler` name one by constant, and six test files do. They read it from `spec.definition_body` instead. |
 | `events.rs`, `events/` except the tables, `profiles.rs`, `irules_policy.rs`, `registry/irules.rs` | core, until item 304 | `tcl-compiler` names `events` in 24 files and `irules_policy` in 4. Item 304 replaces those checks with queries on the resolved environment. The tables move now. |
-| `f5/execution_context.rs`, `evidence`, `naming`, `storage`, `rule_identity` | core, until item 301 | They model f5-tcl's builds and evidence, and `tcl-compiler` names them in 20 files. Under 301 they move to `tcl-dialect`. |
+| `f5/execution_context.rs`, `naming`, `storage`, `rule_identity` | core | The cross-cutting execution model (`BigIpExecutionContext`, the storage domains, rule identity). `naming` uses `tcl_syntax::naming`, so it cannot sit in `tcl-dialect` below `tcl-syntax`; `tcl-compiler` names these in 20 files ([118, decision 1](118-bigip-schema.md#decisions)). |
+| `f5/evidence.rs` | builds and releases (`BigIpBuild`, `MEASURED_BUILDS`, `RELEASE_DISCRIMINATORS`) to `tcl-dialect`'s f5-tcl types under item 301; command presence (`CommandPresence`, which reads `irules_policy`'s `IRULES_INTERPRETER_ABSENT` and `IRULES_COMPILER_REFUSED`, `evidence.rs:31`) to `tcl-lib-irules` | The build model is dialect data; the presence lists are the iRules library's. |
 | `f5/corpus` | `tcl-lib-irules`'s tests | It is a conformance corpus over appliance transcripts. |
 | `tk_geometry.rs` | types and path helpers in core, the three manager rows in `tcl-lib-tk` | `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl` and the studio name the types. |
 | `special_vars.rs` and `special_vars/` | vocabulary in core, rows by provider | The runtime reads them 468 times. The row split follows each row's provider. |
@@ -98,8 +103,8 @@ multi-line `use` lists included):
 | `bpf-tcl-ir` | 1 / 0 | `thread::is_thread_command` | `Traits::THREAD_PRIMITIVE` (step 2) |
 | `tcl-spec-studio` | 1 / 1 | `SPEC_PACKS`, `SpecPack::by_id`, the pack path formula | the installed set and `Surface::source_dir` |
 | `xtask` | 4 / 0 | `tcl_command_specs` (`command_backing.rs`, `audit_option_dialects.rs`), `SPEC_PACKS` (`evaluation_contexts.rs`), five packs (`semantics_matrix.rs`) | `tcl_catalogue::SHIPPED` |
-| `tcl-spectcl` | 0 / 1 | `spectcl_command_specs` (`loader/dialect_block.rs:683`) | `tcl_lib_dsl::spectcl` as a dev-dependency |
-| `tcl-sslictcl`, `tcl-lsp-server` | 0 / 1 each | `sslictcl` | `tcl_lib_dsl::sslictcl` as a dev-dependency |
+| `tcl-spectcl` | 0 / 1 | `spectcl_command_specs` (`loader/dialect_block.rs:683`) | `tcl_lib_spectcl` as a dev-dependency |
+| `tcl-sslictcl`, `tcl-lsp-server` | 0 / 1 each | `sslictcl` | `tcl_lib_sslictcl` as a dev-dependency |
 
 `resolve_fconfigure_option` (`commands/tcl/fconfigure_.rs:69`) is the one
 runtime-facing function the VM and the runtime both call. Step 2 leaves it in
@@ -179,7 +184,12 @@ re-export can return.
    Tcl library, iApps and tmsh get their own crates. The `tmsh` view becomes the
    `tcl-lib-tmsh` crate's own surface. After item 307 these crates hold their
    `.tclspec` and hooks only, as generated scaffolding; their images are
-   compiled per build and embedded by `tcl-catalogue`.
+   compiled per build and embedded by `tcl-catalogue`. Plan item 264's
+   done-when names it: `rust/tcl-lib-*` holds one crate per package, and no
+   crate holds two packages' rows. To cut `tcl-registry`'s cone soonest
+   (owner priority), the hand-written crates move first and the generated
+   tcllib and bundled-library crates follow in the same item, each PR
+   shrinking the core further.
 2. **`tcl-dialect-f5` waits for item 301.** Today f5-tcl's core surface is 58
    `SpecSurface` rows on Tcl specs, not data of its own (step 2, decision 3).
    Its evidence types are named by `tcl-compiler` and must stay below it. An
@@ -197,12 +207,10 @@ re-export can return.
 
 ## Open questions
 
-1. Does `tcl-lib-small` need splitting? The overview says only if a
-   measurement shows the need. Settled by the rebuild time of `tcl-lib-small`
-   after a one-spec edit, against `tcl-lib-expect`'s (2.7k lines).
-2. Should `bpf` sit with the DSLs or in its own crate? It is a restricted
-   library on tcl 9.0, not an authoring DSL. Settled by whether any consumer
-   other than `bpf-tcl` and the catalogue needs it without SpecTcl's words.
+1. ~~Does `tcl-lib-small` need splitting?~~ Closed by the owner's one crate
+   per package (decision 1, R16): there is no `tcl-lib-small`.
+2. ~~Should `bpf` sit with the DSLs or in its own crate?~~ Closed the same
+   way: `tcl-lib-bpf` is its own crate.
 3. Is `closed_evidence`'s one generated table better split per surface, or
    generated into each crate from one manifest? Settled by the generator's
    `--check` gate (item 119) being simpler in one form.
@@ -278,3 +286,8 @@ re-export can return.
 - **R2, R6:** the test macro stays in the core as `tcl_registry::testing`, an unconditional module; `tcl-catalogue` holds no testing macro.
 - **R12:** the measured rebuild set names `xtask`, the WASM hosts and the `-it` crates.
 - **R14:** line 180 and the crate table: after item 307 a package crate holds its `.tclspec` and hooks; images are in `tcl-catalogue`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W11:** the crate table is one crate per package; open questions 1 and 2 are closed; decision 1 names 264's done-when and the order that shrinks the core soonest.
+- **O6:** `f5/` splits: the execution model stays in the core, builds go to `tcl-dialect`, command presence to `tcl-lib-irules`, `iapp_metadata` and `tmsh_syntax` to `tcl-lib-iapps` and `tcl-lib-tmsh`.

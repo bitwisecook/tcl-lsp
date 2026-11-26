@@ -246,6 +246,35 @@ and what they pull), which step 0a (item 246) removes.
   then be cacheable, but with v0.18.0 they still miss across worktrees on
   `CARGO_MANIFEST_DIR`. Re-evaluate together with the basedirs release.
 
+### Incremental or shareable: the decision for 296 and 297
+
+`incremental/` is the bulk of a worktree's disk after the workspace units
+(11 GiB of `target/debug` here), and it is exactly what sccache cannot
+share. The two cannot both be had for a workspace crate in v0.18.0: an
+incremental unit is never cached, and a non-incremental one still misses
+across worktrees on `CARGO_MANIFEST_DIR` (above).
+
+**Decision: incremental stays on in the test profile, for every workspace
+crate.** Iteration time after an edit is the owner's first goal, and an edit
+rebuilds the crates above it incrementally; turning incremental off for
+crates a worktree does not edit would buy no cache hits today. Disk is
+controlled instead by the three levers that need no trade: the pruning
+policy below (incremental directories no unit names, or older than 3 days),
+296's and 297's variant cuts (one incremental directory per variant), and
+the split's smaller cones. 296 and 297 cite this decision and do not
+re-open it; it is revisited when a tagged sccache release documents
+basedirs with the verbatim `CARGO_MANIFEST_DIR` rule.
+
+### Absolute budgets
+
+Item 259's budget table holds the per-worktree targets (fresh-worktree disk,
+peak build RSS at `-j4`, rust-analyzer RSS, worktrees on the reference
+machine). This item adds two: the shared cache stays under its configured 20 GiB
+(`SCCACHE_CACHE_SIZE`, above), and three worktrees on different edits, with
+the warm cache, use at most 3 × 12 GiB + 20 GiB = 56 GiB in all. Both are
+recorded beside the relative done-when below, never instead of it, and gate
+no step (owner priority, 26 November 2026).
+
 ### Pruning policy
 
 `scripts/dev/prune-targets.py` runs at session start (after `agent-build-env.sh`)
@@ -302,7 +331,9 @@ Done when (item 260's own):
 - the configuration is in `agent-build-env.sh` and AGENTS.md.
 
 Measurements: per worktree, the cone and rebuild count from item 259, cache hits
-and misses (`sccache --show-stats`), and disk before and after pruning.
+and misses (`sccache --show-stats`), disk before and after pruning, and the
+two absolute budgets above (recorded alongside, measured fresh on a disk
+with at least 60 GB free).
 
 ## Risks
 
@@ -322,3 +353,7 @@ and misses (`sccache --show-stats`), and disk before and after pruning.
   v0.18.0. Unreleased sccache documents opt-in incremental caching, so the
   limit may lift. Path normalisation, not incremental, is then what decides
   sharing.
+
+## Review fixes (26 November 2026, deep review)
+
+- **F6:** *Incremental or shareable*: incremental stays on, decided here for 296 and 297; *Absolute budgets* adds the cache cap and a three-worktree total, recorded alongside.

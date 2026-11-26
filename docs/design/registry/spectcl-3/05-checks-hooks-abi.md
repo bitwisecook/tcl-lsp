@@ -16,7 +16,7 @@ the VM that runs them. It consolidates [305](../model/305-spectcl-3.md),
 | 1 | facts: arity, roles, value sets, option relations, `clause_grammar`, `case_list`, `definition_body`, binding transitions, effects, `throws`, handles | the registry core | the core and the image reader |
 | 2 | `check` rules | a closed predicate evaluator in Rust | the same |
 | 3 | `-native ID` | the owning dialect or library crate's `HookTable` | that crate |
-| 4 | a Tcl hook body | the hook VM (`tcl-vm` on the 9.1 base), from a tbcx unit | `tcl-spec-hooks` → `tcl-vm`, linked only by an entry point that enables Tcl hooks |
+| 4 | a Tcl hook body | the hook VM (`tcl-vm` on the 9.1 base), from a tbcx unit | the hook runner (`tcl-spec-hooks` → `tcl-vm`): a separate dependency that named entry crates link (the server, `tcl`, `tcl-mcp`, `tcl-spec-studio-wasm`; registry split step 1's table), never a cargo feature |
 | 5 | tabulated answers | a table in the image (`TABLES`) | none beyond rung 1 |
 
 An author, or the `spec-author` skill, climbs only as far as a fact needs.
@@ -28,12 +28,19 @@ served on any thread with no VM, as `BUNDLED_ROLE_TABLES` does today
 - **Native hooks are never tabulated.** A rung 3 hook answers live, on any
   thread, at Rust speed. So the image generator links no surface crate, and
   no cache key needs a digest of native code.
-- **Tabulating needs the hook VM.** An image compiled without it (a user pack
-  in a process with no Tcl hooks) has no Tcl-body tables and
-  `tabulated_with_vm` clear; its shape-only bodies are answered live where
-  the VM is linked and abstain where it is not. The bit is part of the user
-  cache key (chapter 7), so one source never gives two byte strings under
-  one key.
+- **Tabulating needs the hook VM, and is opt-in.** The image generator
+  links no VM. Shipped images in a dev build have source-only `BODIES` and
+  `tabulated_with_vm` clear; release and packaging builds add the
+  `--tabulate` pass (`tcl-spec-tabulate`, 307), which compiles each body to
+  a `TbcxUnit`, writes `TABLES` and sets the bit. A user pack compiled in a
+  process with no runner is the same as a dev image. Where an image has no
+  tables, shape-only bodies are answered live where the runner is linked and
+  abstain where it is not. The bit is part of the user cache key (chapter 7),
+  so one source never gives two byte strings under one key.
+- **Parity where no runner is linked.** Tabulated answers cover the bundled
+  packs of a release build, and user Tcl-body hooks stay dormant (reported
+  once on the pack). That is the browser and WASI servers, `f5-query`,
+  `xtask` and every other entry point without the runner.
 
 ```mermaid
 flowchart TB
@@ -45,8 +52,8 @@ flowchart TB
   native -- yes --> r3["rung 3: native hook ID"]
   native -- no --> r4["rung 4: Tcl hook body"]
   r3 --> liveNative["answered live, never tabulated"]
-  r4 --> shape{"declared inputs are shape only, and the VM linked at image build?"}
-  shape -- yes --> r5["rung 5: tabulated at image build"]
+  r4 --> shape{"declared inputs are shape only, and the image built with --tabulate?"}
+  shape -- yes --> r5["rung 5: tabulated by the tabulate pass"]
   shape -- no --> live["answered live: memoised by content"]
 ```
 
@@ -138,7 +145,7 @@ only**: no library pack names a codegen, lowering or inline-codegen hook. Those
 IDs and the native-contract rows (`successful_handler`, `native_compilation`,
 `procedure_definition`, `completion`, `body_execution`) are spelled so the
 printer can print the core's Rust, and are accepted only from BuiltIn and
-BundledPack provenance (item 403). A user pack writing one gets today's
+BundledPack trust tiers (item 403). A user pack writing one gets today's
 exclusion notice.
 
 ### One `hook_abi`
@@ -204,9 +211,11 @@ what happens next:
   hook body is always a plain `tcl` 9.1 unit, so it loses only positions.
 
 The core holds a body as opaque `BodyBytes`; `tcl-spec-hooks` decodes it
-with `tcl-bytecode`. Shipped images are compiled per build, so a Tcl pin or
-tbcx format move reaches them at the next build; the user cache's
-`reader_build` includes both, so its entries miss and recompile.
+with `tcl-bytecode`. Only the `--tabulate` pass writes `TbcxUnit`s; a dev
+image's `BODIES` hold source, compiled on the first call. So a Tcl pin or
+tbcx format move reaches shipped images at the next release build and never
+rebuilds a dev image; the user cache's `reader_build` includes both, so its
+entries miss and recompile.
 
 Until item 311 lands, images may store body source only and compile on the
 first call that misses the table (owner decision: 311 does not block 306).
@@ -335,8 +344,10 @@ sequenceDiagram
   R-->>A: roles, fold or diagnostics
 ```
 
-Native processes run every body on one hook-service thread; browser and WASI
-hosts run synchronously on their execution thread (as today). Tables belong to
+Native processes that link the runner run every body on one hook-service
+thread. Of the WASM hosts only `tcl-spec-studio-wasm` links it, and it runs
+bodies synchronously on its execution thread; the browser and WASI servers
+link no runner and answer from `TABLES` or abstain. Tables belong to
 an exact published plan: publishing retires the previous table owner, and
 quarantine removes a hook's tables.
 
@@ -365,3 +376,9 @@ renumbering without a bump fails. `LIBRARY_UNITS` keys carry the revision
 - **R13:** rung 5 tabulates Tcl bodies only, and only with the VM at image build; native hooks answer live.
 - **A8:** *Result protocols*: a polarity per family, and the sink gate is a rung 2 predicate, not a hook family.
 - **A9:** *Rung 4*: fuel only for answers analysis consumes; a `values` body runs in step 7's first round only.
+
+## Review fixes (26 November 2026, deep review)
+
+- **C8 (D-I):** rung 4's runner is a separate dependency of named entry crates, not a feature; only `tcl-spec-studio-wasm` among the WASM hosts links it; the parity rule where no runner is linked.
+- **O1, E4, C3 (D-A):** tabulation is the opt-in `--tabulate` pass; dev images keep source-only `BODIES`, so a Tcl pin or tbcx move never rebuilds a dev image.
+- **M11:** "BundledPack trust tiers".

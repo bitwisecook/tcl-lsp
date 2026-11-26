@@ -42,9 +42,11 @@ Outside the registry they are read by `tcl-bigip` (13 files),
 `f5/` is a different thing. It is the f5-tcl evidence layer: execution contexts
 (`BigIpExecutionContext::TmmIRule` and others), measured builds, variable
 storage domains, name policy, rule identity, a conformance corpus, iApp
-metadata and the tmsh syntax-version axis. It depends on `events`,
-`irules_policy`, `state_transition`, `invocation_words`, `special_vars`,
-`profiles` and `model`. Its readers are `tcl-compiler` (20 files), `tcl-vm`
+metadata and the tmsh syntax-version axis. In production code it depends
+on `irules_policy` (`evidence.rs:31`, `corpus.rs:55`), `state_transition`
+and `invocation_words` (`tmsh_syntax.rs:58-59`), and on `tcl_syntax::naming`
+(`naming.rs:22`); its tests add `events`, `special_vars`, `profiles`,
+`model` and `bigip`. Its readers are `tcl-compiler` (20 files), `tcl-vm`
 (5), `runtime/rust` (2), `tcl-irule-test` (2), `tcl-lsp-db` and `tcl-diagram`.
 
 `tcl-bigip` (57,992 lines) keeps a second statement of the schema:
@@ -67,7 +69,7 @@ A data crate that depends only on `tcl-dialect`:
 
 - **Holds** `bigip/`, `base_objects/`, `profile_defaults/`, and
   `snapshot.rs`'s object-graph half.
-- **Does not hold `f5/`.** It stays in the core (decision 1).
+- **Does not hold `f5/`.** It splits three ways (decision 1).
 
 ```rust
 // tcl-bigip-schema
@@ -109,7 +111,10 @@ flowchart LR
   bigip --> schema["tcl-bigip-schema"]
   base --> schema
   defaults --> schema
-  f5 -. "stays in the core; item 301 moves it" .-> tclDialect["tcl-dialect"]
+  f5 -. "builds and releases, item 301" .-> tclDialect["tcl-dialect"]
+  f5 -. "execution context, naming, storage, rule identity" .-> core["tcl-registry core"]
+  f5 -. "command presence, corpus" .-> libIrules["tcl-lib-irules"]
+  f5 -. "iapp_metadata; tmsh_syntax" .-> libIapps["tcl-lib-iapps; tcl-lib-tmsh"]
   tclBigip["tcl-bigip"] --> schema
   query["tcl-bigip-query"] --> schema
   report["bigip-report-gen"] --> schema
@@ -174,13 +179,25 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
 
 ## Decisions
 
-1. **`f5/` stays out of the schema crate.** It is the f5-tcl evidence model,
-   which `tcl-compiler` and the engines read, and it depends on core modules.
-   In a crate below the core it would need half the core. In a surface crate
-   it would put a surface under the compiler. Its place is the dialect model:
-   item 301 moves it to `tcl-dialect` with f5-tcl's builds. Its conformance
-   corpus goes with `tcl-lib-irules`'s tests ([step 3](03-extract-crates.md#module-assignment)),
-   and its `iapp_metadata` and `tmsh_syntax` with `tcl-lib-iapps`.
+1. **`f5/` stays out of the schema crate, and splits by owner.** It is not
+   one thing, and no single crate can hold it: `tcl-dialect` is a layer-0
+   leaf below `tcl-syntax`, which `naming.rs` uses, and `evidence.rs` reads
+   the iRules library's command lists. So:
+   - **builds and releases** (`BigIpBuild`, `MEASURED_BUILDS`,
+     `RELEASE_DISCRIMINATORS`, the measured runtime evidence keyed by build)
+     go to `tcl-dialect`'s f5-tcl types with item 301;
+   - **the cross-cutting execution model** (`BigIpExecutionContext`,
+     `naming`, `storage`, `rule_identity`) stays in the registry core, which
+     `tcl-compiler` and the engines already reach;
+   - **command presence** (`CommandPresence` over `IRULES_INTERPRETER_ABSENT`
+     and `IRULES_COMPILER_REFUSED`) and the conformance corpus go to
+     `tcl-lib-irules` (the corpus to its tests, [step 3](03-extract-crates.md#module-assignment));
+   - `iapp_metadata` goes to `tcl-lib-iapps` and `tmsh_syntax` to
+     `tcl-lib-tmsh`.
+
+   Each part moves as it is, with the extraction that carries its owner (264
+   for the library parts, 301 for the builds); none gates another
+   extraction.
 2. **Move first, change form second.** 118a alone takes 171k lines out of
    every registry rebuild. 118b is a separate measurement-driven change inside
    a crate nobody else's edits rebuild.
@@ -271,8 +288,10 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
 - **`f5/` is not configuration schema.** Item 118's done-when lists it among
   the schema crate's contents. It is the f5-tcl evidence model, which
   `tcl-compiler` reads. The done-when should name `bigip/`, `base_objects/`
-  and `profile_defaults/` only, with `f5/` assigned to item 301. The
-  schema's line count is then 171k, not 176k.
+  and `profile_defaults/` only, with `f5/` split by decision 1 (item 301
+  takes the builds, item 264 the library parts). The schema's line count is
+  then 171k, not 176k. Item 301's "moves to `tcl-dialect`" covers only the
+  builds and releases.
 - **The ratchet count.** "219 vocabulary comparisons" is 216 in today's
   ratchet (`registry_axes.rs`, `RATCHET`).
 - **No registry edge.** Q4's "consumed by both `tcl-registry` and
@@ -284,3 +303,7 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
 ## Review fixes (26 November 2026)
 
 - **R7:** the crate's role is `schema`, not `data`: only `tcl-bigip`, `tcl-bigip-*` and `xtask` may depend on it, and `tcl-lsp-core` reads it through `tcl-bigip`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O6:** decision 1 splits `f5/` by owner, with production and test dependencies separated (`evidence.rs:31`, `tmsh_syntax.rs:58-59`, `naming.rs:22`); the diagram and the plan correction follow.

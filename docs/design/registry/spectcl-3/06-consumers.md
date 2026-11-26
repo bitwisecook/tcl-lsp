@@ -31,6 +31,33 @@ flowchart LR
   ctx --> tools
 ```
 
+## How a consumer receives facts
+
+Every consumer reads the registry through a `FactView` (a generation plus a
+`FacetSelection`), with hooks behind `HookDispatch`, and never through a
+`&CommandRegistry`. The IDE feature crates (`tcl-ide-*`: hover, completion,
+signature help, tokens, the formatter, the minifier) get it in their input,
+as the integration design's D-C fixes it:
+
+```rust
+// design sketch: tcl-ide-model, over tcl-model and the registry core only
+pub struct DocumentInput<'a> {
+    pub text: &'a str,
+    pub environment: &'a ResolvedEnvironment,
+    pub facts: FactView<'a>,               // the generation, document stubs included
+    pub context: &'a ContextIntervals,     // the positioned context per transition interval (308)
+    pub document: &'a dyn DocumentFacts,   // tcl-model's binding-free projection of AnalysisResult
+}
+```
+
+So hover's `VersionLine`, completion and the version gate select facets
+through the same view and the same intervals, and give the same answer. The
+IDE crates depend on `tcl-model` and the registry core, never on `tcl-db`
+or `tcl-diagnostics`. The server's session sets the database inputs; the CLI
+and MCP use `tcl-db`'s session-free batch constructor. A document's `#
+tcl-lsp: stub` lines are a per-file `UserPack` input (chapter 7), so a stub
+reaches every consumer through the same `FactView`.
+
 ## The table
 
 | Consumer | Facts it reads | Hooks it calls | Without the fact |
@@ -47,8 +74,9 @@ flowchart LR
 | optimiser | effect classes, `optimise -no`, `report redundant`, folds, `rewrite` with proof sets, `throws` for dead `trap` arms | fold, rewrite | `impure`: no CSE, hoist, dead-call removal or rewrite |
 | codegen | effects, arity, `semantic_operation`, `alias_of`, `runtime_backing`, admission stamps, `library_versions` | none (facts only) | a plain `invokeStk` |
 | VM and runtime | `runtime_backing`, `implementation`, `library_versions`, complete effects with `frame_effect none`, `errorclass` table, taint sinks (393) | none | runs the library's own source; claims fail their guard and invoke |
-| iRules test framework | events, flows, `precedes`, profiles, connection fields, `decision`, `ends`, `mock` | none | a hand mock, labelled unmeasured |
+| iRules test framework | events, flows, `precedes`, profiles, connection fields, `decision`, `ends`, `mock`, through a `FactView` its caller passes in (it selects no surface itself) | none | a hand mock, labelled unmeasured |
 | CLI and MCP | the positioned context, facets, events, effects, taint, the catalogue | through the analyser | the environment's start-of-file context |
+| packaging (`tcl docker`, `tcl pkg`) | `runtime_backing`, each library's package names (`available`), the lockfile's tiers | none | the extension is listed as unnamed |
 | editor generators | the catalogue and every image: keywords per library, `presentation`, `snippet`, pack codes, `-embedded` injections | none | the library's words get no scope |
 
 ## Analyser and diagnostics
@@ -217,7 +245,8 @@ Each word a refactor might touch is classified: **exact** (edit it),
 container's quoting, `%%` in a `percent-script`), **bounded** (substitutions
 whose literal parts cannot spell the name; ignore), **dynamic-name**,
 **missing-fact** or **out-of-reach** (abstain). One record, `Abstain { code,
-at, reason, missing }`, replaces `RenameRefusal` and is what `prepareRename`
+at, reason, missing }` (a lookup abstention's code is
+`AbstainCode::Lookup(UnknownReason)`, 335), replaces `RenameRefusal` and is what `prepareRename`
 returns as its error, as MCP already does. A pack can withdraw a refactor
 (`refactor -no {rename extract}`), never grant one.
 
@@ -240,11 +269,23 @@ target-specific exception is eBPF, whose `compile ebpf OP` rows name ops in
 |---|---|
 | `runtime_backing` | identity kind: shipped builtin, Tcl body, host native, none (`rust/tcl-registry/src/runtime_backing.rs:45`) |
 | `library_versions` on a claim | at admission the VM checks `package present L` against the set; a mismatch takes the generic path |
-| `implementation -native ID -versions {L V}` | opt-in native accelerators through `tcl-engine-api`; they never win version selection |
+| `implementation -native ID -versions {L V}` | opt-in native accelerators through `tcl-engine-api`, in the library's accelerator crate (`tcl-lib-<pkg>-accel`) that engine entry points link (313, 334 §3); they never win version selection |
 | complete effects plus `frame_effect none` | keep compiled locals live across that call, under a claim |
 | `LIBRARY_UNITS` | a library file whose hash matches loads its precompiled `TbcxUnit` with source kept |
 | `errorclass` rows | the one table both engines raise from, replacing the `Native*ErrorCode` enums (392f) |
 | taint: the `TaintTable` (colours, origins, sinks) and the taint rows of the selected form | taint builds only (393x1–393x5): each value carries a `TaintTag`; source and `-adds` rows run after an invoke, sink rows are checked before it (a precomputed `has_sink` bit per command), and `concat` rules drive the string, list and dict opcodes; `enforce` raises `TAINT SINK <kind> <origin>`, `warn` reports and proceeds |
+
+**Where the engines get these facts** (D-B). No engine links `tcl-catalogue`.
+`tcl-catalogue-core` embeds only the Tcl and Jim core images, and `tclvm`,
+`runtime/rust` (cdylib and WASM), `tcl-vm-wasm` and `tcl-engine-tclvm`
+install them when an interpreter is created; `runtime_backing` and the
+core's `errorclass` rows come from there. Library facts (`errorclass` rows
+of a library, taint sinks, `LIBRARY_UNITS`, `library_versions`) reach
+`tcl-engine-tclvm` through its host's installed `SurfaceSet`; standalone
+`tclvm` installs none and runs library sites plain (334 §3). A compiled WASM program
+links no catalogue: codegen stamps a per-module projection of the facts its
+claimed sites need. `command-backing` reads the core image (registry split
+step 1, *Entry points*).
 
 Execution stays with the library's own source by default: the VM runs
 `package ifneeded` and tcllib as tcllib ships. Every claimed site is checked
@@ -254,7 +295,10 @@ library name, or a library not loaded yet gives the plain invoke.
 ## Tooling consumers
 
 The iRules test framework, CLI, MCP, editor generators and Spec Studio are
-consumers too (319). They read events, effects, taint facts, the hook schema
+consumers too (319). Only entry points select surfaces: `tcl-irule-test` is
+a library, so its caller (the `tcl` binary, `tcl-mcp`) passes in the
+registry or `FactView`, and an iRules fact edit rebuilds the catalogue's
+consumers, not `tcl-irule-test`. They read events, effects, taint facts, the hook schema
 and the catalogue instead of their own copies, and `cargo xtask
 registry-axes` becomes the consumer-purity ratchet over every crate (item
 319): a consumer site is debt, engines are checked for agreement, and the
@@ -264,3 +308,12 @@ ledger only shrinks.
 
 - **P7 (plan review):** the integration design is committed; its steps are plan items 480–487, not a reserved block.
 - **Language fixer handoff:** the rewrite example's `-proof {core tcl 8.5-9.2}` is intended: under chapter 2's `a0` bounds it holds every 8.5.x to 9.1.x release and excludes 9.2, which no proof run covers.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O3 (D-C):** *How a consumer receives facts*: every consumer reads a `FactView`; IDE crates take `DocumentInput` with `facts`, `context` and `document`.
+- **E5, C4 (D-B):** *VM and runtime*: where the engines get their facts (`tcl-catalogue-core`, the `SurfaceSet`, a codegen projection for WASM programs).
+- **C7:** the iRules test framework takes its `FactView` from its caller.
+- **O16:** the `implementation` row names the per-library accelerator crate (334 §3).
+- **Language fixer handoff:** a lookup abstention's code is `AbstainCode::Lookup(UnknownReason)` (335).
+- **Workspace fixer handoff:** the consumer table gains packaging (`tcl docker`, `tcl pkg`), plan consumer 14 in 319.

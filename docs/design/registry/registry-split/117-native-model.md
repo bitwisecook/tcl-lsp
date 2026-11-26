@@ -182,7 +182,7 @@ both modules is classified into one of three kinds:
 | Kind | Test | Destination |
 |---|---|---|
 | vocabulary | a spec field or the `CommandSemantics` trait's signature names it | registry core |
-| per-command | it implements `CommandSemantics` for named commands, or is a static a spec points to | that command's surface crate (`builtins.rs`'s statics by command, `irules.rs` to `tcl-lib-irules`, `tcllib.rs` to `tcl-lib-tcllib`, `regex.rs` with `regsub`) |
+| per-command | it implements `CommandSemantics` for named commands, or is a static a spec points to | that command's surface crate (`builtins.rs`'s statics by command, `irules.rs` to `tcl-lib-irules`, `tcllib.rs` to each command's tcllib package crate, `regex.rs` with `regsub`) |
 | driver | only the analysis layer calls it: the fixpoint over IR facts, the CFG-bound `AnalysisInputs` implementations, publication, lifting, partial answers | `tcl-analysis` (item 255) |
 
 ```mermaid
@@ -320,3 +320,7 @@ compiler or analysis crate.
   `registry/native_registration.rs` (2,955 lines between them and the other
   such files outside `native_*`). The `native_*` modules themselves are 58.4k,
   which is the plan's figure.
+
+## Review fixes (26 November 2026, deep review)
+
+- **W11:** `tcllib.rs`'s statics go to each command's tcllib package crate, not one `tcl-lib-tcllib`.

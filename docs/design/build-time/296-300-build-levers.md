@@ -78,6 +78,12 @@ Each feature takes the first of these options that fits:
    capabilities) and possibly `tcl-irules`' request counter. The cost from item
    259's numbers is recorded here.
 
+The hook runner is not a feature either (D-I): after item 318a `tcl-spectcl`
+has no feature that switches it, and the named entry crates link
+`tcl-spec-hooks` as a dependency, so building the explorer and MCP in one
+worktree compiles `tcl-spectcl` once. Each variant this item removes also
+removes one incremental directory; incremental stays on (260's decision).
+
 ### Measurement plan
 
 Run item 259's script with a sequence per worktree:
@@ -136,6 +142,24 @@ export CARGO_ALIAS_XTASK="run --profile test --package xtask --"
 The table's three output sets (dev check, dev build, test build) become two:
 `cargo xtask` and `cargo run` land in the test build with `cargo test`.
 
+**The image generator joins them.** After item 307 the session-start hook,
+the `make` targets and the launch wrappers run `cargo spec-images` before
+any build (307, *Images per build*). Under the checked-in alias it would
+build the registry core and the reader in dev build mode, a fourth output
+set. So `agent-build-env.sh --print` also exports:
+
+```sh
+export CARGO_ALIAS_SPEC_IMAGES="run --profile test -p tcl-spec-images --"
+```
+
+and the generator reuses the test build's units of the core, `tcl-source`
+and the reader. The opt-in `--tabulate` pass (`tcl-spec-tabulate`) runs only
+in release and packaging builds, so it adds no agent-side variant.
+
+Incremental compilation stays on in the test profile; that choice, and why
+it beats sharing for now, is [260's decision](260-shared-cache.md#incremental-or-shareable-the-decision-for-296-and-297),
+which this item and 296 cite rather than re-open.
+
 The gates may also run faster at opt-level 1: `make xtask-gates` took 413 s
 locally, of which `kcs-index-links` (markdown reading) was 243 s
 (build-test-cost item 2), so the gain is bounded. The cost is that crates
@@ -157,7 +181,8 @@ In one worktree, record crates compiled and target growth for `cargo clippy
 tcl-lsp-core`, under today's setup and under the alias.
 
 **Done when:** item 259 records both, and `agent-build-env.sh` adopts the
-cheaper one or records why not.
+cheaper one or records why not, with `CARGO_ALIAS_SPEC_IMAGES` beside
+`CARGO_ALIAS_XTASK` once `tcl-spec-images` exists.
 
 ## 298: `xtask` builds the engines for one gate
 
@@ -487,3 +512,9 @@ variants on disk, wall time and target growth.
 
 - **R1:** item 300's embedded release facts are marked interim; their home is the Tcl core image's `DIALECTS` section.
 - **R6:** item 296's option 2 covers `tcl_registry::testing`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **F9:** 297 exports `CARGO_ALIAS_SPEC_IMAGES` with the test profile.
+- **F6:** 296 and 297 cite 260's incremental decision.
+- **C8 (D-I):** 296 notes the hook runner is a dependency, not a feature.

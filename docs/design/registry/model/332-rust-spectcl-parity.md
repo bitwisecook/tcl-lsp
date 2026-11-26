@@ -89,8 +89,9 @@ Three changes make that true:
    a `DescriptorTable`, or an inline value. The printer writes `NAME` or
    the block. This removes the studio's `DraftOpaque` class.
 3. **Tier-gated vocabulary.** A field that "a pack may not author" gets a
-   spelling, accepted only from `Provenance::BuiltIn` or `BundledPack`
-   (`tcl-dialect/src/model/environment.rs:259`), 313's trust table. A user
+   spelling, accepted only from `TrustTier::BuiltIn` or `BundledPack`
+   (today's `Provenance`, `tcl-dialect/src/model/environment.rs:259`, renamed
+   by chapter 7's naming table), 313's trust table. A user
    pack writing it gets today's semantic exclusion notice
    (`loader/command/body_statements.rs:243-258`). Excluded means untrusted
    source, not unspellable.
@@ -375,3 +376,7 @@ flowchart TB
 - **R11:** the field map files `pattern_arg_resolver` as F, deletes `taint_sink_gate`, and settles the N fields (`Derived` or tier-gated spellings); the gate's decoded-image leg and the pointer mapping are in chapter 7.
 - **R14:** lines 363–364: a library crate holds hooks only; its image is in `tcl-catalogue`.
 - **R15:** 2,889 `TODO(spectcl)` markers (1,799 + 1,090), measured.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M11:** the trust tier is `TrustTier` (today's `Provenance`), after chapter 7's naming table.
