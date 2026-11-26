@@ -150,7 +150,9 @@ def build_inputs_id(root: Path) -> str:
     for path in BUILD_INPUTS:
         done = subprocess.run(
             ["git", "rev-parse", "--short=12", f"HEAD:{path}"],
-            cwd=root, capture_output=True, text=True,
+            cwd=root,
+            capture_output=True,
+            text=True,
         )
         ids.append(done.stdout.strip() if done.returncode == 0 else "-")
     return " ".join(ids)
@@ -180,15 +182,15 @@ def preflight(
         if not (root / edit.file).is_file():
             problems.append(f"edit {edit.key}: {edit.file} does not exist")
     if changes := dirty(root):
-        problems.append(f"the build inputs are not clean ({len(changes)} changed paths)")
+        problems.append(
+            f"the build inputs are not clean ({len(changes)} changed paths)"
+        )
     problems += env_problems(expected_env(root), environ)
     if check_busy and (others := busy_builders()):
         problems.append("another build is running: " + ", ".join(others))
     free = shutil.disk_usage(root).free
     if free < need_free:
-        problems.append(
-            f"{free >> 30} GB free, the run needs {need_free >> 30} GB"
-        )
+        problems.append(f"{free >> 30} GB free, the run needs {need_free >> 30} GB")
     if problems:
         raise CostError("; ".join(problems))
 
@@ -246,9 +248,11 @@ def parse_messages(lines) -> dict:
         profile = msg.get("profile", {})
         filenames = msg.get("filenames", [])
         check = bool(filenames) and all(f.endswith(".rmeta") for f in filenames)
-        key = f"opt{profile.get('opt_level', '?')}" + (
-            "-test" if profile.get("test") else ""
-        ) + ("-check" if check else "")
+        key = (
+            f"opt{profile.get('opt_level', '?')}"
+            + ("-test" if profile.get("test") else "")
+            + ("-check" if check else "")
+        )
         by_profile[key] = by_profile.get(key, 0) + 1
     return {
         "units_compiled": {
@@ -326,7 +330,9 @@ def rss_kb(pid: int, proc_root: Path) -> int | None:
 
 def argv0(pid: int, proc_root: Path) -> str:
     try:
-        return (proc_root / str(pid) / "cmdline").read_bytes().split(b"\0", 1)[0].decode()
+        return (
+            (proc_root / str(pid) / "cmdline").read_bytes().split(b"\0", 1)[0].decode()
+        )
     except OSError:
         return ""
 
@@ -362,7 +368,8 @@ class Sampler(threading.Thread):
             self.peak_kb = max(self.peak_kb, sample_tree(self.pid, self.proc_root))
             if self.match is not None:
                 self.peak_match_kb = max(
-                    self.peak_match_kb, sample_tree(self.pid, self.proc_root, self.match)
+                    self.peak_match_kb,
+                    sample_tree(self.pid, self.proc_root, self.match),
                 )
             self._halt.wait(SAMPLE_INTERVAL_S)
 
@@ -377,7 +384,14 @@ class Sampler(threading.Thread):
 def allocated_bytes(path: Path) -> dict[str, int]:
     """Allocated size under `path`, hard links once, split by top-level kind."""
     seen: set[tuple[int, int]] = set()
-    split = {"total": 0, "build": 0, "incremental": 0, "deps": 0, "tests": 0, "other": 0}
+    split = {
+        "total": 0,
+        "build": 0,
+        "incremental": 0,
+        "deps": 0,
+        "tests": 0,
+        "other": 0,
+    }
 
     def kind(rel: Path) -> str:
         parts = rel.parts
@@ -424,13 +438,20 @@ def variants_on_disk(target: Path, packages: list[str]) -> dict[str, int]:
 # ---------------------------------------------------------------- commands
 
 
-def run_measured(argv: list[str], cwd: Path, env: dict, target: Path, harness=None) -> dict:
+def run_measured(
+    argv: list[str], cwd: Path, env: dict, target: Path, harness=None
+) -> dict:
     """Run one cargo command, returning its measurements."""
     before = allocated_bytes(target)
     load = os.getloadavg()[0]
     start = time.monotonic()
     proc = subprocess.Popen(
-        argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+        argv,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
     )
     sampler = Sampler(proc.pid, harness)
     sampler.start()
@@ -494,10 +515,14 @@ def measure_rust_analyzer(root: Path, binary: str | None = None) -> dict:
         reason = (probe.stderr or probe.stdout).strip().splitlines()
         return {
             "ra_rss_mb": None,
-            "reason": "rust-analyzer does not run: " + (reason[0] if reason else "no output"),
+            "reason": "rust-analyzer does not run: "
+            + (reason[0] if reason else "no output"),
         }
     proc = subprocess.Popen(
-        [binary], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        [binary],
+        cwd=root,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
     assert proc.stdin is not None and proc.stdout is not None
@@ -510,7 +535,9 @@ def measure_rust_analyzer(root: Path, binary: str | None = None) -> dict:
     def receive(deadline: float) -> dict | None:
         header = b""
         while not header.endswith(b"\r\n\r\n"):
-            if not select.select([proc.stdout], [], [], max(0, deadline - time.monotonic()))[0]:
+            if not select.select(
+                [proc.stdout], [], [], max(0, deadline - time.monotonic())
+            )[0]:
                 return None
             chunk = proc.stdout.read(1)
             if not chunk:
@@ -519,14 +546,22 @@ def measure_rust_analyzer(root: Path, binary: str | None = None) -> dict:
         length = int(header.split(b"Content-Length:")[1].split(b"\r\n")[0])
         return json.loads(proc.stdout.read(length))
 
-    send({
-        "jsonrpc": "2.0", "id": 1, "method": "initialize",
-        "params": {
-            "processId": os.getpid(), "rootUri": root.as_uri(),
-            "capabilities": {"window": {"workDoneProgress": True}},
-            "initializationOptions": {"checkOnSave": False, "cargo": {"targetDir": True}},
-        },
-    })
+    send(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "processId": os.getpid(),
+                "rootUri": root.as_uri(),
+                "capabilities": {"window": {"workDoneProgress": True}},
+                "initializationOptions": {
+                    "checkOnSave": False,
+                    "cargo": {"targetDir": True},
+                },
+            },
+        }
+    )
     start = time.monotonic()
     deadline = start + RA_TIMEOUT_S
     open_tokens: set = set()
@@ -603,17 +638,28 @@ def machine_info(jobs: int | None) -> dict:
 def workspace_packages(root: Path, env: dict) -> list[str]:
     out = subprocess.run(
         ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-        cwd=root, env=env, check=True, capture_output=True, text=True,
+        cwd=root,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     return sorted(p["name"] for p in json.loads(out)["packages"])
 
 
 def measure_edit(
-    root: Path, edit: Edit, n: int, args, env: dict, target: Path, record: dict | None = None
+    root: Path,
+    edit: Edit,
+    n: int,
+    args,
+    env: dict,
+    target: Path,
+    record: dict | None = None,
 ) -> dict:
     wanted = getattr(args, "commands", None) or ",".join(COMMANDS)
     kinds = [
-        k for k in COMMANDS
+        k
+        for k in COMMANDS
         if k in wanted.split(",") and (k != "test_run" or not args.no_test_run)
     ]
     phases = (getattr(args, "phases", None) or "cold,after").split(",")
@@ -627,10 +673,20 @@ def measure_edit(
         try:
             record.setdefault(phase, {})
             for kind in kinds:
-                harness = harness_matcher(target, edit.crate) if kind == "test_run" else None
-                print(f"worktree-cost: {edit.key} {phase} {kind}", file=sys.stderr, flush=True)
+                harness = (
+                    harness_matcher(target, edit.crate) if kind == "test_run" else None
+                )
+                print(
+                    f"worktree-cost: {edit.key} {phase} {kind}",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 record[phase][kind] = run_measured(
-                    command_argv(kind, edit.crate, args.jobs), root, env, target, harness
+                    command_argv(kind, edit.crate, args.jobs),
+                    root,
+                    env,
+                    target,
+                    harness,
                 )
         finally:
             if phase == "after":
@@ -646,12 +702,17 @@ def run(args) -> int:
         raise CostError(f"unknown edits: {', '.join(unknown)}")
     edits = [table[k] for k in keys]
     commit = subprocess.run(
-        ["git", "rev-parse", "--short=12", "HEAD"], cwd=REPO, check=True,
-        capture_output=True, text=True,
+        ["git", "rev-parse", "--short=12", "HEAD"],
+        cwd=REPO,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     inputs = build_inputs_id(REPO)
     preflight(
-        REPO, edits, os.environ,
+        REPO,
+        edits,
+        os.environ,
         IN_PLACE_FREE_BYTES if args.in_place else WORKTREE_FREE_BYTES,
     )
 
@@ -660,8 +721,11 @@ def run(args) -> int:
     if not args.in_place:
         scratch = Path(tempfile.mkdtemp(prefix="worktree-cost-"))
         root = scratch / "wt"
-        subprocess.run(["git", "worktree", "add", "--detach", str(root), "HEAD"],
-                       cwd=REPO, check=True)
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", str(root), "HEAD"],
+            cwd=REPO,
+            check=True,
+        )
     try:
         env = dict(os.environ)
         for name, value in expected_env(root).items():
@@ -670,22 +734,33 @@ def run(args) -> int:
             else:
                 env[name] = value
         target = Path(env["CARGO_TARGET_DIR"])
-        out = Path(args.out) if args.out else REPO / "target" / "worktree-cost" / f"{commit}.json"
+        out = (
+            Path(args.out)
+            if args.out
+            else REPO / "target" / "worktree-cost" / f"{commit}.json"
+        )
         doc: dict = {}
         if args.merge and out.exists():
             doc = json.loads(out.read_text())
             if doc.get("inputs") != inputs:
-                raise CostError(f"{out} measured other build inputs than HEAD ({commit})")
-        doc.update({
-            "commit": commit,
-            "inputs": inputs,
-            "mode": "in-place" if args.in_place else "fresh-worktree",
-            "cold_means": "warm target of the checkout" if args.in_place else "empty target",
-            "machine": machine_info(args.jobs),
-            "env": {k: env.get(k) for k in expected_env(root)},
-        })
+                raise CostError(
+                    f"{out} measured other build inputs than HEAD ({commit})"
+                )
+        doc.update(
+            {
+                "commit": commit,
+                "inputs": inputs,
+                "mode": "in-place" if args.in_place else "fresh-worktree",
+                "cold_means": "warm target of the checkout"
+                if args.in_place
+                else "empty target",
+                "machine": machine_info(args.jobs),
+                "env": {k: env.get(k) for k in expected_env(root)},
+            }
+        )
         doc.setdefault("edits", {})
         doc.setdefault("skipped", {})
+
         def save() -> None:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n")
@@ -693,7 +768,13 @@ def run(args) -> int:
         try:
             for n, edit in enumerate(edits, start=1):
                 measure_edit(
-                    root, edit, n, args, env, target, doc["edits"].setdefault(edit.key, {})
+                    root,
+                    edit,
+                    n,
+                    args,
+                    env,
+                    target,
+                    doc["edits"].setdefault(edit.key, {}),
                 )
                 if args.no_test_run:
                     doc["skipped"][f"{edit.key}.test_run"] = "--no-test-run"
@@ -709,7 +790,8 @@ def run(args) -> int:
             )
             if not args.no_ra or "ra" not in doc:
                 doc["ra"] = (
-                    {"ra_rss_mb": None, "reason": "--no-ra"} if args.no_ra
+                    {"ra_rss_mb": None, "reason": "--no-ra"}
+                    if args.no_ra
                     else measure_rust_analyzer(root)
                 )
         finally:
@@ -718,7 +800,9 @@ def run(args) -> int:
         print(out)
     finally:
         if scratch is not None:
-            subprocess.run(["git", "worktree", "remove", "--force", str(root)], cwd=REPO)
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(root)], cwd=REPO
+            )
             shutil.rmtree(scratch, ignore_errors=True)
     return 0
 
@@ -736,8 +820,12 @@ def _rows(doc: dict):
 def _cells(r: dict) -> list:
     u = r["units_compiled"]
     return [
-        u["workspace"], u["total"], r["wall_s"], r["peak_rss_tree_mb"],
-        r["peak_rss_single_mb"], round(r["target_growth_bytes"] / (1 << 20)),
+        u["workspace"],
+        u["total"],
+        r["wall_s"],
+        r["peak_rss_tree_mb"],
+        r["peak_rss_single_mb"],
+        round(r["target_growth_bytes"] / (1 << 20)),
         r.get("test_peak_rss_mb", "–"),
     ]
 
@@ -774,7 +862,9 @@ def compare(before: dict, after: dict) -> str:
             continue
         deltas = [_signed(a, b) for a, b in zip(_cells(old[row]), _cells(r))]
         key, crate, phase, kind = row
-        lines.append("| " + " | ".join([key, f"`{crate}`", phase, kind, *deltas]) + " |")
+        lines.append(
+            "| " + " | ".join([key, f"`{crate}`", phase, kind, *deltas]) + " |"
+        )
     return "\n".join(lines)
 
 
@@ -805,8 +895,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "table":
             print(table(json.loads(Path(args.run_json).read_text())))
             return 0
-        print(compare(json.loads(Path(args.before).read_text()),
-                      json.loads(Path(args.after).read_text())))
+        print(
+            compare(
+                json.loads(Path(args.before).read_text()),
+                json.loads(Path(args.after).read_text()),
+            )
+        )
         return 0
     except CostError as err:
         print(f"worktree-cost: {err}", file=sys.stderr)
