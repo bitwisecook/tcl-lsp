@@ -19,7 +19,7 @@
 use super::*;
 
 fn native() -> Vm {
-    crate::native_fixture::interpreter(
+    crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
     )
 }

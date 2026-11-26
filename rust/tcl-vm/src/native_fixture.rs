@@ -37,6 +37,18 @@ pub(crate) fn core_with_host(
     core_with_output_and_host(profile, Box::new(std::io::sink()), host)
 }
 
+/// [`core`] with exactly the selected scripted distribution libraries.
+pub(crate) fn core_with_scripted_libraries(
+    profile: &'static tcl_dialect::DialectProfile,
+    libraries: &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary],
+) -> Vm {
+    let mut vm = core(profile);
+    for &library in libraries {
+        vm.install_scripted_library(library);
+    }
+    vm
+}
+
 fn core_with_output_and_host(
     profile: &'static tcl_dialect::DialectProfile,
     output: Box<dyn Write>,

@@ -96,7 +96,7 @@ fn fixed_math_admission_retains_actual_registration_and_owner_identity() {
     use tcl_runtime_api::native_compilation::{
         NativeMathFunctionPrerequisite, NativeMathFunctionResolution,
     };
-    let mut vm = crate::native_fixture::interpreter(release_profile("tcl8.4"));
+    let mut vm = crate::native_fixture::core(release_profile("tcl8.4"));
     let entry = vm
         .native_compilation_entry_for_namespace("", false)
         .unwrap();
@@ -126,7 +126,7 @@ fn fixed_math_admission_retains_actual_registration_and_owner_identity() {
             tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
         ))
     ));
-    let other = crate::native_fixture::interpreter(release_profile("tcl8.4"));
+    let other = crate::native_fixture::core(release_profile("tcl8.4"));
     assert!(!other.native_math_table_prerequisite_matches(&asm));
 }
 
@@ -214,7 +214,7 @@ fn native_array_bootstrap_retains_actual_ensemble_and_private_hook_identity() {
         NativeCommandImplementation, NativeCompilerHookPresence,
     };
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let vm = crate::native_fixture::interpreter(release_profile(name));
+        let vm = crate::native_fixture::core(release_profile(name));
         let ensemble = vm
             .native_invocation_dialect()
             .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Array)
@@ -264,7 +264,7 @@ fn native_array_bootstrap_retains_actual_ensemble_and_private_hook_identity() {
 fn native_string_and_dict_bootstrap_export_the_actual_private_maps() {
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let vm = crate::native_fixture::interpreter(release_profile(name));
+        let vm = crate::native_fixture::core(release_profile(name));
         let entry = vm
             .native_compilation_entry_for_namespace("", false)
             .unwrap();
@@ -325,7 +325,7 @@ fn native_namespace_bootstrap_retains_actual_worker_and_profile_ownership() {
         NativeCommandImplementation, NativeCompilerHookPresence,
     };
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let vm = crate::native_fixture::interpreter(release_profile(name));
+        let vm = crate::native_fixture::core(release_profile(name));
         let ensemble = vm
             .native_invocation_dialect()
             .ensemble_implementation_namespace(
@@ -376,7 +376,7 @@ fn native_namespace_bootstrap_retains_actual_worker_and_profile_ownership() {
 #[test]
 fn native_entry_observer_closure_is_independent_of_values_and_command_closure() {
     use tcl_runtime_api::native_compilation::NativeVariableObserverPresence;
-    let mut vm = crate::native_fixture::interpreter(release_profile("tcl8.4"));
+    let mut vm = crate::native_fixture::core(release_profile("tcl8.4"));
     let initial = vm
         .native_compilation_entry_for_namespace("", false)
         .unwrap();
@@ -411,7 +411,7 @@ fn native_entry_observer_closure_is_independent_of_values_and_command_closure() 
         NativeVariableObserverPresence::BoundedNativeOnly
     );
     assert_eq!(
-        crate::native_fixture::interpreter(release_profile("jim"))
+        crate::native_fixture::core(release_profile("jim"))
             .native_compilation_entry_for_namespace("", false)
             .unwrap()
             .variable_observers,

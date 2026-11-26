@@ -101,7 +101,7 @@ fn foreign_active_selection_cannot_borrow_original_core_context() {
 
 #[test]
 fn complete_installed_core_input_survives_vendor_repins() {
-    let mut vm = crate::native_fixture::interpreter(host());
+    let mut vm = crate::native_fixture::core(host());
     let mut context = vm.runtime_context().clone();
     context
         .packages

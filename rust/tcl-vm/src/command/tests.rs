@@ -27,7 +27,7 @@ fn incr_of_a_missing_variable_follows_the_selected_release() {
         let profile =
             tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
                 .unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::native_fixture::core(profile);
         let completion = vm
             .try_invoke_command("incr", &[super::Value::string("n")])
             .expect("host execution");
@@ -55,7 +55,7 @@ fn hidden_options_follow_original_release_selected_index_tables() {
         let profile =
             tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
                 .unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::native_fixture::core(profile);
         let words = ["-namespace", "chosen", "hiddenSet"]
             .map(|word| super::Value::new_native_string_bytes(word.as_bytes()));
         let selected = super::skip_hidden_options(&mut vm, &words);
@@ -85,7 +85,7 @@ fn c84_primitive_failure_keeps_direct_code_and_eval_completion_supplies_none() {
     // getter and failure renderer retain their independent direct purpose.
     use tcl_syntax::scalar_getter::NativeScalarGetterKind;
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
-    let mut vm = crate::native_fixture::interpreter(profile);
+    let mut vm = crate::native_fixture::core(profile);
     let dialect = vm.native_invocation_dialect();
     for kind in [
         NativeScalarGetterKind::Int,
@@ -193,7 +193,7 @@ fn native_wrong_arguments_completion_preserves_the_selected_string_producer() {
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::native_fixture::core(profile);
         let error = tcl_cmd_core::CmdError::wrong_args_bytes(b"upvar ?level? otherVar localVar");
         let message = error.message_bytes().to_vec();
         let completion = super::completion_from_cmd_error(&mut vm, error);
@@ -229,7 +229,7 @@ fn return_level_replacement_preserves_opaque_option_objects() {
         super::Value::string("-level"),
         super::Value::int(2),
     ]);
-    let mut vm = crate::native_fixture::interpreter(
+    let mut vm = crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
     );
     let replaced = super::with_return_level(&mut vm, &options, 1).unwrap();
@@ -451,7 +451,7 @@ fn procedure_body_capture_matches_58_native_definition_windows() {
             let kind = expected[0].parse::<usize>().unwrap();
             let refs = expected[1].parse::<usize>().unwrap();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
+            let mut vm = crate::native_fixture::core(profile);
             let dialect = vm.native_invocation_dialect();
             let protocol = dialect.native_string_protocol().unwrap();
             let body = match kind {

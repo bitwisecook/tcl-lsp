@@ -20,7 +20,7 @@
 use super::*;
 
 fn native() -> Vm {
-    crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"))
+    crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"))
 }
 
 #[test]

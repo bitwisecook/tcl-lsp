@@ -21,8 +21,7 @@ use super::*;
 #[test]
 fn parent_reaches_the_original_current_holder_only_for_its_no_argument_form() {
     for explicit in [false, true] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
         let original = Value::int(42);
         let context =
             crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &original).unwrap();

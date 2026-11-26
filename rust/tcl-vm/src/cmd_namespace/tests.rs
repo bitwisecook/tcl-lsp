@@ -289,7 +289,7 @@ fn code_retains_original_objects_for_all_measured_native_prefixes() {
         .chain(std::iter::once(jim))
     {
         let mut vm = if std::ptr::eq(profile, jim) {
-            crate::native_fixture::interpreter_with_scripted_libraries(
+            crate::native_fixture::core_with_scripted_libraries(
                     profile,
                     &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers],
                 )
@@ -421,7 +421,7 @@ fn code_construction_allocates_fresh_literal_headers_and_retains_original_roles(
 #[test]
 fn jim_code_public_helper_retains_its_original_parsed_literals() {
     use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
-    let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+    let mut vm = crate::native_fixture::core_with_scripted_libraries(
         crate::environment::profile_for_dialect("jimtcl"),
         &[NativeScriptedLibrary::NamespaceHelpers],
     );

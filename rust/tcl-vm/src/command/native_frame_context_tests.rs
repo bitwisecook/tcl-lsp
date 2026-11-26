@@ -23,7 +23,7 @@ use super::*;
 #[test]
 fn generated_jim_level_objects_use_actual_frame_context() {
     let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-    let mut vm = crate::native_fixture::interpreter(profile);
+    let mut vm = crate::native_fixture::core(profile);
     let namespace = vm.current_ns_id();
     let explicit = Value::string("0");
     assert_eq!(
@@ -49,8 +49,8 @@ fn generated_jim_level_objects_use_actual_frame_context() {
 #[test]
 fn jim_level_object_cannot_borrow_a_foreign_interpreter_context() {
     let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-    let owner = crate::native_fixture::interpreter(profile);
-    let mut other = crate::native_fixture::interpreter(profile);
+    let owner = crate::native_fixture::core(profile);
+    let mut other = crate::native_fixture::core(profile);
     let context = crate::interp::InterpState::native_jim_object_context(&owner).unwrap();
     let original = Value::string("0");
     original.bind_native_jim_context(&context).unwrap();

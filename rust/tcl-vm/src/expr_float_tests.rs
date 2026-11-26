@@ -48,8 +48,7 @@ impl tcl_platform::Host for RecordedHost {
 }
 
 fn recorded_native_vm(numeric: Rc<RecordedNumericEnvironment>) -> Vm {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.4"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
     let host = RecordedHost {
         actual: vm.host_rc(),
         numeric,
@@ -159,8 +158,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
 #[test]
 fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.4"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
     let actual = vm.host_rc();
     // Cached conversion still needs the actual ABI receipt. This provider
     // refuses fresh primitives; queries() counts only reached state reads.

@@ -28,8 +28,7 @@ use tcl_platform::{
 use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
 
 fn provided() -> (Vm, OoId) {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.1"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"));
     let root = vm.oo.class_root.unwrap();
     assert_eq!(
         make_class_bytes(&mut vm, b"MappingC", None, root).code,

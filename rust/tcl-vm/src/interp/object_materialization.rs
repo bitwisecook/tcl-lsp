@@ -142,7 +142,7 @@ mod tests {
     use tcl_syntax::value::ValueOps;
 
     fn native_vm(environment: &str) -> Vm {
-        crate::native_fixture::interpreter(
+        crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment(environment).unit_profile(),
         )
     }

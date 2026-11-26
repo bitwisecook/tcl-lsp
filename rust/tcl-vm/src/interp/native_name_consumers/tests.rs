@@ -1211,8 +1211,7 @@ fn original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children
 #[test]
 fn selected_namespace_retirement_keeps_only_the_actual_entered_incarnation() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(dialect));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
         let entered = vm.activate_namespace_operand(b"::kept").unwrap();
         vm.push_ns_token("kept", entered);
         let strict = QueryNamespace::capture(&vm, entered).unwrap();
@@ -1247,8 +1246,7 @@ fn selected_namespace_retirement_keeps_only_the_actual_entered_incarnation() {
 #[cfg(debug_assertions)]
 #[test]
 fn current_namespace_projection_refuses_same_spelled_replacement() {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
     let entered = vm.activate_namespace_operand(b"::held").unwrap();
     vm.push_ns_token("held", entered);
     let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
@@ -1267,8 +1265,7 @@ fn current_namespace_projection_refuses_same_spelled_replacement() {
 #[cfg(debug_assertions)]
 #[test]
 fn unrelated_namespace_retirement_cannot_issue_the_entered_operation_receipt() {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
     let entered = vm.activate_namespace_operand(b"::entered").unwrap();
     let other = vm.activate_namespace_operand(b"::other").unwrap();
     vm.push_ns_token("entered", entered);
@@ -1291,8 +1288,7 @@ fn unrelated_namespace_retirement_cannot_issue_the_entered_operation_receipt() {
 #[test]
 fn selected_ancestor_retirement_retains_the_actual_entered_child() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(dialect));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(dialect));
         let ancestor = vm.activate_namespace_operand(b"::ancestor").unwrap();
         let entered = vm.activate_namespace_operand(b"::ancestor::child").unwrap();
         vm.push_ns_token("ancestor::child", entered);

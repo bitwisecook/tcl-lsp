@@ -178,8 +178,7 @@ fn c84_reached_expression_matches_seven_original_cache_controls() {
             usize::from(result.resident_string_bytes().is_some()).to_string(),
             fields[7]
         );
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.4"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         let normalized = normalize_numeric_instruction_for_vm(&mut vm, &result).unwrap();
         assert_eq!(
             class(&normalized),
@@ -244,7 +243,7 @@ fn native_case(profile: &'static tcl_dialect::DialectProfile, expression: &str, 
 #[test]
 fn original_expression_bytes_keep_leaf_values_and_cached_source() {
     for profile in arithmetic_profiles() {
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::native_fixture::core(profile);
         vm.set_var_bytes(b"\xff", Value::from_native_string_bytes(&b"7"[..]))
             .expect("original byte variable name");
         for (source, expected) in [
@@ -364,9 +363,9 @@ fn reached_operand_error_codes_follow_the_actual_expression_release() {
         let value = Value::string("invalid");
         let arithmetic =
             arith_in(dialect, BinOp::Add, &value, &Value::int(1)).expect_err("non-numeric operand");
-        let mut original = crate::native_fixture::interpreter(
-            crate::environment::profile_for_dialect(version.dialect_profile_name()),
-        );
+        let mut original = crate::native_fixture::core(crate::environment::profile_for_dialect(
+            version.dialect_profile_name(),
+        ));
         let boolean = boolean_for_vm(
             &mut original,
             &value,
@@ -402,7 +401,7 @@ fn reached_operand_error_codes_follow_the_actual_expression_release() {
 /// bytecode arithmetic and through the dynamic expression parser.
 #[test]
 fn checked_equality_ordering_and_mathop_preserve_distinct_native_object_protocols() {
-    let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
     crate::native_fixture::install_distribution(&mut vm);
     let dialect = vm.native_invocation_dialect();
     let raw = Value::from_string_bytes([0xff]);
@@ -420,8 +419,7 @@ fn checked_equality_ordering_and_mathop_preserve_distinct_native_object_protocol
     let ordered = tcl_cmd_core::mathop::eval(&mut ops, "lt", vec![cached, recounted])
         .unwrap_or_else(|_| panic!("known cached ordering succeeds"));
     assert!(ordered.as_bool().unwrap());
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
     let error = tcl_cmd_core::mathop::eval(&mut ExprEval::new(&mut vm), "lt", vec![raw, unicode])
         .unwrap_err();
     let tcl_cmd_core::mathop::MathopError::Op(error) = error else {

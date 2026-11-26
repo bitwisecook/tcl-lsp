@@ -693,3 +693,11 @@ checks the frames both report.
 - Parity: 3140 passed, 80 failed; no new or fixed failure against batch 1.
 - `scripts/dev/rust-test-binary-shards.tsv` gains the `xtask-backing` binary
   that item 298 left out.
+
+**Batch 3, tests that never compiled source (26 November 2026).** 124 `src`
+tests built their VM with `native_fixture::interpreter*` but never evaluate,
+compile or define source: they drive commands, values and frames directly.
+They now build it with `native_fixture::core*` and stay as unit tests, which
+needs no compiler. A trial switched every candidate and kept only those whose
+outcome did not change; the rest went back to the compiler. No new or fixed
+failure in the lib suite.

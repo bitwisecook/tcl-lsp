@@ -21,8 +21,7 @@ use super::*;
 #[test]
 fn parent_without_operand_uses_the_entered_namespace_incarnation() {
     for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(release));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(release));
         let parent = vm.activate_namespace_operand(b"::outer").unwrap();
         let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
         vm.push_ns_token("outer::inner", entered);
@@ -44,8 +43,7 @@ fn parent_without_operand_uses_the_entered_namespace_incarnation() {
         vm.pop_ns();
         assert!(!vm.native_namespace_token_has_owner(entered));
 
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(release));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(release));
         let entered = vm.activate_namespace_operand(b"::outer::inner").unwrap();
         vm.push_ns_token("outer::inner", entered);
         let original =

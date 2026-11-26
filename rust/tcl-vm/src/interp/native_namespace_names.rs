@@ -731,9 +731,8 @@ mod original_jim_canonical_ownership_tests {
     #[test]
     fn absolute_canonical_name_retains_the_explicit_prefix_liveness_requirement() {
         for retired in [false, true] {
-            let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect("jimtcl"),
-            );
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
             let prefix = Value::int(42);
             let original = prefix.native_lifetime_lease();
             let _kept = if retired {
@@ -766,9 +765,8 @@ mod original_jim_canonical_ownership_tests {
     #[test]
     fn absolute_canonical_name_rechecks_the_explicit_prefix_after_the_original_getter() {
         for retire in [false, true] {
-            let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect("jimtcl"),
-            );
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
             let prefix = Value::int(42);
             let original = prefix.native_lifetime_lease();
             let retained = std::cell::RefCell::new(Some(prefix));

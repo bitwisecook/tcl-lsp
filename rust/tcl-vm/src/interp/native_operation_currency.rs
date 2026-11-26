@@ -1315,8 +1315,7 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual dying-slot in_interp/finalize/Jim teardown path, not Native callback chronology.
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let parent = vm.cur_interp();
         let child_name = vm.create_child(Some("saved_execution_teardown".into()), false);
         let child = vm.child_id(&child_name).unwrap();
@@ -1518,8 +1517,7 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Real dying-slot teardown and retained output role; no native callback chronology.
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let parent = vm.cur_interp();
         let name = vm.create_child(Some("mandatory_retirement_teardown".into()), false);
         let child = vm.child_id(&name).unwrap();

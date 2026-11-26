@@ -1224,8 +1224,7 @@ mod original_decode_owner_tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Real codec adapter and closed VM headers; no extension-object ABI claim.
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let original = NativeOperationScope::enter(&mut vm).unwrap();
         let completion = binary_decode(
             &mut vm,
@@ -1304,9 +1303,8 @@ mod original_format_scan_tests {
         // Actual VM software callers; Native captures are independent evidence.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             for format in [b"a1".as_slice(), b"a1\0TAIL", b"a1\xc0\x80TAIL"] {
-                let mut vm = crate::native_fixture::interpreter(
-                    crate::environment::profile_for_dialect(profile),
-                );
+                let mut vm =
+                    crate::native_fixture::core(crate::environment::profile_for_dialect(profile));
                 assert!(
                     vm.set_var_bytes(b"::errorCode", Value::string("SEEDED"))
                         .is_ok()
@@ -1389,8 +1387,7 @@ mod original_format_scan_tests {
     fn original_binary_result_recipe_scalar_list_and_cache_issuer_stay_distinct() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let double = Value::native_double(1.25, vm.native_invocation_dialect());
         let formatted = binary_format(
@@ -1573,9 +1570,8 @@ mod original_format_scan_tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual supported C codec producers and checked consumers, not a Native observation.
         for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect(profile),
-            );
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(profile));
             let scope = NativeOperationScope::enter(&mut vm).unwrap();
             let protocol = vm.object_materialization().unwrap().protocol();
             let decoded = binary_decode(

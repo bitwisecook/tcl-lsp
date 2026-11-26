@@ -1311,7 +1311,7 @@ mod embedding_settlement_tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Software API control: these constructed carriers do not establish an
         // original C Tcl/Jim physical-object or completion observation.
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
         );
         let key = Value::new_native_string_bytes(b"-opaque\0\xff".as_slice());
@@ -1380,7 +1380,7 @@ mod embedding_settlement_tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // The retained refusal is a software owner control, not a measured
         // original-provider failure or a claim that a getter was reached.
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
         );
         vm.set_var("before", Value::string("RETAINED")).unwrap();

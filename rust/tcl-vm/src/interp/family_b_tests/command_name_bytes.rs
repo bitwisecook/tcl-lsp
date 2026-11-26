@@ -43,7 +43,7 @@ fn procedure_publication_keeps_retained_holder_and_release_reparse() {
 
 #[test]
 fn jim_actual_namespace_objects_are_in_native_snapshots() {
-    let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
     let context = vm.activate_namespace_operand(b"n\0z").unwrap();
     vm.push_ns_eval_token_frame(context, Vec::new());
     let entry = vm.native_compilation_entry_for_namespace_token(context, true);

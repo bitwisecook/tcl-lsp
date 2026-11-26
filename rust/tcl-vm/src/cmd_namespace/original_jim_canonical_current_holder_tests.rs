@@ -41,8 +41,7 @@ fn canonical_uses_the_original_holder_and_reached_namespace_getter() {
         ("RELATIVE", Some("child"), false),
         ("EXPLICIT", Some("child"), true),
     ] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
         let original = Value::int(42);
         let prefix = Value::int(84);
         let context =
@@ -109,8 +108,7 @@ fn canonical_uses_the_original_holder_and_reached_namespace_getter() {
 
 #[test]
 fn equal_explicit_prefix_does_not_issue_the_current_namespace_coordinate() {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
     let original = Value::int(42);
     let prefix = Value::int(42);
     assert!(!original.is_same_object(&prefix));

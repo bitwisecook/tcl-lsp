@@ -146,9 +146,8 @@ mod tests {
             }) {
                 let fields: Vec<_> = input.split('|').collect();
                 let label = fields[0].strip_suffix("_INPUT").unwrap();
-                let mut vm = crate::native_fixture::interpreter(
-                    crate::environment::profile_for_dialect(engine),
-                );
+                let mut vm =
+                    crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
                 for path in [
                     ByteNamespacePath::from_segments([b"N".as_slice()]),
                     ByteNamespacePath::from_segments([b"N".as_slice(), b"Q"]),

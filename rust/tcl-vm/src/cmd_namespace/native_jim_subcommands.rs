@@ -404,8 +404,7 @@ mod tests {
 
     #[test]
     fn original_cache_is_installed_before_arity_and_consumed_without_a_string_getter() {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
         vm.set_invoked_name("namespace");
         let selector = Value::new_native_string_bytes(b"parent".as_slice());
         let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();

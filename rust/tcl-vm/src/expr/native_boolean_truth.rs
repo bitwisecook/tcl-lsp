@@ -602,7 +602,7 @@ pub(crate) fn logical_value_for_vm(
 mod tests {
     use super::*;
     fn native(environment: &str) -> Vm {
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect(environment))
+        crate::native_fixture::core(crate::environment::profile_for_dialect(environment))
     }
     fn measured_jim_api(case: usize) -> (i32, i32, Vec<u8>) {
         let source = include_str!(

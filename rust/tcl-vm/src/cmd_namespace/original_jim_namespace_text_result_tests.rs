@@ -21,7 +21,7 @@ use super::*;
 #[test]
 fn qualifiers_selects_the_actual_shared_empty_without_changing_root_or_tail_identity() {
     let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-    let mut vm = crate::native_fixture::interpreter(profile);
+    let mut vm = crate::native_fixture::core(profile);
     let context = vm.native_jim_object_context().unwrap();
     let empty = context.empty_object().clone();
     for bytes in [b"absent".as_slice(), b":", b""] {

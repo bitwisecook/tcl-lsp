@@ -59,8 +59,7 @@ struct Context {
     observed: Rc<RefCell<Observed>>,
 }
 fn native() -> Context {
-    let mut vm =
-        crate::native_fixture::interpreter(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
+    let mut vm = crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
     let observed = Rc::new(RefCell::new(Observed::default()));
     for (name, tag) in [
         (b"collector\xff".as_slice(), "COLLECT"),
