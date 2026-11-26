@@ -2,9 +2,12 @@
 
 Status: designed 26 November 2026. Tracked as [plan item 90](../../work/name-handling/plan.md),
 which the working order puts ahead of every other stage, with items 117 and 118
-alongside. Revised 26 November 2026 after an independent review: binding's
-layout against lowering is undecided pending item 278, the value kernel gets
-its own crate, and the steps are finer. This is the concrete form of the "Crates" table in
+alongside. Revised 26 November 2026 after an independent review (the value
+kernel gets its own crate, and the steps are finer), and again when the step
+designs in [`crate-split/`](crate-split/) were written: binding sits below
+lowering by inversion (item 278), executable IR is analysis, and the unit
+crate, `tcl-unit`, sits below the diagnostics, the optimiser and the native
+plan. Where this overview and a step design disagree, the step design holds. This is the concrete form of the "Crates" table in
 [architecture-tidy-plan](../../work/name-handling/architecture-tidy-plan.md#crates).
 It answers the blocker recorded in [build-test-cost §4](../../work/build-test-cost/current-state.md):
 "any further split first needs cycles broken by design".
@@ -30,8 +33,11 @@ memory. Each worktree's build compiles only the dependency cone of what it
 touches. Five things decide that:
 
 - **Cone size.** Working on a crate compiles its dependencies, and testing it
-  compiles its dev-dependencies too. Today building `tcl-registry` alone
-  compiles 54 crates, `tcl-compiler` 80 and `tcl-lsp-core` 179. Every Tcl-facing
+  compiles its dev-dependencies too. Today the normal cone of `tcl-registry`
+  is 42 crates, of `tcl-compiler` 64 and of `tcl-lsp-core` 134, counted with
+  `cargo tree -e normal,build` and each crate once. (The earlier 54, 80 and 179
+  came from `sort -u` over the tree, which counts a crate twice when it appears
+  both expanded and as `(*)`.) Every Tcl-facing
   crate sits above the 583k-line registry.
   - The split makes cones small.
   - The [registry split](../registry/registry-split-design.md) (item 261) keeps
@@ -108,9 +114,12 @@ plan, and three facts dominate it:
 - **`tcl-registry` sits under everything.** It is 583k lines, and the registry
   rule sends every per-command fix there. A registry edit rebuilds `tcl-compiler`
   and the whole stack above it.
-  - Item 117 takes the 58k lines of `native_*` algorithms out, and with them the
-    `value_transfer` and `resolved_invocation` evaluation (35k).
-  - Item 118 takes the 176k lines of BIG-IP schema data out.
+  - Item 117 takes the 58k lines of `native_*` algorithms out into
+    `tcl-native-model` (117a), and later the `value_transfer` and
+    `resolved_invocation` analysis driver into `tcl-analysis` (117b); the
+    per-command semantics stay in the surface crates.
+  - Item 118 takes the 171k lines of BIG-IP schema data out. `f5/`, the f5-tcl
+    evidence model, goes to item 301 instead.
 
 Smaller levers, each a plan item with its own measurement:
 
@@ -121,9 +130,10 @@ Smaller levers, each a plan item with its own measurement:
 - `xtask` builds `tcl-vm` and `tcl-runtime` for every gate run, for one gate
   (item 298);
 - `tcl-version`'s build script re-runs on every commit, and `tcl-dialect`'s
-  generates into `OUT_DIR` under 43 crates (item 299);
-- about 99k lines of generated tables are compiled as Rust and could be
-  embedded as data (item 300, beside item 119's generators).
+  generates into `OUT_DIR` under 41 direct dependents (item 299);
+- 25 generated files (80.8k lines, 7 of them over 2,000 lines) are compiled as
+  Rust, and the tables among them could be embedded as data (item 300, beside
+  item 119's generators).
 
 The linker is not the problem. Measured 26 November 2026 on the 183 MB
 `tcl-compiler` test binary, a link takes 1.4–1.7 s with the bundled `rust-lld`
@@ -133,19 +143,20 @@ mold would save about 0.4 s per link.
 ## Where the cycles come from
 
 Most cycles come from shared vocabularies kept in the wrong module, not from
-algorithms that need each other. One does not: binding and value analysis are
-one fixpoint, so binding calls into lowering, SSA and the value kernel by
-design. Counts are production references in the binding modules (`rg`, test
-files excluded, 26 November 2026):
+algorithms that need each other. Binding and value analysis are one fixpoint,
+but binding needs only the values SCCP proved, not the passes
+([step 7](crate-split/07-binding-fixpoint.md)). Counts are production
+references (test files and inline `#[cfg(test)]` items excluded, 26 November
+2026):
 
 | Edge (production refs) | What crosses it | Fix |
 |---|---|---|
-| `ir` → `command_binding` (54) | `SourceNamespaceKey`, `CommandAllocationSite`, `BindingKind`, `SourceInvocationBinding` | identity and key types move down to `tcl-names` |
-| `command_binding` → `signature_scan` (317) | `SignatureSourceNameInput`, `SignatureNamespaceScope`, `SignatureSourceNameKey` | name types move down to `tcl-names` |
-| `command_binding` → `analyser` (~280) | `ResolvedAnalysisInput` (150), `AnalysisResult` (47), `Analyser::new` (33), `ProcDef`, `ClassDef` | the inputs and fact types move down to `tcl-model`; running a body analysis becomes a trait that binding defines and `tcl-diagnostics` implements |
-| `registry_invocation` ↔ `command_binding` (270 / 793) | `OriginalInvocationSourcePurpose`, `SourceCommandBindings`, `SourceInvocationBinding` | one crate at first; `tcl-invocation` is split off once the shared types have moved |
-| binding → lowering and SSA: `ir_helpers` (115), `lowering` (68), `ssa` (52), `cfg_builder` (18), `lattice_rebase` (18) | binding and value analysis are one fixpoint per body unit ([design integration](../../work/name-handling/design-integration.md#decisions), decision 1) | undecided: inversion or co-location, chosen by item 278 |
-| binding → value analysis: `tcl_expr_eval` (37), `value_transfer` (7), `interprocedural` (6), and a few into `sccp`, `gvn`, `side_effects`, `taint` | the value kernel and transfer functions | the kernel moves below binding to `tcl-values` (item 280); the rest is part of item 278's inventory |
+| `ir` → `command_binding` (54) | `SourceNamespaceKey`, `CommandAllocationSite`, `BindingKind`, `SourceInvocationBinding` | the key types move down to `tcl-names`; `SourceInvocationBinding` stays with binding as `CommandFacts`, carried through `tcl-ir`'s `Facts` parameter |
+| `command_binding` → `signature_scan` (317) | `SignatureSourceNameInput`, `SignatureNamespaceScope`, `SignatureSourceNameKey` | none needed: both land in `tcl-binding`. Only `SignatureNamespaceScope` and `SignatureSourceNameKey` move to `tcl-names`; `SignatureSourceNameInput` is a binding receipt |
+| `command_binding` → `analyser` (316; 550 from all binding modules) | `ResolvedAnalysisInput` (355 across binding), `AnalysisResult`, `ProcDef`, `ClassDef`; no production `Analyser::new` (all 598 calls are in tests) | the inputs and fact records move down to `tcl-model`, with `ProcDef` and `ClassDef` generic over binding's receipts; `AnalysisResult` stays in `tcl-diagnostics`, and binding reads it through a body-report trait it defines |
+| `registry_invocation` ↔ `command_binding` (270 / 793) | `OriginalInvocationSourcePurpose`, `SourceCommandBindings`, `SourceInvocationBinding` | one crate; `tcl-invocation` is not extracted in this split (item 282) |
+| binding → lowering and SSA: `ssa` (31), `lattice_rebase` (14), `cfg_builder` (3), `lowering` (2); `ir_helpers` (103) moves into binding | binding and value analysis are one fixpoint per body unit ([design integration](../../work/name-handling/design-integration.md#decisions), decision 1) | inversion (item 278): the readers move to their callers, the syntactic scans into binding, the rebasing into `tcl-ir`; the unit build drives the fixpoint |
+| binding → value analysis: `tcl_expr_eval` (37), `value_transfer` (8), `var_escape` (5), `side_effects` (3), `shimmer` (1); none into `sccp`, `gvn`, `interprocedural` or `taint` | the value kernel and transfer functions | the kernel moves below binding to `tcl-values` (item 280); the rest moves as item 279 lists |
 | `cfg_builder` → `optimiser` (8), `command_binding` → `optimiser` (3), `compilation_unit` → `taint` (3) | stray helpers | each helper moves to the lower side |
 
 ## Principles
@@ -159,8 +170,9 @@ files excluded, 26 November 2026):
    never rebuilds them.
 3. **Each crate's API is narrow and explicit.** Each crate exposes a top-level
    `api` module, or curated `pub use` items of its own, rather than making every
-   module `pub`. The roughly 150 `#[doc(hidden)] pub` items made for codegen
-   either become named API or move.
+   module `pub`. The 181 `#[doc(hidden)] pub` items (131 named by
+   `tcl-codegen`, none by `bpf-tcl-ir`, 119 of them in binding) either become
+   named API or move.
 4. **The registry rule is unchanged.** Per-command knowledge stays in
    `tcl-registry` (or its data crates after items 117 and 118), and
    `registry-axes` covers every new crate.
@@ -181,71 +193,79 @@ same. `tcl-names`, `tcl-values`, `tcl-model`, `tcl-lowering` and
 The tidy plan's `tcl-ir` is split in two, data types (`tcl-ir`) and builders
 (`tcl-lowering`), because binding reads IR types.
 
-**Undecided, pending item 278:** whether `tcl-binding` sits below
-`tcl-lowering` and `tcl-analysis`. Binding also calls lowering, SSA and value
-analysis, because the two run as one fixpoint per body unit. Item 278
-inventories those edges and chooses between inversion (binding exposes its
-transfer functions, and a fixpoint driver above runs both) and co-location
-(binding, lowering and SSA in one crate). The table and diagram below show
-the inversion layout; under co-location the `tcl-binding` and `tcl-lowering`
-rows become one crate.
+**Decided by item 278 ([step 7](crate-split/07-binding-fixpoint.md)):
+inversion.** `tcl-binding` sits below `tcl-lowering` and `tcl-analysis`.
+Binding → lowering, SSA and analysis is 105 production references, against
+1,232 the other way. The unit's per-body build drives the fixpoint, and
+binding takes the values SCCP proved as an input (`ProvedOperands`); it never
+calls up.
 
-| Crate | Takes | Size (prod) | Direct users | Plan items that land here |
-|---|---|---|---|---|
-| `tcl-source` | `parsing` (CST), `segmenter`, `word_subst`, `text`, source maps | ~6k | `tcl-sslictcl`, `tcl-spectcl`, `tcl-irule-test` | 82 (structured words), 41 (one segmentation) |
-| `tcl-names` | identity and key types: `SourceNamespaceKey`, `CommandAllocationSite`, `BindingKind`, `Place`, `CommandRef`, signature name and scope types | ~8k | every crate above | 77 (identity layer), 66 (frame value) |
-| `tcl-values` | item 81's single value kernel: the value lattice (`LatticeValue`), abstract values, the `tcl_expr_eval` core | new | `tcl-model`, `tcl-binding`, `tcl-analysis`, the optimiser | 81 (kernels), 280 |
-| `tcl-model` | fact vocabulary with no algorithms: `ProcDef`, `ClassDef`, analysis inputs and settings, one `Diagnostic`/`DiagCode` (there are two today), `Answer`/`Knowledge`, the result lattices (`bounded_set`, completion codes), side-effect records | ~15k | LSP, MCP, CLI, DB | 78 (answer types), 50–53 (typed IR facts) |
-| `tcl-ir` | IR and CFG data types: `Module`, `Procedure`, `Script`, `Statement`, `CommandTokens`, `cfg` types | ~8k | `bpf-tcl-ir`, `tcl-explorer`, `tcl-diagram`, `f5-xc` | 50–53 |
-| `tcl-binding` (layout against `tcl-lowering` undecided, item 278) | `command_binding`, `registry_invocation`, `realm`, `raw_binding`, `variable_bindings`, `var_resolve`, `signature_scan`, `unit_scope`, `dynamic_names` | ~235k | LSP name features, `tcl-irules` | 84 (one binding walk), 19–25 (lookup), 245 |
-| `tcl-lowering` (or one crate with binding, item 278) | `lowering`, `lowering_hooks`, `ir_helpers`, `cfg_builder`, SSA family (`ssa`, `memory_ssa`, `state_ssa`, `effect_ssa`, `world_state_ssa`) | ~45k | `tcl-codegen`, the VM's compiler tests, `tcl-debugger` | 83 (every body a unit) |
-| `tcl-analysis` | `sccp`, `value_transfer`, the rest of `tcl_expr_eval`, `type_infer`, `shimmer`, intervals, `gvn`, `interprocedural`, `var_escape`, `taint`, `static_loops`, `side_effects` | ~85k | `tcl-explorer`, `tcl-codegen` | 59–65 (constants), 117's evaluation half |
-| `tcl-native-plan` | `executable_ir`, `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry` | ~20k | `tcl-codegen`, `bpf-tcl-ir` | |
-| `tcl-diagnostics` | `analyser`, `compiler_checks`, `irules_checks` (or `irules_checks` in `tcl-irules`, item 285); implements binding's body-report trait | ~115k | LSP stack, MCP, CLI | 85 turns it into rules over `tcl-semantic` |
-| `tcl-optimiser` | `optimiser`, `semantic_optimisation` | ~22k | `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI | 244 |
-| `tcl-compiler` (the unit crate, possibly renamed `tcl-unit`, item 258) | `compilation_unit`, `source_graph`, `auto_path_eval`; no re-exports | ~15k | whole-unit consumers (`CompilationUnit`) | |
-| `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above the unit crate; no `tcl-lsp-core` dependency | ~19k | `tcl-lsp-server`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
-| `tcl-semantic` (later) | the query API and fact store | new | every feature | 85 (phase 6) |
+The rank column is the `module-layers` ledger's
+([step 1](crate-split/01-module-layers.md)); equal ranks may not name each
+other.
+
+| Rank | Crate | Takes | Size (prod) | Direct users | Plan items that land here |
+|---|---|---|---|---|---|
+| 1 | `tcl-source` | `parsing` (CST), `segmenter`, `text`, the structured-word and source-site types (`ir::word_expr`, `ir::provenance`, `word_expr.rs`), `depth_guard`'s limits; `SourceMap` is already in `tcl-lexer` | ~5k | `tcl-sslictcl`, the SpecTcl loader, `tcl-lsp-core`, `tcl-codegen` | 82 (structured words), 41 (one segmentation) |
+| 2 | `tcl-names` | identity and key types: `SourceNamespaceKey`, `SourceCommandKey`, `CommandAllocationSite`, `SourceOriginId`, `ExecutedScriptSource`, `BindingKind`, `Place`, `VariableCellKey`, `VariableExecutionFrame`, `SignatureNamespaceScope`, `SignatureSourceNameKey`; `CommandRef` is already in `tcl-core-types` | ~8k | every crate above | 77 (identity layer), 66 (frame value) |
+| 3 | `tcl-values` | item 81's single value kernel: the value lattice (`LatticeValue`), abstract values, the `tcl_expr_eval` core, which carries binding's evidence types as a parameter | new | `tcl-model`, `tcl-binding`, `tcl-analysis`, the optimiser | 81 (kernels), 280 |
+| 4 | `tcl-model` | fact vocabulary with no algorithms: analysis inputs and settings, `ProcDef` and `ClassDef` (generic over binding's receipts), one `Diagnostic` (three shapes today; `Finding`'s is the model), the result lattices (`bounded_set`, completion codes), side-effect and result records, the plain records inside `AnalysisResult`, `semantic_optimisation`. `Answer`, `Knowledge`, `DiagCode` and `Severity` are already in `tcl-core-types` | ~15k | LSP, MCP, CLI, DB | 78 (answer types), 50–53 (typed IR facts) |
+| 5 | `tcl-ir` | IR and CFG data types (`Module`, `Procedure`, `Script`, `Statement`, `CommandTokens`, `cfg` types), generic over one `Facts` parameter for binding's annotations | ~8k | `tcl-codegen`, `bpf-tcl-ir`, `tcl-explorer`, `tcl-diagram`, `f5-xc` | 50–53 |
+| 6 | `tcl-binding` | `command_binding`, `registry_invocation`, `realm`, `raw_binding`, `variable_bindings`, `var_resolve`, `signature_scan`, `dynamic_names`, `ir_helpers`, the `ssa::uses` scans, and twelve small modules that name binding back (`native_numeric` among them); defines the body-report trait and `ProvedOperands` | ~226k | LSP name features, `tcl-irules` | 84 (one binding walk), 19–25 (lookup), 245 |
+| 7 | `tcl-lowering` | `lowering`, `lowering_hooks`, `cfg_builder`, SSA family (`ssa`, `memory_ssa`, `state_ssa`, `effect_ssa`) | ~45k | `tcl-codegen`, `bpf-tcl-ir`, the VM's compiler tests, `tcl-debugger` | 83 (every body a unit) |
+| 8 | `tcl-analysis` | the per-function passes (`sccp`, `value_transfer`, the rest of `tcl_expr_eval`, `type_infer`, intervals, `static_loops`, `side_effects`) and executable IR (`executable_ir`, `world_state_ssa`, `dispatch_proof`, `semantic_analysis`) | ~44k | `tcl-explorer`, `tcl-codegen`, `bpf-tcl-ir` | 59–65 (constants), 117b |
+| 9 | `tcl-unit` (today's `tcl-compiler`, renamed by item 258) | `compilation_unit` (the fixpoint driver), the whole-unit passes (`interprocedural`, `taint`, `taint_interproc`, `shimmer`, `gvn`, `var_escape`), `unit_scope`, the IR half of `source_graph`; no re-exports | ~65k | whole-unit consumers (`CompilationUnit`) | |
+| 10 | `tcl-native-plan` | `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry`, `representation_plan` | ~14k | `tcl-codegen`; `bpf-tcl-ir` (`target_contract`) | |
+| 10 | `tcl-diagnostics` | `analyser` (without `irules_event_checks`), `compiler_checks`, `AnalysisResult`, the `AnalysisResult` half of `source_graph`, `auto_path_eval`; implements binding's body-report trait; defines the `UnitRule` and `SiteRule` traits through which `tcl-irules` plugs in `irules_checks` (item 285) | ~107k | LSP stack, MCP, CLI | 85 turns it into rules over `tcl-semantic` |
+| 10 | `tcl-optimiser` | `optimiser` | ~20k | `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI | 244 |
+| 11 | `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above every analysis crate; no `tcl-lsp-core` dependency | ~19k | `tcl-lsp-server`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
+| later | `tcl-semantic` | the query API and fact store | new | every feature | 85 (phase 6) |
 
 ```
 tcl-lexer / tcl-syntax / tcl-registry core / tcl-dialect / tcl-runtime-api   (dialect, library and catalogue crates: entry points only)
         │
-   tcl-source ── tcl-names ── tcl-values ── tcl-model ── tcl-ir
-                                  │
-       ┌──────────────────────────┴───────────────────────┐
-       │ tcl-binding  (defines the body-report trait)     │  undecided, item 278:
-       │      │                                           │  inversion (as drawn, with a
-       │ tcl-lowering (SSA family)                        │  fixpoint driver above both) or
-       └──────────────────────────┬───────────────────────┘  co-location (one crate)
-                 ┌────────────────┴───┐
-           tcl-analysis         tcl-native-plan ── tcl-codegen, bpf-tcl-ir
-           ┌───┴──────────┐
-   tcl-diagnostics   tcl-optimiser          (later: tcl-semantic over binding + analysis)
-           └─────┬────────┘
-           tcl-compiler (unit crate: CompilationUnit, source_graph; no re-exports)
-                 │
-              tcl-db (the one database) ── tcl-lsp-server, tcl-mcp, CLI
+   tcl-source ── tcl-names ── tcl-values ── tcl-model ── tcl-ir                     ranks 1–5
+                                                            │
+                     tcl-binding  (defines the body-report trait, ProvedOperands)   6
+                                                            │
+                     tcl-lowering (SSA family)                                      7
+                                                            │
+                     tcl-analysis (per-function passes, executable IR)              8
+                                                            │
+                     tcl-unit (CompilationUnit, the fixpoint driver,                9
+                               whole-unit passes; no re-exports)
+              ┌─────────────────────────┼─────────────────────────┐
+       tcl-diagnostics           tcl-optimiser            tcl-native-plan           10
+              └─────────────────────────┼─────────────────────────┘
+                     tcl-db (the one database) ── tcl-lsp-server, tcl-mcp, CLI      11
+
+   consumers: tcl-codegen over tcl-native-plan, tcl-unit and below (item 292);
+              bpf-tcl-ir over tcl-ir, tcl-lowering, tcl-analysis and target_contract;
+              later: tcl-semantic over binding and analysis
 ```
 
-`tcl-binding` is still the largest crate. Once its shared types have moved, the
-next cut is `tcl-invocation`: the registry adapter (`registry_invocation`, 39k),
-placed below binding if the ledger allows it (item 282).
+`tcl-binding` is still the largest crate. `tcl-invocation`, the registry
+adapter (`registry_invocation`, 39k), is not split off in this split: item 282
+keeps it inside binding and defers the question until after item 84.
 
-`SourceInvocationBinding` crosses the `ir` → `command_binding` edge. Its home
-is open: `tcl-names` if it is a key, otherwise `tcl-ir` as the annotated
-command. Items 248 and 252 record the answer.
+`SourceInvocationBinding` crosses the `ir` → `command_binding` edge. It is a
+record of proofs, not a key, so it stays with binding as `CommandFacts`, and
+`tcl-ir` carries it through a `Facts` type parameter (items 248 and 252).
 
 ### What each consumer gains
 
-- **`bpf-tcl-ir`** builds against `tcl-ir` and `tcl-native-plan` only, with no
-  binding or diagnostics.
+- **`bpf-tcl-ir`** builds against `tcl-ir`, `tcl-lowering` and `tcl-analysis`
+  (for executable IR), plus `target_contract`, with no diagnostics or
+  optimiser. It lowers and builds CFGs itself, so it needs lowering too.
 - **`tcl-sslictcl`** needs only `tcl-source`.
 - **`tcl-codegen`** stops rebuilding when the diagnostics or the optimiser
-  change.
-- **The LSP crates** depend on `tcl-diagnostics` and `tcl-model`, plus the unit
-  crate for whole-unit work.
+  change. Whether its drivers split off into a `tcl-compile` crate is an open
+  owner decision (item 292).
+- **The LSP crates** depend on `tcl-diagnostics` and `tcl-model`, plus
+  `tcl-unit` for whole-unit work.
 - **An edit to the analyser**, the busiest area with 92k test lines, rebuilds
-  `tcl-diagnostics` and what sits above it, not binding, lowering or analysis.
+  `tcl-diagnostics` and what sits above it, not binding, lowering, analysis or
+  the unit.
 - **The other crates compile in parallel.** Today a single frontend unit
   serialises the whole crate.
 
@@ -289,40 +309,46 @@ allowed: this is the "`work` branch exception" that the
    ↔ `parsing` cycle is only 7/3 refs and stays inside it), it has rank 1, and
    the `tcl-names` types may carry source ranges. 281 rewires the SpecTcl
    loader and `tcl-sslictcl` onto it.
-3. **`tcl-names`** (248). The identity and key types move unchanged; 248 also
-   records where `SourceInvocationBinding` goes. Item 77's redesign continues
+3. **`tcl-names`** (248). The identity and key types move unchanged;
+   `SourceInvocationBinding` stays with binding. Item 77's redesign continues
    inside the new crate as 274, alongside the later steps.
 4. **`tcl-values`** (280). Item 81's value kernel moves below binding, before
    binding is extracted and before the rest of the analysis move, because
    binding calls `tcl_expr_eval`.
-5. **`tcl-model`** (249 result lattices, 275 `ProcDef`/`ClassDef` and the
-   inputs, 276 the result and side-effect records with `Answer`, 277 one
-   `Diagnostic` type, checked by golden diffs of LSP, CLI and MCP output).
+5. **`tcl-model`** (249 result lattices, 275 the inputs and the generic
+   `ProcDef`/`ClassDef`, 276 the result and side-effect records but not
+   `AnalysisResult` itself, 277 one `Diagnostic` type, checked by golden diffs
+   of LSP, CLI and MCP output).
    Consumers are rewritten in the same change, with no re-exports at the old
    paths.
-6. **`tcl-ir`** (252). It takes `SourceInvocationBinding` as the annotated
-   command if 248 found it is not a key.
-7. **Binding against lowering and analysis** (278, 250, 279). 278 inventories
-   every binding → SSA, lowering, SCCP and value edge and chooses inversion or
-   co-location; it is a design step and can start once step 1 lands. 250
-   inverts binding → analyser: binding defines the body-report trait,
-   `tcl-diagnostics` implements it, and binding's body-analysis cache is keyed
-   through the trait. 279 applies 278's choice.
+6. **`tcl-ir`** (252). It is generic over one `Facts` parameter that carries
+   binding's annotations.
+7. **Binding against lowering and analysis** (278, 250, 279). 278 inventoried
+   every binding → SSA, lowering, SCCP and value edge and chose inversion.
+   250 inverts binding → analyser: binding only reads reports, so the
+   body-report trait is a read view that binding defines and
+   `tcl-diagnostics` implements, and binding's body-analysis cache is keyed
+   through it. 279 applies the inversion.
 8. **`tcl-binding`** (253, then 282). 253 is a pure move; folding
-   `signature_scan` into the one binding walk stays item 84's work. 282 places
-   `tcl-invocation`.
-9. **`tcl-lowering`** (254), empty if 278 chose co-location.
-10. **`tcl-analysis`** (255). Item 117's evaluation half lands after it.
+   `signature_scan` into the one binding walk stays item 84's work. 282
+   records that `tcl-invocation` is not extracted.
+9. **`tcl-lowering`** (254).
+10. **`tcl-analysis`** (255): the per-function passes and executable IR. Item
+    117b lands after it.
 11. **`tcl-native-plan`** (256, then 283, which turns the `#[doc(hidden)] pub`
-    items into named API).
+    items into named API). It sits above `tcl-unit`.
 12. **`tcl-diagnostics` and `tcl-optimiser`** (257 `tcl-diagnostics` alone,
-    284 `tcl-optimiser`, 285 whether `irules_checks` belongs to `tcl-irules`).
+    284 `tcl-optimiser`, 285 `irules_checks` into `tcl-irules` through rule
+    traits).
 13. **The unit crate and the database** (258, 286, 287). 258 retires the
-    façade and decides the unit crate's name. 286 renames `tcl-lsp-db` to
-    `tcl-db`, the one database at the top, and removes its `tcl-lsp-core`
-    dependency. 287 re-points `tcl-compiler-it` onto the split crates.
-14. **Caching.** The caches the split leaves are deleted, or moved into
-    `tcl-db` where re-computation at a unit boundary has measured cost (see
+    façade and renames what is left `tcl-unit`, below the crates of steps 11
+    and 12. 286 renames `tcl-lsp-db` to `tcl-db`, the one database at the top,
+    and removes its `tcl-lsp-core` dependency. 287 re-points `tcl-compiler-it`
+    onto the split crates.
+14. **Caching.** Every memo gets a disposition. Three caches (binding per
+    file, source words, retained modules) may become `tcl-db` queries, and
+    only if deleting them costs more than 5% on the latency gate
+    ([step 14](crate-split/14-caching.md), and
     [caching](../../work/name-handling/caching-design.md)). The lower crates
     expose pure functions over their inputs. The per-body tiers (items 101
     and 103, and 46–49 and 73) come later, after items 83 and 84.
@@ -339,32 +365,40 @@ Every extraction (steps 2–12) also does three things:
 Items 117 and 118 run alongside steps 0–13, and they do conflict with the
 split in places:
 
-- Item 117 moves `value_transfer` and `resolved_invocation` evaluation out of
-  the registry into the analysis layer. Until step 10 that layer is inside
-  `tcl-compiler`'s cycle, so this evaluation half lands after item 255, into
-  `tcl-analysis` or `tcl-values`. Its native-model half changes crates below
-  `tcl-compiler` only and can run at once.
+- Item 117b moves the `value_transfer` and `resolved_invocation` analysis
+  driver into `tcl-analysis`, and the per-command semantics into the surface
+  crates. Until step 10 the analysis layer is inside `tcl-compiler`'s cycle, so
+  117b lands after item 255. 117a, the `tcl-native-model` crate, changes
+  crates below `tcl-compiler` only and can run at once
+  ([design](../registry/registry-split/117-native-model.md)).
 - Both change `tcl-registry`, which item 261's registry split is also
-  reshaping. Their order against it is being redesigned with the
-  [registry split](../registry/registry-split-design.md).
+  reshaping. Their order against it is in the registry split's step designs
+  ([117](../registry/registry-split/117-native-model.md),
+  [118](../registry/registry-split/118-bigip-schema.md)).
 
 ## The rest of the workspace
 
 `tcl-compiler` and the registry are the two largest pieces, but the same goal
-applies to every crate. Each item below is small and has its own "done when".
-Sizes are `wc -l` over each crate's `src` (26 November 2026).
+applies to every crate. Each item below is small and has its own "done when";
+the [workspace overview](../workspace/overview.md) and the
+[build-time designs](../build-time/) hold the detail. Sizes are production
+lines (test files and `#[cfg(test)]` modules excluded), with `wc -l` over
+`src` in brackets where it differs (26 November 2026).
 
 | Crate | Size | Problem | Item |
 |---|---|---|---|
-| `tcl-spectcl` | 43k | depends on `tcl-lsp-core` (`vfs`, `code_actions`, one `LspRange`), an upward edge [project-layout](../contracts/project-layout.md) rule 4 allows and the tidy plan forbids | 288 retires the rule's exception |
-| `tcl-lsp-core` | 245k | links the domain crates `tcl-bigip` (58k), `tcl-irules` (5k) and `tcl-sslictcl` (9k) instead of reaching them through interfaces | 289 |
-| `tcl-lsp-server` | 120k | one crate; `Backend` has `impl` blocks in 120 files. [build-test-cost](../../work/build-test-cost/current-state.md) decided against splitting it; reopened under this goal | 290 |
-| `tcl-vm` | 220k | depends on `tcl-registry` for the native algorithms; after item 117, on the native-model crate | 291 |
-| `tcl-codegen` | 69k | depends on the whole of `tcl-compiler` | 292 |
+| `tcl-spectcl` | 30k (43k) | depends on `tcl-lsp-core` (`vfs` and the spec-pack notice types, in 13 production files), an upward edge [project-layout](../contracts/project-layout.md) rule 4 allows and the tidy plan forbids | 288 retires the rule's exception |
+| `tcl-spectcl` | | links `tcl-spec-hooks` → `tcl-engine-tclvm` → `tcl-vm` and `tcl-codegen`, which puts the VM into the server, the explorer, Spec Studio and MCP; the SpecTcl 3 loader needs no VM, only the hook runner does | 318, through 305–307 |
+| `tcl-lsp-core` | 132k (245k) | links the domain crates `tcl-bigip` (58k), `tcl-irules` (5k) and `tcl-sslictcl` (9k) instead of reaching them through interfaces; splits into 11 `tcl-ide-*` crates and the adapters `tcl-ide-f5` and `tcl-ide-sslictcl` | 289, with 315 (`tcl-lsp-it`) and 316 (`tcl-ide-diagnostics-fixtures`) |
+| `tcl-lsp-server` | 70k (120k) | one crate; `Backend` has `impl` blocks in 120 files. [build-test-cost](../../work/build-test-cost/current-state.md) decided against splitting it; reopened under this goal | 290 |
+| `tcl-vm` | 220k | depends on `tcl-registry` for the native algorithms; after item 117, on `tcl-native-model`, keeping its edge to the registry core | 291 |
+| `tcl-codegen` | 69k | depends on the whole of `tcl-compiler`; whether it splits into emitters and a `tcl-compile` driver crate is an open owner decision | 292 |
 | `runtime/rust` (`tcl-runtime`) | 308k | the second engine, duplicating the VM's frame and namespace code | the existing engine-convergence items: 88 and its shared items (20, 72, 161, 171, 178, 186, 203), deferred on this branch |
-| `tcl-mcp` | 12k | depends on `tcl-cli`, `f5-cli` and `f5-xc` for five functions | 293 |
-| `tcl-explorer` | 13k | depends on `tcl-vm`, `tcl-codegen` and `tcl-spectcl` | 294 |
-| hub crates: `tcl-dialect` (32k), `tcl-lexer` (27k), `tcl-syntax` (48k), `tcl-core-types` (4k) | | 30–43 dependent crates each, so an edit rebuilds most of the workspace | 295 |
+| `tcl-mcp` | 6.5k (12k) | depends on `tcl-cli` and `f5-cli` for a handful of items, which move to `tcl-kcs-help` and `f5-explain`; `f5-xc` is a fine library dependency, but its own edge to `tcl-lsp-core` is not | 293 |
+| `tcl-explorer` | 9.7k (13k) | depends on `tcl-vm` (four items in `live_entry.rs`, behind the optional `live-entry` feature), `tcl-codegen` and `tcl-spectcl` | 294; 317 (a `tcl-explore` binary for the skill) |
+| low hubs: `tcl-dialect` (32k), `tcl-lexer` (27k), `tcl-syntax` (48k), `tcl-core-types` (4k) | | 27–40 direct dependents each in the root workspace, so an edit rebuilds most of the workspace | 295 |
+| top hubs: `tcl-mcp`, `tcl-cli`, `tcl-lsp-server`, `tcl-lsp-core`, `tcl-compiler-it` | | agent tooling builds them in every worktree | 295 |
+| every crate | | the crate-layer gate protects four crates through hand-written `wrappers` lists | 314 (the rank gate) |
 
 ## Docs and paths
 
@@ -396,6 +430,7 @@ are updated in the step that changes the layout.
   Each crate exposes pure functions, and the one database at the top
   (`tcl-db`) caches only at the unit boundaries where re-computation has
   measured cost (see [caching](../../work/name-handling/caching-design.md)).
-  Every other hand-written memo is deleted. Identity types do not use salsa
-  interning, so `tcl-names` and the registry stay salsa-free and the VM can
-  use them.
+  Every other hand-written memo is deleted. Identity types are never salsa
+  values, so `tcl-names` and the registry stay salsa-free and the VM can use
+  them. `tcl-db` keeps its interned query keys, whose fields are `tcl-names`
+  identities, and no type with a `'db` lifetime leaves `tcl-db`.
