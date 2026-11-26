@@ -22,6 +22,17 @@ use super::ResolvedInvocation;
 use crate::channel_protocols::ChannelCallbackProtocol;
 
 impl ResolvedInvocation<'_, '_> {
+    /// Every command-prefix operand that selects a channel protocol.
+    pub(super) fn authored_source_callback_protocols(
+        &self,
+    ) -> Vec<(usize, ChannelCallbackProtocol)> {
+        self.authored_source_command_prefix_arguments()
+            .into_iter()
+            .flatten()
+            .filter_map(|(index, _)| Some((index, self.authored_source_callback_protocol(index)?)))
+            .collect()
+    }
+
     /// Protocol of one original command-prefix operand in effective post-head
     /// coordinates. Unknown layouts and unclassified/reference-only positions
     /// abstain. This supplies no handler, native entry or future dispatch proof.

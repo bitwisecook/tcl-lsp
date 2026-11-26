@@ -69,6 +69,7 @@ pub struct InvocationFacts {
     deferred_script_arguments: Option<Vec<usize>>,
     script_lookup_arguments: Option<Vec<(usize, crate::ScriptLookupScope)>>,
     command_prefix_arguments: Option<Vec<(usize, crate::AppendedArity)>>,
+    callback_protocols: Vec<(usize, crate::channel_protocols::ChannelCallbackProtocol)>,
     argument_type_hints: Option<SelectedArgumentTypeHints>,
     /// Selected normal naming-factory contract, independent of object identity.
     pub named_object_factory: Option<NamedObjectFactory>,
@@ -398,6 +399,19 @@ impl InvocationFacts {
             .as_ref()?
             .iter()
             .find_map(|&(index, arity)| (index == argument_index).then_some(arity))
+    }
+
+    /// Channel handler protocol of one command-prefix operand, in the same
+    /// coordinates as [`Self::command_prefix_arity`]. It names the calls the
+    /// host would make; it proves no installed handler.
+    #[must_use]
+    pub fn callback_protocol(
+        &self,
+        argument_index: usize,
+    ) -> Option<crate::channel_protocols::ChannelCallbackProtocol> {
+        self.callback_protocols
+            .iter()
+            .find_map(|&(index, protocol)| (index == argument_index).then_some(protocol))
     }
 
     /// Positional representation advice retained from this selected invocation.
@@ -880,6 +894,7 @@ impl ResolvedInvocation<'_, '_> {
         };
         let (arg_roles, arg_roles_complete) = self.argument_roles_on_edge(successful);
         let script_contexts = self.body_script_contexts(&arg_roles);
+        let command = self.authored_source_descriptors().command;
         let mut facts = InvocationFacts {
             purity: self.derived_purity(),
             source_callback_retention: self.selected_source_callback_retention(),
@@ -898,6 +913,7 @@ impl ResolvedInvocation<'_, '_> {
                 &arg_roles,
                 arg_roles_complete,
             ),
+            callback_protocols: self.authored_source_callback_protocols(),
             argument_type_hints: self.selected_argument_type_hints(),
             named_object_factory: self.semantics.named_object_factory,
             canonical_command: self.canonical_command.to_owned(),
@@ -906,11 +922,8 @@ impl ResolvedInvocation<'_, '_> {
             operation: self.semantics.operation,
             lowering_hook: self.semantics.lowering_hook,
             analyser_hook: self.semantics.analyser_hook,
-            data_collection: self.authored_source_descriptors().command.data_collection,
-            side_switch_target: self
-                .authored_source_descriptors()
-                .command
-                .side_switch_target,
+            data_collection: command.data_collection,
+            side_switch_target: command.side_switch_target,
             option_keywords: self.semantics.options.keyword_table(),
             irules_source_flow_action: self.authored_source_irules_flow_action(),
             source_may_commit_response: self.authored_source_may_commit_response(),

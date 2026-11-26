@@ -975,6 +975,7 @@ bitflags::bitflags! {
     }
 }
 
+mod channel_handlers;
 mod class_def;
 mod class_factories;
 mod class_members;
@@ -989,6 +990,7 @@ mod source_world;
 mod stubs;
 mod variable_renames;
 
+pub use channel_handlers::ChannelHandlerUse;
 pub use class_def::{
     ClassCommandFallback, ClassDef, MetaclassProvenance, OriginalCountedBodyMethod,
     OriginalCountedClass, SourceNameAmbiguity,

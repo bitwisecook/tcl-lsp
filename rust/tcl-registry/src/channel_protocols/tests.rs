@@ -243,3 +243,64 @@ fn channel_protocol_c06_c09_orders_and_word_counts_match_reference_tcl() {
         }
     }
 }
+
+#[test]
+fn protocol_descriptions_list_the_release_methods_and_widest_call() {
+    let reflected = ChannelCallbackProtocol::Reflected;
+    let card = reflected.describe(TclVersion::V8_6);
+    assert!(
+        card.contains("- `initialize channel mode` (required)"),
+        "{card}"
+    );
+    assert!(
+        card.contains("- `read channel count` (required to read)"),
+        "{card}"
+    );
+    assert!(!card.contains("truncate"), "{card}");
+    assert!(
+        reflected
+            .describe(TclVersion::V9_0)
+            .contains("- `truncate channel length`")
+    );
+    assert!(
+        ChannelCallbackProtocol::SocketServer
+            .describe(TclVersion::V8_6)
+            .contains("`handler channel address port`")
+    );
+    for (protocol, widest) in [
+        (ChannelCallbackProtocol::Reflected, 4),
+        (ChannelCallbackProtocol::Transform, 3),
+        (ChannelCallbackProtocol::SocketServer, 3),
+        (ChannelCallbackProtocol::Copy, 2),
+    ] {
+        assert_eq!(protocol.max_appended_count(), widest, "{}", protocol.name());
+    }
+    assert!(reflected.dispatches_methods());
+    assert!(!ChannelCallbackProtocol::SocketServer.dispatches_methods());
+}
+
+#[test]
+fn invocation_facts_name_the_protocol_of_each_prefix_operand() {
+    let registry = CommandRegistry::build_default();
+    let surface = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
+    let protocol = |name: &str, arguments: &[&str], index: usize| {
+        registry
+            .resolve_invocation(name, arguments, surface)
+            .unwrap()
+            .facts()
+            .callback_protocol(index)
+    };
+    assert_eq!(
+        protocol("chan", &["create", "read", "h"], 2),
+        Some(ChannelCallbackProtocol::Reflected)
+    );
+    assert_eq!(
+        protocol("chan", &["push", "ch", "h"], 2),
+        Some(ChannelCallbackProtocol::Transform)
+    );
+    assert_eq!(
+        protocol("socket", &["-server", "h", "0"], 1),
+        Some(ChannelCallbackProtocol::SocketServer)
+    );
+    assert_eq!(protocol("chan", &["configure", "ch", "-blocking"], 2), None);
+}

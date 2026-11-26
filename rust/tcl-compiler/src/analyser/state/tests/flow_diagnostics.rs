@@ -630,3 +630,37 @@ fn analyse_w128_fires_on_call_to_renamed_command() {
         r3.diagnostics,
     );
 }
+
+#[test]
+fn w214_skips_parameters_a_channel_protocol_fixes() {
+    // The host appends the accepted channel, address and port, and a
+    // refchan call's method, channel and arguments; the handler cannot drop
+    // them, so only a parameter outside those words is reported.
+    for (src, expected) in [
+        ("proc acc {s a p} {puts $s}\nsocket -server acc 8080\n", 0),
+        (
+            "proc rc {cmd id args} {puts $cmd}\nset c [chan create read rc]\n",
+            0,
+        ),
+        (
+            "proc xf {cmd id args} {puts $cmd}\nchan push stdout xf\n",
+            0,
+        ),
+        (
+            "proc done {n {err {}}} {puts $n}\nfcopy stdin stdout -command done\n",
+            0,
+        ),
+        ("proc acc {s a p} {puts $s}\nacc 1 2 3\n", 2),
+        (
+            "proc acc {first s a p} {puts $first}\nsocket -server {acc 1} 8080\n",
+            0,
+        ),
+        (
+            "proc acc {first s a p extra} {puts $first}\nsocket -server {acc 1} 8080\n",
+            1,
+        ),
+    ] {
+        let unused = rbs_codes(src).iter().filter(|code| *code == "W214").count();
+        assert_eq!(unused, expected, "{src}");
+    }
+}

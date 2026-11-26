@@ -304,6 +304,67 @@ impl ChannelCallbackProtocol {
         })
     }
 
+    /// Whether the first appended word selects a method the handler dispatches on.
+    #[must_use]
+    pub const fn dispatches_methods(self) -> bool {
+        matches!(self, Self::Reflected | Self::Transform)
+    }
+
+    /// Most words any method of this protocol appends after the prefix.
+    #[must_use]
+    pub const fn max_appended_count(self) -> usize {
+        let methods = self.methods();
+        let mut most = 0;
+        let mut index = 0;
+        while index < methods.len() {
+            let count = methods[index].appended_count() as usize;
+            if count > most {
+                most = count;
+            }
+            index += 1;
+        }
+        most
+    }
+
+    /// Markdown listing the calls a handler of this protocol receives in the
+    /// selected release.
+    #[must_use]
+    pub fn describe(self, version: TclVersion) -> String {
+        use std::fmt::Write as _;
+        let (title, call) = match self {
+            Self::Reflected => (
+                "Reflected channel handler (`chan create`)",
+                "method channel ?arg ...?",
+            ),
+            Self::Transform => (
+                "Channel transform handler (`chan push`)",
+                "method handle ?arg ...?",
+            ),
+            Self::SocketServer => (
+                "Socket accept callback (`socket -server`)",
+                "channel address port",
+            ),
+            Self::Copy => (
+                "Channel copy completion (`fcopy -command`)",
+                "bytes ?error?",
+            ),
+        };
+        let mut text = format!("**{title}**\n\nCalled as `handler {call}`.");
+        if self.dispatches_methods() {
+            text.push('\n');
+            for method in self.methods_for(version) {
+                let need = match method.requirement {
+                    MethodRequirement::Always => " (required)",
+                    MethodRequirement::Readable => " (required to read)",
+                    MethodRequirement::Writable => " (required to write)",
+                    MethodRequirement::Optional => "",
+                };
+                let _ = write!(text, "\n- `{}`{need}", method.appended_words.join(" "));
+            }
+        }
+        text
+    }
+
     /// Whether a method advertisement must preserve at least one I/O direction.
     /// Reflected channels instead require each requested mode's method and may
     /// be created with an empty mode list.

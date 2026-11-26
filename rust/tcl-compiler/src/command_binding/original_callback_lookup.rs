@@ -34,6 +34,7 @@ pub struct OriginalCallbackPrefix {
     source_registration: Option<Arc<super::OriginalSourceCallbackRegistration>>,
     scope: Option<ScriptLookupScope>,
     appended: Option<AppendedArity>,
+    protocol: Option<tcl_registry::channel_protocols::ChannelCallbackProtocol>,
     baked: usize,
 }
 
@@ -43,6 +44,7 @@ impl std::hash::Hash for OriginalCallbackPrefix {
         self.lookup.hash(state);
         self.scope.hash(state);
         self.appended.hash(state);
+        self.protocol.hash(state);
         self.baked.hash(state);
         self.source_registration
             .as_ref()
@@ -102,6 +104,13 @@ impl OriginalCallbackPrefix {
     pub const fn appended_arity(&self) -> Option<AppendedArity> {
         self.appended
     }
+    /// Channel handler protocol the host follows when it calls the prefix.
+    #[must_use]
+    pub const fn channel_protocol(
+        &self,
+    ) -> Option<tcl_registry::channel_protocols::ChannelCallbackProtocol> {
+        self.protocol
+    }
     /// Fixed arguments preceding the receiving callback suffix.
     #[must_use]
     pub const fn baked_argument_count(&self) -> usize {
@@ -121,6 +130,7 @@ impl OriginalCallbackPrefix {
             source_registration: None,
             scope: facts.script_lookup_scope(argument),
             appended: Some(appended),
+            protocol: facts.callback_protocol(argument),
             baked,
         })
     }
@@ -147,6 +157,7 @@ impl OriginalCallbackPrefix {
             source_registration: None,
             scope,
             appended,
+            protocol: facts.callback_protocol(argument),
             baked: inputs.len() - 1,
         })
     }
@@ -253,6 +264,7 @@ impl SourceInvocationBinding {
             source_registration: None,
             scope: Some(scope),
             appended,
+            protocol: invocation.facts.callback_protocol(argument),
             baked: inputs.len() - 1,
         })
     }

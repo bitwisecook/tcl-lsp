@@ -288,7 +288,8 @@ pub fn hover_in_program(
     // The caller's registry never replaces the retained one, but supplying it
     // is how a caller opts into the compiler-pipeline intrep/taint lines.
     let annotate = registry.is_some();
-    hover_impl(
+    let profile = current.profile();
+    let hover = hover_impl(
         source,
         line,
         character,
@@ -297,9 +298,30 @@ pub fn hover_in_program(
             registry: Some(current.registry()),
             program,
         },
-        current.profile(),
+        profile,
         annotate,
-    )
+    );
+    channel_handler_hover(analysis, offset, profile, hover)
+}
+
+/// A channel handler word also lists the calls its protocol makes.
+fn channel_handler_hover(
+    analysis: &AnalysisResult,
+    offset: u32,
+    profile: &'static tcl_dialect::DialectProfile,
+    hover: Option<Hover>,
+) -> Option<Hover> {
+    let Some(handler) = analysis.channel_handler_at(offset) else {
+        return hover;
+    };
+    let Some(version) = profile.effective_tcl_version(None) else {
+        return hover;
+    };
+    let card = handler.protocol.describe(version);
+    Some(Hover::markdown(match hover {
+        Some(hover) => format!("{}\n\n{card}", hover.value),
+        None => card,
+    }))
 }
 
 /// Render the hover body for a proc or class that lives in **another**

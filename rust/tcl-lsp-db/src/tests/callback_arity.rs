@@ -1030,3 +1030,22 @@ fn callback_arity_struct_tree_walkproc_checked() {
         &tcl_compiler::analyser::SourceCallbackArgumentCounts::Finite(vec![3]),
     );
 }
+
+/// Handlers that take a protocol's appended words draw no arity report.
+#[test]
+fn channel_handlers_taking_the_appended_words_are_silent() {
+    for source in [
+        "proc rc {cmd id args} {puts $cmd}\nchan create read rc\n",
+        "proc xf {cmd id args} {puts $cmd}\nchan push stdout xf\n",
+        "proc acc {s a p} {puts $s}\nsocket -server acc 8080\n",
+        "proc acc {s a p} {puts $s}\nsocket -server acc -myaddr 127.0.0.1 0\n",
+        "proc cb {n args} {puts $n}\nfcopy stdin stdout -command cb\n",
+    ] {
+        let d = callback_arity_codes(source);
+        assert!(
+            !d.iter()
+                .any(|(c, _)| matches!(c.as_str(), "E002" | "E003" | "E005")),
+            "{source}: {d:?}"
+        );
+    }
+}
