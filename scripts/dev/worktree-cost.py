@@ -34,6 +34,7 @@ import os
 import platform
 import re
 import select
+import shlex
 import shutil
 import signal
 import subprocess
@@ -105,7 +106,9 @@ def parse_env_print(text: str) -> dict[str, str | None]:
         line = line.strip()
         if line.startswith("export ") and "=" in line:
             name, value = line[len("export ") :].split("=", 1)
-            env[name] = value.strip("'\"")
+            # agent-build-env.sh prints values with `printf %q`.
+            words = shlex.split(value)
+            env[name] = words[0] if words else ""
         elif line.startswith("unset "):
             env[line[len("unset ") :].strip()] = None
     return env

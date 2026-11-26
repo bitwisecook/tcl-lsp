@@ -57,6 +57,17 @@
 #                               at opt-level 0 depth_guard's budget test
 #                               overflows and aborts its whole harness.
 #                               TCL_LSP_AGENT_TEST_OPT_LEVEL overrides it.
+#   CARGO_ALIAS_XTASK="run --profile test --package xtask --"
+#   CARGO_ALIAS_XTASK_BACKING="run --profile test --package xtask-backing --"
+#                            -> `cargo xtask` and `cargo xtask-backing` build
+#                               under the test profile, so the gates reuse the
+#                               dependency units `cargo test` already built
+#                               instead of a third, dev-build copy of the
+#                               workspace (plan item 297). Check and clippy
+#                               stay on dev: check mode never shares units with
+#                               a build, whatever the profile. CI keeps the
+#                               checked-in aliases. Run binaries the same way:
+#                               `cargo run --profile test -p tcl`.
 #
 # CARGO_HOME (the registry/git dependency cache) is deliberately left alone:
 # sharing it across worktrees is safe — only workspace-member artefacts
@@ -77,6 +88,8 @@ agent_build_env__main() {
     local target_dir="${worktree_root}/target"
     local test_incremental=true
     local test_opt_level="${TCL_LSP_AGENT_TEST_OPT_LEVEL:-1}"
+    local xtask_alias="run --profile test --package xtask --"
+    local xtask_backing_alias="run --profile test --package xtask-backing --"
     if [ "${TCL_LSP_AGENT_INCREMENTAL:-1}" = 0 ]; then
         test_incremental=false
     fi
@@ -90,6 +103,8 @@ agent_build_env__main() {
             printf 'export CARGO_PROFILE_DEV_DEBUG=0\n'
             printf 'export CARGO_PROFILE_TEST_DEBUG=0\n'
             printf 'export CARGO_PROFILE_TEST_OPT_LEVEL=%q\n' "${test_opt_level}"
+            printf 'export CARGO_ALIAS_XTASK=%q\n' "${xtask_alias}"
+            printf 'export CARGO_ALIAS_XTASK_BACKING=%q\n' "${xtask_backing_alias}"
             ;;
         --check)
             echo "worktree root:            ${worktree_root}"
@@ -99,6 +114,8 @@ agent_build_env__main() {
             echo "CARGO_PROFILE_DEV_DEBUG:  0"
             echo "CARGO_PROFILE_TEST_DEBUG: 0"
             echo "CARGO_PROFILE_TEST_OPT_LEVEL: ${test_opt_level}"
+            echo "CARGO_ALIAS_XTASK:        ${xtask_alias}"
+            echo "CARGO_ALIAS_XTASK_BACKING: ${xtask_backing_alias}"
             if [ -n "${CARGO_TARGET_DIR:-}" ] \
                 && [ "${CARGO_TARGET_DIR}" != "${target_dir}" ]; then
                 echo "WARNING: CARGO_TARGET_DIR is currently" \
@@ -114,6 +131,8 @@ agent_build_env__main() {
             export CARGO_PROFILE_DEV_DEBUG=0
             export CARGO_PROFILE_TEST_DEBUG=0
             export CARGO_PROFILE_TEST_OPT_LEVEL="${test_opt_level}"
+            export CARGO_ALIAS_XTASK="${xtask_alias}"
+            export CARGO_ALIAS_XTASK_BACKING="${xtask_backing_alias}"
             ;;
         *)
             echo "usage: source agent-build-env.sh | agent-build-env.sh --print | --check" >&2

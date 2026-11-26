@@ -178,6 +178,14 @@ class GuardTests(GitRepo):
         with self.assertRaisesRegex(wc.CostError, "CARGO_PROFILE_TEST_OPT_LEVEL"):
             self.preflight(env)
 
+    def test_printf_quoted_values_are_unescaped(self):
+        env = wc.parse_env_print(
+            "export CARGO_ALIAS_XTASK=run\\ --profile\\ test\\ --package\\ xtask\\ --\n"
+            "export CARGO_TARGET_DIR='/a b/target'\n"
+        )
+        self.assertEqual(env["CARGO_ALIAS_XTASK"], "run --profile test --package xtask --")
+        self.assertEqual(env["CARGO_TARGET_DIR"], "/a b/target")
+
     def test_shared_target_refuses(self):
         env = {**self.good_env(), "CARGO_TARGET_DIR": "/shared/target"}
         with self.assertRaisesRegex(wc.CostError, "worktree's own"):

@@ -180,6 +180,36 @@ either way; the saving is the `tcl-runtime` build in every gate run and every
 `xtask` relink after a runtime edit, and, once 297 moves `xtask` to the test
 profile, `tcl-runtime` at opt-level 1.
 
+**297, one build profile.** `agent-build-env.sh` exports
+`CARGO_ALIAS_XTASK="run --profile test --package xtask --"` and the same for
+`xtask-backing`; CI keeps the checked-in aliases. What shares what (unit
+directories from cargo's JSON messages, `tcl-dialect` and its dependency):
+
+| Command, after `cargo test -p tcl-dialect --no-run` | Units | Shared with the test build |
+|---|---:|---:|
+| `cargo build --profile test -p tcl-dialect` | 2 | 2 (the libraries) |
+| `cargo clippy --profile test -p tcl-dialect --all-targets` | 5 | 0 |
+| `cargo clippy -p tcl-dialect --all-targets` (dev) | 5 | 0 |
+
+Check mode shares no unit with a build in either profile, so clippy and
+check stay on dev, where third-party check units are shared with
+rust-analyzer; the merge is `xtask` (and `cargo run`) into the test build.
+Cargo has no alias for its built-in `check` and `clippy` anyway.
+
+| `xtask` in a worktree whose test builds include `xtask`'s | Dev profile (before) | Test profile (after) |
+|---|---:|---:|
+| units in the build | 269, none shared with tests | 272, 197 already built by `cargo test` |
+| units compiled for it | 269 | 75 (876 MB of unit directories) |
+| its own unit directories | 1,571 MB | 876 MB new |
+| `make xtask-gates`, warm build | 248 s | 81 s |
+| slowest gates | owner-resolution 56.7 s, retired-api-gate 40.6 s, parser-ownership 37.0 s | retired-api-gate 20.9 s, owner-resolution 20.2 s, parser-ownership 13.6 s |
+| `make xtask-command-backing` from a warm test build | – | 109 s, `tcl-runtime` at opt-level 1 included |
+
+The 75 test-profile units took 438 s at `-j3`, most of it the opt-level-1
+compiles of `tcl-compiler` and `tcl-lsp-core` in `xtask`'s feature set. The
+gates' 3x speed-up is opt-level 1 itself. `CARGO_ALIAS_SPEC_IMAGES` waits for
+`tcl-spec-images` (item 307), which does not exist yet.
+
 **299, build scripts.** `tcl-version`'s build script, in an unstamped dev or
 test build, emits `<CARGO_PKG_VERSION>-dev` (plus `+g<GIT_HASH>` when that is
 set) and watches no git path; stamped and release builds are unchanged.

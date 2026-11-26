@@ -95,8 +95,12 @@ Tiers, policies, and the CI redundancy contract:
   `CARGO_INCREMENTAL`, `CARGO_PROFILE_*`, `RUSTFLAGS` or `CARGO_TARGET_DIR`
   yourself or in a subagent prompt: any difference changes cargo's
   fingerprint and rebuilds the workspace beside the old build. Elsewhere,
-  `source scripts/dev/agent-build-env.sh`. What one isolated edit costs a
-  worktree under this environment is measured by
+  `source scripts/dev/agent-build-env.sh`. It also points `cargo xtask` and
+  `cargo xtask-backing` at the test profile, so the gates reuse the units
+  `cargo test` built; run a binary the same way, `cargo run --profile test
+  -p tcl`, never a plain dev `cargo run`. Check and clippy stay on dev.
+  What one isolated edit costs a worktree under this environment is
+  measured by
   `scripts/dev/worktree-cost.py`
   ([design](docs/design/build-time/259-worktree-cost.md)).
 - **Parallel agents:** a container builds one workspace at a time (a full
