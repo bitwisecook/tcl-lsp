@@ -513,3 +513,73 @@ The experiment came first and settled most of the item.
   `tcl-lsp-db`, `tcl-lsp-core` and `tcl-compiler`, and no longer lists
   `tcl-lsp-db` as a `tcl-codegen` wrapper. The shard map gives the crate's
   lib and `it_2` to shard 2.
+
+### 272 inventory
+
+Not built: the inventory (work list item 4) decided it. Each of the 41 `src`
+blocks was compiled as a module of a probe test crate against `tcl_vm`'s
+public API, with `crate::` and `super::` rewritten to `tcl_vm::`, include
+paths fixed, and `native_fixture` copied with public constructors (it needs
+none of the private API). The probe was not kept.
+
+- The blocks need `tcl-codegen` only for a compiler: `native_fixture`'s
+  `interpreter*` constructors and a few direct `BytecodeCompileService`
+  calls. What they assert is internal VM state: 832 private-method (E0624),
+  242 private-field (E0616) and 163 private-item (E0603) errors, beside
+  imports that `use super::*` supplied. The most-used private names are
+  `NativeOperationScope`, `ROOT_NS`, `eval_value`, `NameBytes`,
+  `GuardDomain`, `guarded_builtin` and `GLOBAL_FRAME`.
+- Three files (4 tests) compile with import changes alone: `cmd_lseq`,
+  `interp::commands::command_tokens`, `cmd_try`.
+- Cargo builds every dev-dependency for every test target, `--lib` included.
+  While one block needs `tcl-codegen`, both dev-dependencies stay and a
+  `tcl-compiler` edit still rebuilds `tcl-vm`'s tests. Moving the 74
+  `tests/` files and the examples first changes no cone, so it waits.
+- What 272 now needs is a decision per block: rewrite it to assert the public
+  behaviour it guards (through `Vm`'s public API, or a conformance row
+  against real tclsh), keep it `#[cfg(test)]` as a unit test if it guards a
+  real invariant (which keeps the dev-dependency, so 272 cannot finish while
+  any does), or list it for deletion.
+
+| Block | Tests | Privacy errors | Other errors |
+|---|---:|---:|---:|
+| `cmd_lseq` | 1 | 0 | 1 |
+| `interp::commands::command_tokens` | 1 | 0 | 1 |
+| `cmd_try` | 2 | 0 | 2 |
+| `interp::native_compiled_locals::namespace_upvar_tests` | 1 | 1 | 0 |
+| `exec::native_try_tests` | 1 | 1 | 1 |
+| `interp::native_compiled_append` | 2 | 1 | 1 |
+| `native_return_merge` | 3 | 1 | 5 |
+| `command::native_catch_formal_alias_tests` | 1 | 3 | 0 |
+| `native_switch` | 2 | 3 | 0 |
+| `interp::closed_native_execution::owned_application` | 5 | 3 | 50 |
+| `exec::native_child_completion_tests` | 4 | 5 | 0 |
+| `interp::native_rename` | 1 | 5 | 1 |
+| `interp::definition_compiler_registration_tests` | 1 | 6 | 9 |
+| `cmd_trace::native_original_tests` | 7 | 7 | 6 |
+| `interp::logical_uplevel_source` | 3 | 9 | 3 |
+| `interp::native_substitution_entry_tests` | 1 | 10 | 3 |
+| `cmd_oo::original_call_argv_tests` | 2 | 10 | 9 |
+| `interp::authored_math` | 6 | 12 | 15 |
+| `interp::authored_package` | 5 | 13 | 8 |
+| `cmd_oo::native_method_cache` | 3 | 14 | 10 |
+| `interp::object_materialization` | 6 | 16 | 11 |
+| `error` | 13 | 19 | 20 |
+| `cmd_info::native_oo` | 4 | 19 | 5 |
+| `cmd_oo::native_properties` | 4 | 19 | 8 |
+| `embed` | 9 | 20 | 6 |
+| `interp::execution_name_policy::original_event_transition_tests` | 3 | 24 | 7 |
+| `cmd_info` | 11 | 25 | 7 |
+| `interp::native_jim_interpreter_crossing` | 3 | 26 | 10 |
+| `retained_activation` | 9 | 27 | 29 |
+| `interp::native_child_constructor_tests` | 6 | 29 | 18 |
+| `command::tests` | 30 | 32 | 28 |
+| `interp::logical_eval_source::tests` | 7 | 33 | 31 |
+| `cmd_package::tests` | 30 | 38 | 16 |
+| `interp::authored_tmm_static` | 12 | 62 | 14 |
+| `interp::jim_local` | 11 | 65 | 26 |
+| `interp::native_cache_tests` | 14 | 104 | 69 |
+| `interp::family_b_tests` | 9 | 105 | 523 |
+| `interp::native_error_variables` | 16 | 130 | 25 |
+| `interp::native_variable_names::tests` | 28 | 137 | 34 |
+| `interp::native_operation_currency` | 30 | 201 | 138 |
