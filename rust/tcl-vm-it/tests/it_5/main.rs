@@ -38,6 +38,7 @@ mod command_mutation_deopt_e2e;
 mod cross_version_escapes_e2e;
 mod dict_canonicalisation_parity;
 mod exec;
+mod expr;
 mod fixture;
 mod interp;
 mod native_switch;

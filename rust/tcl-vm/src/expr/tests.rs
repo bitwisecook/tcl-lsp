@@ -106,8 +106,7 @@ fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() 
     }
     assert!(vm.eval_expr(r#""foobar" matches_regex "o+b""#).is_err());
     for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(name));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(name));
         for row in
             include_str!("../../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv").lines()
         {
@@ -213,31 +212,6 @@ fn arithmetic_profiles() -> Vec<&'static tcl_dialect::DialectProfile> {
         .collect();
     profiles.push(tcl_registry::model::ingress::resolve_environment("jim").analyser_profile());
     profiles
-}
-
-fn native_case(profile: &'static tcl_dialect::DialectProfile, expression: &str, expected: &str) {
-    for dynamic in [false, true] {
-        let mut vm = crate::native_fixture::interpreter(profile);
-        let script = if dynamic {
-            format!("set native_expression {{{expression}}}; expr $native_expression")
-        } else {
-            format!("expr {{{expression}}}")
-        };
-        let result = vm.eval_source(&script).unwrap();
-        assert_eq!(
-            result.code,
-            Code::Ok,
-            "{}: {script}: {}",
-            profile.display_name,
-            result.result.to_str()
-        );
-        assert_eq!(
-            &*result.result.to_str(),
-            expected,
-            "{}: {script}",
-            profile.display_name
-        );
-    }
 }
 
 #[test]
@@ -435,93 +409,13 @@ fn checked_equality_ordering_and_mathop_preserve_distinct_native_object_protocol
 }
 
 #[test]
-fn native_integer_arithmetic_uses_the_selected_engine_on_both_paths() {
-    let cases = [
-        (
-            "9223372036854775807 * 2",
-            "-2",
-            "18446744073709551614",
-            "-2",
-        ),
-        ("(9223372036854775807 + 1) < 0", "1", "0", "1"),
-        ("-(-9223372036854775807 - 1) < 0", "1", "0", "1"),
-        ("((-9223372036854775807 - 1) / -1) < 0", "1", "0", "1"),
-        (
-            "18446744073709551615 + 0",
-            "-1",
-            "18446744073709551615",
-            "-1",
-        ),
-        ("1 << 64", "0", "18446744073709551616", "1"),
-        ("8 >> 64", "0", "0", "8"),
-        ("-1 >> 64", "-1", "-1", "-1"),
-        ("-7 / 3", "-3", "-3", "-3"),
-        ("7 / -3", "-3", "-3", "-3"),
-        ("-7 % 3", "2", "2", "2"),
-        ("7 % -3", "-2", "-2", "-2"),
-    ];
-    for profile in arithmetic_profiles() {
-        for (expression, tcl84, modern, jim) in cases {
-            let expected = match tcl_registry::InvocationDialect::of_profile(profile)
-                .arithmetic()
-                .unwrap()
-            {
-                tcl_dialect::NativeArithmetic::Tcl84Wide => tcl84,
-                tcl_dialect::NativeArithmetic::TclBignum => modern,
-                tcl_dialect::NativeArithmetic::JimWide => jim,
-            };
-            native_case(profile, expression, expected);
-        }
-    }
-}
-
-#[test]
-fn native_literal_and_final_string_conversion_are_distinct() {
-    for profile in arithmetic_profiles() {
-        let policy = tcl_registry::InvocationDialect::of_profile(profile)
-            .arithmetic()
-            .unwrap();
-        native_case(
-            profile,
-            "\"001\"",
-            if policy.normalizes_expression_result() {
-                "1"
-            } else {
-                "001"
-            },
-        );
-        native_case(profile, "1e3", "1000.0");
-        native_case(profile, "\"18446744073709551616\"", "18446744073709551616");
-        if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
-            let mut vm = crate::native_fixture::interpreter(profile);
-            let result = vm.eval_source("expr {18446744073709551616 + 0}").unwrap();
-            assert_eq!(result.code, Code::Error);
-            assert_eq!(
-                &*result.result.to_str(),
-                "integer value too large to represent"
-            );
-        } else {
-            native_case(
-                profile,
-                "18446744073709551616 + 0",
-                if policy == tcl_dialect::NativeArithmetic::JimWide {
-                    "-1"
-                } else {
-                    "18446744073709551616"
-                },
-            );
-        }
-    }
-}
-
-#[test]
 fn tcl84_expr_uses_the_registry_selected_fixed_math_table() {
     fn replacement(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         ok(Value::int(99))
     }
 
     let interpreter =
-        |name| crate::native_fixture::interpreter(crate::environment::profile_for_dialect(name));
+        |name| crate::native_fixture::core(crate::environment::profile_for_dialect(name));
     let mut vm = interpreter("tcl8.4");
     // Replace the normal command-table entry after construction. The
     // preserved fixed table is intentionally not changed: Tcl 8.4's expr
@@ -567,14 +461,12 @@ fn tcl84_expr_uses_the_registry_selected_fixed_math_table() {
 /// lexeme-boundary assertion here.
 #[test]
 fn shared_expr_numeral_boundaries_reach_the_vm() {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
     assert!(vm.eval_expr("0b1ne 1").is_ok());
     assert!(vm.eval_expr("0xfne 1").is_ok());
     assert!(vm.eval_expr("0xffin {255}").is_ok());
 
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
     assert!(vm.eval_expr("0xfge 15").is_ok());
     assert!(vm.eval_expr("0d9lt 10").is_ok());
     for source in ["0 + 1_eq", "0 + 12x"] {

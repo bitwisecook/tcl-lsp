@@ -701,3 +701,10 @@ They now build it with `native_fixture::core*` and stay as unit tests, which
 needs no compiler. A trial switched every candidate and kept only those whose
 outcome did not change; the rest went back to the compiler. No new or fixed
 failure in the lib suite.
+
+**Batch 4, `expr` (26 November 2026).** 15 tests in 3 files. The two that
+evaluate `expr` source per release (`native_integer_arithmetic_uses_the_selected_engine_on_both_paths`,
+`native_literal_and_final_string_conversion_are_distinct`) moved to
+`tcl-vm-it` unchanged in substance. The other 13 call `eval_expr` or the
+expression workers directly, which needs no source compiler, and stay in
+`tcl-vm` on the core. Nothing deleted; no new or fixed failure.
