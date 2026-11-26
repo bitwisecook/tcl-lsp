@@ -1584,6 +1584,7 @@ diagnostics, and produces clean output.
 | `irule-datagroup` | Suggest data-group extraction for inline lookups |
 | `irule-diff` | Explain semantic differences between two iRule versions |
 | `irule-event` | Look up event/command validity from the registry |
+| `irule-hud` | Check every iRule on a virtual server together: HUD chain, merged handler table, conflicts |
 | `irule-migrate` | Convert nginx/Apache/HAProxy config to an iRule |
 | `irule-diagram` | Generate a Mermaid flowchart from compiler IR |
 | `irule-xc` | Translate to F5 XC with Terraform and JSON output |

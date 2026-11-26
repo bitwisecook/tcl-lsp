@@ -29,6 +29,9 @@ allowed-tools: mcp__tcl-lsp__def_use_chains, mcp__tcl-lsp__memory_aliases, Read
 The diagram in a ```mermaid fence, then: variable flow summary, dead
 definitions (optimisation opportunities), alias relationships, phi merge
 points, and potential issues (uninitialised reads, unnecessary stores, alias
-confusion).
+confusion). For an iRule, connection variables flow between handlers (and
+across keep-alive requests), and other iRules on the same virtual server
+share them; a proc reaches them only through its `upvar` / `uplevel`
+aliases. Say which flows the analysis covers and which it cannot see.
 
 $ARGUMENTS
