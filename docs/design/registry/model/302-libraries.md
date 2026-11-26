@@ -7,6 +7,14 @@ Status: designed 26 November 2026. Plan item 302, step 2 of
 [305](305-spectcl-3.md) writes them in SpecTcl 3, and
 [308](308-positioned-context.md) asks them per position.
 
+Library-to-library dependencies (alternatives, lazy, optional and
+conditional edges, conflicts, provided names, extension of another
+library's commands) are designed in
+[331](331-library-dependencies.md), which replaces this document's
+`Requirement` with `Dependency` and corrects resolution step 4 at a point.
+Parity between Rust-authored surfaces and SpecTcl 3 over these types is
+[332](332-rust-spectcl-parity.md).
+
 ## Problem
 
 A spec's applicability is spread over five fields and two side tables:

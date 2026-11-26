@@ -6,6 +6,12 @@ Status: reference draft, 26 November 2026. Plan item 305, step 5 of
 (`tcl-source`). [306](306-expect-spike.md) compiles it to images, and
 [308](308-positioned-context.md) supplies the hook context.
 
+The `library` block's dependency rows (`requires` with `-mode`, `-any`
+and `-when`, `provides`, `conflicts`, `provides-early`) and the `extend`
+item are designed in [331](331-library-dependencies.md). The map from
+every production below to the registry model, and the gate that keeps
+Rust and SpecTcl 3 at parity, are in [332](332-rust-spectcl-parity.md).
+
 ## Problem
 
 - **A pack is a program.** A 2.x pack is Tcl evaluated in a sandbox:
