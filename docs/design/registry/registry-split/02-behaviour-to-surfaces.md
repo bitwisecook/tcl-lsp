@@ -58,6 +58,8 @@ No surface names another surface. The only cross-module references inside
 hook family, keyed by the `SCOPE::FIELD` ids SpecTcl's `-native ID` already
 uses (`pack_hooks.rs`, `HOOK_FAMILIES`, 13 families):
 
+**Source:**
+
 ```rust
 pub struct HookTable {
     pub const_fold: &'static [(&'static str, ConstFoldFn)],
@@ -70,6 +72,27 @@ pub struct HookTable {
 impl SurfaceSet {
     pub fn native_hook<F: HookFamilyFn>(&self, id: &str) -> Option<F>;
 }
+```
+
+**In memory:**
+
+```rust
+// design sketch: the tcl surface's table; the ids and functions are today's
+// rows in tcl-registry/src/pack_hooks/native_catalogues.rs
+HookTable {
+    const_fold: &[
+        ("list::const_fold", literal_folds::fold_list),
+        ("lindex::const_fold", literal_folds::fold_lindex),
+        ("llength::const_fold", literal_folds::fold_llength),
+        ("regsub::const_fold", commands::tcl::fold_regsub),
+        ..
+    ],
+    const_fold_versioned: &[..],
+    state_transition_resolver: &[..],
+    ..
+    static_display: None,
+}
+// native_hook::<ConstFoldFn>("llength::const_fold") -> Some(fold_llength)
 ```
 
 `native_catalogues.rs` becomes the Tcl surface's table,

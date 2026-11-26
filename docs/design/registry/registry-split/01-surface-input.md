@@ -65,6 +65,8 @@ tests, plus 666 inside the crate.
 A `Surface` is today's `SpecPack` plus the facts the four lists spread out:
 how it is placed, its views, its hook table and its universe membership.
 
+**Source:**
+
 ```rust
 pub struct Surface {
     pub id: &'static str,               // "tcl", "irules"; the provenance key
@@ -90,6 +92,32 @@ pub enum Placement {
 }
 
 pub struct SurfaceView { pub layer: SurfaceLayer, pub filter: fn(&CommandSpec) -> bool }
+```
+
+**In memory:**
+
+```rust
+// design sketch: types proposed above; labels and blurbs are today's SPEC_PACKS rows
+Surface {
+    id: "tcl",
+    label: "Tcl core",
+    blurb: "The core interpreter's own commands, across the 8.4-9.1 ladder.",
+    source_dir: "rust/tcl-registry/src/commands/tcl",
+    specs: SpecSource::Built(tcl::tcl_command_specs),
+    placement: Placement::Base,
+    views: &[],
+    hooks: &HookTable::EMPTY,
+    document_grammar: None,
+    in_universe: true,
+}
+Surface {
+    id: "iapps",
+    label: "F5 iApps & tmsh",
+    specs: SpecSource::Built(iapps::iapps_command_specs),
+    placement: Placement::Layer(SurfaceLayer::Package("iapps")),
+    views: &[SurfaceView { layer: SurfaceLayer::Package("tmsh"), filter: is_tmsh_spec }],  // today's tmsh_command_specs
+    ..
+}
 ```
 
 The `shared_group!` cells become one cell per `Surface`, held by the installed

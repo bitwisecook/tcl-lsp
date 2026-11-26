@@ -238,12 +238,107 @@ dialect release set.
 The snit row matches tclsh. With only `tcllib-2.0/modules/snit` on
 `auto_path`, one fresh interpreter per line gives:
 
+**Source:**
+
 ```tcl
-package require snit              ;# 8.5, 8.6, 9.0: 2.3.4
-package require snit 1            ;# 8.5, 8.6, 9.0: 1.4.3
-package require -exact snit 1.4.3 ;# 8.5, 8.6, 9.0: 1.4.3
+package require snit              ;# 8.5 to 9.1: 2.3.4
+package require snit 1            ;# 8.5 to 9.1: 1.4.3
+package require -exact snit 1.4.3 ;# 8.5 to 9.1: 1.4.3
 package require snit 3            ;# every release: can't find package snit 3
 package require snit              ;# 8.4: can't find package snit
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "package require snit              ;# 8.5 to 9.1: 2.3.4\n..."
+  Cmds 5, src 309, inst 125, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Commands 5:
+      1: pc 0-20, src 0-33        2: pc 21-46, src 55-88
+      3: pc 47-77, src 110-143        4: pc 78-103, src 165-198
+      5: pc 104-123, src 243-276
+  Command 1: "package require snit              ..."
+    (0) push 0 	# "package"
+    (5) push 1 	# "require"
+    (10) push 2 	# "snit"
+    (15) invokeStk 3 
+    (20) pop 
+  Command 2: "package require snit 1            ..."
+    (21) push 0 	# "package"
+    (26) push 1 	# "require"
+    (31) push 2 	# "snit"
+    (36) push 3 	# "1"
+    (41) invokeStk 4 
+    (46) pop 
+  Command 3: "package require -exact snit 1.4.3 ..."
+    (47) push 0 	# "package"
+    (52) push 1 	# "require"
+    (57) push 4 	# "-exact"
+    (62) push 2 	# "snit"
+    (67) push 5 	# "1.4.3"
+    (72) invokeStk 5 
+    (77) pop 
+  Command 4: "package require snit 3            ..."
+    (78) push 0 	# "package"
+    (83) push 1 	# "require"
+    (88) push 2 	# "snit"
+    (93) push 6 	# "3"
+    (98) invokeStk 4 
+    (103) pop 
+  Command 5: "package require snit              ..."
+    (104) push 0 	# "package"
+    (109) push 1 	# "require"
+    (114) push 2 	# "snit"
+    (119) invokeStk 3 
+    (124) done 
+```
+
+**Result:**
+
+```text
+$ cat req.tcl
+# req.tcl DIR ARGS...: one package require in a fresh interpreter, with DIR on auto_path
+lappend auto_path [lindex $argv 0]
+set args [lrange $argv 1 end]
+if {[catch {eval package require $args} r]} { set r "error: [lindex [split $r \n] 0]" }
+puts [format "  %-26s %s" "require $args" $r]
+$ for sh in tclsh8.4 tclsh8.5 tclsh8.6 tclsh9.0 tclsh9.1 ./target/debug/tclvm; do echo "# $sh"
+    for r in snit 'snit 1' '-exact snit 1.4.3' 'snit 3'; do $sh req.tcl tmp/tcllib-2.0/modules/snit $r; done; done
+# tclsh8.4
+error reading package index file tmp/tcllib-2.0/modules/snit/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+  require snit               error: can't find package snit
+error reading package index file tmp/tcllib-2.0/modules/snit/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+  require snit 1             error: can't find package snit 1
+error reading package index file tmp/tcllib-2.0/modules/snit/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+  require -exact snit 1.4.3  error: can't find package snit 1.4.3
+error reading package index file tmp/tcllib-2.0/modules/snit/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+  require snit 3             error: can't find package snit 3
+# tclsh8.5
+  require snit               2.3.4
+  require snit 1             1.4.3
+  require -exact snit 1.4.3  1.4.3
+  require snit 3             error: can't find package snit 3
+# tclsh8.6
+  require snit               2.3.4
+  require snit 1             1.4.3
+  require -exact snit 1.4.3  1.4.3
+  require snit 3             error: can't find package snit 3
+# tclsh9.0
+  require snit               2.3.4
+  require snit 1             1.4.3
+  require -exact snit 1.4.3  1.4.3
+  require snit 3             error: can't find package snit 3
+# tclsh9.1
+  require snit               2.3.4
+  require snit 1             1.4.3
+  require -exact snit 1.4.3  1.4.3
+  require snit 3             error: can't find package snit 3
+# ./target/debug/tclvm
+  require snit               2.3.4
+  require snit 1             1.4.3
+  require -exact snit 1.4.3  1.4.3
+  require snit 3             error: can't find package snit 3
 ```
 
 On 8.4 the index's guard is itself the error: 8.4's `package vsatisfies`
@@ -273,6 +368,37 @@ library snit {
     train 2 {2-3}
     compatible snit 1 {tcl 8.5-9.2}    ;# snit.tcl:18
     compatible snit 2 {tcl 8.5-9.2}    ;# pkgIndex.tcl guard, snit2.tcl:18
+}
+```
+
+**In memory:**
+
+```rust
+// design sketch: these types are proposed in 302 (VersionSet is today's, in tcl-dialect)
+Library {
+    id: LibraryId("snit"),
+    aliases: &[],
+    axis: LibraryAxis::Own,
+    trains: &[                                   // `versions 1.4.3 2.3.4` gives each `latest`
+        Train { name: "1", versions: VersionSet("1-2"), latest: Version("1.4.3") },
+        Train { name: "2", versions: VersionSet("2-3"), latest: Version("2.3.4") },
+    ],
+    compatible: &[
+        CompatibilityRow {
+            library: VersionSet("1-2"),
+            dialect: DialectRange { family: Family::Tcl, releases: VersionSet("8.5-9.2") },
+            build: None,
+            requires_caps: &[],
+        },
+        CompatibilityRow {
+            library: VersionSet("2-3"),
+            dialect: DialectRange { family: Family::Tcl, releases: VersionSet("8.5-9.2") },
+            build: None,
+            requires_caps: &[],
+        },
+    ],
+    requires: &[],
+    distribution: DistributionId("tcllib"),
 }
 ```
 

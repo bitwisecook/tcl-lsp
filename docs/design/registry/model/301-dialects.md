@@ -123,11 +123,106 @@ pub enum Build { Canonical, JimFull, JimMinimal, Tmm, Scriptd, Unknown }
 What a dialect owns is visible from plain scripts. The numerals differ by
 family and release (tclsh 8.4–9.1 and jimsh 0.84, checked):
 
+**Source:**
+
 ```tcl
 puts [expr {010}]             ;# 8 on tcl 8.4-8.6; 10 on tcl 9.0, 9.1 and jim 0.84
 puts [string is integer 08]   ;# 0 on tcl 8.4-8.6; 1 on tcl 9.0, 9.1 and jim 0.84
 puts [expr {0o10}]            ;# 8 from tcl 8.5; a syntax error on 8.4
 ```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "puts [expr {010}]             ;# 8 on tcl 8.4-8.6; 10 o..."
+  Cmds 6, src 236, inst 100, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-25, src 0-29        2: pc 5-19, src 6-15
+      3: pc 26-73, src 83-112        4: pc 31-67, src 89-108
+      5: pc 74-98, src 165-194        6: pc 79-93, src 171-181
+  Command 1: "puts [expr {010}]             ..."
+    (0) push 0 	# "puts"
+  Command 2: "expr {010}..."
+    (5) startCommand +15 1 	# next cmd at pc 20, 1 cmds start here
+    (14) push 1 	# "010"
+    (19) tryCvtToNumeric 
+    (20) invokeStk 2 
+    (25) pop 
+  Command 3: "puts [string is integer 08]   ..."
+    (26) push 0 	# "puts"
+  Command 4: "string is integer 08..."
+    (31) startCommand +37 1 	# next cmd at pc 68, 1 cmds start here
+    (40) push 2 	# "08"
+    (45) dup 
+    (46) numericType 
+    (47) dup 
+    (48) jumpTrue +12 	# pc 60
+    (53) pop 
+    (54) isEmpty 
+    (55) jump +13 	# pc 68
+    (60) swap 
+    (61) pop 
+    (62) push 3 	# "3"
+    (67) le 
+    (68) invokeStk 2 
+    (73) pop 
+  Command 5: "puts [expr {0o10}]            ..."
+    (74) push 0 	# "puts"
+  Command 6: "expr {0o10}..."
+    (79) startCommand +15 1 	# next cmd at pc 94, 1 cmds start here
+    (88) push 4 	# "0o10"
+    (93) tryCvtToNumeric 
+    (94) invokeStk 2 
+    (99) done 
+```
+
+**Result:**
+
+```text
+$ tclsh8.4 octal.tcl
+8
+0
+syntax error in expression "0o10": extra tokens at end of expression
+    while executing
+"expr {0o10}"
+    invoked from within
+"puts [expr {0o10}]            "
+    (file "octal.tcl" line 3)
+$ tclsh8.5 octal.tcl
+8
+0
+8
+$ tclsh8.6 octal.tcl
+8
+0
+8
+$ tclsh9.0 octal.tcl
+10
+1
+8
+$ tclsh9.1 octal.tcl
+10
+1
+8
+$ tmp/jimtcl-oracle/jimsh octal.tcl
+10
+1
+8
+$ ./target/debug/tclvm octal.tcl
+10
+1
+8
+$ ./target/debug/tclvm --tcl-version 8.6 octal.tcl
+application-specific initialization failed: can't find package tcl exactly 9.0.4
+8
+0
+8
+```
+
+`tclvm --tcl-version` prints a spurious `application-specific initialization
+failed` line under every release but 9.0 (it looks for `tcl 9.0.4`); the
+answers after it are right.
 
 `F5_FORK_POINT = "8.4.6"` and the `ancestry()` edges stay. `f5-tcl` → `tcl` at
 8.4 is a fork, and `jim` → `tcl` at 8.6 is a reimplementation. The

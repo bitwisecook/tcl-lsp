@@ -95,7 +95,9 @@ the proof set. An unknown target set abstains. The holes reorder
 evaluation, so `-when` must prove every hole word side-effect-free (`kind …
 var` or `literal`).
 
-```tcl
+**Source:**
+
+```spectcl
 speclib tcllib-opt 3 {
 command math::max {                       ;# tcllib math 1.2.6, misc.tcl:165
     available math 1.2-
@@ -122,6 +124,35 @@ command {struct::set contains} {          ;# sets_tcl.tcl:78: expr {[lsearch -ex
 }
 ```
 
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302 and 313; hook and rewrite field names are illustrative
+VersionedSpec {                                   // math::max
+    availability: Availability { library: Some(LibraryId("math")), window: ItemHistory("1.2-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(1, None))] },
+    effects: Facet { rows: &[(FacetKey { library: VersionSet("math 1.2-"), dialect: None }, EffectSet::complete(&[]))] },  // pure
+    ..
+}
+Hook {
+    family: HookFamily::Fold,                     // const_fold
+    body: HookBody::Tcl { params: "words ctx", source: .. },
+    proof: ProofSet(VersionSet("core 8.5-9.1")),  // the image's PROOFS row: what `tcl spec prove` passed
+}
+VersionedSpec {                                   // struct::set contains
+    availability: Availability { library: Some(LibraryId("struct::set")), window: ItemHistory("2.2-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(2, 2))] },
+    effects: Facet { rows: &[(FacetKey { library: VersionSet("struct::set 2.2-"), dialect: None }, EffectSet::complete(&[]))] },
+    ..
+}
+Rewrite {
+    id: "set-contains-in",
+    when: Pred::All(&[Kind(Word::Arg(0), Var), Kind(Word::Arg(1), Var)]),
+    to: Template("expr {{arg 1} in {arg 0}}"),    // holes take each word's original source
+    proof: ProofSet(VersionSet("core 8.5-9.1")),
+}
+```
+
 With that pack, over the target set `core 8.6-9.0`:
 
 **Before:**
@@ -140,13 +171,128 @@ set odd   [math::max 08 3]
 set hit   [expr {$k in $seen}]
 ```
 
+**Bytecode before (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "set limit [math::max 3 7 5]\nset odd   [math::max 08 3]..."
+  Cmds 6, src 97, inst 111, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Commands 6:
+      1: pc 0-31, src 0-26        2: pc 5-29, src 11-25
+      3: pc 32-67, src 28-53        4: pc 46-65, src 39-52
+      5: pc 68-109, src 55-95        6: pc 82-108, src 66-94
+  Command 1: "set limit [math::max 3 7 5]..."
+    (0) push 0 	# "limit"
+  Command 2: "math::max 3 7 5..."
+    (5) push 1 	# "math::max"
+    (10) push 2 	# "3"
+    (15) push 3 	# "7"
+    (20) push 4 	# "5"
+    (25) invokeStk 4 
+    (30) storeStk 
+    (31) pop 
+  Command 3: "set odd   [math::max 08 3]..."
+    (32) startCommand +35 1 	# next cmd at pc 67, 1 cmds start here
+    (41) push 5 	# "odd"
+  Command 4: "math::max 08 3..."
+    (46) push 1 	# "math::max"
+    (51) push 6 	# "08"
+    (56) push 2 	# "3"
+    (61) invokeStk 3 
+    (66) storeStk 
+    (67) pop 
+  Command 5: "set hit   [struct::set contains $seen $k]..."
+    (68) startCommand +42 1 	# next cmd at pc 110, 1 cmds start here
+    (77) push 7 	# "hit"
+  Command 6: "struct::set contains $seen $k..."
+    (82) push 8 	# "struct::set"
+    (87) push 9 	# "contains"
+    (92) push 10 	# "seen"
+    (97) loadStk 
+    (98) push 11 	# "k"
+    (103) loadStk 
+    (104) invokeStk 4 
+    (109) storeStk 
+    (110) done 
+```
+
+**Bytecode after (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "set limit 7\nset odd   [math::max 08 3]\nset hit   [exp..."
+  Cmds 5, src 70, inst 86, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-11, src 0-10        2: pc 12-47, src 12-37
+      3: pc 26-45, src 23-36        4: pc 48-84, src 39-68
+      5: pc 62-83, src 50-67
+  Command 1: "set limit 7..."
+    (0) push 0 	# "limit"
+    (5) push 1 	# "7"
+    (10) storeStk 
+    (11) pop 
+  Command 2: "set odd   [math::max 08 3]..."
+    (12) startCommand +35 1 	# next cmd at pc 47, 1 cmds start here
+    (21) push 2 	# "odd"
+  Command 3: "math::max 08 3..."
+    (26) push 3 	# "math::max"
+    (31) push 4 	# "08"
+    (36) push 5 	# "3"
+    (41) invokeStk 3 
+    (46) storeStk 
+    (47) pop 
+  Command 4: "set hit   [expr {$k in $seen}]..."
+    (48) startCommand +37 1 	# next cmd at pc 85, 1 cmds start here
+    (57) push 6 	# "hit"
+  Command 5: "expr {$k in $seen}..."
+    (62) startCommand +22 1 	# next cmd at pc 84, 1 cmds start here
+    (71) push 7 	# "k"
+    (76) loadStk 
+    (77) push 8 	# "seen"
+    (82) loadStk 
+    (83) listIn 
+    (84) storeStk 
+    (85) done 
+```
+
+**Result:**
+
+```text
+$ cat run.tcl
+lappend auto_path tmp/tcllib-2.0/modules
+package require math; package require struct::set
+set seen {a b c}; set k b
+source [lindex $argv 0]
+puts [list $limit $odd $hit]
+$ tclsh8.5 run.tcl before.tcl
+7 3 1
+$ tclsh8.6 run.tcl before.tcl
+7 3 1
+$ tclsh9.0 run.tcl before.tcl
+7 08 1
+$ tclsh9.1 run.tcl before.tcl
+7 08 1
+$ ./target/debug/tclvm run.tcl before.tcl
+7 08 1
+$ tclsh8.5 run.tcl after.tcl
+7 3 1
+$ tclsh8.6 run.tcl after.tcl
+7 3 1
+$ tclsh9.0 run.tcl after.tcl
+7 08 1
+$ tclsh9.1 run.tcl after.tcl
+7 08 1
+$ ./target/debug/tclvm run.tcl after.tcl
+7 08 1
+```
+
 The second line does not fold: `math::max 08 3` is 3 on 8.6 and 08 on 9.0
 (tclsh 8.6.18 and 9.0.4, tcllib's math 1.2.6), so the body abstains on the
 non-decimal word.
 
 `struct::set contains` and `in` agree on members, on non-members, on `01`
 against `1`, and on the error for a malformed list (`unmatched open brace
-in list`). Both were checked on 8.6.18 and 9.0.4.
+in list`). Both were checked on 8.5.19 to 9.1.0 and tclvm.
 
 ### 2. Minifier
 
@@ -173,7 +319,9 @@ every word (no `Value` that is secretly a name), every name role has a
 --consumer minifier` reports the gaps. A missing fact costs a rename,
 never correctness.
 
-```tcl
+**Source:**
+
+```spectcl
 speclib tcllib-cmdline 3 {
 command cmdline::getopt {                 ;# cmdline 1.5.3: upvar 1 on words 0, 2, 3
     available cmdline 1.5-
@@ -184,13 +332,20 @@ command cmdline::getopt {                 ;# cmdline 1.5.3: upvar 1 on words 0, 
 }
 ```
 
-```tcl
-proc parse {args} {
-    set flags {}
-    while {[cmdline::getopt args {v o.arg} opt val] > 0} {
-        lappend flags $opt $val
-    }
-    return [list $flags $args]
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302 and 313
+VersionedSpec {                                   // cmdline::getopt
+    availability: Availability { library: Some(LibraryId("cmdline")), window: ItemHistory("1.5-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(4, 4))] },
+    roles: Facet { rows: &[(FacetKey::ANY, &[
+        ArgRole::VarCell  { scope: Scope::Caller },       // args
+        ArgRole::Value    { frozen: true },               // {v o.arg}
+        ArgRole::VarWrite { scope: Scope::Caller },       // opt
+        ArgRole::VarWrite { scope: Scope::Caller },       // val
+    ])] },
+    ..
 }
 ```
 
@@ -214,10 +369,158 @@ proc parse {args} {
 proc parse {args} {set a {};while {[cmdline::getopt args {v o.arg} b c]>0} {lappend a $b $c};return [list $a $args]}
 ```
 
+**Bytecode before (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "\n    set flags {}\n    while {[cmdline::getopt args {v..."
+  Cmds 6, src 146, inst 128, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Proc, refCt 1, args 1, compiled locals 4
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, "flags"
+      slot 2, scalar, "opt"
+      slot 3, scalar, "val"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 25-53, continue 55, break 96
+  Commands 6:
+      1: pc 0-10, src 5-16        2: pc 11-101, src 22-113
+      3: pc 25-53, src 85-107        4: pc 55-84, src 30-67
+      5: pc 102-126, src 119-144        6: pc 111-125, src 127-143
+  Command 1: "set flags {}..."
+    (0) push 0 	# ""
+    (5) storeScalar %v1 	# var "flags"
+    (10) pop 
+  Command 2: "while {[cmdline::getopt args {v o.arg} opt val] > 0} {\n..."
+    (11) startCommand +90 1 	# next cmd at pc 101, 1 cmds start here
+    (20) jump +35 	# pc 55
+  Command 3: "lappend flags $opt $val..."
+    (25) startCommand +29 1 	# next cmd at pc 54, 1 cmds start here
+    (34) loadScalar %v2 	# var "opt"
+    (39) loadScalar %v3 	# var "val"
+    (44) list 2 
+    (49) lappendList %v1 	# var "flags"
+    (54) pop 
+  Command 4: "cmdline::getopt args {v o.arg} opt val..."
+    (55) push 1 	# "cmdline::getopt"
+    (60) push 2 	# "args"
+    (65) push 3 	# "v o.arg"
+    (70) push 4 	# "opt"
+    (75) push 5 	# "val"
+    (80) invokeStk 5 
+    (85) push 6 	# "0"
+    (90) gt 
+    (91) jumpTrue -66 	# pc 25
+    (96) push 0 	# ""
+    (101) pop 
+  Command 5: "return [list $flags $args]..."
+    (102) startCommand +25 2 	# next cmd at pc 127, 2 cmds start here
+  Command 6: "list $flags $args..."
+    (111) loadScalar %v1 	# var "flags"
+    (116) loadScalar %v0 	# var "args"
+    (121) list 2 
+    (126) done 
+    (127) done 
+```
+
+**Bytecode after (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "set a {};while {[cmdline::getopt args {v o.arg} b c]>0}..."
+  Cmds 6, src 96, inst 128, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Proc, refCt 1, args 1, compiled locals 4
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 25-53, continue 55, break 96
+  Commands 6:
+      1: pc 0-10, src 0-7        2: pc 11-101, src 9-72
+      3: pc 25-53, src 57-71        4: pc 55-84, src 17-50
+      5: pc 102-126, src 74-95        6: pc 111-125, src 82-94
+  Command 1: "set a {}..."
+    (0) push 0 	# ""
+    (5) storeScalar %v1 	# var "a"
+    (10) pop 
+  Command 2: "while {[cmdline::getopt args {v o.arg} b c]>0} {lappend..."
+    (11) startCommand +90 1 	# next cmd at pc 101, 1 cmds start here
+    (20) jump +35 	# pc 55
+  Command 3: "lappend a $b $c..."
+    (25) startCommand +29 1 	# next cmd at pc 54, 1 cmds start here
+    (34) loadScalar %v2 	# var "b"
+    (39) loadScalar %v3 	# var "c"
+    (44) list 2 
+    (49) lappendList %v1 	# var "a"
+    (54) pop 
+  Command 4: "cmdline::getopt args {v o.arg} b c..."
+    (55) push 1 	# "cmdline::getopt"
+    (60) push 2 	# "args"
+    (65) push 3 	# "v o.arg"
+    (70) push 4 	# "b"
+    (75) push 5 	# "c"
+    (80) invokeStk 5 
+    (85) push 6 	# "0"
+    (90) gt 
+    (91) jumpTrue -66 	# pc 25
+    (96) push 0 	# ""
+    (101) pop 
+  Command 5: "return [list $a $args]"
+    (102) startCommand +25 2 	# next cmd at pc 127, 2 cmds start here
+  Command 6: "list $a $args..."
+    (111) loadScalar %v1 	# var "a"
+    (116) loadScalar %v0 	# var "args"
+    (121) list 2 
+    (126) done 
+    (127) done 
+```
+
+**Result:**
+
+```text
+$ cat run.tcl
+lappend auto_path tmp/tcllib-2.0/modules
+package require cmdline
+source [lindex $argv 0]
+puts [parse -v -o out.txt input.tcl]
+$ tclsh8.5 run.tcl before.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh8.6 run.tcl before.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh9.0 run.tcl before.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh9.1 run.tcl before.tcl
+{v 1 o out.txt} input.tcl
+$ ./target/debug/tclvm run.tcl before.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh8.5 run.tcl after.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh8.6 run.tcl after.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh9.0 run.tcl after.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh9.1 run.tcl after.tcl
+{v 1 o out.txt} input.tcl
+$ ./target/debug/tclvm run.tcl after.tcl
+{v 1 o out.txt} input.tcl
+$ cat nopack.tcl
+proc parse {args} {set a {};while {[cmdline::getopt args {v o.arg} opt val]>0} {lappend a $opt $val};return [list $a $args]}
+$ tclsh8.6 run.tcl nopack.tcl
+{v 1 o out.txt} input.tcl
+$ tclsh9.1 run.tcl nopack.tcl
+{v 1 o out.txt} input.tcl
+$ cat blind.tcl
+proc parse {args} {set a {};while {[cmdline::getopt args {v o.arg} opt val]>0} {lappend a $b $c};return [list $a $args]}
+$ tclsh8.6 run.tcl blind.tcl
+can't read "b": no such variable
+$ tclsh9.1 run.tcl blind.tcl
+can't read "b": no such variable
+```
+
 Without the pack, `opt` and `val` are literals of an unknown command, so
 those two names keep their spelling and only `flags` becomes `a`. Renaming
-them blindly gives `can't read "b": no such variable`. All three forms were
-run on 8.6 and 9.0: the safe forms print `{v 1 o out.txt} input.tcl`. `args`
+them blindly gives `can't read "b": no such variable`. The forms were run on
+8.5 to 9.1 and tclvm: the safe forms print `{v 1 o out.txt} input.tcl`. `args`
 is never renamed.
 
 ### 3. Formatter
@@ -245,7 +548,9 @@ Tcl reads as one separator. The formatter checks that the word sequence is
 unchanged and that `format(format(x)) == format(x)`. If a layout answer
 would fail either check, the formatter falls back to today's greedy split.
 
-```tcl
+**Source:**
+
+```spectcl
 speclib tk-layout 3 {
 command ttk::button {
     available Tk 8.5-
@@ -260,6 +565,26 @@ command exec {
         }
     }
 }
+}
+```
+
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302 and 313; layout field names are illustrative
+VersionedSpec {                                   // ttk::button
+    availability: Availability { library: Some(LibraryId("Tk")), window: ItemHistory("8.5-"), dialect: None },
+    layout: Layout { lead: 1, pairs: Pairs::Options, breaks: Break::Each, align: Align::Options },
+    ..
+}
+VersionedSpec {                                   // exec
+    layout: Layout::Hook(Hook {
+        family: HookFamily::Layout,
+        inputs: Inputs { kinds: true, values: true, .. },   // reads values: memoised by content, not tabulated
+        body: HookBody::Tcl { params: "words ctx", source: .. },
+        ..
+    }),
+    ..
 }
 ```
 
@@ -285,8 +610,89 @@ exec grep -v {^#} config.txt \
     | awk {{print $1}} > out.txt
 ```
 
+**Bytecode after (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "ttk::button .b \\n    -text    \"Save file\" \\n    -co..."
+  Cmds 3, src 203, inst 147, litObjs 23, aux 0, stkDepth 13, code/src 0.00
+  Commands 3:
+      1: pc 0-75, src 0-121        2: pc 25-49, src 58-72
+      3: pc 76-145, src 123-201
+  Command 1: "ttk::button .b \\n    -text    \"Save file\" \\n    -co..."
+    (0) push 0 	# "ttk::button"
+    (5) push 1 	# ".b"
+    (10) push 2 	# "-text"
+    (15) push 3 	# "Save file"
+    (20) push 4 	# "-command"
+  Command 2: "list save $path..."
+    (25) startCommand +25 1 	# next cmd at pc 50, 1 cmds start here
+    (34) push 5 	# "save"
+    (39) push 6 	# "path"
+    (44) loadStk 
+    (45) list 2 
+    (50) push 7 	# "-width"
+    (55) push 8 	# "12"
+    (60) push 9 	# "-style"
+    (65) push 10 	# "Accent.TButton"
+    (70) invokeStk 10 
+    (75) pop 
+  Command 3: "exec grep -v {^#} config.txt \\n    | sort -u \\n    | ..."
+    (76) push 11 	# "exec"
+    (81) push 12 	# "grep"
+    (86) push 13 	# "-v"
+    (91) push 14 	# "^#"
+    (96) push 15 	# "config.txt"
+    (101) push 16 	# "|"
+    (106) push 17 	# "sort"
+    (111) push 18 	# "-u"
+    (116) push 16 	# "|"
+    (121) push 19 	# "awk"
+    (126) push 20 	# "{print $1}"
+    (131) push 21 	# ">"
+    (136) push 22 	# "out.txt"
+    (141) invokeStk 13 
+    (146) done 
+```
+
+**Result:**
+
+```text
+$ cat run.tcl
+package require Tk
+proc save {p} {}; set path notes.txt
+source [lindex $argv 0]
+puts [list [.b cget -text] [.b cget -command] [.b cget -width] [.b cget -style]]
+set f [open out.txt]; puts [read -nonewline $f]; close $f
+exit
+$ cat config.txt
+# hosts
+zeta 1
+alpha 2
+zeta 1
+$ TCLLIBPATH=$PWD/tk86 xvfb-run -a tclsh8.6 run.tcl before.tcl
+{Save file} {save notes.txt} 12 Accent.TButton
+alpha
+zeta
+$ TCLLIBPATH=$PWD/tk91 xvfb-run -a tclsh9.1 run.tcl before.tcl
+{Save file} {save notes.txt} 12 Accent.TButton
+alpha
+zeta
+$ TCLLIBPATH=$PWD/tk86 xvfb-run -a tclsh8.6 run.tcl after.tcl
+{Save file} {save notes.txt} 12 Accent.TButton
+alpha
+zeta
+$ TCLLIBPATH=$PWD/tk91 xvfb-run -a tclsh9.1 run.tcl after.tcl
+{Save file} {save notes.txt} 12 Accent.TButton
+alpha
+zeta
+```
+
 The `exec` words are identical before and after (`[list …] eq [list …]` is
-1 on 8.6 and 9.0).
+1 on 8.4 to 9.1 and tclvm). The Before form compiles to the same
+instructions; only the Source and command text in the listing differ. The
+Result runs use the Tk 8.6.18 and 9.1.0 builds under `tmp/`, loaded by a
+`pkgIndex.tcl` on `TCLLIBPATH`; tclvm has no Tk.
 
 ### 4. The VM and the runtime
 
@@ -339,7 +745,9 @@ gains `library_versions`, the set the site's facet was selected for. At
 admission the VM checks `package present L` against that set, and a
 mismatch takes the generic path.
 
-```tcl
+**Source:**
+
+```spectcl
 speclib tcllib-run 3 {
 library md5 { versions 2.0.7 2.0.8 2.0.9 }
 command md5::md5 {
@@ -353,10 +761,108 @@ command md5::md5 {
 }
 ```
 
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302 and 313
+Library {
+    id: LibraryId("md5"),
+    trains: &[Train { name: "2", versions: VersionSet("2-3"), latest: Version("2.0.9") }],  // trains inferred by major
+    ..
+}
+VersionedSpec {                                   // md5::md5
+    availability: Availability { library: Some(LibraryId("md5")), window: ItemHistory("2-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(1, None))] },
+    options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-hex"), OptionId("-file"), OptionId("-channel")])] },
+    effects: Facet::EMPTY,                        // no complete effect list: impure, no fold, no CSE
+    ..
+}
+RuntimeBacking::TclBody { package_source: "md5x.tcl" }
+Implementation { native: NativeId("tcllib.md5.v2"), versions: VersionSet("md5 2.0.9") }   // IMPLEMENTATIONS row
+```
+
+**Source:**
+
 ```tcl
-package require md5            ;# 2.0.9 from tcllib's pkgIndex, in every mode
-puts [md5::md5 -hex abc]       ;# 900150983CD24FB0D6963F7D28E17F72 (tclsh 8.6 and 9.0)
-puts [math::max 3 7 5]         ;# compiled to `push 7` with a PackFacts claim; prints 7
+puts [package require md5]     ;# 2.0.9 from tcllib's pkgIndex, in every mode
+puts [md5::md5 -hex abc]       ;# 900150983CD24FB0D6963F7D28E17F72
+package require math
+puts [math::max 3 7 5]         ;# 7; with the pack, compiled to `push 7` under a PackFacts claim
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "puts [package require md5]     ;# 2.0.9 from tcllib's p..."
+  Cmds 7, src 263, inst 119, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-30, src 0-30        2: pc 5-24, src 6-24
+      3: pc 31-61, src 78-108        4: pc 36-55, src 84-100
+      5: pc 62-82, src 145-164        6: pc 83-117, src 166-196
+      7: pc 88-112, src 172-186
+  Command 1: "puts [package require md5]     ..."
+    (0) push 0 	# "puts"
+  Command 2: "package require md5..."
+    (5) push 1 	# "package"
+    (10) push 2 	# "require"
+    (15) push 3 	# "md5"
+    (20) invokeStk 3 
+    (25) invokeStk 2 
+    (30) pop 
+  Command 3: "puts [md5::md5 -hex abc]       ..."
+    (31) push 0 	# "puts"
+  Command 4: "md5::md5 -hex abc..."
+    (36) push 4 	# "md5::md5"
+    (41) push 5 	# "-hex"
+    (46) push 6 	# "abc"
+    (51) invokeStk 3 
+    (56) invokeStk 2 
+    (61) pop 
+  Command 5: "package require math..."
+    (62) push 1 	# "package"
+    (67) push 2 	# "require"
+    (72) push 7 	# "math"
+    (77) invokeStk 3 
+    (82) pop 
+  Command 6: "puts [math::max 3 7 5]         ..."
+    (83) push 0 	# "puts"
+  Command 7: "math::max 3 7 5..."
+    (88) push 8 	# "math::max"
+    (93) push 9 	# "3"
+    (98) push 10 	# "7"
+    (103) push 11 	# "5"
+    (108) invokeStk 4 
+    (113) invokeStk 2 
+    (118) done 
+```
+
+**Result:**
+
+```text
+$ cat run.tcl
+lappend auto_path tmp/tcllib-2.0/modules
+source [lindex $argv 0]
+$ tclsh8.5 run.tcl md5.tcl
+2.0.9
+900150983CD24FB0D6963F7D28E17F72
+7
+$ tclsh8.6 run.tcl md5.tcl
+2.0.9
+900150983CD24FB0D6963F7D28E17F72
+7
+$ tclsh9.0 run.tcl md5.tcl
+2.0.9
+900150983CD24FB0D6963F7D28E17F72
+7
+$ tclsh9.1 run.tcl md5.tcl
+2.0.9
+900150983CD24FB0D6963F7D28E17F72
+7
+$ ./target/debug/tclvm run.tcl md5.tcl
+2.0.9
+900150983CD24FB0D6963F7D28E17F72
+7
 ```
 
 With accelerators off (the default), `package ifneeded md5 2.0.9` is

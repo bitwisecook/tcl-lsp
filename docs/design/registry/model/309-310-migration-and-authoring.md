@@ -94,6 +94,21 @@ speclib fleet 3 {
 }
 ```
 
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302; one record per expanded command
+VersionedSpec {                                   // math::fleet::alpha
+    availability: Availability { library: None, window: ItemHistory::ALL, dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(2, 2))] },
+    returns: Facet { rows: &[(FacetKey::ANY, ReturnType::Numeric)] },
+    options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-verbose")])] },
+    subcommands: Facet { rows: &[(FacetKey::ANY, &[SubId("probe")])] },   // probe: arity 0
+    ..                                            // traits {CSE_CANDIDATE} rides along unchanged
+}
+// beta, gamma and delta differ only in arity: 1, 3 and 1
+```
+
 ### Proof before writing
 
 Before the upgrade writes anything, it loads the old text through the shim and the new text through the 3 reader. It compares their answers across the release matrix: visibility, arity, roles, versioned facets and documentation.

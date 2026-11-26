@@ -132,8 +132,10 @@ flowchart TB
 ```
 
 A worked example: tcllib 2.0 ships `struct::graph` in two trains, 1.2.2 and
-2.4.4. With `tcllib-2.0/modules` on `auto_path`, one fresh tclsh 8.6 or 9.0
+2.4.4. With `tcllib-2.0/modules` on `auto_path`, one fresh tclsh 8.5 to 9.1
 per line gives:
+
+**Source:**
 
 ```tcl
 package require struct::graph              ;# 2.4.4
@@ -141,6 +143,104 @@ package require struct::graph 1.2          ;# 1.2.2
 package require struct::graph 1.0 2.0      ;# 2.4.4
 package require -exact struct::graph 1.2.2 ;# 1.2.2
 package require struct::graph 1.3          ;# can't find package struct::graph 1.3
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "package require struct::graph              ;# 2.4.4\npa..."
+  Cmds 5, src 291, inst 135, litObjs 9, aux 0, stkDepth 5, code/src 0.00
+  Commands 5:
+      1: pc 0-20, src 0-42        2: pc 21-46, src 52-94
+      3: pc 47-77, src 104-146        4: pc 78-108, src 156-198
+      5: pc 109-133, src 208-250
+  Command 1: "package require struct::graph              ..."
+    (0) push 0 	# "package"
+    (5) push 1 	# "require"
+    (10) push 2 	# "struct::graph"
+    (15) invokeStk 3 
+    (20) pop 
+  Command 2: "package require struct::graph 1.2          ..."
+    (21) push 0 	# "package"
+    (26) push 1 	# "require"
+    (31) push 2 	# "struct::graph"
+    (36) push 3 	# "1.2"
+    (41) invokeStk 4 
+    (46) pop 
+  Command 3: "package require struct::graph 1.0 2.0      ..."
+    (47) push 0 	# "package"
+    (52) push 1 	# "require"
+    (57) push 2 	# "struct::graph"
+    (62) push 4 	# "1.0"
+    (67) push 5 	# "2.0"
+    (72) invokeStk 5 
+    (77) pop 
+  Command 4: "package require -exact struct::graph 1.2.2 ..."
+    (78) push 0 	# "package"
+    (83) push 1 	# "require"
+    (88) push 6 	# "-exact"
+    (93) push 2 	# "struct::graph"
+    (98) push 7 	# "1.2.2"
+    (103) invokeStk 5 
+    (108) pop 
+  Command 5: "package require struct::graph 1.3          ..."
+    (109) push 0 	# "package"
+    (114) push 1 	# "require"
+    (119) push 2 	# "struct::graph"
+    (124) push 8 	# "1.3"
+    (129) invokeStk 4 
+    (134) done 
+```
+
+**Result:**
+
+```text
+$ cat req.tcl
+# req.tcl DIR ARGS...: one package require in a fresh interpreter, with DIR on auto_path
+lappend auto_path [lindex $argv 0]
+set args [lrange $argv 1 end]
+if {[catch {eval package require $args} r]} { set r "error: [lindex [split $r \n] 0]" }
+puts [format "  %-26s %s" "require $args" $r]
+$ for sh in tclsh8.4 tclsh8.5 tclsh8.6 tclsh9.0 tclsh9.1 ./target/debug/tclvm; do echo "# $sh"
+    for r in struct::graph 'struct::graph 1.2' 'struct::graph 1.0 2.0' '-exact struct::graph 1.2.2' \
+        'struct::graph 1.3'; do $sh req.tcl tmp/tcllib-2.0/modules $r 2>/dev/null; done; done
+# tclsh8.4
+  require struct::graph      error: can't find package struct::graph
+  require struct::graph 1.2  error: can't find package struct::graph 1.2
+  require struct::graph 1.0 2.0 error: wrong # args: should be "package require ?-exact? package ?version?"
+  require -exact struct::graph 1.2.2 error: can't find package struct::graph 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
+# tclsh8.5
+  require struct::graph      2.4.4
+  require struct::graph 1.2  1.2.2
+  require struct::graph 1.0 2.0 2.4.4
+  require -exact struct::graph 1.2.2 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
+# tclsh8.6
+  require struct::graph      2.4.4
+  require struct::graph 1.2  1.2.2
+  require struct::graph 1.0 2.0 2.4.4
+  require -exact struct::graph 1.2.2 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
+# tclsh9.0
+  require struct::graph      2.4.4
+  require struct::graph 1.2  1.2.2
+  require struct::graph 1.0 2.0 2.4.4
+  require -exact struct::graph 1.2.2 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
+# tclsh9.1
+  require struct::graph      2.4.4
+  require struct::graph 1.2  1.2.2
+  require struct::graph 1.0 2.0 2.4.4
+  require -exact struct::graph 1.2.2 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
+# ./target/debug/tclvm
+  require struct::graph      2.4.4
+  require struct::graph 1.2  1.2.2
+  require struct::graph 1.0 2.0 2.4.4
+  require -exact struct::graph 1.2.2 1.2.2
+  require struct::graph 1.3  error: can't find package struct::graph 1.3
 ```
 
 The model reaches the same answers through its candidate sets:
@@ -157,7 +257,8 @@ The dialect step matters too. The struct `pkgIndex.tcl` starts with
 `package vsatisfies [package provide Tcl] 8.5 9`, so on tcl 8.4 no
 compatibility row holds and every set is ∅. tclsh 8.4 agrees: it cannot read
 that index (its `vsatisfies` takes two arguments) and finds no
-`struct::graph`.
+`struct::graph`. Its `package require` also takes one version, so `1.0 2.0`
+is a usage error there.
 
 Answers over a target range are sets, as today (`tclLsp.targets`).
 
@@ -212,6 +313,8 @@ through shims.
   For example, Itcl's two trains, the `tk` environment that hosts it, and a
   command that only the 4.x train has ([302](model/302-libraries.md)'s rows):
 
+  **Source:**
+
   ```spectcl
   speclib itcl-example 3 {
       library Itcl {
@@ -230,6 +333,41 @@ through shims.
       command itcl::local {
           available Itcl 4.0-
       }
+  }
+  ```
+
+  **In memory:**
+
+  ```rust
+  // design sketch: types proposed in 301, 302 and 303
+  Library {
+      id: LibraryId("Itcl"),
+      aliases: &["itcl"],
+      axis: LibraryAxis::Own,
+      trains: &[
+          Train { name: "3", versions: VersionSet("3.4-4"), .. },
+          Train { name: "4", versions: VersionSet("4-5"), .. },     // no `versions` row: `latest` unset
+      ],
+      compatible: &[
+          CompatibilityRow { library: VersionSet("3.4"), dialect: DialectRange { family: Family::Tcl, releases: VersionSet("8.4-8.6") }, build: None, requires_caps: &[] },
+          CompatibilityRow { library: VersionSet("4-"), dialect: DialectRange { family: Family::Tcl, releases: VersionSet("8.6-9.2") }, build: None, requires_caps: &[] },
+      ],
+      requires: &[],
+      distribution: DistributionId("itcl-example"),
+  }
+  EnvironmentDefinition {
+      id: EnvironmentId("tk"),
+      dialect: Some(DialectSelector { family: Family::Tcl, default_release: Release("8.6"), releases: VersionSet("8.4-9.1"), build: Build::Canonical, capabilities: CapabilityOverrides([]) }),
+      libraries: vec![
+          PlacedLibrary { id: LibraryId("Tk"), range: VersionSet("8.4-"), placement: Placement::Ambient },
+          PlacedLibrary { id: LibraryId("Itcl"), range: VersionSet("3.4-"), placement: Placement::Hosted },
+      ],
+      ..                                            // presentation, editor, policy, detection, provenance
+  }
+  AliasTable { rows: [("wish", EnvironmentId("tk"), Provenance::Pack("itcl-example"))] }
+  VersionedSpec {                                   // itcl::local
+      availability: Availability { library: Some(LibraryId("Itcl")), window: ItemHistory("4.0-"), dialect: None },
+      ..                                            // every facet empty: one unversioned value
   }
   ```
 - **Hooks.** A shipped library's hooks are native Rust functions in its crate,

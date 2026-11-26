@@ -100,6 +100,19 @@ speclib rows 3 {
 }
 ```
 
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302; both forms load to this
+VersionedSpec {                                   // sortish
+    availability: Availability { library: None, window: ItemHistory::ALL, dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(1, None))] },
+    options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-ascii"), OptionId("-integer"), OptionId("-real")])] },
+    docs: Facet { rows: &[(FacetKey::ANY, DocId(..))] },   // the three -detail strings
+    ..                                            // traits {CSE_CANDIDATE} rides along unchanged
+}
+```
+
 **Dependency consequence.** The reader, loader and image compiler need no VM.
 They depend on `tcl-source`, the registry core and a source-store trait.
 Only the Tcl hook runner (rung 4) links `tcl-vm`, and only an entry point that
@@ -150,7 +163,9 @@ are ordered, and the first match wins over the unversioned facts (302's
 `Facet<T>`). Documentation is a fact like any other, so hover is per version
 (item 121).
 
-```tcl
+**Source:**
+
+```spectcl
 command lsort {
     option -stride { available core 8.6- ; takes strideLength -integer 2.. }
 }
@@ -170,6 +185,37 @@ command text {                                  ;# library Tk
 command persist {                               ;# library iRules, tracks host
     subcommand mcp { available iRules 21.1- ; arity 1 ; hover {…} }
     versions {iRules -21.1} { arg mode -values- {mcp} }
+}
+```
+
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302; `core` is the dialect's own axis
+VersionedSpec {                                   // lsort; -stride's own Availability:
+    options: Facet { rows: &[(FacetKey::ANY, &[.., OptionId("-stride")])] },
+    ..                                            //   { library: None, window: ItemHistory("8.6-"), dialect: None }
+}
+VersionedSpec {                                   // string is; first match wins, newest first
+    value_sets: Facet { rows: &[
+        (FacetKey { library: VersionSet("core 9.0-"), dialect: None }, &[/* 18 */ .., "list", "wideinteger", "entier", "dict"]),
+        (FacetKey { library: VersionSet("core 8.6-"), dialect: None }, &[/* 18 */ .., "list", "wideinteger", "entier"]),
+        (FacetKey { library: VersionSet("core 8.5-"), dialect: None }, &[/* 18 */ .., "list", "wideinteger"]),
+        (FacetKey::ANY, &["alnum", "alpha", "ascii", "boolean", .., "wordchar", "xdigit"]),   // the 18 of 8.4
+    ] },
+    ..
+}
+VersionedSpec {                                   // text; -insertunfocussed's Availability:
+    options: Facet { rows: &[(FacetKey::ANY, &[.., OptionId("-insertunfocussed")])] },
+    ..                                            //   { library: Some("Tk"), window: ItemHistory("8.6-") },
+}                                                 //   docs facet "since Tk 8.6"
+VersionedSpec {                                   // persist (library iRules, tracks host)
+    subcommands: Facet { rows: &[(FacetKey::ANY, &[.., SubId("mcp")])] },   // mcp: iRules 21.1-, arity 1
+    value_sets: Facet { rows: &[
+        (FacetKey { library: VersionSet("iRules -21.1"), dialect: None }, &[/* mode list */ ..]),  // without mcp
+        (FacetKey::ANY, &[/* mode list */ .., "mcp"]),
+    ] },
+    ..
 }
 ```
 
@@ -235,7 +281,9 @@ only if they hold for every member. Templates take `{arg N}`, `{value WORD}`,
 `{library L}` and `{dialect}`. A rule compiles to a small expression tree in
 the image.
 
-```tcl
+**Source:**
+
+```spectcl
 check bench-mode-value {                ;# an enumerated -mode (rung 1 covers a closed list;
   on bench::run                         ;#  this is for a set that depends on another option)
   when {all {present -mode} {known {option -mode}} {present -legacy}
@@ -259,6 +307,33 @@ check persist-mcp-arity {
   when {all {library iRules 21.1-} {argc != 2}}
   emit E002 error -at command -message {persist mcp takes one persistence name on BIG-IP {library iRules}}
 }
+```
+
+**In memory:**
+
+```rust
+// design sketch: 305's check form; the type names are illustrative,
+// stored in the image's RULES section as post-order (op, arg) pairs (306)
+CheckRule { id: "bench-mode-value", on: "bench::run",
+    when: Pred::All(&[Present("-mode"), Known(Word::Option("-mode")), Present("-legacy"),
+                      ValueNotIn(Word::Option("-mode"), &["fast", "slow"])]),
+    emit: Emit { code: "W160", severity: Warning, at: Word::Option("-mode"),
+                 message: "with -legacy, -mode must be fast or slow", fix: None } }
+CheckRule { id: "itcl3-exact-on-tcl9", on: "package require",
+    when: Pred::All(&[Present("-exact"), ValueIn(Word::Arg(2), &["Itcl", "itcl"]),
+                      ValueVersionIn(Word::Arg(3), VersionSet("3-4")),
+                      Dialect(DialectRange { family: Family::Tcl, releases: VersionSet("9.0-") })]),
+    emit: Emit { code: "W161", severity: Error, at: Word::Arg(3),
+                 message: "Itcl {value {arg 3}} does not load on Tcl {dialect}; …", fix: None } }
+CheckRule { id: "trace-variable-retired", on: "trace variable",
+    when: Pred::Dialect(DialectRange { family: Family::Tcl, releases: VersionSet("8.4-") }),
+    emit: Emit { code: "W144", severity: Warning, at: Word::Subcommand,
+                 message: "deprecated since 8.4, gone in 9.0",
+                 fix: Some(Fix::Replace(Word::Subcommand, "add variable")) } }
+CheckRule { id: "persist-mcp-arity", on: "persist mcp",
+    when: Pred::All(&[Library(LibraryId("iRules"), VersionSet("21.1-")), Argc(Ne, 2)]),
+    emit: Emit { code: "E002", severity: Error, at: Word::Command,
+                 message: "persist mcp takes one persistence name on BIG-IP {library iRules}", fix: None } }
 ```
 
 The last two show the limit. Lifecycles (`trace variable`'s
@@ -378,6 +453,34 @@ command lsort {
 }
 ```
 
+**In memory before (today):**
+
+```rust
+// today: real fields of OptionSpec (tcl-registry/src/hover.rs:601)
+OptionSpec {
+    name: "-nocase",
+    value: OptionValue::flag(),
+    detail: "Case-insensitive comparison.",
+    surface: Some(&[SpecSurface { provider: SpecProvider::Core(Family::Tcl), windows: &[("8.5", None)] }]),
+    ..
+}
+OptionSpec {
+    name: "-stride",
+    value: OptionValue::Takes(OptionArg { integer: Some(IntegerDomain::Range(2, i64::MAX)), hint: "strideLength", .. }),
+    surface: Some(&[SpecSurface { provider: SpecProvider::Core(Family::Tcl), windows: &[("8.6", None)] }]),
+    ..
+}
+```
+
+**In memory after:**
+
+```rust
+// design sketch: types proposed in 302
+Availability { library: None, window: ItemHistory("8.5-"), dialect: None }   // -nocase
+Availability { library: None, window: ItemHistory("8.6-"), dialect: None }   // -stride; its value
+                                                  // shape (integer 2..max, hint strideLength) is unchanged
+```
+
 Second, D17-P. The 2.x loader validates a package window and keeps only the
 name, so this `text` option is visible under every Tk. The 3 row keeps the
 window:
@@ -405,6 +508,37 @@ command text {
     }
 }
 }
+```
+
+**In memory before (today):**
+
+```rust
+// today: real fields of CommandSpec and OptionSpec; the 8.6- window is gone (D17-P)
+CommandSpec {
+    name: "text",
+    surface: Some(&[SpecSurface { provider: SpecProvider::Package("Tk"), windows: &[] }]),
+    options: &[OptionSpec {
+        name: "-insertunfocussed",
+        value: OptionValue::Takes(OptionArg { hint: "cursorStyle", .. }),
+        surface: Some(&[SpecSurface { provider: SpecProvider::Package("Tk"), windows: &[] }]),
+        ..
+    }],
+    ..CommandSpec::DEFAULT
+}
+// notice: `available {package Tk 8.6-}`: a per-package version window has no
+// SpecTcl 1.x field, so only the package name is carried
+```
+
+**In memory after:**
+
+```rust
+// design sketch: types proposed in 302
+VersionedSpec {                                   // text
+    availability: Availability { library: Some(LibraryId("Tk")), window: ItemHistory::ALL, dialect: None },
+    options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-insertunfocussed")])] },
+    ..
+}
+Availability { library: Some(LibraryId("Tk")), window: ItemHistory("8.6-"), dialect: None }  // -insertunfocussed
 ```
 
 ### Equivalent answers

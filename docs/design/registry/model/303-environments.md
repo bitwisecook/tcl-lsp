@@ -208,6 +208,60 @@ speclib environments 3 {
 }
 ```
 
+**In memory before (today):**
+
+```rust
+// today: real fields of tcl_dialect::model::EnvironmentDefinition and CommandSpec
+EnvironmentDefinition {
+    id: EnvironmentId("envpack-shell"),
+    aliases: ["envpack"],
+    display_name: "Envpack Shell",
+    core: Some(CoreProfileSelector { family: Family::Tcl, default_release: Release("8.6"), build: BuildProfileId::Canonical }),
+    expected_packages: [PackagePlacement { package: "envlib", version: Placement::Pinned(Version("3.2")), ambient: true }],
+    policy_defaults: EnvironmentPolicy { closed_world: WorldPolicy::AmbientPlusRequire, .. },
+    ..
+}
+EnvironmentDefinition {
+    id: EnvironmentId("envpack-plain"),
+    display_name: "Envpack Plain",
+    core: Some(CoreProfileSelector { family: Family::Tcl, default_release: Release("8.6"), build: BuildProfileId::Canonical }),
+    expected_packages: [PackagePlacement { package: "envlib", version: Placement::Requirement(VersionSet("3.2-")), ambient: false }],
+    ..
+}
+CommandSpec {
+    name: "envlib::open",
+    arity: Arity::new(1, 1),
+    surface: None,
+    required_package: Some("envlib"),   // D17-P: the window 3.2- is dropped, with a notice
+    ..CommandSpec::DEFAULT
+}
+```
+
+**In memory after:**
+
+```rust
+// design sketch: types proposed in 301, 302 and 303
+EnvironmentDefinition {
+    id: EnvironmentId("envpack-shell"),
+    dialect: Some(DialectSelector { family: Family::Tcl, default_release: Release("8.6"), releases: VersionSet("8.6"), build: Build::Canonical, .. }),
+    libraries: vec![PlacedLibrary { id: LibraryId("envlib"), range: VersionSet("3.2"), placement: Placement::Ambient }],
+    policy: EnvironmentPolicy { world: WorldPolicy::AmbientPlusRequire, .. },
+    ..
+}
+EnvironmentDefinition {
+    id: EnvironmentId("envpack-plain"),
+    dialect: Some(DialectSelector { family: Family::Tcl, default_release: Release("8.6"), releases: VersionSet("8.6"), build: Build::Canonical, .. }),
+    libraries: vec![PlacedLibrary { id: LibraryId("envlib"), range: VersionSet("3.2-"), placement: Placement::Hosted }],
+    ..
+}
+AliasTable { rows: [("envpack", EnvironmentId("envpack-shell"), provenance)] }
+VersionedSpec {                                   // envlib::open
+    availability: Availability { library: Some(LibraryId("envlib")), window: ItemHistory("3.2-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(1, 1))] },
+    ..
+}
+```
+
 The four surface lists become one. `SOURCE_AUTHORING_ENVIRONMENT_SURFACES` is
 derived from the catalogue (an environment's ambient libraries plus its
 dialect surface). `shared_group!` and `lookup.rs` are gone after item 262.

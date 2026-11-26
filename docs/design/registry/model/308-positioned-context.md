@@ -131,6 +131,8 @@ stateDiagram-v2
 A worked example under the lenient `tcl` environment with `tclLsp.targets`
 `tcl 8.5-9.0`. The comments give the context at the end of each line:
 
+**Source:**
+
 ```tcl
 package require Tcl 8.6                ;# dialect {8.6}: a bare 8.6 means 8.6 up to 9
 if {$gui} {
@@ -140,9 +142,103 @@ text .t -insertunfocussed none         ;# Tk May {8.6} after the join
 package require $extra                 ;# every hosted library Unknown from here
 ```
 
+**In memory:**
+
+```rust
+// design sketch: types proposed in 302, 303 and 308
+// at `text .t -insertunfocussed none` (line 5):
+PositionedContext {
+    environment: Arc<ResolvedEnvironment { id: "tcl", .. }>,
+    dialect: DialectChoice::Set(VersionSet("tcl 8.6")),          // targets 8.5-9.0 ∩ require Tcl 8.6
+    libraries: {
+        LibraryId("Tk"): LibraryChoice::May { cases: [(VersionSet("8.6"), Why::Require { at: Span(line 3), exact: false })] },
+        ..                                        // bundled ones (http, msgcat, tcltest) are Must
+    },
+    targets: TargetSet { core: VersionSet("tcl 8.5-9.0"), .. },
+}
+// after `package require $extra` (line 6): every hosted library
+//     LibraryChoice::Unknown { reason: UnknownReason::DynamicName }
+```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "package require Tcl 8.6                ;# dialect {8.6}..."
+  Cmds 5, src 322, inst 131, litObjs 12, aux 0, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-25, src 0-38        2: pc 26-82, src 86-169
+      3: pc 47-71, src 102-136        4: pc 83-108, src 171-209
+      5: pc 109-129, src 241-279
+  Command 1: "package require Tcl 8.6                ..."
+    (0) push 0 	# "package"
+    (5) push 1 	# "require"
+    (10) push 2 	# "Tcl"
+    (15) push 3 	# "8.6"
+    (20) invokeStk 4 
+    (25) pop 
+  Command 2: "if {$gui} {\n    package require Tk 8.6             ;# ..."
+    (26) startCommand +56 1 	# next cmd at pc 82, 1 cmds start here
+    (35) push 4 	# "gui"
+    (40) loadStk 
+    (41) nop 
+    (42) jumpFalse +35 	# pc 77
+  Command 3: "package require Tk 8.6             ..."
+    (47) push 0 	# "package"
+    (52) push 1 	# "require"
+    (57) push 5 	# "Tk"
+    (62) push 3 	# "8.6"
+    (67) invokeStk 4 
+    (72) jump +10 	# pc 82
+    (77) push 6 	# ""
+    (82) pop 
+  Command 4: "text .t -insertunfocussed none         ..."
+    (83) push 7 	# "text"
+    (88) push 8 	# ".t"
+    (93) push 9 	# "-insertunfocussed"
+    (98) push 10 	# "none"
+    (103) invokeStk 4 
+    (108) pop 
+  Command 5: "package require $extra                 ..."
+    (109) push 0 	# "package"
+    (114) push 1 	# "require"
+    (119) push 11 	# "extra"
+    (124) loadStk 
+    (125) invokeStk 3 
+    (130) done 
+```
+
+**Result:**
+
+```text
+$ cat ctx-gui1.tcl     # ctx-gui0.tcl sets gui 0
+set gui 1; set extra http
+source ctx.tcl
+puts "Tk [package present Tk], http [package present http]"; exit
+$ export TCLLIBPATH=$PWD/tk86   # its pkgIndex.tcl loads tmp/tk8.6.18/unix/libtk8.6.so
+$ xvfb-run -a tclsh8.5 ctx-gui1.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 8.5.19, need 8.6
+$ xvfb-run -a tclsh8.6 ctx-gui1.tcl 2>&1 | head -1
+Tk 8.6.18, http 2.9.9
+$ xvfb-run -a tclsh9.0 ctx-gui1.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 9.0.4, need 8.6
+$ xvfb-run -a ./target/debug/tclvm ctx-gui1.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 9.0.4, need 8.6
+$ xvfb-run -a tclsh8.5 ctx-gui0.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 8.5.19, need 8.6
+$ xvfb-run -a tclsh8.6 ctx-gui0.tcl 2>&1 | head -1
+invalid command name "text"
+$ xvfb-run -a tclsh9.0 ctx-gui0.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 9.0.4, need 8.6
+$ xvfb-run -a ./target/debug/tclvm ctx-gui0.tcl 2>&1 | head -1
+version conflict for package "Tcl": have 9.0.4, need 8.6
+```
+
 The first line is tclsh's own answer: `package require Tcl 8.6` succeeds on
 8.6.18 and fails on 9.0.4 with `version conflict for package "Tcl": have
 9.0.4, need 8.6`. Writing `8.6-` or `8.6 9` instead keeps {8.6, 9.0}.
+On 8.6 with `gui` 0, `text` does not exist, which is why Tk is only `May`
+after the join.
 
 The query is per body unit and per binding transition, not per offset.
 `positioned_context(at)` finds the transition interval containing `at`, and
@@ -189,7 +285,7 @@ set with its reason:
 ```text
 source:  package require -exact Tk 8.5.19     (environment tcl8.6)
          text .t -insertunfocussed none
-floor:   Tk >= 8.5, from the require's lower bound; -exact is lost
+floor:   Tk >= 8.5.19, the require's written version; the upper bound -exact sets is lost
 ```
 
 **After:**
@@ -200,6 +296,50 @@ source:  package require -exact Tk 8.5.19     (environment tcl8.6)
 ctx:     Tk Must { versions: ∅, why: Require { exact: true } }
 answer:  a report: Tk 8.5.19 has no compatible row on tcl 8.6
 ```
+
+**Bytecode (tclsh 9.1.0):**
+
+```text
+ByteCode
+  Source "package require -exact Tk 8.5.19\ntext .t -insertunfocu..."
+  Cmds 2, src 64, inst 57, litObjs 9, aux 0, stkDepth 5, code/src 0.00
+  Commands 2:
+      1: pc 0-30, src 0-31        2: pc 31-55, src 33-62
+  Command 1: "package require -exact Tk 8.5.19..."
+    (0) push 0 	# "package"
+    (5) push 1 	# "require"
+    (10) push 2 	# "-exact"
+    (15) push 3 	# "Tk"
+    (20) push 4 	# "8.5.19"
+    (25) invokeStk 5 
+    (30) pop 
+  Command 2: "text .t -insertunfocussed none..."
+    (31) push 5 	# "text"
+    (36) push 6 	# ".t"
+    (41) push 7 	# "-insertunfocussed"
+    (46) push 8 	# "none"
+    (51) invokeStk 4 
+    (56) done 
+```
+
+**Result:**
+
+```text
+$ cat exact.tcl
+package require -exact Tk 8.5.19
+text .t -insertunfocussed none
+$ TCLLIBPATH=$PWD/tk86 xvfb-run -a tclsh8.6 exact.tcl
+can't find package Tk exactly 8.5.19
+    while executing
+"package require -exact Tk 8.5.19"
+    (file "exact.tcl" line 1)
+$ ./target/debug/tcl diag --dialect tcl8.6 exact.tcl          # today
+no diagnostics
+diagnostics=0 across 1 input(s)
+```
+
+tclsh 8.6 refuses the require. Today's gate says nothing about the file at
+all; the After answer is the report it should give.
 
 The two views of redesign §5.2 stay distinct types. `positioned_context` is
 the semantic view. The assistance view (`assist_context`) is the same record

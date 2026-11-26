@@ -255,6 +255,19 @@ command log_user {
 }
 ```
 
+**In memory after:**
+
+```rust
+// design sketch: types proposed in 302; the image stores it as a SpecRecord (above)
+VersionedSpec {                                   // log_user
+    availability: Availability { library: Some(LibraryId("Expect")), window: ItemHistory("0-"), dialect: None },
+    arity: Facet { rows: &[(FacetKey::ANY, Arity::new(0, 1))] },
+    options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-info")])] },   // flag, detail as before
+    docs: Facet { rows: &[(FacetKey::ANY, DocId(..))] },   // form, summary, two synopses, description, source
+    ..
+}
+```
+
 `SpecSurface::EXPECT` becomes `available Expect 0-`, as 305's shim table
 translates the `expect` membership token. The equivalence test (step 4)
 checks that both forms give the same visibility, arity and roles.
