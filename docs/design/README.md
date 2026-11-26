@@ -94,6 +94,10 @@ passes, and ownership matrices.
   - [14-caching.md](compiler/crate-split/14-caching.md) — step 14: a
     disposition for every memo, and the three caches that may become
     database queries.
+- [compiler-analyser-spectcl-integration.md](compiler/compiler-analyser-spectcl-integration.md)
+  — the crate split, the registry split and SpecTcl 3 as one system: the
+  facts interface, the fact-to-crate map, one interprocedural summary
+  framework, the VM boundary, salsa inputs and the sequencing.
 - [bytecode-image.md](compiler/bytecode-image.md) — serialised bytecode in
   the tbcx format on the Tcl 9.1 base, for pack hook bodies and AOT artefacts
   (plan item 311).
