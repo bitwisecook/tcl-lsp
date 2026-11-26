@@ -1445,12 +1445,12 @@ fn irule4004_only_in_irules_dialect() {
 // IRULE4002
 
 fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
-    let cu = CompilationUnit::build_for(source, &registry(), false);
+    let (cu, _context) = source_unit(source);
     find_generic_static_name_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)), None)
 }
 
 fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
-    let cu = CompilationUnit::build_for(source, &registry(), false);
+    let (cu, _context) = source_unit(source);
     find_generic_static_name_warnings(
         &cu,
         Some(SurfaceQuery::any_release(Family::F5Irules)),
@@ -1521,7 +1521,7 @@ fn generic_static_warning_declines_foreign_module_source_without_spelling_fallba
     // docs/design/analysis/name-resolution-proofs/resolved-static-variable-patterns.md
     // A real built source Module loses its actual document correspondence.
     let source = "when RULE_INIT {set static::debug 1}";
-    let mut unit = CompilationUnit::build_for(source, &registry(), false);
+    let (mut unit, _context) = source_unit(source);
     assert_eq!(
         find_generic_static_name_warnings(
             &unit,
@@ -1584,8 +1584,10 @@ fn irule4002_ignores_a_static_in_a_dead_arm() {
         generic_warnings("when RULE_INIT { if {0} { set static::debug 1 } }"),
         [] as [crate::irules_checks::IrulesCheckWarning; 0]
     );
+    // A fresh `RULE_INIT` reading an unset `$x` errors before its arm runs;
+    // a connection event's `$x` is unknown, so its arm is reachable.
     assert!(
-        generic_warnings("when RULE_INIT { if {$x} { set static::debug 1 } }")
+        generic_warnings("when HTTP_REQUEST { if {$x} { set static::debug 1 } }")
             .iter()
             .any(|w| w.code == DiagCode::Irule4002)
     );
@@ -1601,8 +1603,7 @@ fn irule4002_ignores_a_static_in_a_dead_arm() {
 
 #[test]
 fn irule4002_only_in_irules_dialect() {
-    let cu =
-        CompilationUnit::build_for("when RULE_INIT { set static::debug 1 }", &registry(), false);
+    let (cu, _context) = source_unit("when RULE_INIT { set static::debug 1 }");
     assert_eq!(
         find_generic_static_name_warnings(&cu, None, None),
         [] as [crate::irules_checks::IrulesCheckWarning; 0]

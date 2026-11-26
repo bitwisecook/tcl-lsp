@@ -830,8 +830,14 @@ pub(super) fn hosted_cell_is_local(
     }
     // A handler with no activation of its own runs at the global level
     // (`RULE_INIT`: `namespace current` is `::`, BIGIP-NAME-050), so its
-    // bare name is a cell of that namespace.
+    // bare name is a cell of that namespace. Any handler may also write its
+    // worker's own `::static` cells.
     match &cell.owner {
+        CellOwner::NamespaceIdentity(_)
+            if crate::variable_bindings::is_hosted_worker_namespace_cell(cell, variables) =>
+        {
+            true
+        }
         CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
             variables.activation.is_none()
                 && variables.namespace_footprint(access) == Some(namespace)
