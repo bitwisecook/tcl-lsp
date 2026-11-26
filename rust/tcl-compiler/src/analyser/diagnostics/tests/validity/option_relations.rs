@@ -666,6 +666,41 @@ fn a_write_to_a_constant_reports_e007_on_the_selected_cell() {
 }
 
 #[test]
+fn every_caught_write_to_a_constant_in_a_sequence_is_reported() {
+    // A rejected `append` or `lappend` leaves the constant a constant, so
+    // each later write is rejected and reported too.
+    let source =
+        "const c 1\ncatch {set c 2}\ncatch {incr c}\ncatch {append c x}\ncatch {lappend c y}\n";
+    let heads = ["set ", "incr ", "append ", "lappend "];
+    let expected = heads
+        .iter()
+        .map(|head| source.find(&format!("{{{head}c")).unwrap() + head.len() + 1)
+        .collect::<Vec<_>>();
+    for profile in ["tcl9.0", "tcl9.1"] {
+        let result = crate::analyser::Analyser::new().analyse(source, profile);
+        let starts = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E007)
+            .map(|diagnostic| usize::try_from(diagnostic.span.start()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(starts, expected, "{profile}");
+    }
+    for source in [
+        "const c 1\ncatch {lappend c y}\ncatch {lappend c y}\ncatch {lappend c y}\n",
+        "const c 1\ncatch {append c x}\ncatch {lappend c y}\ncatch {set c 2}\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let count = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E007)
+            .count();
+        assert_eq!(count, source.matches("catch").count(), "{source}");
+    }
+}
+
+#[test]
 fn caught_constant_store_after_stdout_reports_at_the_written_target() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

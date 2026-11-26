@@ -124,6 +124,10 @@ impl SourceCommandBindings {
         if let Some(outcomes) = self.walk_observed_native_getter(native, facts, state, context) {
             return Some(outcomes);
         }
+        if let Some(outcomes) = Self::walk_constant_append_rejection(native, facts, state, context)
+        {
+            return Some(outcomes);
+        }
         if !captured_store_contract(facts, native.invocation.arguments()) {
             return None;
         }
@@ -210,6 +214,42 @@ impl SourceCommandBindings {
         release_captured_lease(&mut outcomes, lease);
         outcomes.publish(state);
         Some(outcomes)
+    }
+
+    /// An append of values to a selected constant scalar fails before the
+    /// variable changes. Without this the walk would treat the call as an
+    /// opaque store and forget the constant for every later write.
+    fn walk_constant_append_rejection(
+        native: super::SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceOutcomes> {
+        use tcl_registry::native_compilation::NativeCompilationGrammar;
+        let arguments = native.invocation.arguments();
+        if !matches!(
+            facts.native_compilation?.grammar,
+            NativeCompilationGrammar::VariableAppend(_)
+        ) || !facts.arg_roles_complete
+            || arguments
+                .exact_argv_len()?
+                .checked_sub(facts.argument_offset)?
+                < 2
+        {
+            return None;
+        }
+        let (receiver, reads) = captured_native_receiver(
+            arguments,
+            facts,
+            &state.source_variables,
+            context.registry,
+            native.original_variable_operands,
+        )?;
+        (reads.iter().all(|read| !read.observed)
+            && state
+                .source_variables
+                .selected_scalar_is_constant(&receiver))
+        .then(|| SourceOutcomes::invocation(state, Route::Tcl(CompletionCode::Error)))
     }
 
     pub(super) fn walk_native_constant(
