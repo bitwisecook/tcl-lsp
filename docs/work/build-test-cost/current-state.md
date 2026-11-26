@@ -123,6 +123,20 @@ the checkout's `target/debug/build/` holds every unit since it was created
 (`tcl-compiler` 135, `tcl-vm` 88, `tcl-registry` 66); a fresh worktree is
 needed for that column.
 
+### Item 246 (step 0, `tcl-compiler`): before → after
+
+`cargo test -p tcl-compiler --lib --no-run` after appending one line to
+`rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs`, warm target,
+same machine, 26 November 2026:
+
+- before (`24b32a5c^`): 9 crates, 10 units (`tcl-compiler` lib and test
+  harness, `tcl-spectcl`, `tcl-lsp-core`, `tcl-engine-tclvm`, `tcl-codegen`,
+  `tcl-bigip`, `tcl-irules`, `tcl-sslictcl`, `tcl-spec-hooks`), 55.0 s;
+- after: 1 crate, 1 unit (the `tcl-compiler` test harness), 29.8 s.
+
+Both are incremental rebuilds of a warm target; the failset logs' 2–6
+minutes were taken under heavier load and colder caches.
+
 ## 1. CLI start-ups in tests
 
 What changed:

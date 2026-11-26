@@ -18,6 +18,7 @@ rust/tcl-cli-support
 rust/tcl-cmd-core
 rust/tcl-codegen
 rust/tcl-compiler
+rust/tcl-compiler-it
 rust/tcl-core-types
 rust/tcl-cshim
 rust/tcl-debugger

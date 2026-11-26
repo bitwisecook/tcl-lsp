@@ -183,6 +183,53 @@ flowchart LR
 - **No cascade left.** `cargo tree -p tcl-compiler -e dev` lists neither
   `tcl-spectcl` nor `tcl-engine-tclvm`.
 
+## As built (26 November 2026)
+
+Two choices differ from steps 2, 4 and 7 above; the owner may revisit them.
+
+- **The 12 `src` blocks' bodies stay in `tcl-compiler`; their test entries
+  move.** The blocks read private fields and `pub(super)` items across the
+  binding owner (`ModuleCommandBindings`' state, `SourceCommandBindings`'
+  points, `OriginalSourceTransitionSeed`'s parts), well beyond the 63 paths:
+  widening them would export most of `command_binding` under `test-support`.
+  Instead each block is `#[cfg(feature = "test-support")] #[doc(hidden)] pub
+  mod` with its `#[test] fn` turned into `pub fn` and its
+  `tcl_spectcl::core_surfaces::ensure()` calls removed. The bodies are reached
+  through `tcl_compiler::command_binding::spectcl_test_bodies`,
+  `analyser::handlers::{original_proc_source_layout_tests,
+  finite_foreach_source_controls}`, `analyser::commands::original_logical_jim_body_roles_tests`
+  and `compilation_unit::original_native_static_read_owner_tests`.
+  `tcl-compiler-it`'s `tests/it_4/` has one `#[test]` per body, in a module
+  tree that repeats the old path (`command_binding::jim_stock_class::tests`
+  and so on), which seeds Jim's surface and calls the body. Test names are
+  unchanged. No item's visibility was widened, so no `owner-resolution` row
+  changed; one `#[cfg(test)]` helper,
+  `Analyser::analyse_and_retain_result_for_test`, is now
+  `cfg(any(test, feature = "test-support"))`.
+- **One harness.** The 7 `tests/` files (with `value_transfer_witnesses`'
+  submodules) and the test entries are modules of `tests/it_4/main.rs`, under
+  their old module paths; the parent helpers they used are copied into
+  `tests/it_4/analyser.rs` and `optimiser.rs`, and `body_identity` is included
+  by path from `tcl-compiler/tests/support/`. The `value_transfers` bench is
+  `tcl-compiler-it`'s. `tcl-vm` is not a dev-dependency: no moved test uses it.
+- **Gates.** `retired-api-gate` already scans every file under `rust/`, and
+  `walker-ownership` and `diag-emission` skip `tests/` trees, so the new
+  crate needed no new roots. What the gates needed was to read a
+  `#[cfg(feature = "test-support")]` module as test code, as they read a
+  `#[cfg(test)]` one: `xtask::util::is_test_gate` (used by
+  `test_module_start` and the test-module file scan), the token scan in
+  `semantic_ownership/source.rs`, and `registry_axes::test_guarded`.
+  `deny.toml` lists `tcl-compiler-it` as a `tcl-compiler` wrapper, and
+  `rust-tests-package-paths.txt` lists the crate.
+
+Measured: after a one-line `tcl-compiler` edit, `cargo test -p tcl-compiler
+--lib --no-run` compiles 1 crate in 29.8 s, down from 9 crates in 55.0 s
+([build-test-cost](../../../work/build-test-cost/current-state.md)). Parity: the
+309 moved tests give 182 passes and 127 failures on both sides, and
+`failset.py compare` reports no new and no fixed failure; `-p tcl-compiler
+--lib analyser::` and `cfg_builder` are unchanged apart from the 9 moved
+analyser tests.
+
 ## Out of scope
 
 - The 22 `tcl_vm` users stay in place.
