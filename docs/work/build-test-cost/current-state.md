@@ -262,6 +262,25 @@ feature (option 3), and the `tcl-lsp-core` fixtures wait for the
 `tcl-bigip-query`'s features in `tcl-cli`'s and `tcl-mcp`'s tests are not in
 the design's table yet.
 
+**300, generated tables (measurement only).** Dev build (non-incremental,
+opt-level 0) of the owning crate, with the file as it is and with its table
+replaced by `&[]`, `cargo build --timings`, `-j3`:
+
+| File | Lines | Crate compile, as is | With the table empty | Table's share |
+|---|---:|---:|---:|---:|
+| `tcl-registry/src/base_objects/generated_names.rs` | 21,712 | 22.1 s | 21.5 s | 0.6 s |
+| `tcl-registry/src/base_objects/generated_objects.rs` | 20,419 | 22.1 s | 21.5 s | 0.6 s |
+| `tcl-registry/src/bigip/references.rs` | 5,061 | 22.1 s | 21.8 s | 0.4 s |
+| `tcl-registry/src/profile_defaults/generated.rs` | 2,213 | 22.1 s | 21.7 s | 0.4 s |
+| all four registry tables at once | | 22.1 s build, 15.9 s check | 20.7 s build, 14.4 s check | 1.4 s, 1.6 s |
+| `tcl-dialect/src/generated_release_facts.rs` (`RELEASE_FACTS`) | 11,445 | 1.14 s | 1.15 s | none measurable |
+| `tcl-bigip/src/model/gen/canon.rs`, `parsers.rs` (code) | 10,733 | `tcl-bigip` 5.3 s for 58.5k lines | – (functions, not tables) | – |
+
+So the tables cost at most about 0.6 s each per cold or check compile of
+their crate, and the release facts nothing measurable. The load-cost side
+(first-access parse of a data form) is not measured: no data form exists
+yet. Test-profile (opt-level 1, incremental) A/Bs are not taken.
+
 **299, build scripts.** `tcl-version`'s build script, in an unstamped dev or
 test build, emits `<CARGO_PKG_VERSION>-dev` (plus `+g<GIT_HASH>` when that is
 set) and watches no git path; stamped and release builds are unchanged.
