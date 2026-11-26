@@ -344,6 +344,14 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
         }
     }
 
+    let file = "rust/tcl-compiler/src/const_subst.rs";
+    let source = fs::read_to_string(root.join(file)).with_context(|| format!("reading {file}"))?;
+    if !has_exact_substitution_result(&source) {
+        problems.push(format!(
+            "{file}: ResolvedExactConstSubst must carry ExactValue"
+        ));
+    }
+
     let mut files = Vec::new();
     collect_rs_files(&root.join(COMPILER), &mut files);
     let mut parsers = Vec::new();
@@ -364,6 +372,33 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
         ));
     }
     Ok(problems)
+}
+
+fn has_exact_substitution_result(source: &str) -> bool {
+    syn::parse_file(source).is_ok_and(|file| {
+        file.items.iter().any(|item| {
+            let syn::Item::Type(alias) = item else {
+                return false;
+            };
+            let syn::Type::Path(ty) = alias.ty.as_ref() else {
+                return false;
+            };
+            let Some(segment) = ty.path.segments.last() else {
+                return false;
+            };
+            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return false;
+            };
+            alias.ident == "ResolvedExactConstSubst"
+                && segment.ident == "ResolvedConstSubst"
+                && arguments.args.len() == 1
+                && matches!(
+                    arguments.args.first(),
+                    Some(syn::GenericArgument::Type(syn::Type::Path(result)))
+                        if result.path.segments.last().is_some_and(|name| name.ident == "ExactValue")
+                )
+        })
+    })
 }
 
 fn has_value_payload(source: &str, name: &str, variant: Option<&str>, payload: &str) -> bool {
@@ -1239,6 +1274,12 @@ mod tests {
 
     #[test]
     fn constant_views_require_one_exact_value_payload() {
+        assert!(has_exact_substitution_result(
+            "type ResolvedExactConstSubst = ResolvedConstSubst<ExactValue<String>>;",
+        ));
+        assert!(!has_exact_substitution_result(
+            "type ResolvedExactConstSubst = ResolvedConstSubst<String>;",
+        ));
         assert!(has_value_payload(
             "struct View(ExactValue<String>);",
             "View",

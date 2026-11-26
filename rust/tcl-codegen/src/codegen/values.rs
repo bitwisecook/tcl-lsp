@@ -287,7 +287,7 @@ impl CodegenCtx<'_> {
                     lookup_var: &lookup,
                     script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
                 }
-                .fold_cmd_subst_resolved(inner)
+                .fold_cmd_subst_resolved_exact(inner)
             })
             .filter(|fold| {
                 // Only a list literal keeps a list result's reading as a
@@ -295,11 +295,12 @@ impl CodegenCtx<'_> {
                 // command.
                 fold.inline_codegen_hook == Some(tcl_registry::hooks::InlineCodegenHookId::List)
                     || !tcl_compiler::const_subst::folded_literal_reads_apart(
-                        &fold.value,
+                        &fold.value.bytes,
                         self.vm_release(),
                     )
             });
         if let Some(fold) = fold {
+            let text = fold.value.bytes.as_str();
             for invocation in &fold.invocations {
                 self.require_invocation_binding(&invocation.binding, &invocation.shape);
             }
@@ -317,18 +318,18 @@ impl CodegenCtx<'_> {
                     .expect("successful command fold has brackets"),
             );
             if fold.return_type == Some(tcl_registry::TclType::Dict) {
-                self.push_lit_no_dedup_verbatim(&fold.value);
+                self.push_lit_no_dedup_verbatim(text);
                 self.emit(Op::DUP, vec![]);
                 self.emit(Op::VERIFY_DICT, vec![]);
             } else if fold.inline_codegen_hook
                 == Some(tcl_registry::hooks::InlineCodegenHookId::List)
-                && !fold.value.is_empty()
+                && !text.is_empty()
             {
                 // `TclCompileListCmd` pushes the list it builds from literal
                 // words as its list object (and `[list]` as an empty string):
                 // a canonical list, which a script evaluation reads without
                 // compiling.
-                self.push_lit_no_dedup_verbatim(&fold.value);
+                self.push_lit_no_dedup_verbatim(text);
                 if let Some(push) = self.instructions.last_mut() {
                     push.literal_rep = tcl_bytecode::LiteralRep::List;
                 }
@@ -336,7 +337,7 @@ impl CodegenCtx<'_> {
                 // A command result is already a final Tcl value. It must not
                 // be parsed as another word: `$`, `[…]`, braces, and backslash
                 // bytes in the result are data, not a second substitution.
-                self.push_lit_no_dedup_verbatim(&fold.value);
+                self.push_lit_no_dedup_verbatim(text);
             }
             self.place_label(&end);
             return true;
