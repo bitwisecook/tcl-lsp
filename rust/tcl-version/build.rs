@@ -44,6 +44,10 @@
 //!
 //! Releases are tag-only: no version literal is bumped in the tree, so the tag
 //! is the single source of truth. See `scripts/release/tag.sh`.
+//!
+//! An unstamped dev or test build skips all of this and reports
+//! `<CARGO_PKG_VERSION>-dev` with an empty commit (or `GIT_HASH`), so commits
+//! and tag fetches never re-run the script.
 
 #[path = "src/git_inputs.rs"]
 mod git_inputs;
@@ -58,20 +62,31 @@ fn main() {
     // stale version baked in from a previous build.
     println!("cargo:rerun-if-env-changed=TCL_LSP_VERSION");
     println!("cargo:rerun-if-env-changed=GIT_HASH");
+
+    if stamped.is_none() && is_dev_profile() {
+        // An unstamped dev or test build does not read git at all: watching
+        // HEAD, the branch ref and the shared tags would re-run this script
+        // after every commit and tag fetch, in every worktree, and recompile
+        // every binary that embeds the stamp (plan item 299). A debug binary
+        // is never a release, so it says only that it is a dev build.
+        let commit = env_hash().unwrap_or_default();
+        let mut version = format!("{}-dev", env!("CARGO_PKG_VERSION"));
+        if !commit.is_empty() {
+            version.push_str("+g");
+            version.push_str(&commit);
+        }
+        emit(&version, &commit, &commit);
+        return;
+    }
+
     for path in git_inputs::dependency_paths(Path::new(env!("CARGO_MANIFEST_DIR"))) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
-    if stamped.is_none() && !is_dev_profile() {
+    if stamped.is_none() {
         // There is no complete, portable set of filesystem mtimes that models
         // `git status`: an unstaged root-level deletion has no existing child
         // to watch, and a chmod-only change alters neither size nor mtime.
         // Re-run this tiny stamp crate on every unstamped release build instead.
-        //
-        // Not in the dev profile: every crate that reads the stamp recompiles
-        // after a rerun, and `tcl-lsp-server` alone takes a minute, so a no-op
-        // `cargo build`/`cargo test` would pay that on every invocation. A
-        // debug binary is never a release, so its `.dirty` marker is allowed to
-        // lag until the next HEAD or ref change re-runs this script.
         let out_dir = PathBuf::from(
             std::env::var_os("OUT_DIR").expect("Cargo always supplies a build-script OUT_DIR"),
         );
@@ -127,15 +142,17 @@ fn main() {
         }
     }
 
+    emit(
+        &version,
+        &hash.unwrap_or_default(),
+        &source_revision.unwrap_or_default(),
+    );
+}
+
+fn emit(version: &str, commit: &str, source_revision: &str) {
     println!("cargo:rustc-env=TCL_LSP_RESOLVED_VERSION={version}");
-    println!(
-        "cargo:rustc-env=TCL_LSP_RESOLVED_COMMIT={}",
-        hash.unwrap_or_default()
-    );
-    println!(
-        "cargo:rustc-env=TCL_LSP_SOURCE_REVISION={}",
-        source_revision.unwrap_or_default()
-    );
+    println!("cargo:rustc-env=TCL_LSP_RESOLVED_COMMIT={commit}");
+    println!("cargo:rustc-env=TCL_LSP_SOURCE_REVISION={source_revision}");
 }
 
 /// Cargo's `PROFILE` is `debug` for the dev and test profiles and `release`

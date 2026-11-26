@@ -22,13 +22,6 @@
 
 use crate::DialectProfile;
 
-mod reference_toolchains {
-    // tcl-lsp-no-smoke-include
-    include!(concat!(env!("OUT_DIR"), "/reference_toolchains.rs"));
-}
-
-use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
-
 mod character_model;
 mod engine_policies;
 mod package_versions;
@@ -112,16 +105,6 @@ impl TclVersion {
     /// locate release-namespaced persisted data) must use this table rather
     /// than rebuilding the vocabulary beside their own parser.
     pub const ALL: [Self; 5] = [Self::V8_4, Self::V8_5, Self::V8_6, Self::V9_0, Self::V9_1];
-
-    const fn reference_index(self) -> usize {
-        match self {
-            Self::V8_4 => 0,
-            Self::V8_5 => 1,
-            Self::V8_6 => 2,
-            Self::V9_0 => 3,
-            Self::V9_1 => 4,
-        }
-    }
 
     /// Compatibility parser for a dialect name at an external boundary.
     ///
@@ -239,18 +222,20 @@ impl TclVersion {
     /// legitimate version, not a display decoration.
     #[must_use]
     pub fn patchlevel(self) -> &'static str {
-        REFERENCE_PATCHLEVELS[self.reference_index()]
+        self.release_facts().patchlevel
     }
 
     /// Upstream Tcl/Tk source tag pinned for this release's conformance
     /// toolchain.
     ///
-    /// The language-neutral manifest beside this crate owns the tag together
-    /// with [`Self::patchlevel`]. Test discovery and shell setup consume this
+    /// The language-neutral manifest beside this crate
+    /// (`data/reference-toolchains.tsv`) owns the tag together with
+    /// [`Self::patchlevel`]; `cargo xtask release-facts` carries both into
+    /// the release facts, and its `--check` fails on drift. Test discovery and shell setup consume this
     /// release fact instead of maintaining their own Tcl/Tk tag maps.
     #[must_use]
     pub fn reference_source_tag(self) -> &'static str {
-        REFERENCE_SOURCE_TAGS[self.reference_index()]
+        self.release_facts().source_tag
     }
 
     /// Source-observed core package provisions implemented by both engines.

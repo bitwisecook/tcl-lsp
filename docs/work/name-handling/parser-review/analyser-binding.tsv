@@ -1553,8 +1553,6 @@ rust/tcl-core-types/src/lib.rs::Code::is_ok	delimiter and control flow	review st
 rust/tcl-core-types/src/naming.rs::scan_var_name_end_with	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-core-types/src/native_hash_order.rs::NativeHashOrder::insert	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-core-types/src/native_hash_order.rs::NativeHashOrder::statistics	parse	review host operation	awaiting site review	—	—
-rust/tcl-dialect/build.rs::main	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-dialect/build.rs::main	split	review host operation	awaiting site review	—	—
 rust/tcl-dialect/src/arithmetic.rs::NativeArithmetic::normalizes_expression_result	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-dialect/src/build_info.rs::query	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-dialect/src/build_info.rs::suffix_word	delimiter and control flow	review structural reader	awaiting site review	—	—

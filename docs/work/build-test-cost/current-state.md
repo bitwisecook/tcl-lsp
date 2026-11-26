@@ -180,6 +180,25 @@ either way; the saving is the `tcl-runtime` build in every gate run and every
 `xtask` relink after a runtime edit, and, once 297 moves `xtask` to the test
 profile, `tcl-runtime` at opt-level 1.
 
+**299, build scripts.** `tcl-version`'s build script, in an unstamped dev or
+test build, emits `<CARGO_PKG_VERSION>-dev` (plus `+g<GIT_HASH>` when that is
+set) and watches no git path; stamped and release builds are unchanged.
+`tcl-dialect/build.rs` is deleted: `TclVersion::patchlevel()` and
+`reference_source_tag()` read `RELEASE_FACTS`, and `cargo xtask release-facts`
+now checks the rendered table against `data/reference-toolchains.tsv`, the
+one owner of the two columns.
+
+| | Before | After |
+|---|---:|---:|
+| `cargo build -p tcl-lsp-server` (dev) after an empty commit | 3 units (`tcl-version`, `tcl-lsp-server` lib and bin), 40 s | 0 units, 0.1 s |
+| the same after `git pack-refs --all` | (watched `packed-refs`) | 0 units |
+| `tcl-dialect` build-script units per profile | 2 (compile, run) | 0 |
+| `target/debug/tcl --version` | `0.1.0+g<hash>[.dirty]` | `0.1.0-dev` |
+
+Not changed: `bigip-report-gen-rust`'s own build script still watches the git
+refs for its report footer; it is outside `tcl-lsp-server`'s graph and
+rebuilds only itself and its binary.
+
 ## 1. CLI start-ups in tests
 
 What changed:
@@ -526,10 +545,10 @@ that reads `tcl_version::VERSION`. In a no-op build that meant 65 s for
 Every local `cargo build` or `cargo test` paid it before doing any work.
 
 The probe is now emitted only outside the dev profile (`PROFILE != debug`).
-Release builds and stamped CI builds behave exactly as before. A debug build
-still re-stamps when HEAD, the current branch ref, tags or `packed-refs`
-change. Its `.dirty` marker can lag behind an uncommitted edit until the next
-such change. A debug binary is never shipped, so the lag is acceptable.
+Release builds and stamped CI builds behave exactly as before. Since item 299
+an unstamped debug build reads no git state at all: it reports
+`0.1.0-dev` with an empty commit, so commits and tag fetches never re-run the
+script.
 
 No-op builds after the change: `tcl-lsp-server` **65 s → 0.3 s**, `tcl-cli`
 **5 s → 0.3 s**. `cargo test -p tcl-version` passes, and a release build of the
