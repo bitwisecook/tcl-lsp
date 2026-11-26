@@ -333,12 +333,18 @@ declarations are written in.
   — the registration and resolution contract every consumer is held to, the
   gap rulings, the `tcl spec upgrade` specification, and the name-resolution
   oracle programme.
-- [registry-split-design.md](registry/registry-split-design.md) — the proposed registry crate boundaries and migration steps.
 - [dialect-profile-model.md](registry/dialect-profile-model.md) — the
   interned `DialectProfile` catalogue the lexer is keyed on.
 - [eda-library-packages.md](registry/eda-library-packages.md) — the EDA
   shells as base-Tcl profiles plus `required_package`-gated tool packages,
   shipped as bundled `.tclspec` packs with `environment` blocks.
+- [dialects-and-libraries.md](registry/dialects-and-libraries.md) — the
+  target model: fundamental dialects (tcl, jim, f5tcl), libraries with
+  compatibility over dialect and library version ranges, environments, and
+  SpecTcl 3 with shims for old packs (plan items 266–272).
+- [registry-split-design.md](registry/registry-split-design.md) — the
+  registry as a core plus one crate per dialect and per library distribution
+  (plan items 261–265).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.

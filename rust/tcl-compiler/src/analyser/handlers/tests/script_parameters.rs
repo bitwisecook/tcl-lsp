@@ -98,3 +98,26 @@ fn an_argument_the_procedure_does_not_run_is_left_alone() {
         );
     }
 }
+
+/// `c05` and `c18`'s wrapper prints with a one-argument `puts` in both
+/// branches of an `if`. The walk enters the branches itself and a `close`
+/// gives `stdout` no Tcl callback, so the write stays a plain write that
+/// completes or fails, and the later calls are still entered.
+const PRINTING_WRAPPER: &str = "proc t {label script} {if {[catch {uplevel 1 $script} r]} {puts \"$label: ERR $r\"} else {puts \"$label: $r\"}}\n";
+
+#[test]
+fn a_later_call_of_a_printing_wrapper_is_still_entered() {
+    let result = analyse(&format!(
+        "{PRINTING_WRAPPER}t a {{set x 1}}\nt b {{close stdout sideways}}\nt c {{string frobnicate x}}\n"
+    ));
+    assert!(
+        reports(&result, DiagCode::W001, "frobnicate"),
+        "{:?}",
+        result.diagnostics
+    );
+    assert!(
+        reports(&result, DiagCode::W127, "sideways"),
+        "{:?}",
+        result.diagnostics
+    );
+}

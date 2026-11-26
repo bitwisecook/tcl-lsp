@@ -1,5 +1,7 @@
 # SpecTcl — spec packs as a Tcl DSL
 
+> **SpecTcl 3 (designed 26 November 2026):** the language is being redesigned around `dialect`, `library` (with compatibility rows and trains) and `environment` forms, and 1.x and 2.x packs keep loading through translation shims. See [dialects, libraries and environments](dialects-and-libraries.md#spectcl-3).
+
 The DSL is named **SpecTcl**. (Two prior arts share the name — Sun's 1990s
 Tk GUI builder and the NSCL physics analysis tool; both are distant enough
 that the pun wins.)

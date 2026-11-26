@@ -421,6 +421,14 @@ fn source_target_arguments_invalid(
             })
 }
 
+/// Whether a step may give the process `stdout` a Tcl callback. Only a
+/// channel created or stacked with a Tcl handler (`chan create`, `chan push`)
+/// carries one, and those retain a callback; a channel moved from another
+/// interpreter may carry one too. Opening, closing, configuring and writing
+/// channels, and running subprocesses, cannot: a channel that `open` or
+/// `socket` places in a closed `stdout` slot runs no Tcl when written.
+/// Unmodelled code reaches the walk as an opaque step, which withdraws the
+/// fact on its own.
 fn may_change_stock_stdout(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
@@ -432,17 +440,7 @@ fn may_change_stock_stdout(
     (requires_reentry_guard(facts)
         && native_result::stock_scoped_prefix_operand(native, facts).is_none())
         || facts.effects.accesses().iter().any(|access| {
-            matches!(
-                access.domain,
-                WorldStateDomain::LegacyExternal(
-                    SideEffectTarget::FileIo
-                        | SideEffectTarget::ChannelIo
-                        | SideEffectTarget::NetworkIo
-                        | SideEffectTarget::LogIo
-                        | SideEffectTarget::InterpState
-                        | SideEffectTarget::Process
-                )
-            )
+            access.domain == WorldStateDomain::LegacyExternal(SideEffectTarget::InterpState)
         })
         || (facts.effects.accesses().iter().any(|access| {
             matches!(

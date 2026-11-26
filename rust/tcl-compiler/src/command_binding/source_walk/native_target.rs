@@ -90,7 +90,8 @@ pub(super) fn is_implicit_stock_stdout_write(
         && native.invocation.arguments().exact_argv_len() == Some(1)
 }
 
-/// The stock expression and capture handlers delegate re-entry to their walked operands.
+/// The stock expression, conditional and capture handlers delegate re-entry
+/// to their walked operands.
 fn delegates_to_stock_operand_walk(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
@@ -110,6 +111,9 @@ fn delegates_to_stock_operand_walk(
             script_body_flow(facts),
             ScriptBodyFlow::Expressions(_) | ScriptBodyFlow::ConcatenatedExpression { .. }
         ),
+        SemanticOperationId::StructuredLowering(LoweringHookId::If) => {
+            matches!(script_body_flow(facts), ScriptBodyFlow::Conditional(_))
+        }
         SemanticOperationId::StructuredLowering(LoweringHookId::Catch) => matches!(
             tcl_registry::case_bodies::script_body_flow_in_registry(
                 context.registry,
