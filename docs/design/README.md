@@ -45,6 +45,17 @@ How the analyser decides what a name denotes and what a value holds.
   registry-driven widget-tree and geometry model behind the editor and MCP
   previews, with its abstention, size-bound, and stale-document rules.
 
+## build-time/
+
+Build costs, caches, and dependency changes.
+
+- [259-worktree-cost.md](build-time/259-worktree-cost.md)
+- [260-shared-cache.md](build-time/260-shared-cache.md)
+- [269-272-dev-dependency-cascades.md](build-time/269-272-dev-dependency-cascades.md)
+- [291-vm.md](build-time/291-vm.md)
+- [292-codegen.md](build-time/292-codegen.md)
+- [296-300-build-levers.md](build-time/296-300-build-levers.md)
+
 ## compiler/
 
 The multi-pass compiler: pipeline stages, analyses, codegen, optimisation
@@ -60,6 +71,20 @@ passes, and ownership matrices.
   ordered, ratcheted steps (plan item 90).
   - [00-test-dependencies.md](compiler/crate-split/00-test-dependencies.md) — remove the upper stack from compiler tests.
   - [01-module-layers.md](compiler/crate-split/01-module-layers.md) — map the modules to their intended layers.
+  - [02-tcl-source.md](compiler/crate-split/02-tcl-source.md)
+  - [03-tcl-names.md](compiler/crate-split/03-tcl-names.md)
+  - [04-tcl-values.md](compiler/crate-split/04-tcl-values.md)
+  - [05-tcl-model.md](compiler/crate-split/05-tcl-model.md)
+  - [06-tcl-ir.md](compiler/crate-split/06-tcl-ir.md)
+  - [07-binding-fixpoint.md](compiler/crate-split/07-binding-fixpoint.md)
+  - [08-tcl-binding.md](compiler/crate-split/08-tcl-binding.md)
+  - [09-tcl-lowering.md](compiler/crate-split/09-tcl-lowering.md)
+  - [10-tcl-analysis.md](compiler/crate-split/10-tcl-analysis.md)
+  - [11-tcl-native-plan.md](compiler/crate-split/11-tcl-native-plan.md)
+  - [12-diagnostics-optimiser.md](compiler/crate-split/12-diagnostics-optimiser.md)
+  - [13-unit-and-db.md](compiler/crate-split/13-unit-and-db.md)
+  - [14-caching.md](compiler/crate-split/14-caching.md)
+- [bytecode-image.md](compiler/bytecode-image.md)
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value
@@ -342,9 +367,24 @@ declarations are written in.
   target model: fundamental dialects (tcl, jim, f5-tcl), libraries with
   compatibility over dialect and library version ranges, environments, and
   SpecTcl 3 with shims for old packs (plan items 301–307).
+  - [301-dialects.md](registry/model/301-dialects.md)
+  - [302-libraries.md](registry/model/302-libraries.md)
+  - [303-environments.md](registry/model/303-environments.md)
+  - [304-f5-libraries.md](registry/model/304-f5-libraries.md)
+  - [305-spectcl-3.md](registry/model/305-spectcl-3.md)
+  - [306-expect-spike.md](registry/model/306-expect-spike.md)
+  - [307-libraries-as-data.md](registry/model/307-libraries-as-data.md)
+  - [308-positioned-context.md](registry/model/308-positioned-context.md)
+  - [309-310-migration-and-authoring.md](registry/model/309-310-migration-and-authoring.md)
 - [registry-split-design.md](registry/registry-split-design.md) — the
   registry as a core plus one crate per dialect and per library distribution
   (plan items 261–265).
+  - [01-surface-input.md](registry/registry-split/01-surface-input.md)
+  - [02-behaviour-to-surfaces.md](registry/registry-split/02-behaviour-to-surfaces.md)
+  - [03-extract-crates.md](registry/registry-split/03-extract-crates.md)
+  - [04-dependency-hygiene.md](registry/registry-split/04-dependency-hygiene.md)
+  - [117-native-model.md](registry/registry-split/117-native-model.md)
+  - [118-bigip-schema.md](registry/registry-split/118-bigip-schema.md)
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
@@ -479,6 +519,18 @@ Starting shapes for a new design document.
 - [templates/README.md](templates/README.md) — the templates (contract,
   reference, ownership matrix), what a design doc looks like here, and the
   checklist to run before merging one.
+
+## workspace/
+
+Crate boundaries for the rest of the workspace.
+
+- [288-spectcl-edge.md](workspace/288-spectcl-edge.md)
+- [289-lsp-core.md](workspace/289-lsp-core.md)
+- [290-lsp-server.md](workspace/290-lsp-server.md)
+- [293-mcp.md](workspace/293-mcp.md)
+- [294-explorer.md](workspace/294-explorer.md)
+- [295-hub-crates.md](workspace/295-hub-crates.md)
+- [overview.md](workspace/overview.md)
 
 ## spec-dsl-examples/
 
