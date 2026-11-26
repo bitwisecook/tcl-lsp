@@ -716,23 +716,22 @@ flowchart TB
 
 ## 7. Sequencing
 
-The owner puts build time first, then the model, then SpecTcl 3 and the
-consumers ([plan](../../work/name-handling/plan.md), working order). The
-waves:
+The owner puts build time first, then the splits, then the model and
+SpecTcl 3, then the consumers. The plan's working order is the authority
+(review P5, 26 November 2026); this section mirrors its stages:
 
-| Wave | Items | Why here |
+| Stage | Items | Why here |
 |---|---|---|
-| 1. Green build-time steps | 259, 246 (266–268), 269–272, 247, 273 | measured baseline; test cascades cut; module map |
-| 2. Registry inversion and core | 262, 263, 117a, 118; then 264 and 265 | the core becomes the only thing generic crates name |
-| 3. Vocabulary crates | 251 and 281 (`tcl-source`), 248, 280, 249 and 275–277 (`tcl-model`), 252 | `tcl-source` unblocks 305's reader; `tcl-model` takes the summary records |
-| 4. 3.0 vocabulary, once | 301–304, then 305's model types with 400–405 (parity), 410 (dependencies), 417 (`GrammarProfile`), 390a–390f, 391a, 392a, 465–468 (taint rows); INT-a, INT-c, INT-l | every new fact family is a core edit that rebuilds everything; landing them together pays that once |
-| 5. Binding and the passes | 278, 250, 279, 253, 282, 254, 255, 117b | the crates the engines land in |
-| 6. Top of the stack | 256, 283, 257, 284, 285, 258, 286, 287 | `tcl-unit` and `tcl-db` exist |
-| 7. SpecTcl loader and images | 288, 305's reader, 306 with 406, 407, 307 (with INT-b), 416, 318, 312, 311 | images need the catalogue; the hook VM needs 312 and 311 |
-| 8. Integration | INT-d (308, with item 84's transitions), INT-e, INT-f (391b, 392b–c, 469–471), INT-g, INT-h with 418–420, INT-i | the framework needs `tcl-unit`; the salsa slices need `tcl-db` |
-| 9. Consumers | 313, 413, 414; 319–330 in 319's waves; 437–441 (source tools), 442–451 (F5), 452–457 (SslicTcl), 458–464 (eBPF), 472–474; INT-j, INT-k | each `tcl-ide-*` crate is born at pin zero |
-| 10. Caching | step 14, then 101, 103 after 83 and 84 | last, measured |
-| deferred | 475–479 (run-time taint), with the engine items | VM work stays deferred except 311 and 312 |
+| Now 1. Cheap build wins | 259; 297, 298, 299, 260, 296 and 300's measurements; 246 (266–268) and 269–272; 318a; 247, 273 | measured baseline; test cascades cut; module map |
+| Now 2. Registry inversion and core | 262, 263, 117a, 118a, then 264, 265; 480 (INT-a) | the core becomes the only thing generic crates name |
+| Now 3. Vocabulary crates | 251, 281, 248, 280, 249, 275–277, 252 | `tcl-source` unblocks 305's reader; `tcl-model` takes the summary records |
+| Now 4. Binding and the passes | 278, 250, 279, 253, 282, 254, 255, 117b | the crates the engines land in |
+| Now 5. Top of the stack | 292, 256, 283; 257, 284, 285; 258, 286, 287; 288 with 314, then 319; 289, 315, 316; 290, 291, 293, 294, 317, 295; then 495 with 118b and 119 | `tcl-unit` and `tcl-db` exist |
+| Now 6. Model, SpecTcl 3, images | 301–304; 305; 400–411, 413; 482 (INT-c); 390–392 model steps; 465–468; 309, 310, 404; 306, 406, 416; 307, 481 (INT-b), 415; the rest of 318; 417–420, 424–432, 435; 312, then 311 | every new fact family lands once; images need the catalogue; the hook VM needs 312 and 311 |
+| Now 7. Integration | 308a; 483 (INT-e); 391b and 392b–c with 469–471; 484 (INT-g); 485 (INT-h); 487 (INT-m) | the framework needs `tcl-unit`; the salsa slices need `tcl-db` |
+| Now 8. Consumers | 319's waves (325, 320, 313, 322, 323 with 414, 433, 436, 441, 472, then 324, 326, 328, 329, 327, 330); beside them 437–440, 442–464, 473, 474, 486 (INT-j) | each `tcl-ide-*` crate is born at pin zero |
+| Waiting | 274 (with 77); 308b, then 321, 325's positioned half and 412 (after 84); 421 (with 41), 422 (with 39) | needs item 84 or other stages |
+| Deferred | 423, 434, 475–479 (run-time taint), the engine bugs | VM work stays deferred except 311 and 312 |
 
 What waits: 305's reader for `tcl-source` (251) and the source store (288);
 306 and 307 for `tcl-catalogue` (264); 308 for 302, 303, `tcl-binding`
@@ -747,7 +746,7 @@ Where the designs disagree about order:
 - **308 against item 84.** The plan runs 308 after 302 and 303 and
   "alongside item 84", which is stage 11. Split it: 308a (whole-file
   selection from `SignaturePackageRequire`, `Must`/`May` from the structural
-  walk) in wave 8; 308b (per position) after 84.
+  walk) in Now 7; 308b (per position) after 84.
 - **391b before the split** would be written into the cyclic `tcl-compiler`
   and moved again. It waits for INT-e.
 - **370's** 94 non-test `LexerConfig::default()` rewrites conflict with
@@ -844,7 +843,7 @@ ProcSummary {
 }
 CatchFacts { site: Span(36..63),               // tclsh's src range for command 4
              completion: CodeSet::of(&[0, 1]),
-             errors: ErrorSet { patterns: &[ErrorPattern(&["POSIX"])], other: true, certainty: Certainty::Must } }
+             errors: ErrorSet { patterns: &[ErrorPattern(&["POSIX"])], other: true } }
 HandleValue { var: (BodyKey("body:1:0"), "ch"), ty: "file", caps: {writable},
               state: Live, certainty: Certainty::Must, on: CatchResult(0) }
 ```
@@ -931,55 +930,56 @@ $ ./target/debug/tcl explore --dialect tcl8.6 --show taint --text save.tcl   # t
 
 Numbered `INT-a` onwards, to be placed after the plan's renumbering.
 
-- **INT-a. `FactView` and `HookDispatch` in the core** (after 262). Done
+- **INT-a. `FactView` and `HookDispatch` in the core** (plan item 480) (after 262). Done
   when `tcl-compiler` reads `CommandRegistry` only through `FactView`
   adapters and `install_host`/`install_extension_host` have callers only in
   entry points (`rg`).
-- **INT-b. Every fact an image, every image in the catalogue** (with 264 and
+- **INT-b. Every fact an image, every image in the catalogue** (plan item 481) (with 264 and
   307). Done when item 259's `spec` edit (a comment appended to the Tcl
   core's `.tclspec`) and a release-facts row edit each rebuild nothing under
   `cargo test -p tcl-analysis --lib --no-run`. Under `cargo build --workspace
   --all-targets` they rebuild only `tcl-catalogue`, the binaries, the WASM
   hosts, `xtask` and the `-it` crates that take the catalogue. `rg
   'CommandSpec \{' rust/tcl-dialect-tcl/src` is empty.
-- **INT-c. One `Certainty`** (wave 4). Done when `LibraryChoice`,
-  `HandleValue` and `ErrorSet` use `tcl_core_types::Certainty`.
-- **INT-d. Positioned context in `tcl-binding`** (after 253, 302, 303; 308a
+- **INT-c. One `Certainty`** (plan item 482, Now 6). Done when `LibraryChoice`
+  and `HandleValue` use `tcl_core_types::Certainty`; `ErrorSet` has no
+  certainty field (392, G13).
+- **INT-d. Positioned context in `tcl-binding`** (folded into plan item 308a/308b) (after 253, 302, 303; 308a
   then 308b). Done when the version gate reads `&ContextIntervals`, `cargo
   tree -p tcl-diagnostics -e normal` lists no `tcl-db`, and 308's rows pass.
   The second half also needs `tcl-unit`'s top-down entry-selection pass:
   308's "inside a procedure" row and a cross-file row pass, and each
   component's re-binding count is recorded.
-- **INT-e. The summary framework** (after 258). Port § 3's six engines one
+- **INT-e. The summary framework** (plan item 483) (after 258). Port § 3's six engines one
   at a time. Done when the explorer's JSON over the conformance corpus is
   byte-identical across each port, one Tarjan remains, the loops at
   `summary_fixpoints.rs:119,190`, `object_flow.rs:97` and
   `var_escape/interprocedural.rs:273` are gone, and § 3's edit and cold
   budgets hold on release builds (item 106's suite and tcllib 2.0).
-- **INT-f. The new domains:** 391b, 392b–c and 470 (393's summaries). Done
+- **INT-f. The new domains:** (folded into plan item 470) 391b, 392b–c and 469–471 (393's summaries). Done
   when the examples of 391, 392 and § 9 show their summaries in `tcl
   explore`, and every object-type test passes unchanged.
-- **INT-g. Fact slices and pack inputs** (after 286, INT-a). Done when a
+- **INT-g. Fact slices and pack inputs** (plan item 484) (after 286, INT-a). Done when a
   `tcl-db` test edits one `throws` row in a user pack and salsa's event log
   shows `body_summary` re-run only for its callers' bodies, and no binding.
   A second test changes a role (`-role Body`) and sees only the calling
   bodies re-bound; a third adds a `colour` row and sees every summary re-run.
-- **INT-h. Grammar profile ids** (with 370, INT-g). Done when every parser
+- **INT-h. Grammar profile ids** (plan item 485) (with 417–419, INT-g). Done when every parser
   takes a `GrammarProfile`, pack profiles come from the generation, and the
   memo gate finds no `Box::leak` for one.
-- **INT-i. The VM boundary** (with 318). Done when `cargo tree -e normal -i
+- **INT-i. The VM boundary** (folded into plan item 318) (with 318). Done when `cargo tree -e normal -i
   tcl-vm` is empty for `tcl-spectcl`, `tcl-explorer`, `tcl-ide-*` and every
   compiler crate, and the server reaches `tcl-vm` only through
   `tcl-spec-hooks`.
-- **INT-j. Consumer cones:** § 6's target table as a ledger checked by
+- **INT-j. Consumer cones:** (plan item 486) § 6's target table as a ledger checked by
   `cargo xtask crate-layer`. Done when the gate passes and item 259 records
   each cone.
-- **INT-k. `bpf-tcl-ir` without `tcl-analysis`.** Done when `cargo tree -p
+- **INT-k. `bpf-tcl-ir` without `tcl-analysis`.** (folded into plan item 464) Done when `cargo tree -p
   bpf-tcl-ir -e normal` lists no `tcl-analysis`.
-- **INT-l. One taint colour, one completion code value** (with 465). Done when
+- **INT-l. One taint colour, one completion code value** (folded into plan item 465) (with 465). Done when
   `rg 'struct TaintColour|enum CompletionCode(Lattice|Domain)' rust` finds
   one colour and one value type.
-- **INT-m. § 9 as a conformance row.** Done when `save`'s summary is checked
+- **INT-m. § 9 as a conformance row.** (plan item 487) Done when `save`'s summary is checked
   on tclsh 8.6, 9.0 and 9.1.
 
 ## Corrections to other designs

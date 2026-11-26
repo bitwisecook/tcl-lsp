@@ -84,7 +84,7 @@ only sets its values (redesign §3.1).
 | `info` | 9.1 adds `cmdtype`, `consts`, … | adds `statics`, `alias`, `references`, `returncodes`, `source`, `version`; no `class`, `object` | 8.4 set; tmsh adds `info vartype` (§4) | subcommand-set facets keyed by family |
 | `unknown` | default `unknown` auto-loads | no default `unknown`; a user `unknown` is honoured | `unknown` absent from TMM's interpreter | world policy: Jim open, `tmm` closed at load |
 | Restrictions | — | — | `tmm`: 16 absent commands, 15 refused by the rule compiler, top level declaration-only, `proc` banned lexically in `when`, `call`, `static::`, `::` globals demote CMP, `table`, `session`, `after` suspend | a `build tmm` core property (absent) and the iRules policy (refused, 304) |
-| Releases | 8.4–9.1 | 0.76–0.84 | BIG-IP lines 9.0–21.1; only 21.1.0.1 measured | iRules lifecycle rows from evidence (item 361) |
+| Releases | 8.4–9.1 | 0.84 only (owner decision) | BIG-IP lines in public support per K5902; only 21.1.0.1 measured | iRules lifecycle rows from evidence (plan item 432) |
 | Command surfaces | Tcl core | own core | `tmm`: iRules; `scriptd`: iApps, tmsh (304) | nothing; tmsh's build is Q11 |
 
 ### 2. What SpecTcl 3 needs
@@ -377,7 +377,7 @@ line 6 is an error (refused), and line 7's severity becomes an error.
 2. 302 and 305: `core FAMILY RANGE`, Jim extension libraries, the
    `capability` atom, and the 31-name `Extension`.
 3. Item 357: generate the Jim core deltas from jimsh probes at each tag.
-4. 304 and item 360: iRules severities and the inert-`{*}` diagnostic.
+4. 304 and plan item 431: iRules severities and the inert-`{*}` diagnostic.
 5. 313: barriers, `ref-liveness`, family-keyed proof sets, and the F5
    formatter merge.
 6. `tcl-spec-hooks`: `ctx.dialect`, dialect kernels, and abstention
@@ -426,7 +426,7 @@ line 6 is an error (refused), and line 7's severity becomes an error.
 
 ## Owner decisions (26 November 2026)
 
-1. **iRules load-time failures match the appliance.** Under f5-tcl `tmm`, an unknown, absent or refused command head, `proc` inside `when`, and the inert `{*}` trap report at the severity the appliance's rule loader gives them: an error where the rule fails to load. That holds even though it adds errors across existing user corpora (item 360's proposal is adopted).
+1. **iRules load-time failures match the appliance.** Under f5-tcl `tmm`, an unknown, absent or refused command head, `proc` inside `when`, and the inert `{*}` trap report at the severity the appliance's rule loader gives them: an error where the rule fails to load. That holds even though it adds errors across existing user corpora (360's proposal is adopted).
 2. **Only F5-supported BIG-IP releases are modelled.** iRules `proc` and `call` arrived in v10, which is older than any release we support. The f5-tcl release ladder covers only the BIG-IP versions still in public support according to F5's K5902 article. Its lower bound moves with that article, and nothing older needs dating. Command history before the oldest supported release is irrelevant, and rows start at that release.
 3. **F5-bundled iApp packages are modelled now, with unknown versions.** `http`, `uri`, `sha256` and the other packages listed in the iApp context become F5-bundled libraries on f5-tcl `scriptd` whose versions are unknown until probed. The question is F5 question Q12 in the plan.
 4. **Jim: the latest release only, for now.** Only the latest Jim release (0.84) is supported. A Jim version range can come later. As a principle, a dialect gets release boundaries only where a release makes big changes to the language, as C Tcl's do. Jim's minor releases don't, so `jim` is one point until a release changes the language. The 0.76–0.84 span in today's environment narrows to 0.84 (item 356 becomes "jim 0.84 full and minimal").

@@ -278,9 +278,9 @@ other.
 | 5 | `tcl-ir` | IR and CFG data types (`Module`, `Procedure`, `Script`, `Statement`, `CommandTokens`, `cfg` types), generic over one `Facts` parameter for binding's annotations | ~8k | `tcl-codegen`, `bpf-tcl-ir`, `tcl-explorer`, `tcl-diagram`, `f5-xc` | 50–53 |
 | 6 | `tcl-binding` | `command_binding`, `registry_invocation`, `realm`, `raw_binding`, `variable_bindings`, `var_resolve`, `signature_scan`, `dynamic_names`, `ir_helpers`, the `ssa::uses` scans, and twelve small modules that name binding back (`native_numeric` among them); defines the body-report trait and `ProvedOperands` | ~226k | LSP name features, `tcl-irules` | 84 (one binding walk), 19–25 (lookup), 245 |
 | 7 | `tcl-lowering` | `lowering`, `lowering_hooks`, `cfg_builder`, SSA family (`ssa`, `memory_ssa`, `state_ssa`, `effect_ssa`) | ~45k | `tcl-codegen`, `bpf-tcl-ir`, the VM's compiler tests, `tcl-debugger` | 83 (every body a unit) |
-| 8 | `tcl-analysis` | the per-function passes (`sccp`, `value_transfer`, the rest of `tcl_expr_eval`, `type_infer`, intervals, `static_loops`, `side_effects`) and executable IR (`executable_ir`, `world_state_ssa`, `dispatch_proof`, `semantic_analysis`) | ~44k | `tcl-explorer`, `tcl-codegen`, `bpf-tcl-ir` | 59–65 (constants), 117b |
+| 8 | `tcl-analysis` | the per-function passes (`sccp`, `value_transfer`, the rest of `tcl_expr_eval`, `type_infer`, intervals, `static_loops`, `side_effects`) and executable IR (`executable_ir`, `world_state_ssa`, `dispatch_proof`, `semantic_analysis`) | ~44k | `tcl-explorer`, `tcl-codegen` | 59–65 (constants), 117b |
 | 9 | `tcl-unit` (today's `tcl-compiler`, renamed by item 258) | `compilation_unit` (the fixpoint driver), the whole-unit passes (`interprocedural`, `taint`, `taint_interproc`, `shimmer`, `gvn`, `var_escape`), `unit_scope`, the IR half of `source_graph`; no re-exports | ~65k | whole-unit consumers (`CompilationUnit`) | |
-| 10 | `tcl-native-plan` | `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry`, `representation_plan` | ~14k | `tcl-codegen`; `bpf-tcl-ir` (`target_contract`) | |
+| 10 | `tcl-native-plan` | `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry`, `representation_plan` | ~14k | `tcl-codegen` | |
 | 10 | `tcl-diagnostics` | `analyser` (without `irules_event_checks`), `compiler_checks`, `AnalysisResult`, the `AnalysisResult` half of `source_graph`, `auto_path_eval`; implements binding's body-report trait; defines the `UnitRule` and `SiteRule` traits through which `tcl-irules` plugs in `irules_checks` (item 285) | ~107k | LSP stack, MCP, CLI | 85 turns it into rules over `tcl-semantic` |
 | 10 | `tcl-optimiser` | `optimiser` | ~20k | `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI | 244 |
 | 11 | `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above every analysis crate; no `tcl-lsp-core` dependency | ~19k | `tcl-lsp-server`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
@@ -327,8 +327,7 @@ flowchart TB
   db --> optimiser
   irules --> diagnostics
   codegen --> nativePlan
-  bpf --> nativePlan
-  bpf --> analysis
+  bpf --> lowering
   diagnostics --> unit
   optimiser --> unit
   nativePlan --> unit
@@ -350,8 +349,8 @@ flowchart TB
 ```
 
 `tcl-codegen` builds over `tcl-native-plan`, `tcl-unit` and below (item 292).
-`bpf-tcl-ir` needs `tcl-ir`, `tcl-lowering` and `tcl-analysis`, plus
-`target_contract` from `tcl-native-plan`. Later, `tcl-semantic` sits over
+`bpf-tcl-ir` needs `tcl-ir` and `tcl-lowering` only (380; integration C11; plan item 464):
+its `semantic_bridge.rs` is the only user of `tcl-analysis` and `target_contract`, and it is wired in or deleted. Later, `tcl-semantic` sits over
 binding and analysis.
 
 `tcl-binding` is still the largest crate. `tcl-invocation`, the registry
@@ -364,9 +363,8 @@ record of proofs, not a key, so it stays with binding as `InvocationBinding`, an
 
 ### What each consumer gains
 
-- **`bpf-tcl-ir`** builds against `tcl-ir`, `tcl-lowering` and `tcl-analysis`
-  (for executable IR), plus `target_contract`, with no diagnostics or
-  optimiser. It lowers and builds CFGs itself, so it needs lowering too.
+- **`bpf-tcl-ir`** builds against `tcl-ir` and `tcl-lowering` (380; plan item 464),
+  with no analysis, native plan, diagnostics or optimiser. It lowers and builds CFGs itself, so it needs lowering too.
 - **`tcl-sslictcl`** needs only `tcl-source`.
 - **`tcl-codegen`** stops rebuilding when the diagnostics or the optimiser
   change. Its drivers split off into a `tcl-compile` crate above the unit

@@ -179,7 +179,7 @@ For `spec` the script runs `cargo spec-images` first (307's generator). Then
 `cargo test -p tcl-analysis --lib --no-run` must compile no workspace unit,
 and `cargo build --workspace --all-targets` must rebuild only `tcl-catalogue`
 and the crates that link it: the binaries, the WASM hosts, `xtask` and the
-`-it` test crates. That is integration INT-b's check. The `registry` row
+`-it` test crates. That is plan item 481's check (integration INT-b). The `registry` row
 becomes a hook edit in `rust/tcl-lib-irules/src`.
 
 ### Commands measured per edit

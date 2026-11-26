@@ -1,6 +1,6 @@
 # Step 333: SpecTcl 3, an independent gap analysis
 
-Status: analysis, 26 November 2026. Plan item 333. It reviews the SpecTcl 3
+Status: analysis, 26 November 2026. Design 333; its closures are plan items 400–416 (spec chapter 12). It reviews the SpecTcl 3
 stack as designed in [305](305-spectcl-3.md), [302](302-libraries.md),
 [303](303-environments.md), [306](306-expect-spike.md), [307](307-libraries-as-data.md),
 [308](308-positioned-context.md), [309–310](309-310-migration-and-authoring.md),

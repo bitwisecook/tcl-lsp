@@ -318,7 +318,7 @@ pub struct SpecRef<'g> { image: &'g ImageView<'g>, id: SpecId }        // the co
 pub struct EnvironmentDefinition { /* today: tcl-dialect/src/model/environment.rs; reshaped by 303 */ }
 pub struct PositionedContext { pub environment: Arc<ResolvedEnvironment>, pub dialect: DialectChoice,
     pub libraries: Map<LibraryId, LibraryChoice>, pub targets: TargetSet, pub hosts: HostChoice }
-pub enum LibraryChoice { Absent,                                        // Certainty: INT-c
+pub enum LibraryChoice { Absent,                                        // Certainty: plan item 482 (INT-c)
     Present { certainty: Certainty, cases: SmallVec<[(VersionSet, Why); 2]> },
     Unknown { reason: UnknownReason } }
 pub struct CheckRule { pub id: RuleId, pub on: CommandPath, pub when: Pred, pub emit: Emit }
@@ -367,7 +367,7 @@ edits.
 | a procedure summary | `ProcSummary` (391, 392, integration § 3; today purity only, `interprocedural.rs:264`) | `ProcSummary` (`tcl-model`), the product record with a slot per domain |
 | a procedure's taint summary | `ProcTaintSummary` (today `taint_interproc.rs:185`; placed in the core by this chapter's first draft) | `ProcTaintSummary` (`tcl-model`); the pack rows it is built from are core `TaintRow`s |
 | completion codes | `CompletionCodes` (392), `CodeSet` (integration), `CompletionCodeDomain` (today, `completion.rs:189`) | `CodeSet` (core); the lattice over it is `tcl-model`'s |
-| a library's certainty | `LibraryChoice::{Must, May}` (308), `BindingKnowledge` (today), `Certainty` (INT-c) | `tcl_core_types::Certainty`, inside `LibraryChoice::Present` |
+| a library's certainty | `LibraryChoice::{Must, May}` (308), `BindingKnowledge` (today), `Certainty` (plan item 482, INT-c) | `tcl_core_types::Certainty`, inside `LibraryChoice::Present` |
 | the installed surface set | `installed()`, one per process (registry split step 1), the generation's surfaces (integration § 1) | a `SurfaceSet` per `Generation` (core); step 1's `install` and `installed()` survive only in entry points, as `install_host` does |
 
 ## Parity: one model, two front ends, one printer

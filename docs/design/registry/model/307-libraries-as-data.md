@@ -138,7 +138,7 @@ equivalence run:
    the `DIALECTS` rows instead of `tcl-dialect/src/generated_release_facts.rs`,
    and the 15 `release_facts()` call sites (in `tcl-expr`, `tcl-syntax`,
    `tcl-dialect` and `tcl-registry`) read them from the `GrammarProfile` or
-   the generation (integration INT-h).
+   the generation (plan item 485, integration INT-h).
 
 ```mermaid
 flowchart LR
