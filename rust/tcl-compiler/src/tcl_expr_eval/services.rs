@@ -280,9 +280,9 @@ impl<'a> ExprServices<'a> {
     /// it has one, else its text.
     fn operand_of(value: &ExactValue) -> Result<FoldValue, ExprStop> {
         match value.numeric {
-            Some(NumericValue::Int(i)) => Ok(FoldValue::Int(i)),
-            Some(NumericValue::Float(f)) => Ok(FoldValue::Float(f)),
-            Some(NumericValue::Bool(b)) => Ok(FoldValue::Int(i64::from(b))),
+            Some(NumericValue::Int(i)) => Ok(FoldValue::int(i)),
+            Some(NumericValue::Float(f)) => Ok(FoldValue::Number(TclValue::Float(f))),
+            Some(NumericValue::Bool(b)) => Ok(FoldValue::int(i64::from(b))),
             None => value
                 .as_str()
                 .map(FoldValue::text)
@@ -343,9 +343,7 @@ impl<'a> ExprServices<'a> {
                     }
                 }
             }
-            FoldValue::Int(i) => TclValue::Int(*i),
-            FoldValue::Big(b) => TclValue::from_big(b.clone()),
-            FoldValue::Float(f) => TclValue::Float(*f),
+            FoldValue::Number(number) => number.canonical_clone(),
             FoldValue::RetainedNativeObject { .. } => {
                 return Err(DeclineReason::WrongRepresentation);
             }
@@ -608,7 +606,7 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
     }
 
     fn bool_value(&mut self, b: bool) -> FoldValue {
-        FoldValue::Int(i64::from(b))
+        FoldValue::int(i64::from(b))
     }
 
     fn unsupported(&mut self, what: &str) -> ExprStop {

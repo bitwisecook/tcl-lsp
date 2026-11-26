@@ -646,7 +646,7 @@ mod call_site_param_constants {
         assert_eq!(
             function.semantic_values().unwrap().contents((symbol, 0)),
             Some(&crate::analyses::LatticeValue::Const(
-                crate::analyses::ConstValue::String("007".to_owned())
+                crate::analyses::ConstValue::String("007".into())
             ))
         );
     }

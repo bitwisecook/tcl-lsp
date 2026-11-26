@@ -41,11 +41,16 @@ REG = "registry+https://github.com/rust-lang/crates.io-index#{0}@1.0.0"
 
 
 def artifact(pkg_id, fresh, opt=1, test=False, files=("x.rlib",), features=()):
-    return json.dumps({
-        "reason": "compiler-artifact", "package_id": pkg_id, "fresh": fresh,
-        "profile": {"opt_level": str(opt), "test": test},
-        "filenames": list(files), "features": list(features),
-    })
+    return json.dumps(
+        {
+            "reason": "compiler-artifact",
+            "package_id": pkg_id,
+            "fresh": fresh,
+            "profile": {"opt_level": str(opt), "test": test},
+            "filenames": list(files),
+            "features": list(features),
+        }
+    )
 
 
 class TempDir(unittest.TestCase):
@@ -65,14 +70,20 @@ class ParseTests(unittest.TestCase):
             artifact(WS.format("tcl-b"), False, opt=0, files=["libb.rmeta"]),
             artifact(REG.format("serde"), False, opt=0),
             artifact(REG.format("libc"), True),
-            json.dumps({"reason": "build-script-executed", "package_id": REG.format("libc")}),
+            json.dumps(
+                {"reason": "build-script-executed", "package_id": REG.format("libc")}
+            ),
             "running 3 tests",
             "{not json",
         ]
         r = wc.parse_messages(lines)
-        self.assertEqual(r["units_compiled"], {"workspace": 2, "third_party": 1, "total": 3})
+        self.assertEqual(
+            r["units_compiled"], {"workspace": 2, "third_party": 1, "total": 3}
+        )
         self.assertEqual(r["workspace_compiled"], ["tcl-a", "tcl-b"])
-        self.assertEqual(r["units_by_profile"], {"opt0": 1, "opt0-check": 1, "opt1-test": 1})
+        self.assertEqual(
+            r["units_by_profile"], {"opt0": 1, "opt0-check": 1, "opt1-test": 1}
+        )
         self.assertEqual(r["build_scripts_run"], {})
         self.assertEqual(r["build_scripts_unknown"], {"libc": 1})
         self.assertEqual(wc.feature_variants([r]), {"tcl-a": 2, "tcl-b": 1})
@@ -89,16 +100,24 @@ class ParseTests(unittest.TestCase):
                 record.write_text("")
                 stamp = 2_000_000_000 + age
                 os.utime(record, (stamp, stamp))
-                messages.append(json.dumps({
-                    "reason": "build-script-executed",
-                    "package_id": REG.format(pkg),
-                    "out_dir": str(unit / "out"),
-                }))
-            messages.append(json.dumps({
-                "reason": "build-script-executed",
-                "package_id": REG.format("norecord"),
-                "out_dir": str(build / "missing" / "out"),
-            }))
+                messages.append(
+                    json.dumps(
+                        {
+                            "reason": "build-script-executed",
+                            "package_id": REG.format(pkg),
+                            "out_dir": str(unit / "out"),
+                        }
+                    )
+                )
+            messages.append(
+                json.dumps(
+                    {
+                        "reason": "build-script-executed",
+                        "package_id": REG.format("norecord"),
+                        "out_dir": str(build / "missing" / "out"),
+                    }
+                )
+            )
             r = wc.parse_messages(messages, started=2_000_000_000 - 60)
         self.assertEqual(r["build_scripts_run"], {"legacy": 1, "ran": 1})
         self.assertEqual(r["build_scripts_replayed"], {"fresh": 1})
@@ -107,7 +126,9 @@ class ParseTests(unittest.TestCase):
     def test_package_names(self):
         self.assertEqual(wc.package_name(WS.format("tcl-compiler")), "tcl-compiler")
         self.assertEqual(wc.package_name(REG.format("serde")), "serde")
-        self.assertEqual(wc.package_name("path+file:///w/rust/tcl-vm#tcl-vm@0.1.0"), "tcl-vm")
+        self.assertEqual(
+            wc.package_name("path+file:///w/rust/tcl-vm#tcl-vm@0.1.0"), "tcl-vm"
+        )
 
 
 class GitRepo(TempDir):
@@ -122,16 +143,21 @@ class GitRepo(TempDir):
         script.parent.mkdir(parents=True)
         script.write_text(
             "#!/bin/bash\n"
-            f"echo \"export CARGO_TARGET_DIR={self.root}/target\"\n"
+            f'echo "export CARGO_TARGET_DIR={self.root}/target"\n'
             "echo 'unset CARGO_INCREMENTAL'\n"
             "echo 'export CARGO_PROFILE_TEST_OPT_LEVEL=1'\n"
         )
         subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
-        subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "init"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.root), "commit", "-qm", "init"], check=True
+        )
         self.edit = wc.Edit("k", "rust/lib.rs", "c", "HEAD")
 
     def good_env(self):
-        return {"CARGO_TARGET_DIR": f"{self.root}/target", "CARGO_PROFILE_TEST_OPT_LEVEL": "1"}
+        return {
+            "CARGO_TARGET_DIR": f"{self.root}/target",
+            "CARGO_PROFILE_TEST_OPT_LEVEL": "1",
+        }
 
     def preflight(self, environ, edits=None):
         wc.preflight(self.root, edits or [self.edit], environ, 0, check_busy=False)
@@ -191,7 +217,9 @@ class EditTests(GitRepo):
     def status(self):
         return subprocess.run(
             ["git", "-C", str(self.root), "status", "--porcelain"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
 
     def test_edit_appends_one_line_and_restore_is_clean(self):
@@ -204,7 +232,9 @@ class EditTests(GitRepo):
 
     def test_restore_after_exception_mid_run(self):
         args = mock.Mock(no_test_run=True, jobs=None, commands=None, phases=None)
-        with mock.patch.object(wc, "run_measured", side_effect=[{}, {}, RuntimeError("boom")]):
+        with mock.patch.object(
+            wc, "run_measured", side_effect=[{}, {}, RuntimeError("boom")]
+        ):
             with self.assertRaises(RuntimeError):
                 wc.measure_edit(self.root, self.edit, 1, args, {}, self.root / "target")
         self.assertEqual(self.status(), "")
@@ -268,7 +298,9 @@ class SamplerTests(TempDir):
 def doc(wall, units):
     cmd = {
         "units_compiled": {"workspace": units, "third_party": 0, "total": units},
-        "wall_s": wall, "peak_rss_tree_mb": 1000, "peak_rss_single_mb": 500,
+        "wall_s": wall,
+        "peak_rss_tree_mb": 1000,
+        "peak_rss_single_mb": 500,
         "target_growth_bytes": 2 << 20,
     }
     return {"edits": {"lexer": {"crate": "tcl-syntax", "after": {"test_build": cmd}}}}
@@ -278,11 +310,17 @@ class ReportTests(unittest.TestCase):
     def test_table_rows(self):
         rows = wc.table(doc(12.5, 3)).splitlines()
         self.assertEqual(len(rows), 3)
-        self.assertEqual(rows[2], "| lexer | `tcl-syntax` | after | test_build | 3 | 3 | 12.5 | 1000 | 500 | 2 | – |")
+        self.assertEqual(
+            rows[2],
+            "| lexer | `tcl-syntax` | after | test_build | 3 | 3 | 12.5 | 1000 | 500 | 2 | – |",
+        )
 
     def test_compare_signed_deltas(self):
         rows = wc.compare(doc(12.5, 9), doc(10.0, 1)).splitlines()
-        self.assertEqual(rows[2], "| lexer | `tcl-syntax` | after | test_build | -8 | -8 | -2.5 | +0 | +0 | +0 | – |")
+        self.assertEqual(
+            rows[2],
+            "| lexer | `tcl-syntax` | after | test_build | -8 | -8 | -2.5 | +0 | +0 | +0 | – |",
+        )
 
 
 class RustAnalyzerTests(unittest.TestCase):

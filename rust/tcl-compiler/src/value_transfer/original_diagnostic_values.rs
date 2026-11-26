@@ -607,7 +607,7 @@ mod tests {
                 .contents_iter()
                 .any(|(_, value)| *value
                     == LatticeValue::Const(crate::analyses::ConstValue::String(
-                        "-nocommands".to_owned()
+                        "-nocommands".into()
                     )))
         );
     }
@@ -911,7 +911,7 @@ mod tests {
                 .any(|(_, value)| {
                     *value
                         == LatticeValue::Const(crate::analyses::ConstValue::String(
-                            "FOREIGN".to_owned(),
+                            "FOREIGN".into(),
                         ))
                 })
         );

@@ -153,7 +153,8 @@ pub(super) fn seed_params_from_args(
                     // A leading `#` is braced from 8.5 and bare in 8.4.
                     ConstValue::String(
                         tcl_registry::value_transfer::TargetSemantics::of(policy.dialect)
-                            .render_list(&tail)?,
+                            .render_list(&tail)?
+                            .into(),
                     ),
                 )
             }

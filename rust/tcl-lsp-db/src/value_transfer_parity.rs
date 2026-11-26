@@ -226,12 +226,12 @@ fn keyed_updates_agree_on_both_paths() {
             (
                 bound,
                 3,
-                LatticeValue::Const(ConstValue::String("a 3".to_owned())),
+                LatticeValue::Const(ConstValue::String("a 3".into())),
             ),
             (
                 unbound,
                 1,
-                LatticeValue::Const(ConstValue::String("a 1".to_owned())),
+                LatticeValue::Const(ConstValue::String("a 1".into())),
             ),
         ] {
             let db = TclDatabase::default();
@@ -268,7 +268,7 @@ fn value_position_routes_agree_on_both_paths() {
             lattice_of(&direct, "::p"),
             "{dialect}"
         );
-        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
         let keyed = if dialect == "f5-irules" {
             LatticeValue::Overdefined
         } else {
@@ -492,7 +492,7 @@ fn a_pack_edit_invalidates_the_lattice() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let src = "proc p {} {set r [tenant::label acme]; return $r}\n";
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
     let config = overlay_config(
@@ -525,7 +525,7 @@ fn a_pool_thread_with_a_stale_host_answers_with_the_new_plan() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let src = "proc p {} {set r [tenant::label acme]; return $r}\n";
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
     let config = overlay_config(
@@ -564,7 +564,7 @@ fn an_evaluator_epoch_re_keys_the_memoised_lattices() {
     let _published = PUBLISHED_PACKS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let packs = tenant_pack_with_body(Some(
         "if {$name eq \"spin\"} {while 1 {format %d 1}}; fold [string cat \"tenant:\" $name]",
     ));
@@ -633,7 +633,7 @@ fn destructuring_agrees_on_both_paths() {
                        regexp {(x)(y)} zz a b\n    set c before\n    set d before\n    \
                        scan \"12\" \"%d %d\" c d\n    lassign {1 2} e f\n    \
                        array set arr {k v}\n    return $a\n}\n";
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     for dialect in ["tcl8.6", "tcl9.0"] {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);

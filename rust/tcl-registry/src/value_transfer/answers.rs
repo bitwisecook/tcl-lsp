@@ -643,6 +643,23 @@ impl ExactValue {
         ExactValue::utf8(text).into_byte_value()
     }
 
+    /// Move the bytes into UTF-8 text storage, retaining both evidence fields.
+    ///
+    /// # Errors
+    /// Returns `NotText` when the value has no lossless UTF-8 view.
+    pub fn into_text_value(self) -> Result<ExactValue<String>, DeclineReason> {
+        let Self {
+            bytes,
+            numeric,
+            representation,
+        } = self;
+        Ok(ExactValue {
+            bytes: String::from_utf8(bytes).map_err(|_| DeclineReason::NotText)?,
+            numeric,
+            representation,
+        })
+    }
+
     /// An integer value, spelled canonically.
     #[must_use]
     pub fn int(value: i64) -> Self {

@@ -21,7 +21,7 @@
 use super::TclValue;
 use super::fold_ops::{FoldValue, is_bare_leading_zero, parse_octal_literal};
 use super::fold_policy::FoldPolicy;
-use tcl_dialect::NumberSyntax;
+use tcl_dialect::{DoubleFormat, NumberSyntax};
 
 /// Render a `TclValue` as a Tcl source literal. Matches Tcl's
 /// `Tcl_GetStringFromObj` output for numbers.
@@ -41,11 +41,15 @@ pub fn format_tcl_value(v: &TclValue) -> String {
 /// Mutable or unknown floating precision remains a runtime operation.
 #[must_use]
 pub fn format_tcl_value_with_policy(value: &TclValue, policy: FoldPolicy) -> Option<String> {
+    format_with_double_format(value, policy.double_format())
+}
+
+pub(super) fn format_with_double_format(
+    value: &TclValue,
+    format: Option<DoubleFormat>,
+) -> Option<String> {
     match value {
-        TclValue::Float(value) => Some(tcl_syntax::number::format_double_selected(
-            *value,
-            policy.double_format()?,
-        )),
+        TclValue::Float(value) => Some(tcl_syntax::number::format_double_selected(*value, format?)),
         _ => Some(format_tcl_value(value)),
     }
 }
@@ -65,12 +69,17 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
 /// nothing under 8.4, and `0755` is 493 up to 8.6).
 #[must_use]
 pub fn parse_literal_in(text: &str, numbers: NumberSyntax) -> Option<TclValue> {
-    use tcl_syntax::number::Number;
     // Boolean keywords (`Tcl_GetBoolean`, not part of the number grammar).
     // Accepts unique-prefix spellings (`tr`, `ye`, `of`) like real Tcl.
     if let Some(b) = tcl_syntax::boolean::parse_boolean_word(text) {
         return Some(TclValue::Int(i64::from(b)));
     }
+    parse_number_in(text, numbers)
+}
+
+fn parse_number_in(text: &str, numbers: NumberSyntax) -> Option<TclValue> {
+    use tcl_syntax::number::Number;
+
     // The numeric grammar is the shared `tcl_syntax::number` (the same
     // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
     // leading-zero decimal, `_` separators, `Inf`/`NaN`. A magnitude past a
@@ -113,34 +122,10 @@ fn big_from_parts(
 /// level up by [`strict_number_for_dialect`], which can also abstain when the
 /// two readings disagree.
 pub(super) fn strict_number(value: &FoldValue, numbers: NumberSyntax) -> Option<TclValue> {
-    use tcl_syntax::number::Number;
-    match value {
-        FoldValue::Int(i) => Some(TclValue::Int(*i)),
-        FoldValue::Float(f) => Some(TclValue::Float(*f)),
-        FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
-        FoldValue::RetainedNativeObject {
-            proof,
-            integer_contents,
-            ..
-        } => proof.as_ref().map(|proof| proof.value.clone()).or_else(|| {
-            integer_contents
-                .as_ref()
-                .map(|receipt| receipt.number().clone())
-        }),
-        FoldValue::Str(s) => match tcl_syntax::number::parse_whole_with(
-            &s.bytes,
-            tcl_syntax::number::ParseFlags::for_syntax(numbers),
-        )? {
-            Number::Int(v) => Some(TclValue::Int(v)),
-            Number::Double(d) => Some(TclValue::Float(d)),
-            Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
-            Number::Big {
-                negative,
-                radix,
-                digits,
-            } => big_from_parts(negative, radix, &digits),
-        },
-    }
+    let FoldValue::Str(text) = value else {
+        return value.to_number(numbers);
+    };
+    parse_number_in(&text.bytes, numbers)
 }
 
 /// Like [`strict_number`] but for the arithmetic/unary/math-function

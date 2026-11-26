@@ -797,11 +797,11 @@ mod param_constants_codec {
         let map = decode_param_constants(&encoded).expect("non-empty decodes to Some");
         assert_eq!(map.len(), 2);
         match map.get(&("mode".to_string(), 0)) {
-            Some(LatticeValue::Const(ConstValue::String(s))) => assert_eq!(s, "fast"),
+            Some(LatticeValue::Const(ConstValue::String(s))) => assert_eq!(s.as_str(), "fast"),
             other => panic!("expected Const(String(\"fast\")), got {other:?}"),
         }
         match map.get(&("kind".to_string(), 0)) {
-            Some(LatticeValue::Const(ConstValue::String(s))) => assert_eq!(s, "tcp"),
+            Some(LatticeValue::Const(ConstValue::String(s))) => assert_eq!(s.as_str(), "tcp"),
             other => panic!("expected Const(String(\"tcp\")), got {other:?}"),
         }
     }

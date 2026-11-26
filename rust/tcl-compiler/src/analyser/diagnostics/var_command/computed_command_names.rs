@@ -621,11 +621,11 @@ pub(super) fn aggregate_constsets(
 fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<String>> {
     use crate::analyses::{ConstValue, LatticeValue};
     match lv {
-        LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
+        LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.as_str().to_owned()]),
         LatticeValue::ConstSet(set) => set
             .iter()
             .map(|cv| match cv {
-                ConstValue::String(s) => Some(s.clone()),
+                ConstValue::String(s) => Some(s.as_str().to_owned()),
                 _ => None,
             })
             .collect::<Option<Vec<_>>>(),

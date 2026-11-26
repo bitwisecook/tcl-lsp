@@ -483,7 +483,7 @@ fn const_string_forms(value: &LatticeValue) -> Option<Vec<Cow<'_, str>>> {
 /// The canonical Tcl string form of one SCCP constant.
 fn const_value_string(value: &ConstValue) -> Cow<'_, str> {
     match value {
-        ConstValue::String(s) => Cow::Borrowed(s),
+        ConstValue::String(s) => Cow::Borrowed(s.as_str()),
         ConstValue::Int(i) => Cow::Owned(i.to_string()),
         ConstValue::Bool(b) => Cow::Borrowed(if *b { "1" } else { "0" }),
         ConstValue::Float(f) => Cow::Owned(number::format_double(*f)),
@@ -880,7 +880,7 @@ mod tests {
     }
 
     fn s(text: &str) -> LatticeValue {
-        LatticeValue::Const(ConstValue::String(text.to_owned()))
+        LatticeValue::Const(ConstValue::String(text.into()))
     }
 
     // --- is_uncommitted_first_conversion: TN (suppress — free first conversion)

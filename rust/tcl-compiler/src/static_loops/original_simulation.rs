@@ -388,7 +388,7 @@ fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
         StaticValue::String(value) => {
             let parse = |syntax| {
                 tcl_syntax::number::parse_whole_with(
-                    value,
+                    value.as_str(),
                     tcl_syntax::number::ParseFlags {
                         integer_only: true,
                         ..tcl_syntax::number::ParseFlags::for_syntax(syntax)
@@ -421,14 +421,16 @@ fn static_expression_contents(
 ) -> Option<StaticValue> {
     use crate::tcl_expr_eval::NativeExpressionResultDependency as Dependency;
     match &evaluation.result_dependency {
-        Some(Dependency::StringResult { value }) => Some(StaticValue::String(value.bytes.clone())),
+        Some(Dependency::StringResult { value }) => {
+            Some(StaticValue::String(value.bytes.as_str().into()))
+        }
         Some(Dependency::SelectedOperand {
             reference,
             existing_value,
             ..
         }) => {
             if let Some(value) = existing_value {
-                return Some(StaticValue::String(value.bytes.clone()));
+                return Some(StaticValue::String(value.bytes.as_str().into()));
             }
             let name =
                 tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config?)?;
@@ -455,7 +457,7 @@ fn exec_statement(
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } => {
-            env.insert(name.clone(), StaticValue::String(value.clone()));
+            env.insert(name.clone(), StaticValue::String(value.as_str().into()));
             true
         }
         Statement::AssignExpr {
@@ -482,7 +484,7 @@ fn exec_statement(
             };
             let value = argument
                 .literal_data()
-                .map(StaticValue::String)
+                .map(|text| StaticValue::String(text.into()))
                 .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
             let Some(value) = value else {
                 return false;
@@ -548,7 +550,7 @@ fn exec_increment(
         None => 1,
         Some(text) => {
             let operand = if amount_braced {
-                StaticValue::String(text.to_owned())
+                StaticValue::String(text.into())
             } else if let Some(argument) =
                 crate::registry_invocation::original_source_argument_for_script(
                     source, stmt, 1, text,
@@ -556,14 +558,14 @@ fn exec_increment(
             {
                 let value = argument
                     .literal_data()
-                    .map(StaticValue::String)
+                    .map(|text| StaticValue::String(text.into()))
                     .or_else(|| env.get(argument.scalar_reference_name()?).cloned());
                 let Some(value) = value else {
                     return false;
                 };
                 value
             } else {
-                StaticValue::String(text.to_owned())
+                StaticValue::String(text.into())
             };
             let Some(amount) = static_integer(&operand, simulation.policy) else {
                 return false;

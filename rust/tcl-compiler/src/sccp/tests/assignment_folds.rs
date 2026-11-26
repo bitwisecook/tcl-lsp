@@ -28,7 +28,7 @@ fn evaluate_def_set_read_in_value_position_folds() {
     // tclsh 8.6.18 and 9.0.4 print `<hello> <10 10> <CHANGED>` for a
     // nested read, a nested write, and a nested read of a place whose
     // read trace replaces it.
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     assert_eq!(
         settled(
             "tcl8.6",
@@ -65,7 +65,7 @@ fn evaluate_def_set_read_in_value_position_folds() {
 /// read (tclsh 8.4 to 9.1 print `a` and a tab, `a\`, and `$x`).
 #[test]
 fn string_range_in_value_position_reads_cooked_escapes() {
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let fold = |word: &str| {
         settled(
             "tcl8.6",
@@ -163,7 +163,7 @@ fn evaluate_def_assign_value_folds_list_cmd() {
     let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
     let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
     match result {
-        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "a b c"),
+        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s.as_str(), "a b c"),
         other => panic!("expected Const(String), got {other:?}"),
     }
 }
@@ -246,7 +246,7 @@ fn evaluate_def_assign_value_folds_format_literal() {
     let mut ssa = bare_ssa();
     let stmt = assign_value_stmt(&mut ssa, "s", "[format \"%d-%d\" 1 2]", 1);
     match evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()) {
-        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
+        LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s.as_str(), "1-2"),
         other => panic!("expected Const(String), got {other:?}"),
     }
 }

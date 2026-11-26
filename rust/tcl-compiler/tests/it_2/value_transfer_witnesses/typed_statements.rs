@@ -52,7 +52,7 @@ fn simulated_text(dialect: &str, init: &str, statement: &str) -> Option<String> 
     )?;
     match env.get("x").expect("x after the loop") {
         StaticValue::Int(i) => Some(i.to_string()),
-        StaticValue::String(s) => Some(s.clone()),
+        StaticValue::String(s) => Some(s.as_str().to_owned()),
         other => panic!("{dialect}: an increment gave {other:?}"),
     }
 }

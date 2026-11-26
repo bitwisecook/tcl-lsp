@@ -260,7 +260,7 @@ fn a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_t
 /// after the inner `incr` ran, so over `x` = 1 it is 4.
 #[test]
 fn a_write_a_commands_word_makes_is_a_write_of_the_statement() {
-    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+    let text = |value: &str| LatticeValue::Const(ConstValue::String(value.into()));
     let int = |n: i64| LatticeValue::Const(ConstValue::Int(n));
     let appended = "proc p {} {set s a; set r [expr {[string length [append s bc]] + [string length $s]}]; return $s}\n";
     assert_eq!(

@@ -670,7 +670,9 @@ impl PrefixProgram {
                 .map(|(_, value)| value.clone())
         };
         let value = |name: &str, texts: &[String]| match last(name) {
-            Some(LatticeValue::Const(ConstValue::String(held))) if texts.contains(&held) => {
+            Some(LatticeValue::Const(ConstValue::String(held)))
+                if texts.iter().any(|text| text == held.as_str()) =>
+            {
                 Claim::Holds
             }
             Some(LatticeValue::Const(ConstValue::Int(held)))

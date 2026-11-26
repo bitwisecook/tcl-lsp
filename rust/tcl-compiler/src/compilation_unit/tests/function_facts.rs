@@ -38,7 +38,7 @@ fn assert_callee_global_write_is_positioned(name: &str) {
     assert!(
         before.iter().any(
             |(_, value)| matches!(value, LatticeValue::Const(ConstValue::Int(4)))
-                || matches!(value, LatticeValue::Const(ConstValue::String(value)) if value == "4")
+                || matches!(value, LatticeValue::Const(ConstValue::String(value)) if value.as_str() == "4")
         ),
         "prior value must remain represented: {before:?}"
     );
@@ -53,7 +53,7 @@ fn assert_callee_global_write_is_positioned(name: &str) {
     assert!(
         after.iter().all(
             |(_, value)| !matches!(value, LatticeValue::Const(ConstValue::Int(4)))
-                && !matches!(value, LatticeValue::Const(ConstValue::String(value)) if value == "4")
+                && !matches!(value, LatticeValue::Const(ConstValue::String(value)) if value.as_str() == "4")
         ),
         "post-call read must not reuse the stale value: {after:?}"
     );

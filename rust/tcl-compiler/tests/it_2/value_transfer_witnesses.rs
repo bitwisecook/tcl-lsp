@@ -217,7 +217,7 @@ fn answers_for(unit: &CompilationUnit, proc: &str, command: &str) -> Vec<String>
 }
 
 fn text(value: &str) -> LatticeValue {
-    LatticeValue::Const(ConstValue::String(value.to_owned()))
+    LatticeValue::Const(ConstValue::String(value.into()))
 }
 
 /// Every release on `PATH` prints `expected` for `source` and for its
@@ -249,7 +249,7 @@ fn prints_under_releases_from(source: &str, expected: &str, first: &str) {
 fn lattice_text(value: LatticeValue) -> Option<String> {
     match value {
         LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-        LatticeValue::Const(ConstValue::String(s)) => Some(s),
+        LatticeValue::Const(ConstValue::String(s)) => Some(s.as_str().to_owned()),
         _ => None,
     }
 }
@@ -259,7 +259,7 @@ fn lattice_text(value: LatticeValue) -> Option<String> {
 fn seeded(text: &str) -> StaticValue {
     tcl_registry::value_transfer::ExactValue::from_literal(text)
         .as_int()
-        .map_or_else(|| StaticValue::String(text.to_owned()), StaticValue::Int)
+        .map_or_else(|| StaticValue::String(text.into()), StaticValue::Int)
 }
 
 /// Serialises the tests that publish a hook plan: the published plan is the

@@ -234,7 +234,7 @@ pub fn decode_param_constants(
             .map(|(name, version, s)| {
                 (
                     (name.clone(), *version),
-                    LatticeValue::Const(ConstValue::String(s.clone())),
+                    LatticeValue::Const(ConstValue::String(s.as_str().into())),
                 )
             })
             .collect(),

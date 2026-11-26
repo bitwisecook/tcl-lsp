@@ -359,7 +359,7 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         if t.tcl_type() == Some(TclType::String)
             && let Some(LatticeValue::Const(ConstValue::String(text))) =
                 ctx.named_cell_constant(target)
-            && let Ok(parsed) = rules.split_list(text)
+            && let Ok(parsed) = rules.split_list(text.as_str())
         {
             if parsed.len() > MAX_EXACT_ELEMENTS {
                 return Some(Elements::Uniform(Box::new(TypeShape::String)));

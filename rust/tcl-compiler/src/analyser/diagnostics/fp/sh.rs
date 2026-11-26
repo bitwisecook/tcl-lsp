@@ -1576,7 +1576,7 @@ fn fp_sh_23_bignum_folds_are_exact() {
     assert_eq!(
         next_const,
         Some(crate::analyses::LatticeValue::Const(
-            crate::analyses::ConstValue::String("18446744073709551617".to_owned())
+            crate::analyses::ConstValue::String("18446744073709551617".into())
         )),
         "the chained bignum fold must land the exact decimal"
     );

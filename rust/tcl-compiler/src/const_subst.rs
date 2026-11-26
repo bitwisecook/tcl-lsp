@@ -55,8 +55,8 @@
 
 use tcl_dialect::TclVersion;
 use tcl_registry::value_transfer::{
-    Budget, EvalAnswer, EvalRoute, EvaluatorOwner, ExactValueOrUnavailable, LiteralInputs,
-    RepresentationEvidence, ResolvedSemantics, resolve_semantics,
+    Budget, EvalAnswer, EvalRoute, EvaluatorOwner, ExactValue, ExactValueOrUnavailable,
+    LiteralInputs, RepresentationEvidence, ResolvedSemantics, resolve_semantics,
 };
 use tcl_registry::{CommandRegistry, CommandSpec, SubCommand, TclType};
 use tcl_runtime_api::CommandBindingIdentity;
@@ -115,9 +115,9 @@ pub struct ConstSubstCtx<'a> {
 /// for the outer invocation and lets bytecode consumers preserve typed literal
 /// setup such as `VERIFY_DICT` without recognising a command name.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedConstSubst {
+pub struct ResolvedConstSubst<Value = String> {
     /// Raw result value, before any caller-specific word quoting.
-    pub value: String,
+    pub value: Value,
     /// The invocations the fold consumed: each one's exact source spelling →
     /// registry implementation dependency, and its shape.
     pub invocations: Vec<FoldedInvocation>,
@@ -131,6 +131,21 @@ pub struct ResolvedConstSubst {
     /// says how the release's own compiler pushes it (`list` of literal words
     /// is a list literal).
     pub inline_codegen_hook: Option<tcl_registry::hooks::InlineCodegenHookId>,
+}
+
+/// A resolved substitution with its result's exact text and evidence.
+pub type ResolvedExactConstSubst = ResolvedConstSubst<ExactValue<String>>;
+
+impl ResolvedExactConstSubst {
+    fn into_text(self) -> ResolvedConstSubst {
+        ResolvedConstSubst {
+            value: self.value.bytes,
+            invocations: self.invocations,
+            site_claims: self.site_claims,
+            return_type: self.return_type,
+            inline_codegen_hook: self.inline_codegen_hook,
+        }
+    }
 }
 
 /// One command invocation a constant fold consumed.
@@ -576,14 +591,21 @@ impl<'a> ConstSubstCtx<'a> {
     /// position re-render it themselves.
     #[must_use]
     pub fn fold_cmd_subst(&self, inner: &str) -> Option<String> {
-        self.fold_cmd_subst_resolved(inner).map(|fold| fold.value)
+        self.fold_cmd_subst_resolved_exact(inner)
+            .map(|fold| fold.value.bytes)
     }
 
-    /// Fold `inner` and retain every registry command identity the result
-    /// assumes. This is the code-generation face of the shared fold engine;
-    /// analysis-only consumers can continue using [`Self::fold_cmd_subst`].
+    /// Fold `inner` into raw text with the registry command identities it assumes.
     #[must_use]
     pub fn fold_cmd_subst_resolved(&self, inner: &str) -> Option<ResolvedConstSubst> {
+        self.fold_cmd_subst_resolved_exact(inner)
+            .map(ResolvedExactConstSubst::into_text)
+    }
+
+    /// Fold `inner` with its exact result evidence and registry command
+    /// identities. The consumer still selects its own literal recipe.
+    #[must_use]
+    pub fn fold_cmd_subst_resolved_exact(&self, inner: &str) -> Option<ResolvedExactConstSubst> {
         self.fold_at_depth(inner, 0, None, None)
     }
 
@@ -597,7 +619,7 @@ impl<'a> ConstSubstCtx<'a> {
         dialect: tcl_registry::InvocationDialect,
     ) -> Option<String> {
         self.fold_at_depth(inner, 0, Some(dialect), None)
-            .map(|fold| fold.value)
+            .map(|fold| fold.value.bytes)
     }
 
     /// Fold an authentic original command-substitution operand with typed variable sources.
@@ -626,7 +648,7 @@ impl<'a> ConstSubstCtx<'a> {
         };
         let inner = source.image.try_text().ok()?.get(body.as_range())?;
         self.fold_at_depth(inner, 0, None, Some((&source, body)))
-            .map(|fold| fold.value)
+            .map(|fold| fold.value.bytes)
     }
 
     fn original_literal_words_at_depth(
@@ -658,7 +680,7 @@ impl<'a> ConstSubstCtx<'a> {
             {
                 let inner = source.image.try_text().ok()?.get(body.as_range())?;
                 let folded = self.fold_at_depth(inner, depth + 1, dialect, Some((source, body)))?;
-                words.push(folded.value);
+                words.push(folded.value.bytes);
                 invocations.extend(folded.invocations);
                 site_claims.extend(folded.site_claims);
             } else {
@@ -678,7 +700,7 @@ impl<'a> ConstSubstCtx<'a> {
         depth: u32,
         dialect: Option<tcl_registry::InvocationDialect>,
         source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
-    ) -> Option<ResolvedConstSubst> {
+    ) -> Option<ResolvedExactConstSubst> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
@@ -720,7 +742,7 @@ impl<'a> ConstSubstCtx<'a> {
             });
             site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
             return Some(ResolvedConstSubst {
-                value: folded,
+                value: ExactValue::utf8(folded),
                 invocations,
                 site_claims,
                 return_type: spec.return_type_for_call(&arg_refs),
@@ -734,7 +756,8 @@ impl<'a> ConstSubstCtx<'a> {
                 None => match dialect {
                     Some(dialect) => spec.run_const_fold_in(&arg_refs, dialect),
                     None => spec.run_const_fold(&arg_refs, version),
-                }?,
+                }
+                .map(ExactValue::utf8)?,
             }
         } else {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
@@ -750,7 +773,8 @@ impl<'a> ConstSubstCtx<'a> {
                 None => match dialect {
                     Some(dialect) => subcommand.run_const_fold_in(&arg_refs, dialect),
                     None => subcommand.run_const_fold(&arg_refs, version),
-                }?,
+                }
+                .map(ExactValue::utf8)?,
             }
         };
         invocations.push(FoldedInvocation {
@@ -889,7 +913,7 @@ impl<'a> ConstSubstCtx<'a> {
                     // fold it directly.
                     let nested = sm.token_text(*tok);
                     let folded = self.fold_at_depth(nested, depth + 1, dialect, None)?;
-                    words.push(folded.value);
+                    words.push(folded.value.bytes);
                     invocations.extend(folded.invocations);
                     site_claims.extend(folded.site_claims);
                     prev_is_sep = false;
@@ -925,7 +949,7 @@ fn route_literal(
     sub: Option<&str>,
     args: &[&str],
     version: Option<TclVersion>,
-) -> Option<String> {
+) -> Option<ExactValue<String>> {
     let profile = version.and_then(|v| tcl_dialect::DialectProfile::find(v.dialect_profile_name()));
     let inputs = LiteralInputs::new(command, sub, args, profile);
     let EvalAnswer::Evaluated(outcome) = route
@@ -934,15 +958,18 @@ fn route_literal(
     else {
         return None;
     };
-    let ExactValueOrUnavailable::Exact(value) = &outcome.result else {
-        return None;
-    };
-    let byte_array = outcome.types.result == Some(TclType::ByteArray)
-        || value.representation == RepresentationEvidence::Constructed(TclType::ByteArray);
-    if outcome.has_stores() || byte_array || !value.bytes.is_ascii() {
+    if outcome.has_stores() || outcome.types.result == Some(TclType::ByteArray) {
         return None;
     }
-    String::from_utf8(value.bytes.clone()).ok()
+    let ExactValueOrUnavailable::Exact(value) = outcome.result else {
+        return None;
+    };
+    if value.representation == RepresentationEvidence::Constructed(TclType::ByteArray)
+        || !value.bytes.is_ascii()
+    {
+        return None;
+    }
+    value.into_text_value().ok()
 }
 
 /// Answer a command substitution from the enclosing method frame, when the
@@ -1301,6 +1328,23 @@ mod tests {
         assert_eq!(c.fold_cmd_subst("binary format c* {128 195 255}"), None);
         assert_eq!(c.fold_cmd_subst("format %c 233"), None);
         assert_eq!(c.fold_cmd_subst("format %c 65").as_deref(), Some("A"));
+    }
+
+    #[test]
+    fn resolved_substitution_retains_direct_result_evidence_and_legacy_text() {
+        let fold = ctx(registry(), &|_| true, &|_| None);
+        let direct = fold.fold_cmd_subst_resolved_exact("split {a b}").unwrap();
+        assert_eq!(direct.value.bytes, "a b");
+        assert_eq!(
+            direct.value.representation,
+            RepresentationEvidence::Constructed(TclType::List),
+        );
+        let text = fold.fold_cmd_subst_resolved("split {a b}").unwrap();
+        assert_eq!(text, direct.into_text());
+        let legacy = fold
+            .fold_cmd_subst_resolved_exact("namespace qualifiers ::tc::X")
+            .unwrap();
+        assert_eq!(legacy.value, ExactValue::utf8("::tc"));
     }
 
     #[test]

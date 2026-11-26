@@ -84,7 +84,7 @@ fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
         true,
     );
     let retained = FoldValue::RetainedNativeObject {
-        value: Box::new(FoldValue::Int(4_294_967_296)),
+        value: Box::new(FoldValue::int(4_294_967_296)),
         proof: None,
         integer_contents: None,
         reference: "$original".into(),
@@ -97,7 +97,7 @@ fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
     );
     assert!(
         advice
-            .logical_right_truth(&retained, &FoldValue::Int(1), true)
+            .logical_right_truth(&retained, &FoldValue::int(1), true)
             .unwrap()
     );
     assert!(
@@ -114,22 +114,22 @@ fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
     );
     assert!(
         executable
-            .logical_right_truth(&retained, &FoldValue::Int(1), true)
+            .logical_right_truth(&retained, &FoldValue::int(1), true)
             .is_err()
     );
     assert!(
         executable
-            .logical_right_truth(&FoldValue::Int(1), &retained, true)
+            .logical_right_truth(&FoldValue::int(1), &retained, true)
             .is_err()
     );
     assert!(
         executable
-            .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ConditionalJump)
+            .to_bool_for_purpose(&FoldValue::int(1), Purpose::ConditionalJump)
             .unwrap()
     );
     assert!(
         executable
-            .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ExpressionApiResult)
+            .to_bool_for_purpose(&FoldValue::int(1), Purpose::ExpressionApiResult)
             .is_err()
     );
 }

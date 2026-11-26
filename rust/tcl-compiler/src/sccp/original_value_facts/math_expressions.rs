@@ -194,7 +194,7 @@ impl FoldedExpressionContents {
     pub(super) fn into_const(self) -> ConstValue {
         match self {
             Self::Numeric(value) => tcl_value_to_const(value),
-            Self::Exact(value) => ConstValue::String(value.bytes),
+            Self::Exact(value) => ConstValue::String(value.bytes.into()),
         }
     }
 }
@@ -449,6 +449,6 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
         // A beyond-wide integer's lattice form is its canonical decimal
         // string — the value's one true rep, which downstream folds re-parse
         // exactly (`set big [expr {2**64}]; expr {$big + 1}` chains).
-        TclValue::Big(b) => ConstValue::String(b.to_string()),
+        TclValue::Big(b) => ConstValue::String(b.to_string().into()),
     }
 }

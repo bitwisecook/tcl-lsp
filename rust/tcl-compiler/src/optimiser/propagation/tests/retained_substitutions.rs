@@ -298,7 +298,7 @@ fn retained_substitution_formal_seeds_share_defaults_and_jim_rest_names() {
     );
     assert_eq!(
         seed.get(&("args".into(), 0)),
-        Some(&LatticeValue::Const(ConstValue::String(String::new())))
+        Some(&LatticeValue::Const(ConstValue::String("".into())))
     );
     let parameters =
         tcl_syntax::formal_params::parse_formal_parameters_in("{args remaining} tail", Jim)

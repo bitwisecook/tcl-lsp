@@ -345,7 +345,7 @@ fn original_assignment_values_use_whole_words_without_promoting_literal_data() {
             assert_eq!(
                 environment.get("result"),
                 expected
-                    .map(|value| StaticValue::String(value.to_owned()))
+                    .map(|value| StaticValue::String(value.into()))
                     .as_ref(),
                 "{dialect}: {source}"
             );
@@ -410,10 +410,7 @@ fn original_increment_amount_keeps_braced_data_separate_from_reads() {
                 assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
                 assert_eq!(increments.borrow().len(), 1);
             } else {
-                assert_eq!(
-                    environment.get("n"),
-                    Some(&StaticValue::String("1".to_owned()))
-                );
+                assert_eq!(environment.get("n"), Some(&StaticValue::String("1".into())));
                 assert!(increments.borrow().is_empty());
             }
         }
@@ -478,10 +475,7 @@ fn original_increment_reads_use_whole_words_and_decode_literal_escapes() {
                 assert_eq!(environment.get("n"), Some(&StaticValue::Int(3)));
                 assert_eq!(increments.borrow().len(), 1);
             } else {
-                assert_eq!(
-                    environment.get("n"),
-                    Some(&StaticValue::String("1".to_owned()))
-                );
+                assert_eq!(environment.get("n"), Some(&StaticValue::String("1".into())));
                 assert!(increments.borrow().is_empty());
             }
         }
@@ -541,7 +535,7 @@ fn original_exact_case_simulation_keeps_subject_names_and_literal_patterns() {
             &module.native_lexer_config(),
         );
         let mut environment =
-            StaticEnv::from([(name.to_owned(), StaticValue::String(" a ".to_owned()))]);
+            StaticEnv::from([(name.to_owned(), StaticValue::String(" a ".into()))]);
         assert!(
             simulate_case_source(
                 &module.top_level,
@@ -555,7 +549,7 @@ fn original_exact_case_simulation_keeps_subject_names_and_literal_patterns() {
         );
         assert_eq!(
             environment.get("result"),
-            Some(&StaticValue::String("MATCH".to_owned())),
+            Some(&StaticValue::String("MATCH".into())),
             "{source}"
         );
     }
@@ -578,7 +572,7 @@ fn original_case_simulation_refuses_changed_subject_body_and_missing_owner() {
         )),
         &module.native_lexer_config(),
     );
-    let environment = StaticEnv::from([("value".to_owned(), StaticValue::String("a".to_owned()))]);
+    let environment = StaticEnv::from([("value".to_owned(), StaticValue::String("a".into()))]);
     assert!(simulate_case_source(
         &module.top_level,
         context.commands(),
@@ -649,7 +643,7 @@ fn standalone_case_simulation_declines_unsupported_matching_modes() {
                 &parse_expr("$i < 1", None),
                 &script_of(vec![incr("i", None)]),
                 &body,
-                &StaticEnv::from([("mode".to_owned(), StaticValue::String("a".to_owned()))]),
+                &StaticEnv::from([("mode".to_owned(), StaticValue::String("a".into()))]),
                 1,
                 selected_analysis_policy()
             )
@@ -667,7 +661,7 @@ fn standalone_case_simulation_declines_unsupported_matching_modes() {
             &parse_expr("$i < 1", None),
             &script_of(vec![incr("i", None)]),
             &script_of(vec![statement]),
-            &StaticEnv::from([("mode".to_owned(), StaticValue::String("a".to_owned()))]),
+            &StaticEnv::from([("mode".to_owned(), StaticValue::String("a".into()))]),
             1,
             selected_analysis_policy()
         )
@@ -696,11 +690,11 @@ fn semantic_selected_result_preserves_native_bytes() {
         dependencies: &dependencies,
         evaluation_order: &evaluation_order,
     };
-    let environment = StaticEnv::from([("x".to_owned(), StaticValue::String("003".to_owned()))]);
+    let environment = StaticEnv::from([("x".to_owned(), StaticValue::String("003".into()))]);
     let result = simulation
         .evaluate_contents(&parse_expr("$x", None), &environment, None)
         .expect("native selected result is known");
-    assert_eq!(result.0, StaticValue::String("003".to_owned()));
+    assert_eq!(result.0, StaticValue::String("003".into()));
     assert_eq!(result.1, Some(3));
     assert!(observations.borrow()[0].result_dependency.is_some());
 }
@@ -889,7 +883,7 @@ fn analyse_resolves_if_else_branch_in_body() {
     )
     .expect("summarised");
     assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
-    assert_eq!(env.get("x"), Some(&StaticValue::String("20".to_owned())));
+    assert_eq!(env.get("x"), Some(&StaticValue::String("20".into())));
 }
 
 #[test]
@@ -909,7 +903,7 @@ fn analyse_resolves_switch_dispatch_in_body() {
         selected_analysis_policy(),
     )
     .expect("summarised");
-    assert_eq!(env.get("v"), Some(&StaticValue::String("1".to_owned())));
+    assert_eq!(env.get("v"), Some(&StaticValue::String("1".into())));
 }
 
 #[test]
