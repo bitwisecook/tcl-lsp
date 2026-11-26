@@ -470,7 +470,7 @@ under the round-trip gate** (item 405); "today" marks a type that exists.
 | `-declares`, `-references`, `-references-each` | 365 | `DeclRef::{Declares, References, ReferencesEach}(DeclKind)` | 452 |
 | `policy … -evaluation never`, `signature -header W -arg integer` | 365 | `EnvironmentPolicy.evaluation`, `Signature::Header` | 452 |
 | `compile ebpf OP -K V` | 380 | `CompileRecipe::Target(TargetRecipe)` | 459 |
-| `context`, `helper`, `map-type`, `limit`, `expr-profile` | 380 | `EbpfContext`, `Helper`, `MapType`, `Limits` facets, `ExprProfileId` | 460 |
+| `context`, `helper`, `map-type`, `limit` | 380 | `EbpfContext`, `Helper`, `MapType`, `Limits` facets; `-expr-profile` selects an expr `arithmetic` axis value (R58) | 460 |
 | `handle T { … }`, `result -handle`, `arg … -handle -needs -releases -moves-to -transforms -stores -creates` | 390A, 391 | `HandleType`, `ProducerRow`, `ConsumerRow`, `HandleEffect` | 391a |
 | `errorclass`, `code`, `throws -when -on` | 390B, 392 | `ErrorClass`, `ErrorCodeId`, `ErrorPattern`, `Throws`, `CodeSet` | 392a |
 | `result -dict -list -pairs`, `arg … -array-of` | 390C | `ResultShape` | 390c |
