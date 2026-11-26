@@ -30,17 +30,17 @@ fn original_precision_unset_matches_all_six_native_sources() {
                 $engine,
                 [
                     include_str!(concat!(
-                        "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_precision_unset319/",
+                        "../../../../tcl-registry/tests/data/native_precision_unset319/",
                         $engine,
                         "/root/stdout"
                     )),
                     include_str!(concat!(
-                        "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_precision_unset319/",
+                        "../../../../tcl-registry/tests/data/native_precision_unset319/",
                         $engine,
                         "/linked/stdout"
                     )),
                     include_str!(concat!(
-                        "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_precision_unset319/",
+                        "../../../../tcl-registry/tests/data/native_precision_unset319/",
                         $engine,
                         "/unrelated/stdout"
                     )),
