@@ -67,6 +67,8 @@ The review also found **six contradictions** between the new design and the earl
    - in the release branch, take only phase 0's correctness backlog items that touch the LSP;
    - mark engine convergence, the crate split, salsa rework and the licence change as post-release.
 
+   Superseded for the crate split (26 November 2026): `work` has no release target (item 96), and build and iteration time now come first. The split is plan item 90 ([design](../../design/compiler/crate-split-design.md)), scheduled ahead of every other stage with items 117 and 118.
+
 ## Reconciliations (not conflicts, but must be stated)
 
 - **The realm is sealed after the fixpoint.** `retained-positioned-command-realm` says an earlier retained producer cannot authenticate a changed module. With decision 1's binding and value loop, the realm snapshot is the post-fixpoint result and is sealed once the loop ends. Spike 94 also checks that the loop gives identical results fresh and incrementally.

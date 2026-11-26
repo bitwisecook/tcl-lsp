@@ -68,19 +68,25 @@ Each answer carries provenance and an explicit unknown, so a consumer can abstai
 
 ## Crates
 
-A proposal to measure, not a fixed layout. Split `tcl-compiler` along the layers where doing so removes a cycle or a duplicate, not for its own sake.
+Split `tcl-compiler` along the layers where doing so removes a cycle or a duplicate, not for its own sake. The concrete layout, the cycle analysis and the ordered steps are in [splitting tcl-compiler](../../design/compiler/crate-split-design.md). The split is plan item 90, and since 26 November 2026 the working order runs it first, with items 117 and 118 shrinking `tcl-registry` alongside, because every later phase is paid for in rebuilds.
 
-| Proposed crate | From | Notes |
+| Crate | From | Notes |
 | --- | --- | --- |
 | `tcl-source` | CST, segmenter, structured words, source maps | depends on grammars only |
-| `tcl-binding` | `command_binding`, frame and lookup owners, instance values | absorbs the analyser and signature-scan walks |
-| `tcl-ir` | lowering, CFG, SSA, memory SSA | every body kind |
+| `tcl-names` | identity and key types | the identity layer (item 77); breaks the `ir` → binding and binding → signature-scan cycles |
+| `tcl-model` | fact records, analysis inputs, one diagnostic type, answer types, lattices | no algorithms; breaks the binding → analyser cycle |
+| `tcl-ir` | IR and CFG data types | split from the builders because binding reads IR types |
+| `tcl-binding` | `command_binding`, the registry adapter, frame and lookup owners, instance values | absorbs the analyser and signature-scan walks |
+| `tcl-lowering` | lowering, CFG building, SSA, memory SSA | every body kind |
 | `tcl-analysis` | SCCP, value domains, intervals, GVN, interprocedural, escape, taint engine | one summary per fact |
-| `tcl-semantic` | the query API and fact store | the only analysis interface consumers see |
-| `tcl-diagnostics` | rules over the semantic model | no walking |
+| `tcl-native-plan` | executable IR, native lowering, AOT plan | what `tcl-codegen` and `bpf-tcl-ir` consume |
+| `tcl-semantic` | the query API and fact store | phase 6; the only analysis interface consumers see |
+| `tcl-diagnostics` | rules over the semantic model | starts as the analyser and checks; stops walking in phase 6 |
 | `tcl-optimiser` | passes and rewrites | reads the same facts |
 
-Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-spectcl` must not depend on `tcl-lsp-core`); domain crates (`tcl-bigip`, `tcl-irules`, `tcl-sslictcl`) contribute registry and profile data and hooks through interfaces rather than being linked into the LSP core; tools (`tcl-mcp`, `f5-xc`) depend on the semantic model and feature APIs, not on CLIs. Measure native and WASM build times and binary size before and after each split.
+There is no façade: each extraction moves its consumers, and `tcl-compiler` ends as the unit crate (`CompilationUnit`), re-exporting nothing.
+
+Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-spectcl` must not depend on `tcl-lsp-core`); domain crates (`tcl-bigip`, `tcl-irules`, `tcl-sslictcl`) contribute registry and profile data and hooks through interfaces rather than being linked into the LSP core; tools (`tcl-mcp`, `f5-xc`) depend on the semantic model and feature APIs, not on CLIs. Measure native and WASM build times, binary size and the edit-and-test rebuild count before and after each split.
 
 ## Caching
 
