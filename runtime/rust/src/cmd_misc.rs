@@ -123,10 +123,17 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 }
 
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
-/// 9.0's table also carries `profiles` and `user`, which need the encoding
-/// machinery this runtime does not model. `dirs` arrives in 8.5, so the table
-/// is filtered to the emulated release before the scan.
-const ENCODING_SUBS: &[&[u8]] = &[b"convertfrom", b"convertto", b"dirs", b"names", b"system"];
+/// `dirs` arrives in 8.5 and `profiles` and `user` in 9.0, so the table is
+/// filtered to the emulated release before the scan.
+const ENCODING_SUBS: &[&[u8]] = &[
+    b"convertfrom",
+    b"convertto",
+    b"dirs",
+    b"names",
+    b"profiles",
+    b"system",
+    b"user",
+];
 
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use crate::interp::{
@@ -245,6 +252,22 @@ fn encoding_in_scope(
             interp.set_result_bytes(b"utf-8 unicode ascii iso8859-1");
             Code::Ok
         }
+        // TIP 656's profiles, as `EncodingProfilesObjCmd` lists them.
+        b"profiles" => match argv {
+            [_, _] => {
+                interp.set_result_bytes(b"replace strict tcl8");
+                Code::Ok
+            }
+            _ => interp.wrong_args(b"encoding profiles"),
+        },
+        // Away from Windows the user encoding is the system encoding.
+        b"user" => match argv {
+            [_, _] => {
+                interp.set_result_bytes(interp.system_encoding().as_str().as_bytes());
+                Code::Ok
+            }
+            _ => interp.set_error(b"wrong # args: should be \"encoding user \""),
+        },
         b"convertto" => {
             // naming.encoding.original-utf8-convertto-object-storage
             // docs/design/analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md
@@ -372,17 +395,16 @@ mod tests {
     /// `encoding` is a `TclMakeEnsemble` command, so its
     /// exact-then-unique-prefix scan and its miss sentence belong to
     /// `tcl_cmd_core::ensemble` rather than an exact match with the sentence
-    /// spelled out by hand. The list still names only what this runtime
-    /// implements (9.0's table also carries `profiles` and `user`).
+    /// spelled out by hand. The default interpreter emulates 9.0.
     ///
-    /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened list):
+    /// tclsh 8.6.16 / 9.0.4:
     ///   encoding s  -> the system encoding
     ///   encoding c  -> unknown or ambiguous subcommand "c": must be …
     ///                  (convertfrom/convertto)
     ///   encoding {} -> unknown or ambiguous subcommand "": must be …
     #[test]
     fn encoding_ensemble_resolves_like_tclsh() {
-        const MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
+        const MUST: &str = "must be convertfrom, convertto, dirs, names, profiles, system, or user";
         let mut i = Interp::new();
         // The default system encoding is locale-dependent; pin it so the prefix
         // lookup is what is measured.
@@ -402,6 +424,68 @@ mod tests {
         // A unique prefix resolves.
         assert_eq!(i.eval_str(b"encoding na"), Code::Ok);
         assert_eq!(i.result_bytes(), b"utf-8 unicode ascii iso8859-1");
+    }
+
+    /// `encoding profiles` and `encoding user` exist from 9.0 only.
+    ///
+    /// tclsh 8.6.18 / 9.0.4 / 9.1.0:
+    ///   encoding profiles          -> replace strict tcl8 (9.x), unknown subcommand (8.6)
+    ///   encoding profiles x        -> wrong # args: should be "encoding profiles"
+    ///   encoding user x            -> wrong # args: should be "encoding user "
+    #[test]
+    fn encoding_profiles_and_user_exist_from_9_0() {
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            if engine == "tcl8.6" {
+                for script in [&b"encoding profiles"[..], b"encoding user"] {
+                    assert_eq!(interp.eval_str(script), Code::Error, "{engine}");
+                    assert!(
+                        interp
+                            .result_bytes()
+                            .starts_with(b"unknown or ambiguous subcommand"),
+                        "{engine}"
+                    );
+                }
+                continue;
+            }
+            assert_eq!(interp.eval_str(b"encoding profiles"), Code::Ok, "{engine}");
+            assert_eq!(interp.result_bytes(), b"replace strict tcl8", "{engine}");
+            assert_eq!(
+                interp.eval_str(b"encoding system utf-8"),
+                Code::Ok,
+                "{engine}"
+            );
+            assert_eq!(interp.eval_str(b"encoding user"), Code::Ok, "{engine}");
+            assert_eq!(interp.result_bytes(), b"utf-8", "{engine}");
+            assert_eq!(
+                interp.eval_str(b"encoding profiles x"),
+                Code::Error,
+                "{engine}"
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                b"wrong # args: should be \"encoding profiles\"",
+                "{engine}"
+            );
+            assert_eq!(interp.eval_str(b"encoding user x"), Code::Error, "{engine}");
+            assert_eq!(
+                interp.result_bytes(),
+                b"wrong # args: should be \"encoding user \"",
+                "{engine}"
+            );
+            assert_eq!(interp.eval_str(b"encoding bogus"), Code::Error, "{engine}");
+            assert!(
+                interp.result_bytes().ends_with(
+                    b"must be convertfrom, convertto, dirs, names, profiles, system, or user"
+                ),
+                "{engine}"
+            );
+        }
     }
 
     /// `encoding convertfrom` decodes: a byte array's raw bytes, and a string
