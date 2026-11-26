@@ -87,9 +87,16 @@ target-directory growth.
 Runtime performance is measured beside build cost. Each crate's first green
 build records analysis latency on the analysis-performance corpus and the VM
 benchmarks (`scripts/perf/interp/`), before and after (item 90's measurement
-record). These run on release builds: the agents' opt-level-1 test builds lose
-cross-crate inlining without LTO, so latency measured there would charge the
-split for a cost release builds do not have.
+record). These run under one benchmark profile, `release` (thin LTO, one
+codegen unit, `Cargo.toml:220`), in CI's benchmark job, not in agent
+worktrees: the agents' opt-level-1 test builds lose cross-crate inlining
+without LTO, and so does the `ci` profile (`lto = false`, 16 codegen units,
+`Cargo.toml:229`), so latency measured under either would charge the split
+for a cost release builds do not have, and a release target in every
+worktree would cost the disk the split saves. Items 106, 306 and 483 use the
+same profile. Measurements run alongside the steps and never block one:
+they are recorded against the Now-1 baseline, and a regression gates a later
+stage (owner priority, 26 November 2026).
 
 ## Why now
 
@@ -272,19 +279,19 @@ other.
 | Rank | Crate | Takes | Size (prod) | Direct users | Plan items that land here |
 |---|---|---|---|---|---|
 | 1 | `tcl-source` | `parsing` (CST), `segmenter`, `text`, the structured-word and source-site types (`ir::word_expr`, `ir::provenance`, `word_expr.rs`), `depth_guard`'s limits; `SourceMap` is already in `tcl-lexer` | ~5k | `tcl-sslictcl`, the SpecTcl loader, `tcl-lsp-core`, `tcl-codegen` | 82 (structured words), 41 (one segmentation) |
-| 2 | `tcl-names` | identity and key types: `SourceNamespaceKey`, `SourceCommandKey`, `CommandAllocationSite`, `SourceOriginId`, `ExecutedScriptSource`, `BindingKind`, `Place`, `VariableCellKey`, `VariableExecutionFrame`, `SignatureNamespaceScope`, `SignatureSourceNameKey`; `CommandRef` is already in `tcl-core-types` | ~8k | every crate above | 77 (identity layer), 66 (frame value) |
-| 3 | `tcl-values` | item 81's single value kernel: the value lattice (`LatticeValue`), abstract values, the `tcl_expr_eval` core, which carries binding's evidence types as a parameter | new | `tcl-model`, `tcl-binding`, `tcl-analysis`, the optimiser | 81 (kernels), 280 |
-| 4 | `tcl-model` | fact vocabulary with no algorithms: analysis inputs and settings, `ProcDef` and `ClassDef` (generic over binding's receipts), one `Diagnostic` (three shapes today; `Finding`'s is the model), the result lattices (`bounded_set`, completion codes), side-effect and result records, the plain records inside `AnalysisResult`, `semantic_optimisation`. `Answer`, `Knowledge`, `DiagCode` and `Severity` are already in `tcl-core-types` | ~15k | LSP, MCP, CLI, DB | 78 (answer types), 50–53 (typed IR facts) |
+| 2 | `tcl-names` | identity and key types: `SourceNamespaceKey`, `SourceCommandKey`, `CommandAllocationSite`, `SourceOriginId`, `ExecutedScriptSource`, `BindingKind`, `Place`, `VariableCellKey`, `VariableExecutionFrame`, `SignatureNamespaceScope`, `SignatureSourceNameKey`, moved as they are (248). It owns identity (decision D-D): item 274, after Now 5, moves in the `*Ref` types, `IdentityInterner` and the issuers from `tcl-core-types`, and the crate then sits below `tcl-runtime-api` ([step 3](crate-split/03-tcl-names.md#identity-moves-in-with-274)) | ~8k | every crate above | 77 (identity layer), 66 (frame value), 274 |
+| 3 | `tcl-values` | item 81's single value kernel: the value lattice (`LatticeValue`, moved as it is), the `tcl_expr_eval` core, which carries binding's evidence types as a parameter, and `command_kernel`, the one entry for command semantics (D-G). `AbstractValue` over `tcl-cmd-core`'s `ExactValue` replaces `LatticeValue` after Now 5, as a semantic change | new | `tcl-model`, `tcl-binding`, `tcl-analysis`, the optimiser | 81 (kernels), 280 |
+| 4 | `tcl-model` | fact vocabulary with no algorithms: analysis inputs and settings, `ProcDef` and `ClassDef` (generic over binding's receipts), one `Diagnostic` (three shapes today; `Finding`'s is the model), the result lattices (`bounded_set`, completion codes), side-effect and result records (over the registry core's `SideEffectTarget`; the compiler's mirror is deleted), the plain records inside `AnalysisResult`, `semantic_optimisation`, `target_contract` (step 11), and later `DocumentFacts`, the binding-free consumer trait (D-C). `Answer`, `Knowledge`, `DiagCode` and `Severity` are already in `tcl-core-types` | ~16k | LSP, MCP, CLI, DB, every `tcl-ide-*` crate | 78 (answer types), 50–53 (typed IR facts) |
 | 5 | `tcl-ir` | IR and CFG data types (`Module`, `Procedure`, `Script`, `Statement`, `CommandTokens`, `cfg` types), generic over one `Facts` parameter for binding's annotations | ~8k | `tcl-codegen`, `bpf-tcl-ir`, `tcl-explorer`, `tcl-diagram`, `f5-xc` | 50–53 |
 | 6 | `tcl-binding` | `command_binding`, `registry_invocation`, `realm`, `raw_binding`, `variable_bindings`, `var_resolve`, `signature_scan`, `dynamic_names`, `ir_helpers`, the `ssa::uses` scans, and twelve small modules that name binding back (`native_numeric` among them); defines the body-report trait and `ProvedOperands` | ~226k | LSP name features, `tcl-irules` | 84 (one binding walk), 19–25 (lookup), 245 |
 | 7 | `tcl-lowering` | `lowering`, `lowering_hooks`, `cfg_builder`, SSA family (`ssa`, `memory_ssa`, `state_ssa`, `effect_ssa`) | ~45k | `tcl-codegen`, `bpf-tcl-ir`, the VM's compiler tests, `tcl-debugger` | 83 (every body a unit) |
 | 8 | `tcl-analysis` | the per-function passes (`sccp`, `value_transfer`, the rest of `tcl_expr_eval`, `type_infer`, intervals, `static_loops`, `side_effects`) and executable IR (`executable_ir`, `world_state_ssa`, `dispatch_proof`, `semantic_analysis`) | ~44k | `tcl-explorer`, `tcl-codegen` | 59–65 (constants), 117b |
 | 9 | `tcl-unit` (today's `tcl-compiler`, renamed by item 258) | `compilation_unit` (the fixpoint driver), the whole-unit passes (`interprocedural`, `taint`, `taint_interproc`, `shimmer`, `gvn`, `var_escape`), `unit_scope`, the IR half of `source_graph`; no re-exports | ~65k | whole-unit consumers (`CompilationUnit`) | |
-| 10 | `tcl-native-plan` | `native_lowering`, `common_aot_plan`, `target_contract`, `codegen_helpers`, `backend_registry`, `representation_plan` | ~14k | `tcl-codegen` | |
-| 10 | `tcl-diagnostics` | `analyser` (without `irules_event_checks`), `compiler_checks`, `AnalysisResult`, the `AnalysisResult` half of `source_graph`, `auto_path_eval`; implements binding's body-report trait; defines the `UnitRule` and `SiteRule` traits through which `tcl-irules` plugs in `irules_checks` (item 285) | ~107k | LSP stack, MCP, CLI | 85 turns it into rules over `tcl-semantic` |
-| 10 | `tcl-optimiser` | `optimiser` | ~20k | `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI | 244 |
-| 11 | `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above every analysis crate; no `tcl-lsp-core` dependency | ~19k | `tcl-lsp-server`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
-| later | `tcl-semantic` | the query API and fact store | new | every feature | 85 (phase 6) |
+| 10 | `tcl-semantic` | the one analysis query API, implementing `tcl-model`'s `DocumentFacts` over the unit and the summaries (decision D-C); created by item 85, after Now 5 | new | `tcl-diagnostics`, `tcl-db` | 85 |
+| 10 | `tcl-native-plan` | `native_lowering`, `common_aot_plan`, `codegen_helpers`, `backend_registry`, `representation_plan`; `target_contract` (no dependencies) goes to `tcl-model` | ~13k | `tcl-codegen` | |
+| 10 | `tcl-optimiser` | `optimiser` | ~20k | `tcl-compile`, `tcl-spec-hooks`, `tcl-engine-tclvm`, CLI | 244 |
+| 11 | `tcl-diagnostics` | `analyser` (without `irules_event_checks`), `compiler_checks`, `AnalysisResult` (which projects into `DocumentFacts`), the `AnalysisResult` half of `source_graph`, `auto_path_eval`; implements binding's body-report trait; defines the `UnitRule` and `SiteRule` traits through which `tcl-irules` and `bpf-tcl-rules` plug in (items 285, 464) | ~107k | `tcl-db`, `tcl-irules`, `bpf-tcl-rules` | 85 turns it into rules over `tcl-semantic` |
+| 12 | `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above every analysis crate; no `tcl-lsp-core` dependency; a session-free batch constructor for the CLI and MCP | ~19k | `tcl-lsp-session`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
 
 The target layout, with each crate's rank and the main consumers. Each arrow
 points at the crate depended on, and only the nearest dependency is drawn:
@@ -299,13 +306,15 @@ flowchart TB
   lspServer["tcl-lsp-server"]
   mcp["tcl-mcp"]
   cli["tcl-cli"]
-  lspCore["tcl-lsp-core"]
-  codegen["tcl-codegen"]
+  lspCore["tcl-ide-*: DocumentFacts from tcl-model"]
+  compile["tcl-compile: drivers"]
+  codegen["tcl-codegen: emitters"]
   bpf["bpf-tcl-ir"]
   irules["tcl-irules"]
   sslictcl["tcl-sslictcl"]
-  db["11 tcl-db: the one database"]
-  diagnostics["10 tcl-diagnostics"]
+  db["12 tcl-db: the one database"]
+  diagnostics["11 tcl-diagnostics"]
+  semantic["10 tcl-semantic: DocumentFacts, after Now 5"]
   optimiser["10 tcl-optimiser"]
   nativePlan["10 tcl-native-plan"]
   unit["9 tcl-unit: the fixpoint driver, whole-unit passes"]
@@ -322,13 +331,17 @@ flowchart TB
   lspServer --> db
   mcp --> db
   cli --> db
-  lspCore --> db
+  lspServer --> lspCore
+  lspCore --> model
   db --> diagnostics
   db --> optimiser
   irules --> diagnostics
+  compile --> codegen
+  compile --> optimiser
   codegen --> nativePlan
   bpf --> lowering
-  diagnostics --> unit
+  diagnostics --> semantic
+  semantic --> unit
   optimiser --> unit
   nativePlan --> unit
   unit --> analysis
@@ -344,14 +357,22 @@ flowchart TB
 
   classDef new stroke-width:3px;
   classDef renamed stroke-dasharray:5 3;
-  class diagnostics,optimiser,nativePlan,analysis,lowering,binding,ir,model,values,names,source new;
+  class diagnostics,optimiser,nativePlan,analysis,lowering,binding,ir,model,values,names,source,semantic,compile new;
   class db,unit renamed;
 ```
 
-`tcl-codegen` builds over `tcl-native-plan`, `tcl-unit` and below (item 292).
-`bpf-tcl-ir` needs `tcl-ir` and `tcl-lowering` only (380; integration C11; plan item 464):
-its `semantic_bridge.rs` is the only user of `tcl-analysis` and `target_contract`, and it is wired in or deleted. Later, `tcl-semantic` sits over
-binding and analysis.
+`tcl-codegen` (the emitters) depends on `tcl-ir`, `tcl-native-plan`,
+`tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model`, `tcl-bytecode`
+and the registry core; `tcl-compile` (the drivers) depends on the unit
+crate, `tcl-optimiser` and `tcl-codegen` (item 292,
+`build-time/292-codegen.md:119-120`). Both are layer 5 in the workspace
+overview, `tcl-compile` above `tcl-codegen`. `bpf-tcl-ir` needs `tcl-ir`,
+`tcl-lowering` and `tcl-model` only (380; integration C11 and C31; plan item
+464): its `semantic_bridge.rs` is the only user of `tcl-analysis` and
+`target_contract`, and it is wired in or deleted. `target_contract` has no
+dependencies and moves to `tcl-model` in step 11; BPF diagnostics go to a
+`bpf-tcl-rules` crate above `tcl-diagnostics`. `tcl-semantic` sits between
+`tcl-unit` and `tcl-diagnostics` (decision D-C).
 
 `tcl-binding` is still the largest crate. `tcl-invocation`, the registry
 adapter (`registry_invocation`, 39k), is not split off in this split: item 282
@@ -363,20 +384,50 @@ record of proofs, not a key, so it stays with binding as `InvocationBinding`, an
 
 ### What each consumer gains
 
-- **`bpf-tcl-ir`** builds against `tcl-ir` and `tcl-lowering` (380; plan item 464),
+- **`bpf-tcl-ir`** builds against `tcl-ir`, `tcl-lowering` and `tcl-model` (380; plan item 464),
   with no analysis, native plan, diagnostics or optimiser. It lowers and builds CFGs itself, so it needs lowering too.
 - **`tcl-sslictcl`** needs only `tcl-source`.
 - **`tcl-codegen`** stops rebuilding when the diagnostics or the optimiser
   change. Its drivers split off into a `tcl-compile` crate above the unit
   crate (item 292, owner decision of 26 November 2026); `tcl-codegen` keeps
   the emitters.
-- **The LSP crates** depend on `tcl-diagnostics` and `tcl-model`, plus
-  `tcl-unit` for whole-unit work.
+- **The feature crates** (`tcl-ide-*`) depend on `tcl-model`'s
+  `DocumentFacts` and the registry core, never on `tcl-db`,
+  `tcl-diagnostics` or `tcl-unit` (decision D-C), so an analyser edit
+  rebuilds none of them except `tcl-ide-format`, which takes `tcl-binding`
+  and `tcl-optimiser`. Until `DocumentFacts` exists they keep their
+  `tcl-diagnostics` edges as exception rows.
 - **An edit to the analyser**, the busiest area with 92k test lines, rebuilds
   `tcl-diagnostics` and what sits above it, not binding, lowering, analysis or
   the unit.
 - **The other crates compile in parallel.** Today a single frontend unit
   serialises the whole crate.
+
+### Rebuild cost per layer
+
+"The split makes cones small" is about forward cones: what a crate's own
+test build compiles. After an edit, the cost is the reverse cone: every
+crate that depends on the edited one. Most of the plan's work after Now 2
+edits the middle layers, whose reverse cones are nearly the whole stack.
+The table states both for the target graph above and the workspace
+overview's layers. The 259 rows it names record them when each crate first
+builds; they run alongside the steps and never block one, and a regression
+against the Now-1 baseline gates the next stage.
+
+| Edited crate | Reverse cone (a `cargo build --workspace` after the edit) | `cargo test -p <crate> --lib --no-run` rebuilds | 259 row | Must not regress against |
+|---|---|---|---|---|
+| `tcl-source` | everything above layer 1: the compiler, the registry core and up once `tcl-names` sits below `tcl-runtime-api` (274) | the crate only | `lexer` (extended) | today's `tcl-compiler --lib` edit: 1 crate, 29.8 s ([build-test-cost](../../work/build-test-cost/current-state.md#item-246-step-0-tcl-compiler-before--after)) |
+| `tcl-names` | the same as `tcl-source` after 274; before it, `tcl-values` and up | the crate only | `names` (new, handoff to 259) | 29.8 s; and the vocabulary must stay small (principle 2), since after 274 every edit rebuilds the workspace |
+| `tcl-model` | `tcl-ir` and up, every `tcl-ide-*` crate, the domain crates | the crate only | — | 29.8 s |
+| `tcl-binding` | `tcl-lowering`, `tcl-analysis`, `tcl-unit`, rank 10–12, `tcl-codegen`, `tcl-compile`, `bpf-tcl-ir`, `tcl-irules`, `tcl-ide-format`, the tools and entry points; no other `tcl-ide-*` crate | the crate only (~226k lines, the largest) | `binding` (new, handoff to 259) | 29.8 s for the test build; the reverse-cone time is recorded |
+| `tcl-analysis` | `tcl-unit` and up, `tcl-codegen`, `tcl-compile` | the crate only | — | 29.8 s |
+| `tcl-diagnostics` (the analyser) | `tcl-db`, `tcl-irules`, `bpf-tcl-rules`, the session, MCP, CLI; no `tcl-ide-*` crate | the crate only | `analyser` | today's 9 crates and 2–6 minutes (step 12) |
+| registry core | everything above layer 3 | the crate only | `registry` | item 262's record |
+| a `.tclspec` row | `tcl-catalogue` and what links it (binaries, WASM hosts, `xtask`, `-it` crates) | nothing | `spec` | INT-b's done-when |
+
+The test-build column is the forward-cone win the split delivers at once;
+the reverse-cone column is what later stages pay and what the measurement
+watches.
 
 ## Sequence
 
@@ -447,10 +498,14 @@ flowchart LR
    loader and `tcl-sslictcl` onto it.
 3. **`tcl-names`** (248). The identity and key types move unchanged;
    `SourceInvocationBinding` stays with binding. Item 77's redesign continues
-   inside the new crate as 274, alongside the later steps.
+   inside the new crate as 274, alongside the later steps; the `*Ref` move
+   and the issuer derived from a `tcl-db` input are 274's, after Now 5, and
+   gate no extraction.
 4. **`tcl-values`** (280). Item 81's value kernel moves below binding, before
    binding is extracted and before the rest of the analysis move, because
-   binding calls `tcl_expr_eval`.
+   binding calls `tcl_expr_eval`. `LatticeValue` and `ExactValue` move as
+   they are; `ExactValue` to `tcl-cmd-core` and the lattice over it follow
+   after Now 5 (D-G).
 5. **`tcl-model`** (249 result lattices, 275 the inputs and the generic
    `ProcDef`/`ClassDef`, 276 the result and side-effect records but not
    `AnalysisResult` itself, 277 one `Diagnostic` type, checked by golden diffs
@@ -534,6 +589,7 @@ lines (test files and `#[cfg(test)]` modules excluded), with `wc -l` over
 | `tcl-explorer` | 9.7k (13k) | depends on `tcl-vm` (four items in `live_entry.rs`, behind the optional `live-entry` feature), `tcl-codegen` and `tcl-spectcl` | 294; 317 (a `tcl-explore` binary for the skill) |
 | low hubs: `tcl-dialect` (32k), `tcl-lexer` (27k), `tcl-syntax` (48k), `tcl-core-types` (4k) | | 27–40 direct dependents each in the root workspace, so an edit rebuilds most of the workspace | 295 |
 | top hubs: `tcl-mcp`, `tcl-cli`, `tcl-lsp-server`, `tcl-lsp-core`, `tcl-compiler-it` | | agent tooling builds them in every worktree | 295 |
+| `tcl-bytecode` | 5.4k | mixes tables the analyser and `runtime/rust` read (`LocalVarTable`, `ErrorRegion`, `NativeExpressionNumberLiteral`, `NativeStringLiteral`) with the `Op`, layout, encoder and tbcx code that 311 and 312 edit, so an opcode edit rebuilds `tcl-compiler` and `runtime/rust` (`cargo tree -i tcl-bytecode`: 28 dependants) | a new item beside 252 in Now 3: `tcl-bytecode-tables` (literal and local tables, `ErrorRegion`, native literals), which `tcl-ir`, the unit's `var_escape` and `runtime/rust` take, and `tcl-bytecode` (`Op`, layout, encoder, format, tbcx), which only `tcl-codegen`, `tcl-vm` and their tools take |
 | every crate | | the crate-layer gate protects four crates through hand-written `wrappers` lists | 314 (the rank gate) |
 
 ## Docs and paths
@@ -574,3 +630,15 @@ are updated in the step that changes the layout.
 ## Review fixes (26 November 2026)
 
 - **R4:** binding's per-site receipt, `tcl-ir`'s `Facts::Command`, is `InvocationBinding` (was `CommandFacts`, which the integration design also used for the core's view; `InvocationFacts` is taken by `tcl-registry/src/resolved_invocation/invocation_facts.rs:64`). Chapter 7's naming table records it.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O2 (compiler side):** the crate table puts `tcl-semantic` at rank 10 between `tcl-unit` and `tcl-diagnostics` (now 11; `tcl-db` 12); `tcl-model` gains `DocumentFacts`; the feature crates depend on `tcl-model`, not `tcl-diagnostics` (D-C). The diagram follows.
+- **O7:** the codegen paragraph follows 292's edges; `tcl-compile` is drawn above `tcl-codegen`.
+- **O9:** `target_contract` to `tcl-model`; `bpf-tcl-rules` above `tcl-diagnostics`.
+- **M1:** `tcl-names` owns identity; the `*Ref` move is 274's (D-D), after Now 5.
+- **M7, O5:** `tcl-values` moves `LatticeValue` as it is; `ExactValue` in `tcl-cmd-core` and `command_kernel` the one entry (D-G).
+- **M9:** `tcl-model` uses the core's `SideEffectTarget`.
+- **F7:** *Rebuild cost per layer*.
+- **F10:** one benchmark profile, `release`, in CI's benchmark job; measurements never block.
+- **E7:** the `tcl-bytecode` split, in *The rest of the workspace*.

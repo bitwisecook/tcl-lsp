@@ -163,7 +163,10 @@ vocabulary crates, and has no dev-dependency above it.
 
 The whole-unit tier (`taint`, `taint_interproc`, `interprocedural`,
 `shimmer`, `gvn`, `var_escape`) goes into `tcl-unit` with the unit
-([step 13](13-unit-and-db.md)). It is about 41k lines.
+([step 13](13-unit-and-db.md)). It is about 41k lines. This step moves it as
+it is. Later, under the integration design's summary framework (INT-e),
+each pass's transfer comes down to `tcl-analysis` as a `SummaryDomain` once
+it stops reading a built unit, and only the solver stays in `tcl-unit`.
 
 Small edges from the lower tier up, broken in this step:
 
@@ -174,7 +177,7 @@ Small edges from the lower tier up, broken in this step:
 | `type_infer` → `shimmer::hints::is_pure_intrep` (1) | the hint moves to `tcl-values` |
 | `semantic_analysis` → `gvn::resolved_invocation_is_*gvn_candidate` (2) | the two predicates over resolved-invocation facts move down beside `semantic_analysis` |
 | `side_effects` → `taint::is_irules_dialect` (3) | becomes an environment query (item 304); until then the function moves to `tcl-model` |
-| `sccp` → `interprocedural` (2) | `ModuleProcedures` in SCCP's solve inputs (`sccp.rs:1090`); SCCP defines a `ProcedureSummaries` trait for the callee summaries it reads, and the unit's `ModuleProcedures` implements it |
+| `sccp` → `interprocedural` (2) | `ModuleProcedures` in SCCP's solve inputs (`sccp.rs:1090`); SCCP defines a `ProcedureSummaries` trait for the callee summaries it reads, and the unit's `ModuleProcedures` implements it. After INT-e it reads the product `ProcSummary` (`tcl-model`), keyed by `BodyUnitRef`, and serves only the summary-refined binding tier ([step 7](07-binding-fixpoint.md#two-tiers-summary-free-and-summary-refined)) |
 | `sccp`, `value_transfer` → `codegen_helpers::split_list_values` (3) | moves to `tcl-values` (list parsing) |
 | `tcl_expr_eval`, `interprocedural` → `native_lowering::cells::variable_reference_place` (3) | moves down in step 4 (to `tcl-values`, or replaced by `tcl_lexer::variable_names`, as `04-tcl-values.md` decides) |
 | `sccp`, `dispatch_proof`, `semantic_analysis` → `analyser::ResolvedAnalysisInput` | step 5 (`tcl-model`) |
@@ -228,7 +231,11 @@ The move:
    values with no lattice (`const_ops`, `regex`, list, dict and path
    operations, `literal`). Binding uses some of them (step 7) and the VM
    names `tcl_registry::value_transfer` in one file. A kernel below binding
-   is the only home all three can reach.
+   is the only home all three can reach. They are reached through
+   `tcl_values::command_kernel`, the one entry, which dispatches by
+   `SemanticOperationId` to `tcl-cmd-core` or a fold hook; the core's
+   `CommandSemantics` speaks `ExactValue` and `Interval` from `tcl-cmd-core`
+   (decision D-G, [step 4](04-tcl-values.md#open-questions)).
 3. **Abstract evaluators go to `tcl-analysis`** beside its own
    `value_transfer`: `reference_body`, `body`, `publication`, `partial`,
    `lift`, `unbind`, `cell_*`, `conditional_*`, `iteration`, and the
@@ -315,3 +322,8 @@ registration.
 - Item 255's list ("SCCP, value transfer, intervals, GVN, interprocedural,
   escape, taint, side effects") should drop GVN, interprocedural, escape and
   taint, and add executable IR.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O5:** item 117's exact evaluators are reached through `command_kernel` (D-G).
+- **F2, M2:** `ProcedureSummaries` reads the product `ProcSummary` by `BodyUnitRef` and serves only the summary-refined tier; the whole-unit passes move as they are and become domains later.

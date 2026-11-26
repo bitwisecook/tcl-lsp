@@ -167,11 +167,20 @@ classDiagram
 ### 276: the result and side-effect records
 
 - `side_effects.rs` up to line 711 moves: `StorageType`, `StorageScope`,
-  `ConnectionSide`, `SideEffectTarget`, `EffectRegion`, `SideEffect`,
-  `CommandSideEffects` and `CalleeSummary`. `classify_*` and the storage-scope
-  algorithms (`:712` on) go to `tcl-analysis` in step 10. Binding's 3
-  references (`registry_invocation/handler_invocation.rs`) then name
-  `tcl-model`.
+  `ConnectionSide`, `EffectRegion`, `SideEffect`, `CommandSideEffects` and
+  `CalleeSummary`. `classify_*` and the storage-scope algorithms (`:712` on)
+  go to `tcl-analysis` in step 10. Binding's 3 references
+  (`registry_invocation/handler_invocation.rs`) then name `tcl-model`.
+- **`SideEffectTarget` does not move: 276 deletes it.** It mirrors the
+  registry core's enum (`tcl-registry/src/side_effects.rs:24-27`: "Variant
+  names match the consumer's `tcl_compiler::side_effects::SideEffectTarget`"),
+  which has every compiler variant plus `Process` and `ChannelIo`; the
+  compiler copy imports it as `RegistryTarget` and maps it one-to-one in
+  `lift_registry_target` (`tcl-compiler/src/side_effects.rs:1149`). The
+  registry is the single source of truth, so `tcl-model`'s records name the
+  core's `SideEffectTarget`, and the two registry-only variants keep today's
+  mapping (`Process` reads as `Unknown`, `ChannelIo` as `FileIo`) inside
+  `classify_*`.
 - `analyses.rs`' result records (`ConstantBranch`, `DeadStore`,
   `ReadBeforeSet`, `UnusedVariable`) move.
 - The plain records inside `AnalysisResult` that binding reads move too: the
@@ -185,6 +194,26 @@ classDiagram
   and it stays in `tcl-diagnostics`. Item 250 (step 7) gives binding a
   narrower `BodyReport` type, defined in binding, which the analyser fills.
   That removes binding's 97 `AnalysisResult` references.
+- **`DocumentFacts`, the consumer interface (decision D-C).** `tcl-model`
+  defines a binding-free trait over what a document's analysis found. It is
+  added by item 289, which needs it, not by this step, so it gates no
+  extraction:
+
+  ```rust
+  // design sketch: tcl_model::document
+  pub trait DocumentFacts {
+      fn diagnostics(&self) -> &[Diagnostic];                        // the one type of 277
+      fn symbols(&self) -> &[DefinedSymbol];
+      fn scopes(&self) -> &[Scope];
+      fn invocation_at(&self, offset: u32) -> Option<InvocationView<'_>>; // resolved CommandKey, roles, Knowledge
+      fn summary(&self, body: BodyUnitRef) -> Option<&ProcSummary>;
+  }
+  ```
+
+  `AnalysisResult` projects into it in `tcl-diagnostics`, and `tcl-semantic`
+  (item 85, between `tcl-unit` and `tcl-diagnostics`) implements it as the
+  one analysis query API. Feature crates take `&dyn DocumentFacts` in 289's
+  `DocumentInput` and so depend on `tcl-model`, never on `tcl-diagnostics`.
 - **`Answer` and `Knowledge` do not move.** They are in `tcl-core-types`,
   which `tcl-runtime-api` and the VM use. The registry's `Knowledge`
   (`tcl-registry/src/knowledge.rs:38`) is a different type with the same name:
@@ -389,10 +418,17 @@ which move the producers.
   record the registry's same-named `Knowledge`.
 - `AnalysisResult` cannot move to `tcl-model`, because it names binding,
   realm and unit-crate types. Item 276 should move the records it holds, and
-  leave the type to `tcl-diagnostics` and item 250.
+  leave the type to `tcl-diagnostics` and item 250. What consumers read is
+  `DocumentFacts`, which it projects into (289's "`&AnalysisResult` (from
+  `tcl-model`)" is wrong on both counts).
 - `ProcDef` and `ClassDef` carry binding receipts. They move as generic types
   over `tcl_model::Receipts`, and item 275's text should say so.
 - There are three diagnostic shapes, not two. `tcl-lsp-core`'s `Finding` is
   the one the merged type should match.
 - Binding's references into the analyser are higher than the overview's
   counts: 594, with `ResolvedAnalysisInput` at 355, by this scanner.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O2 (compiler side):** `DocumentFacts` in `tcl-model`, added by 289; `AnalysisResult` projects into it; `tcl-semantic` implements it (D-C).
+- **M9:** `SideEffectTarget` is deleted, not moved; `tcl-model` names the registry core's.

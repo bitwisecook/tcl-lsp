@@ -111,10 +111,11 @@ The three wrong-way edges:
 | analysis → `native_lowering::cells::{variable_reference_place, CellPlace}` | moves down with step 4 (`tcl-values`, or `tcl_lexer::variable_names`) |
 | `semantic_analysis` → `semantic_optimisation` (1) | `semantic_optimisation` (269 lines, configuration with no dependencies) moves to `tcl-model`, not `tcl-optimiser` |
 
-`target_contract` has no dependencies, and `bpf-tcl-ir` names it. Whether it
-belongs in `tcl-model`, so that `bpf-tcl-ir` does not need this crate, is
-settled by item 292's measurement: if `bpf-tcl-ir` names nothing else here,
-move it.
+`target_contract` has no dependencies (it imports only `std`), and
+`bpf-tcl-ir` names it, through `semantic_bridge.rs` only. It moves to
+`tcl-model` in this step, so `bpf-tcl-ir` stops at `tcl-ir`, `tcl-lowering`
+and `tcl-model` (INT-k; integration C31). `backend_registry` and
+`tcl-codegen`'s WASM pipeline name it there.
 
 ### Named API (item 283)
 
@@ -194,8 +195,10 @@ let frame = locals.frame();
   because 27 of its files name `compilation_unit` today. Measure whether it
   could drop `tcl-unit` by building through `tcl-native-plan`'s entry.
 - **`tcl-explorer`** reads plans through `tcl-native-plan` (item 294).
-- **`bpf-tcl-ir`** needs `tcl-ir`, `tcl-lowering` and `tcl-analysis` (for
-  `executable_ir`), plus `target_contract`.
+- **`bpf-tcl-ir`** needs `tcl-ir`, `tcl-lowering` and `tcl-model`
+  (`target_contract`). Its `executable_ir` use is in `semantic_bridge.rs`,
+  which only its tests call; plan item 464 wires it in or deletes it, and
+  its diagnostics go to `bpf-tcl-rules` above `tcl-diagnostics`.
 
 The two native consumers' crates after the split (each arrow points at the
 crate depended on). `tcl-codegen` is drawn as one crate; under the owner
@@ -217,11 +220,11 @@ flowchart TB
   codegen --> lowering
   codegen --> binding
   codegen --> ir
-  bpf -- "target_contract" --> nativePlan
-  bpf --> analysis
+  model["tcl-model: target_contract"]
+  bpf --> model
   bpf --> lowering
   bpf --> ir
-  nativePlan --> unit --> analysis --> lowering --> binding --> ir
+  nativePlan --> unit --> analysis --> lowering --> binding --> ir --> model
 ```
 
 ## Work list
@@ -275,3 +278,7 @@ flowchart TB
 ## Owner decision (26 November 2026)
 
 `tcl-codegen` splits into the emitters (`tcl-codegen`) and a driver crate (`tcl-compile`) above the unit crate, per [292](../../build-time/292-codegen.md). Where this doc keeps one `tcl-codegen`, read it as the emitter crate. The driver modules (`compile_service`, the WASM pipeline, `inlining`) go to `tcl-compile`.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O9:** `target_contract` moves to `tcl-model`; `bpf-tcl-ir` no longer depends on this crate or `tcl-analysis`; BPF diagnostics go to `bpf-tcl-rules`.

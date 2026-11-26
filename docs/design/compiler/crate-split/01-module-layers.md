@@ -83,7 +83,7 @@ stateDiagram-v2
 ```
 
 A worked example. In the seeded ledger, `command_binding` is rank 6 and
-`analyser` is rank 10, so this line in `command_binding` counts as one
+`analyser` is rank 11 (`tcl-diagnostics`, above `tcl-semantic` at 10), so this line in `command_binding` counts as one
 production reference on a back-edge:
 
 ```rust
@@ -102,7 +102,7 @@ analyser::types	tcl-model	4
 ir	tcl-ir	5
 command_binding	tcl-binding	6
 signature_scan	tcl-binding	6
-analyser	tcl-diagnostics	10
+analyser	tcl-diagnostics	11
 
 # module-back-edges.tsv
 from	to	count
@@ -146,3 +146,7 @@ largest are:
 | 4 (value kernel) | no binding module names `tcl_expr_eval` or `analyses` |
 | 7 (binding against lowering) | 278's inventory lists every binding → lowering, SSA and value pair; after 250, `tcl-binding` → `tcl-diagnostics` reads 0 |
 | 2, 6, 8–12 | each crate is extracted when its row in the per-crate report reads 0 |
+
+## Review fixes (26 November 2026, deep review)
+
+- **O2:** the example ranks `tcl-diagnostics` 11, above `tcl-semantic` (10, decision D-C); `tcl-db` is 12 ([step 13](13-unit-and-db.md)).

@@ -134,8 +134,18 @@ use tcl_expr::expr::parser::parse_expr;
 stay in `tcl-compiler` while steps 11 and 12 extract the crates above them,
 and those crates depend on the shrinking `tcl-compiler`. Step 13 then renames
 what is left. The `module-layers` ranks change: the unit crate is rank 9,
-`tcl-native-plan`, `tcl-diagnostics` and `tcl-optimiser` are rank 10, and
-`tcl-db` is 11.
+`tcl-native-plan`, `tcl-optimiser` and, once item 85 creates it,
+`tcl-semantic` are rank 10, `tcl-diagnostics` is 11, and `tcl-db` is 12.
+
+**The summary walk's driver.** When INT-e lands (after Now 5), `tcl-unit`
+exposes a per-component step function, `solve_component(members, lower:
+&dyn ProcedureSummaries) -> ComponentResult`, which iterates one component
+of the call graph, its re-binding round included. `tcl-db` owns the walk:
+its `component_summaries` query calls the step function with lower
+components' queries as `lower`. The graph comes from the summary-free
+binding tier, so no summary feeds the graph that orders the summaries and no
+salsa cycle arises
+([integration § 3](../compiler-analyser-spectcl-integration.md#the-design)).
 
 ### tcl-db (item 286)
 
@@ -148,9 +158,14 @@ removed as follows:
 - **`conditional_project_source_target` moves down** to `tcl-binding`'s
   `query` module, beside `OriginalProjectSourceLoad`. It is source-path
   policy, not an LSP feature.
-- **The feature queries move up.** Semantic tokens, folding and document
-  symbols become salsa queries defined in `tcl-lsp-core` over a database
-  trait that `tcl-db` exports:
+- **The feature queries move up, as plain functions.** Semantic tokens,
+  folding and document symbols become pure functions in the feature crates
+  (289) over `DocumentInput`, which carries `tcl-model`'s `DocumentFacts`
+  (decision D-C); no feature crate names `tcl-db` or salsa. Where step 14's
+  gate shows a memo is worth keeping, it is a query in `tcl-lsp-session`
+  over the database trait `tcl-db` exports. The first move, in this step,
+  keeps today's shape (queries in `tcl-lsp-core`, which 289 splits) and the
+  move to plain functions follows 289; the sketch is the interim:
 
 ```rust
 // tcl-db
@@ -168,7 +183,15 @@ removed as follows:
 
   `NamedInstanceMap`, `WorkspaceTokenFacts` and the project token inputs
   (`project_token_inputs.rs`) move with them. `tcl-lsp-server` holds the
-  concrete database, which implements both crates' traits.
+  concrete database, which implements both crates' traits, until 290 gives
+  it to `tcl-lsp-session`.
+- **A batch constructor for MCP and the CLI.** `tcl_db::Batch::run(inputs:
+  BatchInputs) -> BatchResult` builds a database, sets the inputs once
+  (files, packs, the lockfile), runs the analysis and returns the records
+  (`DocumentFacts`, `ContextIntervals`), with no session and no salsa type in
+  its signature. MCP and the CLI analyse through it instead of their own
+  `Analyser` calls. It follows the API decisions after Now 5; until then
+  they call `document_analysis` as today.
 - **The test-only uses** (`diagnostic_policy::Finding`, `diagnostic_subject`)
   move with their tests into `tcl-lsp-core`'s, or into item 271's test crate.
 
@@ -290,3 +313,8 @@ At that point their only extra dev-dependency, `tcl-dialect-jim`, sits below
   passes, `unit_scope` and the IR half of `source_graph`. `auto_path_eval`
   and the `AnalysisResult` half of `source_graph` go to `tcl-diagnostics`.
 - Step 1's rank list changes as given under "Order".
+
+## Review fixes (26 November 2026, deep review)
+
+- **O2, C1 (D-C):** ranks with `tcl-semantic` (10), `tcl-diagnostics` (11), `tcl-db` (12); the feature queries become plain functions over `DocumentInput`, with any memo in `tcl-lsp-session`; the batch constructor for MCP and the CLI.
+- **O12:** *The summary walk's driver*: `solve_component` in `tcl-unit`, the walk in `tcl-db`, the graph from the summary-free tier.

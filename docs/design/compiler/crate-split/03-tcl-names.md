@@ -57,9 +57,11 @@ flowchart LR
 ```
 
 `CommandRef`, the other `*Ref` types, `IdentityInterner`, `Answer` and
-`Knowledge` are already in `tcl-core-types` (`semantic_identity.rs:76`,
-`answer.rs:64,101`). `tcl-runtime-api` names them, so they stay there and are
-not part of this move.
+`Knowledge` are in `tcl-core-types` today (`semantic_identity.rs:76`,
+`answer.rs:64,101`). Item 248 does not move them. Under decision D-D,
+`tcl-names` owns identity, and item 274 moves the `*Ref` types,
+`IdentityInterner` and the issuers in later; `tcl-core-types` keeps
+`Answer`, `Knowledge` and `DiagCode` (*Identity moves in with 274*, below).
 
 ## Design
 
@@ -147,6 +149,46 @@ binding. Only the two pure name types, `SignatureNamespaceScope` and
    process state.
 4. **No salsa.** As the overview says, `tcl-names` stays salsa-free so the VM
    and `tcl-runtime-api` adapters can use it.
+
+### Identity moves in with 274
+
+Today identity has three vocabularies: the `*Ref` types, `IdentityKey` and
+`ProcedureId` in `tcl-core-types`; the source keys this step moves; and the
+engines' `CommandId(u32)`/`NsId(u32)`. `tcl-names` owns the first two
+(decision D-D). Facts and summaries above it are keyed by `BodyUnitRef`,
+`VariablePlaceRef` and `CommandRef`/`SourceCommandKey`, never by display
+text, and every `Source*Key` that stands for an identity is a descriptor
+for the `*Ref` it interns to.
+
+The move is item 274's and comes after Now 5, so it gates no extraction.
+It changes the crate's place in the stack, because `tcl-runtime-api` names
+the `*Ref` types (`rust/tcl-runtime-api/src/semantic_identity.rs:25`) and
+`tcl-bytecode` names `ProcedureId` and its issuer through it
+(`tcl-bytecode/src/lib.rs:560`). So, in the same item:
+
+- `tcl-runtime-api` depends on `tcl-names`, and `tcl-names` drops its edges
+  to `tcl-runtime-api` and the registry core. The two runtime-api types the
+  closure holds, `NativeInterpreterIdentity` and `NativeNamespaceContext`
+  (`native_compilation.rs:26,365`, plain identity data), move into
+  `tcl-names`, and `tcl_registry::FrameLevel` (`frame_effect.rs:81`) moves
+  with them; the registry names it from there.
+- `tcl-source` stays over `tcl-lexer`, `tcl-syntax` and `tcl-dialect` only,
+  as step 2 decides, so it can sit below `tcl-names` in the workspace
+  overview's layer 1, and `tcl-names` in layer 2.
+- The cost: after 274 a `tcl-names` edit rebuilds the registry core and
+  everything above it. The crate holds types only (principle 2), and the
+  rebuild-cost table in the overview records it.
+
+**The issuer.** `ProcedureIdIssuer::default()` draws its scope from a
+process-wide counter (`tcl-core-types/src/body_identity.rs:24`,
+`NEXT_SCOPE`), and `IdentityInterner::new` calls it
+(`semantic_identity.rs:123`), so the same unchanged body gets a new key on
+every rebuild and no summary keyed by it can backdate. Item 274 derives the
+issuer and domain from a `tcl-db` input (the file id, the
+revision-independent definition site and the incarnation), passed in by the
+owner of the analysis, and deletes `NEXT_SCOPE`. Its test: re-analysing an
+unchanged file gives equal `ProcSummary` keys, and the summary query
+backdates.
 
 ### Item 274: item 77 inside tcl-names
 
@@ -249,7 +291,7 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
   stay labels, as item 77 recorded. 274 marks them `#[doc(hidden)]`
   presentation fields.
 - **Incarnations and provenance** for frame, body unit, instance, package and
-  interpreter, keyed as `tcl-core-types`' `*Ref`.
+  interpreter, keyed as the `*Ref` types that move here (above).
   `VariableExecutionFrame` still carries `identity: String` frames
   (`var_resolve.rs:107-116`); item 66's frame value replaces those strings.
 - **The engines' tokens** through `tcl-runtime-api`, unchanged: the adapters
@@ -260,8 +302,12 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 
 - two different `CommandRef` incarnations over `dynamic/e09-delete-proc.tcl`
   and `rename-alias/r01-rename-basic.tcl`;
-- `rg` finds no identity built from display text in `tcl-compiler` or
-  `tcl-lsp-core`;
+- `rg` finds no identity built from display text in any crate under
+  `rust/`, not only `tcl-compiler` and `tcl-lsp-core`, whose code the split
+  moves to `tcl-binding`, `tcl-names`, `tcl-model`, `tcl-analysis` and the
+  registry;
+- `cargo tree -p tcl-names -e normal` lists no `tcl-runtime-api` and no
+  `tcl-registry`, and `NEXT_SCOPE` is gone;
 - the identity column in conformance is green.
 
 ## Work list
@@ -324,7 +370,8 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 
 ## Corrections to the overview
 
-- `CommandRef` is already in `tcl-core-types`, not a `tcl-names` move.
+- `CommandRef` is in `tcl-core-types` today. 248 does not move it; 274 does
+  (D-D).
 - `command_binding` → `signature_scan` is intra-crate in the target layout.
   It is not a reason to move the signature types down.
 - "Signature name and scope types" moves only `SignatureNamespaceScope` and
@@ -336,3 +383,9 @@ let binding = source_binding_at_slot(state, &key); // no global fallback
 - The identity closure also needs `Place`'s cell types, `RawBindingSlotId`,
   `VariableCellKey`, `VariableExecutionFrame`, `SourceOriginId` and
   `ExecutedScriptSource`, and it brings a dependency on the registry core.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M1:** *Identity moves in with 274*: `tcl-names` owns identity (D-D); the move, after Now 5, puts it below `tcl-runtime-api`. 248 moves the keys as they are.
+- **M2:** facts keyed by identity, never display text; 274's grep runs over every crate.
+- **M3:** *The issuer*: derived from a `tcl-db` input; `NEXT_SCOPE` deleted.

@@ -85,11 +85,16 @@ crate `tcl-irules`. It already depends on `tcl-compiler`, naming
 - `auto_path_eval`, whose `PathConstantAssignments` is an `AnalysisResult`
   field and which reads `AnalysisResult` (`path_constants/original.rs`).
 
-It depends on `tcl-unit` and everything below it. Its public surface is
-`Analyser`, `AnalysisResult`, `Diagnostic` and the code types (from
-`tcl-model`), and `compiler_checks::run`.
+It depends on `tcl-unit` and everything below it, and later on
+`tcl-semantic` (item 85, rank 10, between `tcl-unit` and this crate,
+decision D-C), so `tcl-diagnostics` is rank 11 and `tcl-db` 12. Its public
+surface is `Analyser`, `AnalysisResult`, `Diagnostic` and the code types
+(from `tcl-model`), and `compiler_checks::run`. `AnalysisResult` projects
+into `tcl-model`'s `DocumentFacts`, which is all a feature crate reads
+([step 5](05-tcl-model.md#276-the-result-and-side-effect-records)); this
+step moves the type as it is and adds no projection.
 
-The crates at rank 10 and the domain crate above them, after this step (each
+The crates at ranks 10 and 11 and the domain crate above them, after this step (each
 arrow points at the crate depended on). The analyser and the optimiser no
 longer name each other:
 
@@ -153,11 +158,11 @@ pub trait UnitRule: Send + Sync {
     fn id(&self) -> RuleSetId;
     fn applies(&self, env: &ResolvedEnvironment) -> bool;     // "iRules library present"
     fn check(&self, unit: &CompilationUnit, registry: &CommandRegistry,
-             out: &mut Vec<CheckWarning>);
+             out: &mut Vec<Diagnostic>);                  // tcl_model::Diagnostic (277), as SiteRule
 }
 pub trait SiteRule: Send + Sync {
     fn applies(&self, env: &ResolvedEnvironment) -> bool;
-    fn check_site(&self, site: &SiteContext<'_>, out: &mut Vec<Diagnostic>);
+    fn check_site(&self, site: &SiteContext<'_>, out: &mut Vec<Diagnostic>);   // tcl_model::Diagnostic
 }
 pub struct SiteContext<'a> {
     pub command: &'a str, pub args: &'a [String], pub tokens: &'a [Token],
@@ -206,7 +211,7 @@ sequenceDiagram
     Irules-->>Analyser: Diagnostic list
   end
   Analyser->>Irules: UnitRule::check(unit, registry)
-  Irules-->>Analyser: CheckWarning list
+  Irules-->>Analyser: Diagnostic list
 ```
 
 - **Gating.** The `is_irules()` checks inside the moved code become `applies`
@@ -219,7 +224,10 @@ sequenceDiagram
 
 `tcl-irules` then depends on `tcl-diagnostics` (for the traits) and on
 `tcl-unit`. `tcl-diagnostics` names no iRules-only module (item 285's "done
-when").
+when"). The eBPF rules follow the same shape from a `bpf-tcl-rules` crate
+over `tcl-diagnostics` and `bpf-tcl-ir` (item 464): `bpf-tcl-ir` itself
+stops at `tcl-lowering` and cannot implement traits that live above
+`tcl-unit` (integration C31).
 
 The IRULE4001 pair from `irules_event_checks/tests.rs`, which the risks
 section's per-entry-point test can reuse:
@@ -330,3 +338,9 @@ per-entry-point test would catch this gap.
 - "`irules_checks` belongs to the iRules library side" means `tcl-irules`, the
   domain crate, not `tcl-lib-irules`. The dialects-and-libraries page should
   say so. `analyser/irules_event_checks.rs` moves too.
+
+## Review fixes (26 November 2026, deep review)
+
+- **O14:** `UnitRule::check` writes `tcl_model::Diagnostic`, as `SiteRule` does; `CheckWarning` leaves the rule traits.
+- **O2:** `tcl-semantic` sits at rank 10 below this crate (now 11); `AnalysisResult` projects into `DocumentFacts` (D-C), moved as it is here.
+- **O9:** BPF rules come from `bpf-tcl-rules`, as iRules' do from `tcl-irules`.

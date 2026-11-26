@@ -66,8 +66,8 @@ crate:
 `tcl-names` (cell identities, where evidence names them), `tcl-expr`,
 `tcl-numeric`, `tcl-syntax`, `tcl-dialect`, `tcl-cmd-core`,
 `tcl-runtime-api` and the `tcl-registry` core (`InvocationDialect`,
-`mathfunc`, `IntrinsicId`, `SemanticOperationId`, `ExactValue` until item 117
-moves it).
+`mathfunc`, `IntrinsicId`, `SemanticOperationId`, and `ExactValue` until it
+moves to `tcl-cmd-core`, below).
 
 ### The kernel's interface
 
@@ -75,12 +75,39 @@ One value type, one environment trait and one evaluation entry point. Binding,
 SCCP, value transfer, intervals and the optimiser call these and nothing else
 in `tcl-values`.
 
+This step moves `LatticeValue` as it is, and `evaluate` returns it. The
+target type below replaces it after Now 5 (decision D-G), and that
+replacement is a semantic change, not a mechanical one:
+
+- **The lattice element is `ExactValue`, with byte equality.**
+  `ExactValue` is a struct of the exact bytes, an optional numeric class and
+  representation evidence (`tcl-registry/src/value_transfer/answers.rs:629`).
+  Numeric equality is an operation over it, never the set's equality.
+- **SCCP's sets are not that today.** `ConstSet` dedups under `cv_eq`, where
+  `Int(1)` and `Float(1.0)` unify, which is why `bounded_set.rs:24-31` keeps
+  SCCP off `BoundedSet`. Tcl keeps them apart, so a set holding `1` and
+  `1.0` has two members:
+
+  ```text
+  $ echo 'puts [list [string equal 1 1.0] [expr {1 == 1.0}] [lsort -unique {1 1.0 01}]]' | tclsh9.1
+  0 1 {01 1 1.0}
+  ```
+
+  tclsh 8.4, 8.6 and 9.0 print the same. The change therefore lands with
+  SCCP conformance rows over such sets (`constants/execution.tsv` gains
+  them), and every changed fold is a reviewed difference.
+- **`ExactValue` and `Interval` live in `tcl-cmd-core`.** The registry's
+  `CommandSemantics` speaks them, so surface crates never name `tcl-values`,
+  and `command_kernel` is the one entry: it dispatches by
+  `SemanticOperationId` to `tcl-cmd-core` or, for a fold hook, through
+  `HookDispatch`.
+
 ```rust
-/// The abstract value (design integration, decision 7).
+/// The abstract value, after Now 5 (design integration, decision 7; D-G).
 pub enum AbstractValue {
     Unreached,                          // SCCP's "not yet reached"
-    Exact(ExactValue),                  // one value
-    Set(BoundedSet<ExactValue, 32>),    // MAX_CONSTSET_SIZE today
+    Exact(ExactValue),                  // one value, byte-exact (tcl-cmd-core)
+    Set(BoundedSet<ExactValue, 32>),    // dedup by bytes; MAX_CONSTSET_SIZE today
     Interval(tcl_cmd_core::partial_value::Interval),
     Overdefined,                        // maps to Answer::Unknown
 }
@@ -89,7 +116,7 @@ pub enum AbstractValue {
 /// implement it; `E` is their own evidence, carried through untouched.
 pub trait ValueEnv {
     type Evidence: Clone;
-    fn variable(&mut self, reference: &str, at: u32) -> Read<Self::Evidence>;
+    fn variable(&mut self, reference: &WordRef, at: u32) -> Read<Self::Evidence>; // the written reference; the env resolves it to a VariablePlaceRef
     fn command(&mut self, script: &str, at: u32) -> Read<Self::Evidence>;
     fn math_function(&mut self, name: &str, arity: u32, at: u32) -> MathTarget;
 }
@@ -105,7 +132,7 @@ pub struct Evaluation<E> {
 pub fn evaluate<V: ValueEnv>(expr: &ExprNode, env: &mut V, policy: FoldPolicy) -> Evaluation<V::Evidence>;
 pub fn format_value(value: &ExactValue, policy: FoldPolicy) -> Option<String>;
 pub fn parse_literal(text: &str, numbers: NumberSyntax) -> Option<ExactValue>;
-pub fn command_kernel(op: SemanticOperationId, args: &[AbstractValue]) -> AbstractValue; // tcl-cmd-core over abstract values
+pub fn command_kernel(op: SemanticOperationId, args: &[AbstractValue], hooks: HookDispatch<'_>) -> AbstractValue; // the one entry: tcl-cmd-core or a fold hook, by ID
 ```
 
 `evaluate` is the `ExprOps` implementation over `AbstractValue`, driven by
@@ -205,7 +232,9 @@ Some(TclValue::Int(11))   // policy for tcl9.0, tcl9.1
 ```rust
 // design sketch: these types are proposed above
 Evaluation {
-    value: AbstractValue::Exact(ExactValue::Int(11)),   // tcl9.0, tcl9.1
+    value: AbstractValue::Exact(ExactValue { bytes: b"11".to_vec(),           // tcl9.0, tcl9.1
+                                             numeric: Some(NumericValue::Int(11)),
+                                             representation: /* canonical integer */ }),
     coercions: vec![],
     result_dependency: None,
     evidence: vec![],
@@ -249,11 +278,13 @@ Evaluation {
    it.
 2. **Keep one `FoldPolicy`.** It is already the single dialect-policy carrier
    and has no edges inside the crate.
-3. **`AbstractValue` arrives in this step, with one adapter.**
-   `AbstractValue` replaces `LatticeValue` and adds the `Interval` case.
-   SCCP's 48 references to `LatticeValue` move to it mechanically. The conversion `ConstValue` ↔ `ExactValue` is the one adapter
-   this step allows. It is deleted when item 81's done-when holds: no private
-   `llength` evaluator in SCCP and no `const_fold.rs` in the registry.
+3. **`LatticeValue` moves as it is; `AbstractValue` follows after Now 5.**
+   This step moves `LatticeValue` and its `cv_eq` sets unchanged. The later
+   change to `AbstractValue` over byte-exact `ExactValue` is semantic (see
+   *The kernel's interface*), with SCCP conformance rows. The conversion
+   `ConstValue` ↔ `ExactValue` is the one adapter meanwhile. It is deleted
+   when item 81's done-when holds: no private `llength` evaluator in SCCP and
+   no `const_fold.rs` in the registry.
 4. **Binding's private values become clients.** `formal_value.rs` and
    `evaluated_word.rs` (`command_binding/`) hold exact text values. They
    produce `AbstractValue::Exact` and read through `ValueEnv`. Item 280
@@ -280,12 +311,10 @@ The root re-exports in `lib.rs:232` (`Env`, `EnvValue`, `TclValue`,
 
 ### Open questions
 
-1. **Where does `ExactValue` live?** Today it is in
-   `tcl-registry::value_transfer::answers`, which item 117 moves into the
-   analysis layer. The kernel needs it below binding, so the answer is
-   `tcl-values` or `tcl-cmd-core`. Settle it by the registry split: if item
-   263 keeps any registry-core user of `ExactValue`, it goes to `tcl-cmd-core`;
-   if not, it goes to `tcl-values`.
+1. **Where does `ExactValue` live?** Settled (decision D-G): in
+   `tcl-cmd-core`, with `Interval`, so the core's `CommandSemantics` can speak
+   it. Plan item 59 already has the registry's `ConstOps` use it. The move is
+   after Now 5; this step names it where it is.
 2. **Does the interval evaluator call `evaluate` or `command_kernel`?**
    `intervals.rs` has its own `DeclarationIntervals` keyed by `ValueKey` and
    reads SCCP. Item 81's done-when needs it on the kernel. The evidence is the
@@ -357,3 +386,9 @@ The root re-exports in `lib.rs:232` (`Env`, `EnvValue`, `TclValue`,
   inaccurate. It is the binding-state lattice.
 - `tcl-cmd-core`'s `partial_value::Interval` is already the shared interval
   domain, which item 81's text could name.
+
+## Review fixes (26 November 2026, deep review)
+
+- **M7:** *The kernel's interface*: the lattice element is byte-exact `ExactValue`, numeric equality an operation; the `LatticeValue` move is semantic, with SCCP conformance rows, after Now 5 (decision 3); the example uses `ExactValue`'s fields.
+- **O5:** open question 1 settled by D-G: `ExactValue` and `Interval` in `tcl-cmd-core`; `command_kernel` the one entry, dispatching to `tcl-cmd-core` or a fold hook.
+- **M2:** `ValueEnv::variable` takes the written reference, not a name string the kernel would treat as identity.

@@ -192,7 +192,7 @@ puts $value
 ```rust
 // design sketch: ProvedOperands and ProvedValue are proposed below
 // SCCP's answer for the word `$head` on line 2, read by binding's second round
-ProvedValue { value: ExactValue::String("set".into()) }
+ProvedValue { value: ExactValue::text("set") }   // bytes "set", no numeric class
 ```
 
 **Bytecode (tclsh 9.1.0):**
@@ -283,7 +283,7 @@ pub trait ProvedOperands {
     /// that binding left open. `None` keeps binding's own answer.
     fn operand(&self, origin: &SourceOriginId, word: Span) -> Option<ProvedValue>;
 }
-pub struct ProvedValue { pub value: tcl_values::ExactValue }
+pub struct ProvedValue { pub value: ExactValue }   // moved as it is; tcl-cmd-core's after Now 5 (D-G)
 
 impl SourceCommandBindings {
     pub fn analyse_with_proved(
@@ -295,6 +295,27 @@ impl SourceCommandBindings {
 
 The probe's memo bypass (`source_analysis_driver.rs:675`) becomes a key
 field: the proved-operand set's fingerprint enters `SourceAnalysisCacheKey`.
+
+### Two tiers: summary-free and summary-refined
+
+The loop above reads SCCP over one body. When the integration design's
+summary walk lands (INT-e, after Now 5), callee summaries can also prove an
+operand, through step 10's `ProcedureSummaries`. They do not enter this
+loop's main tier (decision D-E,
+[integration § 3](../compiler-analyser-spectcl-integration.md#against-the-binding-fixpoint-and-item-84)):
+
+- **Summary-free tier.** This loop with every callee read as
+  `unknown_callee`. Its result depends only on the body's text, its entry
+  selection and its fact slices. Item 103 persists it, point queries read it,
+  and the call graph is built from it, so a one-line edit re-binds one body.
+- **Summary-refined tier.** For dynamic sites the first tier left open only
+  (a computed head or variable name). It takes a second `ProvedOperands`
+  whose answers come from converged callee summaries, inside the
+  component's visit, and its edges may only point into the same component
+  or a lower one.
+
+Both tiers are the same `analyse_with_proved` call with a different
+`proved`; nothing in binding changes for the second.
 
 ### Breaking each edge (item 279)
 
@@ -430,3 +451,8 @@ pub struct BodyReportKey {
 - The overview's diagram and crate table should show the inversion layout
   with no "undecided" note. The fixpoint driver is the unit's build, in
   `tcl-unit` ([step 13](13-unit-and-db.md)).
+
+## Review fixes (26 November 2026, deep review)
+
+- **F2:** *Two tiers*: the summary-free tier (persisted, read by point queries, builds the call graph) and the summary-refined tier for dynamic sites (D-E).
+- **M7:** `ProvedValue` names `ExactValue` as it is today, and the example uses its `text` constructor (`ExactValue` has no `String` variant).

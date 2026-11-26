@@ -44,7 +44,19 @@ proposed here are marked *design sketch*.
 6. **Salsa inputs are packs and the generation they build.** Fine-grained
    invalidation comes from three backdated projections: binding facts, body
    facts and the shared tables. No salsa value holds a generation.
-7. **Build time first;** SpecTcl engines wait for their crates.
+7. **Build time first;** SpecTcl engines wait for their crates. Every
+   identity, value, interface and budget refinement below attaches to the
+   extraction step that carries it or comes after Now 5; an extraction moves
+   a type as it is (owner priority, 26 November 2026).
+8. **Consumers read `DocumentFacts`.** `tcl-model` defines a binding-free
+   document-facts trait that `AnalysisResult` projects into and
+   `tcl-semantic` implements. `tcl-semantic` sits between `tcl-unit` and
+   `tcl-diagnostics` as the one analysis query API (item 85). IDE crates
+   depend on `tcl-model` and the registry core, never on `tcl-db` or
+   `tcl-diagnostics` (§ 6).
+9. **Facts are keyed by identity, never display text:** `BodyUnitRef`,
+   `VariablePlaceRef`, `CommandRef`/`SourceCommandKey` and the core's
+   `CommandKey`, all owned by `tcl-names` and the core (§ 3, § 9).
 
 ## 1. Where SpecTcl facts enter the compiler
 
@@ -81,14 +93,23 @@ pub struct FactView<'g> {
 }
 impl<'g> FactView<'g> {
     pub fn command(&self, key: CommandKey) -> Option<SpecRef<'g>>;       // facets already selected
-    pub fn visible(&self, name: &str) -> Visibility;                     // Must, May (annotated), Absent
+    pub fn visible(&self, path: CommandPathId) -> Knowledge<CommandKey>; // an interned path, never display text
     pub fn handle_type(&self, id: HandleTypeId) -> Option<&'g HandleType>;   // 391
     pub fn error_class(&self, id: ErrorClassId) -> Option<&'g ErrorClass>;  // 392
     pub fn grammar(&self) -> &'g GrammarProfile;                            // 370
     pub fn hooks(&self) -> HookDispatch<'g>;  // rungs 3, 4, 5 behind one call
 }
 pub struct HookDispatch<'g> { table: &'g HookTable, host: Option<&'g dyn PackHookHost> }
+pub struct CommandKey { library: LibraryId, path: CommandPathId }   // generation-independent; SpecKey retires
 ```
+
+- **`CommandKey` is the stored identity of a registry command:** the library
+  and the interned command path, equal across images and generations.
+  Today's `SpecKey` hashes a `&'static` spec's address
+  (`rust/tcl-registry/src/model/binding.rs:162`), which fails once specs
+  come from images loaded at run time; `BindingTarget::Spec` holds a
+  `CommandKey` instead. `visible` answers in item 78's `Knowledge`, so the
+  `Visibility` enum of the first draft is retired (item 482, C30).
 
 - **Concrete, not a trait object:** binding and SCCP read it in inner loops,
   and release LTO inlines a borrowed struct across crates.
@@ -114,7 +135,17 @@ pub struct HookDispatch<'g> { table: &'g HookTable, host: Option<&'g dyn PackHoo
 Shipped packs, the Tcl core's included, are compiled once per build by the
 `tcl-spec-images` generator into the catalogue's untracked `images/`
 directory, and embedded by `tcl-catalogue`
-([307](../registry/model/307-libraries-as-data.md#images-per-build)). User
+([307](../registry/model/307-libraries-as-data.md#images-per-build)). The
+generator compiles base images over the `tcl-spectcl` reader, `tcl-source`
+and the registry core only: no VM, no compiler, no codegen. Rung-4
+tabulation (`TABLES`) and `TbcxUnit` `BODIES` are an opt-in pass, the
+separate `tcl-spec-tabulate` package, for release and packaging builds, keyed by the VM and codegen build;
+dev images ship source-only `BODIES` with `tabulated_with_vm` clear, which
+chapter 7 allows. The generator writes an image only when its bytes change,
+so an unchanged rewrite relinks nothing. The embedded image is the
+BundledPack default on every host; a `specs/` source on disk or in the
+browser mount overrides it only when its hash differs, and is then compiled
+into the user cache as a `UserPack` with tier BundledPack. User
 and workspace packs are read by
 `tcl-spectcl` on `tcl-source` and compiled in memory with no VM
 ([305](../registry/model/305-spectcl-3.md#the-loader-on-tcl-source)). The
@@ -142,8 +173,10 @@ interval. 308 puts the query in `tcl-db`, above the version gate
   `resolve_libraries` (302) per interval and returns `ContextIntervals`, a
   sorted list of `(Span, FacetSelection)`.
 - **`tcl-db` memoises it** as `positioned_context(db, file, at)`, which looks
-  up the interval. The LSP, MCP and the CLI call the query; crates below
-  `tcl-db` take `&ContextIntervals` from their caller.
+  up the interval. The LSP session and `tcl-db`'s batch constructor (§ 6)
+  call the query; crates below `tcl-db`, and every
+  `tcl-ide-*` crate, take `&ContextIntervals` from their caller, the IDE
+  crates through `DocumentInput` (§ 6).
 
 Binding's first round uses the body's entry selection and its second the
 intervals, inside step 7's per-body loop; the second is usually a no-op.
@@ -225,11 +258,11 @@ step designs.
 | versioned facets and availability | core, selected by `FactView` | `tcl-binding` (visibility); `tcl-diagnostics` (version gate W135, W136, W144, W150); `tcl-ide-*` (hover `VersionLine`) | per-interval visibility; version diagnostics |
 | state transitions (package, namespace, rename, alias) | core descriptors (305 rung 1) | `tcl-binding` | binding timeline; package transitions for the positioned context |
 | effects, `optimise -no` | core (`world_effect`, `side_effects`) | `tcl-analysis` (`side_effects` classify, effects domain); `tcl-optimiser` (permissions); `tcl-native-plan` (334) | effect footprints, purity, rewrite permissions |
-| results and shapes | core result facets; evaluators in `tcl-values` | `tcl-analysis` (SCCP, `type_infer`, `transfer`) | value lattice facts, return shapes |
+| results and shapes | core result facets; `CommandSemantics` speaks `ExactValue` and `Interval` (both `tcl-cmd-core`); `tcl_values::command_kernel` is the one entry, dispatching by ID to `tcl-cmd-core` or a fold hook | `tcl-analysis` (SCCP, `type_infer`, `transfer`) | value lattice facts, return shapes |
 | handles (391) | core `HandleType`, producer and consumer rows | `tcl-analysis` (handles domain); `tcl-unit` (solver); `tcl-diagnostics` | `HandleFacts`; wrong-type, use-after-release, leak diagnostics |
 | error codes and completion codes (392) | core `ErrorClass`, `Throws`, `CodeSet` | `tcl-analysis` (errors domain, catch and try sites); `tcl-unit` (solver); `tcl-diagnostics`; `tcl-optimiser` (dead `trap` arms) | `CatchFacts`, error sets, completion codes |
 | taint (393) | core taint rows; today 15 `CommandSpec` fields | `tcl-analysis` (taint domain, once it reads no built unit); `tcl-unit` (solver); `tcl-diagnostics` (T1xx); `tcl-vm` (run-time taint, from the same rows) | colours, sink findings, taint summaries |
-| events, flows, profiles (360, 380) | `tcl-lib-irules` and `tcl-lib-bpf` data, read through the core | `tcl-irules` and `bpf-tcl-ir` as `UnitRule`/`SiteRule` contributions; `tcl-unit` (`connection_scope`); `tcl-irule-test` | event-order checks, CMP findings, test cases |
+| events, flows, profiles (360, 380) | `tcl-lib-irules` and `tcl-lib-bpf` data, read through `FactView` | `tcl-irules` and `bpf-tcl-rules` (a rule crate above `tcl-diagnostics`, C31) as `UnitRule`/`SiteRule` contributions; `tcl-unit` (`connection_scope`); `tcl-irule-test` | event-order checks, CMP findings, test cases |
 | grammar profiles (370) | type in `tcl-dialect`; pack profiles in the generation | `tcl-lexer`, `tcl-syntax`, `tcl-expr`, `tcl-source` (CST, segmenter); the writer owner; `tcl-codegen` records the id; `tcl-vm` | tokens, CST, segments; refusals of unsafe edits |
 | hooks (rungs 3, 4, 5) | core `HookTable`; native IDs in surface crates; bodies in `BODIES` | every reader of the families they answer, through `HookDispatch` | the family's answer, or `Abstained` read with the family's polarity |
 | `check` rules (rung 2) | core rule table | `tcl-diagnostics`, per site, with a `ctx` built from binding, SCCP and the positioned context | pack diagnostics (`PACK/ID`, spec R25) |
@@ -240,7 +273,7 @@ step designs.
 | callbacks (390f, `-appends`) | core role rows | `tcl-binding` (callback edges); `tcl-unit` (callback edges in the call graph) | call edges into callback bodies, so handles and taint flow into them |
 | embedded ranges (390d) | core role rows | `tcl-binding` (per-site range); `tcl-ide-tokens` (injection metadata) | ranges and editor injection data; never a parser |
 | codegen facts (334) | core: purity, effect classes, `alias_of`, `semantic_operation`, `runtime_backing` | `tcl-native-plan`, `tcl-compile`; `tcl-vm` admission (`PackFactStamp`) | specialised sites, admission checks |
-| eBPF recipes (380) | `tcl-lib-bpf` and `tcl-lib-linux-ebpf` data | `bpf-tcl-ir` (closed `EbpfOp` catalogue); `bpf-tcl-codegen` (`KernelAbi`) | BPF IR and objects |
+| eBPF recipes (380) | `tcl-lib-bpf` and `tcl-lib-linux-ebpf` data, read through `FactView` (no normal edge to a surface crate) | `bpf-tcl-ir` (closed `EbpfOp` catalogue); `bpf-tcl-codegen` (`KernelAbi`) | BPF IR and objects |
 | SslicTcl document grammars (365) | `tcl-lib-sslictcl` | `tcl-spectcl` declaration reader on `tcl-source`; `tcl-sslictcl` model | `SslicModel` |
 | `test` rows | source only | xtask conformance runners | conformance rows; dropped from the image |
 
@@ -249,7 +282,7 @@ step designs.
 - **The positioned context,** placed above its readers: § 1 and C5.
 - **Certainty, taint colours and completion codes,** each with two to four
   types today: C2, C3 and C4 in § 8.
-- **Fold evaluators,** split by 117b: C12.
+- **Fold evaluators:** settled (C12): one entry, `tcl_values::command_kernel`.
 - **`connection_scope`,** iRules analysis in `tcl-unit` (step 13). Under
   391e the connection lifetime is a handle lifetime, so the handles domain
   takes it, and the rest becomes a `UnitRule` in `tcl-irules`.
@@ -288,13 +321,19 @@ One framework in three layers, following step 10's tiers:
 // design sketch: proposed here; record names provisional (spec chapter 7)
 // tcl-model
 pub struct ProcSummary {                       // one record per body, every domain in it
-    pub body: BodyKey,
+    pub body: BodyUnitRef,                     // tcl-names identity: never a display name or BodyKey text
     pub base: BaseSummary,                     // today's ProcSummary fields: arity, calls, purity, completes
     pub transfer: Option<TransferSummary>,
+    pub returns: Knowledge<ExactValue>,        // item 78's lattice; ExactValue from tcl-cmd-core
     pub handles: HandleSummary,                // 391: parameter needs, returned type, releases
     pub errors: ErrorSummary,                  // 392: raises, completion codes
     pub taint: ProcTaintSummary,               // 393's gen/kill shape
     pub escape: EscapeSummary,
+    pub frame_effects: Arc<[FrameEffect]>,     // 391 A6: upvar, global, uplevel, renames
+}
+pub enum FrameEffect {                         // keyed by identity plus a level relation
+    Variable { level: LevelRelation, place: VariablePlaceRef },
+    CommandTable { level: LevelRelation, command: CommandRef },
 }
 // tcl-analysis
 pub trait SummaryDomain {
@@ -321,9 +360,18 @@ pub trait SummaryDomain {
   component the summaries are iterated until none changes, with binding
   frozen (below); past a per-domain height bound a summary widens to
   `unknown_callee`. The unit of work and of caching is the component
-  (`component_summaries`, § 5), not one query per body, so the solver needs
-  no salsa cycle recovery: a component's query calls only lower components'
-  queries.
+  (`component_summaries`, § 5), not one query per body.
+- **Who drives it.** `tcl-unit` exposes a step function,
+  `solve_component(members, lower: &dyn ProcedureSummaries) ->
+  ComponentResult`, which iterates one component, re-binding included.
+  `tcl-db` owns the walk: `component_summaries` calls it with the lower
+  components' queries as `lower`. The call graph it condenses is built from
+  the summary-free binding tier only (below), so no summary feeds the graph
+  that orders the summaries, and the solver needs no salsa cycle recovery.
+- **Frame identity.** Until item 66 gives frames an identity (stage 9),
+  `FrameEffect` names its frame by a `LevelRelation` (relative or absolute
+  level, as `tcl_registry::FrameLevel` does) beside the `VariablePlaceRef`;
+  no frame effect is keyed by a variable or command name.
 - **Scoped propagation.** Facts are keyed `(owner, variable)` as
   `ObjectHandleFacts::by_scope` is (`object_types.rs:275`). Only summary
   edges cross bodies: parameters, returns, callback arguments, a class's
@@ -363,6 +411,23 @@ visit, with its callees' summaries reaching SCCP through step 10's
 `ProcedureSummaries` trait. So O103's pure-proc fold can feed binding, as
 spike 94's `e01-computed-head` does within one body.
 
+**Two binding tiers.** Binding has a summary-free tier and a
+summary-refined tier:
+
+- **Summary-free:** step 7's per-body loop with SCCP over the body alone,
+  every callee read as `unknown_callee`. It depends on the body's own text,
+  its entry selection and its fact slices, never on another body's summary.
+  This is what item 103 persists per file, what point and collection
+  queries read, and what the call graph is built from. A one-line edit
+  re-binds one body in this tier, as the editor-actions design requires
+  (`editor-actions-design.md:62`).
+- **Summary-refined:** only for dynamic sites (a computed command head, a
+  computed variable name) that the first tier left open. Such a site may
+  bind against a converged callee summary, inside the component visit. A
+  refined edge into the same component or a lower one is taken; an edge
+  that would point anywhere else binds as unknown, is counted, and the
+  explorer shows it, so the condensation never changes mid-walk.
+
 A proved operand can bind an open call, and a widened summary can take a
 proved operand away, so edges move both ways. Binding is therefore frozen
 while a component iterates:
@@ -374,10 +439,11 @@ while a component iterates:
    With binding fixed, every domain's transfer is monotone, so the component
    converges within its height bound.
 2. **Re-binding after convergence.** The component's final summaries are
-   then given to binding once. If no binding changes, the component is done.
-   If one changes (an edge added or removed), the affected bodies re-bind,
-   the call graph is re-condensed where the edge crosses components, and
-   step 1 runs again for the components that changed.
+   then given to the summary-refined tier once. If no binding changes, the
+   component is done. If one changes (an edge added or removed inside the
+   component or towards a lower one), the affected bodies re-bind and step 1
+   runs again for this component. The round stays inside the component's
+   own query (C33).
 3. **A counted budget.** A component gets at most three such rounds; the
    count is per component and shown by the explorer. When the budget is
    spent, every site whose binding changed in the last round binds as
@@ -403,12 +469,18 @@ name, so step 2 binds nothing and the component is done.
   walk.
 - **Memory.** One `ProcSummary` per body; site facts only for the body asked
   about. Of `ObjectHandleFacts`' module-wide maps only `proven_reads` stays.
-- **Budgets,** INT-e's gate, on release builds against item 106's classes:
+- **Budgets,** recorded by INT-e against item 106's classes, under the
+  `release` profile in CI's benchmark job, never in agent worktrees (one
+  benchmark profile for 106, 306, 483 and the split's latency record). The
+  numbers are recorded beside the Now-1 baseline and gate later stages on
+  regression; the absolute budgets below are targets:
   - **Edit.** A one-line edit inside a procedure body, then a point query in
     a caller (hover, or a diagnostic at the cursor), within item 106's 100 ms
-    after an edit. The summary wave counts against it. A wave that runs past
-    the budget answers the query from the components already recomputed and
-    finishes the rest under salsa cancellation (item 105).
+    after an edit. A point query reads the summary-free tier and waits on no
+    summary. A query that needs summaries never answers from a partial wave:
+    while the wave runs, its answer is marked provisional, barred from every
+    action that needs a `Must` fact, and excluded from 106's measurement;
+    the fresh-versus-warm differential runs after quiescence (C32).
   - **Cold.** Summaries for a whole unit at item 106's collection rate,
     300 ms per 10,000 lines, parse and binding excluded. tcllib 2.0 in
     `tmp/` is 883 files, 459,905 lines and 8,892 `proc` lines (counted 26
@@ -435,7 +507,7 @@ Each pass, with the facts and hook rungs it consults:
 | SCCP and values | `tcl-analysis`, `tcl-values` | results, shapes, folds | 3, 4 (fold) |
 | entry selections | `tcl-unit`, top-down after condensation | library and dialect rows, call sites | — |
 | summary walk: errors, handles, taint, escape | `tcl-analysis` domains, `tcl-unit` solver | `throws`, handle rows, taint rows (the sink gate is a rung 2 `SinkWhen` predicate, not a hook), effects | 3, 4 (effects) |
-| diagnostics | `tcl-diagnostics`, `tcl-irules`, `bpf-tcl-ir` | `check` rules, version facets, migrations, events | 2, 3, 4 (diagnostic family) |
+| diagnostics | `tcl-semantic`, `tcl-diagnostics`, `tcl-irules`, `bpf-tcl-rules` | `check` rules, version facets, migrations, events | 2, 3, 4 (diagnostic family) |
 | optimiser | `tcl-optimiser` | effects, `optimise -no`, rewrites, proofs | 3, 4 (rewrite) |
 | minifier, formatter | `tcl-ide-format` | roles (through `ResolvedInvocation`), scope, frozen, layout | 3, 4 (layout); rewrites through `tcl-optimiser` |
 | native plan and codegen | `tcl-native-plan`, `tcl-compile`, `tcl-codegen` | codegen facts only (334) | none (spec R19) |
@@ -533,8 +605,14 @@ step 14 deletes). The integration adds:
 | Input | Holds | Set by |
 |---|---|---|
 | `CompiledSurfaces` (singleton) | the catalogue's image bytes and hook tables | the entry point, once |
-| `UserPack` (one per pack) | source hash, tier, compiled image `Arc` | the pack watcher; replaces `OverlayEpoch`'s role |
+| `UserPack` (one per pack) | source hash, tier, compiled image `Arc` | the pack watcher (`tcl-lsp-session`'s `PackState` in the server; the batch constructor for MCP and the CLI); replaces `OverlayEpoch`'s role. A `specs/` override of a shipped pack is a `UserPack` with tier BundledPack. A document's stub lines are the per-file stub row below |
+| `PackageLock` (one per workspace) | `tclpkg.lock`'s graph and `spec` tiers | `PackState` in the server; `BatchInputs.lockfile` in the CLI and MCP; a lockfile edit re-tiers packs through `generation` |
+| per-file stub `UserPack` | a document's `# tcl-lsp: stub` lines, tier `Document` | `PackState` |
 | `HookHostEpoch` | today's `EvaluatorEpoch`, renamed: moves on quarantine or reload | the hook host |
+
+A replaced vendor pack and a document's stubs are both `UserPack` inputs:
+tier BundledPack for a `specs/` source whose hash differs from the embedded
+image's, tier `Document` per file for `# tcl-lsp: stub`. No other input kind.
 
 Everything else is derived:
 
@@ -556,14 +634,34 @@ Everything else is derived:
   `HookDispatch` reads, compared by content;
 - `entry_selection(db, body)`, over `tcl-unit`'s top-down pass, and
   `positioned_context(db, file, at)`, over `tcl-binding`'s intervals;
-- `call_graph(db, unit)` with its condensation, one value per unit;
-- `component_summaries(db, component) -> Arc<[ProcSummary]>`, keyed by the
-  component's sorted `BodyKey`s, and `body_summary(db, body)` as a
-  projection of it. They replace `proc_summary_cascade` and the other
-  per-engine queries.
+- `call_graph(db, unit)` with its condensation, one value per unit, built
+  from the summary-free binding tier;
+- `component_members(db, component)` and `component_out_edges(db,
+  component)`: per-component projections of the call graph that backdate
+  when equal, so a body edit that keeps a component's members and edges
+  re-runs no other component;
+- `component_summaries(db, component) -> Arc<[ProcSummary]>`, which reads
+  only those projections and lower components' queries, and
+  `body_summary(db, body)` as a projection of it. They replace
+  `proc_summary_cascade` and the other per-engine queries.
 
 Every one of these holds IDs and copied facts, never a view into the
-generation.
+generation. Bodies are keyed by declaration identity, `BodyUnitRef`, never
+by text: today's keys are text (`ItemBodyKey.body_text`, `ProcBodyKey`;
+[salsa-interned-gc](../rust/salsa-interned-gc.md#the-six-per-revision-interned-keys)),
+and `ProcedureIdIssuer` draws from a process-wide counter
+(`rust/tcl-core-types/src/body_identity.rs:24`, `NEXT_SCOPE`), so the same
+unchanged body gets a new key on every rebuild. Item 274 derives the issuer
+from a `tcl-db` input (file id, definition site, incarnation) and deletes
+`NEXT_SCOPE`; until then component keys cannot backdate, and the interned
+keys follow the GC contract in salsa-interned-gc.
+
+**Minimal caching applies here too.** Every query above falls under step
+14's memo gate ([14](crate-split/14-caching.md#the-rule-per-crate)): it
+stays memoised only if deleting it costs more than the gate allows. The
+per-body slices (`binding_fact_slice`, `body_fact_slice`) start as
+"recompute, no memo" (a lookup per resolved command) unless the gate shows
+otherwise.
 
 ### A user-pack edit
 
@@ -599,10 +697,34 @@ per resolved command) and backdate when equal. A component whose summaries
 did not change stops the wave, as `SummaryDepsKey` does for taint today
 (`check_solve.rs:95`).
 
+### A source edit
+
+A one-line edit inside `proc g` changes `g`'s text, not its declaration
+site, so its `BodyUnitRef` stays:
+
+```mermaid
+flowchart TB
+  src["SourceFile input: new text"] --> bindG["summary-free binding of g: re-run"]
+  src --> bindOther["binding of other bodies: text unchanged, not re-run"]
+  bindG --> cgraph["call_graph: re-run"]
+  cgraph --> members["component_members, component_out_edges of g's component"]
+  members --> sameQ{"members and edges equal?"}
+  sameQ -- "yes" --> backdate["backdated: other components not re-run"]
+  sameQ -- "no" --> regraph["the components whose projections changed re-run"]
+  bindG --> sumG["component_summaries of g's component: re-run"]
+  sumG --> callerQ{"g's summary changed?"}
+  callerQ -- "yes" --> callers["callers' components re-run"]
+  callerQ -- "no" --> stop["backdated: callers untouched"]
+```
+
+`call_graph` re-runs on every body edit, but it is one O(V + E) pass and no
+component reads it directly; each reads its own projections.
+
 ### Not cached, on purpose
 
 - positioned contexts per offset (only per interval);
 - a body's site facts (recomputed when asked);
+- the per-body fact slices, unless step 14's gate shows otherwise;
 - per-domain summaries (one product query);
 - rung 4 answers: not salsa values; tabulation at image build is the cache,
   and the host's existing slot cache stays entry-point state;
@@ -636,66 +758,123 @@ normal,build --prefix none`. VM: `cargo tree -e normal -i tcl-vm`.
 
 ### Target
 
+Consumers read analysis through one interface. `tcl-model` defines
+`DocumentFacts`, a binding-free trait over a document's diagnostics
+(`tcl_model::Diagnostic`), symbols, scopes, signatures, the resolved
+invocation at an offset and the `ProcSummary` records. `AnalysisResult`
+projects into it and `tcl-semantic` implements it. A feature crate takes:
+
+```rust
+// design sketch: tcl-ide-model (289), over tcl-model and the registry core only
+pub struct DocumentInput<'a> {
+    pub text: &'a str,
+    pub environment: &'a ResolvedEnvironment,
+    pub facts: FactView<'a>,                 // generation plus facet selection (§ 1)
+    pub context: &'a ContextIntervals,       // the positioned context (§ 1)
+    pub document: &'a dyn DocumentFacts,     // tcl-model; tcl-semantic implements it
+}
+```
+
+The server's session fills it from `tcl-db`; MCP and the CLI fill it from
+`tcl-db`'s session-free batch constructor (`tcl_db::Batch::run(inputs:
+BatchInputs) -> BatchResult`, with the files, packs and `lockfile`), which
+runs once and names no salsa type in its signature. `tcl-lsp-session`'s `PackState` is the watcher that sets the
+`UserPack` inputs (§ 5), and its `registry_for(&self, uri) ->
+Arc<CommandRegistry>` becomes a `FactView` backed by the current
+generation.
+
+None of this gates an extraction. 289 and 290 move the feature code with
+today's inputs (`&AnalysisResult` and the caller's `&CommandRegistry`,
+with the `tcl-ide-*` → `tcl-diagnostics` edges as exception rows), and
+`DocumentInput`'s final fields and the batch constructor follow
+`tcl-semantic` and items 480 and 484, after Now 5.
+
 | Consumer | Depends on (normal) | Never on |
 |---|---|---|
-| LSP server | `tcl-db`, `tcl-ide-*`, `tcl-catalogue`, `tcl-spectcl` (loader); `tcl-spec-hooks` behind its `tcl-hooks` feature | — |
-| MCP, CLI | `tcl-db` for analysis; `tcl-compile` for `dis`, `compwasm`; `tcl-catalogue`; `tcl-spec-hooks` by feature | `tcl-lsp-server` |
-| formatter, minifier (`tcl-ide-format`) | `tcl-binding`, `tcl-model`, `tcl-optimiser` (rewrites), the core | `tcl-db`, `tcl-vm` |
+| LSP server stack | `tcl-lsp-session` → `tcl-db`; `tcl-ide-*`; `tcl-catalogue`; `tcl-spectcl` (loader); the hook runner (`tcl-spec-hooks`) linked as a dependency of the entry crate, not a feature | — |
+| MCP, CLI | analysis through `tcl-db`'s batch constructor (`Batch::run`), no salsa; `tcl-ide-*`; MCP keeps `simulate`, so the VM through the hook runner (D-I) and `tcl-irule-test`; `tcl-compile` for `dis`, `compwasm`; `tcl-catalogue`; the hook runner as a linked dependency | `tcl-lsp-server`, `tcl-lsp-session` |
+| feature crates (`tcl-ide-*`) | `tcl-model`, the registry core (`FactView`, `ContextIntervals`'s types), lower vocabulary | `tcl-db`, `tcl-diagnostics`, `tcl-unit`, `tcl-vm` |
+| formatter, minifier (`tcl-ide-format`) | the above, plus `tcl-binding` and `tcl-optimiser` (rewrites) | `tcl-db`, `tcl-vm` |
+| `tcl-semantic` | `tcl-unit` and below, the core | `tcl-diagnostics`, `tcl-db` |
 | optimiser (`tcl-optimiser`) | `tcl-unit` and below, the core | surfaces, `tcl-spectcl` |
-| codegen (`tcl-compile` over `tcl-codegen`) | `tcl-native-plan`, `tcl-unit`, the core | `tcl-diagnostics`, `tcl-optimiser` (item 292) |
-| VM, runtime | the core, `tcl-native-model`, foundation crates | every compiler crate |
-| iRules test framework | `tcl-compile`, `tcl-vm`, `tcl-irules`, `tcl-lib-irules` facts through the catalogue | `tcl-lsp-*` |
-| explorer | the split crates its views read, `tcl-compile`; no `tcl-spectcl` ([294](../workspace/294-explorer.md)) | `tcl-vm` |
-| Spec Studio | `tcl-spectcl`, `tcl-ide-format`, `tcl-ide-names`; `tcl-spec-hooks` for the author tier | `tcl-lsp-core` |
-| `bpf-tcl-ir` | `tcl-ir`, `tcl-lowering`, `tcl_native_plan::target_contract`, the core | `tcl-analysis` (see below) |
+| codegen emitters (`tcl-codegen`, layer 5) | `tcl-ir`, `tcl-native-plan`, `tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model`, `tcl-bytecode` (the op crate), the core (292:119) | `tcl-optimiser`, `tcl-diagnostics`, `tcl-db`, `tcl-compile` |
+| codegen drivers (`tcl-compile`, layer 5, above `tcl-codegen`) | `tcl-codegen`, `tcl-unit`, `tcl-optimiser`, the core (292:120) | `tcl-diagnostics`, `tcl-db` |
+| VM, runtime | the core, `tcl-native-model`, `tcl-catalogue-core` (the Tcl and Jim images), foundation crates | every compiler crate, `tcl-catalogue` |
+| iRules test framework | `tcl-compile`, `tcl-vm`, `tcl-irules`; facts from its caller (`FactView`), not the catalogue | `tcl-lsp-*`, `tcl-catalogue` |
+| explorer (`tcl-explorer`) | the split crates its views read, `tcl-compile`; no `tcl-spectcl` ([294](../workspace/294-explorer.md)) | `tcl-vm` |
+| Spec Studio | `tcl-spectcl`, `tcl-ide-format`, `tcl-ide-names`; the hook runner for the author tier | `tcl-lsp-core` |
+| `bpf-tcl-ir` | `tcl-ir`, `tcl-lowering`, `tcl-model` (`target_contract`), the core; eBPF facts through `FactView` | `tcl-analysis`, `tcl-native-plan`, `tcl-lib-bpf` |
+| BPF diagnostics (`bpf-tcl-rules`) | `tcl-diagnostics` (rule traits), `bpf-tcl-ir` | entry-point crates |
+| `bpf-tcl-codegen`, `bpf-tcl` (binary) | `bpf-tcl-ir`; the binary adds `tcl-catalogue` | `tcl-analysis` |
 | `tcl-sslictcl` | `tcl-source`, `tcl-spectcl`'s declaration reader (365) | `tcl-compiler` crates |
+| `tcl-debugger` | `tcl-compile`, `tcl-vm` | `tcl-db` |
+| `tcl-fuzz` | `tcl-compile`, `tcl-codegen` (emitter differential), `tcl-vm`, `tcl-catalogue` | `tcl-db` |
+| packaging (`tcl docker`, `tcl pkg discover`) | `runtime_backing` and package names through a `FactView`; `tcl pkg discover` through the batch constructor | `tcl_spectcl::pack` internals (today `rust/tcl-cli/src/commands/docker.rs:58-84`) |
+| WASM and WASI hosts (`tcl-lsp-server-wasm`, `-wasi`, `tcl-explorer-wasm`, `tcl-spec-studio-wasm`) | as their native counterparts, with the installed set of [01-surface-input](../registry/registry-split/01-surface-input.md); a hook runner only where the host lists one | — |
+| BIG-IP tools (`f5-query`, `bigip-report-gen` and its builds, `bigip-query-wasm`), `sslictcl-data` | `tcl-catalogue`'s installed set, the domain crates | `tcl-db` unless they analyse Tcl |
 
 ```mermaid
 flowchart TB
-  lsp["tcl-lsp-server"] --> db["tcl-db"]
+  lsp["tcl-lsp-server"] --> session["tcl-lsp-session"]
+  session --> db["tcl-db"]
   mcpCli["tcl-mcp, tcl-cli"] --> db
   mcpCli --> compile["tcl-compile"]
   lsp --> ide["tcl-ide-*"]
-  ide --> db
+  mcpCli --> ide
+  ide --> model["tcl-model: DocumentFacts"]
+  ide --> core["tcl-registry core"]
   fmt["tcl-ide-format"] --> optim["tcl-optimiser"]
   fmt --> binding["tcl-binding"]
   db --> diag["tcl-diagnostics"]
   db --> optim
-  compile --> nplan["tcl-native-plan"]
+  diag --> semantic["tcl-semantic"]
+  semantic --> unit["tcl-unit"]
   compile --> codegen["tcl-codegen"]
+  compile --> optim
+  codegen --> nplan["tcl-native-plan"]
   irt["tcl-irule-test"] --> compile
   irt --> vm["tcl-vm"]
-  diag --> unit["tcl-unit"]
+  bpfRules["bpf-tcl-rules"] --> diag
+  bpfRules --> bpf["bpf-tcl-ir"]
   optim --> unit
   nplan --> unit
   unit --> analysis["tcl-analysis"]
   analysis --> lowering["tcl-lowering"]
-  bpf["bpf-tcl-ir"] --> lowering
+  bpf --> lowering
   lowering --> binding
-  binding --> core["tcl-registry core"]
+  binding --> model
+  binding --> core
   vm --> core
   ssl["tcl-sslictcl"] --> source["tcl-source"]
   binding --> source
 ```
 
 `bpf-tcl-ir` stops at `tcl-lowering`: only `semantic_bridge.rs` names the
-analysis modules, and only its tests call it
+analysis modules and `target_contract`, and only its tests call it
 ([380 § Problem](../registry/model/380-spectcl-ebpf.md#problem)).
+`target_contract` has no dependencies (`rust/tcl-compiler/src/target_contract.rs`
+imports only `std`), so step 11 moves it to `tcl-model`. BPF diagnostics
+cannot live in `bpf-tcl-ir`, because the `UnitRule`/`SiteRule` traits are in
+`tcl-diagnostics`, above `tcl-unit`; they go to `bpf-tcl-rules`, which the
+entry points register as they register `tcl-irules`.
 
 ### The target crate graph with the registry and SpecTcl crates
 
 ```mermaid
 flowchart TB
-  entry["entry crates: tcl-lsp-server, tcl-mcp, tcl, tclvm, xtask"] --> catalogue["tcl-catalogue: every image"]
+  entry["entry crates: tcl-lsp-server, tcl-mcp, tcl, tclvm, xtask, the WASM hosts"] --> catalogue["tcl-catalogue: every image"]
   entry --> db["tcl-db"]
-  entry --> hooksRun["tcl-spec-hooks, feature-gated"]
+  entry --> hooksRun["tcl-spec-hooks, linked by named entry crates"]
   entry --> loader["tcl-spectcl: reader3, compile_image"]
   gen["tcl-spec-images: the image generator"] --> loader
-  gen --> hooksRun
+  gen --> source
+  gen --> core
+  tab["tcl-spec-tabulate: release and packaging only"] --> hooksRun
   catalogue --> surfaces["tcl-dialect-tcl, -jim, -f5, tcl-lib-* with hooks: native hooks only"]
   hooksRun --> vm["tcl-vm"]
   db --> diag["tcl-diagnostics, tcl-optimiser"]
-  diag --> unit["tcl-unit: summary solver"]
+  diag --> semantic["tcl-semantic: DocumentFacts"]
+  semantic --> unit["tcl-unit: summary solver"]
   unit --> analysis["tcl-analysis: summary domains"]
   analysis --> lowering["tcl-lowering"]
   lowering --> binding["tcl-binding: positioned context"]
@@ -724,14 +903,20 @@ SpecTcl 3, then the consumers. The plan's working order is the authority
 |---|---|---|
 | Now 1. Cheap build wins | 259; 297, 298, 299, 260, 296 and 300's measurements; 246 (266–268) and 269–272; 318a; 247, 273 | measured baseline; test cascades cut; module map |
 | Now 2. Registry inversion and core | 262, 263, 117a, 118a, then 264, 265; 480 (INT-a) | the core becomes the only thing generic crates name |
-| Now 3. Vocabulary crates | 251, 281, 248, 280, 249, 275–277, 252 | `tcl-source` unblocks 305's reader; `tcl-model` takes the summary records |
+| Now 3. Vocabulary crates | 251, 281, 248, 280, 249, 275–277, 252; beside 252, the `tcl-bytecode` split (new item, E7) | `tcl-source` unblocks 305's reader; `tcl-model` takes the summary records; 311 and 312's opcode edits stop rebuilding the analyser and `runtime/rust`, which keep only the table crate |
 | Now 4. Binding and the passes | 278, 250, 279, 253, 282, 254, 255, 117b | the crates the engines land in |
 | Now 5. Top of the stack | 292, 256, 283; 257, 284, 285; 258, 286, 287; 288 with 314, then 319; 289, 315, 316; 290, 291, 293, 294, 317, 295; then 495 with 118b and 119 | `tcl-unit` and `tcl-db` exist |
 | Now 6. Model, SpecTcl 3, images | 301–304; 305; 400–411, 413; 482 (INT-c); 390–392 model steps; 465–468; 309, 310, 404; 306, 406, 416; 307, 481 (INT-b), 415; the rest of 318; 417–420, 424–432, 435; 312, then 311 | every new fact family lands once; images need the catalogue; the hook VM needs 312 and 311 |
 | Now 7. Integration | 308a; 483 (INT-e); 391b and 392b–c with 469–471; 484 (INT-g); 485 (INT-h); 487 (INT-m) | the framework needs `tcl-unit`; the salsa slices need `tcl-db` |
 | Now 8. Consumers | 319's waves (325, 320, 313, 322, 323 with 414, 433, 436, 441, 472, then 324, 326, 328, 329, 327, 330); beside them 437–440, 442–464, 473, 474, 486 (INT-j) | each `tcl-ide-*` crate is born at pin zero |
 | Waiting | 274 (with 77); 308b, then 321, 325's positioned half and 412 (after 84); 421 (with 41), 422 (with 39) | needs item 84 or other stages |
-| Deferred | 423, 434, 475–479 (run-time taint), the engine bugs | VM work stays deferred except 311 and 312 |
+| Deferred | 423, 434, 475–479 (run-time taint), the engine bugs | engine work in scope: 117/291 crate moves, 311, 312 (9.1 default release, release-matched library, missing 9.1 commands), 313's VM half, 392f, 420's engine leg, 436; none of it gates Now 1–5; `runtime/rust` stays on 9.0 until item 88 (D-J) |
+
+The identity, value and interface refinements of this design (§ 1's
+`CommandKey`, § 3's identity keys and frame effects, `ExactValue` in
+`tcl-cmd-core`, `DocumentFacts` and `tcl-semantic`) attach to the
+extraction step that carries them or come after Now 5. Every extraction in
+Now 3–5 moves its types as they are.
 
 What waits: 305's reader for `tcl-source` (251) and the source store (288);
 306 and 307 for `tcl-catalogue` (264); 308 for 302, 303, `tcl-binding`
@@ -759,7 +944,7 @@ Where the designs disagree about order:
 | # | Doc A says | Doc B says | Recommendation |
 |---|---|---|---|
 | C1 | 391: `ProcSummary { params: ParamNeed… }` | 392: `ProcSummary { raises, completion }`; code: `ProcSummary` is purity (`interprocedural.rs:264`) | one `ProcSummary` product with a slot per domain (§ 3); chapter 7's naming table names the record and its owner, `tcl-model` |
-| C2 | 308: `LibraryChoice::{Must, May}` | code: `BindingKnowledge::{Must, May}` (`model/binding.rs:211`), `Knowledge::{Proven, BoundedSet}` (`answer.rs:64`); 391, 392: `certainty: Must` | one `tcl_core_types::Certainty`; records keep their own `Absent` and `Unknown` arms |
+| C2 | 308: `LibraryChoice::{Must, May}` | code: `BindingKnowledge::{Must, May}` (`model/binding.rs:211`), `Knowledge::{Proven, BoundedSet}` (`answer.rs:64`); 391, 392: `certainty: Must` | `Certainty` is a projection of item 78's `Knowledge<T>`, not a second lattice: Must ⇔ `Proven` or a bounded set without absence, May ⇔ `includes_absent`; `BindingKnowledge` becomes `Knowledge<BindingTarget>`; `Visibility`, `TkFactCertainty` and `EventEmissionCertainty` are mapped or retired by item 482 (D-F) |
 | C3 | 391c: `TaintColour::CHANNEL` derived from handle types | 393: `CHANNEL` leaves the colours and becomes an origin; code: two `TaintColour`s (`tcl-compiler/src/taint.rs:137`, `tcl-registry/src/taint.rs:50`) | 393's `CoreColour`, `ColourSet` and `TaintTable` in the core; 391c reads origins |
 | C4 | 392: `CompletionCodes` in the core | step 5: `CompletionCodeLattice` to `tcl-model`; code: `CompletionCodeDomain` in the core (`completion.rs:189`) | the core's `CodeSet` is the value; `tcl-model`'s lattice is over it |
 | C5 | 308: `positioned_context` in `tcl-db` | step 12: the version gate in `tcl-diagnostics`, below `tcl-db`; 305: `check` atoms read `libraries` | computed in `tcl-binding`, memoised in `tcl-db` |
@@ -769,7 +954,7 @@ Where the designs disagree about order:
 | C9 | today: taint cascade in `tcl-lsp-db` per procedure (`check_solve.rs:115`) | step 10: taint is a whole-unit pass in `tcl-unit` | one `body_summary` query for every domain |
 | C10 | 380: `ebpf_contribution -> Box<dyn AnalyserContribution>` | step 12: `UnitRule`, `SiteRule`, `RuleSet` | `UnitRule`/`SiteRule` |
 | C11 | crate-split overview: `bpf-tcl-ir` needs `tcl-analysis` | 380: that edge is unused outside tests | `bpf-tcl-ir` over `tcl-lowering` (INT-k) |
-| C12 | 313's hook table: folds in `tcl-registry::value_transfer` | step 10 and 117b: evaluators to `tcl-values` and `tcl-analysis` | the core keeps the declaration; evaluation follows 117b |
+| C12 | 313's hook table: folds in `tcl-registry::value_transfer` | step 10 and 117b: evaluators to `tcl-values` and `tcl-analysis` | the core keeps the declaration; `CommandSemantics` speaks `ExactValue` and `Interval`, both in `tcl-cmd-core`; `tcl_values::command_kernel` is the one entry, dispatching by ID to `tcl-cmd-core` or a fold hook (D-G, C38) |
 | C13 | 313: layout in "the formatting crate" | 289: `tcl-ide-format` | name `tcl-ide-format` |
 | C14 | 305's rung table: "4 (dynamic): `tcl-spec-hooks` → `tcl-vm`, linked by the entry point only" and rung 5 as native contributions | spec R2: rung 5 is tabulated answers; contributions are outside the ladder | spec R2; 305's runtime table renumbers |
 | C15 | plan: 308 runs after 302 and 303 in the build-time stage | 308: alongside item 84 (stage 11) | split into 308a and 308b (§ 7) |
@@ -785,6 +970,23 @@ Where the designs disagree about order:
 | C25 | 392:140: an unknown command raises `TCL LOOKUP COMMAND` and warns | 392:147: an unknown command raises `Any` | 392's owner: `Any`, and no warning |
 | C26 | § 3: one walk per body visit | 393:244-245: two seeded runs per parameter, and `param_sinks` has no per-sink transfer | 393's owner: one seeded walk with per-sink keeps and adds |
 | C27 | spec chapters 5 and 7: an image naming an ID the binary lacks is stale and recompiled from source | recompiling gives the same dangling ID | that hook is dormant and abstains, reported once; test loaders bind stubs (chapters 5 and 7) |
+| C28 | plan.md:33: item 77's types land in `tcl-names` | step 3: the `*Ref` types, `IdentityInterner`, `Answer` and `Knowledge` stay in `tcl-core-types` | `tcl-names` owns identity (D-D); `tcl-core-types` keeps `Answer`, `Knowledge`, `DiagCode`. `tcl-runtime-api` names the `*Ref` types (`semantic_identity.rs:25`), so the move puts `tcl-names` below `tcl-runtime-api`; it is item 274's, after Now 5, and 248 moves the keys as they are ([03](crate-split/03-tcl-names.md#identity-moves-in-with-274)) |
+| C29 | item 77: no identity built from display text | 391, 392 and this doc's first § 9: `ProcSummary { name: "::save" }`, `BodyKey("body:1:0")` (a reporting label), `HandleValue { var: (…, "ch") }`, `FactView::visible(&str)`; code: `BindingTarget::Document(Arc<str>)` | facts and summaries keyed by `BodyUnitRef`, `VariablePlaceRef`, `CommandRef`/`SourceCommandKey` (§ 3, § 9); `visible` takes an interned path; `BindingTarget::Document` holds a `SourceCommandKey` |
+| C30 | INT-c and 392 G13: `ErrorSet` has no certainty | this doc's first § 9: `ErrorSet { …, certainty: Certainty::May }` | § 9 drops it; `FactView::visible` answers `Knowledge<CommandKey>` and the draft's `Visibility` retires (D-F) |
+| C31 | § 2: `bpf-tcl-ir` contributes `UnitRule`/`SiteRule`; § 6: `bpf-tcl-ir` takes `tcl_native_plan::target_contract` | step 12: the rule traits are in `tcl-diagnostics`, above `tcl-unit`; step 11: `target_contract` is in `tcl-native-plan`, rank 10; INT-k: `bpf-tcl-ir` stops at `tcl-lowering` | `target_contract` (no dependencies) moves to `tcl-model`; BPF rules go to `bpf-tcl-rules` above `tcl-diagnostics`; eBPF facts through `FactView` |
+| C32 | § 3: a wave past its budget answers from the components already recomputed | step 14: fresh-versus-warm runs agree; § 3: edits need `Must` facts | no answer from a partial wave: provisional answers, barred from `Must` actions, excluded from 106's measurement; the differential runs after quiescence (D-E) |
+| C33 | § 3: re-binding after convergence re-condenses the call graph | § 5: a component's query calls only lower components', so no salsa cycle | the call graph comes from the summary-free tier; `tcl-unit`'s `solve_component` is a step function and `tcl-db` owns the walk; a refined edge outside the component and its lower components binds as unknown |
+| C34 | § 3: binding reads callee summaries | editor-actions design: point queries read the binding tier only, and an edit re-binds one body; 103 persists that tier per file | two binding tiers: summary-free (persisted, read by point queries, builds the call graph) and summary-refined for dynamic sites only (D-E) |
+| C35 | § 5: `component_summaries` keyed by sorted `BodyKey`s and backdating | `BodyKey` is text today, and `ProcedureIdIssuer` draws from the process-wide `NEXT_SCOPE` (`body_identity.rs:24`), so every rebuild mints new keys; `call_graph` is one value per unit | bodies keyed by declaration identity from a `tcl-db` input (274 deletes `NEXT_SCOPE`); per-component `component_members` and `component_out_edges` that backdate; § 5's source-edit diagram |
+| C36 | this doc's § 6: codegen is never on `tcl-optimiser` | 292:120: `tcl-compile` depends on `tcl-optimiser`; overview: `tcl-compile` in 4a over `tcl-codegen` in 5 | `tcl-codegen` (emitters) and `tcl-compile` (drivers) both in layer 5, `tcl-compile` above; § 6 lists 292's edges |
+| C37 | this doc's § 6: `ide --> db`; LSP, MCP and the CLI call `positioned_context` | workspace overview rule 7: feature crates never name `tcl-db`; 289: `DocumentInput { text, environment, analysis: Option<&AnalysisResult> }`, "`AnalysisResult` (from `tcl-model`)"; step 5: `AnalysisResult` cannot move to `tcl-model` | `DocumentFacts` in `tcl-model`, implemented by `tcl-semantic`, which sits between `tcl-unit` and `tcl-diagnostics`; `DocumentInput` gains `facts`, `context`, `document`; the session and `tcl-db`'s batch constructor fill it; no `ide --> db` edge (D-C) |
+| C38 | step 4: `ExactValue`'s home is settled "by the registry split" | 117's open question 3 defers to 280; the core's `CommandSemantics` cannot name `tcl-values`' `AbstractValue` | `ExactValue` and `Interval` in `tcl-cmd-core`; `command_kernel` the one entry (D-G) |
+| C39 | step 4: SCCP's 48 `LatticeValue` references move to `AbstractValue` "mechanically"; its example writes `ExactValue::Int(11)` | `bounded_set.rs:24-31`: SCCP's const sets dedup under `cv_eq`, where `Int(1)` and `Float(1.0)` unify; `ExactValue` is a struct of bytes, numeric class and representation (`answers.rs:629`) | the lattice element is `ExactValue` with byte equality, and numeric equality is an operation; the change is semantic, with SCCP conformance rows, after Now 5; step 4 moves `LatticeValue` as it is |
+| C40 | step 5: `tcl-model` takes the compiler's `SideEffectTarget` | `tcl-registry/src/side_effects.rs:24-27`: the registry's copy mirrors it, and has two more variants (`Process`, `ChannelIo`) | the registry core's copy is the one vocabulary; item 276 deletes the compiler copy, and `tcl-model` keeps only the classification records |
+| C41 | this doc's first § 6 graph: `tcl-spec-images` → `tcl-spec-hooks` → `tcl-vm`; 307: the generator tabulates with the VM | the goal: a fresh worktree builds no VM to test a lexer | the generator is over the reader, `tcl-source` and the core; tabulation is the opt-in `tcl-spec-tabulate` package (D-A) |
+| C42 | this doc: a `tcl-hooks` feature on the server | 318a: a feature on `tcl-spectcl`; chapter 5: browser and WASI hosts run bodies | the hook runner is a dependency named entry crates link, never a feature; WASM hosts are listed (D-I) |
+| C43 | this doc's § 6: five entry crates | 01-surface-input:217-229 lists the WASM and WASI hosts, `f5-query`, `bigip-report-gen`, `tcl-debugger`, `tcl-fuzz`, `bpf-tcl`, `sslictcl-data`; `tcl docker` reads `tcl_spectcl::pack` internals | § 6 has a row for each, and packaging reads `runtime_backing` through a `FactView`; the tclpkg lockfile is a § 5 input (`PackageLock`) |
+| C44 | step 13: semantic tokens, folding and symbols become salsa queries in `tcl-lsp-core` over `tcl_db::Db` | workspace overview: only `tcl-db` and the session name salsa; D-C | the feature crates stay pure; a memo, if step 14's gate asks for one, is a session query ([13](crate-split/13-unit-and-db.md#tcl-db-item-286)) |
 
 ## 9. Worked example: one procedure through every crate
 
@@ -825,27 +1027,31 @@ Which crate sees what:
 // design sketch: ProcSummary and the domain records are proposed here, in 391,
 // 392 and 393; the explorer's row and the 8.6 taint facts below are real
 ProcSummary {
-    body: BodyKey("body:1:0"),
+    body: BodyUnitRef(/* save's declaration: file id, definition site, incarnation */),
+    // "::save" and "body:1:0" are labels the explorer prints, never keys
     base: BaseSummary { arity: 1..=1, pure: false, completes: false, .. },
     handles: HandleSummary {
-        params: &[ParamNeed { name: "path", accepts: NotAHandle }],
+        params: &[ParamNeed { param: 0, accepts: NotAHandle }],   // by position; "path" is a label
         returns: NotAHandle,
         released: &[],                          // `ch` is opened and closed inside
     },
     errors: ErrorSummary {
         raises: ErrorSet { patterns: &[ErrorPattern(&["POSIX"])],   // from puts and close
-                           other: true, certainty: Certainty::May },  // close also raises CHILDSTATUS (C23)
+                           other: true },                     // open: close also raises CHILDSTATUS (C23); no certainty (C30)
         completion: CodeSet::of(&[0, 1]),
     },
     taint: ProcTaintSummary { returns: TaintTransfer { base: TaintFact::CLEAN, from_params: &[] },
                               param_sinks: &[], validates: &[] },          // 393's gen/kill shape
-    returns: Knowledge::BoundedSet { values: vec!["POSIX".into(), "ok".into()], includes_absent: false },
+    returns: Knowledge::BoundedSet { values: vec![ExactValue::text("POSIX"), ExactValue::text("ok")],
+                                     includes_absent: false },
+    frame_effects: Arc::from([]),               // no upvar, global, uplevel or rename
 }
 CatchFacts { site: Span(36..63),               // tclsh's src range for command 4
              completion: CodeSet::of(&[0, 1]),
              errors: ErrorSet { patterns: &[ErrorPattern(&["POSIX"])], other: true } }
-HandleValue { var: (BodyKey("body:1:0"), "ch"), ty: "file", caps: {writable},
-              state: Live, certainty: Certainty::Must, on: CatchResult(0) }
+HandleValue { var: VariablePlaceRef(/* save's frame, local slot of `ch` */), ty: "file",
+              caps: {writable}, state: Live, certainty: Certainty::Must,   // Must: Knowledge::Proven
+              on: CatchResult(0) }
 ```
 
 The `returns` row is the reduced product at work: the errors domain types
@@ -940,10 +1146,16 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
   `cargo test -p tcl-analysis --lib --no-run`. Under `cargo build --workspace
   --all-targets` they rebuild only `tcl-catalogue`, the binaries, the WASM
   hosts, `xtask` and the `-it` crates that take the catalogue. `rg
-  'CommandSpec \{' rust/tcl-dialect-tcl/src` is empty.
-- **INT-c. One `Certainty`** (plan item 482, Now 6). Done when `LibraryChoice`
-  and `HandleValue` use `tcl_core_types::Certainty`; `ErrorSet` has no
-  certainty field (392, G13).
+  'CommandSpec \{' rust/tcl-dialect-tcl/src` is empty. `cargo tree -p
+  tcl-spec-images` lists no `tcl-vm`, `tcl-compile`, `tcl-unit` or
+  `tcl-codegen`; tabulation is the separate opt-in `tcl-spec-tabulate`
+  package; and a generator run that changes no image rewrites no file.
+- **INT-c. One `Certainty`** (plan item 482, Now 6). Done when `Certainty` is
+  defined as a projection of `Knowledge<T>` (Must ⇔ `Proven` or a bounded
+  set without absence; May ⇔ `includes_absent`), `LibraryChoice` and
+  `HandleValue` use it, `BindingKnowledge` is `Knowledge<BindingTarget>`,
+  `Visibility`, `TkFactCertainty` and `EventEmissionCertainty` are mapped or
+  gone, and `ErrorSet` has no certainty field (392, G13).
 - **INT-d. Positioned context in `tcl-binding`** (folded into plan item 308a/308b) (after 253, 302, 303; 308a
   then 308b). Done when the version gate reads `&ContextIntervals`, `cargo
   tree -p tcl-diagnostics -e normal` lists no `tcl-db`, and 308's rows pass.
@@ -954,8 +1166,11 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
   at a time. Done when the explorer's JSON over the conformance corpus is
   byte-identical across each port, one Tarjan remains, the loops at
   `summary_fixpoints.rs:119,190`, `object_flow.rs:97` and
-  `var_escape/interprocedural.rs:273` are gone, and § 3's edit and cold
-  budgets hold on release builds (item 106's suite and tcllib 2.0).
+  `var_escape/interprocedural.rs:273` are gone, the call graph is built
+  from the summary-free tier, and § 3's edit and cold numbers are recorded
+  under the `release` benchmark profile with no regression against the
+  Now-1 baseline (item 106's suite and tcllib 2.0); the absolute budgets
+  gate later stages, not this item.
 - **INT-f. The new domains:** (folded into plan item 470) 391b, 392b–c and 469–471 (393's summaries). Done
   when the examples of 391, 392 and § 9 show their summaries in `tcl
   explore`, and every object-type test passes unchanged.
@@ -975,7 +1190,9 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
   `cargo xtask crate-layer`. Done when the gate passes and item 259 records
   each cone.
 - **INT-k. `bpf-tcl-ir` without `tcl-analysis`.** (folded into plan item 464) Done when `cargo tree -p
-  bpf-tcl-ir -e normal` lists no `tcl-analysis`.
+  bpf-tcl-ir -e normal` lists no `tcl-analysis`, `tcl-native-plan` or
+  `tcl-lib-*`, `target_contract` is in `tcl-model`, and the BPF rules
+  register from `bpf-tcl-rules`.
 - **INT-l. One taint colour, one completion code value** (folded into plan item 465) (with 465). Done when
   `rg 'struct TaintColour|enum CompletionCode(Lattice|Domain)' rust` finds
   one colour and one value type.
@@ -986,6 +1203,15 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
 
 - **Crate-split overview:** `bpf-tcl-ir` needs `tcl-lowering`, not
   `tcl-analysis`; drop the edge from the text and the target diagram.
+  Applied, with `tcl-semantic`'s rank, the codegen layering and the
+  `tcl-bytecode` split (deep review, 26 November 2026).
+- **Steps 3, 4, 5, 7, 10–14:** identity (D-D), values (D-G), the model's
+  `DocumentFacts` (D-C), the binding tiers and the component walk (D-E),
+  `target_contract` and the memo gate are applied in each step's
+  *Review fixes (26 November 2026, deep review)*.
+- **289, 290, 293 (workspace):** `DocumentInput` gains `facts`, `context`
+  and `document`; `PackState` sets the `UserPack` inputs; MCP and the CLI
+  use `tcl-db`'s batch constructor (§ 6).
 - **Step 10:** SCCP's `ProcedureSummaries` reads the product `ProcSummary`;
   the whole-unit tier's transfers (`taint`, `interprocedural`, `var_escape`,
   `object_types`) come down to `tcl-analysis` as domains as each stops
@@ -1011,6 +1237,8 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
 - **380:** `AnalyserContribution` becomes `UnitRule`/`SiteRule`.
 - **391, 392:** their `ProcSummary` sketches are slots of one record, with
   `Certainty`; the engines are `tcl-analysis` domains solved in `tcl-unit`.
+  Their sketches key by `BodyUnitRef`, `VariablePlaceRef` and `CommandRef`,
+  never `name: "::reopen"` or `(Global, "s")` (C29).
 
 ## Bugs found
 
@@ -1047,3 +1275,27 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
 - **A9:** § 4: fuel only, and a `values` body runs in step 7's first round only.
 - **A10:** § 1: test loaders bind missing native IDs to abstaining stubs; C27.
 - **C19–C27:** added from the review's list of missing contradictions.
+
+## Review fixes (26 November 2026, deep review)
+
+Applied under the coordinator's decisions D-A and D-C to D-J and the owner's
+priority (refinements never gate an extraction).
+
+- **O2 (compiler side), C1 (§ 6 side):** decision 8; § 6's `DocumentFacts`, `DocumentInput`, session and batch constructor, and diagram without `ide --> db`; C37.
+- **O5:** § 2's results row and C12: `command_kernel` the one entry, `ExactValue` and `Interval` in `tcl-cmd-core`; C38.
+- **O7:** § 6's codegen rows follow 292's edges; `tcl-compile` in layer 5 above `tcl-codegen`; C36.
+- **O9:** § 2 and § 6: `target_contract` to `tcl-model`, `bpf-tcl-rules` above `tcl-diagnostics`, eBPF facts through `FactView`; INT-k; C31.
+- **O12:** § 3 *Who drives it*: `solve_component` in `tcl-unit`, the walk in `tcl-db`, the graph from the summary-free tier; C33.
+- **M1:** C28 (the move itself is step 3's, under 274).
+- **M2:** decision 9; § 1's `visible` and `CommandKey`; § 3's `ProcSummary` and `FrameEffect`; § 9's keys; C29.
+- **M3:** § 5's identity paragraph; C35.
+- **M7:** C39 (the fix is step 4's).
+- **M8:** `returns` and `frame_effects` slots, level-keyed until item 66; § 3 *Frame identity*.
+- **F2:** § 3 *Two binding tiers*; C34.
+- **F3:** § 5: declaration-identity keys, `component_members`/`component_out_edges`, the source-edit diagram and the salsa-interned-gc contract; C35.
+- **F4:** § 3's edit budget: no answer from a partial wave; C32.
+- **F5:** § 5 *Minimal caching applies here too*; per-body slices recomputed; *Not cached*.
+- **F10:** § 3's budgets and INT-e: one `release` benchmark profile in CI's benchmark job.
+- **E7:** § 7's Now 3 row: the `tcl-bytecode` split beside `tcl-ir`.
+- **C6:** § 6 rows for the WASM and WASI hosts, BIG-IP tools, `tcl-debugger`, `tcl-fuzz`, `bpf-tcl`, `sslictcl-data` and packaging; `PackageLock` in § 5; C43.
+- **D-A:** § 1's generator paragraph, the target crate graph and INT-b's done-when; C41. **D-F:** C2, INT-c, C30. **D-H:** § 1 and § 5's `UserPack`. **D-I:** § 6; C42. **D-J:** § 7's deferred row.

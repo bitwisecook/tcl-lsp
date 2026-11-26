@@ -43,7 +43,7 @@ staleness mechanisms) are what this step removes for the compiler stack.
 | Crate | May hold |
 |---|---|
 | `tcl-source` … `tcl-native-plan`, `tcl-diagnostics`, `tcl-optimiser` | constants built from code, and nothing else: no `Mutex`/`OnceLock`/`thread_local!` memo, no `Box::leak`. Scratch lives in the call that needs it |
-| `tcl-names` | its own identity interner, if item 274 keeps one: plain Rust, no salsa, usable by the VM |
+| `tcl-names` | its own identity interner, if item 274 keeps one: plain Rust, no salsa, usable by the VM, with no process-wide state; its scope comes from the owner of the analysis (a `tcl-db` input), never from a global counter |
 | `tcl-db` | every cache: salsa queries with `lru` and byte budgets, and versioned inputs |
 
 **No salsa interning for identity types.** `tcl-db` has 14
@@ -56,14 +56,27 @@ stay salsa-free.
 
 **Measured gate for keeping a cache.** A deleted memo comes back, as a
 `tcl-db` query and never as a memo, only if deleting it raises one of these
-by more than 5% on the analysis-performance corpus (release build):
+by more than 5% on the analysis-performance corpus, under the `release`
+benchmark profile in CI's benchmark job. Each deletion batch is measured
+against the Now-1 baseline, not against the previous batch, so the 5% is a
+cap on the total regression and small steps cannot add up past it:
 
 - cold latency;
 - latency after a one-line edit;
 - the 687-line probe's repeat time.
 
 The 5% threshold is a proposal for the owner to confirm. The measurement is
-recorded beside the decision in this doc's table.
+recorded beside the decision in this doc's table. It runs alongside the
+deletions and never blocks one; a crossing turns the memo into a query.
+
+**The same gate covers the integration design's queries.** Its § 5 adds
+about twelve memoised query kinds (`generation`, `grammar_profile`,
+`visible_names`, the two fact slices, `fact_tables`, `hook_table`,
+`entry_selection`, `positioned_context`, `call_graph` and its per-component
+projections, `component_summaries`, `body_summary`). Each is memoised only
+if deleting it crosses this gate. The per-body fact slices start as
+"recompute, no memo", because a pack edit recomputes every body's slice
+and memoising them keeps one copy of registry rows per body resident.
 
 How one memo row is decided:
 
@@ -104,12 +117,14 @@ become `tcl-db` queries if the gate above shows their cost:
 |---|---|---|
 | `source_analysis_cache` (`root_bindings`, 16 whole `SourceCommandBindings` per thread) and `source_analysis_driver` `MEMOS` (`OriginalSourceAnalysisMemo` per owner) | binding per file | `source_bindings(db, file, entry: SourceEntryKey) -> Arc<SourceCommandBindings>`, keyed on the step 7 `SourceAnalysisCacheKey` (content image, config, frame, registry key, entry) and, for child sources, the parent's `BodyReportKey` |
 | `SourceWordsMemo` (`analyser/types/result_caches.rs`), which binding reads through `memoise_source_words` | source file | `source_words(db, file) -> Arc<SourceWords>` |
-| `RetainedModules` (512-entry LRU in an input) | body unit | `lowered_document_module` already has `lru = 512` (`memoised_units.rs:132`). The table exists because a re-lowering after eviction mints new procedure identities, so every lattice key built from them is new (#2543, `memoised_units.rs:180–188`). It is deleted once procedure identities are content-derived (item 274 in `tcl-names`), and kept until then as the one documented exception |
+| `RetainedModules` (512-entry LRU in an input) | body unit | `lowered_document_module` already has `lru = 512` (`memoised_units.rs:132`). The table exists because a re-lowering after eviction mints new procedure identities, so every lattice key built from them is new (#2543, `memoised_units.rs:180–188`). The cause is `ProcedureIdIssuer`'s process-wide `NEXT_SCOPE` counter (`tcl-core-types/src/body_identity.rs:24`). It is deleted once item 274 derives procedure identities from a `tcl-db` input (file id, definition site, incarnation) and deletes `NEXT_SCOPE` ([step 3](03-tcl-names.md#identity-moves-in-with-274)), and kept until then as the one documented exception |
 
 The existing whole-file and per-body queries in `tcl-db` (analysis,
 compilation unit, compiler checks, tokens, symbols, folding, item bodies,
 lattices, lowering, taint and optimisation summaries) are unchanged in this
-step. Step 13 moves the feature queries into `tcl-lsp-core`, over `tcl_db::Db`.
+step. Step 13 moves the feature queries out of `tcl-db`; after 289 they are
+plain functions, and a memo for one, if this gate asks for it, is a
+`tcl-lsp-session` query.
 
 ### The other crates' rows
 
@@ -205,3 +220,10 @@ the verification below.
 - The memo inventory counts are 245 ledger rows, not "about 110 caches". The
   difference is constants, instrumentation and server state, which this doc
   classifies separately.
+
+## Review fixes (26 November 2026, deep review)
+
+- **F13:** each deletion batch is measured against the Now-1 baseline, so 5% caps the total; one `release` benchmark profile in CI.
+- **F5:** the gate covers the integration design's § 5 queries; per-body fact slices start as "recompute, no memo".
+- **M3:** `RetainedModules`' cause is `NEXT_SCOPE`; 274 derives the issuer from a `tcl-db` input.
+- **C1 (D-C):** the feature queries leave `tcl-db` as plain functions, any memo in `tcl-lsp-session`.
