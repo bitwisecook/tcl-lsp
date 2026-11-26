@@ -166,6 +166,22 @@ The table lives in the script as data, keyed by commit range. When a step moves
 one of these files, the step updates the row in the same change. The script
 fails if a row's file is missing.
 
+**After item 307, a fifth edit, `spec`.** Once a command's facts are a
+`.tclspec` row, the `registry` row's Rust constant lands in a crate that holds
+only hooks, so it measures a hook edit, not a per-command one. The table
+gains:
+
+| Key | File | Crate tested | Edit |
+|---|---|---|---|
+| `spec` | `rust/tcl-dialect-tcl/tcl.tclspec` (the Tcl core's pack) | `tcl-analysis`, and the workspace | appends `# worktree-cost <n>`, which changes `source_hash` and so the image's bytes |
+
+For `spec` the script runs `cargo spec-images` first (307's generator). Then
+`cargo test -p tcl-analysis --lib --no-run` must compile no workspace unit,
+and `cargo build --workspace --all-targets` must rebuild only `tcl-catalogue`
+and the crates that link it: the binaries, the WASM hosts, `xtask` and the
+`-it` test crates. That is integration INT-b's check. The `registry` row
+becomes a hook edit in `rust/tcl-lib-irules/src`.
+
 ### Commands measured per edit
 
 For each edit, three commands run in order, first cold (empty target) and then
@@ -424,3 +440,7 @@ peak RSS, target growth, variants per package, and rust-analyzer's resident memo
   free space first and needs 40 GB.
 - **Moving files.** The edit table breaks as crates split; the missing-file
   check makes that loud.
+
+## Review fixes (26 November 2026)
+
+- **R12:** a `spec` edit row for after item 307, with `xtask` in its expected rebuild set; the `registry` row becomes a hook edit.

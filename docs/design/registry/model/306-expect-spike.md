@@ -36,26 +36,28 @@ Today the packs reach users as source:
 
 ### Compile once per build
 
-`cargo xtask spec-images` compiles every shipped pack to an image in one run:
+The generator, `tcl-spec-images` (`cargo spec-images`; [307](307-libraries-as-data.md#images-per-build)),
+compiles every shipped pack to an image in one run:
 
-- the core dialects and libraries (after 307);
+- the dialects and libraries, the Tcl core's included (after 307);
 - the EDA packs in `specs/`;
 - Jim's `core-surfaces/*.tclspec`;
 - for the spike, `expect.tclspec`.
 
 The image bytes are platform-independent, so one build's images go into
-every artefact above. `--check` (item 119) recompiles and fails if a
-checked-in image differs from its source.
+every artefact above. Images are compiled per build and never checked in
+(owner decision); `--check` (item 119) recompiles and fails if an image
+differs from what its source compiles to.
 
 From source to the registry, at build time and at run time:
 
 ```mermaid
 flowchart LR
-  crateSpec["crate NAME.tclspec"] --> xtask["cargo xtask spec-images"]
+  crateSpec["crate NAME.tclspec"] --> xtask["tcl-spec-images, per build"]
   edaSpec["specs/*.tclspec"] --> xtask
   jimSpec["core-surfaces/jim*.tclspec"] --> xtask
-  xtask --> img["NAME.tclimg, checked in, --check gate"]
-  img --> embed["include_bytes! in the owning crate"]
+  xtask --> img["NAME.tclimg in tcl-catalogue/images, untracked"]
+  img --> embed["include_bytes! in tcl-catalogue"]
   img --> staged["specs/NAME.tclimg in each artefact"]
   img --> web["dist/web/specs via index.json"]
   embed --> view["ImageView"]
@@ -114,15 +116,18 @@ bytes. Lookup is a binary search on `NAMES`, which yields a `SpecId`. A
 built over views and never copies the data.
 
 **Versioning.** A reader accepts exactly its `format`, and a `vocabulary`
-whose major is 3. A mismatch on either, or a `hook_abi` that names an ID the
-binary lacks, marks the image *stale*. The pack is then compiled from source
-in process: slower, never wrong.
+whose major is 3 and whose minor is at most its own. A mismatch on either, or
+an unknown `hook_abi`, marks the image *stale*. The pack is then compiled
+from source in process: slower, never wrong. An ID the binary lacks makes
+only that hook dormant, since recompiling would give the same ID. The
+consolidated format, with section numbers and record layouts, is
+[chapter 7](../spectcl-3/07-image-and-rust-parity.md#the-image-format-1).
 
 ### Two placements
 
 | Pack kind | Placement | Load |
 |---|---|---|
-| Core dialect and library images (Tcl, Jim, f5-tcl, Tk, tcllib, Expect, iRules, …) | `include_bytes!` in their crate | at registry install, with zero parsing |
+| Dialect and library images (Tcl, Jim, f5-tcl, Tk, tcllib, Expect, iRules, …) | `include_bytes!` in `tcl-catalogue` | at registry install, with zero parsing |
 | Replaceable vendor packs (`specs/*`) | `specs/NAME.tclimg` beside `NAME.tclspec`, in every artefact that stages `specs/`; also `include_bytes!` in the bare-binary fallback, replacing today's `include_str!` | lazily, through demand loading (`tcl-spectcl/src/demand.rs`, `demand::enable`; the manifest-only path in spec-packs.md) |
 
 The web build fetches `dist/web/specs/*.tclimg` by the same `index.json`.
@@ -140,7 +145,8 @@ Each image carries `source_hash`. At load:
    on a mismatch the image is ignored.
 2. **A pack with no current image** is compiled once with the 3 reader (no
    VM). The image is cached under `tcl-userdirs`' cache directory as
-   `spec-images/<source_hash>-<format>-<vocabulary>.tclimg` and is reused on
+   `spec-images/<source_hash>-<format>-<vocabulary>-<reader_build>-<vm>.tclimg`
+   (chapter 7) and is reused on
    the next start. Writes are atomic (temp file plus rename). A corrupt cache
    entry fails the header checks and is rebuilt.
 3. **`tcl spec compile PACK… [-o DIR] [--check]`** does the same on demand
@@ -162,7 +168,7 @@ flowchart TB
   version -- yes --> compile["reader3 then compile, no VM"]
   version -- "1.x or static 2.x" --> shim["shims, then compile"]
   version -- "programmed 2.x" --> notice["upgrade notice; tool evaluator only if enabled"]
-  compile --> write["write spec-images/HASH-FORMAT-VOCAB.tclimg atomically"]
+  compile --> write["write spec-images/HASH-FORMAT-VOCAB-READER-VM.tclimg atomically"]
   shim --> write
   write --> useCache
 ```
@@ -173,10 +179,12 @@ when that evaluator is enabled. Otherwise the user gets the upgrade notice.
 
 ### Hooks in the image
 
-- **Native hooks** are `(kind, native_id)`. The ID indexes the owning crate's
-  hook table, and `hook_abi` versions the table.
-- **Shape-only hooks**, which read `kinds`, `argc` and `options` (305's
-  context), are tabulated into `ROLE_TABLES` at image build. This replaces
+- **Native hooks** are `(kind, native_id)`. The image names the ID, the
+  owning crate's hook table resolves the name at install, and `hook_abi`
+  versions the table. Native hooks answer live and are never tabulated.
+- **Shape-only Tcl bodies**, which read `kinds`, `argc` and `options` (305's
+  context), are tabulated into `ROLE_TABLES` (chapter 7's `TABLES`) at image
+  build, when the generator links the hook VM. This replaces
   `BUNDLED_ROLE_TABLES` (`tcl-spectcl/src/bundled_manifest.rs:92`) and
   `cargo xtask gen-bundled-manifests`.
 - **Dynamic Tcl hooks keep their source in the image** and are compiled to VM
@@ -259,7 +267,7 @@ command log_user {
 
 ```rust
 // design sketch: types proposed in 302; the image stores it as a SpecRecord (above)
-VersionedSpec {                                   // log_user
+CommandSpec {                                     // log_user (chapter 7's name)
     availability: Availability { library: Some(LibraryId("Expect")), window: ItemHistory("0-"), dialect: None },
     arity: Facet { rows: &[(FacetKey::ANY, Arity::new(0, 1))] },
     options: Facet { rows: &[(FacetKey::ANY, &[OptionId("-info")])] },   // flag, detail as before
@@ -275,9 +283,10 @@ checks that both forms give the same visibility, arity and roles.
 1. Author `tcl-lib-expect/expect.tclspec` in SpecTcl 3 from the 36 Rust
    files. `case_list EXPECT` becomes a rung 1 `case_list` row, and the
    `Switch` hook stays `-native Switch`.
-2. Add `tcl-spectcl::image::{compile, ImageView}` and `cargo xtask
-   spec-images`.
-3. `tcl-lib-expect` embeds `expect.tclimg`, and its `Surface` reads the view.
+2. Add the reader `tcl_registry::image::ImageView` in the core, the writer
+   `tcl-spectcl::image::compile_image`, and the `tcl-spec-images` generator.
+3. `tcl-catalogue` embeds `expect.tclimg`; `tcl-lib-expect` keeps its
+   `HookTable`.
 4. Run the equivalence test (305) between the native Expect surface and the
    image, under the `expect` environment and `tcl8.6` with `package require
    Expect`.
@@ -286,15 +295,20 @@ checks that both forms give the same visibility, arity and roles.
 
 ## Work list
 
-1. `rust/tcl-spectcl/src/image/{format.rs, write.rs, view.rs}` with fuzzed
-   bounds checks (`cargo fuzz` target on `ImageView::open`).
-2. `rust/xtask/src/spec_images.rs` with `--check`, plus a Makefile target
-   `xtask-spec-images` added to `xtask-check`.
-3. `tcl-lib-expect`: the pack, the image, and `Surface` over the view.
-4. Staging: `Makefile` copies `specs/*.tclimg` wherever it copies `*.tclspec`
-   (`:353`, `:373`, `:402`, `:2438`), and `copy-web-assets.cjs` adds them to
-   `index.json`. `bundled.rs` swaps `include_str!` for `include_bytes!` of the
-   images. The source stays embedded for hash checks and the source fallback.
+1. `rust/tcl-registry/src/image/{layout.rs, view.rs}` and
+   `rust/tcl-spectcl/src/image/write.rs`, with fuzzed bounds checks (`cargo
+   fuzz` target on `ImageView::open`).
+2. `rust/tcl-spec-images` with `--write` and `--check`; `cargo xtask
+   spec-images --check` and a Makefile target `xtask-spec-images` in
+   `xtask-check`.
+3. `tcl-lib-expect`: the pack and its `HookTable`; the image in
+   `tcl-catalogue`.
+4. Staging: `Makefile` copies `tcl-catalogue/images/*.tclimg` for each
+   `specs/*.tclspec` wherever it copies `*.tclspec` (`:353`, `:373`, `:402`,
+   `:2438`), and `copy-web-assets.cjs` adds them to `index.json`. The
+   bare-binary fallback's images move from `bundled.rs`'s `include_str!` to
+   `tcl-catalogue`, and the entry point hands them to the loader. The source
+   stays embedded for hash checks and the source fallback.
 5. `tcl spec compile` in `tcl-cli`.
 
 ## Verification
@@ -321,8 +335,8 @@ and callgrind for attribution.
   - Expect's lookups are within +10% of native;
   - server start with every bundled image is no slower than today and uses no
     more memory;
-  - a one-command edit rebuilds only the library crate, `tcl-catalogue` and
-    the binaries;
+  - a one-command edit rebuilds only `tcl-catalogue` and the crates that
+    link it: the binaries, the WASM hosts, `xtask` and the `-it` crates;
   - equivalence is exact.
 - **Data except hook-heavy surfaces** if the load and lookup thresholds hold
   but the Tcl core's 1,655 native hook rows make authoring in SpecTcl no
@@ -362,3 +376,9 @@ decision is written into 307.
 
 - **Every artefact ships source and images,** the web bundle included: the `.tclspec` source beside each compiled image.
 - **The Tcl core's hover and documentation become an image too.** Its hooks stay native. That is a fixed decision, not one the spike's size breakdown decides.
+
+## Review fixes (26 November 2026)
+
+- **R4:** `ImageView` is the core's (`tcl_registry::image`); `tcl-spectcl` owns only the writer. The sketch's `VersionedSpec` is `CommandSpec`.
+- **R9:** versioning follows chapter 7: a minor at most the reader's, and an unknown ID makes the hook dormant.
+- **R12, R14:** lines 41, 46–48, 57–58, 125, 143, 280, 293 and 324: images are compiled per build and embedded by `tcl-catalogue`; rebuild claims name `xtask` and the `-it` crates.

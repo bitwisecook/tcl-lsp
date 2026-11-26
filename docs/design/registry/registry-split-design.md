@@ -55,22 +55,26 @@ core, one crate per dialect, one crate per library package (owner decision,
 today's modules. Each row that holds several packages becomes one crate per
 package: every tcllib package, each bundled Tcl library (http, msgcat,
 tcltest, …), iApps and tmsh separately, and Itcl, Thread, argparse and
-ticklecharts separately. After item 307 a package crate is an image plus its
-hooks, so most of these crates are generated scaffolding.
+ticklecharts separately. After item 307 a package crate holds its
+`.tclspec` and its native hooks; every image, the Tcl core's included, is
+compiled per build and embedded by `tcl-catalogue`
+([307](model/307-libraries-as-data.md#images-per-build)). Most of these
+crates are generated scaffolding, and one with no hooks is a crate nothing
+depends on.
 
 | Crate | Takes today | Depends on |
 |---|---|---|
 | `tcl-registry` (core) | the vocabulary (`CommandSpec`, roles, arity, effects, forms, hooks API); the library, compatibility and environment model and its resolution; lookup over the dialects and libraries it is given | `tcl-dialect`, `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-cmd-core`, `tcl-runtime-api`, `tcl-regex` |
-| `tcl-dialect-tcl` | `commands/tcl` (48k): the Tcl 8.4–9.1 core surface, its folds, grammars and hooks. The Jim and iRules logic that sits there today moves out. | core, `tcl-cmd-core` |
+| `tcl-dialect-tcl` | `commands/tcl` (48k): the Tcl 8.4–9.1 core surface, its folds, grammars and hooks. The Jim and iRules logic that sits there today moves out. After item 307 it keeps the hooks only, and its facts are an image | core, `tcl-cmd-core` |
 | `tcl-dialect-jim` | Jim's Rust rows (`commands/jim`, `definer/jim_source_stock.rs`). Jim's roster and own commands (today SpecTcl in `tcl-spectcl/core-surfaces`) join only after items 251 and 281 move the loader onto `tcl-source` | core, `tcl-dialect-tcl` (its roster narrows Tcl 8.6's surface) |
 | `tcl-dialect-f5` | the f5-tcl core surface (the 8.4.6 fork as it ships in BIG-IP), for both builds; created by item 301, not by step 3 | core, `tcl-dialect-tcl` |
 | `tcl-lib-tcl-bundled` | `commands/stdlib` (12k): http, msgcat, tcltest and the other libraries Tcl releases bundle | core |
 | `tcl-lib-tk`, `tcl-lib-tcllib`, `tcl-lib-expect` | `commands/tk` (22k), `commands/tcllib` (27k) + `TCLLIB_MODULES`, `commands/expect` | core |
 | `tcl-lib-irules` | `commands/irules` (64k), the iRules event and profile tables, and the iRules policy | core (no command spec reads the BIG-IP schema, so no edge to item 118's crate) |
 | `tcl-lib-iapps` | `commands/iapps`: iApps and tmsh | core |
-| `tcl-lib-small` | `itcl`, `thread`, `argparse`, `ticklecharts` (each under 1k lines); split further only if a measurement shows the need | core |
-| `tcl-lib-dsl` | `spectcl`'s own vocabulary, `bpf` (a restricted library on tcl 9.0), `sslictcl` (internal; changed freely with its consumers) | core |
-| `tcl-catalogue` | the shipped list of dialects and libraries, and the compiled-in environments | every dialect and library crate, and never `tcl-spectcl`, which would put `tcl-compiler` under it |
+| `tcl-lib-small` (today's grouping; one crate per package: `tcl-lib-itcl`, `tcl-lib-thread`, `tcl-lib-argparse`, `tcl-lib-ticklecharts`) | `itcl`, `thread`, `argparse`, `ticklecharts` (each under 1k lines) | core |
+| `tcl-lib-dsl` (today's grouping; one crate per package) | `spectcl`'s own vocabulary, `bpf` (a restricted library on tcl 9.0), `sslictcl` (internal; changed freely with its consumers) | core |
+| `tcl-catalogue` | the shipped list of dialects and libraries, the compiled-in environments, and every image (item 307) | every dialect and library crate that has hooks, and never `tcl-spectcl`, which would put the loader and its cone under it |
 
 The EDA vendor libraries stay SpecTcl packs, in the root `specs/` directory,
 loaded by `tcl-spectcl`.
@@ -141,15 +145,18 @@ flowchart TB
     need.
   - Tests of generic crates take `tcl-dialect-tcl`, or the surface they
     exercise, as a dev-dependency. No surface crate depends on a generic crate,
-    so this causes no cascade (see step 0 of the compiler split).
+    so this causes no cascade (see step 0 of the compiler split). After item
+    307 a surface crate holds hooks only, and tests read the images at run
+    time, so only a hook edit recompiles them.
 - **Selection is explicit.** The process-wide registry is installed once by
   the entry point from the surfaces it links.
   - An uninstalled registry fails loudly rather than silently serving an empty
     table.
   - `tcl-catalogue` offers the full set; tests and isolated tools pass the subset
     they need.
-  - Tests install it through a dev-only `ctor` macro, one line per test
-    harness.
+  - Tests install it through `tcl_registry::testing::install!`, one line per
+    test harness. `tcl_registry::testing` is an unconditional module, not a
+    feature (step 4, item 296).
 
 In `tcl-compiler`'s manifest the rules come to this. The line naming
 `tcl-registry` is unchanged; what it names shrinks:
@@ -168,15 +175,16 @@ tcl-registry = { path = "../tcl-registry" }   # the core and every surface
 tcl-registry = { path = "../tcl-registry" }   # the core only
 
 [dev-dependencies]
-tcl-dialect-tcl = { path = "../tcl-dialect-tcl" }
+tcl-dialect-tcl = { path = "../tcl-dialect-tcl" }   # hooks only after item 307; facts load from the image
 ```
 
 ### What it buys
 
 | Edit | Rebuilds today | Rebuilds after |
 |---|---|---|
-| one iRules command spec | `tcl-registry`, `tcl-compiler` and everything above | `tcl-lib-irules`, `tcl-catalogue`, the binaries |
-| one Tk spec | the same | `tcl-lib-tk`, `tcl-catalogue`, the binaries |
+| one iRules command spec, before item 307 | `tcl-registry`, `tcl-compiler` and everything above | `tcl-lib-irules`, `tcl-catalogue`, and every crate that links the catalogue: the binaries, the WASM hosts, `xtask` and the `-it` test crates |
+| one Tk spec, before item 307 | the same | `tcl-lib-tk` and the same set |
+| one spec row, after item 307 | — | `tcl-catalogue` and the same set; the library crate is untouched |
 | the analyser | `tcl-compiler` and above | unchanged by this split; item 90 covers it |
 
 A worktree on the analyser or binding compiles the registry core and
@@ -229,3 +237,9 @@ crate holds Rust data or a SpecTcl-sourced image is decided by item 306.
   laziness per surface. The SpecTcl compiled-surface work
   ([plan](spectcl-compiled-surface-plan.md)) is unaffected, because it reads
   surfaces through the same core.
+
+## Review fixes (26 November 2026)
+
+- **R6:** tests install through the unconditional `tcl_registry::testing` module, not a dev-only macro behind a feature.
+- **R12:** *What it buys* names every crate that links the catalogue, `xtask` included, and adds the post-307 spec row.
+- **R14:** lines 58, 71–72 and 166–172: package crates hold hooks only after item 307, images live in `tcl-catalogue`, and the grouped rows are marked as today's grouping under one crate per package.

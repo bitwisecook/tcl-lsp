@@ -935,9 +935,13 @@ flowchart LR
 
 All families share one convention: `{words ctx}`, fuel, isolation per pack,
 and quarantine (spec-packs.md). An error, a blown budget, no answer or an
-uncovered proof set is an **abstention**. Abstention means no fold, no
-rewrite, no rename and no reflow. Only `taint_sink_gate` keeps its
-non-neutral silence ("the sink applies").
+uncovered proof set is an **abstention**. What an abstention means is the
+family's polarity, fixed per family in the core (chapter 5 of the
+specification, *Result protocols*): no fold, no rewrite, no rename and no
+reflow for these families; `Opaque` for roles; nothing emitted for
+diagnostics. The taint sink gate is no longer a hook family: it is 393's
+`SinkWhen` predicate (rung 2), under which an unknown leaves the sink in
+force.
 
 **Images** (306, extended):
 
@@ -1053,3 +1057,7 @@ document.
   image carries the same `hook_abi` number, so a change to any consumer's
   calling convention bumps it once and the images regenerate. That costs one
   image rebuild, and images rebuild on every build anyway.
+
+## Review fixes (26 November 2026)
+
+- **A8:** the abstention paragraph gives each family its polarity and moves the sink gate to 393's `SinkWhen` predicate.

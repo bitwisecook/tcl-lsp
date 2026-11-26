@@ -194,7 +194,7 @@ references (test files and inline `#[cfg(test)]` items excluded, 26 November
 
 | Edge (production refs) | What crosses it | Fix |
 |---|---|---|
-| `ir` → `command_binding` (54) | `SourceNamespaceKey`, `CommandAllocationSite`, `BindingKind`, `SourceInvocationBinding` | the key types move down to `tcl-names`; `SourceInvocationBinding` stays with binding as `CommandFacts`, carried through `tcl-ir`'s `Facts` parameter |
+| `ir` → `command_binding` (54) | `SourceNamespaceKey`, `CommandAllocationSite`, `BindingKind`, `SourceInvocationBinding` | the key types move down to `tcl-names`; `SourceInvocationBinding` stays with binding as `InvocationBinding`, carried through `tcl-ir`'s `Facts` parameter |
 | `command_binding` → `signature_scan` (317) | `SignatureSourceNameInput`, `SignatureNamespaceScope`, `SignatureSourceNameKey` | none needed: both land in `tcl-binding`. Only `SignatureNamespaceScope` and `SignatureSourceNameKey` move to `tcl-names`; `SignatureSourceNameInput` is a binding receipt |
 | `command_binding` → `analyser` (316; 550 from all binding modules) | `ResolvedAnalysisInput` (355 across binding), `AnalysisResult`, `ProcDef`, `ClassDef`; no production `Analyser::new` (all 598 calls are in tests) | the inputs and fact records move down to `tcl-model`, with `ProcDef` and `ClassDef` generic over binding's receipts; `AnalysisResult` stays in `tcl-diagnostics`, and binding reads it through a body-report trait it defines |
 | `registry_invocation` ↔ `command_binding` (270 / 793) | `OriginalInvocationSourcePurpose`, `SourceCommandBindings`, `SourceInvocationBinding` | one crate; `tcl-invocation` is not extracted in this split (item 282) |
@@ -359,7 +359,7 @@ adapter (`registry_invocation`, 39k), is not split off in this split: item 282
 keeps it inside binding and defers the question until after item 84.
 
 `SourceInvocationBinding` crosses the `ir` → `command_binding` edge. It is a
-record of proofs, not a key, so it stays with binding as `CommandFacts`, and
+record of proofs, not a key, so it stays with binding as `InvocationBinding`, and
 `tcl-ir` carries it through a `Facts` type parameter (items 248 and 252).
 
 ### What each consumer gains
@@ -572,3 +572,7 @@ are updated in the step that changes the layout.
   values, so `tcl-names` and the registry stay salsa-free and the VM can use
   them. `tcl-db` keeps its interned query keys, whose fields are `tcl-names`
   identities, and no type with a `'db` lifetime leaves `tcl-db`.
+
+## Review fixes (26 November 2026)
+
+- **R4:** binding's per-site receipt, `tcl-ir`'s `Facts::Command`, is `InvocationBinding` (was `CommandFacts`, which the integration design also used for the core's view; `InvocationFacts` is taken by `tcl-registry/src/resolved_invocation/invocation_facts.rs:64`). Chapter 7's naming table records it.

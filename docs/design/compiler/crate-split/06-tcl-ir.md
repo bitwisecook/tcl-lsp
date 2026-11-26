@@ -101,12 +101,12 @@ pub struct Script<F: Facts>, Procedure<F: Facts>, Module<F: Facts> { .. pub fact
 pub mod cfg { pub struct Function<F: Facts> { .. pub facts: F::Function }; pub struct CfgModule<F: Facts>; .. }
 
 // tcl-binding (inside tcl-compiler until step 8)
-pub struct CommandFacts { pub source_binding: Option<SourceInvocationBinding>,
+pub struct InvocationBinding { pub source_binding: Option<SourceInvocationBinding>,
     pub nested_bindings: Arc<Vec<(u32, SourceInvocationBinding)>>,
     pub variable_accesses: Vec<SourceVariableAccess>,
     pub hosted_taint_context: Option<Arc<HostedSourceTaintContext>>,
     pub evaluated_body: Option<Box<EvaluatedBodyRegion>> }
-impl tcl_ir::Facts for BindingReceipts { type Command = CommandFacts; type Function = FunctionFacts; type Module = ModuleFacts; .. }
+impl tcl_ir::Facts for BindingReceipts { type Command = InvocationBinding; type Function = FunctionFacts; type Module = ModuleFacts; .. }
 pub mod ir { pub type CommandTokens = tcl_ir::CommandTokens<BindingReceipts>; pub type Module = tcl_ir::Module<BindingReceipts>; /* … */ }
 ```
 
@@ -133,7 +133,7 @@ classDiagram
   class BindingReceipts {
     <<tcl-binding>>
   }
-  class CommandFacts {
+  class InvocationBinding {
     <<tcl-binding>>
     source_binding: Option~SourceInvocationBinding~
     nested_bindings
@@ -145,7 +145,7 @@ classDiagram
   Function ..> Facts
   Module ..> Facts
   Facts <|.. BindingReceipts
-  BindingReceipts --> CommandFacts : Command
+  BindingReceipts --> InvocationBinding : Command
 ```
 
 The reasons:
@@ -224,7 +224,7 @@ Production files naming `tcl_compiler::ir` or `cfg` today:
 
 1. Define `Facts` and `Rebase` in a new `rust/tcl-ir`. Move the three
    annotation groups out of `CommandTokens`, `cfg::Function` and `Module` into
-   `CommandFacts`, `FunctionFacts` and `ModuleFacts` in `command_binding`.
+   `InvocationBinding`, `FunctionFacts` and `ModuleFacts` in `command_binding`.
 2. Add the type parameter to `CommandTokens`, `Statement`, `Script`,
    `Procedure`, `Module`, `cfg::Function`, `CfgModule` and the records that
    contain them. Add binding's aliases.
@@ -282,4 +282,8 @@ Production files naming `tcl_compiler::ir` or `cfg` today:
   so the IR's tie to binding is not only `SourceInvocationBinding`.
 - Item 252's text ("receives `SourceInvocationBinding` as the annotated
   command") should read: `tcl-ir` is generic over a `Facts` parameter, and
-  `SourceInvocationBinding` stays with binding as `CommandFacts`.
+  `SourceInvocationBinding` stays with binding as `InvocationBinding`.
+
+## Review fixes (26 November 2026)
+
+- **R4:** binding's per-site receipt, `tcl-ir`'s `Facts::Command`, is `InvocationBinding` (was `CommandFacts`, which the integration design also used for the core's view; `InvocationFacts` is taken by `tcl-registry/src/resolved_invocation/invocation_facts.rs:64`). Chapter 7's naming table records it.

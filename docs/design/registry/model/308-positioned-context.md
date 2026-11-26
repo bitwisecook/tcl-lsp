@@ -72,10 +72,19 @@ pub enum Why {
      `if {[catch {package require Tk 8.6}]} {package require Tk 8.5}` gives
      `May {8.6-9, 8.5-9}`.
    - **Procedure bodies:** the entry state is the join of the states at the
-     body's known call sites. If the call graph is unknown, it is the
+     body's known call sites. Binding runs before any call graph exists, so
+     it cannot compute that join. `tcl-unit` does, in one top-down pass over
+     the condensed call graph, with a termination argument and a counted
+     re-binding budget ([integration
+     § 1](../../compiler/compiler-analyser-spectcl-integration.md#how-the-positioned-context-selects-facets)).
+     Until that pass runs, and wherever the call graph is unknown, it is the
      top-level state at the end of the file, downgraded to `May`.
    - **Dynamic names** (`package require $p`) make every library hosted by
      the environment `Unknown` from that point.
+   - **Opaque code** has the same effect. A `source`, a call to an unknown
+     command, `eval` or `uplevel` of a computed script may run a `package
+     require`, so after one every hosted library still `Absent` is
+     `Unknown`. A `Must` or `May` already proved stays.
 3. **Versions per library.** For each library in the state, 302's
    `resolve_libraries` intersects three things:
    - the placement range;
@@ -92,7 +101,7 @@ pub enum Why {
    the target set (redesign §5.4).
 5. **The environment's placements.** An ambient or bundled library is `Must`
    from the file's start, at its placement range. A hosted library is
-   `Absent` until required.
+   `Absent` until required, or `Unknown` after opaque code (step 2).
 6. **Targets.** `targets` never moves the primary point (redesign §11 O7). It
    widens the dialect and library sets that range-checking consumers read.
 
@@ -124,7 +133,7 @@ stateDiagram-v2
   Absent --> Must: require on every path here
   Absent --> May: require on some paths, after a join
   May --> Must: require on every path here
-  Absent --> Unknown: package require with a dynamic name
+  Absent --> Unknown: a dynamic require, source, unknown command, eval or uplevel
   Must --> Must: another require narrows the set
 ```
 
@@ -257,7 +266,7 @@ salsa memoises per interval. An edit re-runs only the body unit it touches
 | `check` rules and Tcl hooks (305) | none | the `library`/`dialect` atoms and the `ctx.libraries` key |
 | MCP `command_info` | a dialect parameter | an optional `{file, position}`, else the environment's start-of-file context |
 | CLI `tcl help`/`tcl diag` | the dialect flag | the same query over the CLI's analysis |
-| W120 (missing require) | whole-file heuristic (assistance view, redesign §5.2) | unchanged as an assistance-view heuristic, but reading `ctx` for "required above this use" (H301) |
+| W120 (missing require) | whole-file heuristic (assistance view, redesign §5.2) | unchanged as an assistance-view heuristic, but reading `ctx` for "required above this use" (H301); it fires on `Absent` only, never on `Unknown` |
 
 Every consumer reads one query. The two floors it replaces are deleted:
 
@@ -372,10 +381,13 @@ pub enum VersionLine {
 
 ### Dependencies
 
-The query lives in `tcl-db` (or the analysis crate that owns binding results,
-per item 90's layering). It depends on the registry core (302 and 303 types),
-the binding results (item 84) and the workspace package index. Consumers
-depend on it through the database, never on each other.
+`tcl-binding` computes the intervals inside a body, `tcl-unit` computes each
+body's entry selection top-down, and `tcl-db` memoises both
+(`entry_selection` and `positioned_context`; [integration
+§ 5](../../compiler/compiler-analyser-spectcl-integration.md#inputs)). They
+depend on the registry core (302 and 303 types), the binding results (item
+84) and the workspace package index. Consumers depend on the query through
+the database, never on each other.
 
 ### Decisions
 
@@ -388,9 +400,12 @@ depend on it through the database, never on each other.
 
 ### Open questions
 
-- **Procedure entry state when callers are across files.** Settled by item
-  68's cross-file name world. Until then, cross-file callers contribute
-  `May` from the file's top-level end state.
+- **Procedure entry state when callers are across files.** Settled: the
+  top-down pass runs over the unit's call graph, so a `package require` edit
+  in `main.tcl` reaches the procedures of `lib.tcl`, and salsa re-binds only
+  bodies whose entry selection changed. Until item 68's cross-file name world
+  gives that graph its cross-file edges, cross-file callers contribute `May`
+  from the file's top-level end state.
 - **Cost.** Settled by measuring `positioned_context` on the analysis
   performance suite's 687-line file (item 46). Budget: under 5% of analysis
   time.
@@ -422,6 +437,7 @@ the `check` atom value. Each row is one file and one cursor position:
 | Itcl exact on 9.0 | the same under `tcl9.0` | ∅ with a report; `check itcl3-exact-on-tcl9` fires |
 | No require | `text .t` under `wish` | Tk at the bundled placement (8.6) |
 | No require, hosted | `text .t` under `tcl8.6` | Tk `Absent`: W120 |
+| Require behind opaque code | `source gui.tcl` (which requires Tk), then `text .t`, under `tcl8.6` | Tk `Unknown`: no W120 |
 | One branch only | `if {$gui} {package require Tk 8.6}` then a Tk call after the `if` | Tk `May {8.6}`: completion annotates; no version diagnostic |
 | Multi-train | `package require struct::graph 1.2` | struct::graph {1.2.2}: 2.x-only commands not offered |
 | Alternatives | `package require Thread 2.8 3` under `tcl9.0` | Thread {3.0} |
@@ -446,6 +462,32 @@ the `check` atom value. Each row is one file and one cursor position:
 - the rebuild set after an edit to the query: `tcl-db` and its dependents
   only.
 
+### Evidence: opaque code can require a library
+
+**Source:**
+
+```tcl
+# a.tcl
+package require struct::set
+# b.tcl
+proc setup {} {uplevel #0 {source a.tcl}}
+setup
+puts [struct::set size {a b c}]
+```
+
+**Result:**
+
+```text
+$ TCLLIBPATH=$PWD/tmp/tcllib-2.0/modules tclsh8.6 b.tcl     (tclsh9.1 prints the same)
+3
+$ ./target/debug/tcl diag --dialect tcl8.6 b.tcl            # today
+b.tcl:3:7: warning W120     "struct::set" requires `package require struct::set`
+```
+
+The library is present at line 3, yet today's whole-file heuristic warns. Under
+the rule above, the `source` makes `struct::set` `Unknown`, and W120 is
+silent.
+
 ## Risks
 
 - **Binding coverage.** Requires inside `eval`, `uplevel` or callbacks are
@@ -453,3 +495,8 @@ the `check` atom value. Each row is one file and one cursor position:
   enclosing body, never `Absent`.
 - **Noise from `May`.** Mitigation: diagnostics fire only when every case
   fails, and completion annotates rather than hides.
+
+## Review fixes (26 November 2026)
+
+- **A5:** procedure entry states are computed top-down in `tcl-unit` after condensation, with the end-of-file `May` rule before that; *Dependencies* and the cross-file open question follow (integration C19).
+- **A12 (308's part):** opaque code (`source`, an unknown command, `eval`, `uplevel`) makes a hosted `Absent` library `Unknown`; W120 fires on `Absent` only; a new conformance row and the tclsh 8.6 and 9.1 run above.

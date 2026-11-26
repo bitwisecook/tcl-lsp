@@ -36,9 +36,10 @@ and everything above it (registry split, Problem).
 
 ## Design
 
-**If 306 decides "data"**, every shipped library and the non-core dialect
-surfaces are authored once in SpecTcl 3 and embedded as images. Each crate
-holds `NAME.tclspec`, `NAME.tclimg` and its native hooks, and nothing else.
+**If 306 decides "data"**, every shipped library and every dialect surface,
+the Tcl core's included, is authored once in SpecTcl 3 and compiled to an
+image per build. A package crate holds `NAME.tclspec` and its native hooks,
+and nothing else. `tcl-catalogue` embeds every image.
 
 For Expect, the spike's subject, the layout changes like this:
 
@@ -55,8 +56,9 @@ rust/tcl-registry/src/commands/expect/
 ```text
 rust/tcl-lib-expect/
     expect.tclspec      the pack, SpecTcl 3
-    expect.tclimg       its image, checked in under spec-images --check
-    src/                the Surface over the image; its one hook shape is the core's -native Switch
+    src/                its HookTable; its one hook shape is the core's -native Switch
+rust/tcl-catalogue/images/
+    expect.tclimg       compiled per build by tcl-spec-images; untracked
 ```
 
 306's outcome decides how far this goes:
@@ -64,30 +66,49 @@ rust/tcl-lib-expect/
 ```mermaid
 flowchart TB
   spike["306 measurements"] --> outcome{"decision"}
-  outcome -- data --> all["every library and the non-core dialects as images; the Tcl core stays Rust"]
-  outcome -- "data except hook-heavy" --> most["the same line: Tcl core native, the rest data"]
+  outcome -- data --> all["every library and dialect as images, the Tcl core's facts too; hooks stay Rust"]
+  outcome -- "data except hook-heavy" --> most["the same: owner decision, 26 November 2026"]
   outcome -- native --> withdrawn["307 withdrawn; only the equivalence-pack deletion proceeds"]
 ```
 
-### Which surfaces stay native
+### What stays native
 
-The Tcl core surface (`tcl-dialect-tcl`) stays native Rust, because 746 of
-the 845 hook fields counted above are there. The equivalence packs confirm
-the shape: the `tcl8.6` pack has 1,158 `-native` rows (the iRules pack 497),
-and across both packs the bulk are `native_compilation` (501),
-`successful_handler` (127), `native_result` (103) and `const_fold` (106). Those are references into Rust, so a SpecTcl copy saves no Rust and
-adds a second place to edit. Its prose and simple option rows are the
-exception. Hover and documentation for the core surface can move to an image
-(item 121) while the specs stay Rust, if 306 shows the docs dominate its size.
+Only hooks. The Tcl core (`tcl-dialect-tcl`) keeps its 746 hook fields of the
+845 counted above as Rust, behind `-native ID` rows in the Tcl core's pack.
+The equivalence packs show the shape: the `tcl8.6` pack has 1,158 `-native`
+rows (the iRules pack 497), and across both packs the bulk are
+`native_compilation` (501), `successful_handler` (127), `native_result` (103)
+and `const_fold` (106). Its facts, its docs and the Tcl release facts move to
+the image.
+
+An earlier draft kept the Tcl core's facts as Rust, because a pack of
+`-native` references saves no Rust. That cost the build what it saved in
+lines: `tcl-dialect-tcl` is every generic crate's test dev-dependency (item
+265, rule 1), so a Rust fact edit recompiled every generic crate's `--lib`
+test target ([integration § 1](../../compiler/compiler-analyser-spectcl-integration.md#the-dependency-rule)).
+With the facts in the image, a fact edit rebuilds `tcl-catalogue` and the
+crates that link it, and a dev edge to `tcl-dialect-tcl` costs a recompile
+only on a hook edit. Owner goals settle it: fast incremental builds over
+fewer lines of indirection. `native_lowering`, `native_lowering_windows` and
+`dispatch_dependencies` stay Rust-only tables in `tcl-dialect-tcl`, keyed by
+command (`Derived`, open decision D8).
 
 Everything else is hook-light (15 or fewer hook fields), and every hook it
 has is already a native ID. That covers iRules, Tk, tcllib, the bundled
 libraries, Expect, iApps and tmsh, and the small libraries.
 
-**If 306 decides "data except hook-heavy"**, the line is the same: Tcl core
-native, the rest data. **If 306 decides "native"**, 307 is withdrawn, the
-registry split alone stands, and only the equivalence-pack deletion below
-proceeds.
+**Packages with no hooks.** Most tcllib packages and bundled libraries have
+no native hook. Each is still its own crate (owner decision), holding its
+`.tclspec` and an empty `HookTable`. `tcl-catalogue` does not depend on a
+crate whose `HookTable` is empty: the generator reads the `.tclspec` from the
+crate's directory, and the image reaches the binaries through the
+catalogue's `images/`. Such a crate is a workspace member nothing depends
+on, so it costs one small rlib per worktree and no rebuild cascade. Item 259
+measures that cost.
+
+**If 306 decides "data except hook-heavy"**, the owner decision above holds
+all the same. **If 306 decides "native"**, 307 is withdrawn, the registry
+split alone stands, and only the equivalence-pack deletion below proceeds.
 
 ### Order
 
@@ -111,6 +132,13 @@ equivalence run:
    (`core-surfaces/jim*.tclspec`), switches from evaluation to its image.
 8. **The DSL libraries**: `spectcl` and `bpf`. `sslictcl` changes with its
    consumers, with no shim, in the same PR as `tcl-sslictcl`.
+9. **The Tcl core and its release facts.** The pack is exported once from
+   the native surface with every hook as `-native ID`, and checked by 305's
+   equivalence test before the Rust goes. `cargo xtask release-facts` writes
+   the `DIALECTS` rows instead of `tcl-dialect/src/generated_release_facts.rs`,
+   and the 15 `release_facts()` call sites (in `tcl-expr`, `tcl-syntax`,
+   `tcl-dialect` and `tcl-registry`) read them from the `GrammarProfile` or
+   the generation (integration INT-h).
 
 ```mermaid
 flowchart LR
@@ -121,34 +149,59 @@ flowchart LR
   tcllib --> f5["6 iApps and tmsh, then iRules"]
   f5 --> jim["7 Jim"]
   jim --> dsl["8 spectcl and bpf; sslictcl"]
+  dsl --> tclCore["9 the Tcl core and its release facts"]
   vocab["305 widget-class, option-database and co-provide forms"] -.-> tk
 ```
 
 ### What is deleted
 
-- `tcl-registry/src/commands/<surface>/` for each migrated surface, which is
-  about 136k lines in total (185k less the 48k Tcl core and the
-  `closed_evidence` rows that stay with it).
+- `tcl-registry/src/commands/<surface>/` for every surface, about 185k
+  lines, the Tcl core's included; only the `closed_evidence` mechanism stays.
+- `tcl-dialect/src/generated_release_facts.rs` (11,445 lines).
 - Both equivalence packs (98,349 lines), `cargo xtask gen-equivalence-packs`,
-  and its Makefile target `xtask-gen-equivalence-packs`. iRules becomes the
-  authored pack. The Tcl core is native, so its equivalence instrument is
-  replaced by 305's equivalence test over the native surface against a
-  generated *temporary* export run in CI, which is never checked in.
+  and its Makefile target `xtask-gen-equivalence-packs`. iRules and the Tcl
+  core become authored packs. Until each surface's Rust is deleted, 305's
+  equivalence test runs against a generated *temporary* export in CI, which
+  is never checked in; after that, the parity gate's three legs are the
+  check (chapter 7).
 - `BUNDLED_ROLE_TABLES` and `gen-bundled-manifests` (306).
 
-### The `--check` generator (item 119)
+### Images per build
 
-`cargo xtask spec-images` is the single generator for every image:
+Images are compiled per build and never checked in (owner decision). One
+generator writes every image (item 119):
 
-- **`--write`** compiles each `crates/*/NAME.tclspec` and `specs/*.tclspec`
-  to `.tclimg` beside it.
-- **`--check`** recompiles in memory and fails on any byte difference, naming
-  the pack and the first differing section.
+- **The generator** is `tcl-spec-images`, a small binary crate over
+  `tcl-spectcl` (reader3, `compile_image`) and `tcl-spec-hooks` (the VM, to
+  tabulate Tcl bodies). It links no catalogue and no surface crate, so a
+  fresh checkout runs it before anything that embeds an image builds. `cargo
+  spec-images` is its alias (`run -p tcl-spec-images --`), and the `make`
+  targets and the session-start hook run it before `cargo build`.
+- **`--write`** compiles each `rust/tcl-dialect-*/NAME.tclspec`,
+  `rust/tcl-lib-*/NAME.tclspec` and `specs/*.tclspec` into
+  `rust/tcl-catalogue/images/NAME.tclimg`, untracked, and writes
+  `images/inputs.tsv`: each image with its source files and their xxh3.
+- **`tcl-catalogue` embeds them** with `include_bytes!`. Its build script has
+  no workspace build-dependency, only `xxhash-rust`. It emits
+  `rerun-if-changed` for every source in `inputs.tsv`, and fails the build
+  when an image is missing or its source hash differs, naming the pack and
+  `cargo spec-images`. Cargo fingerprints the embedded files, so a
+  regenerated image rebuilds `tcl-catalogue` and the crates that link it:
+  the binaries, the WASM hosts, `xtask` and the `-it` test crates.
+- **`--check`** recompiles in memory and fails on any byte difference from
+  the images present, naming the pack and the first differing section. It
+  runs in `xtask-check` (as `cargo xtask spec-images --check`, once `xtask`
+  builds) and in CI before packaging, so every editor artefact gets the
+  checked bytes.
 - **Registered** in item 119's generator manifest, so the
   `@generated`-without-generator lint covers images. Images carry the
   `source_hash` header instead of a text `@generated` line.
-- **Run in `xtask-check`** and in CI before packaging, so every editor
-  artefact gets the checked bytes.
+
+The images could instead come from `tcl-catalogue`'s build script with the
+reader as a build-dependency. That is rejected: build-dependencies compile
+under `build-override`, which differs from the test profile's opt-level 1,
+so each worktree would hold the reader stack, the registry core included,
+twice. That is the cost item 296 removes for features.
 
 ### The registry rule and `registry-axes`
 
@@ -162,30 +215,37 @@ flowchart LR
   (`xtask/src/registry_axes.rs`, part 1). The lint over consumer crates is
   unchanged. The registry-crate set it exempts grows to the library crates
   (registry split item 264), and their Rust is only hooks.
-- **A new check:** a library crate's `src/` may not contain `CommandSpec`
-  literals once it is image-backed (`rg 'CommandSpec \{' crates/tcl-lib-*/src`
-  is empty). This prevents a split source of truth.
+- **A new check:** a dialect or library crate's `src/` may not contain
+  `CommandSpec` literals once it is image-backed (`rg 'CommandSpec \{'
+  rust/tcl-lib-*/src rust/tcl-dialect-*/src` is empty). This prevents a
+  split source of truth.
 
 ### Dependencies
 
-Library crates depend on the registry core (for the image view and hook
-traits) and on their own hooks' needs (`tcl-cmd-core` for folds). No library
-crate depends on `tcl-spectcl`. The image reader lives in the core, and only
-the xtask and the user-pack path link the compiler.
+Dialect and library crates depend on the registry core (for the hook
+traits) and on their own hooks' needs (`tcl-cmd-core` for folds). No surface
+crate depends on `tcl-spectcl`. The image reader lives in the core; only the
+generator (`tcl-spec-images`) and the user-pack path link the image
+compiler.
 
 ### Decisions
 
-1. **The Tcl core stays Rust.** A SpecTcl copy of 746 native hook references
-   is indirection without saving.
+1. **The Tcl core's facts and docs are an image in `tcl-catalogue`;
+   `tcl-dialect-tcl` holds hooks only.** So do the Tcl release facts, in the
+   image's `DIALECTS` section. A Rust fact would recompile every generic
+   crate's test target on each edit (see *What stays native*). This replaces
+   the earlier "the Tcl core stays Rust".
 2. **The equivalence packs are deleted, not kept as goldens.** They are
    generated restatements, and 305's equivalence test is the check.
 3. **One generator for all images.** One format, one `--check`, one place for
    the format version.
+4. **Images per build, embedded only by `tcl-catalogue`** (owner decision),
+   from an untracked directory the generator fills.
 
 ### Open questions
 
-- **Core docs as an image?** Settled by 306's size breakdown: if hover prose
-  is more than half of `commands/tcl`'s bytes, move it.
+- **Core docs as an image?** Settled: the owner moved them, and decision 1
+  moves the facts with them.
 - **The BIG-IP schema crate's form.** Is it data images too (item 300), or
   Rust? This is settled with item 118.
 
@@ -196,7 +256,8 @@ Per surface, in the order above:
 1. `tcl spec export` from the native surface into `NAME.tclspec`. Then edit it
    by hand to SpecTcl 3 idiom (facets, `check`).
 2. Run the equivalence test against native until there are zero differences.
-3. `spec-images --write`, and switch the crate's `Surface` to the image view.
+3. `cargo spec-images --write`; `tcl-catalogue` embeds the image, and the
+   crate keeps only its `HookTable` (none if it has no hooks).
 4. Delete the Rust command files, and keep the hooks.
 5. Re-run `registry-axes`, which should report the same findings.
 
@@ -204,10 +265,13 @@ Then delete the equivalence packs and their generator.
 
 ## Verification
 
-- **Done when** (the plan's): each shipped library crate holds an image plus
-  hooks only. A one-command edit recompiles that crate alone, plus
-  `tcl-catalogue` and the binaries, measured with item 259's
-  `worktree-cost.py`. Load time is within 306's budget. `rg -c '' -g
+- **Done when:** each shipped dialect and library crate holds its
+  `.tclspec` and hooks only, and its image is in `tcl-catalogue`. A
+  one-command edit (a `.tclspec` row) rebuilds `tcl-catalogue` and the crates
+  that link it: the binaries, the WASM hosts, `xtask` and the `-it` test
+  crates, and no generic crate's test target. That is measured with item
+  259's `spec` edit. A hook edit also rebuilds its crate and the test targets
+  that dev-depend on it. Load time is within 306's budget. `rg -c '' -g
   '*.tclspec' rust/tcl-spectcl/equivalence` finds no files.
 - **Conformance:** every existing suite passes unchanged after each surface's
   PR: registry sweeps, compiler `it_*`, LSP snapshots, the iRules and iApps
@@ -230,12 +294,23 @@ Then delete the equivalence packs and their generator.
 
 ## Corrections to the overview
 
-- "Deleting the native Rust catalogue" cannot include the Tcl core if the
-  core stays native. The deletion is about 136k of the 185k lines, not all of
-  them.
+- "Deleting the native Rust catalogue" includes the Tcl core's facts after
+  decision 1: all of about 185k lines go, and the Tcl core keeps only its
+  hooks.
+- The plan's item 307 says "the images are checked in". Under the owner's
+  "images compiled per build" they are not; see *Images per build*.
+- The plan's done-when "a one-command edit recompiles that crate alone"
+  omits `tcl-catalogue`, the binaries, `xtask` and the `-it` crates.
 
 ## Owner decisions (26 November 2026)
 
 - **One crate per package,** not per distribution: each tcllib package, each bundled Tcl library, iApps and tmsh each get their own crate. A package crate is an image plus hooks, so these crates are generated scaffolding.
 - **The Tcl core's hover and documentation become an image.** Only its hooks stay native Rust.
 - **Every artefact ships the `.tclspec` source beside the image.**
+
+## Review fixes (26 November 2026)
+
+- **R1:** decision 1 replaced: the Tcl core's facts, docs and release facts are an image in `tcl-catalogue`; `tcl-dialect-tcl` holds hooks only (*What stays native*, order step 9).
+- **R12:** every rebuild claim names `tcl-catalogue`, the binaries, the WASM hosts, `xtask` and the `-it` crates; hookless packages stay crates (owner decision) that the catalogue does not depend on. The finding's "data directories in `tcl-catalogue`" is not taken: it conflicts with one crate per package.
+- **R14:** lines 40–41, 55–60, 143, 171–174, 199 and 207–209: images are compiled per build into `tcl-catalogue`, not checked in beside each crate (*Images per build*).
+- **R16:** `crates/*` paths are `rust/tcl-lib-*` and `rust/tcl-dialect-*`.

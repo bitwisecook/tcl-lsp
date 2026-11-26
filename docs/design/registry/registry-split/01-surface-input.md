@@ -145,6 +145,13 @@ pub fn try_installed() -> Option<&'static SurfaceSet>;
   process.
 - `installed()` panics with a message that names the entry point's duty and
   this document.
+- **This global is interim.** The target owner of the surface set is the
+  registry generation (item 47; [integration
+  § 1](../../compiler/compiler-analyser-spectcl-integration.md#the-interface)):
+  one `SurfaceSet` per `Generation`, so a user-pack reload builds a new
+  generation instead of a second `install`. Once step 14 removes the global
+  caches, `install` and `installed()` survive only in entry points, as
+  `install_host` does, and no generic crate calls them.
 
 ```mermaid
 sequenceDiagram
@@ -357,3 +364,7 @@ fn lsort_is_known() {
   has a seventh door.
 - The core's dependencies also include `tcl-core-types` and `tcl-regex`
   (`Cargo.toml`), which the overview's table leaves out.
+
+## Review fixes (26 November 2026)
+
+- **R4:** the process-wide `install` is interim; the surface set's owner is the generation, one per `Generation` (chapter 7's naming table).

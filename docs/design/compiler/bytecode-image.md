@@ -355,6 +355,19 @@ flowchart TB
   meta -- "no or stale" --> foreign["foreign: plain tcl 9.1 profile, plain dispatch, no positions"]
 ```
 
+**Private opcodes and the revision.** An extended unit's code may hold 312's
+private opcodes, counted down from 255, and nothing else versions their
+numbering. So any change to the private-opcode table bumps the extended
+revision, and a reader that does not know a revision refuses the unit, as
+above. A test pins a digest of the private table to the current revision, so
+a renumbering without a bump fails. The SpecTcl image's `LIBRARY_UNITS` keys
+carry the revision (spec chapter 7).
+
+**One stale-meta rule for every caller,** image `BODIES` included (spec
+chapter 5): a unit that fails validation, or whose stamp or revision is
+unknown, is refused and its source compiled; a valid unit whose `UnitMeta`
+is missing or stale loads as foreign.
+
 ### Open questions
 
 1. **Should we read methods and execute them?** 311 parses, validates and dumps method and class records. Executing them needs the VM's TclOO to accept precompiled bodies, the way tbcx's OOShim does. Until then a foreign unit with methods is `Unsupported(methods)`. *Settled by* demand for foreign OO files, or by item 313 needing them. *Settled:* in scope, by the owner decisions below.
@@ -416,3 +429,7 @@ Record:
   update (AGENTS.md, "Build and release").
 - **Item 311 does not block item 306.** The Expect spike can store hook source
   and compile on first call, and switches to `TbcxUnit` when 311 lands.
+
+## Review fixes (26 November 2026)
+
+- **R10:** a private-opcode change bumps the extended revision, pinned by a digest test; one stale-meta rule (refused, or foreign) for every caller, image bodies included.

@@ -123,9 +123,11 @@ flowchart LR
 has no edge to the new crate.
 
 In step 4's [crate roles](04-dependency-hygiene.md#crate-roles) the crate has
-a role of its own, `data`. Any crate may depend on it, and it may depend only
-on foundation crates. It is a leaf edited rarely, unlike a surface. Its
-largest consumer, `tcl-lsp-core`, needs it for one file.
+a role of its own, `schema`. It may depend only on foundation crates, and
+only `tcl-bigip`, `tcl-bigip-*` and `xtask` may depend on it. It is a leaf
+edited rarely, unlike a surface, but at 171k lines it must not sit under the
+core or a generic crate. `tcl-lsp-core`, which needs it for one file, reads
+it through `tcl-bigip`.
 
 ### `tcl-bigip`'s model from the schema
 
@@ -278,3 +280,7 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
 - **No library edge.** The overview's "`tcl-lib-irules` and `tcl-lib-iapps`
   depend on the BIG-IP schema crate" is not needed: no command spec reads
   the schema.
+
+## Review fixes (26 November 2026)
+
+- **R7:** the crate's role is `schema`, not `data`: only `tcl-bigip`, `tcl-bigip-*` and `xtask` may depend on it, and `tcl-lsp-core` reads it through `tcl-bigip`.

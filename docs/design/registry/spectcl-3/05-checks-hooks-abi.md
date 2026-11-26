@@ -20,10 +20,20 @@ the VM that runs them. It consolidates [305](../model/305-spectcl-3.md),
 | 5 | tabulated answers | a table in the image (`TABLES`) | none beyond rung 1 |
 
 An author, or the `spec-author` skill, climbs only as far as a fact needs.
-Rung 5 is what the image compiler makes of a rung 3 or 4 hook whose declared
+Rung 5 is what the image compiler makes of a rung 4 hook whose declared
 inputs are shape only: its answers are computed once at image build and
 served on any thread with no VM, as `BUNDLED_ROLE_TABLES` does today
 (`rust/tcl-spectcl/src/bundled_manifest.rs:92`).
+
+- **Native hooks are never tabulated.** A rung 3 hook answers live, on any
+  thread, at Rust speed. So the image generator links no surface crate, and
+  no cache key needs a digest of native code.
+- **Tabulating needs the hook VM.** An image compiled without it (a user pack
+  in a process with no Tcl hooks) has no Tcl-body tables and
+  `tabulated_with_vm` clear; its shape-only bodies are answered live where
+  the VM is linked and abstain where it is not. The bit is part of the user
+  cache key (chapter 7), so one source never gives two byte strings under
+  one key.
 
 ```mermaid
 flowchart TB
@@ -34,8 +44,8 @@ flowchart TB
   pred -- no --> native{"the owning crate ships Rust?"}
   native -- yes --> r3["rung 3: native hook ID"]
   native -- no --> r4["rung 4: Tcl hook body"]
-  r3 --> shape{"declared inputs are shape only?"}
-  r4 --> shape
+  r3 --> liveNative["answered live, never tabulated"]
+  r4 --> shape{"declared inputs are shape only, and the VM linked at image build?"}
   shape -- yes --> r5["rung 5: tabulated at image build"]
   shape -- no --> live["answered live: memoised by content"]
 ```
@@ -88,23 +98,28 @@ uncacheable.
 
 ## Result protocols
 
-| Family | Result | Rungs | Tabulated |
-|---|---|---|---|
-| roles (`arg_role_resolver`, count and layout resolvers) | `role I R` list | 1, 3, 4 | when shape-only |
-| prefix, timing | `prefix I ARITY`; `timing immediate\|deferred\|unknown` per script word | 1, 3, 4 | when shape-only |
-| diagnostic (`check`, validators, `constraints`, `context_gate`) | a list of `{code C severity S at {arg N} message M ?fix …?}` | 1, 2, 3, 4 | `check` is data |
-| state transitions | `alias LOCAL TARGET ?-level L?`, `namespace-variable NAME` | 1, 3, 4 | when shape-only |
-| fold (`const_fold`, `evaluate`) | `value V` or nothing | 3, 4, evaluate routes | no: memoised by content |
-| rewrite | `replace TEMPLATE` or nothing | 1, 3, 4 | when shape-only |
-| layout | `break-before I`, `keep I`, `group FROM TO` | 1, 3, 4 | when shape-only |
-| validate (SslicTcl) | the diagnostic protocol | 3 | no |
-| lowering, codegen, inline codegen, return type, native-contract rows | Rust | 3 only, closed sets | n/a |
+| Family | Result | Rungs | Tabulated | On abstention (polarity) |
+|---|---|---|---|---|
+| roles (`arg_role_resolver`, count and layout resolvers) | `role I R` list | 1, 3, 4 | rung 4, when shape-only | `Opaque`: binding treats the words as opaque, and the minifier treats the call as an unknown command |
+| prefix, timing | `prefix I ARITY`; `timing immediate\|deferred\|unknown` per script word | 1, 3, 4 | rung 4, when shape-only | no prefix; timing `unknown` |
+| diagnostic (`check`, validators, `constraints`, `context_gate`) | a list of `{code C severity S at {arg N} message M ?fix …?}` | 1, 2, 3, 4 | `check` is data | nothing emitted |
+| state transitions | `alias LOCAL TARGET ?-level L?`, `namespace-variable NAME` | 1, 3, 4 | rung 4, when shape-only | an unknown transition: binding knowledge after the site is `Unknown` |
+| fold (`const_fold`, `evaluate`) | `value V` or nothing | 3, 4, evaluate routes | no: memoised by content | no fold |
+| rewrite | `replace TEMPLATE` or nothing | 1, 3, 4 | rung 4, when shape-only | no rewrite |
+| layout | `break-before I`, `keep I`, `group FROM TO` | 1, 3, 4 | rung 4, when shape-only | no reflow |
+| validate (SslicTcl) | the diagnostic protocol | 3 | no | nothing emitted |
+| lowering, codegen, inline codegen, return type, native-contract rows | Rust | 3 only, closed sets | n/a | the generic path |
+| sink gate (`SinkWhen`, 393): not a hook family | a predicate over the call | 2 only | `RULES` data | the sink applies |
 
-An error, a blown budget, no result, or an uncovered proof set is an
-**abstention**: no fold, no rewrite, no rename, no reflow. The one exception
-is a taint sink's `-when` (rule `SinkWhen`, 393): it suppresses the sink only
-when proved false, so an unknown leaves the sink in force. It replaces the
-`taint_sink_gate` hook family, which had the same non-neutral silence.
+An error, a blown budget, no result, a dormant ID or an uncovered proof set
+is an **abstention**: `answer()` returns `HookAnswer::Abstained`, and the
+family's polarity in the last column says what the consumer does. The
+polarity is fixed per family in the core, not per pack. For the families
+that change text or values it is neutral: no fold, no rewrite, no rename, no
+reflow. The taint sink's `-when` is no hook: it is a rung 2 predicate (rule
+`SinkWhen`, 393) that suppresses the sink only when proved false, so an
+unknown leaves the sink in force. It replaces the `taint_sink_gate` hook
+family.
 
 ## Rung 3: native hooks by ID
 
@@ -131,17 +146,35 @@ exclusion notice.
 Every native hook table an image refers to carries one `hook_abi` number in
 the image header. A change to any consumer's calling convention bumps it once
 and every image regenerates. An image whose `hook_abi` is unknown to the
-binary, or which names an ID the binary lacks, is stale and is recompiled
-from source.
+binary is stale and is recompiled from source.
+
+An image that names an ID the binary lacks is not stale, because recompiling
+gives the same ID. That hook is **dormant**: it abstains with its family's
+polarity, and the install reports it once on the pack (chapter 7). A generic
+crate's test loader links only the surfaces its tests name, so it meets such
+IDs often. It binds each to an abstaining stub and prints the stub once, so a
+test that lost a hook shows it in its output.
 
 ## Rung 4: Tcl hook bodies
 
 A hook body is a pure function of its declared inputs. It runs per pack in its
-own sandboxed engine, under a command limit and a wall-clock cap, inside
-`catch_unwind`, with `Engine::confine_stores` refusing any store outside the
-body's own activation. A crash quarantines the hook for the session and
-writes a crash record, and the command keeps its declarative facts. In an
-untrusted workspace no body runs: each is reported dormant on the pack file.
+own sandboxed engine, under fuel (a command limit), inside `catch_unwind`,
+with `Engine::confine_stores` refusing any store outside the body's own
+activation. A crash quarantines the hook for the session and writes a crash
+record, and the command keeps its declarative facts. In an untrusted
+workspace no body runs: each is reported dormant on the pack file.
+
+- **Fuel only for analysis.** An answer the analyser consumes depends on fuel
+  alone, never on a wall-clock cap, so it is a function of its inputs and
+  step 14's fresh-against-warm gate holds on a loaded machine. A wall-clock
+  cap applies only at tool time (Spec Studio, `tcl spec test`). A watchdog
+  that stops a runaway call quarantines the hook and moves `HookHostEpoch`,
+  which invalidates every answer the hook gave.
+- **A body that reads `values` runs once per site.** A roles, prefix or
+  timing body that reads `values` feeds binding, which feeds SCCP, which
+  feeds `values`. It is called in step 7's first round only, and later rounds
+  reuse that answer. The result at the loop's limit is that first answer, so
+  a body that is not monotone cannot make the loop oscillate.
 
 **Bodies run on the 9.1 VM.** The target release reaches a body only as `ctx
 dialect` and through the registry's dialect-aware value kernels (numeral and
@@ -160,9 +193,20 @@ format-93 **interop** unit stamped for the pinned 9.1.0 (`0x09010002`), at
 source policy 1, compiled as tbcx compiles (plain dispatch). The body's source
 is kept once beside the unit, for the hash and the fallback. On load the unit
 is validated before anything runs (every tbcx check, kind against content,
-admission per release, aux kinds, nesting, stack depth); a unit that fails, or
-whose `UnitMeta` is stale, falls back to compiling the kept source. When the
-Tcl pin or the tbcx format moves, every image re-exports its units.
+admission per release, aux kinds, nesting, stack depth). One rule, the same
+as [bytecode-image](../../compiler/bytecode-image.md)'s load flow, decides
+what happens next:
+
+- a unit that fails validation, or whose stamp or extended revision the
+  binary does not know, is refused, and the kept source is compiled;
+- a unit that validates but whose `UnitMeta` is missing or stale loads as
+  *foreign*: the plain `tcl` 9.1 profile, plain dispatch, no positions. A
+  hook body is always a plain `tcl` 9.1 unit, so it loses only positions.
+
+The core holds a body as opaque `BodyBytes`; `tcl-spec-hooks` decodes it
+with `tcl-bytecode`. Shipped images are compiled per build, so a Tcl pin or
+tbcx format move reaches them at the next build; the user cache's
+`reader_build` includes both, so its entries miss and recompile.
 
 Until item 311 lands, images may store body source only and compile on the
 first call that misses the table (owner decision: 311 does not block 306).
@@ -199,8 +243,9 @@ Hook {
     inputs: Inputs { values: true, .. },          // reads values: memoised, not tabulated
     body: HookBody::Tcl {
         params: "words ctx",
-        unit: TbcxUnit { meta_format: 1, meta: UnitMeta { profile: TCL_9_1, .. },
-                         payload: /* format 93, stamp 0x09010002, policy 1 */ .. },
+        unit: Some(BodyBytes(..)),                // opaque in the core; tcl-spec-hooks decodes a
+                                                  // TbcxUnit { meta: UnitMeta { profile: TCL_9_1, .. },
+                                                  //   payload: format 93, stamp 0x09010002, policy 1 }
         source: SourceRef(..),                    // kept for the hash and the fallback
     },
     proof: ProofSet(VersionSet("core tcl 8.5-9.2")),
@@ -304,3 +349,19 @@ may hold. Every dispatch arm follows 9.1 semantics; deprecated opcodes stay
 executable for 8.4–9.0 targets. tbcx validates units against the running 9.1
 table, which is why codes 0–210 must equal 9.1.0's. Hook bodies are always
 plain `tcl` 9.1 profile units; private opcodes never occur in them.
+
+Private opcodes have no version of their own, so any change to their
+numbering bumps the extended unit revision (`UnitKind::Extended { revision
+}`); a unit with an unknown revision is refused and compiled from source. A
+test pins a digest of the private-opcode table to the current revision, so a
+renumbering without a bump fails. `LIBRARY_UNITS` keys carry the revision
+(chapter 7).
+
+## Review fixes (26 November 2026)
+
+- **R4:** the example's body is opaque `BodyBytes` in the core, decoded in `tcl-spec-hooks`.
+- **R9, A10:** *One `hook_abi`*: an unknown ID makes the hook dormant, not the image stale; test loaders bind abstaining stubs.
+- **R10:** one stale-meta rule (refused, or foreign) in *Bodies as tbcx bytecode*; private-opcode changes bump the extended revision (*The VM*).
+- **R13:** rung 5 tabulates Tcl bodies only, and only with the VM at image build; native hooks answer live.
+- **A8:** *Result protocols*: a polarity per family, and the sink gate is a rung 2 predicate, not a hook family.
+- **A9:** *Rung 4*: fuel only for answers analysis consumes; a `values` body runs in step 7's first round only.

@@ -47,7 +47,7 @@ profile tables (`events/`, `profiles/`, `event_facts/`: 7.2k).
 | `tcl-lib-iapps` | `commands/iapps` with its `tmsh` view, `f5/iapp_metadata.rs`, `f5/tmsh_syntax.rs` | core |
 | `tcl-lib-small` | `itcl` (with `definer/itcl.rs`), `thread`, `argparse`, `ticklecharts` | core |
 | `tcl-lib-dsl` | `spectcl` and `sslictcl` (with `definer/spectcl.rs`, `definer/sslictcl.rs`), `bpf` | core |
-| `tcl-catalogue` | `SHIPPED: &[&Surface]` (step 1's table), `install()`, `testing::install!` | every crate above |
+| `tcl-catalogue` | `SHIPPED: &[&Surface]` (step 1's table), `install()`; after item 307, every image | every crate above that has hooks |
 
 `tcl-dialect-f5` is not created in this step (decision 2).
 
@@ -177,8 +177,9 @@ re-export can return.
 1. **One crate per package** (owner decision, 26 November 2026, replacing
    this doc's earlier per-distribution rule). Each tcllib package, each bundled
    Tcl library, iApps and tmsh get their own crates. The `tmsh` view becomes the
-   `tcl-lib-tmsh` crate's own surface. After item 307 these crates are image plus
-   hooks, generated scaffolding.
+   `tcl-lib-tmsh` crate's own surface. After item 307 these crates hold their
+   `.tclspec` and hooks only, as generated scaffolding; their images are
+   compiled per build and embedded by `tcl-catalogue`.
 2. **`tcl-dialect-f5` waits for item 301.** Today f5-tcl's core surface is 58
    `SpecSurface` rows on Tcl specs, not data of its own (step 2, decision 3).
    Its evidence types are named by `tcl-compiler` and must stay below it. An
@@ -215,9 +216,10 @@ re-export can return.
    `tcl-dialect-jim`, then the library crates in any order. Add each to
    `[workspace] members`.
 3. Move each module, rewriting its consumers in the same change (table above).
-4. Create `tcl-catalogue` with `SHIPPED`, `install()` and the `testing`
-   macro. Re-point every entry point (step 1's table) and every harness from
-   `tcl_registry::testing` to it.
+4. Create `tcl-catalogue` with `SHIPPED` and `install()`. Re-point every
+   entry point (step 1's table) to it. Harnesses keep `tcl_registry::testing`,
+   now an unconditional module (step 4, rule 1), so no generic crate needs a
+   catalogue edge for its tests.
 5. Split the `closed_evidence` table, and update its generator.
 6. Re-point `registry-axes` and the path-bound gates and scripts above.
 7. Add the new crates to the nextest shard map
@@ -239,7 +241,7 @@ re-export can return.
 
   | Measurement | What it records |
   |---|---|
-  | rebuild after one iRules spec edit | crates rebuilt and wall time; the overview expects `tcl-lib-irules`, `tcl-catalogue` and the binaries |
+  | rebuild after one iRules spec edit | crates rebuilt and wall time; the overview expects `tcl-lib-irules`, `tcl-catalogue` and every crate that links it: the binaries, the WASM hosts, `xtask` and the `-it` test crates |
   | rebuild after one Tk spec edit | the same |
   | `cargo build -p tcl-compiler` cone | must list the core and no surface crate |
   | `tcl-registry`'s own compile time | the core after the move |
@@ -270,3 +272,9 @@ re-export can return.
 - About 14k lines of surface data sit outside `commands/` (the definer
   grammars and the iRules tables). The overview counts them in the core's
   "rest".
+
+## Review fixes (26 November 2026)
+
+- **R2, R6:** the test macro stays in the core as `tcl_registry::testing`, an unconditional module; `tcl-catalogue` holds no testing macro.
+- **R12:** the measured rebuild set names `xtask`, the WASM hosts and the `-it` crates.
+- **R14:** line 180 and the crate table: after item 307 a package crate holds its `.tclspec` and hooks; images are in `tcl-catalogue`.

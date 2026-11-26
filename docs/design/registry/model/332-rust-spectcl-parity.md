@@ -22,7 +22,7 @@ loss. Today neither direction holds.
 | `SubCommand` fields (17 not on `CommandSpec`) | 99 | `spec/subcommand.rs:65` |
 | `OptionSpec`, `OptionArg`, `ArgValue`, `HoverSnippet`, `FormSpec`, `Lifecycle` fields | 8, 14, 5, 6, 4, 4 | `hover.rs:601,272,1010,31,1082`; `lifecycle.rs:119` |
 | words the 2.x loader reads in a command body | 147 | `tcl-spectcl/src/loader/eval.rs:227` (`ROW_WORDS`) |
-| `TODO(spectcl)` losses when the native surfaces are printed | 2,887 (1,798 tcl8.6, 1,089 iRules) | `rust/tcl-spectcl/equivalence/*.tclspec` |
+| `TODO(spectcl)` losses when the native surfaces are printed | 2,889 (1,799 tcl8.6, 1,090 iRules; `grep -c 'TODO(spectcl)'`, 26 November 2026) | `rust/tcl-spectcl/equivalence/*.tclspec` |
 | Rust literal sites | 1,911 `..CommandSpec::DEFAULT`, 1,137 `..SubCommand::DEFAULT` | `tcl-registry/src/commands/` |
 
 Some parity machinery already exists, in the studio:
@@ -240,8 +240,10 @@ spelling anywhere. Every `CommandSpec` field is in exactly one row.
 | `evaluation_contexts`, `callback_protocols`, `body_interpreter`, `variable_write_min_args`, `native_result`, `bpf_op`, `event_emits`, `event_emission_forms`, `irules_top_level_effect` | `evaluation_context`, `callback_protocol`, …, as `GAPS` spells them | G |
 | `completion`, `body_execution`, `native_compilation`, `successful_handler`, `procedure_definition` | the same words, BuiltIn only | X |
 | `const_fold`, `const_fold_versioned` | `-native ID` (61 table rows) | F, filled |
-| `arg_role_resolver` (24 specs), `script_timing_resolver` (28), `command_prefix_resolver` (11), `literal_argument_validator` (13), `clause_shape_check` (1), `context_gate` (1), `taint_sink_gate` (1), `constraints` (0), `arg_role_count_resolver` (9), `arg_role_layout_resolver` (22) | `FIELD -native ID` | F |
-| `dispatch_dependencies`, `native_lowering`, `native_lowering_windows`, `teardown_argument_layout`, `source_arity_with_option`, `pack_source_sandbox_helper`, `remote_method`, `pattern_arg_resolver` | none | N |
+| `arg_role_resolver` (24 specs), `script_timing_resolver` (28), `command_prefix_resolver` (11), `literal_argument_validator` (13), `clause_shape_check` (1), `context_gate` (1), `constraints` (0), `arg_role_count_resolver` (9), `arg_role_layout_resolver` (22), `pattern_arg_resolver` (a function pointer, `patterns.rs:92`) | `FIELD -native ID` | F |
+| `taint_sink_gate` (1) | none: deleted for 393's `SinkWhen` predicate | deleted |
+| `dispatch_dependencies`, `native_lowering`, `native_lowering_windows` | none: `Derived`, Rust-only tables in `tcl-dialect-tcl` keyed by command (D8) | N |
+| `teardown_argument_layout`, `source_arity_with_option`, `pack_source_sandbox_helper`, `remote_method` | tier-gated spellings (403), each a ratchet entry until spelled | N |
 
 Specs per fn field count `FIELD: Some(` under `commands/`. The other
 types:
@@ -324,8 +326,9 @@ flowchart TB
 ### Open questions
 
 - **Do `native_lowering` and `dispatch_dependencies` get spellings, or a
-  `Derived` mark?** They are compiler-owned proofs. Settled by whether 307
-  moves any surface that sets them; only the Tcl core does today.
+  `Derived` mark?** Settled: `Derived`. 307 now moves the Tcl core's facts to
+  an image, and these compiler-owned proofs stay Rust-only tables in
+  `tcl-dialect-tcl`, keyed by command (chapter 7, *The N fields*).
 - **Verbatim prose.** Should reader3 decode backslash escapes in quoted
   words, so any prose has a spelling? Settled by the 37 `hover` losses
   printing and reading back equal under that rule.
@@ -360,8 +363,15 @@ flowchart TB
 - **305** lists `hook` as a top-level item without a production, and omits
   `special_var`, `include`, surface rosters, `dynamic_surface` and
   `unknown_members`, which its shim table keeps.
-- **307** says each library crate holds an image and hooks; it also needs
-  the `DescriptorTable` for named descriptors.
+- **307** says each library crate holds hooks only (its image is in
+  `tcl-catalogue`); a crate with native descriptors also holds its
+  `DescriptorTable` for them.
 - **The studio's `GAPS`** files five loader gaps as `DraftOpaque`, and
   treats `native_compilation`, `procedure_definition` and `body_execution`
   as readable, where the loader refuses them.
+
+## Review fixes (26 November 2026)
+
+- **R11:** the field map files `pattern_arg_resolver` as F, deletes `taint_sink_gate`, and settles the N fields (`Derived` or tier-gated spellings); the gate's decoded-image leg and the pointer mapping are in chapter 7.
+- **R14:** lines 363–364: a library crate holds hooks only; its image is in `tcl-catalogue`.
+- **R15:** 2,889 `TODO(spectcl)` markers (1,799 + 1,090), measured.

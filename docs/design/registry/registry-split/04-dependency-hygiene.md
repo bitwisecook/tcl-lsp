@@ -61,7 +61,8 @@ One ledger, `docs/work/name-handling/ownership/crate-roles.tsv`, with columns
 | `core` | `tcl-registry` | no | no |
 | `surface` | `tcl-dialect-*`, `tcl-lib-*` | the surfaces its own rows borrow from (`tcl-dialect-jim` → `tcl-dialect-tcl`) | no |
 | `catalogue` | `tcl-catalogue` | every surface | — |
-| `data` | `tcl-native-model` ([item 117](117-native-model.md)), `tcl-bigip-schema` ([item 118](118-bigip-schema.md)) | no; it may depend only on foundation crates, and any crate may depend on it | no |
+| `data` | `tcl-native-model` ([item 117](117-native-model.md)) | no; it may depend only on foundation crates, and any crate may depend on it | no |
+| `schema` | `tcl-bigip-schema` ([item 118](118-bigip-schema.md), 171k lines) | no; it may depend only on foundation crates, and its only dependents are `tcl-bigip`, `tcl-bigip-*` and `xtask` | no |
 | `entry` | the binaries and WASM hosts in [step 1's table](01-surface-input.md#entry-points), `xtask` | through the catalogue | yes |
 | `test` | `tcl-compiler-it` and the other test-only crates of items 266 and 269–272 | as dev-dependencies | as a dev-dependency |
 | `generic` | every other crate that reaches `tcl-registry` | dev-dependencies only | no |
@@ -73,8 +74,10 @@ flowchart TB
   entry["entry: binaries, WASM hosts, xtask"] --> catalogue["catalogue: tcl-catalogue"]
   catalogue --> surface["surface: tcl-dialect-*, tcl-lib-*"]
   surface --> core["core: tcl-registry"]
-  surface --> data["data: tcl-native-model, tcl-bigip-schema"]
+  surface --> data["data: tcl-native-model"]
   core --> data
+  bigip["tcl-bigip, tcl-bigip-*, xtask"] --> schema["schema: tcl-bigip-schema"]
+  schema --> foundation
   generic["generic: tcl-compiler and the rest"] --> core
   generic -.-> surface
   generic -. "known list only" .-> catalogue
@@ -108,6 +111,9 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
     or `catalogue` crate is a violation.
   - A dev edge from a `generic` crate to a surface is allowed. To the
     catalogue it is allowed only while the edge is on the known list below.
+  - An edge to the `schema` crate from any crate but `tcl-bigip`,
+    `tcl-bigip-*` and `xtask` is a violation, whatever its kind. The schema is
+    171k lines, and an edge from the core would put it under every crate.
   - An edge from a `surface` crate to any crate outside the core, the
     `data` crates, the foundation crates and the surfaces it borrows from is a
     violation. This keeps surface crates leaves, so a dev edge to one can never
@@ -126,6 +132,8 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
   | `tcl-dialect-jim` (surface) | `tcl-dialect-tcl` (surface) | normal | allowed: it borrows Tcl's rows |
   | `tcl-lib-irules` (surface) | `tcl-compiler` (generic) | normal | violation: surfaces stay leaves |
   | `tcl-registry` (core) | `tcl-lib-tk` (surface) | build | violation |
+  | `tcl-registry` (core) | `tcl-bigip-schema` (schema) | normal | violation |
+  | `tcl-lsp-core` (generic) | `tcl-bigip-schema` (schema) | normal | violation: it reads the schema through `tcl-bigip` |
   | `tcl-cli` (entry) | `tcl-catalogue` (catalogue) | normal | allowed |
 - **`deny.toml` is generated, not hand-kept.**
   `cargo xtask crate-layer --write` emits one `[bans] deny` entry per surface
@@ -145,7 +153,17 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
 
 1. **The default is `tcl-dialect-tcl`.** A generic crate's
    `[dev-dependencies]` name `tcl-dialect-tcl`, and its harnesses install it
-   with `tcl_catalogue::testing::install!(tcl_dialect_tcl::SURFACE)`.
+   with `tcl_registry::testing::install!(&tcl_dialect_tcl::SURFACE)`.
+   - `tcl_registry::testing` is an unconditional module of the core, not a
+     `test-support` feature: a feature enabled from dev-dependencies gives
+     every crate above the core a second build in one worktree (item 296,
+     option 2). Nothing here needs `tcl-catalogue`, so the `tcl-codegen` →
+     `tcl-catalogue` verdict above stays a violation.
+   - `tcl-dialect-tcl` holds hooks only (307, decision 1). The macro reads
+     the Tcl core's image from `rust/tcl-catalogue/images/` at run time,
+     which cargo does not fingerprint, so a fact edit recompiles no generic
+     test target. It binds native IDs the test binary lacks to abstaining
+     stubs and prints each stub once.
 2. **A test that exercises another surface lives in the crate's test crate.**
    That is `tcl-compiler-it` (item 266), or the test crates items 269–272
    create for `tcl-registry`, `tcl-lsp-core`, `tcl-lsp-db` and `tcl-vm`. The
@@ -162,9 +180,14 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
    (columns `crate`, `surface`, `reason`). The list may only shrink. A new row
    fails the gate. The first rows are `tcl-compiler`, `tcl-lsp-core` and
    `tcl-lsp-db`, which the table above shows using four or more surfaces.
-5. **The surface crates' own tests** take only `tcl-registry`'s
-   `test-support` and the surfaces they borrow from. A spec's behaviour under
-   the analyser is tested in `tcl-compiler-it`, which already takes everything.
+   **Split crates inherit no known-list row.** When item 90 splits a crate
+   out of one of these, the `src` tests that name a surface move to the
+   matching `-it` crate in the same step. Otherwise `tcl-binding` and
+   `tcl-analysis` would take the catalogue, which links every `tcl-lib-*`,
+   and a hook fix in any library would recompile their `--lib` test targets.
+5. **The surface crates' own tests** take only `tcl_registry::testing` and
+   the surfaces they borrow from. A spec's behaviour under the analyser is
+   tested in `tcl-compiler-it`, which already takes everything.
 
 ## Decisions
 
@@ -179,6 +202,8 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
 3. **Rule 2 over a lighter dev-dependency.** A smaller surface set on the
    generic crate's own target cuts the recompile it pays. Only moving the test
    out removes it, because Cargo cannot scope a dev-dependency to one target.
+4. **An unconditional testing module, not a feature** (item 296, option 2).
+   The gate, not the compiler, keeps it out of production use.
 
 ## Open questions
 
@@ -223,6 +248,7 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
   | one `tcl-compiler` source file | crates rebuilt by `cargo test -p tcl-compiler --lib --no-run`; no surface crate may be among them |
   | one iRules spec | crates rebuilt by the same command; with `tcl-compiler` on the known list its test target recompiles, and the figure is the cost the list's removal will save |
   | one iRules spec | crates rebuilt by `cargo test -p tcl-compiler-it --no-run` |
+  | one Tcl core `.tclspec` row (after 307) | crates rebuilt by `cargo test -p tcl-compiler --lib --no-run`: none; by `cargo build --workspace --all-targets`: `tcl-catalogue`, the binaries, the WASM hosts, `xtask` and the `-it` crates |
 
 ## Risks
 
@@ -234,3 +260,10 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
   split's crates exist.
 - **A harness that installs too little.** It fails at its first registry read,
   with step 1's message. Nothing silently serves an empty table.
+
+## Review fixes (26 November 2026)
+
+- **R2:** rule 1's macro is `tcl_registry::testing::install!`, which needs no catalogue edge; rule 4: split crates inherit no known-list row.
+- **R6:** rule 1, rule 5 and decision 4: an unconditional `tcl_registry::testing` module, not a `test-support` feature.
+- **R7:** the `schema` role, its rule, its verdict rows and the diagram: no core or generic edge to `tcl-bigip-schema`.
+- **R12, R14:** lines 146–148 no longer assume Tcl facts in `tcl-dialect-tcl`; the measured table gains the `.tclspec` edit with `xtask` named.

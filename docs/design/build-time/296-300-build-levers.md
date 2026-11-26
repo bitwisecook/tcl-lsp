@@ -68,7 +68,11 @@ Each feature takes the first of these options that fits:
    [291](291-vm.md)), `tcl-compiler`'s 9 items (split per crate,
    [292](292-codegen.md)) and the items step 0 widens (267, 271, 272).
    `retired_api_gate` checks that only test code names them; item 283's
-   `#[doc(hidden)]` rule exempts items marked `// test-support`.
+   `#[doc(hidden)]` rule exempts items marked `// test-support`. The registry
+   core's test loader takes this option too: `tcl_registry::testing`, which
+   every generic crate's harness uses (item 265, rule 1), is an unconditional
+   module, because a core feature would give every crate above the core a
+   second variant.
 3. **Keep the feature and accept the variant**, when compiling the fixture in
    production is wrong: `tcl_vm::native_conformance` (it drives closed object
    capabilities) and possibly `tcl-irules`' request counter. The cost from item
@@ -413,6 +417,12 @@ pub(crate) fn release_facts_table() -> &'static [ReleaseFacts] {
   `const fn`s that read it (`version_string`, `dialect_profile_name`,
   `core_provided_packages`, `tcloo_version`). Any const use of those has to
   go first; the A/B says whether the table is worth that.
+- **The release facts are interim here.** Embedded with `include_bytes!` in
+  `tcl-dialect`, an edit still rebuilds `tcl-dialect` and its 41 direct
+  dependents, since cargo has no early cut-off. Their final home is the
+  `DIALECTS` section of the Tcl core image in `tcl-catalogue` (307, decision
+  1; [integration § 1](../compiler/compiler-analyser-spectcl-integration.md#the-dependency-rule)),
+  where an edit rebuilds only the catalogue and the crates that link it.
 - **Overlap with item 119:** its new generators emit the data form directly;
   `release-facts` gains it.
 
@@ -472,3 +482,8 @@ variants on disk, wall time and target growth.
   does not re-run per commit, and its table duplicates `RELEASE_FACTS`.
 - Item 300: 25 files and 80.8k lines carry a generated header. The 53 files and
   99k lines include generator sources.
+
+## Review fixes (26 November 2026)
+
+- **R1:** item 300's embedded release facts are marked interim; their home is the Tcl core image's `DIALECTS` section.
+- **R6:** item 296's option 2 covers `tcl_registry::testing`.
