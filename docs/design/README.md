@@ -376,6 +376,7 @@ declarations are written in.
   - [307-libraries-as-data.md](registry/model/307-libraries-as-data.md)
   - [308-positioned-context.md](registry/model/308-positioned-context.md)
   - [309-310-migration-and-authoring.md](registry/model/309-310-migration-and-authoring.md)
+  - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md)
 - [registry-split-design.md](registry/registry-split-design.md) — the
   registry as a core plus one crate per dialect and per library distribution
   (plan items 261–265).
