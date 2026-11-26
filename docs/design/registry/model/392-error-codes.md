@@ -604,8 +604,8 @@ rc=1 ec=FIN X during=ORIG X
 
 ## Review fixes (26 November 2026)
 
-- **A2.** Error sets are open unless every call claims `throws -complete`; `TCL LIMIT`, `TCL READ VARNAME`, `TCL WRITE VARNAME` and `TCL LOOKUP VARNAME` are implicit (real run in *What raises what*); `open`'s extra codes shown; the `catch` fold needs a body with no calls and no variable access; example 1 no longer reports the `TDBC` arm.
-- **A11.** No `-on unknown-command` default row; an unknown command raises `Any`; example 2 rewritten on `lindex`, with the `unknown`-proc run.
+- **A2 (C23).** Error sets are open unless every call claims `throws -complete`; `TCL LIMIT`, `TCL READ VARNAME`, `TCL WRITE VARNAME` and `TCL LOOKUP VARNAME` are implicit (real run in *What raises what*); `open`'s extra codes shown; the `catch` fold needs a body with no calls and no variable access; example 1 no longer reports the `TDBC` arm.
+- **A11 (C25).** No `-on unknown-command` default row; an unknown command raises `Any`; example 2 rewritten on `lindex`, with the `unknown`-proc run.
 - **A12 (this doc's part).** "Re-raising loses the code" fires only when the body may raise a known non-`NONE` code.
 - **A14.** `return -level` and `finally` in summaries; worked example 6 is a real run.
 - **G6.** `default` rows union; `throws -complete` shown.

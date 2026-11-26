@@ -11,13 +11,13 @@ decisions in chapter 1 are not reopened here.
 | # | Question | Source and its recommendation | This spec recommends | Blocks |
 |---|---|---|---|---|
 | D1 | In which dialect does a Tcl hook body run? (333 #14) | 333: bodies are Tcl 9.1; the target reaches them as `ctx dialect` and the `evaluate` route. 313 wanted an engine per release | 333's, which the owner's 9.1 VM decision implies; release-exact folds go through `evaluate` routes and kernels, and abstain without one | 430 |
-| D2 | The registry's consumer API: a `SpecRef<'r>` view, or a per-surface arena that materialises a `CommandSpec` on first lookup? (333 #2) | 333: owner | the arena first: 271 files outside the registry name `CommandSpec` today, and an arena keeps them compiling; a view type can replace it surface by surface once 307 is done | 406 |
+| D2 | The registry's consumer API: a `SpecRef<'r>` view, or a per-surface arena that materialises a `CommandSpec` on first lookup? (333 #2) | 333: owner | **closed: views only (`SpecRef<'g>`).** An arena would need `&'static` over run-time bytes, a leak step 14 forbids; 277 files outside `tcl-registry` name `CommandSpec` today, and they move to views | 406 |
 | D3 | Are the native-contract rows (`successful_handler`, `native_compilation`, `procedure_definition`) accepted from bundled images? (333 #3) | 333: yes, as `-native ID` from BuiltIn and BundledPack only | yes: without it iRules (8 files) and the stdlib cannot move to images | 403, 307 |
 | D4 | One lowering path: every pack an image? (333 #13) | 333: one path | one path; the in-memory image costs one compile per pack per process | 406 |
 | D5 | Vocabulary minors and forward reading (333 #15) | 333: `speclib NAME 3.N`; each word carries `since` and a `VocabularyClass` | as chapter 2: unknown newer words classified by scope and name as in 2.x; new flags take exactly one word; a minor never changes a word's meaning; a major other than 3 refused | 400 |
 | D6 | The equivalence and parity scope (333 #16, 332) | 332: every manifest word, over fixed points plus every bound a row names | 332's | 405, 309 |
 | D7 | Which facts are facetable (333 #7) | 333: the manifest marks them; the reader refuses the rest inside `versions` | chapter 3's list; identity rows (`alias_of`, `runtime_backing`, `implementation`) not facetable | 400 |
-| D8 | Which fields stay Rust-only, and so which libraries stay native under 307 (333 #8) | 333: spell each or mark it Rust-only and block that library's move | spell them all tier-gated (332b); Rust-only only for `native_lowering` and `dispatch_dependencies`, which only the Tcl core sets | 403, 307 |
+| D8 | Which fields stay Rust-only, and so which libraries stay native under 307 (333 #8) | 333: spell each or mark it Rust-only and block that library's move | spell them all tier-gated (332b); Rust-only only for `native_lowering`, `native_lowering_windows` and `dispatch_dependencies`, as `Derived` tables in `tcl-dialect-tcl`, which only the Tcl core sets | 403, 307 |
 | D9 | The pack code spelling and its registration (333 #9, 319 Q2) | 333: `PACK/ID`, registered as `DiagCode::Pack(PackCodeId)` with a default severity and category | 333's; BuiltIn packs may keep stable built-in codes (`BPF001` as an alias of `bpf/unbounded-loop`) | 413 |
 | D10 | Is the `check` atom set closed after 337's additions? (333 #10) | 333: yes; a new atom needs a design note | yes | 413 |
 | D11 | The merge table per fact kind, and library ownership (333 #11) | 333: library rows from the owner only, prose by precedence, security by the floor, facets prepended | chapter 3's order-free table: the pack declaring `library L` owns it; set-valued facts select per pack and union; single-valued facts need `-override`; `extend` is additive; no `extend library` (R57, R61) | 409 |
@@ -37,6 +37,9 @@ decisions in chapter 1 are not reopened here.
 | D25 | Error-code field types (review G15) | 09: argument roles; 392: types | a closed `FIELD-TYPE` set: `command`, `variable`, `integer`, `path`, `text` (R55) | 392a |
 | D26 | How a validator stays sound per switch (review A7) | 393: none | `refines … -switches LIST` allow-lists the switches; no list means no switch; refinement only for the call, `!call` and decomposed `&&`/`||` | 393e |
 | D27 | The origin of argument references (review G12) | three conventions in use | 0-based after the `CMDPATH`, options included; `NAME` for positional arguments after options; `argc` the same (R52) | 400, 413 |
+| D28 | Where the Tcl core's facts live (review, build-time) | 307 | **decided and applied**: the Tcl core's facts and release facts are an image in `tcl-catalogue`; `tcl-dialect-tcl` holds hooks only (307 decision 1) | 307 |
+| D29 | How images are built (review, build-time) | 307 | **decided**: `tcl-spec-images` generates them into an untracked catalogue directory; a build-dependency was rejected because it would compile the reader twice under build-override | 307 |
+| D30 | What rung 5 tabulates (review, build-time) | 313 | **decided**: Tcl bodies only; native hooks answer live | 430 |
 
 ## Other questions carried from the sources
 
@@ -144,3 +147,4 @@ flowchart LR
 - **G14.** D5 records the forward-reading rules.
 - **G11, G12, G15, A7.** D24–D27 record the decisions this review applied with the recommended option.
 - **Dialect fixer handoff (399f9915).** D20 resolved.
+- **Rust/integration fixer handoffs (a43df812).** D2 closed (views only), D8's Rust-only fields corrected, D28–D30 added (the handoff named them D24–D26, which this review had already used).

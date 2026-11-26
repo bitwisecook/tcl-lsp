@@ -217,7 +217,7 @@ its arguments' origins and keeps no colour (`shape_unproven`,
 
 | Construct | Rule | Spelling |
 |---|---|---|
-| `set`, `return`, `upvar` targets | identity | built in |
+| `set`, `return`, `upvar` targets | identity; a callee's writes through `upvar`, `global`, `uplevel` or `namespace upvar` reach the caller as summary frame effects (integration C24), and an unknown callee may write any variable it can reach | built in |
 | `strcat`, `append`, `string cat`, `format` | per-colour `concat` | built in, reads `concat` |
 | `list`, `lappend`, `dict create` | element facts kept; the whole gains `list-canonical` | `result -elements-from {arg *} -adds list-canonical` |
 | `lindex`, `dict get`, `lassign` | the element's facts, or the container's when the key is unknown | `result -element-of {arg 0}` |
@@ -754,7 +754,7 @@ if {[string is digit -strict $x]} { exec sleep $x }'` reports T100 at 2:48, and 
 ## Review fixes (26 November 2026)
 
 - **A7, G16.** `integer` adds no colour; `digit` and `alnum` need `-strict`; `-switches` makes validators sound per switch; refinement only for the call, `!call` and decomposed `&&`/`||`; a non-literal `subst` template drops every colour; `foreach`, `lmap` and `dict for` take the join over elements; worked example 7 is a real run.
-- **A13.** Summaries are one walk over gen/kill transfers, whose join is closed; `param_sinks` carries per-sink transfers so callers check `-safe`.
+- **A13 (C26).** Summaries are one walk over gen/kill transfers, whose join is closed; `param_sinks` carries per-sink transfers so callers check `-safe`.
 - **G12.** `{string is}` refines `{arg end}` with the class at `{arg 0}`; `regexp` names `{arg exp}` and `{arg string}`.
 - **G15.** Sink codes pick by dialect family (`f5-tcl`); `variable` carries its required flags and `-provider`.
 - **R13.** `db eval` is a `subcommand` of the `sqlite3-db` handle.

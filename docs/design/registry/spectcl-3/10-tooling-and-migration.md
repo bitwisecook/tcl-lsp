@@ -197,15 +197,16 @@ replays the diff and reports conflicts.
 
 ## Editor bundles
 
-`cargo xtask spec-images` compiles every shipped pack once per build, and
-`--check` (item 119) fails on any byte difference, naming the pack and section.
+`tcl-spec-images` (`cargo spec-images`) compiles every shipped pack once per
+build into `tcl-catalogue/images/`; `cargo xtask spec-images --check` (item
+119) fails on any byte difference, naming the pack and section.
 
 | Artefact | Ships |
 |---|---|
 | VS Code VSIX (universal and platform targets) | `specs/*.tclspec` and `specs/*.tclimg` beside each server binary |
 | VS Code web | `dist/web/specs/` with both, listed in `index.json` |
 | VS Code WASI server, JetBrains `.zip` | both, beside the module or binary |
-| Zed, Neovim, Emacs, Helix and other bare-binary clients | the images embedded with `include_bytes!` as the fallback |
+| Zed, Neovim, Emacs, Helix and other bare-binary clients | the images embedded by `tcl-catalogue`, as the fallback |
 | Sublime | no server, no packs |
 
 Every artefact ships the source beside the image (owner decision), so a user
@@ -219,8 +220,8 @@ answer.
 
 ```mermaid
 flowchart LR
-  sources["crate packs, specs, core-surfaces"] --> xtask["cargo xtask spec-images --check"]
-  xtask --> embedded["include_bytes! in each crate"]
+  sources["crate packs, specs, core-surfaces"] --> xtask["tcl-spec-images, checked by cargo xtask spec-images --check"]
+  xtask --> embedded["include_bytes! in tcl-catalogue"]
   xtask --> staged["specs NAME.tclimg beside NAME.tclspec"]
   staged --> vsix["VSIX, JetBrains zip, WASI"]
   staged --> web["web bundle index.json"]
@@ -246,3 +247,7 @@ flowchart LR
 
 Unknown words keep 2.x's `VocabularyClass` treatment. Today's notices carry
 only `{context, line, message}` (`Notice`, `rust/tcl-spectcl/src/loader/notices.rs:34`).
+
+## Review fixes (26 November 2026)
+
+- **Rust/integration fixer handoffs (a43df812).** `tcl-spec-images` (`cargo spec-images`) generates the images into `tcl-catalogue/images/`; bare-binary clients get the images embedded by `tcl-catalogue`.

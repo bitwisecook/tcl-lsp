@@ -39,8 +39,8 @@ source and this specification differ, this specification wins.
 5. **Versions are sets.** Every range is read with Tcl's own `package
    vsatisfies` algebra. An answer over a target range or a conditional
    require is a set with provenance, never a floor (chapter 3).
-6. **Compiled once per build.** Every shipped pack is an image embedded with
-   `include_bytes!` or shipped beside its source. The LSP never parses a
+6. **Compiled once per build.** Every shipped pack is an image embedded by
+   `tcl-catalogue` or shipped beside its source. The LSP never parses a
    shipped pack at run time (chapter 7).
 7. **Trust is provenance.** Who wrote a row decides what it may say. There
    is no signing in 3.0.
@@ -100,8 +100,10 @@ contributions, not a rung (Reconciliation R2).
 
 ## Images, in brief
 
-`cargo xtask spec-images` compiles every shipped pack once per build. Core
-dialect and library images are embedded in their crate with `include_bytes!`.
+The generator `tcl-spec-images` (`cargo spec-images`; 307 *Images per build*)
+compiles every shipped pack once per build into `tcl-catalogue`'s untracked
+`images/`, and `tcl-catalogue` embeds every image with `include_bytes!`, the
+Tcl core's included.
 Replaceable vendor packs ship as `specs/NAME.tclimg` beside
 `specs/NAME.tclspec`. Every editor bundle carries the pre-compiled images and
 the sources. A user or workspace pack is compiled once, without a VM, and
@@ -145,7 +147,7 @@ same bytes serve every tier.
 
 | Source | Tier | Form at run time |
 |---|---|---|
-| dialect and library crates (`tcl-dialect-*`, `tcl-lib-*`) | BuiltIn | image embedded with `include_bytes!` |
+| dialect and library crates (`tcl-dialect-*`, `tcl-lib-*`) | BuiltIn | image embedded by `tcl-catalogue` |
 | `specs/NAME.tclspec` beside the executable, or `TCL_LSP_SPEC_PACK_DIR` | BundledPack | `specs/NAME.tclimg` beside it; demand-loaded |
 | the user config directory (`$XDG_CONFIG_HOME/tcl-lsp/specs/`) | User | compiled once, cached by hash |
 | `tclLsp.specPacks`, `.tcl-lsp/`, beside a `tclpkg.tcl` (its `spec` directive) | WorkspaceTrusted or WorkspaceUntrusted, narrowed by the lockfile tier | compiled once, cached by hash |
@@ -217,7 +219,7 @@ These are binding and not reopened here:
 - packs are declarative; 1.x and 2.x load through shims; `tcl spec upgrade`
   converts with an equivalence proof; no templating in 3; generators are user
   tooling and hand edits are the user's or the AI tooling's to re-apply;
-- images are compiled once per build and embedded; vendor images ship beside
+- images are compiled once per build and embedded by `tcl-catalogue`; vendor images ship beside
   their `.tclspec`; editor bundles ship pre-compiled packs; one crate per
   package (`tcl-lib-*`, `tcl-dialect-{tcl,jim,f5}`, `tcl-catalogue`);
 - the rungs are facts, `check`, native hook ID, Tcl hook body, tabulated
@@ -288,7 +290,7 @@ Each row is a conflict between sources, and what this specification says.
 | R39 | 360: `EventSpec`; 380: `EbpfEvent` | — | one `event` form, `EventSpec` with a domain payload | one form serves both |
 | R40 | 334 work items 1 and 3 (`library_versions`, `implementation`) | 313 already carries them | they stay in 313 | duplicate work |
 | R41 | 365: SslicTcl in `tcl-lib-dsl` (registry split) and grouped with `spectcl`, `bpf` (307) | 365: `tcl-lib-sslictcl` | `tcl-lib-sslictcl` (R16) | owner decision |
-| R42 | 305: hooks are rung 3 native in crates, Tcl bodies for third parties | 306: the Tcl core's docs stay native unless measured | the Tcl core's hover and documentation are an image; its hooks stay native | owner decision (306, 307) |
+| R42 | 305: hooks are rung 3 native in crates, Tcl bodies for third parties | 306: the Tcl core's docs stay native unless measured | the Tcl core's facts, hover and documentation are an image; its hooks stay native (307 decision 1) | owner decision (306, 307) |
 | R43 | 391: `TaintColour::CHANNEL` derived from handle types | 393: `channel` leaves the colour table | `channel` is a handle fact; a channel read's origin comes from its handle type | 393 is the full taint design |
 | R44 | 390: a `-sanitiser` role on embedded sinks, `TAINTED` as a colour | 393: origins and colours apart; sanitisers are `result -adds`; validators are `refines` | 393's | a secret and an attacker's string must differ |
 | R45 | 313: `taint_sink_gate` is a hook family with "the sink applies" silence | 393: a `-when` on the sink row, rule `SinkWhen` | `SinkWhen`; the hook family goes | the gate is a predicate, and its old form missed `$a([cmd])` under `-nocommands` |
@@ -326,3 +328,4 @@ Chapter 12 records the plan-number conflicts and their crosswalk.
 
 - **G15, G1–G17, A2, A6, A7, A11, D8.** Reconciliations R48–R70 added for each contradiction the review fixes resolve; R1 states the `a0` bounds.
 - **Dialect fixer handoffs (399f9915).** R17 and R18 cover 370, 304 and 350; R31 rewritten for the measured `bmp-else-bytes`; R71 (inert `{*}`) and R72 (`sslictcl/decl`) added.
+- **Rust/integration fixer handoffs (a43df812).** Images are generated by `tcl-spec-images` and embedded by `tcl-catalogue` (principle 6, *Images, in brief*, *Where packs come from*, owner decisions); R42 says the Tcl core's facts are an image.
