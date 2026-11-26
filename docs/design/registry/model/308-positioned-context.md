@@ -96,6 +96,54 @@ pub enum Why {
 6. **Targets.** `targets` never moves the primary point (redesign §11 O7). It
    widens the dialect and library sets that range-checking consumers read.
 
+The inputs meet in `resolve_libraries`, once per transition interval:
+
+```mermaid
+flowchart TB
+  detect["detection, 303"] --> envNode["ResolvedEnvironment"]
+  targets["tclLsp.targets and supports"] --> dialect["dialect set"]
+  envNode --> dialect
+  tclReq["package require Tcl on every path"] --> dialect
+  envNode --> placements["placements: ambient and bundled are Must from the start"]
+  walk["item 84 binding walk"] --> transitions["package transitions: require, provide, ifneeded, prefer, forget"]
+  transitions --> state["package state per position: Must, May or Unknown"]
+  workspace["workspace provide and tclpkg.tcl"] --> state
+  placements --> resolve["302 resolve_libraries"]
+  dialect --> resolve
+  state --> resolve
+  resolve --> ctx["PositionedContext"]
+```
+
+One library's state along a walk moves like this. `Must` and `May` carry
+their version sets; a join of `Must` with `Absent` is `May`.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Absent: hosted
+  [*] --> Must: ambient or bundled
+  Absent --> Must: require on every path here
+  Absent --> May: require on some paths, after a join
+  May --> Must: require on every path here
+  Absent --> Unknown: package require with a dynamic name
+  Must --> Must: another require narrows the set
+```
+
+A worked example under the lenient `tcl` environment with `tclLsp.targets`
+`tcl 8.5-9.0`. The comments give the context at the end of each line:
+
+```tcl
+package require Tcl 8.6                ;# dialect {8.6}: a bare 8.6 means 8.6 up to 9
+if {$gui} {
+    package require Tk 8.6             ;# Tk Must {8.6} inside the arm
+}
+text .t -insertunfocussed none         ;# Tk May {8.6} after the join
+package require $extra                 ;# every hosted library Unknown from here
+```
+
+The first line is tclsh's own answer: `package require Tcl 8.6` succeeds on
+8.6.18 and fails on 9.0.4 with `version conflict for package "Tcl": have
+9.0.4, need 8.6`. Writing `8.6-` or `8.6 9` instead keeps {8.6, 9.0}.
+
 The query is per body unit and per binding transition, not per offset.
 `positioned_context(at)` finds the transition interval containing `at`, and
 salsa memoises per interval. An edit re-runs only the body unit it touches
@@ -114,6 +162,44 @@ salsa memoises per interval. An edit re-runs only the body unit it touches
 | MCP `command_info` | a dialect parameter | an optional `{file, position}`, else the environment's start-of-file context |
 | CLI `tcl help`/`tcl diag` | the dialect flag | the same query over the CLI's analysis |
 | W120 (missing require) | whole-file heuristic (assistance view, redesign §5.2) | unchanged as an assistance-view heuristic, but reading `ctx` for "required above this use" (H301) |
+
+Every consumer reads one query. The two floors it replaces are deleted:
+
+```mermaid
+flowchart LR
+  gate["version gate W135 W136 W144 W150"] --> query
+  hover["hover and documentation"] --> query
+  completion["completion"] --> query
+  sighelp["signature help"] --> query
+  checks["check atoms and Tcl hooks"] --> query
+  mcp["MCP command_info"] --> query
+  cli["CLI tcl help and tcl diag"] --> query
+  query["positioned_context"]
+  floor["package_version_floor"]
+  docFloor["DocumentFloor"]
+  classDef removed stroke-dasharray: 5 5;
+  class floor,docFloor removed;
+```
+
+For one pinned require, the version gate's input changes from a floor to a
+set with its reason:
+
+**Before:**
+
+```text
+source:  package require -exact Tk 8.5.19     (environment tcl8.6)
+         text .t -insertunfocussed none
+floor:   Tk >= 8.5, from the require's lower bound; -exact is lost
+```
+
+**After:**
+
+```text
+source:  package require -exact Tk 8.5.19     (environment tcl8.6)
+         text .t -insertunfocussed none
+ctx:     Tk Must { versions: ∅, why: Require { exact: true } }
+answer:  a report: Tk 8.5.19 has no compatible row on tcl 8.6
+```
 
 The two views of redesign §5.2 stay distinct types. `positioned_context` is
 the semantic view. The assistance view (`assist_context`) is the same record

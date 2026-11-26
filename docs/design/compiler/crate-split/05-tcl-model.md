@@ -133,6 +133,37 @@ ledger confirms each.
 Step 6 extends the same trait for the IR (`tcl_ir::Facts: tcl_model::Receipts`),
 so the workspace has one receipt parameter, not one per crate.
 
+The trait and the types around it, across steps 5 and 6:
+
+```mermaid
+classDiagram
+  class Receipts {
+    <<trait, tcl-model>>
+    type NameInput
+    type Lookup
+  }
+  class Facts {
+    <<trait, tcl-ir, step 6>>
+    type Command
+    type Function
+    type Module
+  }
+  class ProcDef~R~ {
+    original_name_input: Option~R::NameInput~
+  }
+  class ClassDef~R~ {
+    metaclass_lookup: Option~R::Lookup~
+  }
+  class BindingReceipts {
+    <<tcl-binding>>
+  }
+  Receipts <|-- Facts
+  Receipts <|.. BindingReceipts
+  Facts <|.. BindingReceipts
+  ProcDef ..> Receipts
+  ClassDef ..> Receipts
+```
+
 ### 276: the result and side-effect records
 
 - `side_effects.rs` up to line 711 moves: `StorageType`, `StorageScope`,
@@ -180,6 +211,52 @@ pub struct Issued<E> { pub diagnostic: Diagnostic, pub evidence: E }
 pub enum Evidence {
     Analyser { subject: Option<DiagnosticSubject>, signed_data_group: Option<Box<SignedDataGroupComparison>> },
     CompilerCheck { payload: CheckPayload, source_context: Option<DiagnosticSourceContext> },
+}
+```
+
+How the three shapes meet:
+
+```mermaid
+flowchart LR
+  analyserDiag["analyser::types::Diagnostic"] --> issuedA["Issued: Evidence::Analyser"]
+  checkDiag["compiler_checks::Diagnostic"] --> issuedC["Issued: Evidence::CompilerCheck"]
+  issuedA --> diag["tcl_model::Diagnostic"]
+  issuedC --> diag
+  diag --> finding["Finding: policy severity, FindingData"]
+  finding --> lsp["LSP"]
+  finding --> cliOut["CLI"]
+  finding --> mcpOut["MCP"]
+```
+
+A compiler check that carries a `replacement` today, before and after 277.
+`Finding` already turns the replacement into a review fix, so the surfaces
+see no change:
+
+**Before:**
+
+```rust
+// compiler_checks::Diagnostic
+Diagnostic {
+    code, span, severity, message,
+    fixes: vec![],
+    replacement: Some(new_text),
+    category: "gvn".to_string(),
+    source_context: None,
+    payload,
+}
+```
+
+**After:**
+
+```rust
+// tcl_model::Diagnostic, inside tcl-diagnostics' Issued
+Issued {
+    diagnostic: Diagnostic {
+        code, span, severity, message,
+        fixes: vec![CodeFix { span, new_text, description, safety: FixSafety::RequiresReview }],
+        producer: Producer::CompilerCheck(Category::Gvn),
+    },
+    evidence: Evidence::CompilerCheck { payload, source_context: None },
 }
 ```
 

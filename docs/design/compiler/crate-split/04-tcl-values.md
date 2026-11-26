@@ -114,6 +114,47 @@ the one carrier of dialect numeric policy. `command_kernel` is item 81's
 entry for `tcl-cmd-core` commands over abstract values. At this step it covers
 the commands `const_fold` covers today; item 81's done-when grows it.
 
+Each client implements `ValueEnv` with its own evidence type, and the kernel
+hands that evidence back untouched:
+
+```mermaid
+flowchart TB
+  binding["binding: ValueEnv, Evidence = native_numeric proofs"] --> evaluate
+  sccp["SCCP: ValueEnv"] --> evaluate
+  optimiser["optimiser: ValueEnv"] --> evaluate
+  evaluate["tcl_values::evaluate(expr, env, policy)"] --> walker["tcl-expr walker: ExprOps"]
+  evaluate --> numeric["tcl-numeric number tower"]
+  evaluate --> interval["tcl-cmd-core Interval"]
+  evaluate --> result["Evaluation: AbstractValue, coercions, evidence"]
+```
+
+`FoldPolicy` is why the dialect matters to a fold. The same expression gives
+different answers by release, in real `tclsh`:
+
+```tcl
+expr {010 + 1}
+# tclsh 8.4 and 8.6: 9   (a leading 0 is octal)
+# tclsh 9.0 and 9.1: 11  (decimal)
+```
+
+A binding call site, before and after:
+
+**Before:**
+
+```rust
+// command_binding/expression_preparation.rs
+let number = crate::tcl_expr_eval::eval_tcl_expr_with_policy(&node, &env, policy);
+// Option<TclValue>
+```
+
+**After:**
+
+```rust
+// binding's ValueEnv supplies variables and carries its own evidence
+let evaluation = tcl_values::evaluate(&node, &mut env, policy);
+// Evaluation<E>, E being binding's evidence type; evaluation.value is an AbstractValue
+```
+
 ### What moves in
 
 - `analyses.rs`'s lattice part: `LatticeValue`, `ConstValue`, `LatticeKind`

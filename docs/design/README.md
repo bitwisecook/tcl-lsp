@@ -94,11 +94,12 @@ passes, and ownership matrices.
   - [14-caching.md](compiler/crate-split/14-caching.md) — step 14: a
     disposition for every memo, and the three caches that may become
     database queries.
-- [bytecode-image.md](compiler/bytecode-image.md) — serialised bytecode
-  (`tclbc`): C Tcl's instruction encoding in a versioned, pointer-free image,
-  for pack hook bodies and AOT artefacts (plan item 311).
-- [vm-tcl-9-1.md](compiler/vm-tcl-9-1.md) — the VM's Tcl 9.1 opcode base
-  and release gating (plan item 312).
+- [bytecode-image.md](compiler/bytecode-image.md) — serialised bytecode in
+  the tbcx format on the Tcl 9.1 base, for pack hook bodies and AOT artefacts
+  (plan item 311).
+- [vm-tcl-9-1.md](compiler/vm-tcl-9-1.md) — the VM's opcode numbering and
+  semantics on a Tcl 9.1 base, with 8.4–9.0 behaviour gated by release
+  (plan item 312).
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — the registry's value
@@ -417,7 +418,12 @@ declarations are written in.
   - [309-310-migration-and-authoring.md](registry/model/309-310-migration-and-authoring.md)
     — upgrading user packs to SpecTcl 3, and authoring tools that emit 3
     (309, 310).
-  - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md)
+  - [313-consumer-hooks.md](registry/model/313-consumer-hooks.md) — SpecTcl
+    facts and hooks for the optimiser, minifier, formatter, VM and runtime
+    (313).
+  - [319-consumer-migration.md](registry/model/319-consumer-migration.md) —
+    moving every tooling consumer onto SpecTcl facts and hooks, and the
+    consumer-purity gate (319–330).
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.

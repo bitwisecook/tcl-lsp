@@ -5,7 +5,11 @@ Nothing before it. Every later build-time step reports against it: step 0
 (items 246, 269–272, [design](269-272-dev-dependency-cascades.md)), the shared
 cache (260, [design](260-shared-cache.md)), the build levers (296–300,
 [design](296-300-build-levers.md)), and each crate-split step that changes a
-cone. This document specifies the script; it is not written yet.
+cone. This document specifies the script. The script landed in `18040b3b`
+(`scripts/dev/worktree-cost.py`, its tests in
+`scripts/dev/test_worktree_cost.py`, `make check-worktree-cost-script`, and
+the AGENTS.md pointer); the baseline section in build-test-cost is not
+recorded yet.
 
 ## Problem
 
@@ -16,8 +20,10 @@ hand are scattered and were taken by different methods:
   ([step 0](../compiler/crate-split/00-test-dependencies.md));
 - the crate-split overview quotes cones of 54, 80 and 179 crates for
   `tcl-registry`, `tcl-compiler` and `tcl-lsp-core`, with no method given.
-  `cargo tree -e normal,build` (26 November 2026, unique packages) gives
-  42, 64 and 130; with dev-dependencies, 144, 155 and 194;
+  `cargo tree -e normal,build` (26 November 2026, unique package names) gives
+  42, 64 and 130; with dev-dependencies, 144, 155 and 194. Counting a
+  package once per version, as [295](../workspace/295-hub-crates.md) does,
+  `tcl-lsp-core`'s figures are 134 and 199;
 - this checkout's target directory is 34 GB: 23 GB in `target/debug/build`
   and 11 GB of incremental state, of which `tcl-compiler` holds three
   directories (3.8, 1.5 and 1.5 GB), one per build variant.
@@ -40,13 +46,22 @@ need.
 
 ### Invocation
 
-```
+```sh
 scripts/dev/worktree-cost.py run [--edits lexer,registry,analyser,lsp]
                                  [--no-test-run] [--no-ra] [--jobs N]
-                                 [--out target/worktree-cost/<commit>.json]
+                                 [--commands test_build,clippy,test_run]
+                                 [--phases cold,after] [--in-place]
+                                 [--out target/worktree-cost/<commit>.json] [--merge]
 scripts/dev/worktree-cost.py table  <run.json>             # Markdown rows
 scripts/dev/worktree-cost.py compare <before.json> <after.json>
 ```
+
+The script adds four options to this design. `--commands` and `--phases`
+pick a subset. `--merge` adds a run's edits to an existing `--out` document,
+so a long baseline can be taken one edit at a time; it refuses a document
+measured on other build inputs. `--in-place` measures the current checkout
+and its warm target instead of a fresh worktree, and records
+`"cold_means": "warm target of the checkout"`.
 
 `run` refuses to start unless:
 
@@ -59,6 +74,43 @@ not the agents' numbers. It creates a fresh worktree with
 `git worktree add --detach <scratch>/wt HEAD`. It runs every command there with
 an empty target directory, and removes the worktree at the end. It never runs
 two cargo commands at once.
+
+One run, as the script does it:
+
+```mermaid
+flowchart TB
+  start["worktree-cost.py run"]
+  guard{"preflight: edit files exist, inputs clean, agent env, no other cargo or rustc, free disk"}
+  refuse["exit non-zero, naming every reason"]
+  wt["git worktree add --detach (skipped with --in-place)"]
+  cold["cold phase: test_build, clippy, test_run"]
+  edit["append const _: u32 = n; to the edit's file"]
+  after["after phase: the same commands"]
+  restore["git checkout -- file, also on error"]
+  more{"another edit?"}
+  disk["variants on disk, feature variants"]
+  ra["rust-analyzer RSS, or null with the reason"]
+  save["write the JSON, even after a partial run"]
+  remove["git worktree remove --force"]
+  start --> guard
+  guard -->|"any problem"| refuse
+  guard -->|"all clear"| wt
+  wt --> cold
+  cold --> edit
+  edit --> after
+  after --> restore
+  restore --> more
+  more -->|"yes"| cold
+  more -->|"no"| disk
+  disk --> ra
+  ra --> save
+  save --> remove
+```
+
+The edits of one run share the worktree and its target, so only the first
+edit's cold phase starts from an empty target; a later edit's "cold" is warm
+from the earlier builds. For a cold phase per edit, run one edit at a time
+with `--edits <key> --merge`; each run gets its own fresh worktree.
 
 ### The four edits
 
@@ -73,6 +125,26 @@ Each edit appends one line to one file: an anonymous constant,
   is the part the split changes.
 
 After each edit the script restores the file with `git checkout -- <file>`.
+The `lexer` edit, for example:
+
+**Before:**
+
+```rust
+// rust/tcl-syntax/src/glob.rs, last lines
+        assert_eq!(glob(""), Some(("*".into(), false)));
+    }
+}
+```
+
+**After:**
+
+```rust
+// rust/tcl-syntax/src/glob.rs, last lines, first edit of the run
+        assert_eq!(glob(""), Some(("*".into(), false)));
+    }
+}
+const _: u32 = 1;
+```
 
 | Key | File (today) | Crate tested | After the split |
 |---|---|---|---|
@@ -117,6 +189,43 @@ both.
 | `ra_rss_mb` | see below. |
 | `machine` | `nproc`, total memory, `-j`, rustc and cargo versions, the commit, and the cargo environment. |
 
+Cargo emits `build-script-executed` for a fresh build script too, replaying
+its saved output. So `build_scripts_run` counts the build scripts in the
+graph, not the reruns: the in-place analyser run below lists 23, `serde` and
+`libc` among them, while compiling no third-party unit. Item 299 needs reruns;
+the script must tell them apart by another signal before 299 is measured (see
+Open questions).
+
+Where each field comes from:
+
+```mermaid
+flowchart LR
+  json["cargo --message-format=json-render-diagnostics"]
+  artifact["compiler-artifact, fresh: false"]
+  anyArtifact["compiler-artifact, path+file package"]
+  script["build-script-executed"]
+  proc["/proc tree, sampled every 200 ms"]
+  rusage["getrusage(RUSAGE_CHILDREN)"]
+  sizer["st_blocks over the target dir"]
+  units["units_compiled, workspace_compiled"]
+  profile["units_by_profile"]
+  features["features, then feature_variants"]
+  scripts["build_scripts_run"]
+  tree["peak_rss_tree_mb, test_peak_rss_mb"]
+  single["peak_rss_single_mb"]
+  bytes["target_bytes_before, _after, target_growth_bytes"]
+  json --> artifact
+  json --> anyArtifact
+  json --> script
+  artifact --> units
+  artifact --> profile
+  anyArtifact --> features
+  script --> scripts
+  proc --> tree
+  rusage --> single
+  sizer --> bytes
+```
+
 ### rust-analyzer memory
 
 rust-analyzer is not installed in this container (`rustup` reports no
@@ -149,6 +258,40 @@ forbid run receipts. Its shape:
 `table` prints one Markdown row per edit and command: units compiled
 (workspace / total), wall time, peak RSS (tree / single), target growth and
 the test run's peak RSS. `compare` prints the same rows as deltas.
+
+The first real run was the analyser edit alone, in place on this checkout's
+warm target at `18040b3b`, without the test run (`--edits analyser --in-place
+--no-test-run --no-ra`). Its table:
+
+```sh
+$ scripts/dev/worktree-cost.py table target/worktree-cost/baseline.json
+```
+
+```text
+| Edit | Crate | Phase | Command | Workspace units | Total units | Wall (s) | Peak RSS tree (MB) | Peak RSS single (MB) | Target growth (MB) | Test run RSS (MB) |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| analyser | `tcl-compiler` | cold | clippy | 32 | 32 | 143.5 | 5058 | 4976 | 0 | – |
+| analyser | `tcl-compiler` | cold | test_build | 0 | 0 | 0.4 | 79 | 79 | 0 | – |
+| analyser | `tcl-compiler` | after | clippy | 32 | 32 | 147.5 | 5059 | 4977 | 0 | – |
+| analyser | `tcl-compiler` | after | test_build | 31 | 31 | 338.4 | 6232 | 5405 | 2135 | – |
+```
+
+Read with the document behind it:
+
+- The warm "cold" test build compiles nothing. Clippy, before the edit,
+  already rechecks the same 9 crates it rechecks after it. An in-place cold
+  row measures whatever the warm target lacks, which is why the baseline
+  needs a fresh worktree.
+- The after-edit test build's 31 units are 9 crates (`workspace_compiled`):
+  `tcl-compiler` and the 8 above it in its test build, `tcl-lsp-core`,
+  `tcl-spectcl`, `tcl-spec-hooks`, `tcl-engine-tclvm`, `tcl-codegen`,
+  `tcl-bigip`, `tcl-irules` and `tcl-sslictcl`. That is the failset logs' "9
+  crates", now with a method. `units_by_profile` is `{"opt1": 19,
+  "opt1-test": 12}`: the dependencies were built at opt-level 1, which
+  answers the first open question below for this run.
+- `variants` counts 134 unit directories for `tcl-compiler` and 87 for
+  `tcl-vm` on this long-lived target; on a fresh worktree it is the live
+  variant count.
 
 ### Where the baseline is recorded
 
@@ -183,7 +326,13 @@ per step.
   under dev? The Cargo book says the selected profile applies to all targets.
   The comment in `.github/workflows/ci.yml` (above `env:`) assumes dependency
   rlibs use dev. The `profile.opt_level` of dependency artifacts in command 1
-  settles it, and items 260 and 297 depend on the answer.
+  settles it, and items 260 and 297 depend on the answer. The in-place
+  analyser run built all 31 units at opt-level 1, so the Cargo book is right
+  for workspace dependencies; a fresh run confirms it for third-party ones.
+- How does the script tell a build-script rerun from a replay? Cargo sends
+  `build-script-executed` for both. One signal is the modification time of
+  the unit's `output` file under `target/debug/build/<pkg>/<hash>/`, taken
+  before and after the command.
 - Is 200 ms sampling fine enough? Compare it with `time -v` on a machine that
   has it; if the two differ by more than 5% for the largest unit, sample at
   50 ms.

@@ -47,6 +47,25 @@ The image bytes are platform-independent, so one build's images go into
 every artefact above. `--check` (item 119) recompiles and fails if a
 checked-in image differs from its source.
 
+From source to the registry, at build time and at run time:
+
+```mermaid
+flowchart LR
+  crateSpec["crate NAME.tclspec"] --> xtask["cargo xtask spec-images"]
+  edaSpec["specs/*.tclspec"] --> xtask
+  jimSpec["core-surfaces/jim*.tclspec"] --> xtask
+  xtask --> img["NAME.tclimg, checked in, --check gate"]
+  img --> embed["include_bytes! in the owning crate"]
+  img --> staged["specs/NAME.tclimg in each artefact"]
+  img --> web["dist/web/specs via index.json"]
+  embed --> view["ImageView"]
+  staged --> view
+  web --> view
+  view --> specView["SpecView per SpecId, read lazily"]
+  specView --> surface["CompiledSurface"]
+  surface --> registry["registry"]
+```
+
 ### Image format, version 1
 
 All integers are little-endian. All references are `u32` offsets from the
@@ -127,6 +146,27 @@ Each image carries `source_hash`. At load:
 3. **`tcl spec compile PACK… [-o DIR] [--check]`** does the same on demand
    for authors and CI.
 
+The load decision for one pack, as a flow:
+
+```mermaid
+flowchart TB
+  pack["a pack to load"] --> hasImg{"an image beside it or embedded?"}
+  hasImg -- yes --> header{"header checks: format, vocabulary 3, hook_abi IDs"}
+  header -- stale --> cache
+  header -- ok --> hash{"source_hash matches the source on disk?"}
+  hash -- yes --> useImg["open the image"]
+  hash -- no --> cache{"a cached image for this hash in tcl-userdirs?"}
+  hasImg -- no --> cache
+  cache -- yes --> useCache["open the cached image"]
+  cache -- no --> version{"vocabulary 3?"}
+  version -- yes --> compile["reader3 then compile, no VM"]
+  version -- "1.x or static 2.x" --> shim["shims, then compile"]
+  version -- "programmed 2.x" --> notice["upgrade notice; tool evaluator only if enabled"]
+  compile --> write["write spec-images/HASH-FORMAT-VOCAB.tclimg atomically"]
+  shim --> write
+  write --> useCache
+```
+
 A 1.x or 2.x pack is upgraded in memory through the shims first. A pack that
 computes rows needs the tool evaluator (305), so an image is only produced
 when that evaluator is enabled. Otherwise the user gets the upgrade notice.
@@ -154,6 +194,70 @@ when that evaluator is enabled. Otherwise the user gets the upgrade notice.
   the spike keeps it.
 
 ### The spike itself
+
+Step 1 restates each Rust file as SpecTcl 3. For `log_user.rs`, the smallest
+shape with an option, a form and a hover:
+
+**Before:**
+
+```rust
+const OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-info",
+    value: OptionValue::flag(),
+    detail: "Return current setting.",
+    surface: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+}];
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    synopsis: "log_user ?-info | 0 | 1?",
+    ..FormSpec::DEFAULT
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "log_user",
+        surface: Some(SpecSurface::EXPECT),
+        arity: Arity::new(0, 1),
+        hover: Some(HoverSnippet {
+            summary: "Control whether send/expect output is logged to stdout.",
+            synopsis: &["log_user -info", "log_user 0|1"],
+            snippet: "With ``1`` (default), output is sent to stdout. With ``0``, output is suppressed.",
+            source: "Expect log_user(1)",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        options: OPTIONS,
+        ..CommandSpec::DEFAULT
+    }
+}
+```
+
+**After:**
+
+```spectcl
+command log_user {
+    available Expect 0-
+    arity 0..1
+    option -info -detail {Return current setting.}
+    form Default {log_user ?-info | 0 | 1?}
+    hover {
+        summary {Control whether send/expect output is logged to stdout.}
+        synopsis {log_user -info}
+        synopsis {log_user 0|1}
+        description {With ``1`` (default), output is sent to stdout. With ``0``, output is suppressed.}
+        source {Expect log_user(1)}
+    }
+}
+```
+
+`SpecSurface::EXPECT` becomes `available Expect 0-`, as 305's shim table
+translates the `expect` membership token. The equivalence test (step 4)
+checks that both forms give the same visibility, arity and roles.
 
 1. Author `tcl-lib-expect/expect.tclspec` in SpecTcl 3 from the 36 Rust
    files. `case_list EXPECT` becomes a rung 1 `case_list` row, and the

@@ -28,6 +28,32 @@ Every workspace feature enabled only from `[dev-dependencies]`:
 The last two rows are not in item 296's text. The target directory here keeps
 three `tcl-compiler` incremental directories (3.8, 1.5 and 1.5 GB).
 
+The `tcl-vm` row, in one worktree that tests `tcl-spectcl` and then builds the
+server. The two commands resolve `tcl-vm` with different features, so it and
+every crate above it on the path get two unit hashes:
+
+```mermaid
+flowchart TB
+  test["cargo test -p tcl-spectcl"]
+  build["cargo build -p tcl-lsp-server"]
+  vmT["tcl-vm, features: test-support"]
+  engineT["tcl-engine-tclvm (variant 1)"]
+  hooksT["tcl-spec-hooks (variant 1)"]
+  spectclT["tcl-spectcl (variant 1)"]
+  vmB["tcl-vm, default features"]
+  engineB["tcl-engine-tclvm (variant 2)"]
+  hooksB["tcl-spec-hooks (variant 2)"]
+  spectclB["tcl-spectcl (variant 2)"]
+  test -->|"dev-dependency enables test-support"| vmT
+  vmT --> engineT
+  engineT --> hooksT
+  hooksT --> spectclT
+  build --> vmB
+  vmB --> engineB
+  engineB --> hooksB
+  hooksB --> spectclB
+```
+
 ### Design
 
 Each feature takes the first of these options that fits:
@@ -88,6 +114,24 @@ can merge only the build-mode rows: `xtask` and `cargo run` with the tests.
   the tests (the modes differ), and it would stop sharing third-party check
   units with rust-analyzer's dev check.
 
+**Before:**
+
+```toml
+# .cargo/config.toml:36–37, used as is by agents and CI
+[alias]
+xtask = "run --package xtask --"
+```
+
+**After:**
+
+```sh
+# agent-build-env.sh --print adds this line; CI keeps the checked-in alias
+export CARGO_ALIAS_XTASK="run --profile test --package xtask --"
+```
+
+The table's three output sets (dev check, dev build, test build) become two:
+`cargo xtask` and `cargo run` land in the test build with `cargo test`.
+
 The gates may also run faster at opt-level 1: `make xtask-gates` took 413 s
 locally, of which `kcs-index-links` (markdown reading) was 243 s
 (build-test-cost item 2), so the gain is bounded. The cost is that crates
@@ -137,6 +181,34 @@ Build-test-cost decided against an opt-in feature (CI's drift leg would build
 
 ### Design
 
+`xtask`'s engine edges before and after the split. `tcl-vm` stays, through the
+pack loader; `tcl-runtime` leaves:
+
+```mermaid
+flowchart LR
+  subgraph before["before"]
+    xtaskA["xtask"]
+    vmA["tcl-vm"]
+    runtimeA["tcl-runtime, 308k lines"]
+    spectclA["tcl-spectcl"]
+    xtaskA -->|"command_backing.rs"| vmA
+    xtaskA -->|"command_backing.rs"| runtimeA
+    xtaskA -->|"nine modules"| spectclA
+    spectclA -->|"via tcl-spec-hooks, tcl-engine-tclvm"| vmA
+  end
+  subgraph after["after"]
+    xtaskB["xtask"]
+    backing["xtask-backing (new)"]
+    vmB["tcl-vm"]
+    runtimeB["tcl-runtime"]
+    spectclB["tcl-spectcl"]
+    xtaskB --> spectclB
+    spectclB -->|"via tcl-spec-hooks, tcl-engine-tclvm"| vmB
+    backing --> vmB
+    backing --> runtimeB
+  end
+```
+
 - **A new workspace package, `rust/xtask-backing`, holds `command_backing.rs`**,
   depending on `tcl-vm`, `tcl-runtime`, `tcl-registry` and `tcl-runtime-api`.
   `xtask` drops `tcl-vm` and `tcl-runtime`.
@@ -182,6 +254,22 @@ The same two columns already exist as `patchlevel` and `source_tag` in the
 generated `RELEASE_FACTS` (`cargo xtask release-facts`), and
 `release_facts.rs:96–97` asserts that the two agree.
 
+How a tag fetch in one worktree reaches the others:
+
+```mermaid
+flowchart LR
+  fetch["git fetch --tags in worktree A"]
+  refs["refs/tags, packed-refs: shared by every worktree"]
+  rerunA["worktree A: tcl-version/build.rs reruns"]
+  rerunB["worktree B: tcl-version/build.rs reruns"]
+  deps["tcl-cli, tcl-lsp-server, tcl-mcp, f5-cli, bigip-report-gen-rust recompile, in each"]
+  fetch --> refs
+  refs -->|"rerun-if-changed"| rerunA
+  refs -->|"rerun-if-changed"| rerunB
+  rerunA --> deps
+  rerunB --> deps
+```
+
 ### Design
 
 - **`tcl-version`:** outside stamped and release builds, the build script emits
@@ -189,13 +277,55 @@ generated `RELEASE_FACTS` (`cargo xtask release-facts`), and
   emits no `rerun-if-changed` on git paths. Release and `TCL_LSP_VERSION`-stamped
   builds keep today's behaviour exactly. Consumers already accept an empty
   commit (`bigip-report-gen`'s `engine_version_tests.rs:43`, `tcl-mcp`'s
-  `main.rs:356`).
+  `main.rs:356`). A dev build of `tcl`:
+
+**Before:**
+
+```sh
+$ target/debug/tcl --version    # rebuilt after every commit and tag fetch
+tcl 0.1.0+gbb898626.dirty
+```
+
+**After:**
+
+```sh
+$ target/debug/tcl --version    # unchanged by commits and tag fetches
+tcl 0.1.0-dev
+```
 - **`tcl-dialect`:** delete `build.rs`. `TclVersion::patchlevel()` and
   `reference_source_tag()` read `RELEASE_FACTS`. The `release-facts` generator
   reads the TSV as the one owner of those columns, and its `--check` fails on
   drift. The TSV stays, because `scripts/dev/tcl-reference-toolchains.sh` and
   `check-tcl-reference-toolchains` (`Makefile:969`) read it. This puts item
   119's "check the table in as source" into an existing generator.
+
+**Before:**
+
+```rust
+// rust/tcl-dialect/src/version.rs
+mod reference_toolchains {
+    include!(concat!(env!("OUT_DIR"), "/reference_toolchains.rs"));
+}
+use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
+
+pub fn patchlevel(self) -> &'static str {
+    REFERENCE_PATCHLEVELS[self.reference_index()]
+}
+```
+
+**After:**
+
+```rust
+// rust/tcl-dialect/src/version.rs; no build.rs, no OUT_DIR
+pub fn patchlevel(self) -> &'static str {
+    self.release_facts().patchlevel
+}
+```
+
+  The value does not change: for 8.4 both read `8.4.20`, from
+  `data/reference-toolchains.tsv` today and from the generated
+  `ReleaseFacts { version: TclVersion::V8_4, …, patchlevel: "8.4.20", … }`
+  after.
 
 ### Measurement plan
 
@@ -239,6 +369,39 @@ check and clippy run, and in every cold worktree.
   becomes `pub fn x() -> &'static [T]`. The browser and WASI builds are
   unaffected: `include_bytes!` needs no host.
 - **Code stays code.** `canon.rs` and `parsers.rs` are functions, not tables.
+- The release facts, for example, as a sketch:
+
+**Before:**
+
+```rust
+// rust/tcl-dialect/src/generated_release_facts.rs, 11,445 lines of Rust
+// @generated by cargo xtask release-facts; do not edit.
+pub(crate) const RELEASE_FACTS: &[ReleaseFacts] = &[
+    ReleaseFacts {
+        version: TclVersion::V8_4,
+        patchlevel: "8.4.20",
+        source_tag: "core-8-4-20",
+        // … math_functions, encodings, commands …
+    },
+    // …
+];
+```
+
+**After:**
+
+```rust
+// the generator writes release_facts.tsv; rustc compiles one byte string
+static DATA: &[u8] = include_bytes!("generated/release_facts.tsv");
+pub(crate) fn release_facts_table() -> &'static [ReleaseFacts] {
+    static TABLE: LazyLock<Box<[ReleaseFacts]>> = LazyLock::new(|| parse_release_facts(DATA));
+    &TABLE
+}
+```
+
+  `TclVersion::release_facts` stops being a `const fn`, and so do the four
+  `const fn`s that read it (`version_string`, `dialect_profile_name`,
+  `core_provided_packages`, `tcloo_version`). Any const use of those has to
+  go first; the A/B says whether the table is worth that.
 - **Overlap with item 119:** its new generators emit the data form directly;
   `release-facts` gains it.
 

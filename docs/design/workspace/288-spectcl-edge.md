@@ -39,6 +39,22 @@ So production code needs two things: the source-store seam and the two
 notice types. Everything else is test code checking how the LSP renders what
 the loader produces.
 
+The edge, and the dev cycle that comes back the other way:
+
+```mermaid
+flowchart LR
+  spectcl["tcl-spectcl"]
+  lspCore["tcl-lsp-core"]
+  domains["tcl-bigip, tcl-irules, tcl-sslictcl"]
+  hooks["tcl-spec-hooks"]
+  vm["tcl-engine-tclvm, tcl-vm, tcl-codegen"]
+  spectcl -->|"vfs, notice types"| lspCore
+  lspCore --> domains
+  spectcl --> hooks
+  hooks --> vm
+  lspCore -.->|"dev: one roster test"| spectcl
+```
+
 The source store is not standalone in `tcl-lsp-core`. `vfs.rs` (1,451 lines)
 uses `file_uri` (448 lines; `tcl-platform`, `fluent-uri`) and
 `source_decode` (`SourceStore::read_source`, `vfs.rs:645`). `source_decode`
@@ -66,7 +82,24 @@ requires, and both implementations undivided.
 | `ScriptEncoding` | `tcl-registry/src/value_transfer/context.rs:68`, into `tcl-cmd-core::encoding` beside `SystemEncoding`, which it wraps |
 
 It depends on `tcl-cmd-core` (encoding conversion), `tcl-dialect`,
-`tcl-platform` and `fluent-uri`. Its interface is today's, unchanged in shape:
+`tcl-platform` and `fluent-uri`. After this item both sides stand on it, and
+the notice types sit in the pack-source grammar that both already use:
+
+```mermaid
+flowchart LR
+  spectcl["tcl-spectcl"]
+  lspCore["tcl-lsp-core"]
+  store["tcl-source-store (new, layer 2)"]
+  grammar["spectcl_source, in tcl-compiler today, tcl-source after item 251"]
+  cmdCore["tcl-cmd-core: encoding, ScriptEncoding"]
+  spectcl --> store
+  lspCore --> store
+  spectcl -->|"SpecPackNoticeSubject, SpecPackNoticeKind"| grammar
+  lspCore --> grammar
+  store --> cmdCore
+```
+
+Its interface is today's, unchanged in shape:
 
 ```rust
 pub trait SourceStore: std::fmt::Debug + Send + Sync {
@@ -165,10 +198,38 @@ to the new path.
    (`vfs/*_tests.rs`, the decoder tests of `source_decode/tests.rs`).
 3. Leave the renderer half in `tcl-lsp-core`'s `source_style` module.
 4. Rewrite every consumer in the list above to `tcl_source_store::…`. No
-   re-export stays in `tcl-lsp-core`.
+   re-export stays in `tcl-lsp-core`. In `tcl-spectcl/src/discovery.rs:56`,
+   for example:
+
+**Before:**
+
+```rust
+use tcl_lsp_core::vfs::{NativeStore, SourceStore};
+```
+
+**After:**
+
+```rust
+use tcl_source_store::{NativeStore, SourceStore};
+```
+
 5. Move the notice types to `tcl_compiler::parsing::spectcl_source` (so
    `tcl-source` once item 251 lands); rewrite `tcl-spectcl`'s five files and
    `tcl-lsp-core`'s `code_actions` and `oo_body` to import them from there.
+   `loader/notices.rs:51`'s field, for example:
+
+**Before:**
+
+```rust
+pub subject: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
+```
+
+**After:**
+
+```rust
+pub subject: Option<tcl_compiler::parsing::spectcl_source::SpecPackNoticeSubject>,
+```
+
 6. Split or move the five boundary tests.
 7. Create `rust/tcl-lsp-it` with `pack_formatting.rs`.
 8. Drop `tcl-lsp-core` from `tcl-spectcl`'s `[dependencies]`. Add

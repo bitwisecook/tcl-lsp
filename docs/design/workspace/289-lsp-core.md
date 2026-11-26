@@ -38,6 +38,40 @@ It also links three domain crates in its normal dependencies:
 | `tcl-irules` (3k prod) | `ilx_navigation.rs`, `irules_object_refs.rs` (a re-export), `semantic_tokens/irules_document.rs`, `semantic_tokens/original.rs:1117` (object operands) |
 | `tcl-sslictcl` (8k prod) | `sslictcl_diagnostics.rs` |
 
+So every consumer, whatever sliver it wants, builds all of `tcl-lsp-core` and
+the three domain crates beneath it:
+
+```mermaid
+flowchart LR
+  f5xc["f5-xc"]
+  f5Cli["f5-cli"]
+  studio["tcl-spec-studio"]
+  cliSupport["tcl-cli-support"]
+  xtask["xtask"]
+  lspDb["tcl-lsp-db"]
+  tclMcp["tcl-mcp"]
+  tclCli["tcl-cli"]
+  lspServer["tcl-lsp-server"]
+  spectcl["tcl-spectcl (until 288)"]
+  lspCore["tcl-lsp-core, 132k prod"]
+  bigip["tcl-bigip"]
+  irules["tcl-irules"]
+  sslictcl["tcl-sslictcl"]
+  f5xc --> lspCore
+  f5Cli --> lspCore
+  studio --> lspCore
+  cliSupport --> lspCore
+  xtask --> lspCore
+  lspDb --> lspCore
+  tclMcp --> lspCore
+  tclCli --> lspCore
+  lspServer --> lspCore
+  spectcl --> lspCore
+  lspCore --> bigip
+  lspCore --> irules
+  lspCore --> sslictcl
+```
+
 Its dev-dependencies cascade: `tcl-spectcl` (one test,
 `completion/inherited_registry_roster_completion_tests.rs:43`,
 `core_surfaces::ensure`) and `tcl-codegen` (one test,
@@ -78,6 +112,63 @@ production lines.
 | `tcl-ide-edit` | 6 | `refactor` (less `FrameWalk`), `code_actions`, `rename`, `rename_safety`, `namespace_rename`, `original_command_rename`, `original_member_rename`, `file_ops` | 23.4k | 19.4k |
 | `tcl-ide-f5` (adapter) | 7 | `bigip`, `ilx_navigation`, `irules_object_refs`, `semantic_tokens/config_documents.rs`, `semantic_tokens/irules_document.rs`, the `ConfigDiagnostic` conversion, the partition-rename action | 2.6k | 1k |
 | `tcl-ide-sslictcl` (adapter) | 7 | `sslictcl_diagnostics` | 0.1k | 0.1k |
+
+The ranks as a graph. An arrow means "may depend on": each group may name the
+groups below it, never one beside it. The adapters are the only crates that
+see both the traits and the domain crates; the fixtures crate sits above the
+crate it serves.
+
+```mermaid
+flowchart TB
+  subgraph r7["rank 7: adapters"]
+    ideF5["tcl-ide-f5"]
+    ideSsl["tcl-ide-sslictcl"]
+  end
+  fixtures["tcl-ide-diagnostics-fixtures (dev-only)"]
+  subgraph r6["rank 6"]
+    edit["tcl-ide-edit"]
+  end
+  subgraph r5["rank 5"]
+    nav["tcl-ide-nav"]
+    assist["tcl-ide-assist"]
+    tokens["tcl-ide-tokens"]
+    views["tcl-ide-views"]
+  end
+  subgraph r4["rank 4"]
+    symbols["tcl-ide-symbols"]
+    format["tcl-ide-format"]
+  end
+  subgraph r3["rank 3"]
+    diagnostics["tcl-ide-diagnostics"]
+    workspace["tcl-ide-workspace"]
+  end
+  subgraph r2["rank 2"]
+    names["tcl-ide-names"]
+  end
+  subgraph r1["rank 1"]
+    model["tcl-ide-model"]
+  end
+  store["tcl-source-store (288)"]
+  subgraph domain["domain crates"]
+    bigip["tcl-bigip"]
+    irules["tcl-irules"]
+    sslictcl["tcl-sslictcl"]
+  end
+  r6 --> r5
+  r5 --> r4
+  r4 --> r3
+  r3 --> r2
+  r2 --> r1
+  r1 --> store
+  fixtures --> diagnostics
+  ideF5 -->|"implements traits"| r5
+  ideF5 -->|"FindingSource"| diagnostics
+  ideF5 -->|"ActionContributor"| edit
+  ideF5 --> bigip
+  ideF5 --> irules
+  ideSsl -->|"FindingSource"| diagnostics
+  ideSsl --> sslictcl
+```
 
 The prefix is `tcl-ide-`, not `tcl-lsp-`: these crates are protocol-neutral
 (no `ls-types` or `tower` dependency today), and the CLI, MCP and the spec
@@ -162,6 +253,55 @@ pub trait FindingSource: Send + Sync {
 // ActionContributor (BIG-IP stanza actions)
 ```
 
+A semantic-token request then runs like this. The caller supplies the
+analysis; the feature crate never runs the analyser, and it learns about
+BIG-IP only through the contributor it is handed:
+
+```mermaid
+sequenceDiagram
+  participant Entry as Entry point (server session, CLI, MCP)
+  participant Db as tcl-db
+  participant Tokens as tcl-ide-tokens
+  participant F5 as tcl-ide-f5
+  participant Bigip as tcl-bigip
+  Entry->>Db: analysis for the document
+  Db-->>Entry: AnalysisResult
+  Entry->>Tokens: semantic_tokens(input, [tcl-ide-f5])
+  Tokens->>F5: document_tokens(input)
+  F5->>F5: DocumentKind claims "bigip-conf"?
+  alt a BIG-IP or APL document
+    F5->>Bigip: parse and extract
+    Bigip-->>F5: config model
+    F5-->>Tokens: Some(tokens)
+  else a Tcl or iRules document
+    F5-->>Tokens: None
+    Tokens->>F5: object_operands(input)
+    F5-->>Tokens: operand tokens
+  end
+  Tokens-->>Entry: Vec of RawToken
+```
+
+The call sites change with it. Today `semantic_tokens` has 14 public entry
+points, one per combination of inputs the caller holds (`coarse` runs the
+analyser itself), and its document paths call `tcl_bigip` and `tcl_irules`.
+After, there is one entry point, and the input carries what the caller has.
+
+**Before:**
+
+```rust
+let tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
+    source, profile, &registry, Some(&unit), Some(&analysis),
+);
+```
+
+**After:**
+
+```rust
+// sketch; f5_tokens is tcl-ide-f5's TokenContributor, linked by the entry point
+let input = DocumentInput { text: source, environment: &environment, analysis: Some(&analysis) };
+let tokens = tcl_ide_tokens::semantic_tokens(&input, &[&f5_tokens]);
+```
+
 `tcl-ide-f5` implements them over `tcl-bigip` and `tcl-irules`;
 `tcl-ide-sslictcl` over `tcl-sslictcl`. Entry points (the server session, the
 CLI, MCP) link the adapters they want and pass them in. `f5-cli`, which needs
@@ -183,7 +323,22 @@ but each producer owns its conversion into `Finding`, as `f5-xc` already does.
   `check_payload::family_fixtures` move to a dev-only crate,
   `tcl-ide-diagnostics-fixtures`, above `tcl-ide-diagnostics`. `tcl-cli`,
   `tcl-mcp` and the server's handler crates take it as a dev-dependency, and
-  nothing compiles `tcl-ide-diagnostics` twice.
+  nothing compiles `tcl-ide-diagnostics` twice. In each of the three
+  manifests:
+
+**Before:**
+
+```toml
+[dev-dependencies]
+tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table", "transport-fixtures"] }
+```
+
+**After:**
+
+```toml
+[dev-dependencies]
+tcl-ide-diagnostics-fixtures = { path = "../tcl-ide-diagnostics-fixtures" }
+```
 - **`src` tests** move with their module.
 - **`tests/`** (53 files, 33k lines): 10 files name one group and move to it;
   27 (22k lines) name several; the rest name only crate-root items or

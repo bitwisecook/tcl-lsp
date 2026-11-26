@@ -5,7 +5,7 @@
 **Scope (owner decisions, 23 November 2026).**
 - `work` is a long-running design branch with no release target. Fixes reach users through `rust`; `work` releases when the redesign is complete.
 - Active: every LSP consumer and the shared compiler, database and registry owners it needs.
-- Deferred off this branch: VM and runtime work (engine-only items are listed under the working order), dialect execution in the engines (Jim, iRules and others: a distant goal), BIG-IP migrations beyond the wrong answers in stage 2, and the licence (item 74, before any release).
+- Deferred off this branch: VM and runtime work (engine-only items are listed under the working order), except item 312, the VM's move to a Tcl 9.1 base, which the owner brought forward on 26 November 2026 because serialised bytecode (311) and SpecTcl images depend on it; dialect execution in the engines (Jim, iRules and others: a distant goal), BIG-IP migrations beyond the wrong answers in stage 2, and the licence (item 74, before any release).
 - The 2,158-unit migration catalogue is frozen (item 96): it is a cross-check on the phases, not the driver.
 
 **Rules.**
@@ -22,7 +22,7 @@
   - 117 and 118 alongside: 117 moves the 58k lines of `native_*` algorithms out of the registry (117a at any time, 117b after item 255), and 118 moves the 171k lines of BIG-IP schema data into a crate that `tcl-bigip` reads and no surface crate needs.
   - 260: a compiler cache shared across worktrees ([design](../../design/build-time/260-shared-cache.md)); 296–300, the other build-time levers ([design](../../design/build-time/296-300-build-levers.md)).
   - 288–295 and 314–318, the rest of the workspace ([design](../../design/workspace/overview.md)), each when the crates it names exist. The rank gate (314) lands with 288.
-  - The dialect and library model (items 301–307) follows the registry crate split: 301–304, then SpecTcl 3 (305) once `tcl-source` exists, then the data spike (306) and 307. The positioned context (308) follows 302 and 303. Migration and authoring tooling (309, 310) follows 305. Serialised bytecode (311) lands before 306 stores hook bodies.
+  - The dialect and library model (items 301–307) follows the registry crate split: 301–304, then SpecTcl 3 (305) once `tcl-source` exists, then the data spike (306) and 307. The positioned context (308) follows 302 and 303. Migration and authoring tooling (309, 310) follows 305. The VM's move to Tcl 9.1 (312, brought forward), then serialised bytecode in the tbcx format (311). 306 does not wait for 311: it stores hook source until 311 lands. Consumer hooks (313) follow 305 and 311. Moving the tooling consumers onto SpecTcl facts and hooks (319–330) runs in waves: first 319 and 325's MCP half; then 320; then 321 and 325's CLI half; then 313, 322 and 323; then 324 and 326; then 328 and 329; then 327 and 330.
   - Agents finishing another item stop at a clean point rather than start new work in modules about to move. The tree may stay broken while crates move (owner decision, 26 November 2026). Work that needs a green build waits for the crate it touches to build again.
   - 90's last step follows once the split is done: the hand-written memos the split leaves are deleted, or moved into the one database at the top (286), with 119 alongside. The per-body caching tiers (101, 103, with 106's budgets) are not part of it: they come late, in stage 13, after 83 and 84 (stages 10–11) make every body a unit with one binding walk ([caching](caching-design.md#plan), step 4).
 - **Stage 1, settle the plan:** 96 (catalogue re-map), 235 (reconcile `work` with `rust`), 207 (merge pass), 206 ("done when" on every item).
@@ -971,8 +971,11 @@ BIG-IP names and addresses (Q8; [BIG-IP names and addresses](bigip-addresses-des
    - Done when: the seven crates build, the rank gate (314) passes, no crate but `tcl-lsp-server` names `tower_lsp_server`, no crate but `tcl-lsp-session` and `tcl-db` names `salsa`, and item 259 records the server crates an LSP-feature edit rebuilds before and after.
 291. **[designed]** (the rest of the workspace, beside item 90; [design](../../design/build-time/291-vm.md)) `tcl-vm` (220k lines) after item 117. It takes the native algorithms from `tcl-native-model` rather than from `tcl-registry`. It keeps its normal edge to the registry core, which pins its environment and serves command specs at run time, but no surface crate or the catalogue may enter its cone. The two call sites that would bring one in are replaced: `events::EventRegistry::build()` and `default_registry()`.
    - Done when: `cargo tree -p tcl-vm -e normal` lists `tcl-native-model` and no `tcl-dialect-*`, `tcl-lib-*` or `tcl-catalogue` crate, and item 259's registry-spec edit does not rebuild `tcl-vm`.
-292. **[designed]** (the rest of the workspace, beside item 90; [design](../../design/build-time/292-codegen.md)) `tcl-codegen` (69k lines) depends on `tcl-compiler` today. After step 11 it names only the crates it uses. **Open owner decision:** [292-codegen.md](../../design/build-time/292-codegen.md) splits it into the emitters (`tcl-codegen`, over `tcl-native-plan`, `tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model` and `tcl-ir`) and a new driver crate, `tcl-compile`, over the unit crate and `tcl-optimiser`. [Step 11](../../design/compiler/crate-split/11-tcl-native-plan.md) keeps one crate that depends on `tcl-native-plan`, `tcl-unit`, `tcl-analysis`, `tcl-lowering`, `tcl-binding` and `tcl-ir`. The owner chooses one.
-   - Done when: the owner's choice is recorded in both designs, `cargo tree -p tcl-codegen -e normal` lists no `tcl-diagnostics` or `tcl-optimiser` (and, under the driver split, no unit crate), and an analyser edit does not rebuild it.
+292. **[designed]** (the rest of the workspace, beside item 90; [design](../../design/build-time/292-codegen.md)) `tcl-codegen` (69k lines) depends on `tcl-compiler` today. Owner decision, 26 November 2026: it splits in two.
+   - `tcl-codegen` keeps the bytecode and WASM emitters, over `tcl-native-plan`, `tcl-lowering`, `tcl-analysis`, `tcl-values`, `tcl-model` and `tcl-ir`.
+   - A new driver crate, `tcl-compile`, takes the compile service, the WASM pipeline and inlining, over the unit crate and `tcl-optimiser`.
+   - [Step 11](../../design/compiler/crate-split/11-tcl-native-plan.md) follows this split.
+   - Done when: `cargo tree -p tcl-codegen -e normal` lists no `tcl-diagnostics`, `tcl-optimiser` or unit crate; consumers that need only emitters depend on `tcl-codegen` alone; and an analyser edit rebuilds neither crate.
 293. **[designed]** (the rest of the workspace, beside item 90; [design](../../design/workspace/293-mcp.md)) `tcl-mcp` (12k lines) depends on `tcl-cli` and `f5-cli` for a handful of items (`help_json`, `CONVERTIBLE_CODES`, `conversion_for`, `explain_flow_value`, `ExplainFlowOptions`), so an edit to either rebuilds MCP. They move into two new library crates, `tcl-kcs-help` and `f5-explain`, as the tidy plan's rule (tools depend on feature APIs, not on CLIs) requires. `f5-xc` is fine as a library dependency; only its own edge to `tcl-lsp-core` (for `Finding` and `Producer`) is wrong.
    - Done when: `cargo tree -p tcl-mcp -e normal` lists no `tcl-cli` or `f5-cli`, `f5-xc`'s tree lists no `tcl-lsp-core`, and the MCP tool tests pass unchanged.
 294. **[designed]** (the rest of the workspace, beside item 90; [design](../../design/workspace/294-explorer.md)) `tcl-explorer` (13k lines) depends on `tcl-vm` (four items in one file, `live_entry.rs`, behind the optional `live-entry` feature that `tcl-cli` enables), `tcl-codegen` (7 files) and `tcl-spectcl` (2 files, `bundled`). `live_entry` moves to `tcl-cli`, its only user. The explorer reads IR and plans through `tcl-ir` and `tcl-native-plan`, and its bytecode and WASM views use one named `tcl-codegen` API.
@@ -1036,17 +1039,48 @@ BIG-IP names and addresses (Q8; [BIG-IP names and addresses](bigip-addresses-des
    - The `spec-author` skill and the AI system prompts are rewritten for 3: the lowest rung first, `check` rules before hooks, no templating, and a validation loop.
    - The examples and KCS how-tos move to 3, with the 2.x files kept as shim fixtures.
    - Done when: no SpecTcl writer in the tree emits a declaration below 3. The skill's eval suite passes: three sample libraries, each producing a pack that passes `spectcl_check`, covers every exported command, uses a `check` rule where one suffices, and has no templating. `spectcl_check` rejects templating in a 3 pack.
-311. **[designed]** (before items 305 and 306 store hook bodies; [design](../../design/compiler/bytecode-image.md)) Serialised bytecode, `tclbc`.
-   - It is C Tcl's instruction encoding in a versioned, little-endian, pointer-free container. The tables are shaped like C Tcl's `ByteCode`: literals, compiled locals, exception ranges, aux data and the command map. A metadata section holds our provenance and native-compilation fields.
-   - It has an opcode-set id and is validated on load.
-   - The writer and reader live in `tcl-bytecode`.
-   - It includes a research step on `tbcload` interop, which decides an optional exporter.
+311. **[designed]** (after item 312's steps 1–3; owner decision, 26 November 2026: it does not block item 306, which stores hook source until 311 lands; [design](../../design/compiler/bytecode-image.md)) Serialised bytecode in the tbcx format (owner decision, 26 November 2026: tbcload stops at Tcl 9.0).
+   - Units use tbcx's binary format 93. *Interop* units load in C Tcl 9.1 with tbcx 1.2.1 at the stamped patchlevel, and we load theirs from any pinned 9.1.x. They target Tcl 9.1 with the plain `tcl` profile, and are compiled as tbcx compiles: plain dispatch, `startCommand` kept, and tbcx's proc and method rewrite.
+   - *Extended* units (format word `0x8001_005D`) cover targets below 9.1, other dialects and private opcodes. C Tcl refuses them at the header. Interop export lowers private opcodes where a 9.1 sequence with the same semantics exists, and refuses otherwise.
+   - Our metadata (profile, source namespace, native-compilation fields, specialisation stamps, source hash, command map) goes in a `TbcxUnit` wrapper in pack images, and in a `.tbcx.meta` sidecar for standalone files. There is one binary codec.
+   - The writer and reader live in `tcl-bytecode::tbcx`. Validation runs on load, before anything executes.
+   - Owner decisions (26 November 2026):
+     - TclOO methods in foreign `.tbcx` files execute.
+     - Interop units are re-exported on every Tcl patchlevel or tbcx format bump.
+     - The tbcx pin is checked on every dependency update.
    - Done when:
-     - Round trip: `read(write(m)) == m` over the bytecode-compare corpus.
-     - Byte identity: the encoded code bytes match `tclsh` 9.0's, or appear on a listed divergence list.
-     - Execution: running scripts from their images matches compiling them, native and WASM.
-     - Rejection: corrupted images are rejected, with a `tcl-fuzz` target.
-     - Use: pack images store hook bodies as `tclbc`.
+     - `read(write(u)) == u` and `into_module(from_module(m)) == m` hold over the bytecode-compare corpus for 8.4–9.1;
+     - tbcx 1.2.1 in `tclsh` 9.1.0 loads every corpus interop unit with results equal to `source`, and our VM loads every `tbcx::save` fixture (method records stay refused until decided);
+     - each block's code bytes equal `tbcx::save`'s, or the block is on a listed divergence list;
+     - native and WASM execution agree;
+     - there is one rejection fixture per check, and a `tcl-fuzz` `tbcx-decode` campaign runs clean;
+     - pack images store hook bodies as `TbcxUnit`.
+312. **[designed]** (owner decision, 26 November 2026: brought forward, not deferred; before or alongside item 311; [design](../../design/compiler/vm-tcl-9-1.md)) The VM on a Tcl 9.1 base.
+   - `Op` gets C Tcl 9.1 opcode numbers. They are generated from the pinned 9.1.0 `tclInstructionTable[]` by `cargo xtask opcode-table --check`, with private opcodes numbered from 255 downward and a per-release admission table. Codes 0–210 must equal the pinned 9.1.0 table, because tbcx validates against the running C Tcl. The admission table gains an export-lowering column, which item 311's interop export uses.
+   - The missing `dictRemove`, `arithSeries` and `foreach_index` opcodes are added.
+   - Every dispatch arm follows 9.1 semantics, and deprecated opcodes stay executable for 8.4–9.0 targets.
+   - Codegen selects operand width at emit time.
+   - Registry release ranges say which of the eight newly compiled commands, and `switch -integer`, compile on which release.
+   - The bytecode-compare corpus gains 9.1 goldens and a byte-level mode. `runtime/rust` follows through item 88.
+   - Done when: `opcode-table --check` is green and all 211 slots have VM arms. `bytecode-compare -v 9.1 all` matches by disassembly and by bytes, or each mismatch is on a listed divergence. Releases 8.4–9.0 show no new failures (`failset.py`). The conformance rows for the new commands pass against `tclsh` 9.1.0 and 9.0.4, native and WASM.
+313. **[designed]** (after items 305 and 311, alongside 308; [design](../../design/registry/model/313-consumer-hooks.md)) SpecTcl facts and hooks for every consumer: the optimiser, minifier, formatter, VM and runtime.
+   - **Optimiser:**
+     - permissions come from effect facts, and `optimise -no` can only withdraw them;
+     - `CSE_CANDIDATE` splits into that permission and `report redundant`;
+     - `const_fold` absorbs its versioned form;
+     - `rewrite` rules (templates, native or Tcl) carry proof sets built by `tcl spec prove`;
+     - a rule applies only when its proof set covers the positioned target set. Owner decision, 26 November 2026: proved rewrites from user packs are on by default.
+   - **Minifier:**
+     - `-scope`, `-frozen`, `-binds-vars` and `-value-role` facts;
+     - abstention per name;
+     - `tcl spec check --consumer minifier`.
+   - **Formatter:** `layout` rows, and a `layout` hook family that only chooses break points.
+   - **VM and runtime:**
+     - execution from the library's own source by default;
+     - opt-in native accelerators through `tcl-engine-api`, which never win version selection and may ship in the editor binaries (owner decision, 26 November 2026);
+     - `PackFactStamp::library_versions`.
+   - **Images** gain `RULES`, `TABLES`, `BODIES`, `IMPLEMENTATIONS` and `PROOFS` sections. One `hook_abi` version covers every consumer's native hook tables.
+   - Done when: every example in the design is a green conformance row on 8.6 and 9.0. A rewrite whose proof set misses the target set abstains. The minifier and formatter read roles only through the resolved invocation. The formatter is idempotent over the conformance corpus. Minified and original corpus scripts print the same output under `tclsh` 8.6 and 9.0. `CSE_CANDIDATE` is gone from `traits.rs`.
 314. **[designed]** (the rest of the workspace, beside item 90; lands with item 288; [design](../../design/workspace/overview.md#the-gate)) The rank gate. Today's `crate-layer` gate protects four crates through `deny.toml`'s hand-written `wrappers` lists. It becomes a rank ledger, `docs/work/name-handling/ownership/crate-layers.tsv`, with a `crate`, `layer`, `rank` and `role` row for every crate, `runtime/rust` and the excluded WASM manifests included. It fails on an edge to a higher layer or rank (dev-dependencies included), on a generic crate naming a surface crate, on a domain crate under a feature crate, on a dependency on a binary, on a crate without a row, and on a feature used only from a dev-dependency. Today's violations are listed in `crate-layer-exceptions.tsv`, which may only shrink, and `deny.toml`'s bans are generated from the ledger.
    - Done when: the gate runs in `make xtask-gates` with a row for every crate, `cargo xtask crate-layer --write` regenerates `deny.toml`'s entries and the gate checks they agree, and once items 288–295 have landed it passes with an empty exception list.
 315. **[designed]** (with items 288, 289 and 270; [design](../../design/workspace/289-lsp-core.md#tests-and-dev-dependencies)) `tcl-lsp-it`, the LSP stack's test-only integration crate at layer 11, like `tcl-compiler-it` (item 266). It takes the tests that need a feature crate and a crate above it: `tcl-spectcl`'s pack-formatting test (288), `tcl-lsp-core`'s Jim roster test until `tcl-dialect-jim` exists, the `tests/` files that name several feature groups, and `tests/conformance`.
@@ -1057,6 +1091,49 @@ BIG-IP names and addresses (Q8; [BIG-IP names and addresses](bigip-addresses-des
    - Done when: the binary's cone is recorded against `tcl-cli`'s, and either the skill runs it and builds at most `tcl-explorer`'s cone plus `tcl-catalogue`, or the design records why it was not adopted.
 318. **[designed]** (carried by items 305–307; [design](../../design/workspace/overview.md), [SpecTcl 3](../../design/registry/model/305-spectcl-3.md)) Remove the chain `tcl-spectcl` → `tcl-spec-hooks` → `tcl-engine-tclvm` → `tcl-vm` and `tcl-codegen`. The pack loader runs packs in the VM, so the chain links the VM and the code generator into the server, the explorer, Spec Studio and MCP. Under SpecTcl 3 the reader, loader and image compiler need no VM. Only the hook runner does, and only an entry point that enables Tcl hooks links it.
    - Done when: `cargo tree -p tcl-spectcl -e normal` (default features) lists no `tcl-spec-hooks`, `tcl-engine-tclvm`, `tcl-vm` or `tcl-codegen`, and the server, explorer, Spec Studio and MCP reach the VM only through an entry point that enables Tcl hooks.
+319. **[designed]** (first in the consumer migration; can land before item 264; [design](../../design/registry/model/319-consumer-migration.md)) The consumer-purity gate: `registry-axes` extended into one ratchet over every crate in item 314's `crate-layers.tsv`, plus `runtime/rust` and `xtask/src/gen_*`.
+   - Owner crates are not scanned: the registry core, the dialect, library and catalogue crates, and each shared owner for its own axis.
+   - Domain crates may use only the surfaces their `owns` column lists.
+   - Engines are checked for agreement with the registry.
+   - New `library` and `dialect` axes absorb the separate counts from items 301 and 304.
+   - These count as sites however they are read: a const or static table, `phf` map or `HashMap::from` with two or more vocabulary words, and a `match` with three or more vocabulary arms.
+   - The `ownership/consumer-purity.tsv` ledger only shrinks, and new crates start at zero.
+   - Done when: the gate runs in `xtask-check` over all crates, the new roots are pinned, and `lowering/body_cache.rs`'s table is counted.
+320. **[designed]** (after 305's reader, before 321 and 328; [design](../../design/registry/model/319-consumer-migration.md)) Fill the shared fact gaps in the registry core and SpecTcl 3:
+   - `--` rows with `-ends-options` on every command whose parser honours them;
+   - `subcommand … -exported instance|class`;
+   - `snippet PREFIX LABEL BODY` rows;
+   - `presentation -class control|keyword|builtin ?-context-sensitive?`.
+   - Done when: the rows load, and the 32 spelled `"--"` sites and the three related waivers are gone.
+321. **[designed]** (after items 289, 302, 308 and 320; [design](../../design/registry/model/319-consumer-migration.md)) LSP features move onto the positioned context and versioned facets: hover, completion, signature help, semantic tokens, code actions, folding and symbols. `DocumentFloor` and the iRules floor reads are deleted, and each `tcl-ide-*` crate is born with no pin. Done when: no `tcl-ide-*` crate has a consumer-purity pin and `rg 'DocumentFloor|placement_floor'` is empty.
+322. **[designed]** (after items 257, 263, 285 and 305; [design](../../design/registry/model/319-consumer-migration.md)) Clear the analyser residue:
+   - retire its 71 pins;
+   - register `tk_checks` as a rung-5 contribution, as item 285 does for iRules;
+   - move the `body_cache` words to `Traits` and the factory heads to `definition_body`.
+   - Done when: `tcl-diagnostics` has no pin and Tk's pass is registered.
+323. **[designed]** (after items 254 and 292; [design](../../design/registry/model/319-consumer-migration.md)) Codegen and lowering read options, subcommands and clause plans from the registry, retiring `tcl-codegen`'s 33 pins and `lowering/structured.rs`'s 9 waivers. The hook IDs stay at rung 3. Done when: `tcl-codegen` and `tcl-lowering` have no pins.
+324. **[designed]** (after items 117a and 291; [design](../../design/registry/model/319-consumer-migration.md)) Engine agreement. `backing_report` lists each ensemble's subcommands per release, and `command-backing` compares the registry, `tcl-vm` and `runtime/rust`. The duplicated index tables move to the native model. Done when: `command-backing --check` fails on a subcommand that any one of the three lacks.
+325. **[designed]** (the MCP copies in wave 1; the positioned half after item 308; [design](../../design/registry/model/319-consumer-migration.md)) CLI and MCP.
+   - `command_info` takes `{dialect?, file?, position?}` and answers through item 308. Today it is fixed to iRules.
+   - MCP's copies of events, actions, taint and hook context keys are deleted in favour of `EventRegistry`, effects, taint facts and the hook schema.
+   - `VERIFY_DIALECTS` is read from `tcl-catalogue`.
+   - Done when: neither crate has a pin and `command_info` answers on every shipped surface.
+326. **[designed]** (after items 304 and 313; [design](../../design/registry/model/319-consumer-migration.md)) iRules semantics from one source.
+   - `tcl-cmd-core` kernels are keyed by `semantic_operation` and implementation ID.
+   - Getters carry a `reads connection FIELD` detail, which the simulator, `explain_flow` and MCP read.
+   - Mocks are keyed by generated names.
+   - Done when: no crate matches an iRules getter by name.
+327. **[designed]** (after items 118, 264 and 304; [design](../../design/registry/model/319-consumer-migration.md)) BIG-IP tools.
+   - `-object-kind` on name roles replaces `tcl-irules`' `class`, `persist` and `pool member` cases.
+   - `tcl-bigip`'s pins move under the schema owner.
+   - The `f5-xc` translation map is settled by owner question 1.
+   - Done when: `tcl-irules`, `f5-cli` and `f5-xc` have no pins.
+328. **[designed]** (after items 306 and 307; [design](../../design/registry/model/319-consumer-migration.md)) Editor artefacts from the images. The generators read `tcl-catalogue` plus every image. They emit a scope and setting per library and classes driven by `presentation` rows, and they also generate the snippets, diagnostic catalogues and AI prompts. Done when: one `make codegen` after an image edit updates every editor, and no hand list remains in `gen_*` except grammar-owned words.
+329. **[designed]** (after items 294, 301, 305 and 310; [design](../../design/registry/model/319-consumer-migration.md)) Spec Studio and the explorer.
+   - Studio uses item 310's printer, a form schema from the reader and the catalogue's releases.
+   - The explorer gains a registry view: each fact with its source and rung, hook answers and abstentions, the positioned context, and proof sets.
+   - Done when: Studio has no `render_spectcl` and no release literals, and the explorer shows provenance for every conformance example.
+330. **[designed]** (last, one surface at a time with item 307; [design](../../design/registry/model/319-consumer-migration.md)) The equivalence packs. Before they are deleted they serve as a consumer-equivalence corpus: every consumer's output must be equal under the Rust surface and the image surface. The iRules pack is upgraded once and becomes `tcl-lib-irules`' source, and the Tcl 8.6 pack is deleted. Done when: both packs are gone and the equivalence run passed for each migrated surface.
 235. **[in progress]** (owner decision, 23 November 2026: reconcile histories. Done on 23 November: `rust` merged into `work` (`8fb4a320`); every conflict resolved to `work`'s newer dependency refresh. The 9 post-cut commits checked: `a8ea94c368` is already on `work`; `531d338abf` would undo `work`'s later coverage reasons in `original_command_rename`; the seven fixture-table commits target fixtures `work` has since changed or removed, and their consolidation is item 152's fixture reader, so none is ported. Open: the squashed cut, which needs no other session pushing to `work`, and retiring `release/lsp-naming` and the merged `claude/*` branches, which needs the owner's go-ahead) Reconcile `work` with `rust` and retire the stale cut. Measured with full history: `work` and `rust` share a merge base (`ed694de47c`, 23 October); `rust` has 13 commits `work` lacks, all dependency and lockfile updates (#2493–#2526, including the security lockfile refresh #2512); `work` is 6,557 commits ahead and its history carries about 10 GB of deleted generated evidence (the clone's `.git` is 6.5 GB). `release/lsp-naming` is the 23–27 October squashed cut ([branch cut](branch-cut.md)): 690 squashed commits plus 9 later ones (table-backed fixture loading, dropped unread fixture rows, strict Clippy fixes) that are not on `work`. The five fix branches (#2142, #2227, #2228, #2249, #2250) are already contained in `work`. Steps: merge `rust` into `work`; check each of the 9 post-cut commits against `work` and port the ones still needed; cut a fresh squashed branch from `work`'s tip onto `rust` with `scripts/dev/cut-squashed-branch.py` when no other session is pushing; then retire `release/lsp-naming` and the merged `claude/*` fix branches (with the owner's go-ahead, since deleting branches is irreversible). Done when `git merge-base --is-ancestor origin/rust work` holds, every post-cut commit is ported or recorded as not needed, and a fresh clone of the squashed branch is free of the deleted evidence.
 234. **[in progress]** (the owner deferred the rest after the 21.1 matrix; see the item's own status note) Oracle coverage for names and addresses (with Q1 and item 224): measure the probe's unmeasured list on 21.1, 17.5, 17.1 and the legacy releases (virtual destinations, monitor destinations, self-IP and route forms, data groups and AFM lists with route domains, leaf characters, partition case, `.app` rules, FQDN forms, the route-domain bound, service tables per release, iRules address spellings, relative `pool` resolution, and the legacy IPv6 colon-port form) and record each verdict under `evidence/bigip/`. **Deferred.** The 21.1 verify-only matrix covers the listed LTM virtual and HTTP monitor forms, self IPs, routes, IP data groups, route-domain bound, representative names and node FQDNs, and selected iRules compile forms. The lab has one populated boot slot. The `IP::addr` TMM comparison is recorded. Follow-up fixtures cover missing route domains on nodes, virtuals, TCP monitors and SNAT translations, representative virtual service names and bounds, and IPv6 port spellings on TCP and HTTPS monitors. AFM rejected the component before parsing its address list. Further measurements are deferred, including releases before 21.1 and the remaining forms on 21.1. [21.1 address grammar evidence](../../../evidence/bigip/tmsh-21.1-address-grammars.md) · [Follow-up verification](../../../evidence/bigip/tmsh-21.1-address-grammars.md#follow-up-verification)
    - Done when every form on the probe's unmeasured list has a build-stamped verdict under `evidence/bigip/` for 21.1 (the remaining forms: AFM lists with route domains, leaf characters, partition case, `.app` rules, service tables, relative `pool` resolution, the legacy IPv6 colon-port form), 17.5, 17.1 and the legacy releases, and each verdict is a regression row for the shared address reader.

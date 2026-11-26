@@ -75,6 +75,49 @@ hooks, so most of these crates are generated scaffolding.
 The EDA vendor libraries stay SpecTcl packs, in the root `specs/` directory,
 loaded by `tcl-spectcl`.
 
+Today every Tcl-facing crate sits on the whole registry:
+
+```mermaid
+flowchart TB
+  entry["binaries and tests"] --> compiler["tcl-compiler"]
+  entry --> lspCore["tcl-lsp-core"]
+  lspCore --> compiler
+  compiler --> registry["tcl-registry, 583k lines: vocabulary, every surface, BIG-IP schema, native_*"]
+  lspCore --> registry
+  vm["tcl-vm"] --> registry
+  entry --> vm
+```
+
+After the split the surfaces sit beside the core, and only entry points
+reach them, through the catalogue (one crate per package where the table
+groups several):
+
+```mermaid
+flowchart TB
+  entry["entry points: binaries, the unit session, tests"] --> catalogue["tcl-catalogue"]
+  entry --> compiler["tcl-compiler"]
+  subgraph surfaces["dialect and library crates"]
+    dTcl["tcl-dialect-tcl"]
+    dJim["tcl-dialect-jim"]
+    dF5["tcl-dialect-f5, item 301"]
+    lBundled["tcl-lib-tcl-bundled"]
+    lTk["tcl-lib-tk"]
+    lTcllib["tcl-lib-tcllib"]
+    lExpect["tcl-lib-expect"]
+    lIrules["tcl-lib-irules"]
+    lIapps["tcl-lib-iapps"]
+    lSmall["tcl-lib-small"]
+    lDsl["tcl-lib-dsl"]
+  end
+  catalogue --> surfaces
+  dJim --> dTcl
+  dF5 --> dTcl
+  surfaces --> core["tcl-registry core"]
+  compiler --> core
+  classDef new stroke-width:3px;
+  class catalogue,dTcl,dJim,dF5,lBundled,lTk,lTcllib,lExpect,lIrules,lIapps,lSmall,lDsl new;
+```
+
 ### Rules
 
 - **The core names no dialect or library.** It builds its tables from what it
@@ -92,6 +135,7 @@ loaded by `tcl-spectcl`.
 - **Generic consumers depend on the core only.** `tcl-compiler` (and, after
   item 90, `tcl-binding`, `tcl-diagnostics` and the rest) depends on
   `tcl-registry`, never on a dialect or library crate.
+
   - Only entry points select surfaces: binaries, the unit crate's session, and
     tests. Entry points depend on `tcl-catalogue`, or on just the surfaces they
     need.
@@ -106,6 +150,26 @@ loaded by `tcl-spectcl`.
     they need.
   - Tests install it through a dev-only `ctor` macro, one line per test
     harness.
+
+In `tcl-compiler`'s manifest the rules come to this. The line naming
+`tcl-registry` is unchanged; what it names shrinks:
+
+**Before:**
+
+```toml
+[dependencies]
+tcl-registry = { path = "../tcl-registry" }   # the core and every surface
+```
+
+**After:**
+
+```toml
+[dependencies]
+tcl-registry = { path = "../tcl-registry" }   # the core only
+
+[dev-dependencies]
+tcl-dialect-tcl = { path = "../tcl-dialect-tcl" }
+```
 
 ### What it buys
 

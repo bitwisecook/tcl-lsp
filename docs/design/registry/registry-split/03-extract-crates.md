@@ -56,6 +56,15 @@ profile tables (`events/`, `profiles/`, `event_facts/`: 7.2k).
 The rule: rows go with their surface. Types that a generic crate names stay
 in the core. Where a module holds both, it splits along that line.
 
+```mermaid
+flowchart TB
+  module["a tcl-registry module"] --> rows{"does it hold a surface's rows?"}
+  rows -- no --> core["stays in the core"]
+  rows -- yes --> types{"does a generic crate name its types?"}
+  types -- no --> surface["moves to its surface crate"]
+  types -- yes --> split["splits: types in the core, rows in the surface crate"]
+```
+
 | Module | Assignment | Why |
 |---|---|---|
 | `definer.rs`, `definer/member_effect.rs`, `member_arguments.rs`, `object_system_profile.rs`, `property_accessors.rs`, `slots.rs`, `builtin_methods.rs` | core | `MemberKind`, `MemberEffect` and `DefinitionBodyGrammar` are the vocabulary AGENTS.md names. |
@@ -99,6 +108,22 @@ spec's option table goes to the core's `channel_options`, over the `options`
 of the `fconfigure` spec the engine holds. The typed `ConfigOption` mapping
 goes to `tcl-cmd-core`'s `channel`.
 
+Two of the rewrites, from `tcl-lsp-core` and `tcl-compiler`:
+
+**Before:**
+
+```rust
+use tcl_registry::commands::tcl::TclOoPropertyKind;
+let member = tcl_registry::commands::tcl::string_is_member_type(texts.get(1..)?)?;
+```
+
+**After:**
+
+```rust
+use tcl_registry::definer::property_accessors::TclOoPropertyKind;
+let member = tcl_cmd_core::string_is::member_type(texts.get(1..)?)?;
+```
+
 No production crate except `xtask`, `tcl-spec-studio` and the entry points
 needs a surface crate as a normal dependency. The entry points reach them
 through `tcl-catalogue`.
@@ -113,6 +138,15 @@ their `Surface`, and each entry point installs `tcl_catalogue::SHIPPED` plus
 that one surface. `tcl-catalogue` must not depend on `tcl-spectcl`: that edge
 would put `tcl-compiler` under the catalogue and under every test that uses
 it.
+
+```mermaid
+flowchart TB
+  entry["an entry point"] --> catalogue["tcl-catalogue: SHIPPED"]
+  entry --> spectcl["tcl-spectcl: Jim's Surface"]
+  spectcl --> compiler["tcl-compiler, for its parser"]
+  catalogue --> dJim["tcl-dialect-jim: Jim's Rust rows"]
+  catalogue -. "never" .-> spectcl
+```
 
 ### `registry-axes` and the other gates
 
@@ -140,9 +174,11 @@ re-export can return.
 
 ## Decisions
 
-1. **One crate per distribution, not per package.** The overview's rule. tcllib's
-   214 modules are one crate, and the `tmsh` view stays with `iapps`, its
-   source.
+1. **One crate per package** (owner decision, 26 November 2026, replacing
+   this doc's earlier per-distribution rule). Each tcllib package, each bundled
+   Tcl library, iApps and tmsh get their own crates. The `tmsh` view becomes the
+   `tcl-lib-tmsh` crate's own surface. After item 307 these crates are image plus
+   hooks, generated scaffolding.
 2. **`tcl-dialect-f5` waits for item 301.** Today f5-tcl's core surface is 58
    `SpecSurface` rows on Tcl specs, not data of its own (step 2, decision 3).
    Its evidence types are named by `tcl-compiler` and must stay below it. An

@@ -50,6 +50,36 @@ per-function passes, then runs the whole-unit passes over the records. One
 crate holding both tiers and the unit would hold a cycle through the unit.
 Splitting the passes from the unit puts 95 references the wrong way.
 
+The two tiers, with the unit's build between them:
+
+```mermaid
+flowchart LR
+  subgraph grpAnalysis["tcl-analysis: per-function"]
+    perFn["sccp, value_transfer, type_infer, intervals, static_loops, side_effects"]
+    execIr["executable_ir, world_state_ssa, dispatch_proof, semantic_analysis"]
+  end
+  subgraph grpUnit["tcl-unit"]
+    build["compilation_unit: builds each FunctionUnit"]
+    wholeUnit["taint, taint_interproc, interprocedural, shimmer, gvn, var_escape"]
+  end
+  build -- "calls" --> perFn
+  build -- "SemanticAnalysisBundle" --> execIr
+  wholeUnit -- "reads built units" --> build
+```
+
+What each tier can see, on a two-procedure file. SCCP over `double` alone
+cannot know `$x`; whether `$y` in `main` is 42 is a question about the call,
+and only the whole-unit tier reads `double`'s record from inside `main`'s:
+
+```tcl
+proc double {x} { expr {$x * 2} }
+proc main {} {
+    set y [double 21]
+    puts $y          ;# 42
+}
+main
+```
+
 **Executable IR is analysis, not codegen.** `compilation_unit` computes a
 `SemanticAnalysisBundle` per function (`compilation_unit/function_build.rs:31`)
 from `executable_ir` (5,198 lines), `world_state_ssa` (2,111),
@@ -148,6 +178,17 @@ The move:
    packs, `tcl-spec-hooks`), the registry keeps the declaration and the
    name. The evaluator table is registered by the entry point into the
    analysis layer, as the overview's principle 1 requires.
+
+Where today's `tcl-registry/src/value_transfer` and `resolved_invocation`
+end up:
+
+```mermaid
+flowchart LR
+  vocab["vocabulary: builtins, tcllib, irules, SemanticsDeclaration, answers, ..."] --> core["tcl-registry core"]
+  exact["exact evaluators: const_ops, regex, list, dict and path ops, literal"] --> values["tcl-values"]
+  abstract["abstract evaluators: reference_body, body, publication, partial, lift, ..."] --> transfer["tcl_analysis::transfer"]
+  resolved["resolved_invocation evaluation"] --> transfer
+```
 
 **Open question:** whether the 35 references from `commands/tcl/*.rs` (19
 files) into evaluator submodules are declarations or calls. Settle it with

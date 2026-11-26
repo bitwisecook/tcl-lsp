@@ -65,6 +65,22 @@ by more than 5% on the analysis-performance corpus (release build):
 The 5% threshold is a proposal for the owner to confirm. The measurement is
 recorded beside the decision in this doc's table.
 
+How one memo row is decided:
+
+```mermaid
+flowchart TB
+  row["a memos.tsv row"] --> isConst{"a constant built from code?"}
+  isConst -- "yes" --> keep["constant: kept"]
+  isConst -- "no" --> isState{"server state, not a memo?"}
+  isState -- "yes" --> state["state"]
+  isState -- "no" --> isInput{"a versioned registry or environment?"}
+  isInput -- "yes" --> input["input to tcl-db"]
+  isInput -- "no" --> delete["delete it, then measure"]
+  delete --> gate{"over 5 percent on the latency gate?"}
+  gate -- "no" --> deleted["delete"]
+  gate -- "yes" --> query["query: a tcl-db query"]
+```
+
 ### tcl-compiler's 102 rows
 
 The rows land in the new crates. Each row is in one of four groups, and each
@@ -112,6 +128,32 @@ by the item named.
 
 The ledger gains a `disposition` column, with one of `constant`, `delete`,
 `query:<name>`, `input` or `state`. Every row gets one.
+
+Four of today's rows, before and after (`slot_presence.rs` is
+`command_binding/original_command_table/slot_presence.rs`):
+
+**Before:**
+
+```text
+# Source path	Fact or grammar	Declaration and operation	Waiver reason	Occurrences
+rust/tcl-compiler/src/.../slot_presence.rs	analysis-memo	MISSING:LazyLock	-	1
+rust/tcl-compiler/src/.../slot_presence.rs	analysis-memo	ROWS:Mutex	-	1
+rust/tcl-compiler/src/.../slot_presence.rs	analysis-memo	ROWS:OnceLock	-	1
+rust/tcl-compiler/src/lowering/configuration.rs	analysis-memo	MEMO:OnceLock	-	1
+```
+
+**After:**
+
+```text
+# Source path	Fact or grammar	Declaration and operation	Waiver reason	Occurrences	Disposition
+rust/tcl-binding/src/.../slot_presence.rs	analysis-memo	MISSING:LazyLock	constant	1	constant
+rust/tcl-binding/src/.../slot_presence.rs	analysis-memo	ROWS:Mutex	-	1	delete
+rust/tcl-binding/src/.../slot_presence.rs	analysis-memo	ROWS:OnceLock	-	1	delete
+rust/tcl-lowering/src/lowering/configuration.rs	analysis-memo	MEMO:OnceLock	-	1	delete
+```
+
+The `delete` rows leave the ledger when their memos are gone, which is
+the verification below.
 
 ## Work list
 

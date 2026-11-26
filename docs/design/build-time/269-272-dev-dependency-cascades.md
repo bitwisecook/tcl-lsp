@@ -17,7 +17,7 @@ When a crate's dev-dependency sits above it, two things follow:
 - an edit anywhere in that stack relinks or recompiles the crate's tests.
 
 Each edge was checked in its `Cargo.toml` on 26 November 2026. Cone sizes are
-unique packages from `cargo tree -e normal,build`, then with `dev` added,
+unique package names from `cargo tree -e normal,build`, then with `dev` added,
 as workspace / all packages:
 
 | Item | Crate | Upper-stack dev-dependencies | Cone without dev | With dev | After this step |
@@ -28,8 +28,10 @@ as workspace / all packages:
 | 272 | `tcl-vm` | `tcl-codegen` (`:100`), `tcl-compiler` (`:103`) | 16 / 56 | 19 / 78 | 17 |
 
 The "after" column is the normal cone joined with the cones of the remaining
-dev-dependencies (`tcl-test-support`, which adds the host crates, and for
-`tcl-lsp-db` `tcl-runtime-api`).
+dev-dependencies (`tcl-test-support`, which adds the host crates).
+`tcl-lsp-db`'s `tcl-runtime-api` dev-dependency moves out with its only user,
+the VM test below; the crate stays in `tcl-lsp-db`'s normal cone through
+`tcl-registry`.
 
 `tcl-spectcl` is the worst edge. Its normal cone is 28 workspace crates. It
 includes `tcl-compiler`, `tcl-lsp-core`, and, through `tcl-spec-hooks` →
@@ -37,6 +39,82 @@ includes `tcl-compiler`, `tcl-lsp-core`, and, through `tcl-spec-hooks` →
 the crate at the bottom of everything, `cargo test -p tcl-registry` builds 17
 more workspace crates than the registry needs. Among them are the whole
 compiler and the LSP core.
+
+The four crates' dev edges today (dotted), over the normal edges they reach
+(solid). Every dotted edge lands on `tcl-spectcl`, `tcl-codegen`, `tcl-vm` or
+`tcl-compiler`, and from `tcl-spectcl` the normal edges reach all the rest:
+
+```mermaid
+flowchart TB
+  registry["tcl-registry"]
+  lspCore["tcl-lsp-core"]
+  lspDb["tcl-lsp-db"]
+  vm["tcl-vm"]
+  spectcl["tcl-spectcl"]
+  specHooks["tcl-spec-hooks"]
+  engine["tcl-engine-tclvm"]
+  codegen["tcl-codegen"]
+  compiler["tcl-compiler"]
+  registry -.->|"269"| spectcl
+  lspCore -.->|"270"| spectcl
+  lspCore -.->|"270"| codegen
+  lspDb -.->|"271"| spectcl
+  lspDb -.->|"271"| codegen
+  lspDb -.->|"271"| vm
+  vm -.->|"272"| codegen
+  vm -.->|"272"| compiler
+  spectcl --> lspCore
+  spectcl --> compiler
+  spectcl --> specHooks
+  specHooks --> engine
+  specHooks --> vm
+  engine --> vm
+  engine --> codegen
+  codegen --> compiler
+  lspDb --> lspCore
+  lspCore --> compiler
+  compiler --> registry
+  vm --> registry
+```
+
+After the four steps no dotted edge points up. The tests that need the upper
+stack live in two new test crates and in `tcl-spectcl`'s own tests:
+
+```mermaid
+flowchart TB
+  vmIt["tcl-vm-it (new)"]
+  dbIt["tcl-lsp-db-it (new)"]
+  spectclTests["tcl-spectcl tests (269's files)"]
+  spectcl["tcl-spectcl"]
+  lspDb["tcl-lsp-db"]
+  lspCore["tcl-lsp-core"]
+  codegen["tcl-codegen"]
+  compiler["tcl-compiler"]
+  vm["tcl-vm"]
+  bytecode["tcl-bytecode"]
+  registry["tcl-registry"]
+  support["tcl-test-support"]
+  vmIt -.-> vm
+  vmIt -.-> codegen
+  vmIt -.-> compiler
+  dbIt -.-> lspDb
+  dbIt -.-> spectcl
+  dbIt -.-> vm
+  dbIt -.-> bytecode
+  spectclTests -.-> spectcl
+  registry -.-> support
+  lspCore -.-> support
+  lspDb -.-> support
+  vm -.-> support
+  spectcl --> lspCore
+  lspDb --> lspCore
+  lspCore --> compiler
+  codegen --> compiler
+  compiler --> registry
+  vm --> registry
+  classDef new stroke-width:2px;
+  class vmIt,dbIt new;
+```
 
 ## Design
 
@@ -98,7 +176,32 @@ cheapest of the four.
 
 **Decision: the need goes away now; no test crate.**
 - `issue_2507.rs` calls `tcl_syntax::list::list_element`, which is already a
-  normal dependency (`Cargo.toml:43`).
+  normal dependency (`Cargo.toml:43`). At its two call sites (`:84`, `:295`):
+
+**Before:**
+
+```rust
+let word = tcl_codegen::codegen::helpers::tcl_list_element(source);
+```
+
+**After:**
+
+```rust
+let word = tcl_syntax::list::list_element(source);
+```
+
+  The word is the same: `tcl_list_element` is that call. It quotes a value
+  as `tclsh`'s `list` does. The test's three values need no quoting; a space
+  or an empty value does:
+
+```sh
+$ echo 'puts [list -ff]; puts [list ff+1]; puts [list zz]; puts [list {a b}]; puts [list {}]' | tclsh9.0
+-ff
+ff+1
+zz
+{a b}
+{}
+```
 - The roster test registers a fixture roster through
   `tcl_dialect::model::register_inherited_surfaces`, the call that
   `core_surfaces::seed` itself makes. The fixture is Jim, sourced from Tcl,
@@ -111,7 +214,29 @@ cheapest of the four.
   dependency from a dialect crate on a generic crate, so that adds no cascade.
 
 Then drop both dev-dependencies, and the `Cargo.toml` comment describing the
-dev cycle.
+dev cycle:
+
+**Before:**
+
+```toml
+[dev-dependencies]
+tcl-codegen = { path = "../tcl-codegen" }
+# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
+# permits and `tcl-registry` / `tcl-compiler` already use: the inherited-roster
+# completion test seeds the shipped core surfaces exactly as the server's
+# `initialize` does.
+tcl-spectcl = { path = "../tcl-spectcl" }
+# Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
+tcl-test-support = { path = "../tcl-test-support" }
+```
+
+**After:**
+
+```toml
+[dev-dependencies]
+# Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
+tcl-test-support = { path = "../tcl-test-support" }
+```
 
 ### 271: `tcl-lsp-db` → `tcl-vm`, `tcl-spectcl`, `tcl-codegen`
 
@@ -151,6 +276,8 @@ The five `src` files use `use super::*;` and name crate items such as
   - `tcl-spectcl`;
   - `tcl-vm`;
   - `tcl-bytecode`;
+  - `tcl-runtime-api` (the VM test's `NativeCompilationEntry` and
+    `ScriptCompileTarget`);
   - `tcl-test-support`.
 - Into it move:
   - the 60 SpecTcl tests, keeping their module paths as directories;
@@ -186,6 +313,8 @@ uses), `cfg_builder` (23), and a few `segmenter`, `ir` and `const_subst`. These
 tests lower Tcl to IR and then emit bytecode.
 
 **Decision: a test crate, `tcl-vm-it`, above `tcl-vm` and `tcl-codegen`.**
+Its dev-dependencies are `tcl-vm` with `test-support`, `tcl-codegen`,
+`tcl-compiler` (28 of the moving files name it) and `tcl-test-support`.
 - The need does not go away after the compiler split. The VM has no compiler of
   its own; every test that runs a script needs `tcl-codegen`'s compile service.
 - After item 292, `tcl-codegen` still sits above binding, lowering and
@@ -244,7 +373,8 @@ tests lower Tcl to IR and then emit bytecode.
    - Create `rust/tcl-lsp-db-it`.
    - Move the SpecTcl tests that need it and the VM test.
    - Add `test-support` to `tcl-lsp-db`.
-   - Drop the three dev-dependencies.
+   - Drop the three dev-dependencies, and `tcl-runtime-api`, whose only
+     user moved.
 4. **272.**
    - Inventory the 41 `src` blocks.
    - Create `rust/tcl-vm-it`.

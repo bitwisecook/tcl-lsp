@@ -121,6 +121,49 @@ plan, and three facts dominate it:
   - Item 118 takes the 171k lines of BIG-IP schema data out. `f5/`, the f5-tcl
     evidence model, goes to item 301 instead.
 
+Today's edges around `tcl-compiler`, read from the crates' `Cargo.toml` files.
+Each arrow points at the crate depended on; dotted arrows are
+dev-dependencies. The dotted edges out of `tcl-compiler` close two loops back
+onto it, through `tcl-spectcl` and through `tcl-engine-tclvm`:
+
+```mermaid
+flowchart TB
+  lspServer["tcl-lsp-server"]
+  lspDb["tcl-lsp-db"]
+  lspCore["tcl-lsp-core"]
+  spectcl["tcl-spectcl"]
+  specHooks["tcl-spec-hooks"]
+  engine["tcl-engine-tclvm"]
+  codegen["tcl-codegen"]
+  vm["tcl-vm"]
+  sslictcl["tcl-sslictcl"]
+  bpf["bpf-tcl-ir"]
+  compiler["tcl-compiler: one crate, 564k production lines"]
+  registry["tcl-registry: 583k lines"]
+  lower["tcl-lexer, tcl-syntax, tcl-expr, tcl-dialect, tcl-core-types, tcl-runtime-api"]
+
+  lspServer --> lspDb
+  lspServer --> compiler
+  lspDb --> lspCore
+  lspDb --> compiler
+  lspCore --> compiler
+  spectcl --> lspCore
+  spectcl --> specHooks
+  spectcl --> compiler
+  specHooks --> engine
+  engine --> codegen
+  engine --> vm
+  codegen --> compiler
+  sslictcl --> compiler
+  bpf --> compiler
+  vm --> registry
+  compiler --> registry
+  compiler --> lower
+  compiler -.-> spectcl
+  compiler -.-> engine
+  compiler -.-> vm
+```
+
 Smaller levers, each a plan item with its own measurement:
 
 - `test-support` features build a crate and its dependents twice in one
@@ -183,6 +226,28 @@ references (test files and inline `#[cfg(test)]` items excluded, 26 November
    - From then on, `retired_api_gate` forbids the old path.
    - What remains of `tcl-compiler` is the unit crate, which re-exports nothing.
 
+For example, four imports in a consumer such as `tcl-codegen`, rewritten by
+steps 2, 3, 6 and 12. Code above binding names the IR through binding's
+aliases ([step 6](crate-split/06-tcl-ir.md)):
+
+**Before:**
+
+```rust
+use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_compiler::command_binding::SourceNamespaceKey;
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::analyser::Analyser;
+```
+
+**After:**
+
+```rust
+use tcl_source::segment::SegmentedCommand;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_binding::ir::CommandTokens;
+use tcl_diagnostics::Analyser;
+```
+
 ## Crates (bottom up)
 
 The crates that already exist sit below this stack: `tcl-lexer`, `tcl-syntax`,
@@ -221,28 +286,73 @@ other.
 | 11 | `tcl-db` (today's `tcl-lsp-db`, renamed by item 286) | the one database, above every analysis crate; no `tcl-lsp-core` dependency | ~19k | `tcl-lsp-server`, `tcl-mcp`, the CLI | 90's step 14; later the tiers of 101, 103, 46–49, 73 |
 | later | `tcl-semantic` | the query API and fact store | new | every feature | 85 (phase 6) |
 
-```
-tcl-lexer / tcl-syntax / tcl-registry core / tcl-dialect / tcl-runtime-api   (dialect, library and catalogue crates: entry points only)
-        │
-   tcl-source ── tcl-names ── tcl-values ── tcl-model ── tcl-ir                     ranks 1–5
-                                                            │
-                     tcl-binding  (defines the body-report trait, ProvedOperands)   6
-                                                            │
-                     tcl-lowering (SSA family)                                      7
-                                                            │
-                     tcl-analysis (per-function passes, executable IR)              8
-                                                            │
-                     tcl-unit (CompilationUnit, the fixpoint driver,                9
-                               whole-unit passes; no re-exports)
-              ┌─────────────────────────┼─────────────────────────┐
-       tcl-diagnostics           tcl-optimiser            tcl-native-plan           10
-              └─────────────────────────┼─────────────────────────┘
-                     tcl-db (the one database) ── tcl-lsp-server, tcl-mcp, CLI      11
+The target layout, with each crate's rank and the main consumers. Each arrow
+points at the crate depended on, and only the nearest dependency is drawn:
+every crate also names the ones further down. Thick borders mark new crates
+and dashed borders the two renamed ones (`tcl-compiler` becomes `tcl-unit`,
+`tcl-lsp-db` becomes `tcl-db`). `tcl-db` needs no native-plan module
+([step 13](crate-split/13-unit-and-db.md)), so `tcl-native-plan` has no edge
+up to it:
 
-   consumers: tcl-codegen over tcl-native-plan, tcl-unit and below (item 292);
-              bpf-tcl-ir over tcl-ir, tcl-lowering, tcl-analysis and target_contract;
-              later: tcl-semantic over binding and analysis
+```mermaid
+flowchart TB
+  lspServer["tcl-lsp-server"]
+  mcp["tcl-mcp"]
+  cli["tcl-cli"]
+  lspCore["tcl-lsp-core"]
+  codegen["tcl-codegen"]
+  bpf["bpf-tcl-ir"]
+  irules["tcl-irules"]
+  sslictcl["tcl-sslictcl"]
+  db["11 tcl-db: the one database"]
+  diagnostics["10 tcl-diagnostics"]
+  optimiser["10 tcl-optimiser"]
+  nativePlan["10 tcl-native-plan"]
+  unit["9 tcl-unit: the fixpoint driver, whole-unit passes"]
+  analysis["8 tcl-analysis: per-function passes, executable IR"]
+  lowering["7 tcl-lowering: lowering, CFG, SSA family"]
+  binding["6 tcl-binding: BodyReport, ProvedOperands"]
+  ir["5 tcl-ir"]
+  model["4 tcl-model"]
+  values["3 tcl-values"]
+  names["2 tcl-names"]
+  source["1 tcl-source"]
+  lower["tcl-lexer, tcl-syntax, tcl-expr, tcl-registry core, tcl-dialect, tcl-core-types, tcl-runtime-api"]
+
+  lspServer --> db
+  mcp --> db
+  cli --> db
+  lspCore --> db
+  db --> diagnostics
+  db --> optimiser
+  irules --> diagnostics
+  codegen --> nativePlan
+  bpf --> nativePlan
+  bpf --> analysis
+  diagnostics --> unit
+  optimiser --> unit
+  nativePlan --> unit
+  unit --> analysis
+  analysis --> lowering
+  lowering --> binding
+  binding --> ir
+  ir --> model
+  model --> values
+  values --> names
+  names --> source
+  sslictcl --> source
+  source --> lower
+
+  classDef new stroke-width:3px;
+  classDef renamed stroke-dasharray:5 3;
+  class diagnostics,optimiser,nativePlan,analysis,lowering,binding,ir,model,values,names,source new;
+  class db,unit renamed;
 ```
+
+`tcl-codegen` builds over `tcl-native-plan`, `tcl-unit` and below (item 292).
+`bpf-tcl-ir` needs `tcl-ir`, `tcl-lowering` and `tcl-analysis`, plus
+`target_contract` from `tcl-native-plan`. Later, `tcl-semantic` sits over
+binding and analysis.
 
 `tcl-binding` is still the largest crate. `tcl-invocation`, the registry
 adapter (`registry_invocation`, 39k), is not split off in this split: item 282
@@ -259,8 +369,9 @@ record of proofs, not a key, so it stays with binding as `CommandFacts`, and
   optimiser. It lowers and builds CFGs itself, so it needs lowering too.
 - **`tcl-sslictcl`** needs only `tcl-source`.
 - **`tcl-codegen`** stops rebuilding when the diagnostics or the optimiser
-  change. Whether its drivers split off into a `tcl-compile` crate is an open
-  owner decision (item 292).
+  change. Its drivers split off into a `tcl-compile` crate above the unit
+  crate (item 292, owner decision of 26 November 2026); `tcl-codegen` keeps
+  the emitters.
 - **The LSP crates** depend on `tcl-diagnostics` and `tcl-model`, plus
   `tcl-unit` for whole-unit work.
 - **An edit to the analyser**, the busiest area with 92k test lines, rebuilds
@@ -287,6 +398,33 @@ allowed: this is the "`work` branch exception" that the
   when each crate first builds again, not after every move.
 - **Steps 0 and 1 are still green changes.** They are small, and step 0 pays
   for itself on every edit that follows.
+
+The steps and what each builds on, as the step designs record it. Dotted
+arrows are items that run beside the steps: 274 continues item 77's redesign
+inside `tcl-names` alongside steps 4–13, 117b lands after step 10, and 117a
+changes only crates below `tcl-compiler`, so it can run at any time:
+
+```mermaid
+flowchart LR
+  subgraph grpGreen["Green changes"]
+    s0["0: test dependencies"] --> s1["1: module-layers map"]
+  end
+  subgraph grpVocab["Vocabulary crates"]
+    s2["2: tcl-source"] --> s3["3: tcl-names"] --> s4["4: tcl-values"] --> s5["5: tcl-model"] --> s6["6: tcl-ir"]
+  end
+  subgraph grpMiddle["Binding and the passes"]
+    s7["7: invert binding"] --> s8["8: tcl-binding"] --> s9["9: tcl-lowering"] --> s10["10: tcl-analysis"]
+  end
+  subgraph grpTop["Top of the stack"]
+    s11["11: tcl-native-plan"] --> s12["12: tcl-diagnostics, tcl-optimiser"] --> s13["13: tcl-unit, tcl-db"] --> s14["14: caching"]
+  end
+  s1 --> s2
+  s6 --> s7
+  s10 --> s11
+  s3 -.-> i274["274: identity redesign"]
+  s10 -.-> i117b["117b: evaluation half"]
+  i117a["117a: tcl-native-model"]
+```
 
 0. **Test dependencies.** Take the upper stack out of each crate's tests.
    - 246, `tcl-compiler` ([design](crate-split/00-test-dependencies.md)), in
@@ -392,7 +530,7 @@ lines (test files and `#[cfg(test)]` modules excluded), with `wc -l` over
 | `tcl-lsp-core` | 132k (245k) | links the domain crates `tcl-bigip` (58k), `tcl-irules` (5k) and `tcl-sslictcl` (9k) instead of reaching them through interfaces; splits into 11 `tcl-ide-*` crates and the adapters `tcl-ide-f5` and `tcl-ide-sslictcl` | 289, with 315 (`tcl-lsp-it`) and 316 (`tcl-ide-diagnostics-fixtures`) |
 | `tcl-lsp-server` | 70k (120k) | one crate; `Backend` has `impl` blocks in 120 files. [build-test-cost](../../work/build-test-cost/current-state.md) decided against splitting it; reopened under this goal | 290 |
 | `tcl-vm` | 220k | depends on `tcl-registry` for the native algorithms; after item 117, on `tcl-native-model`, keeping its edge to the registry core | 291 |
-| `tcl-codegen` | 69k | depends on the whole of `tcl-compiler`; whether it splits into emitters and a `tcl-compile` driver crate is an open owner decision | 292 |
+| `tcl-codegen` | 69k | depends on the whole of `tcl-compiler`; it splits into the emitters (`tcl-codegen`) and a `tcl-compile` driver crate (owner decision, 26 November 2026) | 292 |
 | `runtime/rust` (`tcl-runtime`) | 308k | the second engine, duplicating the VM's frame and namespace code | the existing engine-convergence items: 88 and its shared items (20, 72, 161, 171, 178, 186, 203), deferred on this branch |
 | `tcl-mcp` | 6.5k (12k) | depends on `tcl-cli` and `f5-cli` for a handful of items, which move to `tcl-kcs-help` and `f5-explain`; `f5-xc` is a fine library dependency, but its own edge to `tcl-lsp-core` is not | 293 |
 | `tcl-explorer` | 9.7k (13k) | depends on `tcl-vm` (four items in `live_entry.rs`, behind the optional `live-entry` feature), `tcl-codegen` and `tcl-spectcl` | 294; 317 (a `tcl-explore` binary for the skill) |

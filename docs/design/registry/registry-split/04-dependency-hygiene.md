@@ -66,6 +66,23 @@ One ledger, `docs/work/name-handling/ownership/crate-roles.tsv`, with columns
 | `test` | `tcl-compiler-it` and the other test-only crates of items 266 and 269–272 | as dev-dependencies | as a dev-dependency |
 | `generic` | every other crate that reaches `tcl-registry` | dev-dependencies only | no |
 
+The allowed edges between roles. A dashed edge is a dev-dependency:
+
+```mermaid
+flowchart TB
+  entry["entry: binaries, WASM hosts, xtask"] --> catalogue["catalogue: tcl-catalogue"]
+  catalogue --> surface["surface: tcl-dialect-*, tcl-lib-*"]
+  surface --> core["core: tcl-registry"]
+  surface --> data["data: tcl-native-model, tcl-bigip-schema"]
+  core --> data
+  generic["generic: tcl-compiler and the rest"] --> core
+  generic -.-> surface
+  generic -. "known list only" .-> catalogue
+  test["test: tcl-compiler-it and the other test crates"] -.-> catalogue
+  core --> foundation["foundation crates"]
+  data --> foundation
+```
+
 Two crates sit near the line, and both are `generic`:
 
 - `tcl-spec-studio` lists the shipped surfaces, but `tcl-cli-support` and
@@ -98,6 +115,18 @@ fn surface_edge(from: Role, to: Role, kind: EdgeKind) -> Verdict;
     core: `tcl-dialect`, `tcl-lexer`, `tcl-syntax`, `tcl-core-types`,
     `tcl-numeric`, `tcl-cmd-core`, `tcl-runtime-api`, `tcl-regex` and their own
     dependencies.
+- **Worked verdicts.** Some edges and what the gate says about each:
+
+  | From (role) | To (role) | Kind | Verdict |
+  |---|---|---|---|
+  | `tcl-compiler` (generic) | `tcl-lib-irules` (surface) | normal | violation |
+  | `tcl-compiler` (generic) | `tcl-dialect-tcl` (surface) | dev | allowed |
+  | `tcl-compiler` (generic) | `tcl-catalogue` (catalogue) | dev | known: a row in `surface-dev-edges.tsv` |
+  | `tcl-codegen` (generic) | `tcl-catalogue` (catalogue) | dev | violation: not on the known list |
+  | `tcl-dialect-jim` (surface) | `tcl-dialect-tcl` (surface) | normal | allowed: it borrows Tcl's rows |
+  | `tcl-lib-irules` (surface) | `tcl-compiler` (generic) | normal | violation: surfaces stay leaves |
+  | `tcl-registry` (core) | `tcl-lib-tk` (surface) | build | violation |
+  | `tcl-cli` (entry) | `tcl-catalogue` (catalogue) | normal | allowed |
 - **`deny.toml` is generated, not hand-kept.**
   `cargo xtask crate-layer --write` emits one `[bans] deny` entry per surface
   crate and for `tcl-catalogue`, with `wrappers` set to every crate the

@@ -79,6 +79,16 @@ the lookup. The SpecTcl loader resolves `-native ID` through
 constants. That changes three loader sites: `loader/command/body_statements.rs:742`,
 `loader/subcommand.rs:640` and `catalogue.rs:478–529`.
 
+A pack's `-native ID` then resolves through the installed set:
+
+```mermaid
+flowchart LR
+  pack["a pack row: const_fold -native ID"] --> loader["SpecTcl loader"]
+  loader --> lookup["installed().native_hook(ID)"]
+  lookup --> tclTable["tcl surface: commands/tcl/hooks.rs"]
+  lookup --> jimTable["jim surface's hook table"]
+```
+
 A shipped Rust spec does not go through the table. It holds its function
 pointers directly (`const_fold: Some(fold_cat)`), so moving the table changes
 nothing for the 185k lines of shipped Rust specs.
@@ -91,6 +101,19 @@ register it in the surface's hook table. If it is a pure computation over
 values, it is a kernel in `tcl-cmd-core` (item 81). If it is a type several
 crates name, it is vocabulary and moves to the core or, for the runtime's
 types, to the native model (item 117a).
+
+The rule as a flow:
+
+```mermaid
+flowchart TB
+  ref["a core reference into commands::tcl"] --> onSpec{"does the spec the caller holds carry the fact?"}
+  onSpec -- yes --> readSpec["read it from the spec"]
+  onSpec -- no --> byId{"a native implementation a pack names by ID?"}
+  byId -- yes --> hook["register it in the surface's hook table"]
+  byId -- no --> pure{"a pure computation over values?"}
+  pure -- yes --> kernel["a kernel in tcl-cmd-core, item 81"]
+  pure -- no --> vocab["vocabulary: the core, or the native model, item 117a"]
+```
 
 | Reference | Becomes | Reason |
 |---|---|---|
@@ -107,6 +130,44 @@ types, to the native model (item 117a).
 | `InfoOoEnsembleKind`, `info_oo_subcommands` | `native_tcloo_info` | Only that module, the VM and the runtime use them: they are runtime protocol, and item 117a carries them out. |
 | `STATIC_DISPLAY_*` | `HookTable::static_display` | It is Tcl surface data a generic display reads. Deriving it from the `proc`, TclOO and `regexp` specs is left for later (open question 3). |
 | `is_thread_command` in `bpf-tcl-ir` | a trait on the Thread specs, asked through the universe index | `bpf-tcl-ir` already asks `Traits::COROUTINE_PRIMITIVE` the same way (`lower.rs:262`). A new `Traits::THREAD_PRIMITIVE`, set on the Thread specs, answers `providers_in_any_dialect(cmd)`. The BPF registry need not load Thread. |
+
+`try` shows the first branch. `native_try.rs` names the grammar the `try`
+spec already holds (`try_.rs:201`, `clause_grammar: Some(&GRAMMAR)`), so the
+function takes the spec instead:
+
+**Before:**
+
+```rust
+fn layout(
+    words: InvocationWords<'_>,
+    dialect: InvocationDialect,
+) -> Option<crate::TryControlInvocation> {
+    let plan = crate::commands::tcl::NATIVE_TRY_GRAMMAR
+        .walk_arguments(
+            words.arguments().with_dialect(dialect),
+            &[],
+            dialect.authoring_query(),
+        )?
+        .ok()?;
+```
+
+**After:**
+
+```rust
+fn layout(
+    spec: &CommandSpec,
+    words: InvocationWords<'_>,
+    dialect: InvocationDialect,
+) -> Option<crate::TryControlInvocation> {
+    let plan = spec
+        .clause_grammar?
+        .walk_arguments(
+            words.arguments().with_dialect(dialect),
+            &[],
+            dialect.authoring_query(),
+        )?
+        .ok()?;
+```
 
 ### The Jim and iRules logic inside `commands::tcl`
 

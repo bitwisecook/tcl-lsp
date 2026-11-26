@@ -120,6 +120,47 @@ What moves in:
 | the compile vocabulary | `NativeCompilationSpec`, `NativeCompilationGrammar`, `NativeBodyCompilation`, `SuccessfulHandlerSpec`, `NativeLowering`, `CellUpdate` and their enums | They are data. A spec holds them, and an engine executes them. |
 | `commands::tcl`, after step 2 of the registry split | `NativeJim*`, `InfoOoEnsembleKind`, `info_oo_subcommands`, the typed `ConfigOption` mapping | runtime protocol |
 
+The engines' edges today:
+
+```mermaid
+flowchart TB
+  vm["tcl-vm"] --> registry["tcl-registry: native_*, InvocationDialect, the compile vocabulary"]
+  runtime["runtime/rust"] --> registry
+  compiler["tcl-compiler"] --> registry
+  codegen["tcl-codegen"] --> registry
+  registry --> foundation["tcl-dialect, tcl-syntax, tcl-lexer, tcl-core-types, tcl-cmd-core, tcl-runtime-api"]
+```
+
+And after 117a, with the engines' remaining core edges left to item 291:
+
+```mermaid
+flowchart TB
+  vm["tcl-vm"] --> model["tcl-native-model"]
+  runtime["runtime/rust"] --> model
+  vm -. "until item 291" .-> registry["tcl-registry: selectors over specs"]
+  runtime -. "until item 291" .-> registry
+  compiler["tcl-compiler"] --> registry
+  codegen["tcl-codegen"] --> registry
+  registry --> model
+  model --> foundation["tcl-dialect, tcl-syntax, tcl-lexer, tcl-core-types, tcl-cmd-core, tcl-runtime-api"]
+  classDef new stroke-width:3px;
+  class model new;
+```
+
+In the engines' 400-odd sites the change is the path:
+
+**Before:**
+
+```rust
+use tcl_registry::InvocationDialect;
+```
+
+**After:**
+
+```rust
+use tcl_native_model::InvocationDialect;
+```
+
 The selection algorithms that read specs and walk `InvocationWords` stay in
 the registry core. They are per-command compile knowledge, read through the
 specs the registry hands out. Whether they later move up into
@@ -143,6 +184,15 @@ both modules is classified into one of three kinds:
 | vocabulary | a spec field or the `CommandSemantics` trait's signature names it | registry core |
 | per-command | it implements `CommandSemantics` for named commands, or is a static a spec points to | that command's surface crate (`builtins.rs`'s statics by command, `irules.rs` to `tcl-lib-irules`, `tcllib.rs` to `tcl-lib-tcllib`, `regex.rs` with `regsub`) |
 | driver | only the analysis layer calls it: the fixpoint over IR facts, the CFG-bound `AnalysisInputs` implementations, publication, lifting, partial answers | `tcl-analysis` (item 255) |
+
+```mermaid
+flowchart TB
+  item["an item in value_transfer or resolved_invocation"] --> named{"named by a spec field or the CommandSemantics signature?"}
+  named -- yes --> vocab["vocabulary: registry core"]
+  named -- no --> perCmd{"implements CommandSemantics for named commands, or a static a spec points to?"}
+  perCmd -- yes --> surface["per-command: that command's surface crate"]
+  perCmd -- no --> driver["driver: tcl-analysis, item 255"]
+```
 
 `evaluate_literal` and `LiteralInputs` are vocabulary. They adapt a command's
 own semantics to literal words, the folds in `tcl-dialect-tcl` call them, and

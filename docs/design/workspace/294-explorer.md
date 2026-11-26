@@ -35,6 +35,38 @@ explorer ships the VM and the BIG-IP model for one registry lookup:
 | `--prune tcl-lsp-core` (after 288) | 102 | 26 |
 | `--prune tcl-spectcl` (after this item) | 82 | 17 |
 
+The paths, today. The dotted edge is the optional `live-entry` dependency;
+`tcl-cli` turns it on.
+
+```mermaid
+flowchart LR
+  cli["tcl-cli"]
+  server["tcl-lsp-server"]
+  wasm["tcl-explorer-wasm"]
+  explorer["tcl-explorer"]
+  spectcl["tcl-spectcl"]
+  lspCore["tcl-lsp-core (until 288)"]
+  domains["tcl-bigip, tcl-irules, tcl-sslictcl"]
+  hooks["tcl-spec-hooks"]
+  engine["tcl-engine-tclvm"]
+  vm["tcl-vm"]
+  codegen["tcl-codegen"]
+  compiler["tcl-compiler"]
+  cli -->|"features: live-entry"| explorer
+  server --> explorer
+  wasm --> explorer
+  explorer -->|"active_registry_for_dialect"| spectcl
+  explorer -.->|"live_entry.rs"| vm
+  explorer --> codegen
+  explorer --> compiler
+  spectcl --> lspCore
+  lspCore --> domains
+  spectcl --> hooks
+  hooks --> engine
+  engine --> vm
+  engine --> codegen
+```
+
 ## Design
 
 ### The caller chooses the registry
@@ -49,6 +81,7 @@ dialect-string wrapper leaves the crate.
 
 ```rust
 pub struct ExplorerInputs<'a> {
+    pub dialect: &'a str,                  // the label ExplorerResult carries
     pub registry: &'a CommandRegistry,
     pub profile: &'static DialectProfile,
     pub lexer: LexerConfig,
@@ -69,6 +102,34 @@ Each caller builds the inputs from what it already has:
 `serialise/irules.rs:164` gets its registry from `ExplorerResult` instead of
 looking one up again.
 
+`dialect` stays in the inputs because `ExplorerResult` keeps the label
+(`lib.rs:294`) and the serialisers read it (`serialise.rs:298`). The browser
+explorer's call, for example:
+
+**Before:**
+
+```rust
+// tcl-explorer-wasm/src/lib.rs:82
+let result = tcl_explorer::run_pipeline(source, dialect);
+```
+
+**After:**
+
+```rust
+// the core registry with no packs; tcl-catalogue's once item 264 lands
+let environment = tcl_registry::model::resolve_environment(dialect);
+let profile = environment.unit_profile();
+let context = environment.default_context_registry();
+let inputs = tcl_explorer::ExplorerInputs {
+    dialect,
+    registry: context.commands(),
+    profile,
+    lexer: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    analysis: None,
+};
+let result = tcl_explorer::run_pipeline(source, &inputs);
+```
+
 ### The live interpreter leaves the crate
 
 `live_entry.rs` moves to `tcl-cli`, its only user (`compile.rs:103`, and
@@ -86,6 +147,32 @@ pub fn bytecode_view(result: &ExplorerResult, live: Option<&dyn BytecodeRecompil
 `None`, as their build does today. The `live-entry` feature is deleted, so
 the explorer has one build, and `tcl-cli` no longer compiles a second
 variant of it.
+
+After both changes, each caller hands the explorer what it needs, and the
+explorer reaches neither the loader nor the VM:
+
+```mermaid
+flowchart LR
+  cli["tcl-cli"]
+  server["tcl-lsp-commands (290)"]
+  wasm["tcl-explorer-wasm"]
+  explorer["tcl-explorer"]
+  spectcl["tcl-spectcl"]
+  vm["tcl-vm"]
+  catalogue["tcl-catalogue (264)"]
+  session["tcl-lsp-session"]
+  codegenApi["tcl-codegen api"]
+  compilerCrates["tcl-ir, tcl-lowering, tcl-analysis, tcl-native-plan, …"]
+  cli -->|"ExplorerInputs, BytecodeRecompile"| explorer
+  server -->|"ExplorerInputs"| explorer
+  wasm -->|"ExplorerInputs"| explorer
+  cli -->|"pack verbs, bundled packs"| spectcl
+  cli -->|"live_entry.rs"| vm
+  wasm --> catalogue
+  server -->|"registry_for(uri)"| session
+  explorer --> codegenApi
+  explorer --> compilerCrates
+```
 
 ### Compiler and codegen edges
 

@@ -32,10 +32,14 @@ The consequences:
   and the fallback. `-exact`, upper bounds and train selection are lost.
 - **D17-P.** `available {package Tk 8.5-8.6}` validates the window and keeps
   only the name (`tcl-spectcl/src/loader/available.rs:384-412`).
-- **`core_floor` is per module, not per train.** snit's `pkgIndex.tcl` offers
-  2.3.4 only under `vsatisfies [package provide Tcl] 8.5 9`, and 1.4.3
-  unconditionally (`tmp/tcllib-2.0/modules/snit/pkgIndex.tcl`). The table
-  says `core_floor: Some("8.5")` for both trains.
+- **`core_floor` is per module, but a guard can be per train.** snit's
+  `pkgIndex.tcl` offers 2.3.4 only under `vsatisfies [package provide Tcl]
+  8.5 9`, and 1.4.3 unconditionally
+  (`tmp/tcllib-2.0/modules/snit/pkgIndex.tcl`). The table says
+  `core_floor: Some("8.5")` for both trains. That is right for tcllib 2.0
+  only because `snit.tcl:18`, the 1.x train's own source, also runs
+  `package require Tcl 8.5 9`. One floor per module cannot say which of the
+  two facts it came from, or state a guard that differs per train.
 - **TclOO is core-only.** `oo::*` rows are `TCL86_PLUS`
   (`commands/tcl/oo_object.rs:233`), so `package require TclOO` on 8.5 makes
   nothing visible.
@@ -131,7 +135,7 @@ Examples:
 | Fact | Facet rows |
 |---|---|
 | `lsort -stride` (TIP 326, `commands/tcl/lsort_.rs:162`) | option `-stride`: `Availability { library: None, dialect: tcl 8.6- }` |
-| `string is` classes | value-set facet: `{tcl 8.4-8.5}` → no `entier`/`wideinteger`; `{tcl 8.6}` → `C86`; `{tcl 9.0-}` → `C9` (adds `dict`) |
+| `string is` classes | value-set facet: `{tcl 8.4}` → 18 classes; `{tcl 8.5}` adds `list` and `wideinteger`; `{tcl 8.6}` → `C86` (adds `entier`); `{tcl 9.0-}` → `C9` (adds `dict`). Checked against each tclsh's `bad class` message |
 | Tk `text -insertunfocussed` (`commands/tk/text.rs:931`) | option availability `Tk 8.6-`, with docs facet "since Tk 8.6" |
 | iRules `persist mcp` (`commands/irules/persist.rs:84,198`) | subcommand availability `iRules 21.1-`; value-set facet adds `mcp` to `persist`'s mode list from 21.1 |
 
@@ -166,12 +170,28 @@ pub fn resolve_libraries(
    candidate set the selection is the newest train that still meets it.
    `require struct::graph 1.2` therefore picks the 1.x train even though 2.4.4
    exists. Over a range, every satisfiable train stays in the set.
-4. **Requirements of the library itself** (`snit 2.x requires Tcl 8.5 and
-   TclOO`) narrow both sides: a train whose requirement fails on the dialect
+4. **Requirements of the library itself** (`snit 2.x requires Tcl 8.5 or 9`,
+   `snit2.tcl:18`) narrow both sides: a train whose requirement fails on the dialect
    selection leaves the set.
 5. **Empty set.** A present library with an empty set reports why (an
    unsatisfiable require, or no compatible row). That is a new diagnostic
    input for W120 and its relatives, not a silent permissive fallback.
+
+The steps for one library, as a flow:
+
+```mermaid
+flowchart TB
+  start["library L in the catalogue"] --> present{"ambient or bundled, or hosted and required?"}
+  present -- no --> absent["absent: no candidate set"]
+  present -- yes --> placement["placement range"]
+  placement --> meet["intersect"]
+  rows["compatibility rows that hold for the dialect selection"] --> meet
+  req["require ranges: alternatives union, -exact is V-V, bare V is V up to next major"] --> meet
+  meet --> own["drop trains whose own requirements fail"]
+  own --> empty{"empty?"}
+  empty -- yes --> report["report why: unsatisfiable require or no compatible row"]
+  empty -- no --> pick["at a point the newest train; over a range every train"]
+```
 
 **Visibility.** An item is visible when its window meets its library's
 candidate set and its dialect constraint holds at the point (or anywhere in
@@ -192,7 +212,7 @@ dialect release set.
 | `lifecycle` + `lifecycle_axis` | `window`, on the axis the `library` field names. `lifecycle_axis` is deleted |
 | `ALL_TCL_AND_IRULES`, `TK_AND_TCL` (several rows) | one row per library, or `library: None` plus a dialect constraint |
 | `TcllibModule.trains` | `Library.trains` |
-| `TcllibModule.core_floor` | per-train `CompatibilityRow { library: train, dialect: tcl FLOOR- }`, read from each `package ifneeded`'s guard |
+| `TcllibModule.core_floor` | per-train `CompatibilityRow { library: train, dialect: tcl FLOOR- }`, read from each `package ifneeded`'s guard and the train's own `package require Tcl` |
 | `LibraryPin::TracksBase` | a bundled placement at the generated version |
 | `LibraryPin::Keyed(BigipVersion)` | `LibraryAxis::TracksHost` on f5-tcl |
 
@@ -204,8 +224,49 @@ dialect release set.
 | Thread | `{2.8 on tcl 8.6}`, `{3.0 on tcl 9.0-9.2}` | 8.6 + `require Thread 3` → ∅; 9.0 + `require Thread` → {3.0} |
 | Tk | own axis; `{8.4 on tcl 8.4}` … `{9.0 on tcl 9.0}` (one per line), `requires tcl = same line` | `wish` 8.6 → {8.6}; `require Tk 8.5` on 8.6 → {8.6} (8.6 satisfies 8.5); `text -insertunfocussed` visible at 8.6 |
 | TclOO | library `TclOO`, train 1 = `0.6-1.1`, `{TclOO on tcl 8.5}` only; core `oo::*` items `library: None, dialect: tcl 8.6-` | 8.5 + `require TclOO` → library items visible; 8.6 → core items visible, and the require is satisfied by the core's provided `TclOO 1.1.0` (`generated_release_facts.rs:1093`) |
-| snit (multi-train tcllib) | trains 2 = `2.3.4`, 1 = `1.4.3`; `{2.x on tcl 8.5-9.2}` (the `pkgIndex.tcl` guard and `snit2.tcl:18`'s `package require Tcl 8.5 9`), `{1.x on tcl 8.4-9.2}` | 8.4 + `require snit` → {1.4.3}; 8.6 → {2.3.4}; `require snit 1` → {1.4.3} |
+| snit (multi-train tcllib) | trains 2 = `2.3.4`, 1 = `1.4.3`; `{2.x on tcl 8.5-9.2}` (the `pkgIndex.tcl` guard and `snit2.tcl:18`'s `package require Tcl 8.5 9`), `{1.x on tcl 8.5-9.2}` (`snit.tcl:18`, the same require) | 8.4 + `require snit` → ∅ (report); 8.6 → {2.3.4}; `require snit 1` → {1.4.3} |
 | iRules | tracks host, `{any on f5-tcl, build tmm}` | f5-tcl 16.1/tmm → iRules {16.1}; `HTTP2::header` visible; 15.1 → not visible; scriptd → iRules absent |
+
+The snit row matches tclsh. With only `tcllib-2.0/modules/snit` on
+`auto_path`, one fresh interpreter per line gives:
+
+```tcl
+package require snit              ;# 8.5, 8.6, 9.0: 2.3.4
+package require snit 1            ;# 8.5, 8.6, 9.0: 1.4.3
+package require -exact snit 1.4.3 ;# 8.5, 8.6, 9.0: 1.4.3
+package require snit 3            ;# every release: can't find package snit 3
+package require snit              ;# 8.4: can't find package snit
+```
+
+On 8.4 the index's guard is itself the error: 8.4's `package vsatisfies`
+takes two arguments, so reading `pkgIndex.tcl` fails, and tclsh reports
+`error reading package index file`.
+
+Today's row becomes the library's rows. The generator reads each train's
+guard and its source's `package require Tcl`:
+
+**Before:**
+
+```rust
+TcllibModule {
+    package: "snit",
+    trains: &["2.3.4", "1.4.3"],
+    core_floor: Some("8.5"),
+    evidence: "snit/pkgIndex.tcl",
+}
+```
+
+**After:**
+
+```spectcl
+library snit {
+    versions 1.4.3 2.3.4
+    train 1 {1-2}
+    train 2 {2-3}
+    compatible snit 1 {tcl 8.5-9.2}    ;# snit.tcl:18
+    compatible snit 2 {tcl 8.5-9.2}    ;# pkgIndex.tcl guard, snit2.tcl:18
+}
+```
 
 TclOO's bundled placement is generated from `provided_packages`. A require
 of a core-provided package is satisfied without making it a library surface.
@@ -306,8 +367,12 @@ hover, completion and MCP), and the SpecTcl loader (305).
 
 ## Corrections to the overview
 
-- `TcllibModule.core_floor` cannot become a library-level row, because it is
-  per train (snit).
+- `TcllibModule.core_floor` cannot become a library-level row, because a
+  guard can be per train. snit is not an example of a difference, though:
+  in tcllib 2.0 both trains require Tcl 8.5 or 9 (`snit.tcl:18`,
+  `snit2.tcl:18`). The overview's "snit 1.x also runs on 8.4" is wrong, and
+  tclsh 8.4 cannot even read snit's `pkgIndex.tcl`. This document's snit row
+  said `{1.x on tcl 8.4-9.2}` until 26 November 2026; it now says 8.5.
 - The overview's example "tcllib's `snit` 2.x requires Tcl 8.5 and TclOO" is
   wrong. `snit2.tcl:18` requires only `Tcl 8.5 9`, and snit 2 does not load
   TclOO.

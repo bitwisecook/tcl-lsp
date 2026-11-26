@@ -110,6 +110,44 @@ impl tcl_ir::Facts for BindingReceipts { type Command = CommandFacts; type Funct
 pub mod ir { pub type CommandTokens = tcl_ir::CommandTokens<BindingReceipts>; pub type Module = tcl_ir::Module<BindingReceipts>; /* … */ }
 ```
 
+The IR owns the slots; binding owns what fills them:
+
+```mermaid
+classDiagram
+  class Facts {
+    <<trait, tcl-ir>>
+    type Command
+    type Function
+    type Module
+    evaluated_command_word(c) Option~str~
+  }
+  class CommandTokens~F~ {
+    facts: F::Command
+  }
+  class Function~F~ {
+    facts: F::Function
+  }
+  class Module~F~ {
+    facts: F::Module
+  }
+  class BindingReceipts {
+    <<tcl-binding>>
+  }
+  class CommandFacts {
+    <<tcl-binding>>
+    source_binding: Option~SourceInvocationBinding~
+    nested_bindings
+    variable_accesses
+    hosted_taint_context
+    evaluated_body
+  }
+  CommandTokens ..> Facts
+  Function ..> Facts
+  Module ..> Facts
+  Facts <|.. BindingReceipts
+  BindingReceipts --> CommandFacts : Command
+```
+
 The reasons:
 
 1. **It keeps the fixpoint's in-place annotation.** Binding writes its record
@@ -124,6 +162,28 @@ The reasons:
 3. **The rewrite is mechanical.** `tokens.source_binding` becomes
    `tokens.facts.source_binding`. Consumers outside the IR import
    `tcl_binding::ir::*` aliases, so their type names do not change.
+
+A reader in `tcl-codegen`, before and after:
+
+**Before:**
+
+```rust
+use tcl_compiler::ir::CommandTokens;
+
+fn bound(tokens: &CommandTokens) -> bool {
+    tokens.source_binding.is_some()
+}
+```
+
+**After:**
+
+```rust
+use tcl_binding::ir::CommandTokens; // = tcl_ir::CommandTokens<BindingReceipts>
+
+fn bound(tokens: &CommandTokens) -> bool {
+    tokens.facts.source_binding.is_some()
+}
+```
 
 ### What moves in
 

@@ -38,6 +38,21 @@ The disagreements a reader cannot see from any one place:
 - `xtask`'s `semantics_matrix.rs` and `tcl-spec-studio` keep further partial
   lists (5 packs, and `SPEC_PACKS` plus a path built from the pack id).
 
+Each reader takes its own list, so nothing makes them agree:
+
+```mermaid
+flowchart LR
+  specPacks["SPEC_PACKS, 14"] --> studio["spec-studio and xtask"]
+  cells["shared_group! cells, 15"] --> authored["authored_groups, 15"]
+  authored --> specPackOf["spec_pack_of, spec_packs_of"]
+  cells --> buildDefault["build_default, 8 base groups"]
+  cells --> loadSurface["load_surface, 8 layers"]
+  builders["fn builders"] --> compiledNames["compiled_command_names, 11"]
+  compiledNames --> w002["W002 and known_in_any_dialect"]
+  jimPack["Jim SpecTcl pack"] --> ensure["core_surfaces::ensure"]
+  ensure --> sideDoor["register_core_surface_specs"]
+```
+
 The core also reads these lists from global state that no caller installs.
 Every registry in the process starts from `CommandRegistry::build_default()`.
 Outside `tcl-registry` there are 588 production calls to it and 1,305 in
@@ -101,7 +116,22 @@ pub fn try_installed() -> Option<&'static SurfaceSet>;
   `model/assembly.rs` is keyed by profile and assumes one surface set per
   process.
 - `installed()` panics with a message that names the entry point's duty and
-  this document. It does not fall back to an empty table, and it does not fall
+  this document.
+
+```mermaid
+sequenceDiagram
+  participant M as entry point main
+  participant S as SurfaceSet
+  participant R as CommandRegistry
+  M->>S: install(SHIPPED)
+  S-->>M: the installed set
+  M->>R: build_default()
+  R->>S: installed().base()
+  S-->>R: the base surfaces, built lazily
+  Note over M,S: a second install with a different list is InstallConflict
+  Note over R,S: a read before any install panics and names the entry point
+```
+ It does not fall back to an empty table, and it does not fall
   back to "everything".
 - `load_surface(layer)` looks the layer up in the installed set. An unknown
   layer keeps today's answer (`&[]`) only when no installed surface claims it.
@@ -185,6 +215,30 @@ its binary and never selects one itself.
   of the 1,971 sites.
 - A harness that installs two different sets fails at start-up with
   `InstallConflict`.
+
+A test file changes by one line per harness, not per test:
+
+**Before:**
+
+```rust
+#[test]
+fn lsort_is_known() {
+    let registry = CommandRegistry::build_default();
+    assert!(registry.get("lsort").is_some());
+}
+```
+
+**After:**
+
+```rust
+tcl_registry::testing::install_shipped!();   // once, at the top of the harness
+
+#[test]
+fn lsort_is_known() {
+    let registry = CommandRegistry::build_default();
+    assert!(registry.get("lsort").is_some());
+}
+```
 
 ## Decisions
 

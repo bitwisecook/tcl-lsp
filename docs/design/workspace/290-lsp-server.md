@@ -69,6 +69,47 @@ functions over it. Ranks are in brackets.
 | `tcl-lsp-commands` [5] | `commands` (BIG-IP, XC, explorer and diagram views, fix-all, catalogue queries) | 3.2k |
 | `tcl-lsp-server` [6] | `language_server` (`impl LanguageServer`), `protocol` (capabilities, request plumbing), `service`, `stdio_pump`, `exit_watchdog`, `transport_liveness`, `uri_norm`, `main.rs` | 2.6k |
 
+The crates as a graph. Handlers depend on the session and never on the
+transport; the commands crate alone holds the domain tools; only the session
+names the database.
+
+```mermaid
+flowchart TB
+  bin["tcl-lsp-server binary"]
+  wasm["tcl-lsp-server-wasm, -wasi"]
+  transport["tcl-lsp-server: transport [6]"]
+  commands["tcl-lsp-commands [5]"]
+  navigation["tcl-lsp-navigation [4]"]
+  diagnostics["tcl-lsp-diagnostics [4]"]
+  workspace["tcl-lsp-workspace [3]"]
+  documents["tcl-lsp-documents [2]"]
+  session["tcl-lsp-session [1]"]
+  db["tcl-db"]
+  ide["tcl-ide-* feature crates"]
+  spectcl["tcl-spectcl"]
+  domainTools["tcl-bigip, tcl-bigip-query, f5-xc, tcl-explorer, tcl-diagram"]
+  tower["tower-lsp-server"]
+  bin --> transport
+  wasm --> transport
+  transport --> tower
+  transport --> commands
+  transport --> navigation
+  transport --> diagnostics
+  transport --> workspace
+  transport --> documents
+  commands --> session
+  navigation --> session
+  diagnostics --> session
+  workspace --> session
+  documents --> session
+  session --> db
+  navigation --> ide
+  diagnostics --> ide
+  commands --> domainTools
+  workspace --> spectcl
+  diagnostics --> spectcl
+```
+
 `tcl-lsp-navigation` is the largest at 25k. It holds every read-only request,
 which share `readonly_reference_reports`' publication transactions (rename
 calls them 6 times, navigation 4). It splits further if item 259's
@@ -118,12 +159,74 @@ pub async fn hover(session: &Session, params: HoverParams) -> Result<Option<Hove
 - `CommandHandler` lets `tcl-lsp-commands` register its commands. The
   transport routes `workspace/executeCommand` by name. A build without
   BIG-IP tooling leaves the BIG-IP handler out.
+- A request crosses the crates in one direction. Hover, for example:
+
+```mermaid
+sequenceDiagram
+  participant Editor
+  participant Transport as tcl-lsp-server (transport)
+  participant Nav as tcl-lsp-navigation
+  participant Session as tcl-lsp-session
+  participant Db as tcl-db
+  participant Assist as tcl-ide-assist
+  Editor->>Transport: textDocument/hover
+  Transport->>Nav: hover(&session, params)
+  Nav->>Session: analysis(uri)
+  Session->>Db: query (salsa)
+  Db-->>Session: analysis
+  Session-->>Nav: Arc of DocumentAnalysis
+  Nav->>Assist: hover over the input
+  Assist-->>Nav: hover content
+  Nav-->>Transport: Ok(Some(Hover)) or ServeError
+  Transport-->>Editor: result, or ServeError as jsonrpc::Error
+```
+
 - The `Backend` type stays, in the transport crate, as
   `Backend { session: Arc<Session>, cooperation }`, so the WASM transports'
   uses (`tcl_lsp_server::Backend`, `service`, `rt`, `analysis_cooperation`,
   `uri_norm`, `vfs`) keep their paths or move to `tcl_lsp_session` re-exported
   once from `tcl_lsp_server`. That single re-export is the only one allowed:
   the transport is what the facades are for.
+
+The hover path shows the change. Today the trait method in the transport
+calls an inherent method that lives in `navigation/requests.rs`; after, it
+calls a free function in another crate.
+
+**Before:**
+
+```rust
+// tcl-lsp-server/src/language_server.rs
+async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
+    self.serve_hover(params).await
+}
+
+// tcl-lsp-server/src/navigation/requests.rs:920
+impl Backend {
+    pub(crate) async fn serve_hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
+        if !self.feature_enabled("hover", &params.text_document_position_params.text_document.uri).await {
+            return Ok(None);
+        }
+        // …
+    }
+}
+```
+
+**After:**
+
+```rust
+// tcl-lsp-server (transport)
+async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
+    tcl_lsp_navigation::hover(&self.session, params).await.map_err(jsonrpc::Error::from)
+}
+
+// tcl-lsp-navigation
+pub async fn hover(session: &Session, params: HoverParams) -> Result<Option<Hover>, ServeError> {
+    if !session.feature_enabled("hover", &params.text_document_position_params.text_document.uri).await {
+        return Ok(None);
+    }
+    // …
+}
+```
 
 ### Back-edges to clear
 

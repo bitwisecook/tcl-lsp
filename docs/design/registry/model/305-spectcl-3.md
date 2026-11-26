@@ -59,9 +59,44 @@ computes its rows is evaluated **once, at tool time**, by `tcl spec upgrade`
 (below) or by the bundling step, and the static rows are written out. The LSP
 and the compiler never evaluate a pack.
 
+For example, `tests/fixtures/templated/rows.tclspec` loops over an option
+table. Its 3 form is the loop's output, written out:
+
+**Before:**
+
+```spectcl
+speclib rows 2.0 {
+    command sortish {
+        arity 1..
+        traits {CSE_CANDIDATE}
+        foreach {flag prose} {
+            -ascii {Compare in code-point order.}
+            -integer {Compare as integers.}
+            -real {Compare as floating-point values.}
+        } {
+            option $flag -detail $prose
+        }
+    }
+}
+```
+
+**After:**
+
+```spectcl
+speclib rows 3 {
+    command sortish {
+        arity 1..
+        traits {CSE_CANDIDATE}
+        option -ascii -detail {Compare in code-point order.}
+        option -integer -detail {Compare as integers.}
+        option -real -detail {Compare as floating-point values.}
+    }
+}
+```
+
 **Dependency consequence.** The reader, loader and image compiler need no VM.
 They depend on `tcl-source`, the registry core and a source-store trait.
-Only the hook runner (rung 3) links `tcl-vm`, and only an entry point that
+Only the Tcl hook runner (rung 4) links `tcl-vm`, and only an entry point that
 enables Tcl hooks links the hook runner.
 
 ### Top-level forms
@@ -113,11 +148,12 @@ are ordered, and the first match wins over the unversioned facts (302's
 command lsort {
     option -stride { available core 8.6- ; takes strideLength -integer 2.. }
 }
-command {string is} {
+command {string is} {                          ;# the 18 classes of 8.4
     arg class -values {alnum alpha ascii boolean control digit double false graph
                        integer lower print punct space true upper wordchar xdigit}
-    versions {core 8.5-} { arg class -values+ {entier wideinteger} }
-    versions {core 9.0-} { arg class -values+ {dict} }
+    versions {core 9.0-} { arg class -values+ {list wideinteger entier dict} }
+    versions {core 8.6-} { arg class -values+ {list wideinteger entier} }
+    versions {core 8.5-} { arg class -values+ {list wideinteger} }
 }
 command text {                                  ;# library Tk
     option -insertunfocussed {
@@ -132,7 +168,10 @@ command persist {                               ;# library iRules, tracks host
 ```
 
 `-values+` and `-values-` amend the unversioned list, which keeps the common
-case of one added value to one line.
+case of one added value to one line. Because the first matching block wins,
+the `string is` blocks run newest first and each restates every addition
+since 8.4. The classes are tclsh's: each release's `bad class` error lists
+them, and 8.5 adds `list` and `wideinteger`, 8.6 `entier`, and 9.0 `dict`.
 
 ### Diagnostics that need code: five rungs
 
@@ -148,6 +187,22 @@ case of one added value to one line.
    (spec-packs.md "Covering the hooks").
 5. **Native contributions**: anything that is not a function of one call
    (whole-file passes such as `irules_checks`).
+
+An author, or the `spec-author` skill (item 310), climbs the ladder only as
+far as the fact needs:
+
+```mermaid
+flowchart TB
+  need["a fact or a diagnostic about a command"] --> oneCall{"a function of one call?"}
+  oneCall -- no --> r5["rung 5: native contribution, a whole-file pass"]
+  oneCall -- yes --> declared{"a declarative row says it?"}
+  declared -- yes --> r1["rung 1: declarative facts, checked natively"]
+  declared -- no --> predicate{"a closed predicate over the call says it?"}
+  predicate -- yes --> r2["rung 2: check rule, evaluated in Rust"]
+  predicate -- no --> native{"the owning crate can ship Rust?"}
+  native -- yes --> r3["rung 3: -native ID in the crate's hook table"]
+  native -- no --> r4["rung 4: sandboxed Tcl hook body"]
+```
 
 ### The `check` form
 
@@ -292,6 +347,60 @@ An error, a fuel blowout or no result means abstention.
 | `semantics`, `evaluate`, `facts` (2.2); `-domain` (2.3) | unchanged |
 | any pack-level `proc`, `foreach`, `set`, `[format]` (2.x evaluation) | expanded once at tool time; the static rows are written out |
 
+Two translations from the table, applied to real rows. First, the 1.x dialect
+tokens on `lsort.tclspec`'s two gated options (the other rows are unchanged):
+
+**Before:**
+
+```spectcl
+speclib tcl 2.1 {
+command lsort {
+    option -nocase -dialects tcl8.5+ -detail {Case-insensitive comparison.}
+    option -stride -takes strideLength -integer {Range 2 max} -dialects tcl8.6+
+}
+}
+```
+
+**After:**
+
+```spectcl
+speclib tcl 3 {
+command lsort {
+    option -nocase { available core 8.5- ; detail {Case-insensitive comparison.} }
+    option -stride { available core 8.6- ; takes strideLength -integer {Range 2 max} }
+}
+}
+```
+
+Second, D17-P. The 2.x loader validates a package window and keeps only the
+name, so this `text` option is visible under every Tk. The 3 row keeps the
+window:
+
+**Before:**
+
+```spectcl
+speclib tk-extras 2.0 {
+command text {
+    available {package Tk}
+    option -insertunfocussed -takes cursorStyle -available {package Tk 8.6-}
+}
+}
+```
+
+**After:**
+
+```spectcl
+speclib tk-extras 3 {
+command text {
+    available Tk 0-
+    option -insertunfocussed {
+        available Tk 8.6-
+        takes cursorStyle
+    }
+}
+}
+```
+
 ### Equivalent answers
 
 The promise changes from byte-equal `CommandSpec` to equivalent answers. For
@@ -322,6 +431,28 @@ pub trait SourceStore { fn read(&self, path: &SourcePath) -> Result<Arc<[u8]>, S
 pub fn read_pack(bytes: &[u8], origin: &SourcePath, store: &dyn SourceStore) -> Result<Pack3, Notices>;
 pub fn compile_image(packs: &[Pack3]) -> Image;   // 306
 ```
+
+The path from a pack's source to the registry, for any vocabulary:
+
+```mermaid
+flowchart LR
+  v3["3 pack"] --> reader["reader3 on tcl-source"]
+  v1["1.x pack"] --> shim1["shim1"]
+  v2["static 2.x pack"] --> shim2["shim2"]
+  prog["programmed 2.x pack"] --> toolEval["2.x evaluator, tool-eval feature"]
+  toolEval --> written["static 3 rows, written out"]
+  written --> reader
+  reader --> pack3["Pack3"]
+  shim1 --> pack3
+  shim2 --> pack3
+  pack3 --> lower["lowered to 302's types"]
+  pack3 --> image["compile_image, 306"]
+  lower --> registry["registry core"]
+  image --> registry
+```
+
+Only the programmed path links a VM, and only `tcl spec upgrade` and the
+bundling xtask take it.
 
 Every shipped pack is compiled to an image when the editor bundles are
 built (306), so at run time the reader runs only for a replaced bundled pack

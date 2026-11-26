@@ -108,6 +108,31 @@ after aliases, as today's four-tier index does (`environment.rs:900`).
 Old spellings from 301 join the table: `f5-tcl` → `f5-tcl`'s default
 environment (`f5-tmsh`). The `f5-irules` id is unchanged.
 
+A spelling resolves like this:
+
+```mermaid
+flowchart TB
+  name["a spelling: a setting, --dialect, a directive"] --> ids{"an environment id?"}
+  ids -- yes --> id["EnvironmentId"]
+  ids -- no --> alias{"a row in the AliasTable?"}
+  alias -- yes --> id
+  alias -- no --> ident{"an editor identity?"}
+  ident -- yes --> id
+  ident -- no --> unknown["not resolved"]
+  id --> overrides["overrides and targets"]
+  overrides --> resolved["ResolvedEnvironment"]
+```
+
+The table's rows are loaded in a fixed order. A pack row that collides with
+an earlier row is a load-time error:
+
+```mermaid
+flowchart LR
+  compiled["compiled rows, tcl-catalogue"] --> eda["generated EDA rows"]
+  eda --> packs["pack-declared rows, by tier"]
+  packs --> table["AliasTable"]
+```
+
 ### The compiled-in environments in `tcl-catalogue`
 
 `tcl-catalogue` (registry split item 264) holds the compiled definitions
@@ -132,6 +157,57 @@ contribution:
 Bundled library placements on the ladder environments are generated (302's
 `bundled_libraries`) and never written by hand.
 
+A pack-declared environment says the same things. The 2.0 fixture
+`tests/fixtures/templated/environments.tclspec` computes its version with
+`set`; its 3 form states it, and the hosted library's window is kept:
+
+**Before:**
+
+```spectcl
+speclib environments 2.0 {
+    set libver 3.2
+    environment envpack-shell {
+        display_name {Envpack Shell}
+        core         tcl 8.6
+        ambient      envlib $libver
+        alias        envpack
+        policy       ambient-plus-require
+    }
+    environment envpack-plain {
+        display_name {Envpack Plain}
+        core         tcl 8.6
+        hosted       envlib $libver-
+    }
+    command envlib::open {
+        arity 1
+        available "package envlib $libver-"
+    }
+}
+```
+
+**After:**
+
+```spectcl
+speclib environments 3 {
+    environment envpack-shell {
+        display_name {Envpack Shell}
+        dialect      tcl 8.6
+        library      envlib 3.2 -placement ambient
+        alias        envpack
+        policy       ambient-plus-require
+    }
+    environment envpack-plain {
+        display_name {Envpack Plain}
+        dialect      tcl 8.6
+        library      envlib 3.2- -placement hosted
+    }
+    command envlib::open {
+        arity 1
+        available envlib 3.2-
+    }
+}
+```
+
 The four surface lists become one. `SOURCE_AUTHORING_ENVIRONMENT_SURFACES` is
 derived from the catalogue (an environment's ambient libraries plus its
 dialect surface). `shared_group!` and `lookup.rs` are gone after item 262.
@@ -142,7 +218,18 @@ The chain from the redesign's §5.1 is kept, in this order: directive,
 shebang, `package require Tcl` guard, content signatures, filename and
 extension, then the configured default. It reads `DetectionFacts` exactly as
 today. The result is an `EnvironmentId`, and resolution then applies
-overrides to produce a `ResolvedEnvironment`. No detection row changes, which
+overrides to produce a `ResolvedEnvironment`.
+
+```mermaid
+flowchart LR
+  directive["directive"] --> shebang["shebang"]
+  shebang --> guard["package require Tcl guard"]
+  guard --> signatures["content signatures"]
+  signatures --> filename["filename and extension"]
+  filename --> fallback["configured default"]
+```
+
+The first source in the chain that answers decides. No detection row changes, which
 the verification below pins.
 
 ### `tclLsp.targets` as ranges
@@ -199,8 +286,9 @@ generators (`gen-editor-dialects`, `gen-editor-extensions`), the CLI's
   (`environment.rs:1433`) while `f5-iapps` uses `F5Scriptd32`. This is settled
   by 301's tmsh wordSize probe.
 - **Generated EDA aliases versus pack aliases.** Should a bundled pack be
-  able to change its own alias at all? Settled by the owner. Today the
-  generated table makes such a change a build edit.
+  able to change its own alias at all? Settled by the owner: yes (the owner
+  decision below). Today the generated table makes such a change a build
+  edit.
 
 ## Work list
 
