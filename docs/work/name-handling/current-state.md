@@ -47,7 +47,15 @@ All 12 host lockfiles resolve offline (`/tmp/source-host-lockfiles-work.log`).
 Workspace all-target checking passes (`/tmp/source-workspace-check-work.log`).
 All 84 SslicTcl tests pass, including public CLI conversion and the OpenSSL
 golden (`/tmp/source-sslictcl-tests-work.log`). The shard proof covers 227
-metadata targets. Full gate validation is in progress; the first Rust-gate
+metadata targets. All four public compiler boundary tests pass: conditional body discovery,
+lambda scope isolation, absolute IR spans and the original E201 insertion
+fix (`/tmp/source-compiler-boundary-tests-work.log`).
+The word-expression differential currently has 3 passes / 3 failures
+(`/tmp/source-word-boundary-tests-work.log`); comparison with the pre-extraction
+compiler library is pending. Workspace all-target Clippy and the offline x509
+Clippy configuration pass in the latest full-gate run
+(`/tmp/source-rust-check-final-work.log`).
+Full gate validation is in progress; the first Rust-gate
 attempt found two moved documentation lint errors, now corrected.
 
 ## Benchmark, test boundaries and runtime repairs

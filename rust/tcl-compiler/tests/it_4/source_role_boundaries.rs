@@ -63,14 +63,24 @@ fn proc_body_statement_spans_are_absolute() {
 }
 
 #[test]
-fn ghost_recovery_preserves_the_following_assignment() {
+fn ghost_recovery_retains_the_original_diagnostic_and_fix() {
     tcl_registry::install_shipped().expect("shipped surfaces");
-    let result = Analyser::new().analyse("set x [foo bar\nset after 1\n", "tcl8.6");
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::E201)
+    let source = "set x [foo bar\nset after 1\n";
+    let result = Analyser::new().analyse(source, "tcl8.6");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::E201)
+        .expect("unclosed bracket diagnostic");
+    assert_eq!(
+        usize::try_from(diagnostic.span.start()).unwrap(),
+        source.find('[').unwrap()
     );
-    assert!(result.global_scope.variables.contains_key("after"));
+    let fix = diagnostic.fixes.first().expect("closing bracket insertion");
+    assert_eq!(fix.new_text, "]");
+    assert_eq!(
+        usize::try_from(fix.span.start()).unwrap(),
+        source.find('\n').unwrap()
+    );
+    assert_eq!(fix.span.start(), fix.span.end());
 }
