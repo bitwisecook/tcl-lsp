@@ -578,7 +578,7 @@ mod tests {
         let bodies = expr.source_expression_script_bodies(input).unwrap();
         assert_eq!(bodies.len(), 1);
         let span = bodies[0].content_span();
-        let child = crate::segmenter::segment_commands_with_offset_and_config(
+        let child = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[span.as_range()],
             span.start(),
             input.lexer_config(),

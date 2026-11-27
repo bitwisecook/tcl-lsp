@@ -525,7 +525,7 @@ mod controls {
         let source = "foreach name {a b} {proc $name {} {return VALUE}}";
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),
@@ -547,7 +547,7 @@ mod controls {
         let frames = std::sync::Arc::clone(analyser.finite_foreach_names.frames.get().unwrap());
         assert!(frames.lock().unwrap().is_empty());
         let scope = analyser.finite_foreach_names.enter(plan()).unwrap();
-        analyser.body_depth = crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0;
+        analyser.body_depth = tcl_source::limits::MAX_SOURCE_NEST_DEPTH.0;
         let held_depth = analyser.body_depth;
         analyser.analyse_body(&command.args()[2], command.arg_tokens()[2], &[]);
         assert_eq!(analyser.body_depth, held_depth);

@@ -787,8 +787,11 @@ mod tests {
         let first = tokens.words().first().unwrap().source().span.start();
         let end = tokens.words().last().unwrap().source().span.end();
         let text = &source[first as usize..end as usize];
-        let segments =
-            crate::segmenter::segment_commands_with_offset_and_config(text, first, config.nested());
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
+            text,
+            first,
+            config.nested(),
+        );
         let [segment] = segments.as_slice() else {
             panic!("one original raw source command");
         };

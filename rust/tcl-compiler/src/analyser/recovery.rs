@@ -73,7 +73,8 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use super::state::Analyser;
-use crate::segmenter::{SegmentedCommand, WordFragment};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::WordFragment;
 
 impl Analyser {
     /// Repair a command whose source contains a stray ``]`` (a
@@ -441,7 +442,7 @@ impl Analyser {
 
         // Abstain when the swallowed text spans more than one
         // top-level command — see the doc comment above.
-        if crate::segmenter::segment_commands_with_offset_and_config(
+        if tcl_source::segment::segment_commands_with_offset_and_config(
             &text,
             0,
             self.file_lexer_config().nested(),
@@ -776,7 +777,7 @@ pub fn looks_like_switch_case<S: std::hash::BuildHasher>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::segmenter::segment_commands_with_offset;
+    use tcl_source::segment::segment_commands_with_offset;
 
     fn analyser_with_source(source: &str) -> Analyser {
         let mut a = Analyser::new();
@@ -1090,7 +1091,7 @@ mod tests {
 
     #[test]
     fn emit_partial_uses_stored_delimiter_for_e200_message() {
-        use crate::segmenter::UnclosedDelimiter;
+        use tcl_source::segment::UnclosedDelimiter;
         // The precise E200 message comes from the recorded
         // `partial_delimiter`, not the last-token heuristic.
         for (delim, want) in [
@@ -1100,7 +1101,7 @@ mod tests {
         ] {
             let source = "x";
             let mut a = analyser_with_source(source);
-            let mut cmd = crate::segmenter::segment_commands_with_offset(source, 0)[0].clone();
+            let mut cmd = tcl_source::segment::segment_commands_with_offset(source, 0)[0].clone();
             cmd.is_partial = true;
             cmd.partial_delimiter = Some(delim);
             a.emit_partial_command_diagnostic(&cmd);

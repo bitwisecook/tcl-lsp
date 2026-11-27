@@ -34,7 +34,7 @@ use tcl_registry::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalClassFactoryTransfer {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     factory: super::registered_class_factory::OriginalClassFactoryState,
     inputs: Vec<SignatureSourceNameInput>,
@@ -305,7 +305,7 @@ fn closed_declarations(
     context: SourceExecutionContext<'_>,
 ) -> Option<()> {
     let map = tcl_lexer::SourceMap::from_image(&body.text).with_base(body.base(), 0, 0);
-    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &body.text,
         body.base(),
         context.config,

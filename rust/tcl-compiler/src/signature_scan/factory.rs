@@ -41,7 +41,7 @@ use std::collections::HashSet;
 use super::ctx::FactoryCandidate;
 use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::types::SignatureProc;
-use crate::segmenter::segment_commands_with_offset_and_config;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Return `true` when `body_text` contains a top-level
 /// `proc $p1 $p2 $p3` command using exactly the wrapper's three

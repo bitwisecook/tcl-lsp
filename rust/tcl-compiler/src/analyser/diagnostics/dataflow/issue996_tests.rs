@@ -50,7 +50,7 @@ fn opaque_body_local_set_requires_original_body_owner() {
     let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
     let config = analysis.body_lexer_config.unwrap();
     let context = analysis.resolved_input.as_ref().unwrap().context_registry();
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,
@@ -126,7 +126,8 @@ fn original_body_ownership_keeps_installer_horizon_and_child_refusal() {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
         let config = analysis.body_lexer_config.unwrap();
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,

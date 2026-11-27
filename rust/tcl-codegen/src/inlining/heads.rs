@@ -42,10 +42,10 @@
 //! recorded in the definition's own namespace, which the VM holds to the live
 //! command, and so is already the definition's.
 
-use tcl_compiler::depth_guard::MAX_EXPR_NODE_DEPTH;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{CommandTokens, Script, Statement};
 use tcl_lexer::LexerConfig;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// `statements` with every command word not already absolute spelled from the
 /// global namespace, to the depth the inliner reads a body to; `None` when the

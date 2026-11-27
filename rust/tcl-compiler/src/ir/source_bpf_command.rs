@@ -27,7 +27,8 @@ use tcl_lexer::{
 use tcl_registry::bpf_op::BpfOpKind;
 use tcl_registry::{CommandRegistry, CommandSpec, RegistrySemanticKey, RegistrySnapshot};
 
-use super::{CommandTokens, Module, WordExpr, WordPart};
+use super::{CommandTokens, Module};
+use tcl_source::words::{WordExpr, WordPart};
 
 /// Actual retained Module source/context before closed-DSL phase construction.
 /// This authenticates the original input, independently of mutable IR fields,
@@ -86,7 +87,7 @@ impl SourceBpfModuleContext {
         let mut bodies = vec![(script, 1)];
         while let Some((body, depth)) = bodies.pop() {
             // Refuse rather than certify a phase the unchanged builder truncates.
-            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+            if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
                 return None;
             }
             // Closed phases cannot borrow independent Native advice.
@@ -158,7 +159,7 @@ fn pure_bpf_condition(condition: &crate::expr_ast::ExprNode) -> bool {
     use crate::expr_ast::ExprNode;
     let mut pending = vec![(condition, 1)];
     while let Some((node, depth)) = pending.pop() {
-        if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
             return false;
         }
         match node {
@@ -738,7 +739,7 @@ mod tests {
                 "{source}"
             );
         }
-        for _ in 0..crate::depth_guard::MAX_EXPR_NODE_DEPTH.0 {
+        for _ in 0..tcl_source::limits::MAX_EXPR_NODE_DEPTH.0 {
             condition = ExprNode::Unary {
                 op: UnaryOp::Pos,
                 operand: Box::new(condition),

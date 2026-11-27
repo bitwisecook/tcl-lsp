@@ -296,11 +296,11 @@ impl Analyser {
         {
             return None;
         }
-        let best = crate::text::suggest_similar(
+        let best = tcl_source::text::suggest_similar(
             method,
             names.iter().map(String::as_str),
             1,
-            crate::text::scaled_max_distance(method),
+            tcl_source::text::scaled_max_distance(method),
         );
         let mut message = format!(
             "Unknown method '{method}' on class '{}'",

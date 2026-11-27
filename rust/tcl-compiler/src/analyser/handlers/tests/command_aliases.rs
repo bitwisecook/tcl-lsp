@@ -30,7 +30,7 @@ fn command_name_pattern_with_closer(
     let config = input.lexer_config();
     let source = format!("marker {word}");
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(&source, 0, config).remove(0);
     let tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(&source),
         config,

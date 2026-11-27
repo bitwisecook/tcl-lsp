@@ -28,14 +28,14 @@ use super::{
 pub(super) struct SourceArgumentSlice<'a> {
     pub source: &'a str,
     pub base: u32,
-    pub words: &'a [crate::ir::WordExpr],
+    pub words: &'a [tcl_source::words::WordExpr],
     pub selected: std::ops::Range<usize>,
 }
 
 struct SourceArgumentEvaluationContext<'a> {
     source: &'a str,
     base: u32,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     context: SourceExecutionContext<'a>,
     argument_owner: Option<&'a super::SourceVariableEvaluationOwner>,
 }
@@ -47,7 +47,7 @@ impl SourceCommandBindings {
         &mut self,
         operands: SourceArgumentSlice<'_>,
         state: &mut ModuleCommandBindings,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         context: &SourceExecutionContext<'_>,
     ) -> Box<PreparedSourceArguments> {
         let SourceArgumentSlice {
@@ -103,7 +103,7 @@ impl SourceCommandBindings {
 
     fn prepare_substituted_source_argument(
         &mut self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         evaluation: &SourceArgumentEvaluationContext<'_>,
         state: &mut ModuleCommandBindings,
         prepared: &mut PreparedSourceArguments,
@@ -127,7 +127,8 @@ impl SourceCommandBindings {
         }
         let whole_substitution = matches!(
             word,
-            crate::ir::WordExpr::Variable { .. } | crate::ir::WordExpr::CommandSubstitution { .. }
+            tcl_source::words::WordExpr::Variable { .. }
+                | tcl_source::words::WordExpr::CommandSubstitution { .. }
         );
         let object = whole_substitution
             .then(|| substitutions.normal_object.clone())
@@ -193,7 +194,7 @@ impl SourceCommandBindings {
     /// original value projections without cloning and republishing that branch.
     fn prepare_literal_source_argument(
         &self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         state: &mut ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
@@ -201,7 +202,8 @@ impl SourceCommandBindings {
     ) -> Option<Result<crate::registry_invocation::EffectiveInvocationWord, ()>> {
         if !matches!(
             word,
-            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            tcl_source::words::WordExpr::Literal { .. }
+                | tcl_source::words::WordExpr::BracedLiteral { .. }
         ) {
             return None;
         }
@@ -235,7 +237,7 @@ impl SourceCommandBindings {
 
     fn prepared_argument_read(
         &self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         state: &ModuleCommandBindings,
         registry: &tcl_registry::CommandRegistry,
         rhs_read: Option<Arc<read_store_schedule::CapturedExpressionRead>>,
@@ -252,8 +254,8 @@ impl SourceCommandBindings {
 fn substitution_representation(
     receipt: Option<Arc<source_representation::FrozenSourceRepresentation>>,
     normal: Option<&ModuleCommandBindings>,
-    word: &crate::ir::WordExpr,
-    last_word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
+    last_word: &tcl_source::words::WordExpr,
 ) -> Option<Arc<source_representation::FrozenSourceRepresentation>> {
     receipt.filter(|receipt| {
         normal.is_some_and(|normal| receipt.is_current(&normal.source_variables))
@@ -265,7 +267,7 @@ fn substitution_representation(
 
 fn stored_representation(
     receipt: Option<Arc<source_representation::FrozenSourceRepresentation>>,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     state: &ModuleCommandBindings,
 ) -> Option<source_representation::FrozenSourceRepresentation> {
     receipt

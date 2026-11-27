@@ -640,7 +640,7 @@ mod tests {
     };
     use std::sync::Arc;
 
-    fn builder(source: &str, analysis: &AnalysisResult) -> crate::segmenter::SegmentedCommand {
+    fn builder(source: &str, analysis: &AnalysisResult) -> tcl_source::segment::SegmentedCommand {
         let config = analysis.body_lexer_config.unwrap();
         let image = tcl_lexer::SourceImage::document(source);
         let plan = tcl_lexer::native_script_words_in(
@@ -662,7 +662,7 @@ mod tests {
                     })
             })
             .unwrap();
-        crate::segmenter::segment_commands_with_offset_and_config(
+        tcl_source::segment::segment_commands_with_offset_and_config(
             &source[body.as_range()],
             body.start(),
             config,

@@ -199,7 +199,7 @@ pub(super) fn visit_call_cmd_subst_folds(
     };
 
     for word in tokens.words() {
-        let crate::ir::WordExpr::CommandSubstitution { spelling, source } = word else {
+        let tcl_source::words::WordExpr::CommandSubstitution { spelling, source } = word else {
             continue;
         };
         let Some(call) = retained_call_at(&calls, source.span.start()) else {

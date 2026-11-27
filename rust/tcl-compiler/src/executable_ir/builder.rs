@@ -28,11 +28,14 @@ use super::{
     LoweredOperation, OpaqueRegion, OriginalExecutableWordSource, OriginalExpressionCommandEffect,
     SourceCompatibilityDecline,
 };
-use crate::ir::{NodeId, Script, SourceSite, Statement};
+use crate::ir::Script;
+use crate::ir::Statement;
 use crate::registry_invocation::InvocationMetadataContext;
 use std::collections::BTreeMap;
 use tcl_core_types::Code as CompletionCode;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
 
 mod exception_regions;
 mod invocations;

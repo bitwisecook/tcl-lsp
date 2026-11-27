@@ -19,9 +19,10 @@
 //! Structural list-build compatibility for script-argument source assistance.
 //! Callback inventory uses `OriginalCallbackPrefix` and its original issuer.
 
-use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Legacy structural list-build assistance for the explicit script-argument
 /// compatibility path. Original callback consumers use their typed issuer.

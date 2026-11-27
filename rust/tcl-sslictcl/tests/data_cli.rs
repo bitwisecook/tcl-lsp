@@ -16,38 +16,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The binary installs its command surfaces before its first registry read.
-//! The binary runs without the variable through which cargo-run processes
-//! install the shipped list on their own, so a binary that read the registry
-//! first would panic with the registry's not-installed message.
+//! Public JSON conversion to `SslicTcl` through the data CLI.
 
 use std::process::{Command, Stdio};
 
 #[test]
-fn the_binary_installs_its_surfaces_before_reading_the_registry() {
+fn testssl_conversion_emits_loadable_sslictcl() {
     let sample = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/testssl-sample.json"
     );
     let output = Command::new(env!("CARGO_BIN_EXE_sslictcl-data"))
-        .env_remove("TCL_REGISTRY_TEST_INSTALL")
         .args(["testssl-to-dsl", sample])
         .stdin(Stdio::null())
         .output()
         .expect("spawn the binary");
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        !stderr.contains("no command surface set is installed"),
-        "{stderr}"
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert_ne!(
-        output.status.code(),
-        Some(101),
-        "the binary panicked: {stderr}"
-    );
-    assert!(
-        output.status.code().is_some(),
-        "the binary was killed: {stderr}"
-    );
-    assert!(output.status.success(), "{stderr}");
+    let source = String::from_utf8(output.stdout).expect("SslicTcl text");
+    assert!(!source.is_empty());
+    tcl_sslictcl::load(&source).expect("conversion emits valid SslicTcl");
 }

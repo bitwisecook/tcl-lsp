@@ -161,7 +161,8 @@ fn authored_declaration_coverage_keeps_completed_static_original_name() {
         )
         .unwrap();
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let mut tokens =
             CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &command);
         analysis

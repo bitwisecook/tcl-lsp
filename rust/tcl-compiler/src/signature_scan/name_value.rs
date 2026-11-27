@@ -1595,7 +1595,7 @@ mod logical_formal_field_tests {
     ) {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
         let input = analysis.resolved_input.as_ref().unwrap().clone();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

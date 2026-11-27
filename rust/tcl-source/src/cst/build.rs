@@ -644,10 +644,7 @@ mod tests {
         let doc = build(src);
         assert_eq!(doc.full_text(), src);
         // One real command; the trailing `# bye` is on the document.
-        assert_ne!(
-            doc.trailing,
-            [] as [crate::parsing::syntax::green::GreenTrivia; 0]
-        );
+        assert_ne!(doc.trailing, [] as [crate::cst::green::GreenTrivia; 0]);
     }
 
     /// `range_end_rel` across `{*}` markers.

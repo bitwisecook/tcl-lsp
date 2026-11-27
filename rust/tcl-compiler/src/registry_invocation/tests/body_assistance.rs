@@ -173,7 +173,7 @@ fn packaged_body_assistance_keeps_availability_separate_from_native_entry() {
     let source = "bind .widget click {return event}";
     let config = tcl_lexer::LexerConfig::for_dialect("tk");
     let bindings = crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     let mut tokens =
@@ -212,7 +212,7 @@ fn unprofiled_body_assistance_uses_retained_entry_without_definite_offset_free_f
     let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
     let bindings =
         crate::command_binding::SourceCommandBindings::analyse(source, config, &registry);
-    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     let view =

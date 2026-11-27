@@ -27,12 +27,14 @@ use super::{
     Arc, CommandAllocationSite, ModuleCommandBindings, NativeCompilationSnapshot,
     SourceCommandBindings, SourceExecutionContext,
 };
-use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::ir::CommandTokens;
 use tcl_registry::native_compilation::{
     NativeCompilationFailureScope, NativeCompilationMode, NativeCompilationSelection,
     NativeCompilationStep, NativeCompilationSteps, NativeExpressionCompilerStep,
     NativeMathFunctionResolution,
 };
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// A rejection of one compilation chunk before any of its script effects.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -398,7 +400,7 @@ pub(super) fn materialise_error_storage(
 fn boxed_command_tokens(
     map: &tcl_lexer::SourceMap<'_>,
     config: tcl_lexer::LexerConfig,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Box<CommandTokens> {
     Box::new(CommandTokens::from_segmented(map, config, segment))
 }
@@ -473,7 +475,7 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         };
-        if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(context.depth) {
+        if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(context.depth) {
             self.require_provider();
             return None;
         }
@@ -491,7 +493,7 @@ impl CompilerTraversal<'_> {
         let mut config = context.source_purpose().config(context.config);
         config.strict_quoting = false;
         let Some(segments) =
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, base, config)
         else {
             self.require_provider();
             return None;
@@ -1273,7 +1275,7 @@ impl CompilerTraversal<'_> {
         &self,
         source: &str,
         base: u32,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> SourceNativeCompilationContext {
         let command = segment.span.start().checked_sub(base).and_then(|start| {
             let mut end = segment.span.end().checked_sub(base)?;
@@ -1652,7 +1654,7 @@ impl CompilerTraversal<'_> {
     fn source_local_substitution(
         &mut self,
         word: &WordExpr,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         context: SourceExecutionContext<'_>,
     ) {
         if self.locals.is_none() {
@@ -1707,7 +1709,7 @@ impl CompilerTraversal<'_> {
     fn variable_indices(
         &mut self,
         word: &WordExpr,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
         let Some(original) =
@@ -1732,7 +1734,7 @@ impl CompilerTraversal<'_> {
         };
         let mut pending = vec![(index, 0, context.depth)];
         while let Some((list, next, depth)) = pending.pop() {
-            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+            if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
                 self.require_provider();
                 continue;
             }
@@ -1791,7 +1793,7 @@ impl CompilerTraversal<'_> {
     fn brackets(
         &mut self,
         spelling: &str,
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
         let script = spelling.strip_prefix('[')?.strip_suffix(']')?;

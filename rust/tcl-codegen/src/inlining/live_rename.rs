@@ -27,8 +27,11 @@
 
 use std::collections::HashMap;
 
-use tcl_compiler::ir::{CommandTokens, Script, Statement, WordExpr};
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::ir::Script;
+use tcl_compiler::ir::Statement;
 use tcl_lexer::{LexerConfig, Span};
+use tcl_source::words::WordExpr;
 
 /// `body` with every variable `script` (its lowering, offsets relative to the
 /// body) reads or writes renamed by `names`.

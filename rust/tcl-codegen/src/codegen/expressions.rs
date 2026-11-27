@@ -25,9 +25,9 @@
 use tcl_registry::expr_surface::{MathFunctionCallTarget, RuntimeExprSurface};
 
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
-use tcl_compiler::depth_guard::MAX_EXPR_NODE_DEPTH;
 use tcl_compiler::expr_ast::{BinOp, ExprNode, render_expr};
 use tcl_compiler::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_math_bindings};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Whether `text` begins the way a numeral does — an optional sign then an
 /// ASCII digit — which is what makes a failed parse a *bad number* rather than

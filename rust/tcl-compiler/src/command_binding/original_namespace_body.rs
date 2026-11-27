@@ -29,7 +29,7 @@ use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameI
 #[derive(PartialEq, Eq)]
 struct OriginalNamespaceBodyDelegation {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: SourceCommandTarget,
     body: super::ExecutedScriptSource,

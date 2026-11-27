@@ -749,7 +749,7 @@ fn handle_statement(
 /// builder made for a `switch` arm or a `foreach` header runs none, and a
 /// plain variable read escapes nothing.
 fn condition_may_run_a_command(condition: &ExprNode, depth: u32) -> bool {
-    if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+    if tcl_source::limits::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
         return true;
     }
     match condition {

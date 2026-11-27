@@ -56,8 +56,7 @@ fn original_tokens(
         },
     );
     let command =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &command);
     bindings.stamp_original_tokens(&mut tokens);

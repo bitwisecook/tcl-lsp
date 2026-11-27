@@ -20,10 +20,10 @@
 
 use super::super::state::Analyser;
 use super::super::types::Severity;
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Token, TokenType};
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
 
 /// Maximum nested-body recursion depth for [`Analyser::analyse_body`].
 /// `analyse_body` ↔ `process_command` ↔ `dispatch_body_arguments`
@@ -34,11 +34,11 @@ use tcl_lexer::{Token, TokenType};
 /// the cap we stop descending into further nested bodies (the diagnostics
 /// already collected stand); no real source nests anywhere near this.
 ///
-/// The number itself is [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`],
+/// The number itself is [`tcl_source::limits::MAX_SOURCE_NEST_DEPTH`],
 /// derived there from a stack budget and a measured per-level cost rather
 /// than picked to match a convention.
 pub(super) const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit =
-    crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
+    tcl_source::limits::MAX_SOURCE_NEST_DEPTH;
 
 impl Analyser {
     fn emit_body_depth_limit_if_exceeded(&mut self, span: tcl_lexer::Span) -> bool {
@@ -115,14 +115,14 @@ impl Analyser {
         // that actually does.
         // A translating Document channel folds CRLF in the cooked value; the
         // body's spans are original offsets, so walk the region itself.
-        let source_region = crate::segmenter::braced_body_source_region(
+        let source_region = tcl_source::segment::braced_body_source_region(
             &self.source,
             base_offset as usize,
             body_tok.span.end().saturating_sub(1) as usize,
             body_text,
         )
         .to_owned();
-        let body_text = crate::segmenter::body_text_in_region(
+        let body_text = tcl_source::segment::body_text_in_region(
             &self.source,
             base_offset as usize,
             body_tok.span.end() as usize,
@@ -134,7 +134,7 @@ impl Analyser {
         // `self.source`, but a runaway `"` / `{` only swallows to the body's
         // own end.
         let region_end = base_offset as usize + body_text.len();
-        let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let body_commands = tcl_source::segment::segment_commands_with_offset_and_config(
             body_text,
             base_offset,
             self.file_lexer_config().nested(),
@@ -161,7 +161,7 @@ impl Analyser {
                 // the user still sees a parse-error diagnostic.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
-                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                    Some(tcl_source::segment::UnclosedDelimiter::Brace)
                 );
                 if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end)
                     || brace_partial && self.detect_stolen_close_brace(cmd_ref))
@@ -327,7 +327,7 @@ impl Analyser {
             .head_identities
             .executed_script_for_word(body_tok.span)
             .and_then(|source| {
-                let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+                let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
                     &source.text,
                     source.base(),
                     self.file_lexer_config().nested(),

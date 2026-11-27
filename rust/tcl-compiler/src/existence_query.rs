@@ -217,7 +217,7 @@ impl<'a> QueryReading<'a> {
             return None;
         };
         let base = self.expression_base?;
-        let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+        let source = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
             base.checked_add(*start)?,
             base.checked_add(*end)?,
         ));
@@ -320,7 +320,7 @@ fn in_expr_at_inner(
             Some((query, context))
         }
         ExprNode::Command { text, start, end } => {
-            let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+            let source = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
                 expression_base.checked_add(*start)?,
                 expression_base.checked_add(*end)?,
             ));
@@ -536,7 +536,7 @@ fn in_expr_for_diagnostics_at_inner(
             Some((query, context))
         }
         ExprNode::Command { text, start, end } => {
-            let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+            let source = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
                 expression_base.checked_add(*start)?,
                 expression_base.checked_add(*end)?,
             ));
@@ -648,7 +648,7 @@ fn standalone_in_text(
     config: tcl_lexer::LexerConfig,
 ) -> Option<(String, ExistenceKind)> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(inner, 0, config);
     let [command] = commands.as_slice() else {
         return None;
     };
@@ -788,7 +788,7 @@ mod tests {
         }
         let offset = u32::try_from(source.rfind(command).unwrap()).unwrap();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(command, offset, config)
                 .remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),

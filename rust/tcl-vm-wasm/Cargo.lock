@@ -450,6 +450,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
+ "tcl-source",
  "tcl-syntax",
 ]
 
@@ -464,7 +465,6 @@ dependencies = [
  "num-traits",
  "regex",
  "rustc-hash",
- "strsim",
  "tcl-bytecode-tables",
  "tcl-cmd-core",
  "tcl-core-types",
@@ -474,6 +474,7 @@ dependencies = [
  "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
+ "tcl-source",
  "tcl-syntax",
  "thiserror",
  "unicode-general-category",
@@ -582,6 +583,17 @@ dependencies = [
 name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-source"
+version = "0.1.0"
+dependencies = [
+ "strsim",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",

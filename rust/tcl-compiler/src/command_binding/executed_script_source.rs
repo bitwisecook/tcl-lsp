@@ -19,9 +19,10 @@
 //! Executed script bytes and their truthful source relationship.
 
 use super::{Arc, CommandAllocationSite, MaterialisedSourceKind, SourceOriginId};
-use crate::ir::{Provenance, WordExpr};
 use crate::registry_invocation::{EffectiveInvocationWord, effective_invocation_word};
 use tcl_lexer::LexerConfig;
+use tcl_source::words::Provenance;
+use tcl_source::words::WordExpr;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// Mapping from executed script bytes into their owning source instance.
@@ -326,10 +327,11 @@ mod tests {
     use super::*;
 
     fn operand(source: &str, config: LexerConfig) -> (CommandAllocationSite, WordExpr) {
-        let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .next()
-            .unwrap();
+        let command =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .next()
+                .unwrap();
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,

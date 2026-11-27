@@ -98,7 +98,8 @@ fn original_native_procedure_argument_tokens(
     )
     .unwrap();
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
+            .unwrap();
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &image.source_map(),
         config,

@@ -30,7 +30,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use tcl_compiler::analyser::Analyser;
-use tcl_compiler::segmenter::segment_commands;
+use tcl_source::segment::segment_commands;
 
 mod common;
 use common::{Progress, describe_analysis_divergence};

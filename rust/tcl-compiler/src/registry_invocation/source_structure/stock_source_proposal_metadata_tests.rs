@@ -27,7 +27,7 @@ fn proposed_metadata_keeps_separate_image_and_refuses_extra_commands_or_expansio
         crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
     let source = "puts original";
     let syntax = OriginalSourceRegistryContext::capture(source, input);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let original = syntax.words(&commands[0]).unwrap();
     for (proposal, accepted) in [
         ("list proposed", true),

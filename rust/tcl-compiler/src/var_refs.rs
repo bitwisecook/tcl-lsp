@@ -34,7 +34,7 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// One argument word whose registry role **is** a variable name
 /// ([`ArgRole::names_variable`]) — the cell it denotes, where it is written,
@@ -874,7 +874,7 @@ mod tests {
     fn source_name_roles_preserve_literal_sigils_and_empty_names() {
         let source = "set {$n} VALUE\nset {$n}\nset {} EMPTY\nset {}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),
@@ -899,7 +899,7 @@ mod tests {
     fn a_source_replacement_does_not_inherit_builtin_variable_read_roles() {
         let source = "proc set {args} {return LITERAL}\nset k\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),

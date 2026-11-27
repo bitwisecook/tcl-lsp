@@ -21,8 +21,8 @@
 use super::super::Lowerer;
 use super::super::script_bodies::over_depth_script;
 use crate::ir::{CommandTokens, Procedure, Script, Statement};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
+use tcl_source::segment::SegmentedCommand;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// Qualify a procedure name relative to a namespace.

@@ -18,7 +18,7 @@
 
 //! Original parser-word geometry for native compiler descriptors.
 
-use crate::ir::{CommandTokens, Provenance, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_lexer::word_parts::NativeWord;
 use tcl_lexer::{LexerConfig, SourceImage, SourceMap, Span};
 use tcl_registry::native_compilation::{
@@ -27,6 +27,8 @@ use tcl_registry::native_compilation::{
 };
 use tcl_registry::native_compiler_words::NativeCompilerWords;
 use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingCompilation;
+use tcl_source::words::Provenance;
+use tcl_source::words::WordExpr;
 
 #[derive(Clone, Copy)]
 pub(crate) struct OriginalNativeCompilerInvocation<'a> {
@@ -240,7 +242,7 @@ fn recent_capture(
 #[doc(hidden)]
 pub struct OriginalSourceCommandProjection {
     native: Vec<NativeWord>,
-    command: crate::segmenter::SegmentedCommand,
+    command: tcl_source::segment::SegmentedCommand,
 }
 
 impl OriginalSourceCommandProjection {
@@ -313,7 +315,7 @@ impl OriginalSourceCommandProjection {
         // cannot borrow the compiler capabilities of the source it replaced.
         let original =
             SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &original,
             offset,
             config.nested(),
@@ -340,7 +342,7 @@ impl OriginalSourceCommandProjection {
         &self.native
     }
 
-    pub(crate) const fn command(&self) -> &crate::segmenter::SegmentedCommand {
+    pub(crate) const fn command(&self) -> &tcl_source::segment::SegmentedCommand {
         &self.command
     }
 }
@@ -353,7 +355,7 @@ mod tests {
 
     fn source_words(image: &SourceImage, config: LexerConfig, offset: u32) -> Vec<WordExpr> {
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)
                 .unwrap();
         let segment = segments
             .iter()

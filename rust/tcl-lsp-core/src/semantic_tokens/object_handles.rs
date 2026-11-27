@@ -316,7 +316,7 @@ fn bind_written_bare_construction(
 fn bind_original_handle_construction(
     source: &str,
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     context: &tcl_registry::model::ContextRegistry,
     classes: Option<&ClassHierarchy>,
     handles: &mut ObjectClassMap,
@@ -429,7 +429,7 @@ fn bind_object_handle(
 /// group.
 fn bind_loop_vars_for_call(
     written_source: (&str, tcl_lexer::LexerConfig),
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     context: &tcl_registry::model::ContextRegistry,
     rules: tcl_syntax::word_rules::WordValueRules,
@@ -473,7 +473,7 @@ fn bind_loop_vars_for_call(
         let Some(classes) = original_words
             .word_exprs
             .get(*written)
-            .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+            .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
             .and_then(|(spelling, _)| object_handle_name(spelling, Some(config)))
             .and_then(|name| collections.get(name))
         else {
@@ -506,7 +506,7 @@ fn bind_loop_vars_for_call(
 #[cfg(test)]
 pub(super) fn static_loop_var_names(
     source: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     word_index: usize,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<Vec<String>> {

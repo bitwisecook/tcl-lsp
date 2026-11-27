@@ -326,7 +326,7 @@ fn retained_branch_command_tokens(
     {
         return None;
     }
-    let source_site = crate::ir::SourceSite::source(Span::new(start, end));
+    let source_site = tcl_source::words::SourceSite::source(Span::new(start, end));
     let mut nested =
         crate::word_subst::nested_command_words(text, &source_site, owner.config).ok()?;
     nested.inherit_nested_bindings(owner.tokens);

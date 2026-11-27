@@ -167,7 +167,7 @@ fn assert_foreign_caller_sidecar(
     command: &tcl_lexer::NativeScriptCommandWords,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
     caller: &CallerFrame<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) {
     let mut foreign = tokens.clone();
     let offset = command.span.start();
@@ -208,10 +208,13 @@ fn original_body_caller_inventory_requires_each_original_child_sidecar() {
         &module.source_entry,
     )
     .with_resolved_analysis_input(input.clone());
-    let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, module.lexer_config)
-            .pop()
-            .unwrap();
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        module.lexer_config,
+    )
+    .pop()
+    .unwrap();
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         module.lexer_config,

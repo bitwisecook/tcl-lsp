@@ -257,7 +257,7 @@ pub(crate) struct ConditionalLogicalScalarStore {
     before: ResolveContext,
     after: ResolveContext,
     input: crate::analyser::ResolvedAnalysisInput,
-    words: std::sync::Arc<[crate::ir::WordExpr]>,
+    words: std::sync::Arc<[tcl_source::words::WordExpr]>,
     site: crate::command_binding::CommandAllocationSite,
     name: String,
     /// The stored literal; `None` for a substituted value word, whose
@@ -270,7 +270,7 @@ impl ConditionalLogicalScalarStore {
         before: &ResolveContext,
         after: &ResolveContext,
         input: &crate::analyser::ResolvedAnalysisInput,
-        words: std::sync::Arc<[crate::ir::WordExpr]>,
+        words: std::sync::Arc<[tcl_source::words::WordExpr]>,
         site: crate::command_binding::CommandAllocationSite,
         (name, value): (String, Option<String>),
         registry: &CommandRegistry,

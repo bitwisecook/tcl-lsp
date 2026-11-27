@@ -128,8 +128,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     fn walk_selected_receiver_command(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
@@ -204,8 +204,8 @@ impl SourceCommandBindings {
 
     fn walk_unknown_compiler_handler(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         compiled: &compiled_invocation::CompiledInvocationSelection,
@@ -307,8 +307,8 @@ impl SourceCommandBindings {
 
     fn walk_named_source_command(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         selected: &SourceNamedInvocationProof,
@@ -551,7 +551,7 @@ impl SourceCommandBindings {
 
     #[inline(never)]
     pub(in super::super) fn prepare_original_source_binding(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
@@ -570,7 +570,7 @@ impl SourceCommandBindings {
     pub(in super::super) fn walk_document_target(
         &mut self,
         site: u32,
-        original_words: Option<&[crate::ir::WordExpr]>,
+        original_words: Option<&[tcl_source::words::WordExpr]>,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,

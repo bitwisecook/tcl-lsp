@@ -68,7 +68,8 @@ fn fixture_with_source(environment: &str, source: &str, parent: usize) -> Fixtur
     );
     let image = tcl_lexer::SourceImage::document(source);
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
+            .unwrap();
     let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[parent]);
     bindings.stamp_original_tokens(&mut parent);
     let binding = parent.source_binding.as_ref().unwrap();
@@ -99,7 +100,7 @@ fn original_body_tokens(fixture: &Fixture) -> CommandTokens {
 
 fn unbound_body_tokens(fixture: &Fixture) -> CommandTokens {
     let config = fixture.input.lexer_config();
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &fixture.body.text,
         fixture.body.base(),
         config.nested(),
@@ -522,7 +523,8 @@ fn folded_fixture(environment: &str) -> (Fixture, CommandTokens) {
     );
     let image = tcl_lexer::SourceImage::document(source);
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
+            .unwrap();
     let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     bindings.stamp_original_tokens(&mut parent);
     let binding = parent.source_binding.as_ref().unwrap();
@@ -631,7 +633,8 @@ fn original_derived_body_geometry_refuses_changed_parent_vector_span_and_input()
     let mut changed_text = parent.clone();
     changed_text.argv_texts[2].push('!');
     let mut changed_word = parent.clone();
-    let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[2] else {
+    let tcl_source::words::WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[2]
+    else {
         panic!("original whole body word")
     };
     text.push('!');

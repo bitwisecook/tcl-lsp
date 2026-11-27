@@ -26,9 +26,9 @@ use tcl_compiler::command_binding::{
     SourceReceiverMethodEntry,
 };
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{SourceMap, Span};
+use tcl_source::segment::SegmentedCommand;
 
 /// Original class and member selected by a retained temporal receiver receipt.
 pub(crate) struct RetainedReceiverMethod<'a> {
@@ -292,7 +292,8 @@ pub(crate) fn method_at_command<'a>(
     }
     let method = binding.original_written_name_input(&tokens, 1)?;
     let editable_selector = tokens.word_exprs.get(1).is_some_and(|word| {
-        use tcl_compiler::ir::{WordExpr, WordPart};
+        use tcl_source::words::WordExpr;
+        use tcl_source::words::WordPart;
         let static_word = match word {
             WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
             WordExpr::Template { parts, .. } => parts
@@ -838,7 +839,7 @@ mod tests {
         for spelling in [r"p\uD800", r"p\uD801"] {
             let offset =
                 u32::try_from(source.rfind(&format!("object {spelling}")).unwrap()).unwrap();
-            let command = tcl_compiler::segmenter::segment_commands(source)
+            let command = tcl_source::segment::segment_commands(source)
                 .into_iter()
                 .find(|command| command.span.start() == offset)
                 .unwrap();
@@ -1361,7 +1362,7 @@ mod tests {
         let baseline = analyse(source);
         let config = baseline.body_lexer_config.unwrap();
         let offset = u32::try_from(source.find("after 0 $cb").unwrap()).unwrap();
-        let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             "after 0 $cb",
             offset,
             config,

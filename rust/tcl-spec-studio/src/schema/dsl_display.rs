@@ -37,8 +37,8 @@ impl DslDisplayContext {
         let vocabulary = dsl_source_vocabulary(&image);
         let supported = vocabulary.as_ref().is_some_and(|version| {
             version.as_deref().is_none_or(|version| {
-                tcl_compiler::parsing::spectcl_source::declared_pack_major(version).is_some()
-                    && !tcl_compiler::parsing::spectcl_source::unsupported_pack_major(version)
+                tcl_source::spectcl::declared_pack_major(version).is_some()
+                    && !tcl_source::spectcl::unsupported_pack_major(version)
             })
         });
         Self {

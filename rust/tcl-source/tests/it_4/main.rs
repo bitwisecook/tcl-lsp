@@ -16,14 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Parsing frontend: the concrete syntax tree and its derivations.
-//!
-//! The canonical, lossless **red-green concrete syntax tree** (CST) lives
-//! under [`syntax`] — the single representation shared by the segmenter,
-//! lowering, formatter, minifier, and tooling.  See
-//! `docs/design/compiler/syntax-tree.md`.
-
-pub mod syntax;
-
-/// Pure configured SpecTcl source syntax shared by its loader and navigation.
-pub mod spectcl_source;
+mod differential_group;
+mod differential_segment;
+mod text_utils;

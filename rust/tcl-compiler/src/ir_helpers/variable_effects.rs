@@ -25,12 +25,12 @@ use super::evaluated_substitutions::{
 use super::substitution_surfaces::{
     collect_expr_command_surface_refs, evaluated_command_substitution_surfaces,
 };
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::var_refs::VarReferenceScanner;
 use std::collections::BTreeSet;
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Depth cap for [`collect_defs_from_script`]'s recursion over nested
 /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` bodies.

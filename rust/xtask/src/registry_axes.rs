@@ -178,7 +178,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/optimiser/profiles.rs", 1),
     ("rust/tcl-compiler/src/optimiser/propagation.rs", 2),
     ("rust/tcl-compiler/src/scan_predicate.rs", 2),
-    ("rust/tcl-compiler/src/segmenter.rs", 2),
+    ("rust/tcl-source/src/segment.rs", 2),
     ("rust/tcl-compiler/src/shimmer/thunking.rs", 1),
     ("rust/tcl-compiler/src/signature_scan/ctx.rs", 1),
     ("rust/tcl-compiler/src/signature_scan/factory.rs", 1),

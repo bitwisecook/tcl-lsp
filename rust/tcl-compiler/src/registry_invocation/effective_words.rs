@@ -20,8 +20,9 @@
 
 use super::word_resolution::{EffectiveInvocationWord, effective_invocation_word, invocation_word};
 use super::{EffectiveCommandWords, InvocationWordOrigin};
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::InvocationWord;
+use tcl_source::words::WordExpr;
 
 /// Compose effective execution words exactly once from the shared point binding.
 /// Native compiled selection can differ from the later live lookup target.
@@ -176,8 +177,8 @@ fn append_expansion_elements(
             .unwrap_or_default();
         effective.words.push(WordExpr::Opaque {
             text: text.to_owned(),
-            source: crate::ir::SourceSite::opaque(word.source().span),
-            reason: crate::ir::WordOpacity::LossySnapshot,
+            source: tcl_source::words::SourceSite::opaque(word.source().span),
+            reason: tcl_source::words::WordOpacity::LossySnapshot,
         });
         effective
             .origins
@@ -193,19 +194,19 @@ pub(crate) fn compose_original_effective_words(
     let span = tokens.words().first()?.source().span;
     let mut words = vec![WordExpr::Literal {
         text: command.to_owned(),
-        source: crate::ir::SourceSite::opaque(span),
+        source: tcl_source::words::SourceSite::opaque(span),
     }];
     let mut origins = vec![InvocationWordOrigin::ResolvedHead];
     for (index, value) in prepended.iter().enumerate() {
         words.push(match value {
             EffectiveInvocationWord::Literal(text) => WordExpr::Literal {
                 text: text.clone(),
-                source: crate::ir::SourceSite::opaque(span),
+                source: tcl_source::words::SourceSite::opaque(span),
             },
             _ => WordExpr::Opaque {
                 text: String::new(),
-                source: crate::ir::SourceSite::opaque(span),
-                reason: crate::ir::WordOpacity::LossySnapshot,
+                source: tcl_source::words::SourceSite::opaque(span),
+                reason: tcl_source::words::WordOpacity::LossySnapshot,
             },
         });
         origins.push(InvocationWordOrigin::BindingPrefix(index));

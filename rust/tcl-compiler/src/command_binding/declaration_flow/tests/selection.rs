@@ -31,7 +31,7 @@ fn conditional_root_source_scope_uses_its_original_parent_and_input() {
     let realm = analysis.retained_command_realm().unwrap();
     let bindings = realm.source_bindings_ref();
     let image = tcl_lexer::SourceImage::document(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     bindings.stamp_original_tokens(&mut anchor);
     let binding = anchor.source_binding.as_ref().unwrap();
@@ -59,9 +59,12 @@ fn conditional_root_source_scope_uses_its_original_parent_and_input() {
         .invocation_dialect
         .unwrap();
     let offset = u32::try_from(source.find("lappend").unwrap()).unwrap();
-    let segment =
-        crate::segmenter::segment_commands_with_offset_and_config("lappend ys $pt", offset, config)
-            .remove(0);
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
+        "lappend ys $pt",
+        offset,
+        config,
+    )
+    .remove(0);
     let child = CommandTokens::from_segmented(&image.source_map(), config, &segment);
     let site = CommandAllocationSite {
         source: Arc::clone(frame.origin()),
@@ -324,7 +327,7 @@ fn declaration_selection_keeps_absent_dispatch_separate_from_invalid_reached_own
     let source = "set anchor 1; puts $absent";
     let bindings = super::super::super::SourceCommandBindings::analyse(source, config, registry);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceImage::document(source).source_map(),
         config,
@@ -413,7 +416,7 @@ fn source_read_scope_preserves_reached_owner_refusal_after_loop() {
     let bindings = super::super::super::SourceCommandBindings::analyse(source, config, registry);
     let offset = u32::try_from(source.find("puts $x").unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config("puts $x", offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config("puts $x", offset, config)
             .remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceImage::document(source).source_map(),

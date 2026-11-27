@@ -197,7 +197,7 @@ impl ExternalObjectDispatchMask {
 fn object_dispatch_mask_at_command(
     analysis: &AnalysisResult,
     source: &str,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     current: &crate::original_context::CurrentSourceContext<'_>,
     cursor: u32,
 ) -> ExternalObjectDispatchMask {
@@ -376,7 +376,7 @@ fn original_object_configuration_anchor(
 pub(super) fn original_internal_dispatch(
     source: &str,
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     current: &crate::original_context::CurrentSourceContext<'_>,
 ) -> bool {
     use tcl_compiler::registry_invocation::source_structure;
@@ -453,7 +453,7 @@ pub(crate) fn declared_self_dispatch_at<'a>(
 fn command_head_is_self_receiver(
     source: &str,
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     current: &crate::original_context::CurrentSourceContext<'_>,
 ) -> bool {
     let Some(head) = command.argv.first() else {

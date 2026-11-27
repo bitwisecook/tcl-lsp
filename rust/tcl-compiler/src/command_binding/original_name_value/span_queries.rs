@@ -566,7 +566,7 @@ impl super::super::SourceCommandBindings {
     fn original_written_word_site_geometry<'b>(
         &self,
         binding: &'b super::super::SourceInvocationBinding,
-    ) -> Option<(&'b [crate::ir::WordExpr], tcl_lexer::LexerConfig)> {
+    ) -> Option<(&'b [tcl_source::words::WordExpr], tcl_lexer::LexerConfig)> {
         if let Some(input) = self.original_logical_source_name_advice_input() {
             binding.original_logical_source_geometry_words(input)
         } else {

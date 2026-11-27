@@ -18,8 +18,11 @@
 
 //! Original Logical procedure allocation and argument correspondence.
 
-use crate::ir::{CommandTokens, Module, Procedure, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Module;
+use crate::ir::Procedure;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 use tcl_syntax::formal_params::FormalArgumentCountShape;
 
 /// A conditional source call joined to its genuine original declaration.

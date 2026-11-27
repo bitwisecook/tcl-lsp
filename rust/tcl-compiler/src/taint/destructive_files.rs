@@ -21,7 +21,6 @@
 use super::sink_warnings::{arg_index_span, original_scalar_reference_name};
 use super::{TaintColour, TaintLattice, TaintWarning, ordered_argument_candidates};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
@@ -32,6 +31,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, Traits};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Explicit standalone warning utility. Actual Module/FU callers use
 /// [`find_destructive_file_warnings_for_module_function`].

@@ -21,9 +21,9 @@
 use tcl_compiler::analyser::AnalysisResult;
 #[cfg(test)]
 use tcl_compiler::analyser::types::{Scope, VarDef};
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, LineIndex, Span};
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::SegmentedCommand;
 
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
@@ -500,8 +500,9 @@ fn point_inline_binding(
     block: tcl_compiler::cfg::BlockId,
     index: usize,
 ) -> Option<OriginalInlineBinding> {
-    use tcl_compiler::ir::{WordExpr, WordPart};
     use tcl_compiler::ssa::SsaSourceView;
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     let view = SsaSourceView::at_statement(&function.ssa, block, index);
     let tokens = view.source_tokens()?;
     if function

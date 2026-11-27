@@ -219,7 +219,7 @@ fn scalar_alpha_body_site(
     let super::ExecutedScriptMapping::Contiguous { base } = body.source.mapping else {
         return None;
     };
-    let body_commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let body_commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &body.source.text,
         base,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -329,7 +329,7 @@ impl SourceCommandBindings {
         // A body-only proof cannot close callers observing info args/body or
         // registering an execution callback elsewhere in the same source.
         let commands =
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)?;
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)?;
         let [command] = commands.as_slice() else {
             return None;
         };
@@ -523,7 +523,7 @@ impl SourceCommandBindings {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let commands =
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)?;
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)?;
         let [command] = commands.as_slice() else {
             return None;
         };
@@ -577,7 +577,7 @@ impl SourceCommandBindings {
         let super::ExecutedScriptMapping::Contiguous { base } = body.source.mapping else {
             return None;
         };
-        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &body.source.text,
             base,
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -609,7 +609,7 @@ impl SourceCommandBindings {
     fn validate_local_store_alpha_command(
         &self,
         site: &CommandAllocationSite,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         ordinal: usize,
         context: &ScalarAlphaRowContext<'_>,
     ) -> Option<()> {

@@ -838,7 +838,7 @@ impl SourceExpressionPreparation {
     pub fn original_variable_source(
         &self,
         node: &crate::expr_ast::ExprNode,
-    ) -> Option<(&Arc<super::SourceOriginId>, crate::ir::SourceSite)> {
+    ) -> Option<(&Arc<super::SourceOriginId>, tcl_source::words::SourceSite)> {
         self.original_variable_source_with_config(
             node,
             tcl_lexer::LexerConfig::from_grammar(self.witness.context().lexer_grammar),
@@ -851,7 +851,7 @@ impl SourceExpressionPreparation {
         &self,
         node: &crate::expr_ast::ExprNode,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<(&Arc<super::SourceOriginId>, crate::ir::SourceSite)> {
+    ) -> Option<(&Arc<super::SourceOriginId>, tcl_source::words::SourceSite)> {
         if let Some(expression) = &self.executed_expression {
             if expression.origin != self.source.origin
                 || expression.text.as_bytes() != self.source.text.bytes()
@@ -869,7 +869,7 @@ impl SourceExpressionPreparation {
         }
         Some((
             &self.source.origin,
-            crate::ir::SourceSite::source(node.variable_source_span(base, config)?),
+            tcl_source::words::SourceSite::source(node.variable_source_span(base, config)?),
         ))
     }
     /// Script-dependent witnesses require the original ordered compiler receipts.
@@ -1208,7 +1208,7 @@ impl super::SourceInvocationBinding {
             original.as_bytes(),
             site.source.source_image().channel(),
         );
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             site.offset,
             config,

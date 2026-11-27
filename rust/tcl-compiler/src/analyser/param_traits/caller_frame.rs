@@ -66,7 +66,7 @@ pub(super) fn record_direct_caller_effects(
     effects: &mut DirectCallerEffects,
     view: &InvocationBodyAssistance,
     source: &str,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     ctx: &ScanCtx<'_, '_>,
 ) {
     record_parameter_sources(effects, view, source, command, ctx);
@@ -77,7 +77,7 @@ fn record_parameter_sources(
     effects: &mut DirectCallerEffects,
     view: &InvocationBodyAssistance,
     source: &str,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     ctx: &ScanCtx<'_, '_>,
 ) {
     let params = ctx.parameters;

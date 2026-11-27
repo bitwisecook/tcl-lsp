@@ -70,7 +70,10 @@ impl SourceCommandBindings {
         // relation a rename cannot follow; only a written name is closed.
         if !matches!(
             native.words.get(target + 1),
-            Some(crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. })
+            Some(
+                tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. }
+            )
         ) {
             return None;
         }

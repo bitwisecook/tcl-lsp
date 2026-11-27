@@ -106,7 +106,7 @@ impl Builder<'_> {
         entry: usize,
         exits: Exits,
     ) {
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             image,
             base,
             purpose.config(self.config),
@@ -154,7 +154,7 @@ impl Builder<'_> {
         image: &tcl_lexer::SourceImage,
         base: u32,
         origin: &Arc<super::super::SourceOriginId>,
-        segments: &[crate::segmenter::SegmentedCommand],
+        segments: &[tcl_source::segment::SegmentedCommand],
     ) {
         if let DeclarationFlowFrame::Read(read) = self.entry {
             for segment in segments {

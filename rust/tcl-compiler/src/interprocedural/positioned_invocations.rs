@@ -45,7 +45,7 @@ fn scan_resolved_aliases(
         let TransitionSubject::Unknown { argument_index, .. } = subject else {
             return None;
         };
-        let crate::ir::WordExpr::Variable { spelling, .. } = resolved
+        let tcl_source::words::WordExpr::Variable { spelling, .. } = resolved
             .effective
             .words
             .get(argument_index.checked_add(1)?)?

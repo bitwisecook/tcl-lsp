@@ -620,7 +620,7 @@ impl SourceInvocationBinding {
             image.bytes().get(region.as_range())?,
             image.channel(),
         );
-        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &selected,
             region.start(),
             row.config.nested(),
@@ -1467,7 +1467,8 @@ mod tests {
         let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
         assert!(bindings.original_completed_command_world().is_none());
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &SourceImage::document(source).source_map(),
             config,

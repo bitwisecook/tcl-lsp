@@ -18,8 +18,12 @@
 
 //! Literal argument data from its actual retained whole source word.
 
-use crate::ir::{CommandTokens, Module, Script, Statement, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Module;
+use crate::ir::Script;
+use crate::ir::Statement;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// Read one unchanged literal argument under its original Module and grammar.
 /// This carries syntax data only, independently of target selection, Native

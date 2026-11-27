@@ -30,10 +30,14 @@ use super::{
     SWITCH_DEFAULT_SLOT, StatementTail, child_path,
 };
 use crate::expr_ast::ExprNode;
-use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode};
+use crate::ir::Script;
+use crate::ir::Statement;
+use crate::ir::SwitchMode;
 use crate::registry_invocation::InvocationMetadataContext;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
 
 impl FunctionBuilder {
     pub(super) fn retain_expression_command_effect(
@@ -636,7 +640,7 @@ fn original_switch_subject_source(
     (selected.facts().operation == SemanticOperationId::StructuredLowering(LoweringHookId::Switch))
         .then_some(())?;
     tokens.words().iter().enumerate().find_map(|(index, word)| {
-        let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+        let braced = matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. });
         if word.source().span == parts.subject_span
             && word.legacy_text() == parts.subject
             && braced == parts.subject_braced

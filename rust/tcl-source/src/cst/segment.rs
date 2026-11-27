@@ -44,7 +44,10 @@ use tcl_lexer::{SourceMap, Span, Token, TokenType};
 
 use super::green::{GreenNode, SyntaxKind};
 use super::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
-use crate::segmenter::{SegmentedCommand, WordFragment, command_span, word_piece};
+use crate::segment::SegmentedCommand;
+use crate::segment::WordFragment;
+use crate::segment::command_span;
+use crate::segment::word_piece;
 
 /// The `Word`-kind child nodes of a command, in document order.
 fn command_words<'t>(cmd: &SyntaxNode<'t>) -> Vec<SyntaxNode<'t>> {
@@ -247,7 +250,7 @@ mod tests {
                     .expect("a braced Str body token");
                 let base = body_tok.span.start() + u32::from(body_tok.content_offset);
 
-                let via_offset = crate::segmenter::segment_commands_with_offset_and_config(
+                let via_offset = crate::segment::segment_commands_with_offset_and_config(
                     body,
                     base,
                     LexerConfig::default(),

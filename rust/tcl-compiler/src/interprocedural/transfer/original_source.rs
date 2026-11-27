@@ -134,7 +134,7 @@ impl<'a> ModuleProcedures<'a> {
     pub(crate) fn original_substitution(
         &self,
         parent: &CommandTokens,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         script: &str,
     ) -> Option<OriginalSummaryScript> {
         if let Some(source) = &self.source {

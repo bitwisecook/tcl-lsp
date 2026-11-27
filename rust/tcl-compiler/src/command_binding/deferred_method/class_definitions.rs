@@ -418,7 +418,7 @@ impl ModuleCommandBindings {
         &self,
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,
         map: &tcl_lexer::SourceMap<'_>,
-        segments: &[crate::segmenter::SegmentedCommand],
+        segments: &[tcl_source::segment::SegmentedCommand],
         context: SourceExecutionContext<'_>,
         entries: &mut RetainedClassEntries,
     ) -> bool {
@@ -653,7 +653,7 @@ impl ModuleCommandBindings {
         }
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,

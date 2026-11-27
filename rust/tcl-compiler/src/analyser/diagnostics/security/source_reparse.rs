@@ -426,7 +426,7 @@ mod tests {
             findings(&unavailable.result, DiagCode::W309),
             [] as [&crate::analyser::types::Diagnostic; 0]
         );
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

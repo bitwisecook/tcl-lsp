@@ -66,7 +66,7 @@ pub fn original_package_require_insert_offset(
             .map_or(source.len(), |newline| end + newline + 1);
     }
     for (command_index, segment) in
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
             .into_iter()
             .enumerate()
     {

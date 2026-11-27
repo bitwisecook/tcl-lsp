@@ -20,7 +20,8 @@
 
 use super::call_facts::{scan_call_facts, strip_one_brace_layer};
 use super::{LocalFacts, ScanCtx};
-use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Walk an expression AST and record call-graph edges (and Body
 /// recursion) for every `[cmd ...]` command substitution embedded
@@ -167,7 +168,7 @@ pub(super) fn scan_source_for_calls(
     // Scan the call graph under the
     // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
     // the same way the rest of the analyser/lowering now does.
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::LexerConfig::for_profile(dialect),

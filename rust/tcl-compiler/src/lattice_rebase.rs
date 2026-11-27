@@ -40,7 +40,11 @@ use tcl_lexer::Span;
 
 use crate::cfg::Terminator;
 use crate::compilation_unit::FunctionUnit;
-use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Script;
+use crate::ir::Statement;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Shift every absolute span in `fu` by `delta` bytes (signed).  A no-op for
 /// `delta == 0`.
@@ -484,9 +488,9 @@ mod tests {
 
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use crate::ir::WordExpr;
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
+    use tcl_source::words::WordExpr;
 
     /// A cache-hit, offset-rebased unit must shift its inlined-`eval` body
     /// spans along with every other absolute span, or error-region and

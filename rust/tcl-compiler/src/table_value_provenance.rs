@@ -18,19 +18,22 @@
 
 //! Navigation-only literal ancestry of an actually read physical container.
 
-use crate::{
-    compilation_unit::{CompilationUnit, FunctionUnit},
-    ir::{CommandTokens, Provenance, WordExpr, WordPart},
-    place::Place,
-    registry_invocation::{
-        InvocationMetadataSelection, normal_representation_invocation_with_metadata_context,
-        normal_transfer_invocation_with_metadata_context,
-    },
-    value_provenance::ValueContributor,
-    var_resolve::{ContentsOrigin, ContentsPresence, ResolveContext},
-};
+use crate::compilation_unit::CompilationUnit;
+use crate::compilation_unit::FunctionUnit;
+use crate::ir::CommandTokens;
+use crate::place::Place;
+use crate::registry_invocation::InvocationMetadataSelection;
+use crate::registry_invocation::normal_representation_invocation_with_metadata_context;
+use crate::registry_invocation::normal_transfer_invocation_with_metadata_context;
+use crate::value_provenance::ValueContributor;
+use crate::var_resolve::ContentsOrigin;
+use crate::var_resolve::ContentsPresence;
+use crate::var_resolve::ResolveContext;
 use std::collections::{BTreeMap, HashSet};
 use tcl_registry::{CommandRegistry, VarElementsEffect};
+use tcl_source::words::Provenance;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 const VALUE_BUDGET: usize = 64;
 

@@ -20,8 +20,8 @@
 
 use super::super::{Lowerer, join_namespace, seg_word_substitutes};
 use crate::ir::{CommandTokens, ForeachIterator, Procedure, Script, Statement};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 impl Lowerer<'_> {
     /// Retain a synthetic analysis body under its issued Module ID.

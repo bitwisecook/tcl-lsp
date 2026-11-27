@@ -72,7 +72,7 @@ fn logical_original_tokens(
     let analysis = crate::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, "tcl");
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,

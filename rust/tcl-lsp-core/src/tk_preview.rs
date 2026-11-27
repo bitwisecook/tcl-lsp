@@ -30,13 +30,13 @@ use tcl_dialect::model::SurfaceQuery;
 use serde::{Deserialize, Serialize};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::registry_invocation::segmented_command_arguments;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, NativeWord, Span};
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::spec::resolve_option_prefix;
 use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
+use tcl_source::segment::SegmentedCommand;
 
 use crate::executable_regions::{ExecutableContext, visit_analysis_executable_commands};
 use tcl_dialect::model::SpecSurface;

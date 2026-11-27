@@ -47,9 +47,9 @@ use crate::executable_ir::{
     CompletionId, ExecutableArgvId, ExecutableFunction, ExecutableFunctionId,
     ExecutableInstruction, ExecutableIrValidationError, InvocationResolution,
 };
-use crate::ir::NodeId;
 use crate::representation_plan::{GuardCondition, GuardIdentity, GuardedPlan, GuardedPlanError};
 use crate::semantic_analysis::CommonAnalysisProvenance;
+use tcl_source::words::NodeId;
 
 /// A target-neutral execution plan containing independently planned regions.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -352,7 +352,7 @@ impl RegionSelectionKind {
 
 /// A generic fallback that consumes an argv already evaluated by common IR.
 ///
-/// This type intentionally carries neither [`crate::ir::WordExpr`] nor source
+/// This type intentionally carries neither [`tcl_source::words::WordExpr`] nor source
 /// text. A slow path cannot use it to repeat substitutions, expansion, traces,
 /// or other effects from word evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -18,8 +18,9 @@
 
 //! The statement reader: a pack source segmented into statements and words, with the byte-order mark and the `speclib` version span.
 
-use tcl_compiler::parsing::spectcl_source::{pack_source_lexer_config, pack_source_statements};
 use tcl_lexer::{LexerConfig, TokenType};
+use tcl_source::spectcl::pack_source_lexer_config;
+use tcl_source::spectcl::pack_source_statements;
 
 // The statement reader — CST in, words out
 
@@ -36,9 +37,8 @@ pub(crate) struct Word {
     /// an inline descriptor block from a descriptor named by a bare word.
     pub(crate) braced: bool,
     pub(crate) line: u32,
-    pub(crate) local_source: Option<tcl_compiler::parsing::spectcl_source::LocalPackSourceWord>,
-    pub(crate) original_source:
-        Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    pub(crate) local_source: Option<tcl_source::spectcl::LocalPackSourceWord>,
+    pub(crate) original_source: Option<tcl_source::spectcl::OriginalPackSourceWord>,
 }
 
 /// One `word word…` declaration.
@@ -176,10 +176,7 @@ pub(super) fn source_config(bom: FileBom) -> LexerConfig {
 
 /// The uncached segmentation — [`statements`] minus the memo.
 pub(super) fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
-    let parsed = tcl_compiler::parsing::spectcl_source::original_pack_source_statements(
-        source,
-        source_config(bom),
-    );
+    let parsed = tcl_source::spectcl::original_pack_source_statements(source, source_config(bom));
     let lines = tcl_lexer::LineIndex::new(source);
     let line_of = |offset: usize| -> u32 {
         base_line.saturating_add(lines.line_at(u32::try_from(offset).unwrap_or(u32::MAX)))
@@ -231,7 +228,7 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
             word.original_source = word
                 .local_source
                 .as_ref()
-                .map(tcl_compiler::parsing::spectcl_source::LocalPackSourceWord::in_document);
+                .map(tcl_source::spectcl::LocalPackSourceWord::in_document);
         }
     }
     rows
@@ -240,7 +237,7 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
 pub(super) fn body_statements(
     source: &str,
     base_line: u32,
-    parent: Option<&tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    parent: Option<&tcl_source::spectcl::OriginalPackSourceWord>,
 ) -> Vec<Stmt> {
     let mut rows = statements(source, base_line, FileBom::Content);
     for row in &mut rows {

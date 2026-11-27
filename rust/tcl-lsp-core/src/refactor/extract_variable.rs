@@ -224,7 +224,7 @@ impl LogicalVariableExtractionRecipe {
     fn capture(
         source: &str,
         analysis: &AnalysisResult,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         selected: Span,
         name: &str,
         value: String,

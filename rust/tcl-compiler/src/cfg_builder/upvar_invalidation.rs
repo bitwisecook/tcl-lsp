@@ -261,7 +261,7 @@ impl CfgBuilder<'_> {
         let Some(tokens) = self.original_tokens_for_statement(stmt) else {
             return false;
         };
-        let Some((crate::ir::WordExpr::CommandSubstitution { spelling, .. }, earlier)) =
+        let Some((tcl_source::words::WordExpr::CommandSubstitution { spelling, .. }, earlier)) =
             tokens.word_exprs.split_last()
         else {
             return false;
@@ -272,7 +272,8 @@ impl CfgBuilder<'_> {
             && earlier.iter().all(|word| {
                 matches!(
                     word,
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                    tcl_source::words::WordExpr::Literal { .. }
+                        | tcl_source::words::WordExpr::BracedLiteral { .. }
                 )
             })
             && spelling

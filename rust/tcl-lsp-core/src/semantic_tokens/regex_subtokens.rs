@@ -68,7 +68,7 @@ pub(super) fn push_template_subtokens(
 /// common case — while a word interleaving literals and substitutions gets
 /// each literal run tagged independently.
 pub(super) fn mark_literal_fragments(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     word_span: tcl_lexer::Span,
     ov: &ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,
@@ -112,7 +112,7 @@ pub(super) fn mark_literal_fragments(
 /// authoritative for the fragment scan (the segmenter's token span can clamp a
 /// closing delimiter).
 pub(super) fn mark_regex_source_words(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     regex_sources: &FxHashMap<u32, tcl_lexer::Span>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {

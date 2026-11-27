@@ -19,8 +19,9 @@
 //! Rendering a stored callback as Tcl source that is taint-equivalent at word granularity.
 
 use super::{CallbackListBuilder, CallbackReplaySource};
-use crate::ir::{WordExpr, WordPart};
 use tcl_lexer::TokenType;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// A word whose runtime value is exactly one command substitution. Quotes
 /// contribute empty text fragments, so `"[list ...]"` is equivalent to the
@@ -162,7 +163,8 @@ pub(super) fn callback_replay_script(
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let config = config.nested();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(callback, 0, config);
+    let commands =
+        tcl_source::segment::segment_commands_with_offset_and_config(callback, 0, config);
     if commands.is_empty() {
         return None;
     }
@@ -281,7 +283,7 @@ pub(super) fn callback_input_label(
 /// with no substitution stays a canonical literal list element.
 fn callback_replay_script_word(
     word: &str,
-    fragments: &[crate::segmenter::WordFragment],
+    fragments: &[tcl_source::segment::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
@@ -332,7 +334,7 @@ pub(super) fn decoded_text_fragment(
 /// document release's escape grammar.
 pub(super) fn callback_static_word_value(
     word: &str,
-    fragments: &[crate::segmenter::WordFragment],
+    fragments: &[tcl_source::segment::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {

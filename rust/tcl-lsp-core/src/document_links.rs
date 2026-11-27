@@ -69,9 +69,9 @@
 //! * A spec pack's `include NAME` row — see [`pack_include_links`].
 
 use tcl_compiler::auto_path_eval::carries_substitution;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::definer::DefinerFamily;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// One link in a document — target URI plus the source range.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -550,7 +550,7 @@ struct LexicalNavigationInputs<'a> {
 }
 
 fn lexical_navigation_link(
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     navigation: tcl_registry::source_navigation::SourceNavigationOperand,
     inputs: &LexicalNavigationInputs<'_>,
@@ -730,7 +730,7 @@ fn pack_include_links(
         return Vec::new();
     };
     let mut links = Vec::new();
-    for include in tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config) {
+    for include in tcl_source::spectcl::pack_source_includes(source, config) {
         let Some(path) = include.sibling_path(path) else {
             continue;
         };

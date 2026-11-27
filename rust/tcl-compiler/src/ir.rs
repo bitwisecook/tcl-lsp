@@ -68,11 +68,9 @@ std::thread_local! {
 mod command_tokens;
 mod definitions;
 mod module;
-mod provenance;
 mod script;
 mod statement;
 mod synthetic_marker;
-mod word_expr;
 
 pub use command_tokens::CommandTokens;
 pub use definitions::{
@@ -82,7 +80,6 @@ pub use module::{
     DeclaredFrameEffects, DeferredWrites, Module, NO_DEFERRED_WRITES, ReferenceBodies,
     ReferenceImport, SpliceSite, TopLevelKind, when_event_name,
 };
-pub use provenance::{DerivedKind, NodeId, Provenance, SourceSite};
 pub use script::{
     CommandBindingSite, CommandBindingSites, ExecutionNamespace, ProcedureBindingRequirements,
     Script, StatementResultUse, for_each_script_mut, for_each_statement,
@@ -90,7 +87,6 @@ pub use script::{
 pub(crate) use statement::statements_have_opaque_native_accesses;
 pub use statement::{ForeachIterator, IfClause, Statement, SwitchArm, SwitchMode, TryHandler};
 pub use synthetic_marker::{OriginalArgvInventoryDisposition, SyntheticMarker, WordEffectsHost};
-pub use word_expr::{WordExpr, WordOpacity, WordPart};
 
 /// Run one nested-script step of a recursive IR traversal, moving to a fresh
 /// stack segment after [`STRUCTURED_IR_LEVELS_PER_STACK`] levels.

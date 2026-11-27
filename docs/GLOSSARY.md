@@ -160,7 +160,7 @@ KCS tag: `lexing`.
 No new terms — this phase produces `SegmentedCommand` objects and *ghost*
 byte injections (see [Example 20](design/compiler/example-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
 There is no distinct token type for an injected delimiter: `segment_with_recovery()`
-(`rust/tcl-compiler/src/segmenter.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
+(`rust/tcl-source/src/segment.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
 mapping a source offset to the byte inserted there, and re-lexes through
 `build_document_with_ghosts`.
 
@@ -187,6 +187,9 @@ KCS tag: `command-walk`.
 
 ### Concrete syntax tree (CST) / red-green tree
 
+The Rust CST and configured command segmentation are owned by `tcl-source`;
+lexer tokens and shared syntax utilities remain in `tcl-lexer` and `tcl-syntax`.
+
 The lossless, position-independent syntax tree the segmenter builds, and the
 representation the formatter, minifier, AOT lowering, and per-command tooling
 read from. It follows the Roslyn / rust-analyzer **red-green** split: the
@@ -197,7 +200,7 @@ resolves absolute positions lazily, reproducing the exact `Token` offsets the
 lexer emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
 adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
-it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
+its source geometry and lexical records. Implemented in `tcl_source::cst`.
 
 See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
 KCS tag: `lexing`.

@@ -164,7 +164,7 @@ fn index_input(
     let config = advice.config;
     if let Some(value) = tcl_syntax::word_rules::original_static_word_source_bytes(word) {
         let source = advice.image.try_text().ok()?;
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(head as usize..)?,
             head,
             config.nested(),

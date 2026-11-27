@@ -24,7 +24,7 @@
 //! as it does for a braced literal; a variable or a compound word does not
 //! qualify.
 
-use crate::ir::WordExpr;
+use tcl_source::words::WordExpr;
 
 /// Whether `word` is exactly one command substitution of a single command
 /// whose every word is a bare or braced literal.
@@ -41,7 +41,7 @@ pub(super) fn is_literal_word_substitution(
     else {
         return false;
     };
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(script, 0, config);
     let [command] = commands.as_slice() else {
         return false;
     };
@@ -80,13 +80,14 @@ pub(super) fn is_exact_literal_word_script(
 #[cfg(test)]
 mod tests {
     use super::is_literal_word_substitution;
-    use crate::ir::WordExpr;
+    use tcl_source::words::WordExpr;
 
     fn word(source: &str) -> WordExpr {
         let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .unwrap();
         crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,

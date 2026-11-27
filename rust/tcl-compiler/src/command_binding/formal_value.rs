@@ -25,17 +25,17 @@
 //! address, successful alias, completed store or concrete value.
 
 use super::{SourceCommandBindings, SourceOriginId, SourceVariableAccess};
+use crate::command_binding::conditional_body::SourceConditionalBodyEntry;
+use crate::ir::CommandTokens;
 use crate::registry_invocation::OwnedInvocationMetadataContext;
-use crate::{
-    command_binding::conditional_body::SourceConditionalBodyEntry,
-    ir::{CommandTokens, SourceSite},
-    var_resolve::{ContentsOrigin, ResolveContext},
-};
+use crate::var_resolve::ContentsOrigin;
+use crate::var_resolve::ResolveContext;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 use tcl_registry::CommandRegistry;
+use tcl_source::words::SourceSite;
 
 macro_rules! trace_formal {
     ($source:expr, $stage:literal, $available:expr) => {
@@ -410,7 +410,7 @@ impl SourceCommandBindings {
         &self,
         origin: &Arc<SourceOriginId>,
         invocation: u32,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         parameters: &[&str],
         selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Vec<String> {
@@ -432,7 +432,7 @@ impl SourceCommandBindings {
         &self,
         origin: &Arc<SourceOriginId>,
         invocation: u32,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         parameters: &[&str],
         selection: (&CommandRegistry, &OwnedInvocationMetadataContext),
     ) -> Vec<String> {
@@ -628,7 +628,7 @@ impl SourceCommandBindings {
         let text = origin.try_text().ok()?;
         let end = points().map(|point| point.end).max()?;
         let config = self.lexer_config?;
-        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+        let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
             text.get(offset as usize..end as usize)?,
             offset,
             config.nested(),
@@ -670,7 +670,7 @@ impl SourceCommandBindings {
             .max()?;
         let command = text.get(offset as usize..end as usize)?;
         let config = self.lexer_config?;
-        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+        let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
             command,
             offset,
             config.nested(),
@@ -706,7 +706,7 @@ impl SourceCommandBindings {
         }) { return None; }
         let text = entry.source().try_text().ok()?;
         let relative = usize::try_from(offset.checked_sub(entry.source().base())?).ok()?;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             text.get(relative..)?,
             offset,
             first.config.nested(),
@@ -820,7 +820,7 @@ mod tests {
     fn assert_original_formal_value_retained(
         inventory: &super::SourceCommandBindings,
         origin: &std::sync::Arc<super::super::SourceOriginId>,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
@@ -842,7 +842,7 @@ mod tests {
     fn assert_changed_original_formal_input_refused(
         inventory: &super::SourceCommandBindings,
         origin: &std::sync::Arc<super::super::SourceOriginId>,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
         changed: &crate::analyser::ResolvedAnalysisInput,
@@ -867,7 +867,7 @@ mod tests {
     fn assert_original_formal_value_refused(
         inventory: &super::SourceCommandBindings,
         origin: &std::sync::Arc<super::super::SourceOriginId>,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,

@@ -27,7 +27,7 @@ pub(in super::super) fn closed_definition_member(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
@@ -249,7 +249,7 @@ fn closed_class_method_block(
     context: SourceExecutionContext<'_>,
 ) -> bool {
     let block_map = tcl_lexer::SourceMap::from_image(&block.text).with_base(block.base(), 0, 0);
-    crate::segmenter::segment_commands_image_with_offset_and_config(
+    tcl_source::segment::segment_commands_image_with_offset_and_config(
         &block.text,
         block.base(),
         context.config,
@@ -305,7 +305,7 @@ pub(super) fn class_definition_block(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     dialect: Option<tcl_registry::InvocationDialect>,
     context: SourceExecutionContext<'_>,
 ) -> Option<ExecutedScriptSource> {
@@ -335,7 +335,7 @@ pub(super) fn class_definition_block(
 pub(in super::super) fn closed_class_method(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {

@@ -32,6 +32,7 @@ name = "tcl-mcp"
 path = "src/main.rs"
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-version = { path = "../tcl-version" }
 tcl-diagram = { path = "../tcl-diagram" }

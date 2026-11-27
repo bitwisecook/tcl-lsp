@@ -181,7 +181,7 @@ impl NestedLayoutSyntax {
 fn nested_layout_segments(
     source: &ExecutedScriptSource,
     parent_config: tcl_lexer::LexerConfig,
-) -> Option<Vec<crate::segmenter::SegmentedCommand>> {
+) -> Option<Vec<tcl_source::segment::SegmentedCommand>> {
     let local_config = tcl_lexer::SourceSegmentationPurpose::NestedScript
         .config(parent_config)
         .normalized();
@@ -206,7 +206,7 @@ fn nested_layout_segments(
     source
         .base()
         .checked_add(u32::try_from(prefix.bytes().len()).ok()?)?;
-    crate::segmenter::segment_commands_image_with_offset_and_config(
+    tcl_source::segment::segment_commands_image_with_offset_and_config(
         &prefix,
         source.base(),
         local_config,
@@ -466,7 +466,7 @@ impl SourceCommandBindings {
         let mut visits: usize = 0;
         while let Some((source, parents)) = pending.pop() {
             let depth = depths.pop().unwrap_or(1);
-            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth)
+            if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth)
                 || !visit(&source, &parents)
             {
                 continue;
@@ -629,7 +629,8 @@ impl SourceCommandBindings {
         pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
         share: &ScopeAliasOwnershipShare,
     ) {
-        use crate::ir::{Provenance, WordExpr};
+        use tcl_source::words::Provenance;
+        use tcl_source::words::WordExpr;
         let Some(input) = parents
             .first()
             .and_then(|parent| parent.snapshot.state.logical_source_name_advice_input())

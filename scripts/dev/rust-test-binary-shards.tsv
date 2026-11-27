@@ -58,7 +58,7 @@
 2	tcl-vm-it::element_recovery_traces_e2e	test	tcl-vm-it	element_recovery_traces_e2e
 2	tcl-vm-cli::installs_surfaces	test	tcl-vm-cli	installs_surfaces
 2	bpf-tcl::installs_surfaces	test	bpf-tcl	installs_surfaces
-2	tcl-sslictcl::installs_surfaces	test	tcl-sslictcl	installs_surfaces
+2	tcl-sslictcl::data_cli	test	tcl-sslictcl	data_cli
 2	bigip-report-gen-rust::installs_surfaces	test	bigip-report-gen-rust	installs_surfaces
 3	bigip-report-gen-rust::apm	test	bigip-report-gen-rust	apm
 3	bigip-report-gen-rust::gtm	test	bigip-report-gen-rust	gtm
@@ -177,7 +177,6 @@
 4	tcl-spectcl::pack_source_e2e	test	tcl-spectcl	pack_source_e2e
 4	tcl-spectcl::spec_corpus	test	tcl-spectcl	spec_corpus
 4	tcl-sslictcl::bin/sslictcl-data	bin	tcl-sslictcl	sslictcl-data
-4	tcl-sslictcl::registry_pack_drift	test	tcl-sslictcl	registry_pack_drift
 4	tcl-syntax::command_resolution_conformance	test	tcl-syntax	command_resolution_conformance
 4	tcl-syntax::execution_resolution_conformance	test	tcl-syntax	execution_resolution_conformance
 4	tcl-syntax::it_4	test	tcl-syntax	it_4
@@ -247,3 +246,5 @@
 5	tcl-bigip-schema::it_5	test	tcl-bigip-schema	it_5
 3	tcl-vm-cli::exec_child_status	test	tcl-vm-cli	exec_child_status
 5	tcl-vm-it::oo_unknown_dispatch_e2e	test	tcl-vm-it	oo_unknown_dispatch_e2e
+4	tcl-source	lib	tcl-source	tcl_source
+4	tcl-source::it_4	test	tcl-source	it_4

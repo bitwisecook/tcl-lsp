@@ -20,8 +20,35 @@ All 12 host lockfiles resolve offline without dependency version changes
 targets; this also repairs two pre-existing missing VM target rows.
 Full gates will run after the source extraction; they have not yet run for
 these changes under the development-push exception.
-The source extraction follows 118a, preserving registry-independent CST/word
-geometry and keeping recovery and binding services with their consumers.
+118a is published on remote `work` in `ea2497682`.
+
+251/281 is in progress. The baseline CST differential is 1 passed / 3 failed
+(`/tmp/source-differential-baseline-work.log`): the frozen token-loop oracle
+omits separator trivia now retained by the CST's public `all_tokens`. These
+are pre-existing failures. The baseline SslicTcl normal/build cone has 126
+packages (`/tmp/source-sslictcl-cone-before-work.txt`). Source geometry moves
+to `tcl-source`; ghost recovery, compiler binding and compiler-only tests stay
+with their consumers. The source crate has the four foundation workspace
+dependencies plus the existing `strsim` spelling-distance dependency. Its
+public differential and spelling-suggestion tests follow it. SslicTcl's
+registry-pack parity test moves above both owners into SpecTcl.
+
+All 150 source tests pass, with the two pre-existing manual campaigns still
+ignored (`/tmp/source-tests-final-work.log`). Before correcting the stale
+trivia expectation, the moved integration harness reproduced exactly the
+three baseline failures (`/tmp/source-tests-after-move-work.log`); its
+semantic-fragment comparison now covers all 256 installed Tcl corpus files,
+while a separate lexer-oracle test guards retained inter-word separators.
+The lexer differential still covers 21,408 nested bodies in 175 files under
+three dialects. The source normal/build cone is 18 packages and SslicTcl is
+101 (down from 126); neither contains compiler or registry
+(`/tmp/source-cone-after-work.txt`, `/tmp/source-sslictcl-cone-after-work.txt`).
+All 12 host lockfiles resolve offline (`/tmp/source-host-lockfiles-work.log`).
+Workspace all-target checking passes (`/tmp/source-workspace-check-work.log`).
+All 84 SslicTcl tests pass, including public CLI conversion and the OpenSSL
+golden (`/tmp/source-sslictcl-tests-work.log`). The shard proof covers 227
+metadata targets. Full gate validation is in progress; the first Rust-gate
+attempt found two moved documentation lint errors, now corrected.
 
 ## Benchmark, test boundaries and runtime repairs
 

@@ -20,8 +20,8 @@
 
 use super::super::{Lowerer, seg_word_is_static_literal};
 use crate::ir::{CommandBindingSite, CommandTokens, Statement};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 /// Recursive dispatch retains only the selected contract, never the registry's
 /// full materialization frame while lowering another body.

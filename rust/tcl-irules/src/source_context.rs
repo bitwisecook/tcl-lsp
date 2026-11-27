@@ -424,7 +424,7 @@ fn source_vectors_from_analysis(
         let end = last.span().end();
         let text = source.get(start as usize..end as usize)?;
         let mut segments =
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(text, start, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(text, start, config);
         if segments.len() != 1 {
             continue;
         }
@@ -491,11 +491,10 @@ fn source_event_roots(
     vectors: &[(Span, OriginalRegistryWords)],
     context: &ContextRegistry,
 ) -> (Vec<SourceIrulesEventBody>, OriginalSourceBodyQueue) {
-    let top_level =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .map(|segment| segment.span.start())
-            .collect::<HashSet<_>>();
+    let top_level = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+        .into_iter()
+        .map(|segment| segment.span.start())
+        .collect::<HashSet<_>>();
     let mut events = Vec::new();
     let mut pending = VecDeque::new();
     let event_catalogue = tcl_registry::events::EventRegistry::build();
@@ -1000,7 +999,7 @@ impl OriginalIrulesSourceContext {
         if !self.matches_source(source) {
             return Vec::new();
         }
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, self.config)
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, self.config)
             .into_iter()
             .map(|command| {
                 let words = self.source_vectors.iter().find_map(|(span, words)| {

@@ -100,7 +100,7 @@ mod composed_callback_prefix_tests {
         source: &str,
         analysis: &AnalysisResult,
     ) -> (
-        tcl_compiler::segmenter::SegmentedCommand,
+        tcl_source::segment::SegmentedCommand,
         tcl_lexer::NativeWord,
         tcl_lexer::NativeWord,
     ) {
@@ -129,7 +129,7 @@ mod composed_callback_prefix_tests {
         let selector = child.command().words[2].clone();
         let fixed = child.command().words[3].clone();
         let span = child.command().span;
-        let mut commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[span.as_range()],
             span.start(),
             config,

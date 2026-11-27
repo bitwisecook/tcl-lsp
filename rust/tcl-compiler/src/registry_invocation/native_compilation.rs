@@ -30,10 +30,13 @@ use super::word_resolution::{
     resolve_registry_words_in_realm,
 };
 use super::{AdmittedNativeCompilerInvocation, EffectiveCommandWords, ResolvedStatementInvocation};
-use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use tcl_dialect::EscapeSyntax;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, InvocationFacts, InvocationWords};
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 use tcl_syntax::word_rules::WordValueRules;
 
 impl AdmittedNativeCompilerInvocation {

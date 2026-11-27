@@ -438,7 +438,7 @@ fn original_builtin_hints_use_the_selected_availability_not_registry_profile() {
         older.resolved_registry().unwrap().profile().unwrap().name,
         "tcl9.1"
     );
-    let segment = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         older.body_lexer_config.unwrap(),
@@ -478,7 +478,7 @@ fn original_format_hints_use_selected_option_roles_under_the_actual_context() {
     let older = analysis_with_availability(source, "tcl8.4");
     let out = hints(source, &older, profile, registry);
     assert!(out.iter().all(|hint| hint.label != "year"), "{out:?}");
-    let segment = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         older.body_lexer_config.unwrap(),

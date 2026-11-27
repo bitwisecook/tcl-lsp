@@ -25,9 +25,9 @@ use super::script_walk::ScriptCtx;
 use super::variable_name_roles::VarNameArgRoles;
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Object-handle → class-name map for the current document, keyed by the
 /// handle text a `$var method` dispatch presents (minus the leading `$`) —
@@ -191,7 +191,7 @@ pub(super) fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedI
 /// highlight; only literal (`Esc`/`Str`) values are recoloured.
 pub(super) fn insert_object_method_overrides(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     classes: Option<&ClassHierarchy>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -233,7 +233,7 @@ pub(super) fn insert_object_method_overrides(
     let variable = original_words
         .word_exprs
         .first()
-        .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+        .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
         .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)));
     let mut candidates: Vec<String> = if let Some(name) = variable {
         object_classes
@@ -303,7 +303,7 @@ pub(super) fn insert_object_method_overrides(
 /// under the document floor, ahead of any name-keyed class candidates.
 fn insert_registered_instance_method(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) -> bool {
     let (Some(analysis), Some(head)) = (ctx.analysis, seg.argv.first()) else {
@@ -332,7 +332,7 @@ fn insert_registered_instance_method(
 /// is not a free procedure.  This is the one place a dispatched
 /// method name is typed, so declaration and call site cannot drift apart.
 pub(super) fn mark_method_word(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if let Some(mtok) = seg.argv.get(1) {
@@ -346,7 +346,7 @@ pub(super) fn mark_method_word(
 /// method (`skip(2)`): the switch → [`ArgOverride::Decorator`], a closed-set
 /// value → [`TokenKind::EnumMember`], else [`TokenKind::OptionValue`].
 fn insert_registry_method_options(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     method_sub: &tcl_registry::SubCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -442,7 +442,7 @@ fn user_class_provides_method(
 /// option fallback.  No-op for any method the class system does not generate
 /// from properties.
 pub(super) fn insert_user_configure_options(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     hierarchy: &ClassHierarchy,
     registry: &CommandRegistry,
     class: &str,
@@ -544,7 +544,7 @@ pub(super) fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str)
 /// other head.
 pub(super) fn insert_self_method_overrides(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     original: Option<&crate::original_invocation::OriginalRegistryWords>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -577,7 +577,7 @@ pub(super) fn insert_self_method_overrides(
         let implicit_self = original_words
             .word_exprs
             .first()
-            .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+            .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
             .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)))
             .is_some_and(|name| {
                 ctx.receiver_grammar
@@ -667,7 +667,7 @@ fn original_self_accessor(ctx: ScriptCtx<'_>, head: Token) -> bool {
 /// Original word geometry supplies display extents, independently of runtime
 /// names, variable places, cells or successful argument evaluation.
 pub(super) fn retag_original_variable_argument(
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     original: &tcl_lexer::NativeWord,
     kind: ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,

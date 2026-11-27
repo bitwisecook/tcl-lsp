@@ -50,7 +50,7 @@ pub(crate) fn path_constant_prefix_for_source_analysis(
         .original_inherited_source_entry()
     {
         let namespace = point.namespace().advisory_key()?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -105,8 +105,11 @@ pub fn constant_path_assignments_from_analysis(
     analysis: &AnalysisResult,
 ) -> Option<PathConstantAssignments> {
     let input = analysis.resolved_input.as_ref()?;
-    let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config());
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    );
     let mut out = PathConstantAssignments::default();
     extend_path_constant_assignments_from_analysis_commands(
         source, analysis, &commands, None, &mut out,
@@ -120,7 +123,7 @@ pub fn constant_path_assignments_from_analysis(
 pub(crate) fn extend_path_constant_assignments_from_analysis_commands(
     source: &str,
     analysis: &AnalysisResult,
-    batch: &[crate::segmenter::SegmentedCommand],
+    batch: &[tcl_source::segment::SegmentedCommand],
     namespace: Option<&str>,
     out: &mut PathConstantAssignments,
 ) -> bool {
@@ -220,8 +223,8 @@ fn commands(
     base: u32,
     config: LexerConfig,
     scope: &Scope,
-) -> Vec<(crate::segmenter::SegmentedCommand, Scope)> {
-    crate::segmenter::segment_commands_with_offset_and_config(source, base, config)
+) -> Vec<(tcl_source::segment::SegmentedCommand, Scope)> {
+    tcl_source::segment::segment_commands_with_offset_and_config(source, base, config)
         .into_iter()
         .rev()
         .map(|command| (command, scope.clone()))
@@ -243,7 +246,7 @@ fn name(words: &OriginalRegistryWords, argument: usize) -> Option<&str> {
 impl PathSourceContext<'_> {
     fn collect(
         &self,
-        mut pending: Vec<(crate::segmenter::SegmentedCommand, Scope)>,
+        mut pending: Vec<(tcl_source::segment::SegmentedCommand, Scope)>,
         out: &mut PathConstantAssignments,
     ) -> Option<()> {
         while let Some((command, scope)) = pending.pop() {
@@ -550,7 +553,8 @@ mod tests {
         let full = crate::analyser::Analyser::new()
             .with_resolved_input(input.clone())
             .analyse(source, profile.name);
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let chunks = commands.into_iter().map(|command| vec![command]).collect();
         let (chunked, mut snapshots) = crate::analyser::Analyser::new()
             .with_resolved_input(input.clone())
@@ -575,7 +579,7 @@ mod tests {
 
         let changed = source.replace("/leaf", "/next");
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(&changed, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(&changed, 0, config);
         let mut restored = crate::analyser::Analyser::new();
         restored.restore(snapshots.remove(1));
         let resumed = restored.analyse_commands(&changed, &commands[2..], profile.name, true);
@@ -603,7 +607,8 @@ mod tests {
         let config = LexerConfig::for_profile(Some(profile));
         let source = "set dir /ROOT; set tail /TAIL";
         let first = capture_analysis(source, profile, config);
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut out = PathConstantAssignments::default();
         assert!(extend_path_constant_assignments_from_analysis_commands(
             source,
@@ -676,7 +681,7 @@ mod tests {
         let changed = source.replace("/ROOT", "/FAIL");
         let current = capture_analysis(&changed, profile, config);
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(&changed, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(&changed, 0, config);
         assert!(!extend_path_constant_assignments_from_analysis_commands(
             &changed,
             &current,

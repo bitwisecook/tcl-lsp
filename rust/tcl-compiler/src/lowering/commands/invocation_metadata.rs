@@ -21,8 +21,8 @@
 use super::super::{Lowerer, LoweringMetadataOrigin, SourceEntryOrigin};
 use crate::ir::CommandTokens;
 use crate::lowering_hooks::ArgTokenKind;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::TokenType;
+use tcl_source::segment::SegmentedCommand;
 
 /// Map token kind to the simplified `ArgTokenKind` used by lowering hooks.
 fn arg_token_kind(kind: TokenType) -> ArgTokenKind {

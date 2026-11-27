@@ -22,9 +22,10 @@ use super::handler_invocation::resolved_handler_invocation_with_metadata_context
 use super::metadata_context::InvocationMetadataContext;
 use super::word_resolution::EffectiveInvocationWord;
 use super::{ResolvedStatementInvocation, resolved_tokens_invocation_with_metadata_context};
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_source::words::WordExpr;
 
 /// A reached handler's normal variable transfer, independent of compiler-hook
 /// selection. This carrier cannot license an opcode, body evaluation or command

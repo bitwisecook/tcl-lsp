@@ -267,7 +267,7 @@ fn collect_declarations_in_region(
 
 fn collect_declarations_from_commands(
     scan: &DeclScan<'_>,
-    commands: &[tcl_compiler::segmenter::SegmentedCommand],
+    commands: &[tcl_source::segment::SegmentedCommand],
     depth: u32,
     found: &mut DeclSpans,
 ) {
@@ -405,7 +405,7 @@ fn original_declaration_region_commands(
     analysis: &AnalysisResult,
     region: Span,
     nested: bool,
-) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+) -> Vec<tcl_source::segment::SegmentedCommand> {
     let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
     else {
         return Vec::new();
@@ -430,16 +430,16 @@ fn declaration_commands_in_content(
     content: Span,
     config: LexerConfig,
     nested: bool,
-) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+) -> Vec<tcl_source::segment::SegmentedCommand> {
     let Some(body) = source.get(content.as_range()) else {
         return Vec::new();
     };
-    tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+    tcl_source::segment::segment_script_image_with_offset_and_config(
         &tcl_lexer::SourceImage::document(body),
         content.start(),
         if nested { config.nested() } else { config },
     )
-    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
+    .map_or_default(tcl_source::segment::SegmentedScript::into_editor_commands)
 }
 
 /// Standalone compatibility grammar controls use their explicit source region.
@@ -449,7 +449,7 @@ fn declaration_region_commands(
     region: Span,
     config: LexerConfig,
     nested: bool,
-) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+) -> Vec<tcl_source::segment::SegmentedCommand> {
     let (mut start, mut end) = (region.start() as usize, region.end() as usize);
     if start >= end || end > source.len() {
         return Vec::new();
@@ -469,17 +469,17 @@ fn declaration_region_commands(
     if start >= end {
         return Vec::new();
     }
-    tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+    tcl_source::segment::segment_script_image_with_offset_and_config(
         &tcl_lexer::SourceImage::document(&source[start..end]),
         u32::try_from(start).unwrap_or(0),
         if nested { config.nested() } else { config },
     )
-    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
+    .map_or_default(tcl_source::segment::SegmentedScript::into_editor_commands)
 }
 
 fn original_lambda_body_at(
     source: &str,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     argument: usize,
     config: LexerConfig,
 ) -> Option<Span> {
@@ -1348,7 +1348,7 @@ mod original_body_content_geometry_tests {
         let source = "apply {{} {{global x}; puts $x}}";
         let config = LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
         let command =
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                 .remove(0);
         let body = original_lambda_body_at(source, &command, 0, config).unwrap();
         let commands = declaration_commands_in_content(source, body, config, true);

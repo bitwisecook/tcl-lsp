@@ -537,7 +537,7 @@ struct VerbatimBody {
     /// The body word's own line — the base line of the nested unit,
     /// exactly what [`block`] numbers a nested body from.
     body_line: u32,
-    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    original: Option<tcl_source::spectcl::OriginalPackSourceWord>,
 }
 
 /// The verbatim skeleton of the file: the first `speclib`'s body, each
@@ -643,8 +643,7 @@ struct State {
     base_lines: Vec<u32>,
     // Source-only original container correspondence. None remains unavailable
     // through nested bodies; reader values and entered execution are independent.
-    original_body_sources:
-        Vec<Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>>,
+    original_body_sources: Vec<Option<tcl_source::spectcl::OriginalPackSourceWord>>,
     /// The union of the pack's declared support so far (`default
     /// available` / `default dialects`), the set `available?` answers
     /// against. `None` = nothing declared = everything.
@@ -758,7 +757,7 @@ struct BodyText {
     text: String,
     base: u32,
     verbatim: bool,
-    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    original: Option<tcl_source::spectcl::OriginalPackSourceWord>,
 }
 
 // Evaluate

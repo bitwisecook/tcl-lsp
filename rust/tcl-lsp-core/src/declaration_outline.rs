@@ -48,12 +48,13 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::registry_invocation::source_structure::source_registry_words;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Nesting cap for the block walk, mirroring the folding walker's own limit:
 /// a hand-written declaration document nests three or four deep, and the cap

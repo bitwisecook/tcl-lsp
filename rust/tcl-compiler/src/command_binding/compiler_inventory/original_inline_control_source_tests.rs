@@ -57,7 +57,8 @@ fn fixture_with_bindings(source: &str, environment: &str) -> (Fixture, SourceCom
     );
     let image = tcl_lexer::SourceImage::document(source);
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
+            .unwrap();
     let tokens = segments
         .iter()
         .map(|segment| {
@@ -346,7 +347,8 @@ fn original_inline_control_source_requires_the_actual_compiler_and_complete_owne
                 .is_none()
         );
         let mut changed_word = tokens.clone();
-        let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[1]
+        let tcl_source::words::WordExpr::BracedLiteral { text, .. } =
+            &mut changed_word.word_exprs[1]
         else {
             panic!("original literal predicate")
         };

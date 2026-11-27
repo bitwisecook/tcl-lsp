@@ -21,9 +21,9 @@
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Return the source offsets whose commands are admitted by the shared
 /// iRules top-level declaration boundary.

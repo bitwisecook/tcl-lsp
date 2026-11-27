@@ -25,12 +25,15 @@ use super::super::{
 use super::VarInterner;
 use super::phi_placement::authored_scalar_source_variable;
 use crate::cfg::BlockId;
-use crate::ir::{SourceSite, Statement, WordExpr, WordPart};
+use crate::ir::Statement;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 use crate::var_resolve::{ContentsOrigin, ResolveContext, VariableCellKey};
 use crate::variable_bindings::PointResolveContexts;
 use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Exact read spelling projection; unavailable original syntax cannot relabel
 /// the retained read or suppress an independently scanned protective dependency.
@@ -306,7 +309,7 @@ pub(super) fn retained_source_read_references(
         };
         let authored = authored_scalar_source_variable(points, block, index, registry);
         let mut retain = |spelling: &str, source: &SourceSite| {
-            if source.provenance != crate::ir::Provenance::Source {
+            if source.provenance != tcl_source::words::Provenance::Source {
                 return;
             }
             let read_names = scanner.scan_lexical_word(spelling, registry);

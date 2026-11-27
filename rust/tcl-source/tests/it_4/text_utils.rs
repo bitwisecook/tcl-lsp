@@ -18,9 +18,9 @@
 
 //! Edit-distance and suggestion utilities.
 //!
-//! The feature under test lives in `tcl-compiler/src/text.rs`, declared
+//! The feature under test lives in `tcl-source/src/text.rs`, declared
 //! `pub mod text;` in `lib.rs`, so it is reachable from an integration test
-//! as `tcl_compiler::text::{edit_distance, suggest_similar}`.
+//! as `tcl_source::text::{edit_distance, suggest_similar}`.
 //!
 //! Edit distance is a pure algorithm (no Tcl semantics), so the
 //! values are asserted directly — no `tclsh` round-trip needed.
@@ -31,9 +31,10 @@
 //! that do not narrow the search pass `max_suggestions = 3,
 //! max_distance = 3`.
 
-use tcl_compiler::text::{
-    edit_distance, rank_containment_suggestions, rank_suggestions, suggest_similar,
-};
+use tcl_source::text::edit_distance;
+use tcl_source::text::rank_containment_suggestions;
+use tcl_source::text::rank_suggestions;
+use tcl_source::text::suggest_similar;
 
 // Edit distance.
 //

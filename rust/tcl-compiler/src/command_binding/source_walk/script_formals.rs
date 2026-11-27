@@ -42,7 +42,7 @@ pub(in super::super) struct ScriptFormalSource {
     /// The calling invocation and the written argument that supplied it.
     call: CommandAllocationSite,
     argument: usize,
-    word: crate::ir::WordExpr,
+    word: tcl_source::words::WordExpr,
     /// The calling activation, which `uplevel 1` in the entered body selects.
     caller_frame: crate::var_resolve::VariableExecutionFrame,
 }
@@ -52,7 +52,7 @@ pub(in super::super) struct ScriptFormalSource {
 /// unbindable argument count records none.
 pub(super) fn script_formal_sources(
     call: &CommandAllocationSite,
-    written: &[crate::ir::WordExpr],
+    written: &[tcl_source::words::WordExpr],
     body: &DeferredSourceBody,
     prepended: usize,
     grammar: tcl_dialect::ParameterGrammar,
@@ -68,7 +68,7 @@ pub(super) fn script_formal_sources(
     if prepended != 0
         || arguments
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     {
         return Vec::new();
     }
@@ -90,7 +90,7 @@ pub(super) fn script_formal_sources(
                 return None;
             };
             let word = arguments.get(argument)?;
-            let crate::ir::WordExpr::BracedLiteral { text, .. } = word else {
+            let tcl_source::words::WordExpr::BracedLiteral { text, .. } = word else {
                 return None;
             };
             Some(ScriptFormalSource {
@@ -113,7 +113,7 @@ impl SourceCommandBindings {
     pub(super) fn script_formal_operand(
         &mut self,
         origin: Option<&Arc<SourceOriginId>>,
-        word: Option<&crate::ir::WordExpr>,
+        word: Option<&tcl_source::words::WordExpr>,
         value: Option<&str>,
         config: tcl_lexer::LexerConfig,
     ) -> Option<(

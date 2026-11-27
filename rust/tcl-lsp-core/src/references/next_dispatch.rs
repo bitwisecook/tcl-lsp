@@ -342,7 +342,7 @@ fn scan_next_dispatch_region_with_target(
     depth: u32,
     out: &mut Vec<(tcl_lexer::Span, Option<String>)>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
     let NextDispatchScan {
         source,
         analysis,

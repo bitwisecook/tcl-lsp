@@ -345,7 +345,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<&CommandTokens> {
         let offset = segment.argv.first().map(|word| word.span.start());
         trace_body_syntax_flag(
@@ -380,7 +380,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<&CommandTokens> {
         self.matches_analysis(source, analysis).then_some(())?;
         let parsed = CommandTokens::from_segmented(
@@ -414,7 +414,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         let tokens = self.tokens(source, analysis, segment)?;
         if tokens.evaluated_body.is_some() {
@@ -452,7 +452,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<Vec<crate::registry_invocation::OriginalSourceScriptBody>> {
         self.source_syntax_words(source, analysis, segment)?
             .source_script_bodies_for_syntax_coverage(self.input.borrowed_context_registry())
@@ -466,7 +466,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<Vec<crate::registry_invocation::OriginalSourceScriptBody>> {
         self.source_syntax_words(source, analysis, segment)?
             .source_expression_script_bodies(&self.input)
@@ -479,7 +479,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<Vec<(usize, tcl_lexer::NativeWord)>> {
         let words = self.source_syntax_words(source, analysis, segment)?;
         words
@@ -496,7 +496,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         let offset = segment.argv.first().map(|word| word.span.start());
         let tokens = trace_body_syntax_option(
@@ -573,7 +573,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         argument: usize,
         candidate: &str,
     ) -> Option<OriginalExpressionSyntaxGapCompaction> {
@@ -610,7 +610,7 @@ impl OriginalBodySyntaxInventory {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         argument: usize,
         candidate: &str,
     ) -> Option<OriginalExpressionSyntaxGapCompaction> {
@@ -638,7 +638,7 @@ fn compiler_source_words(
     image: &SourceImage,
     input: &ResolvedAnalysisInput,
     tokens: &CommandTokens,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     syntax: &crate::command_binding::OriginalCompilerArgumentSyntax<'_>,
     selected: &super::super::ResolvedStatementInvocation,
 ) -> Option<OriginalRegistryWords> {
@@ -794,8 +794,8 @@ mod tests {
         source: &str,
         config: tcl_lexer::LexerConfig,
         offset: usize,
-    ) -> crate::segmenter::SegmentedCommand {
-        crate::segmenter::segment_commands_with_offset_and_config(
+    ) -> tcl_source::segment::SegmentedCommand {
+        tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset..],
             u32::try_from(offset).unwrap(),
             config,

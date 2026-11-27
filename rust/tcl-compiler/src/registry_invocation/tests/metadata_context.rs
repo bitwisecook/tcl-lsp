@@ -141,7 +141,7 @@ fn original_body_metadata_keeps_supplied_availability_and_generation() {
     );
     let surface = tcl_registry::model::DocumentCommandSurface::new(generation.commands(), None);
     let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let current = segmented_body_assistance(
         &surface,
         &bindings,

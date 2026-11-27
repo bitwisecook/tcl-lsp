@@ -23,7 +23,7 @@ use tcl_registry::CommandRegistry;
 
 /// Build the "known command" name universe consulted by unclosed-delimiter
 /// recovery: the segmenter's scan-to-next heuristic
-/// ([`crate::segmenter::segment_commands_with_recovery_and_config`]) and the
+/// ([`tcl_source::segment::segment_commands_with_recovery_and_config`]) and the
 /// E100/E201/E202/E203 recovery diagnostics (`syntax_checks`) both use "does
 /// the next line start with a known command?" as their strongest signal that
 /// a missing delimiter belongs right before it.

@@ -21,11 +21,12 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{ExecutablePart, LexerConfig, SourceImage, Span};
 #[cfg(test)]
 use tcl_registry::ArgRole;
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 mod command_bodies;
 mod cursor_syntax;

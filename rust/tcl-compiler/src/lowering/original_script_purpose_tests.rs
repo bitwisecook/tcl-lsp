@@ -128,7 +128,7 @@ fn original_selected_nested_body_keeps_parent_metadata_for_known_command_advice(
         let source = "eval {puts hi}";
         let identities =
             crate::realm::document_realm_bindings_with_resolved_input(source, &supplied, None);
-        let parent = crate::segmenter::segment_commands_with_offset_and_config(
+        let parent = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             supplied.lexer_config(),
@@ -197,10 +197,13 @@ fn original_materialised_zero_base_body_keeps_its_selected_point_owner() {
     let source = "eval \\uFEFFunknown";
     let identities =
         crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
-    let parent =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .pop()
-            .unwrap();
+    let parent = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .pop()
+    .unwrap();
     let original = identities
         .executed_script_for_word(parent.argv[1].span)
         .expect("original evaluated script");

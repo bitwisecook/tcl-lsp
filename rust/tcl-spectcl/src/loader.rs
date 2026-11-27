@@ -42,8 +42,8 @@
 //! twin: the same staging, the same replay, the same readers.
 //!
 //! Segmentation uses the same
-//! [`build_document`](tcl_compiler::parsing::syntax::build::build_document) /
-//! [`segments_from_document`](tcl_compiler::parsing::syntax::segment::segments_from_document)
+//! [`build_document`](tcl_source::cst::build::build_document) /
+//! [`segments_from_document`](tcl_source::cst::segment::segments_from_document)
 //! pair every static scan in the toolchain uses — and the readers turn the
 //! declarations into live [`CommandSpec`]s, which the Spec Studio then seeds a
 //! draft from through the ordinary `draft::from_command_spec`. Loading a pack
@@ -88,8 +88,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::{LazyLock, Mutex};
 
-use tcl_compiler::parsing::spectcl_source::declared_pack_major as declared_major;
-pub use tcl_compiler::parsing::spectcl_source::pack_source_lexer_config;
 use tcl_dialect::TclVersion;
 #[cfg(test)]
 use tcl_lexer::LeadingBom;
@@ -103,6 +101,8 @@ use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::state_transition::StateTransitions;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
+use tcl_source::spectcl::declared_pack_major as declared_major;
+pub use tcl_source::spectcl::pack_source_lexer_config;
 
 use tcl_dialect::model::SpecSurface;
 
@@ -194,7 +194,7 @@ struct Log {
 }
 
 struct RejectedWordSubject {
-    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    original: Option<tcl_source::spectcl::OriginalPackSourceWord>,
     word: String,
     kind: tcl_lsp_core::code_actions::SpecPackNoticeKind,
 }
@@ -835,7 +835,7 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "2.3";
 /// ever additive — but a major says the meaning of words this loader thinks it
 /// knows has changed, and reading them anyway is exactly the "stronger,
 /// safer-looking result" the contract forbids.
-const NEWEST_SUPPORTED_MAJOR: u32 = tcl_compiler::parsing::spectcl_source::NEWEST_SUPPORTED_MAJOR;
+const NEWEST_SUPPORTED_MAJOR: u32 = tcl_source::spectcl::NEWEST_SUPPORTED_MAJOR;
 
 // `include` — pack-file inclusion under the determinism contract (2.0, Q6)
 

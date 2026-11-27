@@ -396,7 +396,7 @@ impl Inventory {
             return;
         };
         let script = SourceImage::from_bytes(bytes, image.channel());
-        let Some(commands) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(commands) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &script,
             body.start(),
             ctx.lexer_config(),

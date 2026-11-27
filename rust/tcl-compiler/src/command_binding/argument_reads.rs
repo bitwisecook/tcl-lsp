@@ -24,7 +24,7 @@ use crate::{place::Place, var_resolve::ResolveContext};
 pub(super) struct FrozenSourceArgumentRead {
     place: Place,
     context: Arc<ResolveContext>,
-    source: crate::ir::SourceSite,
+    source: tcl_source::words::SourceSite,
     spelling: String,
     origin: Arc<super::SourceOriginId>,
     pub(super) expression: Option<Arc<super::read_store_schedule::CapturedExpressionRead>>,
@@ -68,7 +68,7 @@ impl FrozenSourceArgumentRead {
 impl SourceCommandBindings {
     pub(super) fn capture_argument_read(
         &self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         state: &ModuleCommandBindings,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Arc<FrozenSourceArgumentRead>> {

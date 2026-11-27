@@ -215,7 +215,7 @@ impl CodegenCtx<'_> {
             .as_deref()?
             .words()
             .get(self.original_hook_argument(operand)?.checked_add(1)?)?;
-        if !matches!(word, tcl_compiler::ir::WordExpr::BracedLiteral { .. }) {
+        if !matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. }) {
             return None;
         }
         tcl_compiler::command_binding::ExecutedScriptSource::literal_word_base(
@@ -276,7 +276,7 @@ impl CodegenCtx<'_> {
         }
         if let Some(offset) = offset {
             let config = self.lexer_config().nested();
-            let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            let segments = tcl_source::segment::segment_commands_with_offset_and_config(
                 command, offset, config,
             );
             if let [segment] = segments.as_slice()

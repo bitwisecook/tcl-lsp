@@ -1013,7 +1013,7 @@ impl CompilerTraversal<'_> {
         }
         let mut pending = vec![(arena.root(), 0, context.depth)];
         while let Some((list, next, depth)) = pending.pop() {
-            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+            if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
                 self.require_provider();
                 continue;
             }

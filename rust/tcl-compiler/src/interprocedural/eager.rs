@@ -39,9 +39,15 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use tcl_lexer::Span;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming, Traits};
 
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::ir::{CommandTokens, Module, ProcedureId, Script, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Module;
+use crate::ir::ProcedureId;
+use crate::ir::Script;
+use crate::ir::Statement;
 use crate::ir_helpers::CommandWord;
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Where the load may first run each procedure of the module.
 #[derive(Debug, Clone, Default)]
@@ -537,7 +543,7 @@ impl Walk<'_> {
             return;
         }
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(text, 0, self.config);
+            tcl_source::segment::segment_commands_with_offset_and_config(text, 0, self.config);
         let map = tcl_lexer::SourceMap::new(text);
         for command in &commands {
             if command.is_partial {

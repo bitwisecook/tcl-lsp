@@ -43,7 +43,8 @@ impl ProcedureCall<'_> {
         if self.arguments.words.iter().any(|word| {
             matches!(
                 word,
-                crate::ir::WordExpr::Expand { .. } | crate::ir::WordExpr::Opaque { .. }
+                tcl_source::words::WordExpr::Expand { .. }
+                    | tcl_source::words::WordExpr::Opaque { .. }
             )
         }) {
             return None;
@@ -870,7 +871,7 @@ impl<'a> SourceSummaryContext<'a> {
         start: u32,
         end: u32,
     ) -> Option<OriginalSummaryScript> {
-        let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+        let site = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
             expression.base.checked_add(start)?,
             expression.base.checked_add(end)?.checked_add(1)?,
         ));
@@ -880,11 +881,11 @@ impl<'a> SourceSummaryContext<'a> {
     pub(super) fn substitution(
         &self,
         parent: &CommandTokens,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         script: &str,
     ) -> Option<OriginalSummaryScript> {
         self.metadata(parent)?;
-        if site.provenance != crate::ir::Provenance::Source {
+        if site.provenance != tcl_source::words::Provenance::Source {
             return None;
         }
         let original = &parent.source_binding.as_ref()?.invocation_site()?.source;
@@ -932,7 +933,7 @@ impl<'a> SourceSummaryContext<'a> {
         let argument = (0..operation.effective.words.len().checked_sub(1)?)
             .find(|&index| operation.effective.written_argument(index) == Some(argument))?;
         let word = operation.effective.words.get(argument.checked_add(1)?)?;
-        if !matches!(word, crate::ir::WordExpr::BracedLiteral { .. }) {
+        if !matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. }) {
             return None;
         }
         let source = &parent.source_binding.as_ref()?.invocation_site()?.source;
@@ -1470,7 +1471,7 @@ mod tests {
         assert_eq!(call.arguments.written_argument(0), None);
         assert_eq!(call.arguments.written_argument(1), Some(0));
         let mut altered = original.clone();
-        let crate::ir::WordExpr::Literal { text, .. } = &mut altered.word_exprs[0] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut altered.word_exprs[0] else {
             panic!("authentic literal alias head")
         };
         *text = "leaf".into();
@@ -1545,7 +1546,7 @@ mod tests {
         assert!(child.command_at(child.base()).is_some());
         assert!(source.substitution(parent, site, " leaf").is_none());
         let mut detached = site.clone();
-        detached.provenance = crate::ir::Provenance::Opaque;
+        detached.provenance = tcl_source::words::Provenance::Opaque;
         assert!(source.substitution(parent, &detached, "leaf").is_none());
     }
 

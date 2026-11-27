@@ -373,7 +373,7 @@ mod tests {
             let start = source.find("uplevel").unwrap();
             let close = source.rfind('}').unwrap();
             let fragment = &source[start..close];
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            let segment = tcl_source::segment::segment_commands_with_offset_and_config(
                 fragment,
                 u32::try_from(start).unwrap(),
                 input.lexer_config(),

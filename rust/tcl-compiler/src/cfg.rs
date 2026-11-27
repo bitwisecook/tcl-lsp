@@ -44,7 +44,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{CommandBindingSite, Statement, WordExpr};
+use crate::ir::CommandBindingSite;
+use crate::ir::Statement;
+use tcl_source::words::WordExpr;
 
 // Block identity
 

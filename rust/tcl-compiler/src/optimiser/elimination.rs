@@ -67,10 +67,10 @@ use tcl_registry::value_transfer::{BindingKind, Existence, NumericValue};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 use super::helpers::spans::{line_delete_span, original_statement_rewrite_span};
 use super::{Optimisation, PassContext};

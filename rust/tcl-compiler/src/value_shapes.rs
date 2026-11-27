@@ -28,8 +28,8 @@ use tcl_lexer::{Lexer, Span, TokenType};
 pub fn value_word_with_config(
     text: &str,
     config: tcl_lexer::LexerConfig,
-) -> Option<crate::ir::WordExpr> {
-    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+) -> Option<tcl_source::words::WordExpr> {
+    let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         0,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -50,7 +50,7 @@ pub fn value_word_with_config(
 /// An unrecorded nested site inherits explicit uncertainty from its parent.
 #[must_use]
 pub fn command_substitution_tokens(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     parent: Option<&crate::ir::CommandTokens>,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::ir::CommandTokens>> {
@@ -59,7 +59,7 @@ pub fn command_substitution_tokens(
     let base = site.span.start().checked_add(1)?;
     let map = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
     Some(
-        crate::segmenter::segment_commands_with_offset_and_config(inner, base, config.nested())
+        tcl_source::segment::segment_commands_with_offset_and_config(inner, base, config.nested())
             .iter()
             .map(|command| {
                 let mut tokens =
@@ -289,7 +289,7 @@ mod tests {
         let source = "puts [\u{feff}unknown argument]";
         let identities =
             crate::realm::document_realm_bindings_with_resolved_input(source, &input, None);
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -811,7 +811,7 @@ mod original_value_word_purpose_tests {
         };
         let text = "\u{feff}VALUE";
         let word = value_word_with_config(text, config).unwrap();
-        let crate::ir::WordExpr::Literal {
+        let tcl_source::words::WordExpr::Literal {
             text: value,
             source,
         } = word
@@ -823,7 +823,7 @@ mod original_value_word_purpose_tests {
             source.span,
             Span::new(0, u32::try_from(text.len()).unwrap())
         );
-        let whole = crate::segmenter::segment_commands_with_offset_and_config(text, 0, config);
+        let whole = tcl_source::segment::segment_commands_with_offset_and_config(text, 0, config);
         assert_eq!(whole[0].name(), "VALUE");
         assert_eq!(whole[0].argv[0].span.start(), 3);
         let variable = value_word_with_config("${a{b}", config).unwrap();

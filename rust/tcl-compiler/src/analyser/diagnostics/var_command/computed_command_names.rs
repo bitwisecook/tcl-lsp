@@ -743,7 +743,7 @@ fn declaration_head_value_version(
     if head.source().span.start() != offset {
         return None;
     }
-    let crate::ir::WordExpr::Variable { spelling, .. } = head else {
+    let tcl_source::words::WordExpr::Variable { spelling, .. } = head else {
         return None;
     };
     let binding = tokens.source_binding.as_ref()?;

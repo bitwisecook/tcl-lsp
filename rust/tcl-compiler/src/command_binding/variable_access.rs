@@ -283,7 +283,7 @@ impl SourceVariableAccess {
     #[must_use]
     pub fn find_at_source<'a>(
         accesses: &'a [Self],
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         original_spelling: &str,
     ) -> Option<&'a Self> {
         Self::find_at_site(accesses, source)
@@ -296,7 +296,7 @@ impl SourceVariableAccess {
     #[must_use]
     pub fn find_at_site<'a>(
         accesses: &'a [Self],
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
     ) -> Option<&'a Self> {
         let mut candidates = accesses.iter().filter(|access| access.source == *source);
         let candidate = candidates.next()?;
@@ -409,7 +409,7 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn variable_access_at(
         &self,
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         original_spelling: &str,
     ) -> Option<&SourceVariableAccess> {
         SourceVariableAccess::find_at_source(
@@ -421,7 +421,7 @@ impl SourceCommandBindings {
 
     pub(super) fn record_variable_access(
         &mut self,
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         original_spelling: &str,
         state: &ModuleCommandBindings,
         owner: Option<&SourceVariableEvaluationOwner>,

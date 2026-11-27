@@ -657,7 +657,7 @@ impl MemberRenameScan<'_, '_> {
     /// rename leaves each step of it on the renamed family (tclsh 8.6–9.1).
     fn next_chain(
         &self,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         words: &[tcl_lexer::NativeWord],
     ) -> Result<bool, OriginalMemberRenameRefusal> {
         let Self {
@@ -738,7 +738,7 @@ impl MemberRenameScan<'_, '_> {
 
     fn command(
         &self,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         region: PendingRegion,
         pending: &mut Vec<PendingRegion>,
         requests: &mut Vec<(SignatureSourceNameInput, NameBytes)>,
@@ -1723,7 +1723,7 @@ fn changes_default_visibility(
 fn inert_definition_member(
     document: OriginalDeclarationDocument<'_>,
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     words: &[tcl_lexer::NativeWord],
 ) -> bool {
     crate::original_declaration::class_relation_member(syntax, command)

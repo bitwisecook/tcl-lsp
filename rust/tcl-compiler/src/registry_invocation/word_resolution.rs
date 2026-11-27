@@ -21,14 +21,16 @@
 use super::effective_words::{effective_command_words, frozen_argument_words};
 use super::metadata_context::InvocationMetadataContext;
 use super::{AuthoredSourceCaseBodySelection, EffectiveCommandWords};
-use crate::ir::{CommandTokens, WordExpr, WordPart};
-use crate::segmenter::SegmentedCommand;
+use crate::ir::CommandTokens;
 use tcl_dialect::EscapeSyntax;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
     CommandRegistry, InvocationFacts, InvocationResolutionUnresolved, InvocationWord,
     InvocationWordKind, InvocationWords,
 };
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// Owned source-aware word fact for callers that must decode a static Tcl

@@ -37,7 +37,7 @@ fn original_argument_slices_keep_bom_values_and_selected_variable_geometry() {
             ("cmd \u{feff}one ${a{b}", [Some("\u{feff}one"), None]),
         ] {
             let parent =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
             assert_eq!(parent.len(), 1);
             let tokens = &parent[0].argv[1..];
             let values = with_source_argument_words(source, tokens, config, dialect, |arguments| {

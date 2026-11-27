@@ -370,7 +370,7 @@ pub(super) fn apply_forget(
 #[derive(Clone)]
 pub(super) struct OriginalNamespaceBinding {
     site: super::CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: super::SourceCommandTarget,
     namespace: SourceNamespaceKey,

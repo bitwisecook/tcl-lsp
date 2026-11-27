@@ -323,9 +323,8 @@ impl RecoveredTail<'_> {
         );
         let known = recovery_known_commands(text, registry, &SharedNameSet::default(), config);
         let known: std::collections::HashSet<&str> = known.iter().collect();
-        let commands = tcl_compiler::segmenter::segment_commands_with_recovery_and_config(
-            text, &known, config,
-        );
+        let commands =
+            tcl_source::segment::segment_commands_with_recovery_and_config(text, &known, config);
         // The cut is the partial command; a script inside an unterminated
         // brace is past the cut as a whole.
         let cut = commands

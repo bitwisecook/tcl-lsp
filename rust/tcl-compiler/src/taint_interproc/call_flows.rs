@@ -107,8 +107,8 @@ fn collect_call_flows_for_tokens(
                         };
                         if matches!(
                             original,
-                            crate::ir::WordExpr::Literal { .. }
-                                | crate::ir::WordExpr::BracedLiteral { .. }
+                            tcl_source::words::WordExpr::Literal { .. }
+                                | tcl_source::words::WordExpr::BracedLiteral { .. }
                         ) {
                             return TaintLattice::clean();
                         }
@@ -402,7 +402,7 @@ pub fn command_subst_callees(
         if !seen.insert((span, substitution)) {
             continue;
         }
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             dependencies.extend(known.iter().copied());
             continue;
         }
@@ -425,7 +425,7 @@ pub fn command_subst_callees(
             };
             let offset = command.span.start();
             let commands =
-                crate::segmenter::segment_commands_with_offset_and_config(inner, offset, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(inner, offset, config);
             let [segment] = commands.as_slice() else {
                 dependencies.extend(known.iter().copied());
                 continue;

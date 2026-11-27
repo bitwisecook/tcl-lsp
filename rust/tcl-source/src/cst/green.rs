@@ -29,7 +29,7 @@
 //!   equal by value, so a tree can be diffed or memoised by shape.
 //!   Children are held inline by value (`Vec<GreenElement>`); the layer
 //!   does not pointer-share subtrees, so there is no cross-edit reuse.
-//! - **Red** ([`super::super::syntax`]) overlays a green tree
+//! - **Red** ([`crate::cst`]) overlays a green tree
 //!   with an anchoring and resolves absolute positions lazily,
 //!   reproducing exactly the `Token` offsets/lines/columns the lexer
 //!   emits.
@@ -189,7 +189,7 @@ pub struct GreenToken {
     ///
     /// The [`tcl_lexer::Token`] is span + `content_offset`, so green
     /// stores `content_offset` (alongside `text`) so the red layer's
-    /// [`super::super::syntax::red::SyntaxToken::to_token`] can rebuild
+    /// [`crate::cst::red::SyntaxToken::to_token`] can rebuild
     /// the exact lexer `Token` (span via `end_rel`, `content_offset`
     /// verbatim).
     pub content_offset: u8,

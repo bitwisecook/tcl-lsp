@@ -98,7 +98,7 @@ fn original_class_factory_body_and_member_joins_retain_the_complete_source_input
 
             let factory_at = u32::try_from(source.find("oo::class create").unwrap()).unwrap();
             let command =
-                crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(&source, 0, config)
                     .into_iter()
                     .find(|command| command.argv[0].span.start() == factory_at)
                     .unwrap();

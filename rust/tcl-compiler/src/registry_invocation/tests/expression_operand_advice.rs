@@ -139,7 +139,7 @@ fn original_expression_context_keeps_availability_and_terminal_point_refusals() 
 
     let image = tcl_lexer::SourceImage::document(source);
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .remove(0);
     let mut stale_config = config;

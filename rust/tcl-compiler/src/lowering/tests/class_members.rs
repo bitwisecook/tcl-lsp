@@ -306,9 +306,10 @@ fn definition_member_words_use_positioned_source_and_retained_grammar() {
             "a\\\n  b",
         ),
     ] {
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .expect("one original member invocation");
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .expect("one original member invocation");
         let tokens =
             CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
         assert_eq!(
@@ -646,7 +647,7 @@ fn unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_
     lowerer.metadata_origin = LoweringMetadataOrigin::Supplied;
     lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
     let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, lowerer.config);
     let statement = lowerer.lower_default(&commands[0], "::");
     let Statement::Call {
         canonical_command,
@@ -698,7 +699,7 @@ fn unresolved_method_name_protection_keeps_original_source_text_without_reparsin
     lowerer.metadata_origin = LoweringMetadataOrigin::Supplied;
     lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
     let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, lowerer.config);
     let statement = lowerer.lower_default(&commands[0], "::");
     let Statement::Call { args, .. } = &statement else {
         panic!("generic source fallback");
@@ -716,7 +717,7 @@ fn class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries
     let profile = registry.profile().unwrap();
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
     let source = r"variable -set {} {$counter} {brace{name}} {-dash}; variable \$counter";
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let names = declared_member_vars(
         &tcl_registry::definer::TCLOO_GRAMMAR,
         &segments,
@@ -734,8 +735,11 @@ fn class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries
     );
     assert!(!names.contains("counter"));
     assert!(!names.contains("-set"));
-    let escaped_segments =
-        crate::segmenter::segment_commands_with_offset_and_config(r"variable \$counter", 0, config);
+    let escaped_segments = tcl_source::segment::segment_commands_with_offset_and_config(
+        r"variable \$counter",
+        0,
+        config,
+    );
     assert_eq!(
         declared_member_vars(
             &tcl_registry::definer::TCLOO_GRAMMAR,
@@ -752,7 +756,7 @@ fn class_variable_unknown_operands_keep_known_literal_protection_without_referen
     let registry = reg();
     let profile = registry.profile().unwrap();
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         "variable $dynamic {} {$counter} {a(b)}",
         0,
         config,

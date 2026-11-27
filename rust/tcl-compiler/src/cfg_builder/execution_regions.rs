@@ -23,7 +23,12 @@ use crate::cfg::Terminator;
 use crate::execution_region::{
     EvaluatedBodyRegion, RegionRepetition, RegionSelection, RegionTarget,
 };
-use crate::ir::{CommandTokens, Script, SourceSite, Statement, SyntheticMarker, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Script;
+use crate::ir::Statement;
+use crate::ir::SyntheticMarker;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 #[derive(Clone, Copy)]
 struct DictionaryPhase<'a> {
@@ -527,7 +532,7 @@ impl CfgBuilder<'_> {
             value_word.cloned().unwrap_or_else(|| WordExpr::Opaque {
                 text: value.to_owned(),
                 source: SourceSite::opaque(span),
-                reason: crate::ir::WordOpacity::LossySnapshot,
+                reason: tcl_source::words::WordOpacity::LossySnapshot,
             }),
         ];
     }

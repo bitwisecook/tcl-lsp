@@ -93,11 +93,11 @@ pub fn spec_pack_quick_fixes(
             _ => None,
         }
         .unwrap_or_default();
-        let Some(&suggestion) = tcl_compiler::text::suggest_similar(
+        let Some(&suggestion) = tcl_source::text::suggest_similar(
             word,
             candidates,
             SPEC_PACK_SUGGESTIONS,
-            tcl_compiler::text::scaled_max_distance(word),
+            tcl_source::text::scaled_max_distance(word),
         )
         .first() else {
             continue;
@@ -144,7 +144,7 @@ pub(super) fn statement_head_at(
         if depth > 32 {
             return None;
         }
-        for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        for cmd in tcl_source::segment::segment_commands_with_offset_and_config(
             slice,
             base,
             config.at_depth(depth),

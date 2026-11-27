@@ -339,8 +339,8 @@ fn variables_local(
         match word {
             None => {}
             Some(
-                crate::ir::WordExpr::Literal { text, .. }
-                | crate::ir::WordExpr::BracedLiteral { text, .. },
+                tcl_source::words::WordExpr::Literal { text, .. }
+                | tcl_source::words::WordExpr::BracedLiteral { text, .. },
             ) if local(text) => {}
             Some(_) => return Err(Decline::ForeignVariables),
         }

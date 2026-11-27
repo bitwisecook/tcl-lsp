@@ -135,7 +135,7 @@ pub(super) fn collect_original_expression_dependency_regions(
     });
     let mut depth = 0;
     while !expressions.is_empty() {
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             out.unknown = true;
             break;
         }

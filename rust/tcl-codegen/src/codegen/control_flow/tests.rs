@@ -35,7 +35,7 @@ fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence()
     let source = "catch {\u{feff}unknown argument}";
     let bindings =
         tcl_compiler::realm::document_realm_bindings_with_resolved_input(source, &input, None);
-    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         input.lexer_config(),
@@ -78,7 +78,7 @@ fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence()
     let other = "catch {foreign argument}";
     let bindings =
         tcl_compiler::realm::document_realm_bindings_with_resolved_input(other, &input, None);
-    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         other,
         0,
         input.lexer_config(),
@@ -117,12 +117,12 @@ fn original_try_handler_argument_emission_keeps_the_child_source_scope() {
     let image = tcl_lexer::SourceImage::native(source.as_bytes());
     let map = tcl_lexer::SourceMap::from_image(&image);
     let parent_segments =
-        tcl_compiler::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap();
     let parent = tcl_compiler::ir::CommandTokens::from_segmented(&map, config, &parent_segments[0]);
     let offset = u32::try_from(source.find(body).unwrap()).unwrap();
     let child_segments =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(body, offset, config);
+        tcl_source::segment::segment_commands_with_offset_and_config(body, offset, config);
     assert_eq!(child_segments.len(), 1);
     let child = tcl_compiler::ir::CommandTokens::from_segmented(&map, config, &child_segments[0]);
     let mut context = CodegenCtx::new(true, &[], &registry);

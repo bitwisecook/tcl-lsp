@@ -1490,7 +1490,7 @@ mod complete_cu_input_tests {
             .structure_only();
         analyser.analyse_and_retain_result_for_test(SOURCE, "display-only");
         let offset = u32::try_from(SOURCE.find("source $path").unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "source $path",
             offset,
             input.lexer_config().nested(),

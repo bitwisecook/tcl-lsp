@@ -44,7 +44,7 @@ impl Analyser {
     pub fn analyse_chunked(
         &mut self,
         source: &str,
-        chunk_commands: Vec<Vec<crate::segmenter::SegmentedCommand>>,
+        chunk_commands: Vec<Vec<tcl_source::segment::SegmentedCommand>>,
         dialect: &str,
     ) -> (
         AnalysisResult,
@@ -151,7 +151,7 @@ impl Analyser {
     pub fn analyse_commands(
         &mut self,
         source: &str,
-        commands: &[crate::segmenter::SegmentedCommand],
+        commands: &[tcl_source::segment::SegmentedCommand],
         dialect: &str,
         finalise: bool,
     ) -> AnalysisResult {
@@ -257,8 +257,8 @@ impl Analyser {
 
     /// Incrementally analyse `new_text` given the previous document text
     /// and its top-level segmentation (`prev_commands` from
-    /// [`crate::segmenter::segment_commands`]). Reuses the unchanged
-    /// command prefix via [`crate::segmenter::segment_commands_incremental`]
+    /// [`tcl_source::segment::segment_commands`]). Reuses the unchanged
+    /// command prefix via [`tcl_source::segment::segment_commands_incremental`]
     /// — avoiding a re-lex of everything before the edit — then runs the
     /// full analysis over the spliced command stream via
     /// [`Self::analyse_commands`].
@@ -273,7 +273,7 @@ impl Analyser {
     pub fn analyse_incremental(
         &mut self,
         prev_text: &str,
-        prev_commands: &[crate::segmenter::SegmentedCommand],
+        prev_commands: &[tcl_source::segment::SegmentedCommand],
         new_text: &str,
         dialect: &str,
     ) -> AnalysisResult {
@@ -293,7 +293,7 @@ impl Analyser {
         {
             return self.analyse(new_text, dialect);
         }
-        let cmds = crate::segmenter::segment_commands_incremental(
+        let cmds = tcl_source::segment::segment_commands_incremental(
             prev_text,
             prev_commands,
             new_text,
@@ -314,7 +314,7 @@ impl Analyser {
         let generation = self.analysis_context();
         let known: std::collections::HashSet<&str> =
             generation.commands().command_names().collect();
-        let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
+        let recovery_cmds = tcl_source::segment::segment_commands_with_recovery_and_config(
             new_text,
             &known,
             self.file_lexer_config(),
@@ -389,7 +389,7 @@ impl Analyser {
     /// prior lexical homes; namespace seeds remain constructed source scopes.
     pub(super) fn record_path_constant_candidates(
         &mut self,
-        commands: &[crate::segmenter::SegmentedCommand],
+        commands: &[tcl_source::segment::SegmentedCommand],
     ) {
         // naming.navigation.retained-path-source-inventory
         // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
@@ -408,7 +408,7 @@ impl Analyser {
     /// and [`Self::analyse_commands`].  Walks pre-segmented
     /// commands at the current scope path.  Covers the dispatch
     /// portion that's load-bearing for incremental analysis.
-    fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+    fn analyse_commands_inner(&mut self, commands: &[tcl_source::segment::SegmentedCommand]) {
         self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();
@@ -431,7 +431,7 @@ impl Analyser {
                 // brace-only.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
-                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                    Some(tcl_source::segment::UnclosedDelimiter::Brace)
                 );
                 if !(brace_partial && self.detect_stolen_close_brace(cmd_ref)) {
                     self.emit_partial_command_diagnostic(cmd_ref);

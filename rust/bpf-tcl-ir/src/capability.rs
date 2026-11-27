@@ -219,7 +219,7 @@ fn check_script(
 #[cfg(test)]
 mod original_operand_tests {
     use super::*;
-    use tcl_compiler::ir::WordExpr;
+    use tcl_source::words::WordExpr;
 
     #[test]
     fn policy_selection_requires_the_actual_original_head_and_operand() {

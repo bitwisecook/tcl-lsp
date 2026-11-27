@@ -10,7 +10,7 @@ types in `rust/tcl-bytecode/`, and everything from segmentation onwards in
 `rust/tcl-compiler/src/`.
 
 Source: `rust/tcl-lexer/src/tokens.rs`,
-`rust/tcl-compiler/src/segmenter.rs`,
+`rust/tcl-source/src/segment.rs`,
 `rust/tcl-compiler/src/ir.rs`,
 `rust/tcl-compiler/src/cfg.rs`,
 `rust/tcl-compiler/src/ssa.rs`,

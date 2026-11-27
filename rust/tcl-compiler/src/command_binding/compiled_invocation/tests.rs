@@ -72,7 +72,8 @@ fn original_literal_compiler_name_effects_remain_separate_from_unknown_admission
         assert!(selected.unknown);
         assert!(selected.compiler_preserves_names());
         let source = "set checkpoint READY";
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -82,7 +83,7 @@ fn original_literal_compiler_name_effects_remain_separate_from_unknown_admission
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(binding.original_compiler_names_preserved_for_tokens(&tokens));
         let mut changed = tokens.clone();
-        let crate::ir::WordExpr::Literal { text, .. } = &mut changed.word_exprs[2] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed.word_exprs[2] else {
             panic!("actual original literal");
         };
         *text = "foreign".into();
@@ -122,7 +123,7 @@ fn original_literal_compiler_name_effects_remain_separate_from_unknown_admission
         assert!(!nested_point.compiled_execution.compiler_preserves_names());
         let nested_source = "set checkpoint [expr {rand()}]";
         let nested_segments =
-            crate::segmenter::segment_commands_with_offset_and_config(nested_source, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(nested_source, 0, config);
         let mut nested_tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(nested_source),
             config,
@@ -394,7 +395,7 @@ fn nested_generic_pid_keeps_the_original_list_length_admission() {
             binding.variable_context.dynamic_bindings
         );
     }
-    let segments = crate::segmenter::segment_commands(source);
+    let segments = tcl_source::segment::segment_commands(source);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         tcl_lexer::LexerConfig::default(),

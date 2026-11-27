@@ -43,7 +43,6 @@ use tcl_syntax::expr::ast::ExprNode;
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::intervals::{
     Interval, build_guard_index, compute_intervals_with, refine_interval_for_value,
 };
@@ -56,6 +55,7 @@ use crate::sccp::SccpResult;
 use crate::ssa::{Phi, SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
 use crate::types::TypeLattice;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// `(name, version) → Phi` index over every block, for length resolution
 /// through loop-header phis.
@@ -321,8 +321,8 @@ struct Candidate {
     list_literal: Option<String>,
     #[cfg(test)]
     index_arg: String,
-    list_word: Option<crate::ir::WordExpr>,
-    index_word: Option<crate::ir::WordExpr>,
+    list_word: Option<tcl_source::words::WordExpr>,
+    index_word: Option<tcl_source::words::WordExpr>,
     is_lset: bool,
     set_bounds: Option<tcl_dialect::ListSetBounds>,
     conditional_handler: bool,
@@ -364,7 +364,7 @@ fn list_command_length(stmt: &Statement, semantics: BoundsSemantics<'_>) -> Opti
             .effective
             .words
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     {
         return None;
     }
@@ -1072,7 +1072,7 @@ struct CandidateSite<'a> {
 }
 
 impl CandidateSite<'_> {
-    fn read_word(&self, ssa: &SsaFunction, word: &crate::ir::WordExpr) -> Option<ValueKey> {
+    fn read_word(&self, ssa: &SsaFunction, word: &tcl_source::words::WordExpr) -> Option<ValueKey> {
         let read = self.source_view(ssa).read_word(word)?;
         let version = self
             .operand_versions
@@ -1206,7 +1206,7 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         let Some((spelling, _)) = cand
             .index_word
             .as_ref()
-            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+            .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
         else {
             return;
         };

@@ -43,7 +43,7 @@ use tcl_spec_hooks::pack_eval::{PackEvalCtx, UnknownHandler, WordHandler};
 /// braced-ness, so it is reconstructed from the one property that matters
 /// to every consumer — a name is one whitespace-free word, a block is not.
 fn blockish(text: &str) -> bool {
-    tcl_compiler::parsing::spectcl_source::pack_value_is_block(text)
+    tcl_source::spectcl::pack_value_is_block(text)
 }
 
 /// Rebuild a [`Stmt`] — the shape a segmented source statement has — from

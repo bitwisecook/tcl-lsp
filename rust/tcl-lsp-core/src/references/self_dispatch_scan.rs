@@ -179,7 +179,7 @@ pub(super) fn scan_my_method_region(
     depth: u32,
     sink: &mut SpanSink<'_>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
     let source = ctx.source;
     if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
@@ -234,7 +234,7 @@ pub(super) fn scan_my_method_region(
 /// parsing supplies no current object, entered method frame or edit authority.
 fn original_self_dispatch(
     ctx: MyMethodScan<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     use tcl_compiler::registry_invocation::source_structure;
     let Some(input) = ctx.analysis.resolved_input.as_ref() else {

@@ -24,8 +24,6 @@
 mod analyser;
 mod caller_frame_effects;
 mod dataflow;
-mod differential_group;
-mod differential_segment;
 mod dispatch_proof_architecture;
 mod fix_safety;
 mod lsp_external_binding_reports;
@@ -33,7 +31,7 @@ mod lsp_values_release;
 mod mro_lattice_adversarial;
 mod name_lookup_issue_witnesses;
 mod slot_allocation;
+mod source_role_boundaries;
 mod span_char_boundaries;
 mod taint_depth;
-mod text_utils;
 mod wasm_api_architecture;

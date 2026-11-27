@@ -171,7 +171,7 @@ fn nested_script_entry_site(
     else {
         return at;
     };
-    crate::segmenter::segment_commands_with_offset_and_config(script, base, config.nested())
+    tcl_source::segment::segment_commands_with_offset_and_config(script, base, config.nested())
         .first()
         .and_then(|command| command.argv.first())
         .map_or(at, |head| head.span.start())

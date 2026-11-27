@@ -43,7 +43,7 @@ use crate::registry_invocation::source_structure::trace_original_child_guard;
 pub fn source_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     source_registry_words_with_definition_parent(source, analysis, segment, None)
 }
@@ -54,7 +54,7 @@ pub fn source_registry_words(
 pub fn source_registry_words_in_definition_body(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: &super::super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
     source_registry_words_with_definition_parent(source, analysis, segment, Some(parent))
@@ -179,7 +179,7 @@ fn original_definition_child_head(
 fn generic_definition_child_source_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: &super::super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
     let input = analysis.resolved_input.as_ref()?;
@@ -288,7 +288,7 @@ fn generic_definition_child_source_words(
 #[cfg(test)]
 fn trace_source_registry_input(
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) {
     if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = segment.argv.first().map(|word| word.span.start());
@@ -312,7 +312,7 @@ fn trace_source_registry_input(
 }
 
 fn trace_source_registry_barrier(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     tokens: &crate::ir::CommandTokens,
     blocked: bool,
 ) {
@@ -341,7 +341,7 @@ fn trace_source_registry_barrier(
 fn source_vendor_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
     offset: u32,
@@ -372,7 +372,7 @@ fn source_vendor_registry_words(
 fn source_native_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     geometry: (&tcl_lexer::SourceImage, tcl_lexer::LexerConfig, u32),
     realm: &crate::realm::CommandBindingRealm,
     input: &crate::analyser::ResolvedAnalysisInput,
@@ -424,7 +424,7 @@ fn source_native_registry_words(
 fn source_registry_words_with_definition_parent(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: Option<&super::super::source_scoped_body::OriginalSourceScriptBody>,
 ) -> Option<OriginalRegistryWords> {
     #[cfg(test)]
@@ -473,7 +473,7 @@ fn source_registry_words_with_definition_parent(
 fn source_registry_words_from_image(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: Option<&super::super::source_scoped_body::OriginalSourceScriptBody>,
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
@@ -552,7 +552,7 @@ pub(super) fn source_definition_body_grammar(
 fn original_definition_member_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: &super::super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
     let config = analysis.body_lexer_config?;
@@ -611,7 +611,7 @@ fn original_definition_member_registry_words(
 fn original_scoped_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     let config = analysis.body_lexer_config?;
     let realm = analysis.retained_command_realm()?;

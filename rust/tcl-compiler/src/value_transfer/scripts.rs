@@ -181,7 +181,7 @@ impl LatticeDriver<'_> {
         under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
         original: Option<&crate::interprocedural::OriginalSummaryScript>,
     ) -> Option<ScriptRun> {
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             script,
             original.map_or(
                 0,
@@ -212,7 +212,7 @@ impl LatticeDriver<'_> {
     /// word expands: `[list {*}{a b}]` has two elements, not the one `a b`.
     pub(super) fn cooked_args<'s>(
         &self,
-        seg: &'s crate::segmenter::SegmentedCommand,
+        seg: &'s tcl_source::segment::SegmentedCommand,
     ) -> Vec<ArgWord<'s>> {
         let expands = |at: usize| {
             seg.expand_word
@@ -245,7 +245,7 @@ impl LatticeDriver<'_> {
     /// its declared route, `prior` being the writes made ahead of it.
     pub(super) fn run_command<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
-        seg: &crate::segmenter::SegmentedCommand,
+        seg: &tcl_source::segment::SegmentedCommand,
         lattice: Lattice<'_, S1, S2>,
         under: (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
         original: Option<&CommandTokens>,
@@ -341,7 +341,8 @@ impl LatticeDriver<'_> {
         if operation.effective.words.iter().any(|word| {
             matches!(
                 word,
-                crate::ir::WordExpr::Expand { .. } | crate::ir::WordExpr::Opaque { .. }
+                tcl_source::words::WordExpr::Expand { .. }
+                    | tcl_source::words::WordExpr::Opaque { .. }
             )
         }) {
             return None;

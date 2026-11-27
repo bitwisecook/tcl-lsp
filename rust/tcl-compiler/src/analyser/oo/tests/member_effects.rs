@@ -428,7 +428,7 @@ fn variable_declaration_spans_use_selected_original_literal_name_operands() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
     let image = tcl_lexer::SourceImage::document(source);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let known = [
         "$literal",
         "${braced}",

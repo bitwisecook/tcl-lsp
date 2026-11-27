@@ -470,7 +470,7 @@ fn tcltest_oracle_program_keeps_missing_reads_and_setup_completion() {
 fn tcltest_aliased_fixture(source: &str, profile: &str, captured: bool) -> (String, u32) {
     let context = tcl_registry::model::ingress::static_context_for(profile);
     let config = tcl_lexer::LexerConfig::for_profile(context.commands().profile());
-    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .into_iter()
         .find(|command| command.name() == "test")
         .expect("one original reported test command");

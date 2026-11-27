@@ -18,7 +18,8 @@
 
 //! Shared, source-preserving plans for scripts evaluated by runtime invocations.
 
-use crate::ir::{Script, SourceSite};
+use crate::ir::Script;
+use tcl_source::words::SourceSite;
 
 /// The registry-owned whole-lifecycle iteration topology.
 pub use tcl_registry::body_execution::BodyRepetition as RegionRepetition;
@@ -428,6 +429,6 @@ mod tests {
             instruction,
             ExecutableInstruction::JoinCompletion { .. }
         )));
-        assert!(!instructions.iter().any(|instruction| matches!(instruction, ExecutableInstruction::Invoke(invoke) if invoke.original_words.first().is_some_and(|word| matches!(word, crate::ir::WordExpr::Literal { text, .. } if text == "tcltest::test")))));
+        assert!(!instructions.iter().any(|instruction| matches!(instruction, ExecutableInstruction::Invoke(invoke) if invoke.original_words.first().is_some_and(|word| matches!(word, tcl_source::words::WordExpr::Literal { text, .. } if text == "tcltest::test")))));
     }
 }

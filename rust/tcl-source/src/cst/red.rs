@@ -809,9 +809,8 @@ mod tests {
             "jim",
             "f5-irules",
         ] {
-            let profile =
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
-            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap();
+            let config = tcl_lexer::LexerConfig::from_grammar(point.grammar());
             for source in [
                 "set $x {a $b}",
                 "# note\r\nset é [list value]; puts \"${é}\"",

@@ -197,7 +197,7 @@ fn collect_original_expression_body_writes(
         return;
     }
     let source = tcl_lexer::SourceMap::new(semantics.source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         body.content_span().start(),
         semantics.lexer_config.nested(),

@@ -28,8 +28,10 @@ use super::{
     AuthoredSourceCaseBodySelection, InvocationWordOrigin, ResolvedStatementInvocation,
     host_structure_observer, source_structure,
 };
-use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::ir::CommandTokens;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Structured semantics of one exact source invocation for analysis.
 ///

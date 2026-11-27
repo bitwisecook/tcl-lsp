@@ -42,9 +42,9 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Build the canonical token snapshot for one default-profile command.
 pub fn command_tokens(source: &str) -> CommandTokens {

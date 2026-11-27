@@ -20,11 +20,13 @@
 
 use super::Lowerer;
 use crate::execution_region::{EvaluatedBodyRegion, ExecutionRegionDependency, RegionSelection};
-use crate::ir::{CommandTokens, Script, SourceSite};
+use crate::ir::CommandTokens;
+use crate::ir::Script;
 use crate::registry_invocation::effective_command_words;
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::InvocationArguments;
 use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec, BodyOperand};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::words::SourceSite;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// A loader for `package` when the registry declares its commands, through a
@@ -477,7 +479,7 @@ impl Lowerer<'_> {
     fn conditional_body_source(
         &self,
         tokens: &CommandTokens,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         written: usize,
         operand: BodyOperand,
         dialect: Option<tcl_registry::InvocationDialect>,
@@ -917,13 +919,15 @@ fn possible_body_conditions(
                 })
             });
             let expression_base = match (word, value.as_deref()) {
-                (crate::ir::WordExpr::BracedLiteral { text, source }, Some(value))
-                    if text == value && source.provenance == crate::ir::Provenance::Source =>
+                (tcl_source::words::WordExpr::BracedLiteral { text, source }, Some(value))
+                    if text == value
+                        && source.provenance == tcl_source::words::Provenance::Source =>
                 {
                     crate::lowering_hooks::word_content_base(source.span, true, text)
                 }
-                (crate::ir::WordExpr::Literal { text, source }, Some(value))
-                    if text == value && source.provenance == crate::ir::Provenance::Source =>
+                (tcl_source::words::WordExpr::Literal { text, source }, Some(value))
+                    if text == value
+                        && source.provenance == tcl_source::words::Provenance::Source =>
                 {
                     Some(source.span.start())
                 }
@@ -1285,7 +1289,7 @@ mod tests {
             },
         );
         let body = "switch -- $mode {a {puts A} default {puts D}}";
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             u32::try_from(source.find("switch").unwrap()).unwrap(),
             config,
@@ -1456,7 +1460,7 @@ mod tests {
             .unwrap()
             .clone();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config)
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, lowerer.config)
                 .pop()
                 .unwrap();
         // This is the same completed source owner, restored for its read-only

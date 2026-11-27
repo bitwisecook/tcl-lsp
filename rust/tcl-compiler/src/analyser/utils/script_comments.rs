@@ -287,7 +287,7 @@ impl<'a> CommentLineWalker<'a> {
                 self.comment_position,
             )?);
         let script = self.whole.get(region.as_range())?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             script,
             region.start(),
             self.config.at_depth(depth),
@@ -389,7 +389,7 @@ impl<'a> CommentLineWalker<'a> {
             return;
         }
         self.record_comments(script, base_offset, depth);
-        for command in crate::segmenter::segment_commands_with_offset_and_config(
+        for command in tcl_source::segment::segment_commands_with_offset_and_config(
             script,
             0,
             self.config.at_depth(depth),
@@ -479,7 +479,7 @@ impl<'a> CommentLineWalker<'a> {
     /// argument values nor an unavailable execution entry turn a body into data.
     fn visit_source_schema(
         &mut self,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         base_offset: u32,
         depth: u32,
     ) {
@@ -640,7 +640,7 @@ impl<'a> CommentLineWalker<'a> {
     fn visit_lambda_literals(
         &mut self,
         script: &'a str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         roles: &[(usize, ArgRole)],
         base_offset: u32,
         depth: u32,
@@ -712,7 +712,7 @@ impl<'a> CommentLineWalker<'a> {
     fn visit_command_substitutions(
         &mut self,
         script: &'a str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         base_offset: u32,
         depth: u32,
     ) {

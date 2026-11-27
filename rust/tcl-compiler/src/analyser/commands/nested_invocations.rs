@@ -19,12 +19,12 @@
 //! Invocations inside a command's words: `[...]` substitutions, expression operands and math functions, and the scanners that collect their heads.
 
 use super::super::state::Analyser;
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::ArgRole;
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::segment::SegmentedCommand;
 
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
@@ -665,11 +665,13 @@ pub(super) fn nested_source_bodies(
     for body in words.source_script_bodies_for(&context, purpose) {
         let span = body.content_span();
         if let Some(text) = sm.source().get(span.as_range()) {
-            commands.extend(crate::segmenter::segment_commands_with_offset_and_config(
-                text,
-                span.start(),
-                config.nested(),
-            ));
+            commands.extend(
+                tcl_source::segment::segment_commands_with_offset_and_config(
+                    text,
+                    span.start(),
+                    config.nested(),
+                ),
+            );
         }
     }
     commands

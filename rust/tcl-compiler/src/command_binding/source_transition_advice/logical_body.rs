@@ -1172,7 +1172,7 @@ mod tests {
     ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
         let offset = source.find(fragment)?;
         let config = analysis.body_lexer_config?;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             fragment,
             u32::try_from(offset).ok()?,
             config,
@@ -1387,7 +1387,7 @@ mod tests {
             assert!(advice.original_head().native_input().is_none());
             let offset = source.find(fragment).unwrap() + fragment.find("puts").unwrap();
             let tail = &source[offset..];
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            let segment = tcl_source::segment::segment_commands_with_offset_and_config(
                 &tail[..tail.find('}').unwrap()],
                 u32::try_from(offset).unwrap(),
                 input.lexer_config(),

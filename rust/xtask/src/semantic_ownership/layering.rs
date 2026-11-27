@@ -30,6 +30,7 @@ const PROTECTED: &[&str] = &[
     "tcl-lsp-core",
     "tcl-lsp-db",
     "tcl-bigip-schema",
+    "tcl-source",
 ];
 
 #[derive(Deserialize)]

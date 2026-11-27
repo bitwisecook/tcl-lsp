@@ -27,8 +27,10 @@ use tcl_runtime_api::closed_native_consumer::{
 
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::ir::{CommandTokens, Statement, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
+use tcl_source::words::WordExpr;
 
 mod application;
 pub use application::{
@@ -39,7 +41,7 @@ pub use application::{
 /// Maximum accepted UTF-8 source bytes.
 pub const MAX_CLOSED_SOURCE_BYTES: usize = 256;
 /// Existing shared source-walk stack budget required by the owning worker.
-pub const MIN_CLOSED_STACK_BYTES: u32 = crate::depth_guard::MIN_SOURCE_WALK_STACK;
+pub const MIN_CLOSED_STACK_BYTES: u32 = tcl_source::limits::MIN_SOURCE_WALK_STACK;
 /// Maximum top-level commands; each may contain at most one expression invocation.
 pub const MAX_CLOSED_COMMANDS: usize = 32;
 /// Maximum nodes in each admitted arithmetic tree.
@@ -158,8 +160,11 @@ pub fn prepare_closed_source(
     {
         return Err(ClosedSourceRefusal::Source);
     }
-    let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config());
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    );
     if commands.len() != module.top_level.statements.len()
         || commands
             .iter()
@@ -233,7 +238,7 @@ fn source_preparation_domain(
         Some(profile),
     )
     .with_invocation_dialect(dialect);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     if commands.is_empty() || commands.len() > MAX_CLOSED_COMMANDS {
         return Err(ClosedSourceRefusal::Budget);
     }
@@ -470,7 +475,7 @@ impl PlanBuilder<'_> {
         &mut self,
         tokens: &CommandTokens,
         spelling: &str,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
     ) -> Result<PlanOutput, ClosedSourceRefusal> {
         use tcl_registry::hooks::LoweringHookId;
         let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(self.profile);

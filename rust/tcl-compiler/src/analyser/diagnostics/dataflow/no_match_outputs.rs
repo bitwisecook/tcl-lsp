@@ -240,7 +240,7 @@ impl Analyser {
         }
         let inner = text.strip_prefix('[')?.strip_suffix(']')?;
         let config = self.result.body_lexer_config?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             inner,
             start.checked_add(1)?,
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),

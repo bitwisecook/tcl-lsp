@@ -99,7 +99,7 @@ impl<'a> OriginalCompilerArgumentSyntax<'a> {
         self.original.site.source.source_image()
     }
 
-    pub(crate) fn words(&self) -> &'a [crate::ir::WordExpr] {
+    pub(crate) fn words(&self) -> &'a [tcl_source::words::WordExpr] {
         &self.original.words
     }
 
@@ -857,7 +857,11 @@ impl SourceInvocationBinding {
     pub fn original_compiler_source<'a>(
         &'a self,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<(&'a tcl_lexer::SourceImage, &'a [crate::ir::WordExpr], u32)> {
+    ) -> Option<(
+        &'a tcl_lexer::SourceImage,
+        &'a [tcl_source::words::WordExpr],
+        u32,
+    )> {
         let original = self.original_compiler_words.as_ref()?;
         (tokens.synthetic.is_none() && tokens.words() == original.words.as_ref()).then(|| {
             (
@@ -874,7 +878,7 @@ impl SourceInvocationBinding {
     #[must_use]
     pub fn retained_original_compiler_source(
         &self,
-    ) -> Option<(&tcl_lexer::SourceImage, &[crate::ir::WordExpr], u32)> {
+    ) -> Option<(&tcl_lexer::SourceImage, &[tcl_source::words::WordExpr], u32)> {
         let original = self.original_compiler_words.as_ref()?;
         Some((
             original.site.source.source_image(),
@@ -1292,7 +1296,7 @@ impl SourceInvocationBinding {
         rules: tcl_syntax::word_rules::WordValueRules,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<(
-        &crate::ir::WordExpr,
+        &tcl_source::words::WordExpr,
         crate::signature_scan::scope::SignatureSourceNameKey,
     )> {
         let site = self.invocation_site()?;
@@ -1318,13 +1322,13 @@ impl SourceInvocationBinding {
 fn original_name_word_from_layout<'a>(
     site: &CommandAllocationSite,
     image: &tcl_lexer::SourceImage,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     span: tcl_lexer::Span,
     config: tcl_lexer::LexerConfig,
     rules: tcl_syntax::word_rules::WordValueRules,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<(
-    &'a crate::ir::WordExpr,
+    &'a tcl_source::words::WordExpr,
     crate::signature_scan::scope::SignatureSourceNameKey,
 )> {
     let native = crate::registry_invocation::original_native_compiler_words(

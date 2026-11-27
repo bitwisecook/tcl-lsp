@@ -311,7 +311,7 @@ impl OriginalLexicalNextCall {
         let range = context.body_word().content_span().ok()?;
         let body =
             source.get(usize::try_from(range.start()).ok()?..usize::try_from(range.end()).ok()?)?;
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             range.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(context.input.lexer_config()),
@@ -607,7 +607,7 @@ mod tests {
         let range = context.body_word().content_span().ok()?;
         let body =
             source.get(usize::try_from(range.start()).ok()?..usize::try_from(range.end()).ok()?)?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             range.start(),
             context.resolved_input().lexer_config(),
@@ -861,7 +861,7 @@ mod original_member_body_purpose_tests {
         let range = context.body_word().content_span().unwrap();
         let body = source.get(range.as_range()).unwrap();
         assert_eq!(body, "\u{feff}chain VALUE");
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             range.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -929,7 +929,7 @@ mod original_class_object_source_tests {
         assert_eq!(context.side(), MemberSide::ClassObject);
         assert_eq!(context.ordinary_method(), Some(method));
         let body = context.body_word().content_span().unwrap();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(body.as_range()).unwrap(),
             body.start(),
             context.input.lexer_config().nested(),

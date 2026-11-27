@@ -288,7 +288,7 @@ impl OriginalDiagnosticFrameEntry {
 pub(super) struct DeclarationLayoutObservation {
     pub(super) issuer: DeclarationLayoutIssuer,
     pub(super) config: tcl_lexer::LexerConfig,
-    pub(super) words: Arc<[crate::ir::WordExpr]>,
+    pub(super) words: Arc<[tcl_source::words::WordExpr]>,
     pub(super) namespace: super::SourceNamespaceKey,
     pub(super) entry: Arc<OriginalDiagnosticFrameEntry>,
     pub(super) snapshot: Arc<SourceLookupSnapshot>,
@@ -445,7 +445,7 @@ pub(crate) struct OriginalDeclarationCallLayoutAdvice {
 pub(crate) struct DeclarationReadOccurrenceAdvice {
     invocation: CommandAllocationSite,
     name: String,
-    source: crate::ir::SourceSite,
+    source: tcl_source::words::SourceSite,
     spelling: String,
 }
 
@@ -453,7 +453,7 @@ pub(crate) struct DeclarationReadOccurrenceAdvice {
 /// Its symbolic value is conditional advice, never a physical address/read.
 pub(crate) struct DeclarationVariableOperandAdvice {
     invocation: CommandAllocationSite,
-    word: crate::ir::WordExpr,
+    word: tcl_source::words::WordExpr,
     name: String,
 }
 
@@ -477,7 +477,7 @@ enum DeclarationSourceOperandLayoutKind {
 /// Folded source bytes acquire no ordinary Native occurrence or cell address.
 pub(crate) struct DeclarationSourceVariableOperandAdvice {
     site: CommandAllocationSite,
-    word: crate::ir::WordExpr,
+    word: tcl_source::words::WordExpr,
     name: String,
     source_operations: Arc<[super::declaration_preview::OriginalDeclarationSourceOperation]>,
 }
@@ -486,7 +486,7 @@ pub(crate) struct DeclarationSourceVariableOperandAdvice {
 struct OriginalDeclarationWordSource<'a> {
     snapshot: &'a Arc<super::SourceLookupSnapshot>,
     site: &'a CommandAllocationSite,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     config: tcl_lexer::LexerConfig,
     dialect: tcl_registry::InvocationDialect,
 }

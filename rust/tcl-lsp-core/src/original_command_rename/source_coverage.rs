@@ -30,7 +30,7 @@ use super::{coverage_trace, require_coverage, trace_coverage_document};
 use crate::original_source_views::OriginalSourceViewDocument;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::command_binding::OriginalSingleSourceCutSurvey;
-use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 pub(super) struct SourceCoverage<'a> {
     cuts: Vec<SourceCut<'a>>,

@@ -1208,7 +1208,7 @@ impl IndexSurveyContext {
     fn words(
         &self,
         content: &str,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
         match self {
             Self::Analysed(analysis) => {
@@ -1354,8 +1354,7 @@ fn survey_index_entries_using(
     let Some(filenames) = captured.loader(content) else {
         return Some(entries);
     };
-    let commands =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(content, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(content, 0, config);
     let commands_by_offset = index_commands_by_offset(&commands);
     for command in plan.commands {
         let words = &command.words;
@@ -1408,8 +1407,8 @@ fn survey_index_entries_using(
 }
 
 fn index_commands_by_offset(
-    commands: &[tcl_compiler::segmenter::SegmentedCommand],
-) -> BTreeMap<u32, &tcl_compiler::segmenter::SegmentedCommand> {
+    commands: &[tcl_source::segment::SegmentedCommand],
+) -> BTreeMap<u32, &tcl_source::segment::SegmentedCommand> {
     let mut index = BTreeMap::new();
     for command in commands {
         if let Some(head) = command.argv.first() {

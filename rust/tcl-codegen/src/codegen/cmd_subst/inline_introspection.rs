@@ -20,7 +20,8 @@
 
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{CodegenCtx, Op, Operand, bytecode_imm};
-use tcl_compiler::ir::{CommandTokens, WordExpr};
+use tcl_compiler::ir::CommandTokens;
+use tcl_source::words::WordExpr;
 
 impl CodegenCtx<'_> {
     pub(super) fn emit_inline_info_commands_resolve(&mut self, args: &[(String, bool)]) {

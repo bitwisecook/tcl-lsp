@@ -66,8 +66,9 @@
 use std::ops::Range;
 use tcl_dialect::model::SpecProvider;
 
-use tcl_compiler::parsing::spectcl_source::{pack_source_lexer_config, pack_source_statements};
 use tcl_lexer::{SourceSegmentationPurpose, TokenType};
+use tcl_source::spectcl::pack_source_lexer_config;
+use tcl_source::spectcl::pack_source_statements;
 
 use crate::export::{ExportLoss, Registration, export_pack_reporting};
 use crate::loader::{

@@ -23,8 +23,8 @@ use crate::ExplorerResult;
 use crate::formatters::{preview, range_dict, stmt_color_class, stmt_kind, stmt_summary};
 use serde_json::{Map, Value, json};
 use tcl_compiler::ir::{Module, Script, Statement};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex, TokenType};
+use tcl_source::segment::segment_commands_with_offset_and_config;
 use tcl_syntax::expr::ast::render_expr;
 
 /// Serialise an IR script (a list of statement nodes). Children are emitted

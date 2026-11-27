@@ -113,7 +113,7 @@ pub(super) fn loop_installed_member_shape(
     dialect: Option<SurfaceQuery<'_>>,
     var_name: &str,
 ) -> Option<(MethodKind, Span)> {
-    let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
+    let inner_cmds = tcl_source::segment::segment_commands_with_offset_and_config(
         body_word,
         body_content_start,
         lexer_config.nested(),
@@ -213,7 +213,7 @@ impl Analyser {
     pub(super) fn member_declaration_is_opaque(
         &self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         texts: &[String],
     ) -> bool {
         let Some(keyword) = texts.first() else {
@@ -332,7 +332,7 @@ impl Analyser {
     pub(super) fn record_loop_installed_members(
         &self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         class_def: &mut ClassDef,
     ) {
         let Some(keyword) = cmd.texts.first().map(String::as_str) else {

@@ -178,7 +178,8 @@ pub(super) fn visit_call_tokens(
             continue;
         }
         if single
-            && let Some(crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+            && let Some(tcl_source::words::WordExpr::Variable { spelling, .. }) =
+                tokens.words().get(i)
         {
             visit_simple_var_word(ctx, *span, spelling, constants, cu.ir_module.lexer_config);
         }
@@ -363,7 +364,7 @@ fn collect_var_refs(
     out: &mut Vec<VarRef>,
 ) -> Option<()> {
     use tcl_lexer::TokenType;
-    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(cmd_depth) {
+    if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(cmd_depth) {
         return None;
     }
     let sm = tcl_lexer::SourceMap::new(src);

@@ -93,7 +93,7 @@ pub(super) fn retained_forward_methods(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     source: super::deferred_method::MethodParameterSource,
     context: SourceExecutionContext<'_>,

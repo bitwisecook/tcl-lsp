@@ -62,10 +62,12 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::{ByteArrayEffect, BytePayloadSpec, TclType};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ir::{Statement, WordExpr, WordPart};
+use crate::ir::Statement;
 use crate::registry_invocation::NormalRepresentationInvocation;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 use std::collections::HashSet;
 
@@ -452,7 +454,7 @@ impl<'a> ByteCorruption<'a> {
         ssa: crate::ssa::SsaSourceView<'_>,
         depth: u32,
     ) -> Option<ByteProvInfo> {
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             return None;
         }
         if word.sole_variable_substitution().is_some() {

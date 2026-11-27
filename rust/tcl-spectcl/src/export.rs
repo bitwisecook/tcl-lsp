@@ -188,9 +188,9 @@ pub struct ExportLoss {
 
 /// `text` as a Tcl word carrying it verbatim, or `None` when nothing does.
 fn spelling(word: &Word) -> Option<String> {
-    use tcl_compiler::parsing::spectcl_source::{
-        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
-    };
+    use tcl_source::spectcl::PackWordSourcePurpose;
+    use tcl_source::spectcl::PackWordSourceStyle;
+    use tcl_source::spectcl::pack_verbatim_source_word;
     pack_verbatim_source_word(
         &word.text,
         PackWordSourcePurpose::CapturedRegistration,
@@ -204,7 +204,7 @@ fn spelling(word: &Word) -> Option<String> {
 
 /// Explicitly lossy recovery after the export records the unrepresentable word.
 fn quoted(text: &str) -> String {
-    tcl_compiler::parsing::spectcl_source::pack_lossy_quoted_source_word(text)
+    tcl_source::spectcl::pack_lossy_quoted_source_word(text)
 }
 
 // Render

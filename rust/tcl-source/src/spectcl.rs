@@ -16,10 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Pure SpecTcl source rows shared by the loader and source navigation.
+//! Configured pack source rows shared by loading and navigation.
 //!
-//! This module lives below both consumers because SpecTcl depends on Core's
-//! VFS. It owns no loader, filesystem access, registration or execution facts.
+//! This module owns no loader, filesystem access, registration or execution facts.
 
 mod original_word;
 pub use original_word::{
@@ -35,8 +34,8 @@ use tcl_lexer::{
     LeadingBom, LexerConfig, SourceImage, SourceMap, SourceSegmentationPurpose, TokenType,
 };
 
-use super::syntax::{build::build_document, segment::segments_from_document};
-use crate::segmenter::SegmentedCommand;
+use crate::cst::{build::build_document, segment::segments_from_document};
+use crate::segment::SegmentedCommand;
 
 /// The newest major vocabulary interpreted by the `SpecTcl` loader.
 pub const NEWEST_SUPPORTED_MAJOR: u32 = 2;
@@ -473,7 +472,7 @@ mod tests {
         assert!(first_pack_source_body(malformed, config).is_some());
         assert_ne!(
             pack_source_statements(malformed, config),
-            [] as [crate::segmenter::SegmentedCommand; 0]
+            [] as [crate::segment::SegmentedCommand; 0]
         );
         assert!(pack_source_includes(malformed, config).is_empty());
 

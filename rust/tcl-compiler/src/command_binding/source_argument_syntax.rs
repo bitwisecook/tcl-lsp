@@ -30,7 +30,7 @@ pub(super) struct OriginalSourceArgumentSyntax {
     owner: Arc<super::OriginalSourceAnalysisOwner>,
     parent: Arc<CommandTokens>,
     site: CommandAllocationSite,
-    words: Arc<[crate::ir::WordExpr]>,
+    words: Arc<[tcl_source::words::WordExpr]>,
     config: LexerConfig,
 }
 
@@ -71,7 +71,7 @@ impl OriginalSourceArgumentSyntaxView<'_> {
     pub(crate) fn image(&self) -> &tcl_lexer::SourceImage {
         self.0.site.source.source_image()
     }
-    pub(crate) fn words(&self) -> &[crate::ir::WordExpr] {
+    pub(crate) fn words(&self) -> &[tcl_source::words::WordExpr] {
         &self.0.words
     }
     pub(crate) fn offset(&self) -> u32 {
@@ -127,7 +127,7 @@ impl SourceCommandBindings {
     pub(super) fn retain_original_argument_syntax_commands(
         &mut self,
         base: u32,
-        segments: &[crate::segmenter::SegmentedCommand],
+        segments: &[tcl_source::segment::SegmentedCommand],
         state: &super::ModuleCommandBindings,
         context: &super::SourceExecutionContext<'_>,
     ) {
@@ -403,7 +403,7 @@ mod tests {
         );
         let image = tcl_lexer::SourceImage::document(source);
         let commands =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &commands[0]);
         bindings.stamp_original_tokens(&mut tokens);
@@ -570,7 +570,7 @@ mod purpose_controls {
         )
         .unwrap();
         let commands =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &commands[0]);
         bindings.stamp_original_tokens(&mut tokens);

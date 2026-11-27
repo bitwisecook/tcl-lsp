@@ -178,7 +178,7 @@ impl SourceCommandBindings {
         }
         let prepared_context = source_chunk_context_boxed(context, prepared.snapshot.as_ref());
         let context = prepared_context.as_ref();
-        if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
             self.record_unrepresented_source_entry(state, context);
             state.mark_opaque_binding_mutation();
             return SourceOutcomes::invocation(
@@ -189,7 +189,7 @@ impl SourceCommandBindings {
         let segments = {
             #[cfg(any(test, debug_assertions))]
             let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourceSegmentation);
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, base, config)
         };
         let Some(segments) = segments else {
             self.record_unrepresented_source_entry(state, context);
@@ -303,7 +303,7 @@ impl SourceCommandBindings {
         &mut self,
         image: &tcl_lexer::SourceImage,
         base: u32,
-        segments: &[crate::segmenter::SegmentedCommand],
+        segments: &[tcl_source::segment::SegmentedCommand],
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
         entry_error: Option<&ModuleCommandBindings>,
@@ -515,7 +515,7 @@ impl SourceCommandBindings {
     #[inline(never)]
     fn record_continuation_source_point(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {

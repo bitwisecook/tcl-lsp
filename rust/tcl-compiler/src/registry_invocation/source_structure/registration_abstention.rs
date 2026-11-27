@@ -55,7 +55,7 @@ pub struct OriginalStandaloneListProjection<'a> {
 }
 
 struct StandaloneOriginalQuery {
-    segment: crate::segmenter::SegmentedCommand,
+    segment: tcl_source::segment::SegmentedCommand,
     tokens: crate::ir::CommandTokens,
     original: Vec<NativeWord>,
 }
@@ -119,7 +119,8 @@ impl OriginalSourceRegistryContext {
         {
             return None;
         }
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         if segments.len() != plan.commands.len() {
             return None;
         }
@@ -174,7 +175,7 @@ impl<'a> OriginalStandaloneSchemaAbstentions<'a> {
         let command = substitution_command_at(&self.plan, offset, 0, &mut remaining)?;
         let config = self.source.input.lexer_config();
         let source = self.source.image.try_text().ok()?;
-        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(command.span.as_range())?,
             command.span.start(),
             config.nested(),

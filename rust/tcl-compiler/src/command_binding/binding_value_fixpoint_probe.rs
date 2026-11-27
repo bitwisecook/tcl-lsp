@@ -28,12 +28,12 @@ use super::{
 use crate::analyser::{Analyser, ResolvedAnalysisInput};
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use crate::ir::WordExpr;
 use crate::realm::CommandBindingRealm;
-use crate::segmenter::{
-    SegmentedCommand, segment_commands_incremental, segment_commands_with_offset_and_config,
-};
 use crate::ssa::original_source_read_at_unit;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_incremental;
+use tcl_source::segment::segment_commands_with_offset_and_config;
+use tcl_source::words::WordExpr;
 
 const LIMIT: usize = 4;
 const DIALECT: &str = "tcl8.6";

@@ -39,7 +39,7 @@ fn source_context_in(source: &str, dialect: &str) -> OriginalSourceRegistryConte
     )
 }
 
-fn child_command(syntax: &OriginalSourceRegistryContext) -> crate::segmenter::SegmentedCommand {
+fn child_command(syntax: &OriginalSourceRegistryContext) -> tcl_source::segment::SegmentedCommand {
     let source = syntax.source_image().try_text().unwrap();
     let config = syntax.editing_input().lexer_config();
     let plan = tcl_lexer::native_script_words_in(
@@ -53,7 +53,7 @@ fn child_command(syntax: &OriginalSourceRegistryContext) -> crate::segmenter::Se
     let original = &child.command().words;
     let start = original.first().unwrap().span().start();
     let end = original.last().unwrap().span().end();
-    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[usize::try_from(start).unwrap()..usize::try_from(end).unwrap()],
         start,
         config,

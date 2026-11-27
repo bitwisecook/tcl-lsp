@@ -20,8 +20,9 @@
 
 use super::InvocationWordOrigin;
 use super::source_model_operations::resolve_original_declared_layout;
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// An unchanged original expression operand for conditional diagnostics only.
 /// Neither a normal handler nor successful operand evaluation is asserted.
@@ -168,7 +169,7 @@ fn original_expression_operand_advice_selected_word(
     else {
         return None;
     };
-    if source.provenance != crate::ir::Provenance::Source {
+    if source.provenance != tcl_source::words::Provenance::Source {
         return None;
     }
     let base = crate::lowering_hooks::word_content_base(

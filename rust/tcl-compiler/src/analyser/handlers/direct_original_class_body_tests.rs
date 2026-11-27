@@ -336,7 +336,7 @@ fn source_factory_layout_cannot_supply_statement_or_proc_completion() {
             let mut analyser = Analyser::new();
             analyser.analyse_and_retain_result_for_test(&source, dialect);
             assert!(analyser.result.class_factories().contains_key("::Meta"));
-            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            let commands = tcl_source::segment::segment_commands_with_offset_and_config(
                 &source,
                 0,
                 analyser.file_lexer_config(),
@@ -366,7 +366,7 @@ fn source_factory_layout_cannot_supply_statement_or_proc_completion() {
         ] {
             let mut analyser = Analyser::new();
             analyser.analyse_and_retain_result_for_test(source, dialect);
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 source,
                 0,
                 analyser.file_lexer_config(),

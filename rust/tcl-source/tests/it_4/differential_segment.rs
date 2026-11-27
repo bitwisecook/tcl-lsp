@@ -19,9 +19,9 @@
 //! Differential harness: CST-derived segmenter vs the token-loop oracle.
 //!
 //! The canonical red-green CST
-//! (`parsing::syntax::{build,red,segment}`) must derive a
-//! `SegmentedCommand` list **byte-identical** to the token-loop
-//! `segment_commands_local` (the oracle), field-for-field, plus:
+//! (`tcl_source::cst::{build,red,segment}`) preserves the frozen token-loop
+//! oracle's command geometry and semantic fragments. The CST also retains
+//! original inter-word trivia, which the frozen loop omitted. The contracts are:
 //!
 //! - **losslessness** — the CST's reconstructed text equals the source;
 //! - **position-equivalence** — the red fragment tokens reproduce the
@@ -38,9 +38,10 @@ use std::path::{Path, PathBuf};
 
 use tcl_lexer::LexerConfig;
 
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::red::SyntaxTree;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::red::SyntaxTree;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Repo root — two directories above `CARGO_MANIFEST_DIR`.
 fn repo_root() -> PathBuf {
@@ -67,6 +68,41 @@ fn production(src: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     segment_commands_with_offset_and_config(src, 0, config)
 }
 
+fn semantic_tokens(command: &SegmentedCommand) -> Vec<tcl_lexer::Token> {
+    command
+        .all_tokens
+        .iter()
+        .copied()
+        .filter(|token| {
+            !matches!(
+                token.kind,
+                tcl_lexer::TokenType::Sep
+                    | tcl_lexer::TokenType::Eol
+                    | tcl_lexer::TokenType::Comment
+                    | tcl_lexer::TokenType::Eof
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn command_tokens_retain_original_interword_separators() {
+    let source = "puts \t hi";
+    let actual = production(source, LexerConfig::default());
+    let expected: Vec<_> = tcl_lexer::Lexer::new(source)
+        .tokenise_all()
+        .unwrap()
+        .into_iter()
+        .filter(|token| {
+            !matches!(
+                token.kind,
+                tcl_lexer::TokenType::Eof | tcl_lexer::TokenType::Eol
+            )
+        })
+        .collect();
+    assert_eq!(actual[0].all_tokens, expected);
+}
+
 /// Assert two `SegmentedCommand`s are equal field-for-field.
 fn assert_seg_eq(o: &SegmentedCommand, c: &SegmentedCommand, ctx: &str) {
     assert_eq!(o.span, c.span, "span mismatch [{ctx}]");
@@ -80,7 +116,11 @@ fn assert_seg_eq(o: &SegmentedCommand, c: &SegmentedCommand, ctx: &str) {
         o.single_token_word, c.single_token_word,
         "single_token_word mismatch [{ctx}]"
     );
-    assert_eq!(o.all_tokens, c.all_tokens, "all_tokens mismatch [{ctx}]");
+    assert_eq!(
+        o.all_tokens,
+        semantic_tokens(c),
+        "semantic tokens mismatch [{ctx}]"
+    );
     assert_eq!(o.is_partial, c.is_partial, "is_partial mismatch [{ctx}]");
     assert_eq!(o.expand_word, c.expand_word, "expand_word mismatch [{ctx}]");
     assert_eq!(
@@ -126,8 +166,8 @@ fn check(src: &str, config: LexerConfig, ctx: &str) -> Result<(), String> {
         if oc.single_token_word != cc.single_token_word {
             return Err(format!("single_token_word mismatch [{ctx}] cmd {i}"));
         }
-        if oc.all_tokens != cc.all_tokens {
-            return Err(format!("all_tokens mismatch [{ctx}] cmd {i}"));
+        if oc.all_tokens != semantic_tokens(cc) {
+            return Err(format!("semantic tokens mismatch [{ctx}] cmd {i}"));
         }
         if oc.is_partial != cc.is_partial {
             return Err(format!("is_partial mismatch [{ctx}] cmd {i}"));
@@ -283,7 +323,7 @@ fn cst_matches_oracle_over_tcl_corpus() {
 /// CST-backed (only `segment_commands_local` is affected).
 #[test]
 fn smoke_recovery_known_commands() {
-    use tcl_compiler::segmenter::segment_commands_with_recovery;
+    use tcl_source::segment::segment_commands_with_recovery;
     let known: HashSet<&str> = ["puts", "set"].into_iter().collect();
     // An unclosed brace spanning several lines, then a recoverable `puts`.
     let src = "proc f {\n  body line\n  more\n  another\nputs recovered\n";
@@ -312,7 +352,9 @@ fn smoke_recovery_known_commands() {
 mod frozen_oracle {
     use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 
-    use tcl_compiler::segmenter::{SegmentedCommand, WordFragment, word_piece};
+    use tcl_source::segment::SegmentedCommand;
+    use tcl_source::segment::WordFragment;
+    use tcl_source::segment::word_piece;
 
     fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
         if tokens.is_empty() {

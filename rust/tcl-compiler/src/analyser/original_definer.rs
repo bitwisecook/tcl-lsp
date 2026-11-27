@@ -222,7 +222,7 @@ fn original_argument_projection(
     }
     let value = std::str::from_utf8(value).ok()?;
     // Exact unchanged structural geometry never creates a new command entry.
-    let mut projection = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut projection = tcl_source::segment::segment_commands_with_offset_and_config(
         word.try_text().ok()?,
         word.word_span().start(),
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),

@@ -25,12 +25,12 @@ fn original_clause_elements_keep_parent_geometry_and_nested_bom_content() {
     // Original Document/list geometry only; the public String completeness
     // observations supply no list value, header or handler receipt.
     let source = "\u{feff}switch -- $v {\u{feff}$pattern {puts ok} plain {puts tail}}";
-    let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+    let environment = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
         let config = LexerConfig {
             leading_bom: bom,
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
-            ..LexerConfig::for_file_grammar(environment.grammar())
+            ..LexerConfig::for_file_grammar(environment.grammar)
         };
         let commands = segment_commands_with_offset_and_config(source, 0, config);
         let [command] = commands.as_slice() else {

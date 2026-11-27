@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-expr = { path = "../tcl-expr" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
@@ -42,7 +43,6 @@ bitflags = "2"
 thiserror = "2.0"
 unicode-general-category = "1.1.0"
 rustc-hash = { workspace = true }
-strsim = "0.11"
 imbl = "7.0.2"
 regex = "1"
 # Arbitrary-precision integers for exact `expr` constant folding (the numeric

@@ -143,7 +143,7 @@ impl CommandBindingRealm {
             let text = image.try_text().ok()?.get(offset as usize..end as usize)?;
             // This is an original command slice, including at site zero.
             // Its file prologue has already been handled by the parent producer.
-            let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
                 text,
                 offset,
                 config.nested(),
@@ -201,7 +201,7 @@ mod tests {
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let realm = crate::realm::document_realm_bindings(source, profile, &registry);
         let representatives =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)[0]
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)[0]
                 .argv
                 .clone();
         (
@@ -354,7 +354,7 @@ mod tests {
             let source = format!("set x {value}");
             let image = SourceImage::document(&source);
             let representatives =
-                crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config)[0]
+                tcl_source::segment::segment_commands_with_offset_and_config(&source, 0, config)[0]
                     .argv
                     .clone();
             assert!(
@@ -414,7 +414,7 @@ mod original_command_slice_purpose_tests {
             );
             let image = SourceImage::document(source);
             let parent =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
             assert_eq!(parent[0].span.start(), expected_offset);
             let first = realm
                 .retained_original_tokens(&image, config, expected_offset, &parent[0].argv)

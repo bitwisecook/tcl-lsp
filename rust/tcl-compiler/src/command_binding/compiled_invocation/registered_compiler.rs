@@ -167,7 +167,7 @@ fn registered_fallback_admission(
 /// transition keeps the compiler selection unknown, and so does an earlier
 /// ensemble creation, which may have replaced a stock ensemble command.
 pub(in crate::command_binding) fn original_named_selection_is_closed(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
@@ -383,7 +383,7 @@ pub(in super::super) fn original_fixed_compiler_lookup_preserves_names(
 /// A monolithic compileProc owns the complete original command vector. The
 /// runtime member's body and effect descriptor does not replace that compiler.
 pub(in super::super) fn original_registration_descriptor(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     head: &str,
     offset: u32,
     facts: &tcl_registry::InvocationFacts,

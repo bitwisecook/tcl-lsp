@@ -55,12 +55,15 @@ impl OriginalSourceCase {
 
     pub(crate) fn matches_subject_presentation(&self, subject: &str, braced: bool) -> bool {
         self.subject.legacy_text() == subject
-            && matches!(&self.subject, crate::ir::WordExpr::BracedLiteral { .. }) == braced
+            && matches!(
+                &self.subject,
+                tcl_source::words::WordExpr::BracedLiteral { .. }
+            ) == braced
     }
 
     pub(crate) fn scalar_subject_name(&self) -> Option<&str> {
         let (reference, source) = self.subject.sole_variable_substitution()?;
-        (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+        (source.provenance == tcl_source::words::Provenance::Source).then_some(())?;
         tcl_syntax::naming::whole_scalar_variable_reference_name(reference, self.config)
     }
 
@@ -99,14 +102,14 @@ impl OriginalSourceCase {
 }
 
 fn original_scalar_reference_is(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     parameter: &str,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
     let Some((spelling, source)) = word.sole_variable_substitution() else {
         return false;
     };
-    if source.provenance != crate::ir::Provenance::Source {
+    if source.provenance != tcl_source::words::Provenance::Source {
         return false;
     }
     let Ok(Some(reference)) = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
@@ -413,10 +416,10 @@ fn original_folded_case_source_image(
 
 pub(super) fn original_folded_case_subject(
     parent: &crate::ir::CommandTokens,
-    subject: &crate::ir::WordExpr,
+    subject: &tcl_source::words::WordExpr,
     registry: &CommandRegistry,
     metadata: super::super::InvocationMetadataContext<'_>,
-) -> Option<crate::ir::WordExpr> {
+) -> Option<tcl_source::words::WordExpr> {
     #[cfg(test)]
     let trace_enabled =
         tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();

@@ -58,7 +58,7 @@ impl OriginalConditionalLambdaFormattingBody {
     #[must_use]
     pub fn words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
         if input != &self.input
@@ -331,7 +331,7 @@ mod tests {
         let analysis = analyser
             .with_resolved_input(input.clone())
             .analyse(source, "tcl");
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -358,7 +358,7 @@ mod tests {
         assert!(
             matches!(phase.origin.kind(), crate::command_binding::SourceOriginKind::ConditionalField { parent, argument: 0, field: 1, .. } if parent.offset == 0 && parent.source.source_image().bytes() == source.as_bytes())
         );
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             phase.image().try_text().unwrap(),
             0,
             input.lexer_config(),
@@ -392,7 +392,7 @@ mod tests {
             advice.original_words().first().unwrap().image(),
             phase.image()
         );
-        let foreign = crate::segmenter::segment_commands_with_offset_and_config(
+        let foreign = tcl_source::segment::segment_commands_with_offset_and_config(
             "if 1 {puts no}",
             0,
             input.lexer_config(),
@@ -422,7 +422,7 @@ mod tests {
     fn logical_field_phase_does_not_recover_a_shadowed_registry_command() {
         let (input, phase) = phase(r"proc if args {}; apply {{} if\ 1\ \{puts\ hi\}}");
         let phase = phase.expect("the lambda field remains authentic");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             phase.image().try_text().unwrap(),
             0,
             input.lexer_config(),
@@ -436,7 +436,7 @@ mod tests {
         let (input, unicode) = phase(r"apply {{} if\ 1\ \{puts\ \u00e9\}}");
         let unicode = unicode.unwrap();
         assert_eq!(unicode.image().try_text().unwrap(), "if 1 {puts é}");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             unicode.image().try_text().unwrap(),
             0,
             input.lexer_config(),
@@ -446,7 +446,7 @@ mod tests {
         let (input, bom) = phase("apply {{} \u{feff}if\\ 1\\ \\{puts\\ hi\\}}");
         let bom = bom.unwrap();
         assert!(bom.image().try_text().unwrap().starts_with('\u{feff}'));
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             bom.image().try_text().unwrap(),
             0,
             input.lexer_config().nested(),

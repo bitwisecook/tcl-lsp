@@ -342,7 +342,7 @@ fn visit_oo_frame_folds(
     };
     let mut rewrites: Vec<(tcl_lexer::Span, String)> = Vec::new();
     for word in tokens.words() {
-        let crate::ir::WordExpr::CommandSubstitution { source, .. } = word else {
+        let tcl_source::words::WordExpr::CommandSubstitution { source, .. } = word else {
             continue;
         };
         let Some(call) = retained_call_at(&calls, source.span.start()) else {

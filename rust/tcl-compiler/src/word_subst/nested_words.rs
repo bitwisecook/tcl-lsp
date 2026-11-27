@@ -18,7 +18,11 @@
 
 //! The structured words of a `[...]` command substitution and of a word that is exactly one.
 
-use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Why the words of a `[…]` command substitution could not be recovered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,7 +116,8 @@ fn nested_command_words_uncached(
         0
     };
     let config = config.nested();
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
+    let segments =
+        tcl_source::segment::segment_commands_with_offset_and_config(inner, base, config);
     let [segment] = segments.as_slice() else {
         return Err(NestedWordsDecline::Unmodelled);
     };

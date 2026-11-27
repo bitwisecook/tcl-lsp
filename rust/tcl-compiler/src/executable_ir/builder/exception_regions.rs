@@ -27,11 +27,14 @@ use super::{
     ControlContext, FunctionBuilder, LOOP_BODY_SLOT, StatementTail, TRY_FINALLY_SLOT,
     TRY_HANDLER_SLOT, child_path,
 };
-use crate::ir::{NodeId, Script, SourceSite, Statement};
+use crate::ir::Script;
+use crate::ir::Statement;
 use crate::registry_invocation::InvocationMetadataContext;
 use std::collections::{BTreeMap, BTreeSet};
 use tcl_core_types::Code as CompletionCode;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
 
 impl FunctionBuilder {
     #[allow(clippy::too_many_arguments)]

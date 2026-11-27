@@ -94,6 +94,51 @@ struct RetiredPattern {
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
+    // Configured source syntax and geometry are owned by tcl-source.
+    RetiredPattern {
+        needle: "tcl_compiler::parsing",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::segmenter",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::text",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::word_expr",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::WordExpr",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::WordPart",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::WordOpacity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::SourceSite",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::Provenance",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::DerivedKind",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::ir::NodeId",
+        outside_registry_only: false,
+    },
     // Literal algorithms are owned by tcl-cmd-core; registry adapters project policy.
     RetiredPattern {
         needle: "crate::const_fold",

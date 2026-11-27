@@ -591,7 +591,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         }
     }
 
-    fn substitution_sources(&self, argument: Option<usize>) -> Vec<crate::ir::SourceSite> {
+    fn substitution_sources(&self, argument: Option<usize>) -> Vec<tcl_source::words::SourceSite> {
         let Some((parent, index)) =
             self.original
                 .as_ref()
@@ -607,11 +607,15 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             return Vec::new();
         };
         match parent.words().get(index + 1) {
-            Some(crate::ir::WordExpr::CommandSubstitution { source, .. }) => vec![source.clone()],
-            Some(crate::ir::WordExpr::Template { parts, .. }) => parts
+            Some(tcl_source::words::WordExpr::CommandSubstitution { source, .. }) => {
+                vec![source.clone()]
+            }
+            Some(tcl_source::words::WordExpr::Template { parts, .. }) => parts
                 .iter()
                 .filter_map(|part| match part {
-                    crate::ir::WordPart::CommandSubstitution { source, .. } => Some(source.clone()),
+                    tcl_source::words::WordPart::CommandSubstitution { source, .. } => {
+                        Some(source.clone())
+                    }
                     _ => None,
                 })
                 .collect(),

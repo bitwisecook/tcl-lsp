@@ -29,10 +29,11 @@ use std::sync::Arc;
 use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::ir::Statement;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_compiler::value_shapes::parse_command_substitution_with_config;
 use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 use tcl_registry::CommandRegistry;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 fn main() {
     tcl_registry::install_shipped().expect("the shipped surface set installs");

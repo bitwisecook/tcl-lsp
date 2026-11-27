@@ -22,12 +22,12 @@ use super::super::helpers::{find_dotted_quads, is_word_byte, source_slice};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 #[cfg(test)]
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-#[cfg(test)]
 use crate::expr_ast::ExprNode;
 use rustc_hash::FxHashSet;
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
+#[cfg(test)]
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 impl Analyser {
     /// W126 — channel-argument validation.

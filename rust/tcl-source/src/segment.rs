@@ -414,8 +414,8 @@ pub fn segment_commands_image_with_offset_and_config(
 ) -> Option<Vec<SegmentedCommand>> {
     let source = image.try_text().ok()?;
     let sm = SourceMap::from_image(image);
-    let (document, _) = crate::parsing::syntax::build::build_document_image(image, config)?;
-    let mut segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    let (document, _) = crate::cst::build::build_document_image(image, config)?;
+    let mut segments = crate::cst::segment::segments_from_document(document, &sm);
     if config.brace_line_continuation.continues() {
         segments = merge_f5_if_else_lookahead(source, segments);
     }
@@ -488,9 +488,9 @@ pub fn segment_script_image_with_offset_and_config(
         .ok_or_else(unavailable)?;
     let cut = tcl_lexer::first_parse_cut_image_checked(image, config)?;
     let sm = SourceMap::from_image(image);
-    let (document, _) = crate::parsing::syntax::build::build_document_image(image, config)
-        .ok_or_else(unavailable)?;
-    let mut commands = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    let (document, _) =
+        crate::cst::build::build_document_image(image, config).ok_or_else(unavailable)?;
+    let mut commands = crate::cst::segment::segments_from_document(document, &sm);
     let fatal_tail = if let Some(mut cut) = cut {
         if cut.command >= commands.len() {
             return Err(unavailable());
@@ -573,7 +573,7 @@ pub fn has_exactly_one_command_with_config(source: &str, config: LexerConfig) ->
 /// offset 0 on the per-item path, or a handler called directly with fabricated
 /// spans in a unit test — there is nothing to compare against, so `text` is
 /// returned as given rather than truncated on no evidence.  The consumer-side
-/// slice guards ([`crate::analyser::Analyser::source_slice`]) are what keep
+/// consumer slice guards are what keep
 /// that case safe.
 #[must_use]
 pub fn contiguous_prefix<'t>(source: &str, base: usize, text: &'t str) -> &'t str {
@@ -645,7 +645,7 @@ pub fn braced_body_source_region<'t>(
 /// A body text is rebasable when it maps 1:1 onto its source region, which two
 /// different constructions both achieve: an ordinary braced body, whose value
 /// *is* the source between the braces, and
-/// [`crate::analyser::utils::concat_script_window`]'s padded window, which
+/// the consumer's concatenated-script window's padded window, which
 /// blanks the delimiters but keeps every real word at its written offset.
 /// Both fill the region exactly, so a length match is the cheap, sufficient
 /// test for either — and it is what keeps the window (deliberately *not*
@@ -668,7 +668,7 @@ pub fn body_text_in_region<'t>(
 
 /// Split a `{pattern body ?pattern body ...?}` clause-list body into its
 /// flat, alternating sequence of pattern/body elements — the single-braced
-/// form of a [`tcl_registry::CommandSpec::case_list`] command (`switch`'s
+/// form of a registry-described case-list command (`switch`'s
 /// braced-list form, Expect's `expect { ... }`).
 ///
 /// Uses the Tcl list parser to split the body.  A clause list is a list, not a
@@ -773,15 +773,11 @@ pub fn flatten_case_list_clauses(
     source: &str,
     text: &str,
     tok: Token,
-    case: &tcl_registry::CaseListSpec,
+    shape: &tcl_syntax::case_list::CaseListShape,
     config: LexerConfig,
 ) -> Vec<((String, Token), (String, Token))> {
     let elements = flatten_clause_list_elements_with_config(source, text, tok, config);
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: case.clause_flags,
-        clause_value_flags: case.clause_value_flags,
-    };
-    tcl_syntax::case_list::split_case_list(text, &shape)
+    tcl_syntax::case_list::split_case_list(text, shape)
         .into_iter()
         .filter_map(|clause| {
             let (Some(pattern_index), Some(body_index)) = (clause.pattern_index, clause.body_index)
@@ -1055,105 +1051,6 @@ where
     None
 }
 
-/// Segment `source` with ghost-token error recovery.
-///
-/// Does a first plain parse, runs the E201 unterminated-`[` heuristics
-/// over it to derive zero-width ghost `]` insertions (the
-/// comment / known-command / brace cases), and — when any are found —
-/// re-lexes with those ghosts so a swallowed following command
-/// (`set x [foo bar` then `puts done`) splits into a clean
-/// `[foo bar]` + `puts done` stream.  Returns the (possibly re-lexed)
-/// commands **and** the E201 diagnostics for each applied ghost; an
-/// empty diagnostic list means no recovery was applied and the commands
-/// are exactly [`segment_commands_local`] (the caller then
-/// keeps its own scan-to-next stream).
-///
-/// `known` is the "known command" name universe the E201 heuristics
-/// consult (see `analyser::utils::recovery_known_commands`) — the active
-/// registry's names plus every proc/class/alias the document itself
-/// defines, so a break just before a call to a user-defined proc recovers
-/// as readily as one before a builtin.
-///
-/// The E204-E206 lexer-warning
-/// codes are emitted separately by the analyser.
-#[must_use]
-pub fn segment_with_recovery(
-    source: &str,
-    config: LexerConfig,
-    known: &crate::analyser::utils::RecoveryKnownCommands,
-) -> (
-    Vec<SegmentedCommand>,
-    Vec<crate::analyser::types::Diagnostic>,
-) {
-    // Cap the re-lex iterations to bound work on pathological input.
-    const MAX_GHOST_RECOVERY_PASSES: usize = 32;
-
-    let commands = segment_commands_local(source, config);
-    if commands.is_empty() {
-        return (commands, Vec::new());
-    }
-    // Accumulated zero-width ghost `]` insertions (keyed by original-source
-    // offset — ghosts don't shift later offsets, so the map stays valid
-    // across re-lexes).  `diag_by_bracket` keeps one E201 per *bracket*
-    // (keyed on its `[` offset), preferring a fix-bearing diagnostic over a
-    // fix-less fallback so a bracket recovered by a ghost reports its
-    // insertion fix, not the bare fallback the re-lexed stream would yield.
-    let mut ghosts: std::collections::BTreeMap<u32, u8> = std::collections::BTreeMap::new();
-    let mut diag_by_bracket: std::collections::BTreeMap<u32, crate::analyser::types::Diagnostic> =
-        std::collections::BTreeMap::new();
-    let sm = SourceMap::new(source);
-    let mut current = commands;
-    // Iterate: a single re-lex can expose a *further* unterminated `[` that
-    // the previous parse had swallowed (`set a [foo` / `set c [bar` /
-    // `proc …`).  Re-derive ghosts from the re-lexed stream and re-lex
-    // again until a pass adds no new ghost.
-    for _ in 0..MAX_GHOST_RECOVERY_PASSES {
-        let mut new_ghost = false;
-        for cmd in &current {
-            for diag in crate::analyser::syntax_checks::unterminated_bracket_diagnostics(
-                cmd, source, known, config,
-            ) {
-                let bracket_off = diag.span.start();
-                // A heuristic case carries a `]`-insertion fix whose offset
-                // is the ghost offset; a bare fallback has no fix and stays
-                // unterminated after the re-lex.
-                if let Some(fix) = diag.fixes.first()
-                    && let std::collections::btree_map::Entry::Vacant(e) =
-                        ghosts.entry(fix.span.start())
-                {
-                    e.insert(b']');
-                    new_ghost = true;
-                }
-                // Keep a fix-bearing diagnostic once recorded; otherwise take
-                // whatever (fix-bearing or fallback) we see first.
-                let keep_existing = diag_by_bracket
-                    .get(&bracket_off)
-                    .is_some_and(|d| !d.fixes.is_empty());
-                if !keep_existing {
-                    diag_by_bracket.insert(bracket_off, diag);
-                }
-            }
-        }
-        if !new_ghost {
-            break;
-        }
-        let (document, _warnings) = crate::parsing::syntax::build::build_document_with_ghosts(
-            source,
-            config,
-            ghosts.clone(),
-        );
-        current = crate::parsing::syntax::segment::segments_from_document(document, &sm);
-    }
-    if ghosts.is_empty() {
-        // No heuristic insertion → no re-lex.  The caller keeps its
-        // scan-to-next stream and its own (fallback) E201 detector.
-        return (current, Vec::new());
-    }
-    let diagnostics: Vec<crate::analyser::types::Diagnostic> =
-        diag_by_bracket.into_values().collect();
-    (current, diagnostics)
-}
-
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
     // `SegmentedCommand`s are derived from the canonical red-green CST
     // (`parsing::syntax`), not from a token loop of this module's own:
@@ -1165,8 +1062,8 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
     // Tcl 8.4/8.5/8.6/9.0 corpus.  The derivation runs in local-offset space;
     // relocation stays the caller's job via `SegmentedCommand::shifted_by`.
     let sm = SourceMap::new(source);
-    let (document, _warnings) = crate::parsing::syntax::build::build_document(source, config);
-    let segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    let (document, _warnings) = crate::cst::build::build_document(source, config);
+    let segments = crate::cst::segment::segments_from_document(document, &sm);
     if config.brace_line_continuation.continues() {
         return merge_f5_if_else_lookahead(source, segments);
     }
@@ -1274,9 +1171,6 @@ mod tests;
 
 #[cfg(test)]
 mod recovery_tests;
-
-#[cfg(test)]
-mod span_absolute_tests;
 
 #[cfg(test)]
 mod original_clause_element_purpose_tests;

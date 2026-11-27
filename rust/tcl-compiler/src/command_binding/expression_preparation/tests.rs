@@ -34,7 +34,7 @@ fn complete_original_arguments_keep_foreign_formals_and_withdraw_partial_arithme
         );
         let (bindings, _) = analyse(&source);
         let offset = u32::try_from(source.find("set unused").unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[usize::try_from(offset).unwrap()..source.rfind('}').unwrap()],
             offset,
             tcl_lexer::LexerConfig::default(),
@@ -497,7 +497,7 @@ fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
                     ..Default::default()
                 },
             );
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 expression, offset, config,
             )
             .remove(0);
@@ -574,7 +574,7 @@ fn selected_nested_normalisation_projects_actual_operand_and_command_source() {
                     ..Default::default()
                 },
             );
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 expression, offset, config,
             )
             .remove(0);
@@ -752,7 +752,7 @@ fn conditional_expression_categories_require_closed_lookup_but_keep_may_tree() {
     );
     let image = tcl_lexer::SourceImage::document(source);
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .remove(0);
     let mut tokens =
@@ -799,7 +799,7 @@ fn evaluated_expression_source_cannot_replace_original_advisory_owner() {
     );
     let image = tcl_lexer::SourceImage::document(source);
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .remove(0);
     let mut tokens =
@@ -878,11 +878,12 @@ fn conditional_bare_expression_requires_exact_original_payload_and_handler() {
                 },
             );
             let image = tcl_lexer::SourceImage::document(source);
-            let segment =
-                crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
-                    .unwrap()
-                    .pop()
-                    .unwrap();
+            let segment = tcl_source::segment::segment_commands_image_with_offset_and_config(
+                &image, 0, config,
+            )
+            .unwrap()
+            .pop()
+            .unwrap();
             let mut tokens =
                 crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
             bindings.stamp_original_tokens(&mut tokens);
@@ -893,7 +894,7 @@ fn conditional_bare_expression_requires_exact_original_payload_and_handler() {
                 assert_eq!(receipt.source().try_text().unwrap(), tokens.argv_texts[1]);
                 let mut changed = tokens.clone();
                 let source = changed.word_exprs[1].source().clone();
-                changed.word_exprs[1] = crate::ir::WordExpr::Literal {
+                changed.word_exprs[1] = tcl_source::words::WordExpr::Literal {
                     text: "99".to_owned(),
                     source,
                 };

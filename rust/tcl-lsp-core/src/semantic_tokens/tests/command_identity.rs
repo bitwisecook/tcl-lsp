@@ -117,7 +117,7 @@ fn loop_var_list_roles_come_from_the_registry() {
 
 #[test]
 fn loop_var_binding_uses_tcl_list_grammar_and_abstains_when_dynamic() {
-    use tcl_compiler::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
 
     let names = |src: &str| {
         let command = segment_commands(src)

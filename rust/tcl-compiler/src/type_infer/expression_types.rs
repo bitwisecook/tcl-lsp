@@ -24,9 +24,9 @@ use tcl_dialect::NumberSyntax;
 use tcl_registry::TclType;
 
 use super::literals::expr_literal_type;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 use crate::types::{TypeKind, TypeLattice, type_join};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Infer the type produced by an expression AST node.
 ///

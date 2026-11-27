@@ -26,7 +26,7 @@ fn original_parameter_source_scope_keeps_allocated_and_declared_owners_separate(
         expected_allocated: Option<bool>,
     ) {
         let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "upvar 1 $name cell",
             offset,
             config,
@@ -266,7 +266,7 @@ fn original_tokens_in_image_with_config(
         },
     )
     .unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         body,
         u32::try_from(offset).unwrap(),
         config,
@@ -484,7 +484,7 @@ fn declaration_layout_issuer_requires_original_source_and_unanimity() {
     assert!(foreign.declaration_operand_layout_advice(&tokens).is_none());
 
     let mut changed_tokens = tokens.clone();
-    changed_tokens.word_exprs[1] = crate::ir::WordExpr::BracedLiteral {
+    changed_tokens.word_exprs[1] = tcl_source::words::WordExpr::BracedLiteral {
         text: "$n + 99".into(),
         source: tokens.words()[1].source().clone(),
     };
@@ -639,8 +639,8 @@ fn declaration_variable_operands_preserve_decoded_name_and_decline_aliases() {
         );
         let mut changed = tokens.words()[1].clone();
         match &mut changed {
-            crate::ir::WordExpr::Literal { text, .. }
-            | crate::ir::WordExpr::BracedLiteral { text, .. } => *text = "different".into(),
+            tcl_source::words::WordExpr::Literal { text, .. }
+            | tcl_source::words::WordExpr::BracedLiteral { text, .. } => *text = "different".into(),
             _ => panic!("fixed literal operand"),
         }
         assert!(

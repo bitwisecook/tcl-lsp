@@ -50,7 +50,6 @@ fn original_image_segmentation_keeps_channel_and_unavailable_text_distinct() {
 }
 
 use super::*;
-use tcl_core_types::DiagCode;
 
 #[test]
 fn flatten_clause_list_uses_list_offsets_for_comment_and_separator_patterns() {
@@ -160,12 +159,12 @@ fn original_incremental_suffix_keeps_whole_file_and_midfile_bom_purposes() {
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
     // Original Document command geometry only; no entered/native source grant.
-    let mut analyser = crate::analyser::Analyser::new();
-    let input = analyser.prepare_analysis_input("tcl9.1").unwrap();
+    let config =
+        LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar);
     for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
         let config = tcl_lexer::LexerConfig {
             leading_bom,
-            ..input.lexer_config()
+            ..config
         };
         let old = "\u{feff}set prefix OLD\n\u{feff}unknown old";
         let new = "\u{feff}set prefix OLD\n\u{feff}unknown new";
@@ -204,7 +203,7 @@ fn original_incremental_suffix_keeps_whole_file_and_midfile_bom_purposes() {
     // Genuine non-BOM grammar override remains selected in the suffix.
     let config = tcl_lexer::LexerConfig {
         braced_var: tcl_lexer::BracedVarStyle::FirstClose,
-        ..input.lexer_config()
+        ..config
     };
     let old = "puts prefix\n\u{feff}puts ${name{inner}} OLD";
     let new = "puts prefix\n\u{feff}puts ${name{inner}} NEW";
@@ -323,40 +322,8 @@ fn segment_commands_incremental_matches_full_under_fuzz() {
 fn empty_source() {
     assert_eq!(
         segment_commands(""),
-        [] as [crate::segmenter::SegmentedCommand; 0]
+        [] as [crate::segment::SegmentedCommand; 0]
     );
-}
-
-#[test]
-fn recovery_splits_swallowed_following_command() {
-    // An unterminated `[` whose next line is a
-    // known command re-lexes into a clean two-command stream and
-    // yields an E201 diagnostic.
-    let reg = tcl_registry::CommandRegistry::build_default();
-    let known: crate::analyser::utils::RecoveryKnownCommands =
-        reg.command_names().map(str::to_owned).collect();
-    let cfg = LexerConfig::default();
-    let (rec, diags) = segment_with_recovery("set x [foo bar\nputs done\n", cfg, &known);
-    assert_eq!(rec.len(), 2);
-    assert_eq!(rec[0].texts, vec!["set", "x", "[foo bar]"]);
-    assert_eq!(rec[1].texts, vec!["puts", "done"]);
-    assert_eq!(diags.len(), 1);
-    assert_eq!(diags[0].code, DiagCode::E201);
-}
-
-#[test]
-fn recovery_is_a_noop_on_clean_input() {
-    let reg = tcl_registry::CommandRegistry::build_default();
-    let known: crate::analyser::utils::RecoveryKnownCommands =
-        reg.command_names().map(str::to_owned).collect();
-    let cfg = LexerConfig::default();
-    let src = "set ok [foo]\nputs hi\n";
-    let (rec, diags) = segment_with_recovery(src, cfg, &known);
-    let plain = segment_commands(src);
-    // No recoverable imbalance → byte-identical words, no diagnostics.
-    let words = |cs: &[SegmentedCommand]| cs.iter().map(|c| c.texts.clone()).collect::<Vec<_>>();
-    assert_eq!(words(&rec), words(&plain));
-    assert_eq!(diags, [] as [crate::analyser::types::Diagnostic; 0]);
 }
 
 #[test]

@@ -18,10 +18,12 @@
 
 //! One tokenised command as words: reconstructed text, written geometry and whether the value comes from run-time data.
 
-use crate::ir::{CommandTokens, WordExpr, WordPart};
-use crate::segmenter::SegmentedCommand;
+use crate::ir::CommandTokens;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::InvocationWord;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 #[derive(Debug, Clone)]
 pub(super) enum WrittenWordGeometry {
@@ -91,7 +93,7 @@ impl CommandWord {
 /// Tokenise source text into a list of commands, each a list of words.
 ///
 /// One splitter, one dialect: this is
-/// [`crate::segmenter::segment_commands_with_offset_and_config`] mapped onto
+/// [`tcl_source::segment::segment_commands_with_offset_and_config`] mapped onto
 /// the four facts the name-harvesting consumers ask for.  `config` decides
 /// where the word boundaries fall — `{*}` expands only where the dialect has
 /// it (never under Tcl 8.4 or iRules), and only iRules treats `}{` as a word
@@ -104,7 +106,7 @@ impl CommandWord {
 /// words and value rules retain the complete caller configuration.
 pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
     let sm = SourceMap::new(source);
-    crate::segmenter::segment_commands_with_offset_and_config(
+    tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -152,7 +154,7 @@ pub(super) fn command_written_spans(
                 || actual.len() != fragments.len()
                 || !actual.iter().zip(fragments).all(|(token, fragment)| {
                     *token == fragment.token
-                        && fragment.text == crate::segmenter::word_piece(sm, *token)
+                        && fragment.text == tcl_source::segment::word_piece(sm, *token)
                 })
                 || command.texts[index]
                     != fragments

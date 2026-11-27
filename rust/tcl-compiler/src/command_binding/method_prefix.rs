@@ -29,7 +29,7 @@ use super::{
 pub struct SourceCapturedMethodPrefix {
     receiver: Arc<SourceObjectInstanceProof>,
     entry: SourceReceiverMethodEntry,
-    selector: crate::ir::WordExpr,
+    selector: tcl_source::words::WordExpr,
     selector_input: crate::signature_scan::scope::SignatureSourceNameInput,
     capture: super::CommandAllocationSite,
     builder: SourceCommandTarget,
@@ -56,7 +56,7 @@ impl SourceCapturedMethodPrefix {
     }
     /// Original unchanged method-name word inside the builder.
     #[must_use]
-    pub fn selector(&self) -> &crate::ir::WordExpr {
+    pub fn selector(&self) -> &tcl_source::words::WordExpr {
         &self.selector
     }
     /// Original name value actually captured by this prefix builder. It

@@ -88,7 +88,7 @@ rust/tcl-compiler/src/ir.rs	analysis-memo	STRUCTURED_IR_SEGMENT_STACK:thread_loc
 rust/tcl-compiler/src/irules_checks.rs	analysis-memo	SET:OnceLock	-	1
 rust/tcl-compiler/src/lowering/configuration.rs	analysis-memo	MEMO:OnceLock	-	1
 rust/tcl-compiler/src/object_types.rs	analysis-memo	EMPTY:OnceLock	-	1
-rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs	analysis-memo	same_buffer:thread_local	-	1
+rust/tcl-source/src/spectcl/original_word.rs	analysis-memo	same_buffer:thread_local	-	1
 rust/tcl-compiler/src/realm.rs	analysis-memo	EMPTY_REALM:LazyLock	-	1
 rust/tcl-compiler/src/realm/original_bindings.rs	analysis-memo	OriginalInvocationBindingCache:Mutex	-	1
 rust/tcl-compiler/src/realm/original_tokens.rs	analysis-memo	OriginalCommandTokenCache:Mutex	-	1

@@ -530,7 +530,7 @@ pub(super) fn locate_use_var(
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Option<(tcl_lexer::Span, bool)> {
-    use crate::ir::WordExpr;
+    use tcl_source::words::WordExpr;
     let mut has_earlier_effect = false;
     for word in tokens.words() {
         match word {

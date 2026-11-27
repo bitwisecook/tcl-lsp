@@ -1573,9 +1573,7 @@ fn diagnose_namespace_usage_entry(profile: &'static DialectProfile, source: &str
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-    for command in
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-    {
+    for command in tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config) {
         let Some(text) = source.get(command.execution_span(source).as_range()) else {
             return "missing original command extent".to_owned();
         };

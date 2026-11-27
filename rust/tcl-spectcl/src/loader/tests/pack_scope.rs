@@ -427,7 +427,7 @@ fn original_pack_include_navigation_and_loader_share_name_and_body_rules() {
     use std::rc::Rc;
     let source = "\u{feff}speclib p 2.0 {include {shared α}; include ~; include ../outside; command c {include nested}}";
     let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
-    let rows = tcl_compiler::parsing::spectcl_source::pack_source_includes(source, config);
+    let rows = tcl_source::spectcl::pack_source_includes(source, config);
     let calls = Rc::new(RefCell::new(Vec::new()));
     let reached = Rc::clone(&calls);
     let context = Rc::new(IncludeContext::new(move |name| {

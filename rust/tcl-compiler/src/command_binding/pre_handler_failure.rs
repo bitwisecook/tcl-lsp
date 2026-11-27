@@ -25,10 +25,12 @@ use super::{
     CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
     SourceNamespaceKey, SourceOutcomes,
 };
-use crate::ir::{CommandTokens, Provenance, WordExpr};
+use crate::ir::CommandTokens;
 use crate::var_resolve::VariableExecutionFrame;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute;
+use tcl_source::words::Provenance;
+use tcl_source::words::WordExpr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ArgumentEntry {
@@ -305,7 +307,7 @@ mod tests {
         let offset = source.rfind("myset y").unwrap();
         let original = "myset y [e {$x+1}]";
         assert!(source[offset..].starts_with(original));
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             original,
             u32::try_from(offset).unwrap(),
             config,

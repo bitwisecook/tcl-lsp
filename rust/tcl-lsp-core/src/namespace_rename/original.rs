@@ -897,7 +897,7 @@ fn slot_may_be_under(
 }
 
 struct OriginalNamespaceCoverage {
-    commands: Vec<tcl_compiler::segmenter::SegmentedCommand>,
+    commands: Vec<tcl_source::segment::SegmentedCommand>,
     words: std::collections::HashMap<Span, tcl_lexer::NativeWord>,
     bodies: Vec<(usize, usize)>,
 }

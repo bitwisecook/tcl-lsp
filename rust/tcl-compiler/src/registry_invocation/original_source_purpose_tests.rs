@@ -45,7 +45,7 @@ fn from_entry(
     let bindings =
         SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .pop()
             .unwrap();

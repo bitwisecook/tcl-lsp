@@ -135,7 +135,7 @@ impl Analyser {
             }
             TokenType::Cmd => {
                 let (inner, base) = super::super::scope::inner_of(&self.source, arg_tok)?;
-                let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+                let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
                     inner,
                     base,
                     self.file_lexer_config().nested(),
@@ -207,7 +207,7 @@ impl Analyser {
         // when a multi-line lambda puts them on separate lines (a newline
         // splits *commands*, not *list elements*).
         let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
-        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+        let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
             &args[0],
             base,
             self.file_lexer_config().nested(),

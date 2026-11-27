@@ -35,9 +35,10 @@ use super::word_resolution::{
 use super::{
     EffectiveCommandWords, InvocationWordOrigin, RegistryInvocationShape, source_structure,
 };
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, InvocationFacts, InvocationWords};
+use tcl_source::words::WordExpr;
 use tcl_syntax::word_rules::WordValueRules;
 
 impl RegistryInvocationShape {

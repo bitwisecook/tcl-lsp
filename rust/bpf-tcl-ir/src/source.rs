@@ -18,11 +18,12 @@
 
 //! BPF-profile-pinned Tcl source lowering.
 
-use tcl_compiler::ir::{IfClause, WordExpr};
+use tcl_compiler::ir::IfClause;
 use tcl_compiler::lowering::{lower_to_ir_with_dialect, source_nesting_limit};
 use tcl_compiler::{Module, Script, Statement, parse_expr_for_profile, rebase_script};
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_registry::registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 mod phase;
 pub(crate) use phase::{BpfPreparedFunction, BpfSourceScript};

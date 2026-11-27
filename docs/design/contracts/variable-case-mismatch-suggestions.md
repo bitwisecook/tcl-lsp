@@ -42,7 +42,7 @@ and returns the lexicographically smallest.
   `find_case_mismatch`, `undefined_var_suggestion`, and the three sites that
   append the `; did you mean 'X'?` suffix (W210, W211, W220).
 - `rust/tcl-registry/src/spec.rs` — the `safe_on_uninit` field on `CommandSpec`.
-- `rust/tcl-compiler/src/text.rs` — the shared suggestion cores:
+- `rust/tcl-source/src/text.rs` — the shared suggestion cores:
   `suggest_similar` (edit-distance filter) feeding `rank_suggestions`
   (ordering), plus `scaled_max_distance` / `scaled_max_distance_strict` for
   the length-scaled budget. Every edit-distance did-you-mean suffix goes

@@ -35,7 +35,7 @@ pub(super) fn closed_bounded_method_segments(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
@@ -123,7 +123,7 @@ pub(super) fn retained_class_entries(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
@@ -167,7 +167,7 @@ fn retained_instance_variables(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
@@ -188,7 +188,7 @@ fn retained_instance_variables(
         if words
             .words()
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
         {
             return None;
         }
@@ -213,7 +213,7 @@ fn retained_method_entries(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
@@ -225,7 +225,7 @@ fn retained_method_entries(
         {
             let block_map =
                 tcl_lexer::SourceMap::from_image(&block.text).with_base(block.base(), 0, 0);
-            let Some(inner) = crate::segmenter::segment_commands_image_with_offset_and_config(
+            let Some(inner) = tcl_source::segment::segment_commands_image_with_offset_and_config(
                 &block.text,
                 block.base(),
                 context.config,
@@ -261,7 +261,7 @@ fn retained_method_entries(
 pub(super) fn apply_declared_visibility(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     dialect: Option<tcl_registry::InvocationDialect>,
     context: SourceExecutionContext<'_>,
     entries: &mut SourceReceiverMethodEntries,
@@ -316,7 +316,7 @@ pub(in super::super) fn retained_method_entry(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     dialect: Option<tcl_registry::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
@@ -401,7 +401,7 @@ fn retained_lifecycle_entries(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     parameters: tcl_dialect::ParameterGrammar,
     context: SourceExecutionContext<'_>,
@@ -484,7 +484,7 @@ fn closed_instance_methods(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     dialect: Option<tcl_registry::InvocationDialect>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
@@ -567,7 +567,7 @@ pub(super) fn deferred_method_body(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     dialect: Option<tcl_registry::InvocationDialect>,
     parameters: tcl_dialect::ParameterGrammar,
     context: SourceExecutionContext<'_>,

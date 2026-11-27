@@ -24,7 +24,7 @@ fn actual_head_and_body_words_keep_complete_variable_geometry() {
     let mut analyser = Analyser::new();
     analyser.analyse(source, "tcl9.0");
     let config = analyser.file_lexer_config();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     assert!(analyser.head_is_whole_word_variable(commands[1].argv[0]));
     assert!(!analyser.head_is_whole_word_variable(commands[2].argv[0]));
     let first = commands[3].argv[1];

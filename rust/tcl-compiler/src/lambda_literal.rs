@@ -358,7 +358,7 @@ impl OriginalDecodedLambdaFormattingBody {
     #[must_use]
     pub fn words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
         if input != &self.input || self.parent.config() != input.lexer_config() {
@@ -405,7 +405,7 @@ pub fn split_lambda_literal_decoded(source: &str, tok: Token) -> Option<DecodedL
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
 
     #[test]
     fn original_lexical_lambda_decoding_retains_word_config_and_channel() {
@@ -693,7 +693,7 @@ mod original_decoded_formatting_phase_tests {
             .with_resolved_input(input.clone())
             .analyse(source, "tcl8.6");
         let realm = analysis.retained_command_realm().unwrap();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -712,7 +712,7 @@ mod original_decoded_formatting_phase_tests {
             phase.realm().original_source_image(),
             realm.original_source_image()
         );
-        let child = crate::segmenter::segment_commands_with_offset_and_config(
+        let child = tcl_source::segment::segment_commands_with_offset_and_config(
             phase.text().unwrap(),
             0,
             input.lexer_config(),
@@ -726,7 +726,7 @@ mod original_decoded_formatting_phase_tests {
                 .iter()
                 .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
         );
-        let foreign = crate::segmenter::segment_commands_with_offset_and_config(
+        let foreign = tcl_source::segment::segment_commands_with_offset_and_config(
             "if 1 {puts changed}",
             0,
             input.lexer_config(),

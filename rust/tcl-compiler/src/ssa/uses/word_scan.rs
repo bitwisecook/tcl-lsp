@@ -20,10 +20,11 @@
 
 use super::super::{SsaInvocationContext, UseClass};
 use super::ClassifiedUses;
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use crate::var_refs::VarReferenceScanner;
 use std::collections::{BTreeSet, HashSet};
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 // Variable-use extraction
 //

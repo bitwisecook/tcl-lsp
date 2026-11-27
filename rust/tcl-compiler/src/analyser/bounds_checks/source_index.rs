@@ -347,7 +347,7 @@ mod tests {
             .collect()
     }
     fn last_original(analyser: &Analyser, source: &str) -> OriginalDiagnosticInvocation {
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),

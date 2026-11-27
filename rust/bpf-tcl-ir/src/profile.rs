@@ -433,7 +433,7 @@ mod original_scalar_tests {
 
     #[test]
     fn builtin_profile_selection_requires_its_actual_original_head_and_name() {
-        use tcl_compiler::ir::WordExpr;
+        use tcl_source::words::WordExpr;
         let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
         for changed_head in [false, true] {
             let mut module = crate::source::lower_bpf_source(

@@ -20,9 +20,9 @@ use super::*;
 use crate::codegen::CodegenCtx;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::ir::WordExpr;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 #[test]
 fn folded_script_without_original_words_requires_a_provider() {
@@ -617,7 +617,7 @@ fn retained_quoted_components_execute_but_braced_and_rewritten_values_do_not() {
     let registry = CommandRegistry::build_default();
     let source = "list \"boom-$x\" {boom-$x}";
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let segment = tcl_compiler::segmenter::segment_commands(source).remove(0);
+    let segment = tcl_source::segment::segment_commands(source).remove(0);
     let tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
     let quoted = &tokens.words()[1];
@@ -642,7 +642,7 @@ fn literal_script_value_retains_its_word_line_separately_from_the_command() {
     let source = "proc p \\\n{} \\\n{\nerror BOOM\n}";
     let registry = CommandRegistry::build_default();
     let config = tcl_lexer::LexerConfig::default();
-    let segment = tcl_compiler::segmenter::segment_commands(source).remove(0);
+    let segment = tcl_source::segment::segment_commands(source).remove(0);
     let tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
     let word = &tokens.words()[3];
@@ -656,7 +656,7 @@ fn literal_script_value_retains_its_word_line_separately_from_the_command() {
 
     let opaque = WordExpr::BracedLiteral {
         text: word.legacy_text(),
-        source: tcl_compiler::ir::SourceSite::opaque(word.source().span),
+        source: tcl_source::words::SourceSite::opaque(word.source().span),
     };
     ctx.emit_word_from_source(&opaque.legacy_text(), true, Some(&opaque));
     assert_eq!(ctx.instructions[1].source_value_line, None);
@@ -672,7 +672,7 @@ fn nested_value_emission_retains_only_the_owning_source_dispatch() {
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let bindings =
         tcl_compiler::command_binding::SourceCommandBindings::analyse(source, config, &registry);
-    let segment = tcl_compiler::segmenter::segment_commands(source).remove(0);
+    let segment = tcl_source::segment::segment_commands(source).remove(0);
     let mut parent = tcl_compiler::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,
@@ -700,7 +700,7 @@ fn nested_value_emission_retains_only_the_owning_source_dispatch() {
     });
     let opaque = WordExpr::CommandSubstitution {
         spelling: "[list VALUE]".into(),
-        source: tcl_compiler::ir::SourceSite::opaque(word.source().span),
+        source: tcl_source::words::SourceSite::opaque(word.source().span),
     };
     parent.nested_bindings = retained;
     ctx.with_invocation_tokens(Some(&parent), |ctx| {
@@ -724,8 +724,7 @@ fn nested_value_tokens_keep_the_retained_lexer_policy_without_lookup_permission(
         ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
     };
     let segment =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let parent =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
     let word = &parent.words()[2];
@@ -1222,7 +1221,7 @@ fn original_expanded_calls_keep_complete_words_and_lexical_nul_values() {
     let source = r#"opaque {*}"A\u0000B" "TAIL\u0000END""#;
     let image = tcl_lexer::SourceImage::native(source.as_bytes());
     let segments =
-        tcl_compiler::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap();
     assert_eq!(segments.len(), 1);
     let tokens = CommandTokens::from_segmented(

@@ -92,7 +92,7 @@ pub(super) fn record_invocation_body_evidence(
     if !has_bodies {
         return;
     }
-    if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth + 1) {
+    if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth + 1) {
         record_unenumerable_targets(out, ctx);
         return;
     }
@@ -193,7 +193,7 @@ fn record_standalone_invocation_body_evidence(
     depth: u32,
 ) {
     let args = invocation.arguments.as_slice();
-    if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth + 1) {
+    if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth + 1) {
         if invocation
             .facts
             .arg_roles
@@ -302,10 +302,14 @@ fn record_standalone_invocation_body_evidence(
         let config = ctx.module.lexer_config.nested();
         let body_base = invocation.effective.words.get(idx + 1).map_or(0, |word| {
             word.source().span.start()
-                + u32::from(matches!(word, crate::ir::WordExpr::BracedLiteral { .. }))
+                + u32::from(matches!(
+                    word,
+                    tcl_source::words::WordExpr::BracedLiteral { .. }
+                ))
         });
-        let nested =
-            crate::segmenter::segment_commands_with_offset_and_config(body_text, body_base, config);
+        let nested = tcl_source::segment::segment_commands_with_offset_and_config(
+            body_text, body_base, config,
+        );
         let source_map = tcl_lexer::SourceMap::new(body_text).with_base(body_base, 0, 0);
         for cmd in &nested {
             let name = cmd.name();

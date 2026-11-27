@@ -167,7 +167,7 @@ pub fn original_source_read_at_unit<'a>(
             .iter()
             .chain(function.ssa.source_read_references.iter())
         {
-            if source.provenance != crate::ir::Provenance::Source {
+            if source.provenance != tcl_source::words::Provenance::Source {
                 continue;
             }
             let start =

@@ -404,20 +404,20 @@ fn binding_region_commands(
     end: usize,
     config: tcl_lexer::LexerConfig,
     nested: bool,
-) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
-    tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+) -> Vec<tcl_source::segment::SegmentedCommand> {
+    tcl_source::segment::segment_script_image_with_offset_and_config(
         &tcl_lexer::SourceImage::document(&source[start..end]),
         u32::try_from(start).unwrap_or(0),
         if nested { config.nested() } else { config },
     )
-    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
+    .map_or_default(tcl_source::segment::SegmentedScript::into_editor_commands)
 }
 
 /// The bindings one call site contributes — at most one per parameter whose
 /// actual argument is the bare name being navigated.
 fn bindings_from_call(
     ctx: &BindingScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     out: &mut Vec<CallerFrameBinding>,
 ) {
     let Some(head) = cmd.argv.first() else {
@@ -538,7 +538,7 @@ fn bindings_from_call(
 /// argument projection comes from the same caller-frame template.
 fn bindings_from_self_dispatch(
     ctx: &BindingScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     template: &tcl_compiler::command_binding::SourceCallerFrameInvocationTemplate,
     out: &mut Vec<CallerFrameBinding>,
 ) {
@@ -566,7 +566,7 @@ fn bindings_from_self_dispatch(
 
 fn bindings_from_declared_self_dispatch(
     ctx: &BindingScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     template: &tcl_compiler::command_binding::OriginalDeclaredSelfMethodTemplate,
     out: &mut Vec<CallerFrameBinding>,
 ) {
@@ -594,7 +594,7 @@ fn bindings_from_declared_self_dispatch(
 
 fn scan_self_method_body<'a>(
     ctx: &BindingScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     script: &tcl_compiler::command_binding::ExecutedScriptSource,
     callee: &str,
     param_names: &[&str],

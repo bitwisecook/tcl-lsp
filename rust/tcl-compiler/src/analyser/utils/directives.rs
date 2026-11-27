@@ -460,7 +460,7 @@ fn parse_provides_directive(body: &str) -> Option<(&str, &str)> {
 /// which carries comment text only, so a ``#`` inside a Tcl
 /// string is never read as a directive.
 pub fn apply_preceding_noqa<S, T>(
-    cmd: &crate::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     line_offsets: &[usize],
     suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String, T>, S>,
 ) where

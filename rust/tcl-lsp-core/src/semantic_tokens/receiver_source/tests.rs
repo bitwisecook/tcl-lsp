@@ -166,7 +166,7 @@ fn project_collection_receiver_refusal_is_not_recovered_without_providers() {
         None,
         input,
     );
-    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         input.lexer_config(),

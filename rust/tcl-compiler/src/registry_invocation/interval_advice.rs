@@ -22,7 +22,7 @@ use super::{CommandRegistry, CommandTokens, EffectiveInvocationWord, InvocationW
 
 #[derive(PartialEq, Eq)]
 pub(crate) struct DeclarationIncrementAdvice {
-    pub(crate) operand: crate::ir::WordExpr,
+    pub(crate) operand: tcl_source::words::WordExpr,
     pub(crate) amount: Option<String>,
 }
 
@@ -78,7 +78,7 @@ mod tests {
         ] {
             let bindings =
                 crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            let segment = tcl_source::segment::segment_commands_with_offset_and_config(
                 body,
                 u32::try_from(source.rfind(body).unwrap()).unwrap(),
                 config,

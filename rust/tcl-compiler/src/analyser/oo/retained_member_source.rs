@@ -102,7 +102,7 @@ impl Analyser {
     pub(super) fn original_logical_member_words<'a>(
         &self,
         grammar: &'a DefinitionBodyGrammar,
-        cmd: &'a crate::segmenter::SegmentedCommand,
+        cmd: &'a tcl_source::segment::SegmentedCommand,
     ) -> Option<(
         MemberStatement<'a>,
         super::super::ResolvedAnalysisInput,
@@ -167,7 +167,7 @@ impl Analyser {
     pub(in super::super) fn retain_logical_member_name_operand(
         &self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         class: &mut ClassDef,
     ) {
         let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)
@@ -245,7 +245,7 @@ impl Analyser {
     pub(in super::super) fn retain_logical_member_visibility_operands(
         &self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         class: &mut ClassDef,
     ) {
         let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)
@@ -345,7 +345,7 @@ impl Analyser {
     pub(super) fn retain_logical_relation_command(
         &self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         class: &mut ClassDef,
     ) {
         let Some((statement, input, words)) = self.original_logical_member_words(grammar, cmd)

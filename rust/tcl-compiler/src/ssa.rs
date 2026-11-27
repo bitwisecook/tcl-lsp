@@ -47,9 +47,8 @@ use rustc_hash::FxHashMap;
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{self, BlockId};
-#[cfg(test)]
-use crate::ir::WordExpr;
-use crate::ir::{CommandTokens, SourceSite, Statement};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use crate::var_refs::VarReferenceScanner;
 #[cfg(test)]
 use crate::var_refs::VarScanOptions;
@@ -57,6 +56,9 @@ use crate::var_refs::VarScanOptions;
 use crate::var_resolve::ContentsOrigin;
 use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
+use tcl_source::words::SourceSite;
+#[cfg(test)]
+use tcl_source::words::WordExpr;
 mod construction;
 mod defs;
 mod dominators;

@@ -361,7 +361,7 @@ impl UnloweredWalk<'_, '_> {
                 continue;
             };
             let mark = self.guard.len();
-            for command in crate::segmenter::segment_commands_with_offset_and_config(
+            for command in tcl_source::segment::segment_commands_with_offset_and_config(
                 content,
                 base,
                 self.config,
@@ -1159,7 +1159,7 @@ fn call_consumers(
 
 fn consumer_head(tokens: &crate::ir::CommandTokens) -> Option<u32> {
     let head = tokens.words().first()?.source();
-    (head.provenance == crate::ir::Provenance::Source).then_some(head.span.start())
+    (head.provenance == tcl_source::words::Provenance::Source).then_some(head.span.start())
 }
 
 /// The expression a statement evaluates, with its source base.

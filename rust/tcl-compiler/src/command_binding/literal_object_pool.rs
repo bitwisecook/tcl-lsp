@@ -273,23 +273,24 @@ impl SourceStockLiteralObject {
 /// A word the compiler pushes as one literal object: bare, braced, or a
 /// quoted or compound word made of text alone (its backslash sequences are
 /// folded at compile time).
-fn pushes_one_literal(word: &crate::ir::WordExpr) -> bool {
+fn pushes_one_literal(word: &tcl_source::words::WordExpr) -> bool {
     match word {
-        crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. } => true,
-        crate::ir::WordExpr::Template {
+        tcl_source::words::WordExpr::Literal { .. }
+        | tcl_source::words::WordExpr::BracedLiteral { .. } => true,
+        tcl_source::words::WordExpr::Template {
             parts,
             rejected: None,
             ..
         } => parts
             .iter()
-            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })),
+            .all(|part| matches!(part, tcl_source::words::WordPart::Text { .. })),
         _ => false,
     }
 }
 
 impl SourceOrdinaryLiteralObject {
     pub(super) fn capture_original_word(
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         value: &str,
         state: &ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
@@ -311,7 +312,7 @@ impl SourceOrdinaryLiteralObject {
     }
 
     pub(super) fn capture_word(
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         state: &ModuleCommandBindings,
     ) -> Option<SourceStockLiteralObject> {
         let pool = state.ordinary_literal_pool.as_ref()?;
@@ -426,9 +427,9 @@ mod tests {
         assert!(!pool.initial_numeric_representations());
         assert!(pool.integer_contents.is_none());
         assert!(pool.joined(pool).is_some());
-        let literal = crate::ir::WordExpr::Literal {
+        let literal = tcl_source::words::WordExpr::Literal {
             text: "1".into(),
-            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 1)),
+            source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 1)),
         };
         assert!(SourceOrdinaryLiteralObject::capture_word(&literal, &state).is_none());
         state.mark_opaque_binding_mutation();
@@ -719,9 +720,9 @@ mod tests {
             SourceOrdinaryLiteralPool::at_entry(&jim_state, jim_options).is_none(),
             "an actual C entry cannot donate a Jim source-text world"
         );
-        let literal = crate::ir::WordExpr::Literal {
+        let literal = tcl_source::words::WordExpr::Literal {
             text: "1".into(),
-            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 1)),
+            source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 1)),
         };
         assert!(SourceOrdinaryLiteralObject::capture_word(&literal, &state).is_none());
         let mut missing = entry.clone();

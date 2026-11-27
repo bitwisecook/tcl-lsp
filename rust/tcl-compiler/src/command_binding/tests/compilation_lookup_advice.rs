@@ -46,7 +46,7 @@ fn logical_command_layout_keeps_unknown_physical_frames_separate() {
         crate::var_resolve::VariableExecutionFrame::Unknown
     );
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .remove(0);
     let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);

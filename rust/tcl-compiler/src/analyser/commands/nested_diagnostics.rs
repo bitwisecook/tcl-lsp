@@ -21,11 +21,11 @@
 use super::super::state::Analyser;
 use super::nested_invocations::nested_source_bodies;
 use super::{DispatchSite, VarOrCmdSite};
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, SourceMap, Token, TokenType};
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::segment::SegmentedCommand;
 
 impl Analyser {
     /// Run the per-command syntactic dispatch
@@ -99,7 +99,7 @@ impl Analyser {
                             let off = u32::try_from(off)
                                 .expect("byte offset fits in u32 for in-memory source");
                             let base = arg_tok.span.start() + off;
-                            for seg in crate::segmenter::segment_commands_with_offset_and_config(
+                            for seg in tcl_source::segment::segment_commands_with_offset_and_config(
                                 inner,
                                 base,
                                 config.nested(),

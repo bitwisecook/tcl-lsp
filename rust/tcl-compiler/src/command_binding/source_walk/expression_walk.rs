@@ -104,10 +104,10 @@ impl SourceCommandBindings {
             );
         };
         let (text, source, offset) = match word {
-            crate::ir::WordExpr::BracedLiteral { text, source } if text == value => {
+            tcl_source::words::WordExpr::BracedLiteral { text, source } if text == value => {
                 (text.as_str(), source, 1)
             }
-            crate::ir::WordExpr::Literal { text, source } => {
+            tcl_source::words::WordExpr::Literal { text, source } => {
                 let effective = source_effective_words(
                     std::slice::from_ref(word),
                     state.baseline.dialect,
@@ -182,7 +182,7 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         use crate::expr_ast::ExprNode;
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
-        if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(context.depth) {
+        if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(context.depth) {
             state.mark_opaque_binding_mutation();
             return SourceOutcomes::invocation(state, Route::Unknown);
         }
@@ -334,7 +334,7 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             offset,
             context.config.nested(),
@@ -785,7 +785,7 @@ fn source_expression_truth(
 }
 
 pub(in super::super) fn source_effective_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     dialect: Option<tcl_registry::InvocationDialect>,
     context: Option<(&crate::var_resolve::ResolveContext, &CommandRegistry)>,
 ) -> Vec<crate::registry_invocation::EffectiveInvocationWord> {
@@ -793,8 +793,10 @@ pub(in super::super) fn source_effective_words(
     words
         .iter()
         .map(|word| {
-            if let (crate::ir::WordExpr::Variable { spelling, .. }, Some((variables, registry))) =
-                (word, context)
+            if let (
+                tcl_source::words::WordExpr::Variable { spelling, .. },
+                Some((variables, registry)),
+            ) = (word, context)
                 && let Some(value) = variables.substitution_literal_value(spelling, registry)
             {
                 return EffectiveInvocationWord::Literal(value.to_owned());

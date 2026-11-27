@@ -456,8 +456,8 @@ fn may_change_stock_stdout(
 impl SourceCommandBindings {
     pub(in super::super) fn walk_source_target_after_observers(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -548,7 +548,7 @@ impl SourceCommandBindings {
     /// Keep logical definition result construction outside recursive source frames.
     #[inline(never)]
     fn prepare_logical_definition_boxed(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         target: &SourceCommandTarget,
         offset: u32,
         state: &mut ModuleCommandBindings,

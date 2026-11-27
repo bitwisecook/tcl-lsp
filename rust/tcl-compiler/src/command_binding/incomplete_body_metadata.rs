@@ -130,7 +130,7 @@ fn header_for_cut(
         }
     }
     let local = SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &local,
         region.start(),
         config,
@@ -164,7 +164,7 @@ fn header_for_cut(
             .get(segment.span.start() as usize..end as usize)?,
         image.channel(),
     );
-    let prefixes = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let prefixes = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &prefix_image,
         segment.span.start(),
         config,
@@ -544,7 +544,7 @@ fn incomplete_child_layout_advice(
             .get(header.content.as_range())?,
         origin.source_image().channel(),
     );
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &child,
         header.content.start(),
         config,
@@ -651,7 +651,7 @@ mod tests {
         );
         let offset = u32::try_from(source.find(child).unwrap()).unwrap();
         let segments =
-            crate::segmenter::segment_commands_with_offset_and_config(child, offset, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(child, offset, config);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -718,7 +718,7 @@ mod tests {
             .unwrap();
         assert_eq!(fatal.cut.message, tcl_lexer::MISSING_QUOTE);
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         // Editor recovery flags do not supply the original parser's cut.
         assert!(!segments[0].is_partial);
@@ -761,7 +761,7 @@ mod tests {
         assert!(binding.original_normal_result(&tokens).is_none());
         assert!(!binding.original_invocation_completes_normally(&tokens));
         let mut changed = tokens.clone();
-        let crate::ir::WordExpr::Literal { text, .. } = &mut changed.word_exprs[0] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed.word_exprs[0] else {
             panic!("literal original head");
         };
         *text = "foreign".into();

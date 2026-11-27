@@ -799,7 +799,7 @@ pub struct SourceCommandTarget {
 pub(crate) struct OriginalCompilationLookupAdvice {
     snapshot: Arc<SourceLookupSnapshot>,
     site: CommandAllocationSite,
-    words: Arc<[crate::ir::WordExpr]>,
+    words: Arc<[tcl_source::words::WordExpr]>,
     config: tcl_lexer::LexerConfig,
     targets: Vec<SourceCommandTarget>,
     dialect: tcl_registry::InvocationDialect,
@@ -1026,7 +1026,7 @@ struct SourceLifecycleCoverage {
 #[derive(Debug, Clone)]
 pub struct SourceVariableAccess {
     /// Exact source reference, including its variable wrapper and index.
-    pub source: crate::ir::SourceSite,
+    pub source: tcl_source::words::SourceSite,
     /// Actual evaluation that reached this read; lexical containment alone is insufficient.
     pub owner: SourceVariableEvaluationOwner,
     /// Original undecoded source spelling used by the variable grammar owner.
@@ -1294,8 +1294,8 @@ pub struct SourceExecutionContext<'a> {
 #[derive(Clone, Copy)]
 struct SourceCommandInput<'a> {
     image: &'a tcl_lexer::SourceImage,
-    segment: &'a crate::segmenter::SegmentedCommand,
-    words: &'a [crate::ir::WordExpr],
+    segment: &'a tcl_source::segment::SegmentedCommand,
+    words: &'a [tcl_source::words::WordExpr],
     effective: &'a [crate::registry_invocation::EffectiveInvocationWord],
 }
 
@@ -1303,8 +1303,8 @@ struct SourceCommandInput<'a> {
 struct SourceNativeInvocation<'a> {
     compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
     compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
-    segment: &'a crate::segmenter::SegmentedCommand,
-    words: &'a [crate::ir::WordExpr],
+    segment: &'a tcl_source::segment::SegmentedCommand,
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
     invocation: &'a tcl_registry::InvocationWords<'a>,
@@ -1326,7 +1326,7 @@ struct SourceArgumentReceipts<'a> {
 struct SourceScriptOperands<'a> {
     compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
     compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
     arguments: &'a tcl_registry::InvocationArguments<'a>,
@@ -1366,7 +1366,7 @@ struct SourceLifecycleInvocation<'a> {
     spec: &'a tcl_registry::body_execution::CapturedLifecycleSpec,
     arguments: tcl_registry::InvocationArguments<'a>,
     site: u32,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
 }

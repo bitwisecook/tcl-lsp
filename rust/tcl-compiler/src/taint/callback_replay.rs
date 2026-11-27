@@ -31,7 +31,8 @@ use super::{
     UnavailableTaintReplay, UnavailableTaintReplayReason, dialect_to_point,
     instance_classes_for_function,
 };
-use crate::ir::{CommandTokens, Statement, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 #[cfg(test)]
 use crate::taint::CALLBACK_REPLAY_BUILDS;
 #[cfg(test)]
@@ -40,6 +41,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// Maximum statically recoverable stored callbacks replayed in one batch.
 ///

@@ -27,7 +27,7 @@ use tcl_registry::definer::{BuiltinObjectMethodOperation, MethodReach, TCLOO_GRA
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct FrozenSourceObjectHead {
-    pub(super) word: crate::ir::WordExpr,
+    pub(super) word: tcl_source::words::WordExpr,
     pub(super) object: Arc<SourceObjectInstanceProof>,
 }
 
@@ -464,7 +464,7 @@ impl SourceInvocationBinding {
     #[must_use]
     pub fn frozen_object_receiver_method_entry(
         &self,
-        head: &crate::ir::WordExpr,
+        head: &tcl_source::words::WordExpr,
     ) -> Option<(
         &super::SourceCommandTarget,
         &super::SourceReceiverMethodEntry,
@@ -748,7 +748,7 @@ impl SourceCommandBindings {
     pub(super) fn walk_retained_receiver_method(
         &mut self,
         site: u32,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,

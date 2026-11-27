@@ -47,7 +47,7 @@ use tcl_registry::{ReturnElements, TclType, VarElementsEffect};
 fn element_word_shape<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     word: &str,
-    retained: Option<&crate::ir::WordExpr>,
+    retained: Option<&tcl_source::words::WordExpr>,
 ) -> Option<TypeShape> {
     let stripped = word.trim();
     if stripped.starts_with("{*}") {
@@ -91,7 +91,7 @@ pub(super) fn return_elements_lattice<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     fact: ReturnElements,
     args: &[&str],
-    retained: Option<&[crate::ir::WordExpr]>,
+    retained: Option<&[tcl_source::words::WordExpr]>,
 ) -> Option<TypeLattice> {
     match fact {
         ReturnElements::ListOfArgs { from } => {
@@ -165,7 +165,7 @@ pub(super) fn return_elements_lattice<S: std::hash::BuildHasher>(
 fn build_exact_elements<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     words: &[&str],
-    retained: Option<&[crate::ir::WordExpr]>,
+    retained: Option<&[tcl_source::words::WordExpr]>,
 ) -> Elements {
     if words.iter().any(|w| w.trim().starts_with("{*}")) {
         return uniform_elements_of(ctx, words, retained);
@@ -189,7 +189,7 @@ fn build_exact_elements<S: std::hash::BuildHasher>(
 fn uniform_elements_of<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     words: &[&str],
-    retained: Option<&[crate::ir::WordExpr]>,
+    retained: Option<&[tcl_source::words::WordExpr]>,
 ) -> Elements {
     let mut acc: Option<TypeShape> = None;
     for (index, word) in words.iter().enumerate() {
@@ -260,7 +260,7 @@ pub(super) fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
     target: &str,
     args: &[&str],
     base: usize,
-    retained: Option<&[crate::ir::WordExpr]>,
+    retained: Option<&[tcl_source::words::WordExpr]>,
 ) -> TypeLattice {
     let (container_ctor, value_words): (fn(Elements) -> TypeShape, &[&str]) = match effect {
         VarElementsEffect::SetsArrayElementsFromList { .. } => return TypeLattice::overdefined(),
@@ -383,7 +383,7 @@ fn append_list_elements<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     prior: Option<Elements>,
     value_words: &[&str],
-    retained: Option<&[crate::ir::WordExpr]>,
+    retained: Option<&[tcl_source::words::WordExpr]>,
 ) -> Elements {
     let appended = build_exact_elements(ctx, value_words, retained);
     match (prior, appended) {

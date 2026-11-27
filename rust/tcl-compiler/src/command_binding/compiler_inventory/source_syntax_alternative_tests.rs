@@ -29,7 +29,7 @@ fn source_syntax_requires_every_actual_alternative_and_full_input() {
         .unwrap()
         .source_bindings_ref();
     let offset = source.find("if {").unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[offset..],
         u32::try_from(offset).unwrap(),
         input.lexer_config(),

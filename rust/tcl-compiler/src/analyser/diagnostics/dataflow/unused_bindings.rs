@@ -56,7 +56,7 @@ fn original_dispatch_site(
                 return;
             };
             if head.source().span != site.cmd_span
-                || head.source().provenance != crate::ir::Provenance::Source
+                || head.source().provenance != tcl_source::words::Provenance::Source
                 || tokens.words().len() != site.argc + 1
                 || !head
                     .sole_variable_substitution()

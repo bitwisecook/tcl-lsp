@@ -570,7 +570,7 @@ pub(in super::super) fn parse_taint_command_substitution(
     let config = config.nested();
     let (written_head, args) = parse_command_substitution_with_config(text, config)?;
     let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(inner, 0, config);
     let [command] = commands.as_slice() else {
         return None;
     };

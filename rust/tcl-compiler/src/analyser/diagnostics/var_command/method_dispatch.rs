@@ -277,11 +277,11 @@ impl Analyser {
                 }
             }
         }
-        let suggestions = crate::text::suggest_similar(
+        let suggestions = tcl_source::text::suggest_similar(
             method,
             candidates.iter().map(String::as_str),
             1,
-            crate::text::scaled_max_distance(method),
+            tcl_source::text::scaled_max_distance(method),
         );
         let mut message = format!("Unknown method '{method}' on class '{cls_display}'");
         let mut fixes: Vec<super::super::types::CodeFix> = Vec::new();
@@ -531,7 +531,7 @@ impl Analyser {
                 .map_or(&[][..], |effective| effective.words.as_slice());
             let spellings = words
                 .iter()
-                .map(crate::ir::WordExpr::legacy_text)
+                .map(tcl_source::words::WordExpr::legacy_text)
                 .collect::<Vec<_>>();
             let head = spellings.first().map_or("", String::as_str);
             let arg_strs = spellings

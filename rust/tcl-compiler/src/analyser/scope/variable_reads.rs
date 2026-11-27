@@ -36,7 +36,7 @@ impl Analyser {
     /// brace-quoted names and separate array-index syntax.
     pub fn record_arg_var_reads(
         &mut self,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         scope_path: &[usize],
     ) {
         use tcl_lexer::TokenType;
@@ -330,7 +330,7 @@ impl VarReadSite {
 fn collect_name_role_reads(
     source: &str,
     analysis: &crate::analyser::AnalysisResult,
-    cmd: &crate::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     out: &mut Vec<VarReadSite>,
 ) {
     for w in crate::var_refs::original_variable_name_role_words(source, analysis, cmd) {
@@ -361,7 +361,7 @@ fn collect_cmd_subst_reads(
     let Some((inner, base)) = inner_of(source, cmd_tok) else {
         return;
     };
-    for cmd in crate::segmenter::segment_commands_with_offset_and_config(
+    for cmd in tcl_source::segment::segment_commands_with_offset_and_config(
         inner,
         base,
         lexer_config.nested(),
@@ -376,7 +376,7 @@ fn collect_cmd_subst_reads(
 pub(super) fn collect_script_command_reads(
     source: &str,
     analysis: &crate::analyser::AnalysisResult,
-    cmd: &crate::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     registry: &tcl_registry::CommandRegistry,
     lexer_config: tcl_lexer::LexerConfig,
     out: &mut Vec<VarReadSite>,
@@ -427,7 +427,7 @@ pub(super) fn collect_script_command_reads(
             // Plain body inside a substitution — same scope, and the
             // main walk never reached it.
             if let Some((inner, base)) = inner_of(source, *arg) {
-                for sub in crate::segmenter::segment_commands_with_offset_and_config(
+                for sub in tcl_source::segment::segment_commands_with_offset_and_config(
                     inner,
                     base,
                     lexer_config.nested(),

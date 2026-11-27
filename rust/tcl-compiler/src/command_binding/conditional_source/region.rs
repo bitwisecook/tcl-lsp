@@ -356,7 +356,7 @@ pub struct OriginalSingleSourceCutSurvey<'a> {
     suffix: &'a crate::analyser::AnalysisResult,
     outcome: &'a OriginalSourceConditionalOutcome,
     point: &'a OriginalSourcePointEntry,
-    prefix_commands: &'a [crate::segmenter::SegmentedCommand],
+    prefix_commands: &'a [tcl_source::segment::SegmentedCommand],
     region: &'a OriginalSourceConditionalRegion,
     body_world: std::sync::OnceLock<Option<super::super::OriginalCompletedCommandWorld>>,
 }
@@ -418,7 +418,7 @@ impl<'a> OriginalSingleSourceCutSurvey<'a> {
 
     /// Original prefix commands, including the source operation exactly once.
     #[must_use]
-    pub const fn prefix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
+    pub const fn prefix_commands(&self) -> &'a [tcl_source::segment::SegmentedCommand] {
         self.prefix_commands
     }
     /// Same actual whole-input child, never another equal source analysis.
@@ -438,14 +438,14 @@ impl<'a> OriginalSingleSourceCutSurvey<'a> {
     }
     /// Issuer-owned remaining commands, not a range inferred from source bytes.
     #[must_use]
-    pub fn suffix_commands(&self) -> &'a [crate::segmenter::SegmentedCommand] {
+    pub fn suffix_commands(&self) -> &'a [tcl_source::segment::SegmentedCommand] {
         self.region.commands()
     }
 
     pub(crate) fn owns_declaration_command(
         &self,
         analysis: &crate::analyser::AnalysisResult,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> bool {
         if std::ptr::eq(analysis, self.suffix) {
             return self.suffix_commands().contains(command);
@@ -1131,7 +1131,7 @@ impl OriginalSourceConditionalRegion {
             .source
             .source_image()
     }
-    pub(crate) fn commands(&self) -> &[crate::segmenter::SegmentedCommand] {
+    pub(crate) fn commands(&self) -> &[tcl_source::segment::SegmentedCommand] {
         let frame = self.0.entry.frame();
         &frame.commands[frame.next..]
     }
@@ -1157,7 +1157,10 @@ impl OriginalSourceConditionalRegion {
     pub(crate) fn original_path_commands(
         &self,
         analysis: &crate::analyser::AnalysisResult,
-    ) -> Option<(Vec<crate::segmenter::SegmentedCommand>, SourceNamespaceKey)> {
+    ) -> Option<(
+        Vec<tcl_source::segment::SegmentedCommand>,
+        SourceNamespaceKey,
+    )> {
         self.matches_region_analysis(analysis).then_some(())?;
         let frame = self.0.entry.frame();
         let origin = self.0.bindings.source_origin()?;
@@ -1267,7 +1270,7 @@ fn retain_original_vectors(
     depth: u32,
     vectors: &mut std::collections::BTreeMap<u32, Option<Vec<tcl_lexer::NativeWord>>>,
 ) -> Option<()> {
-    if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) || plan.fatal_tail.is_some() {
+    if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) || plan.fatal_tail.is_some() {
         return None;
     }
     for command in &plan.commands {

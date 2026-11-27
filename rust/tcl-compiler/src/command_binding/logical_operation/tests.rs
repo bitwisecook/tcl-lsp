@@ -36,10 +36,13 @@ fn final_binding(source: &str, input: &ResolvedAnalysisInput) -> SourceInvocatio
     let analysis = Analyser::new()
         .with_resolved_input(input.clone())
         .analyse(source, input.analyser_profile().name);
-    let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .pop()
-            .unwrap();
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .pop()
+    .unwrap();
     let binding = analysis
         .retained_command_realm()
         .unwrap()
@@ -758,10 +761,13 @@ fn with_store_fixture(
         options,
         tcl_lexer::SourceSegmentationPurpose::WholeInput,
     );
-    let command =
-        crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, context.config)
-            .unwrap()
-            .remove(0);
+    let command = tcl_source::segment::segment_commands_image_with_offset_and_config(
+        image,
+        0,
+        context.config,
+    )
+    .unwrap()
+    .remove(0);
     let tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::from_image(image),
         context.config,

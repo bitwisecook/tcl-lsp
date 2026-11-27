@@ -21,10 +21,10 @@
 use super::command_tokens::CommandTokens;
 use super::script::Script;
 use super::synthetic_marker::{OriginalArgvInventoryDisposition, SyntheticMarker, WordEffectsHost};
-use super::word_expr::WordExpr;
 use crate::expr_ast::ExprNode;
 use tcl_lexer::Span;
 use tcl_registry::value_transfer::HandlerMatch;
+use tcl_source::words::WordExpr;
 
 /// An `if` clause: condition + body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

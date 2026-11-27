@@ -80,11 +80,8 @@ pub fn package_require_source(
             &command,
             analysis.resolved_input.as_ref()?.clone(),
         );
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-        &command,
-        0,
-        current.config(),
-    );
+    let commands =
+        tcl_source::segment::segment_commands_with_offset_and_config(&command, 0, current.config());
     let [segment] = commands.as_slice() else {
         return None;
     };

@@ -115,7 +115,8 @@ pub mod declared_frame_effects;
 pub mod def_use;
 mod deferred_writes;
 #[doc(hidden)]
-pub mod depth_guard;
+#[cfg(test)]
+mod depth_guard;
 pub mod dictionary_bindings;
 pub mod dispatch_proof;
 pub mod durable_inventory;
@@ -171,7 +172,6 @@ pub mod cell_state_ssa;
 mod contents_source;
 pub mod literal_contents;
 pub mod optimiser;
-pub mod parsing;
 pub mod path_concat;
 pub mod place;
 pub mod place_bridge;
@@ -185,7 +185,6 @@ pub mod scan_predicate;
 pub mod sccp;
 pub mod script_arg;
 pub(crate) mod script_binds;
-pub mod segmenter;
 pub mod semantic_analysis;
 pub mod semantic_optimisation;
 pub mod shimmer;
@@ -205,7 +204,6 @@ pub mod taint;
 pub mod taint_interproc;
 pub mod target_contract;
 pub mod tcl_expr_eval;
-pub mod text;
 pub mod type_infer;
 pub mod types;
 pub mod unit_scope;
@@ -219,7 +217,6 @@ pub mod var_refs;
 pub mod var_resolve;
 pub mod var_scoping;
 pub mod variable_bindings;
-pub mod word_expr;
 pub mod word_subst;
 pub mod world_state_ssa;
 
@@ -237,3 +234,6 @@ pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value
 /// assert!(!tcl_compiler::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+mod source_word_tests;

@@ -28,9 +28,10 @@ use super::structured_invocation::original_declared_structured_invocation;
 use super::word_resolution::{
     RegistryInvocationResolution, resolve_effective_tokens_with_metadata_context_and_case,
 };
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_source::words::WordExpr;
 
 /// Possible effect regions on the selected handler's normal route. No
 /// completion, compiler, purity or unknown-residual obligation is withdrawn.

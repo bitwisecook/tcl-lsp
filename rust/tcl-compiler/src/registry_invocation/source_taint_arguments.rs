@@ -55,12 +55,19 @@ pub(super) fn original_direct_source_taint_arguments(
         || parent
             .words()
             .iter()
-            .filter(|word| matches!(word, crate::ir::WordExpr::CommandSubstitution { .. }))
+            .filter(|word| {
+                matches!(
+                    word,
+                    tcl_source::words::WordExpr::CommandSubstitution { .. }
+                )
+            })
             .count()
             != 1
         || parent.words().iter().any(|word| {
-            !matches!(word, crate::ir::WordExpr::CommandSubstitution { .. })
-                && !literal_or_scalar_read(word, config)
+            !matches!(
+                word,
+                tcl_source::words::WordExpr::CommandSubstitution { .. }
+            ) && !literal_or_scalar_read(word, config)
         })
         || child
             .words()
@@ -128,16 +135,18 @@ pub(super) fn original_direct_source_taint_arguments(
     })
 }
 
-fn literal_or_scalar_read(word: &crate::ir::WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+fn literal_or_scalar_read(
+    word: &tcl_source::words::WordExpr,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     match word {
-        crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. } => true,
-        crate::ir::WordExpr::Variable { .. } => {
-            word.sole_variable_substitution()
-                .is_some_and(|(spelling, _)| {
-                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
-                        .is_some()
-                })
-        }
+        tcl_source::words::WordExpr::Literal { .. }
+        | tcl_source::words::WordExpr::BracedLiteral { .. } => true,
+        tcl_source::words::WordExpr::Variable { .. } => word
+            .sole_variable_substitution()
+            .is_some_and(|(spelling, _)| {
+                tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config).is_some()
+            }),
         _ => false,
     }
 }

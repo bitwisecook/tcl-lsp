@@ -681,7 +681,8 @@ proc empty {} {}
             tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                 .lexer_grammar,
         );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         assert!(
             commands.len() > 17,
             "complete original native dispatch fixture"

@@ -42,7 +42,7 @@ fn analyse(
 }
 
 fn tokens(source: &str, config: tcl_lexer::LexerConfig, offset: u32) -> crate::ir::CommandTokens {
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let segment = segments
         .iter()
         .find(|segment| segment.span.start() == offset)
@@ -275,7 +275,7 @@ fn retained_registered_instance_after_realm_drop(
     let input = analysis.resolved_input.as_ref().unwrap().clone();
     let realm = analysis.retained_command_realm().unwrap();
     let offset = u32::try_from(source.find(".e configure").unwrap()).unwrap();
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[offset as usize..],
         offset,
         input.lexer_config(),
@@ -742,10 +742,10 @@ fn original_word_issuers_require_the_complete_current_compatibility_vector() {
                 }
                 _ => {
                     let source = changed.word_exprs[1].source().clone();
-                    changed.word_exprs[1] = crate::ir::WordExpr::Opaque {
+                    changed.word_exprs[1] = tcl_source::words::WordExpr::Opaque {
                         text: "OTHER".to_owned(),
                         source,
-                        reason: crate::ir::WordOpacity::LossySnapshot,
+                        reason: tcl_source::words::WordOpacity::LossySnapshot,
                     };
                 }
             }

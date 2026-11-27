@@ -18,8 +18,8 @@
 
 //! iRules `when EVENT { … }` boundary discovery.
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// One syntactically complete `when EVENT { … }` handler.
 pub type WhenBlock = tcl_syntax::event_handler::EventHandler;

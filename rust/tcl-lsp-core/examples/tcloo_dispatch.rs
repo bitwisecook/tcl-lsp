@@ -28,8 +28,9 @@ use std::sync::Arc;
 
 use tcl_compiler::analyser::{Analyser, ClassDef, ResolvedAnalysisInput, build_class_hierarchy};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex, TokenType};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 #[derive(Default, Clone, Copy)]
 struct Counts {

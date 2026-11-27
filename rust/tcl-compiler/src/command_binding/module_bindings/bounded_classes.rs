@@ -91,7 +91,7 @@ impl ModuleCommandBindings {
     pub(in super::super) fn record_bounded_class(
         &mut self,
         facts: &tcl_registry::InvocationFacts,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         target: &SourceCommandTarget,
         context: SourceExecutionContext<'_>,
     ) -> bool {
@@ -380,7 +380,7 @@ pub(in super::super) fn definition_body_command_tokens(
 ) -> impl Iterator<Item = crate::ir::CommandTokens> + '_ {
     let config = parent_config.nested();
     let map = tcl_lexer::SourceMap::new(body);
-    crate::segmenter::segment_commands_with_offset_and_config(body, 0, config)
+    tcl_source::segment::segment_commands_with_offset_and_config(body, 0, config)
         .into_iter()
         .map(move |segment| crate::ir::CommandTokens::from_segmented(&map, config, &segment))
 }

@@ -43,7 +43,8 @@ fn logical_operand_prefix_retains_only_static_earlier_written_words() {
             .unwrap()
             .borrowed_context_registry();
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
         let receipt = words
             .original_logical_static_operand_prefix_before(context, argument)
@@ -71,7 +72,8 @@ fn logical_operand_prefix_retains_only_static_earlier_written_words() {
             .unwrap()
             .borrowed_context_registry();
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = source_registry_words(source, &analysis, commands.last().unwrap())
             .expect("actual conditional source schema remains independent of operand continuity");
         assert!(

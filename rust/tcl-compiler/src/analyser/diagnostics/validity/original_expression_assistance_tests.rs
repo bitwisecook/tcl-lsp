@@ -86,7 +86,7 @@ fn original_function_assistance_keeps_lexer_overlays_and_missing_owner_refusals(
             assert_eq!(source.get(function.range.as_range()), Some("max"));
             assert_eq!(function.argc, Some(2));
         }
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             actual.lexer_config(),

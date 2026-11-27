@@ -51,13 +51,13 @@
 use std::collections::HashSet;
 
 use crate::compilation_unit::FunctionUnit;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 #[cfg(test)]
 use crate::expr_parser::parse_expr_for_profile;
 #[cfg(test)]
 use crate::sccp::BuiltinFoldInputs;
 use crate::types::{TclType, TypeKind, TypeLattice};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 mod constant_folding;
 mod numeric_proofs;

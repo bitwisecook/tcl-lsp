@@ -637,7 +637,7 @@ mod tests {
             assert_eq!(command, "return");
             assert!(matches!(
                 tokens.words().get(1),
-                Some(crate::ir::WordExpr::Expand { .. })
+                Some(tcl_source::words::WordExpr::Expand { .. })
             ));
             assert_eq!(
                 tokens

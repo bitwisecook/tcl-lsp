@@ -49,7 +49,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 /// `ir_helpers.rs` / `place_bridge.rs` / `ssa.rs`) — so this reuses that one
 /// fact via
 /// [`tcl_registry::model::DocumentCommandSurface::arg_indices_for_role`] and
-/// the shared [`crate::segmenter`] rather than hand-rolling a second "which
+/// the shared [`tcl_source::segment`] rather than hand-rolling a second "which
 /// commands embed scripts" list here.
 /// Whether the unseen code an `<unseen-call>` marker stands for is already
 /// accounted for by its host call (the nearest preceding non-marker

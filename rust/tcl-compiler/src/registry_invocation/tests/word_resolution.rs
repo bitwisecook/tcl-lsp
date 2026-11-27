@@ -49,9 +49,10 @@ fn static_command_word_decodes_only_original_static_values() {
         ("[gethead] x 1", None),
         ("{*}$head x 1", None),
     ] {
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .expect("one invocation");
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .expect("one invocation");
         let tokens =
             CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
         assert_eq!(
@@ -101,7 +102,7 @@ fn alias_composition_preserves_original_evaluation_and_inserted_origins() {
     ));
     assert!(matches!(
         effective.words[1].source().provenance,
-        crate::ir::Provenance::Opaque
+        tcl_source::words::Provenance::Opaque
     ));
 }
 
@@ -111,7 +112,7 @@ fn document_target_composes_arguments_without_registry_semantics() {
     let source = "proc custom {prefix value} {return $value}\ninterp alias {} invoke {} custom FIXED\ninvoke $value";
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let bindings = crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     let tokens =

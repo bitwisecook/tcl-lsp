@@ -24,13 +24,13 @@ use super::registry_colours::{
 };
 use super::word_taint::word_taint;
 use super::{TaintColour, TaintCtx, TaintLattice, is_sanitiser};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::CommandTokens;
 use crate::ssa::{Symbol, ValueKey};
 use std::collections::HashMap;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 pub(super) fn expr_yields_boolean(expr: &ExprNode) -> bool {
     match expr {
@@ -167,7 +167,7 @@ pub(super) fn retained_taint_substitution(word: &str, ctx: TaintCtx<'_>) -> Opti
         let span = Span::new(offset, offset.checked_add(u32::try_from(word.len()).ok()?)?);
         crate::word_subst::nested_command_words(
             word,
-            &crate::ir::SourceSite::source(span),
+            &tcl_source::words::SourceSite::source(span),
             ctx.lexer_config(),
         )
         .ok()?
@@ -566,7 +566,7 @@ pub(super) fn hosted_argument_spellings(
     args.iter()
         .enumerate()
         .map(|(index, spelling)| match effective.words.get(index + 1) {
-            Some(crate::ir::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
+            Some(tcl_source::words::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
             _ => spelling.clone(),
         })
         .collect()

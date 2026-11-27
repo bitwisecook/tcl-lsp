@@ -647,7 +647,7 @@ impl OriginalFormalTopology {
 
 pub(super) fn capture(
     image: &tcl_lexer::SourceImage,
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     invocation: u32,
     parameter_word: usize,
     config: tcl_lexer::LexerConfig,

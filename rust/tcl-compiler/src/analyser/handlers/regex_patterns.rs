@@ -41,7 +41,7 @@ impl Analyser {
         let end = tcl_lexer::word_span(&source_map, *arg_tokens.last()?).end();
         let start = command_token.span.start();
         let text = self.source.get(start as usize..end as usize)?;
-        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+        let segmented = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             start,
             self.file_lexer_config().nested(),

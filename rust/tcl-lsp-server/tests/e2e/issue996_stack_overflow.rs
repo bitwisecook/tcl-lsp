@@ -35,7 +35,7 @@
 //! walk — fatter per level than `analyse_body`, and never in this suite's
 //! frame — would abort on ~400 nested `foreach` bodies otherwise. The
 //! braced-body caps are derived from that budget in
-//! `tcl_compiler::depth_guard`, so they trip before the stack runs out
+//! `tcl_source::limits`, so they trip before the stack runs out
 //! rather than long after; the 64 MiB here remains as headroom.
 //!
 //! This suite drives the real, packaged native server (not the analyser

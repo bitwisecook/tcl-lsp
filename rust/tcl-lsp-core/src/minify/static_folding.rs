@@ -98,7 +98,7 @@ pub(super) fn fold_original_static_substrings(
                 };
                 let config = original.config();
                 for word in tokens.words().iter().skip(1) {
-                    let tcl_compiler::ir::WordExpr::Template {
+                    let tcl_source::words::WordExpr::Template {
                         parts,
                         rejected: None,
                         ..
@@ -155,7 +155,7 @@ fn fold_original_word_parts(
     unit: &CompilationUnit,
     function: &FunctionUnit,
     view: tcl_compiler::ssa::SsaSourceView<'_>,
-    parts: &[tcl_compiler::ir::WordPart],
+    parts: &[tcl_source::words::WordPart],
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Option<String> {
@@ -163,10 +163,10 @@ fn fold_original_word_parts(
     let mut substituted = false;
     for part in parts {
         match part {
-            tcl_compiler::ir::WordPart::Text { text, .. } => {
+            tcl_source::words::WordPart::Text { text, .. } => {
                 value.push_str(&tcl_lexer::backslash_subst_in(text, config.escapes));
             }
-            tcl_compiler::ir::WordPart::Variable { spelling, source } => {
+            tcl_source::words::WordPart::Variable { spelling, source } => {
                 let physical = view.replaceable_read_at(source, spelling, registry)?;
                 let version = physical.version?;
                 let original = tcl_compiler::ssa::original_source_read_at_unit(
@@ -192,8 +192,8 @@ fn fold_original_word_parts(
                 value.push_str(&const_to_string(constant)?);
                 substituted = true;
             }
-            tcl_compiler::ir::WordPart::CommandSubstitution { .. }
-            | tcl_compiler::ir::WordPart::Opaque { .. } => return None,
+            tcl_source::words::WordPart::CommandSubstitution { .. }
+            | tcl_source::words::WordPart::Opaque { .. } => return None,
         }
     }
     substituted.then_some(value)

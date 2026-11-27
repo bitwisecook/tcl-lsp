@@ -33,13 +33,13 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_core_types::DiagCode;
 use tcl_lexer::{
     LexerConfig, LineIndex, SourceImage, SourceMap, Span, TokenType, script_image_is_complete,
 };
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::segment::segments_from_document;
+use tcl_source::segment::SegmentedCommand;
 use tcl_syntax::list::split_list_with_syntax;
 
 use crate::estimate::{EstimateSeverity, Grade};

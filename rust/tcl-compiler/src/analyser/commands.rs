@@ -34,7 +34,7 @@ use tcl_lexer::Token;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
 #[cfg(test)]
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 use super::state::Analyser;
 

@@ -40,7 +40,7 @@ struct LogicalOriginalInvocation {
 }
 
 pub(super) fn transfer(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     target: &SourceCommandTarget,
     offset: u32,
     state: &mut ModuleCommandBindings,
@@ -96,7 +96,7 @@ pub(super) fn transfer(
 /// event frame. Like [`transfer`], this issues no Native handler, completion
 /// or entered-execution certificate.
 pub(super) fn hosted_scalar_transfer(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     target: &SourceCommandTarget,
     offset: u32,
     state: &mut ModuleCommandBindings,
@@ -282,7 +282,7 @@ impl super::SourceInvocationBinding {
 
 impl LogicalOriginalInvocation {
     fn capture(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         target: &SourceCommandTarget,
         offset: u32,
         state: &ModuleCommandBindings,

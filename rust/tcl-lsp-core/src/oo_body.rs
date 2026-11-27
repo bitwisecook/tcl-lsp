@@ -242,7 +242,7 @@ pub fn definition_grammar_at(
         if depth > 32 {
             return None;
         }
-        for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        for cmd in tcl_source::segment::segment_commands_with_offset_and_config(
             slice,
             base,
             ctx.config.at_depth(depth),

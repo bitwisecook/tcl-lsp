@@ -224,7 +224,7 @@ impl SourceCommandBindings {
                 continue;
             };
             for operand in flow.caller_alias_operands {
-                let crate::ir::WordExpr::Variable { spelling, source } = operand else {
+                let tcl_source::words::WordExpr::Variable { spelling, source } = operand else {
                     continue;
                 };
                 let Some(formal) = self.symbolic_declaration_formal_value_at(
@@ -265,7 +265,7 @@ impl SourceCommandBindings {
             .original_invocation_metadata_for_owner(&tokens, owner, registry)
             .ok()?;
         let head = tokens.words().first()?;
-        let crate::ir::WordExpr::Variable {
+        let tcl_source::words::WordExpr::Variable {
             spelling, source, ..
         } = head
         else {
@@ -432,7 +432,7 @@ mod tests {
             let bindings = super::SourceCommandBindings::analyse(source, config, registry);
             let offset = u32::try_from(source.rfind(call).unwrap()).unwrap();
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(call, offset, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(call, offset, config)
                     .remove(0);
             let mut tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceImage::document(source).source_map(),

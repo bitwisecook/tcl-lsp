@@ -43,12 +43,13 @@ pub(super) struct ReturnWordUses {
 
 pub(super) fn original_return_word_uses(
     text: &str,
-    word: Option<&crate::ir::WordExpr>,
+    word: Option<&tcl_source::words::WordExpr>,
     versions: &HashMap<Symbol, u32>,
     ssa: &SsaFunction,
     config: tcl_lexer::LexerConfig,
 ) -> ReturnWordUses {
-    use crate::ir::{WordExpr, WordPart};
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     let Some(word) = word else {
         return return_word_uses_from_versions(text, versions, ssa, config);
     };
@@ -264,7 +265,8 @@ pub(super) fn collect_return_taint(
             && !matches!(
                 value_word,
                 Some(
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                    tcl_source::words::WordExpr::Literal { .. }
+                        | tcl_source::words::WordExpr::BracedLiteral { .. }
                 )
             )
         {
@@ -274,7 +276,7 @@ pub(super) fn collect_return_taint(
         // value at the block's exit, which the inventory already resolved.
         let copied = value_word
             .as_ref()
-            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+            .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
             .filter(|_| !inventory.unknown && inventory.uses.len() == 1)
             .and_then(|_| inventory.uses.iter().next())
             .map(|(&symbol, &version)| {

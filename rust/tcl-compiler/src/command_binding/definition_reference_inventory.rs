@@ -93,7 +93,7 @@ impl SourceCommandBindings {
     pub fn definition_method_reference_at(
         &self,
         origin: &Arc<SourceOriginId>,
-        operand: &crate::ir::WordExpr,
+        operand: &tcl_source::words::WordExpr,
     ) -> Option<&SourceDefinitionMethodReference> {
         let mut references = self
             .definition_method_references

@@ -32,7 +32,7 @@ fn conditional_representation_report(source: &str) -> Arc<DeclarationFlowReport>
     let config = input.lexer_config();
     let realm = analysis.retained_command_realm().unwrap();
     let image = tcl_lexer::SourceImage::document(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     realm
         .source_bindings_ref()
@@ -74,7 +74,7 @@ fn report_entered(source: &str, host_extensible_command_table: bool) -> Arc<Decl
     let original = "set anchor 1";
     let offset = u32::try_from(source.find(original).unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(original, offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config(original, offset, config)
             .remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceImage::document(source).source_map(),

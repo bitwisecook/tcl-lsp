@@ -25,8 +25,11 @@ use super::{
     LiftedCall, LiftedCallCollection, MAX_SUBSTITUTION_DEPTH, collect_command_words,
     collect_surface_text_with_surface, lift, push_substitution,
 };
-use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_lexer::Span;
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 /// Complete original substitution inventory for effect consumers. A truncated
 /// or unsupported word walk must not establish absence of name effects.

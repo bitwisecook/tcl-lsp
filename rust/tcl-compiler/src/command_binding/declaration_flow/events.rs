@@ -24,10 +24,11 @@ use super::{
     Builder, ConditionTargets, ConditionalRepresentationBodyContext, DeclarationFlowPurpose,
     DeclaredCondition, Exits, Job, representation,
 };
-use crate::ir::{WordExpr, WordPart};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use tcl_registry::body_execution::BodyOperand;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 // Source graph branch only: the common Tcl Boolean constants need no selected
 // Native parser. The complete source receipt supplies no Native preparation,

@@ -93,7 +93,7 @@ use crate::compilation_unit::CompilationUnit;
 /// further-nested body) past that point — so a pass walking
 /// lowering-produced IR can never actually be handed more than that many
 /// levels of nesting, that bound being
-/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], comfortably under this
+/// [`tcl_source::limits::MAX_SOURCE_NEST_DEPTH`], comfortably under this
 /// number rather than equal to it. This constant guards each pass
 /// independently anyway (at or above lowering's, so it never trips before
 /// lowering's own cap would have already flattened the input): defence in

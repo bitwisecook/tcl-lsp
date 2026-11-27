@@ -234,7 +234,7 @@ fn deferred_definition_methods(
     let mut declarations = super::BTreeSet::new();
     let map = tcl_lexer::SourceMap::new(source);
     let valid =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, context.config)
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, context.config)
             .into_iter()
             .all(|segment| {
                 let tokens =

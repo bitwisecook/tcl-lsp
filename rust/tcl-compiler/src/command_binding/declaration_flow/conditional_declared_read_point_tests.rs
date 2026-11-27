@@ -54,7 +54,7 @@ impl Fixture {
         );
         let image = tcl_lexer::SourceImage::document(source);
         let offset = u32::try_from(source.find(anchor).unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset as usize..source.len() - 1],
             offset,
             config,
@@ -86,7 +86,7 @@ impl Fixture {
             source: Arc::clone(&site.source),
             offset,
         };
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset as usize..source.len() - 1],
             offset,
             config,

@@ -45,14 +45,14 @@ fn logical_immediate_body_schema_keeps_original_geometry_and_unknown_effects_sep
         let input = analysis.resolved_input.as_ref().unwrap();
         let config = input.lexer_config();
         let context = input.context_registry();
-        let root =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let root = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+            .remove(0);
         let parent = source_registry_words(source, &analysis, &root).unwrap();
         let bodies = parent.source_script_bodies(&context);
         assert!(!bodies.is_empty(), "{source}");
         for body in bodies {
             let span = body.content_span();
-            let child = crate::segmenter::segment_commands_with_offset_and_config(
+            let child = tcl_source::segment::segment_commands_with_offset_and_config(
                 &source[span.as_range()],
                 span.start(),
                 config,
@@ -94,7 +94,7 @@ fn logical_immediate_body_schema_keeps_child_mutations_and_foreign_owners_termin
     let analysis = analyse(source);
     let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
     let offset = u32::try_from(source.find("set blocked").unwrap()).unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[usize::try_from(offset).unwrap()..source.len() - 1],
         offset,
         config,
@@ -104,7 +104,7 @@ fn logical_immediate_body_schema_keeps_child_mutations_and_foreign_owners_termin
     let source = "if $condition {set local 1}";
     let mut analysis = analyse(source);
     let offset = u32::try_from(source.find("set local").unwrap()).unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[usize::try_from(offset).unwrap()..source.len() - 1],
         offset,
         config,
@@ -137,7 +137,7 @@ fn logical_root_substitutions_keep_alias_point_without_future_body_applicability
     let analysis = analyse(source);
     let input = analysis.resolved_input.as_ref().unwrap();
     let offset = u32::try_from(source.find("make $value").unwrap()).unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         "make $value",
         offset,
         input.lexer_config(),
@@ -186,14 +186,14 @@ fn logical_root_substitutions_keep_earlier_mutations_and_owner_refusals() {
     let offset = u32::try_from(source.find("make $value").unwrap()).unwrap();
     let config = baseline.body_lexer_config.unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config("make $value", offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config("make $value", offset, config)
             .remove(0);
     assert!(source_registry_words(source, &baseline, &segment).is_some());
     let changed = "interp alias {} make {} list set x; eval [list [rename make {}] [make $value]]";
     let changed_analysis = analyse(changed);
     let offset = u32::try_from(changed.find("make $value").unwrap()).unwrap();
     let blocked =
-        crate::segmenter::segment_commands_with_offset_and_config("make $value", offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config("make $value", offset, config)
             .remove(0);
     assert!(source_registry_words(changed, &changed_analysis, &blocked).is_none());
     assert!(source_registry_words(&format!("{source} "), &baseline, &segment).is_none());

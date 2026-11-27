@@ -304,7 +304,7 @@ impl Analyser {
     /// body is a braced literal, opens a fresh
     /// [`super::super::types::ScopeKind::Proc`] child scope, defines each parameter
     /// in it, and re-segments the body via
-    /// [`crate::segmenter::segment_commands_with_offset`] —
+    /// [`tcl_source::segment::segment_commands_with_offset`] —
     /// every body command is dispatched through
     /// [`Analyser::process_command`] with the new scope path.
     /// Body recursion does **not** invoke segmenter recovery —
@@ -589,7 +589,7 @@ impl Analyser {
                 observed::<()>("analyser.proc.expansion", None);
                 return None;
             }
-            let projection = crate::segmenter::segment_commands_with_offset_and_config(
+            let projection = tcl_source::segment::segment_commands_with_offset_and_config(
                 observed("analyser.proc.text", word.try_text().ok())?,
                 word.word_span().start(),
                 word.config().nested(),

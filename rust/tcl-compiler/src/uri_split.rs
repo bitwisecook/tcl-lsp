@@ -48,13 +48,13 @@ use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
 use crate::value_shapes::whole_word_scalar_var_name;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
 /// pathological phi chains).
@@ -267,16 +267,16 @@ impl<'a> TraceCtx<'a> {
     ) -> Option<crate::ir::CommandTokens> {
         let base = self.expression_base?;
         let span = Span::new(base.checked_add(start)?, base.checked_add(end)?);
-        let word = crate::ir::WordExpr::CommandSubstitution {
+        let word = tcl_source::words::WordExpr::CommandSubstitution {
             spelling: text.to_owned(),
-            source: crate::ir::SourceSite::source(span),
+            source: tcl_source::words::SourceSite::source(span),
         };
         let mut commands =
             crate::value_shapes::command_substitution_tokens(&word, self.tokens(), self.config)?;
         (commands.len() == 1).then(|| commands.remove(0))
     }
 
-    fn normal_value(self, statement: &Statement) -> Option<crate::ir::WordExpr> {
+    fn normal_value(self, statement: &Statement) -> Option<tcl_source::words::WordExpr> {
         let (block, index) = self.point?;
         let tokens = statement.tokens()?;
         let Some(invocation) =
@@ -305,7 +305,7 @@ impl<'a> TraceCtx<'a> {
         invocation.stored_value_word(state, self.registry).cloned()
     }
 
-    fn uri_word(self, word: &crate::ir::WordExpr) -> Option<String> {
+    fn uri_word(self, word: &tcl_source::words::WordExpr) -> Option<String> {
         let mut commands =
             crate::value_shapes::command_substitution_tokens(word, self.tokens(), self.config)?;
         if commands.len() != 1 {
@@ -329,7 +329,7 @@ fn diagnostic_command(
 type DiagnosticWords = (
     String,
     Vec<String>,
-    Vec<crate::ir::WordExpr>,
+    Vec<tcl_source::words::WordExpr>,
     Option<Decomposition>,
 );
 
@@ -645,7 +645,10 @@ fn trace_to_uri_family(
 }
 
 /// Return the `*::uri` command name if `input_arg` traces back to one.
-fn arg_traces_to_uri_family(word: &crate::ir::WordExpr, ctx: TraceCtx<'_>) -> Option<String> {
+fn arg_traces_to_uri_family(
+    word: &tcl_source::words::WordExpr,
+    ctx: TraceCtx<'_>,
+) -> Option<String> {
     if word.sole_variable_substitution().is_some() {
         let read = ctx.source_view()?.read_word(word)?;
         return trace_to_uri_family(read.symbol, read.version?, ctx, 0);
@@ -1047,7 +1050,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ctx: TraceCtx<'_>,
-) -> Option<(crate::ir::WordExpr, Option<String>)> {
+) -> Option<(tcl_source::words::WordExpr, Option<String>)> {
     let (_, args, words, operation) = statement_diagnostic_command(stmt, ctx)?;
     if operation != Some(Decomposition::Split) || args.len() < 2 {
         return None;
@@ -1063,7 +1066,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ctx: TraceCtx<'_>,
-) -> Option<(&'static str, Option<String>, crate::ir::WordExpr)> {
+) -> Option<(&'static str, Option<String>, tcl_source::words::WordExpr)> {
     let (_, arguments, words, operation) = statement_diagnostic_command(stmt, ctx)?;
     let (label, pattern_at, input_at) = match operation? {
         Decomposition::Match => {

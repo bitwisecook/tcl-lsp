@@ -28,7 +28,6 @@ use tcl_sslictcl::{
 };
 
 fn main() -> ExitCode {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

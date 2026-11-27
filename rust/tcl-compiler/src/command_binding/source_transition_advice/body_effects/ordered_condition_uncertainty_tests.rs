@@ -34,7 +34,7 @@ fn body_inherits_unknown_mutation(source: &str) -> bool {
     let syntax = OriginalSourceRegistryContext::capture(source, input.clone());
     let body = "set y 1";
     let start = source.find(body).unwrap();
-    let children = crate::segmenter::segment_commands_with_offset_and_config(
+    let children = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[start..start + body.len()],
         u32::try_from(start).unwrap(),
         input.lexer_config().nested(),

@@ -101,7 +101,7 @@ fn harvest_table_command_value_spans(
     config: tcl_lexer::LexerConfig,
     consumed: &HashSet<u32>,
 ) -> (Vec<TableCommandValue>, HashSet<(u32, u32)>) {
-    use crate::ir::WordExpr;
+    use tcl_source::words::WordExpr;
     if consumed.is_empty() {
         return (Vec::new(), HashSet::new());
     }
@@ -171,7 +171,7 @@ fn dispatch_table_values(
     compilation: &crate::compilation_unit::CompilationUnit,
     unit: &crate::compilation_unit::FunctionUnit,
     tokens: &crate::ir::CommandTokens,
-    head: &crate::ir::WordExpr,
+    head: &tcl_source::words::WordExpr,
     source: &str,
     context: &tcl_registry::model::ContextRegistry,
     config: tcl_lexer::LexerConfig,

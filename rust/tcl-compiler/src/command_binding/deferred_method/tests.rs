@@ -88,8 +88,9 @@ fn original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain() {
             .declared_receiver_body_entry_at(origin, offset)
             .expect(name);
         assert_eq!(body.source().base(), offset, "{name}");
-        let mut commands =
-            crate::segmenter::segment_commands_with_offset_and_config("next 1 2", offset, config);
+        let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
+            "next 1 2", offset, config,
+        );
         let command = commands.pop().unwrap();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
@@ -742,7 +743,7 @@ fn method_declaration_retains_local_frame_without_receiver_namespace() {
     let config = tcl_lexer::LexerConfig::default();
     let map = tcl_lexer::SourceMap::new(source);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config("global g", offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config("global g", offset, config)
             .into_iter()
             .next()
             .unwrap();

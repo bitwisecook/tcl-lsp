@@ -22,9 +22,9 @@ fn child(
     source: &str,
     spelling: &str,
     config: tcl_lexer::LexerConfig,
-) -> crate::segmenter::SegmentedCommand {
+) -> tcl_source::segment::SegmentedCommand {
     let start = source.rfind(spelling).unwrap();
-    crate::segmenter::segment_commands_with_offset_and_config(
+    tcl_source::segment::segment_commands_with_offset_and_config(
         &source[start..start + spelling.len()],
         u32::try_from(start).unwrap(),
         config.nested(),

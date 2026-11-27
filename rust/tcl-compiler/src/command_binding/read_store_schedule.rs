@@ -23,8 +23,10 @@ use super::{
     SourceExecutionContext, SourceExpressionPreparation, SourceInvocationBinding,
     SourceNativeInvocation, SourceOriginId, SourceVariableEvaluationOwner,
 };
-use crate::{ir::SourceSite, place::Place, var_resolve::ResolveContext};
+use crate::place::Place;
+use crate::var_resolve::ResolveContext;
 use std::collections::BTreeMap;
+use tcl_source::words::SourceSite;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct CapturedExpressionRead {

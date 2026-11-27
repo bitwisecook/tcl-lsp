@@ -345,7 +345,7 @@ fn nested_dispatch_inheritance_never_recovers_a_missing_point() {
 fn advisory_metadata_tokens(source: &str, registry: &CommandRegistry) -> CommandTokens {
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let bindings = crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &command)
@@ -389,7 +389,7 @@ fn advisory_value_metadata_shares_supplied_availability_and_store_refusal() {
     );
     assert_eq!(
         advisory_return_values_in_context(&older, &returning),
-        [] as [crate::ir::WordExpr; 0]
+        [] as [tcl_source::words::WordExpr; 0]
     );
     let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
     assert_eq!(
@@ -402,7 +402,7 @@ fn advisory_value_metadata_shares_supplied_availability_and_store_refusal() {
     );
     assert_eq!(
         advisory_return_values_with_metadata_context(registry, Some(foreign.into()), &returning),
-        [] as [crate::ir::WordExpr; 0]
+        [] as [tcl_source::words::WordExpr; 0]
     );
     assignment.source_binding = None;
     returning.source_binding = None;
@@ -412,6 +412,6 @@ fn advisory_value_metadata_shares_supplied_availability_and_store_refusal() {
     );
     assert_eq!(
         advisory_return_values_in_context(&generation, &returning),
-        [] as [crate::ir::WordExpr; 0]
+        [] as [tcl_source::words::WordExpr; 0]
     );
 }

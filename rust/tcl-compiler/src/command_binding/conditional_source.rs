@@ -99,7 +99,7 @@ struct SourceConditionalScriptFrame {
     source: Arc<super::SourceOriginId>,
     image: SourceImage,
     base: u32,
-    commands: Arc<[crate::segmenter::SegmentedCommand]>,
+    commands: Arc<[tcl_source::segment::SegmentedCommand]>,
     next: usize,
     ordinal_start: usize,
     context: SourceConditionalContext,
@@ -134,7 +134,7 @@ impl SourceConditionalKernel {
         &mut self,
         image: &SourceImage,
         base: u32,
-        commands: &[crate::segmenter::SegmentedCommand],
+        commands: &[tcl_source::segment::SegmentedCommand],
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {
@@ -191,7 +191,7 @@ impl SourceConditionalKernel {
     pub(super) fn retain_command_plan(
         &mut self,
         index: usize,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
         prefix_complete: bool,

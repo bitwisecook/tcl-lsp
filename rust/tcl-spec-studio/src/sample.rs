@@ -153,7 +153,7 @@ fn walk(
         return;
     };
     let source_map = SourceMap::new(whole);
-    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         base,
         purpose.config(config),

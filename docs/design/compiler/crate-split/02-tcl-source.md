@@ -7,6 +7,27 @@ this step's work list. [Step 3](03-tcl-names.md) builds on it: the identity
 types there carry `SourceSite` and `ExecutedScriptSource` geometry, which needs
 the source types below them.
 
+## Current boundary
+
+`tcl-source` owns `cst`, `segment`, `spectcl`, `words`, `text` and `limits`.
+Its workspace dependencies are `tcl-lexer`, `tcl-syntax`, `tcl-dialect` and
+`tcl-core-types`; `strsim` supplies the existing spelling-distance algorithm.
+There are no compiler compatibility re-exports. The dependency policy rejects
+upward edges, including dev-dependencies, except independent test support.
+
+Ghost recovery and its diagnostic tests live in the analyser. The unused
+registry-dispatched `descend_command` API is removed; public analyser tests
+cover conditional body discovery and lambda-local scope isolation.
+`CaseListSpec::shape()` projects the registry descriptor onto
+`CaseListShape<'static>` for source-only case-list flattening.
+
+The CST, segmentation and spelling public contracts follow the source crate.
+Compiler word-binding, absolute IR span and stack-budget tests remain in the
+compiler. Dialect-only fixtures obtain grammar from `tcl-dialect`. SslicTcl
+reads only `tcl-source`; its data binary needs no registry bootstrap, and its
+registry-pack parity test lives in SpecTcl. SpecTcl's source readers use this
+crate, while its optimiser, evaluator and binding hooks retain the compiler.
+
 ## Problem
 
 `tcl-sslictcl` needs a parser and nothing else, but it depends on the whole of
@@ -63,7 +84,7 @@ decision: a registry dependency would put the 42-package registry cone back
 under `tcl-sslictcl` and the SpecTcl loader, which is what this step exists to
 remove. The cone of those four crates is 17 packages today.
 
-Public interface, as a curated `api` module:
+Public namespaces:
 
 ```rust
 pub mod cst      { /* today's parsing::syntax: green, red, build, segment, descend_token */ }

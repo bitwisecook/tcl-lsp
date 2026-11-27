@@ -406,8 +406,8 @@ impl SourceCommandBindings {
 
     pub(super) fn walk_source_target(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &super::SourceCommandTarget,
@@ -438,8 +438,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     fn walk_source_target_with_mutation_observers(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &super::SourceCommandTarget,
@@ -1088,9 +1088,10 @@ mod tests {
                         ..Default::default()
                     },
                 );
-                let segment =
-                    crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config)
-                        .remove(0);
+                let segment = tcl_source::segment::segment_commands_with_offset_and_config(
+                    &source, 0, config,
+                )
+                .remove(0);
                 let tokens = crate::ir::CommandTokens::from_segmented(
                     &tcl_lexer::SourceMap::new(&source),
                     config,

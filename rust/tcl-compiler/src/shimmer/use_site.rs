@@ -366,7 +366,7 @@ struct InvocationSite<'a> {
     /// Argument words.
     invocation: &'a crate::registry_invocation::NormalRepresentationInvocation,
     /// Effective argument expressions retain each individual reference site.
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     /// Per-argument absolute spans, index-aligned with `args`, when
     /// available (see `fallback_span`).
     arg_spans: &'a [Span],
@@ -410,7 +410,7 @@ fn check_invocation(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>) {
 /// version 0, and Unknown/Overdefined lattice entries.
 fn resolve_tracked_var_use(
     ctx: &UseSiteCtx<'_>,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     expected: TclType,
 ) -> Option<(String, Symbol, u32, super::commit::RepresentationCost)> {
     let (spelling, _) = sh21_option("tracked.sole_variable", word.sole_variable_substitution())?;
@@ -863,7 +863,7 @@ fn check_incr_read(
     var: &str,
     span: Span,
     read: crate::ssa::SsaReadReference,
-    word: Option<&crate::ir::WordExpr>,
+    word: Option<&tcl_source::words::WordExpr>,
 ) {
     let sym = read.symbol;
     if ctx.array_syms.contains(&sym) {

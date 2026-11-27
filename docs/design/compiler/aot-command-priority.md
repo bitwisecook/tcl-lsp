@@ -37,7 +37,7 @@ cargo run --release -p tcl-compiler --example aot_command_priority -- \
 It walks every `.tcl` and `.test` file with the real parsers, never a
 regular expression:
 
-1. **`tcl_compiler::segmenter::segment_commands`** — the same per-command
+1. **`tcl_source::segment::segment_commands`** — the same per-command
    word segmentation the lowerer and analyser consume — splits each script
    into commands and records, per word, whether it is a single literal token
    (`Esc` or `Str` in `tcl-lexer`'s `TokenType` terms) or carries a

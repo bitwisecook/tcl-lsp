@@ -56,13 +56,13 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::segment::segments_from_document;
 use tcl_syntax::expr::{BinOp, ExprNode};
 
 use crate::draft::{self, Draft};
@@ -299,7 +299,7 @@ fn statements(
             .map(|word| {
                 let (spelling, site) = word.sole_variable_substitution()?;
                 let start = usize::try_from(site.span.start()).ok()?;
-                if site.provenance != tcl_compiler::ir::Provenance::Source
+                if site.provenance != tcl_source::words::Provenance::Source
                     || source.as_bytes().get(start) != Some(&b'$')
                 {
                     return None;

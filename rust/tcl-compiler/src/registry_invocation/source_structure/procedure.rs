@@ -97,7 +97,7 @@ impl<'a> OriginalProcedureSourceDescriptor<'a> {
 pub fn original_procedure_source_descriptor<'a>(
     source: &str,
     analysis: &'a AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalProcedureSourceDescriptor<'a>> {
     // naming.source.original-procedure-argument-topology
     // docs/design/analysis/name-resolution-proofs/original-procedure-argument-topology.md
@@ -258,8 +258,8 @@ impl<'a> OriginalLogicalProcedureArguments<'a> {
 }
 
 fn original_procedure_segment_geometry_matches(
-    actual: &crate::segmenter::SegmentedCommand,
-    segment: &crate::segmenter::SegmentedCommand,
+    actual: &tcl_source::segment::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     actual.span == segment.span
         && actual.argv == segment.argv
@@ -278,7 +278,7 @@ fn original_procedure_segment_geometry_matches(
 pub fn original_logical_procedure_arguments<'a>(
     source: &str,
     analysis: &'a AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalLogicalProcedureArguments<'a>> {
     let config = analysis.body_lexer_config?;
     let input = analysis.resolved_input.as_ref()?;
@@ -387,8 +387,8 @@ mod tests {
     fn commands(
         source: &str,
         analysis: &AnalysisResult,
-    ) -> Vec<crate::segmenter::SegmentedCommand> {
-        crate::segmenter::segment_commands_with_offset_and_config(
+    ) -> Vec<tcl_source::segment::SegmentedCommand> {
+        tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),

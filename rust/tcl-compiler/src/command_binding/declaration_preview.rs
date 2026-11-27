@@ -352,7 +352,7 @@ struct NestedLayoutCommand {
     site: CommandAllocationSite,
     tokens: Box<crate::ir::CommandTokens>,
     /// Shared by every visit: a braced body word carries its whole body text.
-    words: Arc<[crate::ir::WordExpr]>,
+    words: Arc<[tcl_source::words::WordExpr]>,
 }
 
 /// A collector-local source tape, with no selected invocation or read/store facts.

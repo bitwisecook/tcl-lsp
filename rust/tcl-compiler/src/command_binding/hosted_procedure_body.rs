@@ -381,7 +381,7 @@ fn hosted_declaration_shape(
     command: &str,
 ) -> Option<(u32, tcl_registry::events::IrulesTopLevelDeclaration)> {
     let end = original.last()?.span().end();
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         text.get(site.offset as usize..end as usize)?,
         site.offset,
         config.nested(),

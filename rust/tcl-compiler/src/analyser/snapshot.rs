@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn partial_snapshot_retains_the_resolved_default_environment() {
         let source = "set x 1";
-        let commands = crate::segmenter::segment_commands(source);
+        let commands = tcl_source::segment::segment_commands(source);
         let (_, mut snapshots) = Analyser::new().analyse_chunked(source, vec![commands], "tcl8.4");
         let snapshot = snapshots.pop().unwrap();
         let input = snapshot.resolved_input.clone().unwrap();

@@ -22,11 +22,11 @@ use super::command_words::{CommandWord, tokenise_command_words};
 use super::substitution_surfaces::{
     collect_expr_command_surface_refs, evaluated_command_substitution_surfaces, unbraced_words,
 };
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords, Traits};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
 
 /// Where one recovered command sits in [`EvaluatedCommandSubstitutions`]'
 /// inventories, in the order the walk met it.

@@ -112,10 +112,10 @@ use tcl_lexer::backslash_subst_in;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
-use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use crate::irules_checks::CodeFix;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
@@ -123,6 +123,9 @@ use crate::value_shapes::{
     parse_command_substitution_with_config, parse_command_substitution_with_spans_and_config,
 };
 use tcl_dialect::model::SurfaceQuery;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 // Colour lattice
 

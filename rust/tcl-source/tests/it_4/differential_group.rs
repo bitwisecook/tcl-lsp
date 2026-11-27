@@ -83,9 +83,9 @@ use std::path::{Path, PathBuf};
 use tcl_lexer::script::{CommandSpan, WordKind, group_commands};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 
-use tcl_compiler::segmenter::{
-    SegmentedCommand, segment_commands_with_offset_and_config, word_piece,
-};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
+use tcl_source::segment::word_piece;
 
 /// Repo root — two directories above `CARGO_MANIFEST_DIR`.
 fn repo_root() -> PathBuf {

@@ -24,9 +24,9 @@ use std::time::{Duration, Instant};
 use salsa::Setter as _;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyser::types::DiagCode;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_lsp_db::{SourceFile, TclDatabase, TclDb};
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 const DIALECT: &str = "tcl9.0";
 const TARGET: &str = "overrides::cmdOverrides::IsOverridden";

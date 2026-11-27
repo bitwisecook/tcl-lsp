@@ -55,6 +55,7 @@ const ANALYSIS: &[&str] = &[
     "tcl-cli-support",
     "tcl-codegen",
     "tcl-compiler",
+    "tcl-source",
     "tcl-diagram",
     "tcl-explorer",
     "tcl-irule-test",
@@ -65,12 +66,14 @@ const ANALYSIS: &[&str] = &[
 ];
 
 const GRAMMAR_CONSUMERS: &[&str] = &[
+    "tcl-bigip-schema",
     "tcl-bytecode",
     "tcl-cli",
     "tcl-cli-support",
     "tcl-cmd-core",
     "tcl-codegen",
     "tcl-compiler",
+    "tcl-source",
     "tcl-diagram",
     "tcl-explorer",
     "tcl-expr",

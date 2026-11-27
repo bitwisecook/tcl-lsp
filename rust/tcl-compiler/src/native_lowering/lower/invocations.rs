@@ -27,12 +27,12 @@ use super::super::representation::{Representation, proven_int_result};
 use super::super::{CellAccessKind, NativeLoweringDecline, StatementOutcome};
 use super::Lowerer;
 use crate::executable_ir::{GenericInvoke, InvocationResolution};
-use crate::ir::WordExpr;
 use crate::registry_invocation::{
     InvocationMetadataContext, resolved_tokens_invocation_with_metadata_context,
 };
 use crate::types::TypeShape;
 use tcl_registry::{CellUpdate, IntrinsicId, NativeLowering};
+use tcl_source::words::WordExpr;
 
 impl Lowerer<'_> {
     // Invocations.
@@ -163,7 +163,8 @@ impl Lowerer<'_> {
             || !invoke.original_words.iter().all(|word| {
                 matches!(
                     word,
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                    tcl_source::words::WordExpr::Literal { .. }
+                        | tcl_source::words::WordExpr::BracedLiteral { .. }
                 )
             })
         {

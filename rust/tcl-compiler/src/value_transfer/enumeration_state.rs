@@ -226,7 +226,7 @@ impl StateInputs<'_> {
     /// effect-free policy: a command that stores declines, as one with no
     /// route or a head the run may not take for the registry's does.
     pub(super) fn run_nested(&self, script: &str) -> EvalAnswer {
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             script,
             0,
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.driver.lexer_config),

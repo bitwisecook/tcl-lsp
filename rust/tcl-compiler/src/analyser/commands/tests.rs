@@ -66,7 +66,7 @@ fn uncached_original_source_segment(
     let source = analyser
         .source
         .get(first.span().start() as usize..last.span().end() as usize)?;
-    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         first.span().start(),
         config.nested(),
@@ -89,7 +89,7 @@ fn diagnostic_source_geometry_matches_uncached_capture_and_missing_origin() {
             let _analysis = analyser.analyse(source, dialect);
             let config = analyser.file_lexer_config();
             let segments =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
             for segment in &segments {
                 let offset = segment.argv.first().unwrap().span.start();
                 let args = &segment.argv[1..];
@@ -625,7 +625,7 @@ fn deeply_nested_command_head_scans_survive() {
     let sm = SourceMap::new(&nested);
     let analysis = crate::analyser::types::AnalysisResult::default();
     let mut out = Vec::new();
-    for seg in crate::segmenter::segment_commands_with_offset_and_config(&nested, 0, config) {
+    for seg in tcl_source::segment::segment_commands_with_offset_and_config(&nested, 0, config) {
         collect_segment_recursive(&sm, &analysis, seg, config, &mut out, 0);
     }
 }
@@ -1119,7 +1119,7 @@ fn w125_original_lookup_ignores_report_maps_and_requires_current_inputs() {
         let mut analyser = Analyser::new();
         analyser.result = analyser.analyse(source, "tcl");
         let input = analyser.result.resolved_input.clone().unwrap();
-        let token = crate::segmenter::segment_commands_with_offset_and_config(
+        let token = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

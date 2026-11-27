@@ -32,12 +32,13 @@ use super::{
     NEWEST_SUPPORTED_MAJOR, NEWEST_VOCABULARY_VERSION, Pack, PackProvides, PackSpecialVar,
     PackTables, available, dialect_block, environment_block, leak_one, leak_str, surface_roster,
 };
-use tcl_compiler::parsing::spectcl_source::{
-    IncludeNameUnavailable, include_file_name, include_file_path, pack_source_lexer_config,
-    unsupported_pack_major,
-};
 use tcl_dialect::model::SpecSurface;
 use tcl_registry::hover::ArgValue;
+use tcl_source::spectcl::IncludeNameUnavailable;
+use tcl_source::spectcl::include_file_name;
+use tcl_source::spectcl::include_file_path;
+use tcl_source::spectcl::pack_source_lexer_config;
+use tcl_source::spectcl::unsupported_pack_major;
 
 /// Apply one pack-scope statement — every arm of the pack vocabulary except
 /// `command`, which the caller collects for the second pass. Returns `true`
@@ -824,13 +825,12 @@ pub(crate) fn uses_include(source: &str) -> bool {
         return false;
     }
     let config = pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::WholeInput);
-    let Some(body) = tcl_compiler::parsing::spectcl_source::first_pack_source_body(source, config)
-    else {
+    let Some(body) = tcl_source::spectcl::first_pack_source_body(source, config) else {
         return false;
     };
     body.statements()
         .iter()
-        .any(tcl_compiler::parsing::spectcl_source::is_pack_file_include_row)
+        .any(tcl_source::spectcl::is_pack_file_include_row)
 }
 
 /// Why one `include NAME` word is unusable, or `Ok` with the name.

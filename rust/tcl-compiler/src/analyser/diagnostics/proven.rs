@@ -743,7 +743,7 @@ mod source_value_projection_tests {
         let mut analyser = Analyser::new();
         let result = analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
         assert!(result.analysis_context_unavailable.is_none());
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),
@@ -835,7 +835,7 @@ mod source_value_projection_tests {
             .analyse_and_retain_result_for_test(source, "tcl")
             .clone();
         assert!(result.analysis_context_unavailable.is_none());
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),
@@ -889,7 +889,7 @@ mod source_value_projection_tests {
         let source = "proc string args {return CUSTOM}; string is $kind value";
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),

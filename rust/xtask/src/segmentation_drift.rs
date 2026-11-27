@@ -108,9 +108,9 @@ const SANCTIONED_FILES: &[&str] = &[
     "rust/tcl-lexer/src/ranges.rs",
     "rust/tcl-lexer/src/word_parts.rs",
     // The compiler's half of the segmentation row.
-    "rust/tcl-compiler/src/segmenter.rs",
-    "rust/tcl-compiler/src/parsing/syntax/build.rs",
-    "rust/tcl-compiler/src/parsing/syntax/segment.rs",
+    "rust/tcl-source/src/segment.rs",
+    "rust/tcl-source/src/cst/build.rs",
+    "rust/tcl-source/src/cst/segment.rs",
     // This gate names the banned spellings in its own source.
     "rust/xtask/src/segmentation_drift.rs",
 ];
@@ -686,7 +686,7 @@ mod tests {
         assert!(is_exempt_path("rust/tcl-lexer/src/script.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/src/parse_cut.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/src/structural_index.rs"));
-        assert!(is_exempt_path("rust/tcl-compiler/src/segmenter.rs"));
+        assert!(is_exempt_path("rust/tcl-source/src/segment.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/tests/it_4/lexer_depth.rs"));
         assert!(!is_exempt_path("rust/tcl-lsp-core/src/expr_context.rs"));
         assert!(!is_exempt_path("rust/tcl-compiler/src/lowering/mod.rs"));

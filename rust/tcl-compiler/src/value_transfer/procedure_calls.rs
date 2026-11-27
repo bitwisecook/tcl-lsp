@@ -515,7 +515,7 @@ impl<'a> LatticeDriver<'a> {
     /// summary says how a call may complete, not that it completes normally.
     pub(super) fn procedure_run<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
-        seg: &crate::segmenter::SegmentedCommand,
+        seg: &tcl_source::segment::SegmentedCommand,
         original: Option<&CommandTokens>,
         (uses, values, ssa): Lattice<'_, S1, S2>,
         (prior, policy): (&[(PlaceRef, StoreOutcome)], NestedPolicy),
@@ -738,7 +738,7 @@ pub(super) fn effective_procedure_arguments(
             Some(text) => ArgWord {
                 text: Cow::Owned(text),
                 kind: InvocationWordKind::Literal,
-                source: if matches!(word, crate::ir::WordExpr::BracedLiteral { .. }) {
+                source: if matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. }) {
                     OperandSource::BracedLiteral
                 } else {
                     OperandSource::Literal

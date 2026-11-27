@@ -1111,7 +1111,7 @@ fn iteration_input_reference_keeps_preloop_version_when_body_mutates_list() {
     let source = SsaSourceView::at_statement(&function.ssa, block, index);
     assert!(
         matches!(source.source_tokens().and_then(|tokens| tokens.words().get(2)),
-            Some(crate::ir::WordExpr::Literal { text, .. }) if text == "BEFORE")
+            Some(tcl_source::words::WordExpr::Literal { text, .. }) if text == "BEFORE")
     );
 }
 
@@ -1204,7 +1204,9 @@ fn reaching_binding_declines_contents_after_an_unrepresented_mutation() {
                     .statement
                     .tokens()
                     .and_then(|tokens| tokens.words().first())
-                    .is_some_and(|head| matches!(head, crate::ir::WordExpr::Variable { .. }))
+                    .is_some_and(|head| {
+                        matches!(head, tcl_source::words::WordExpr::Variable { .. })
+                    })
             })
         })
         .unwrap()

@@ -8,7 +8,7 @@ tooling — read one tree rather than each re-lexing the bytes it cares about.
 Two consumers still lex for themselves and are named under
 [Known gap](#known-gap--the-minifier): the minifier and the formatter.
 
-Living in `rust/tcl-compiler/src/parsing/syntax/`: the position-independent
+Living in `rust/tcl-source/src/cst/`: the position-independent
 green tree, the lazy red overlay, the constructor, lazy descent into braced
 bodies and `[…]` substitutions, and the `SegmentedCommand` derivation.
 
@@ -121,15 +121,15 @@ walk, so nothing is materialised that a consumer does not visit.
 public `SegmentedCommand` shape; `segments_from_document` is the entry
 `segment_commands_local` uses, taking the green `Document` and a `SourceMap`
 directly. This *is* the segmenter — `segment_commands_local`
-(`rust/tcl-compiler/src/segmenter.rs`) calls `build_document` then
+(`rust/tcl-source/src/segment.rs`) calls `build_document` then
 `segments_from_document`, with no token loop of its own:
 
 - **`argv`** — one merged token per word (type/text/start from the first
   fragment, end from the last: the compound-word merge of `{a}b`).
 - **`texts`** — `word_piece` per fragment, reused from
-  `rust/tcl-compiler/src/segmenter.rs`.
-- **`all_tokens`** — every fragment *and* `{*}` marker, in document order.
-- **`range`** — see below.
+  `rust/tcl-source/src/segment.rs`.
+- **`all_tokens`** — every fragment, `{*}` marker and original inter-word separator, in document order.
+- **`span`** — see below.
 - **`preceding_comment`** / **`expand_word`** — see below.
 
 Word-less commands (a line of only dangling `{*}` markers) are skipped, matching
@@ -174,13 +174,11 @@ only when a caller asks).
   still carries its inner tokens, the lossless representation of malformed
   input. Any other token kind is anchored at its own position and is always
   recovered.
-- `descend_command(registry, sm, cmd_name, args, arg_tokens, config)` descends
-  each registry-resolved `ArgRole::Body` argument (via
-  `CommandRegistry::arg_indices_for_role`), returning a `CommandBody` per
-  descended body. `ArgRole::Expr` arguments stay with `expr_lexer`,
-  `ArgRole::LambdaLiteral` arguments are deliberately excluded (a lambda body
-  runs in its own namespace and needs an isolated scope, not just a sub-span),
-  and data words are left opaque.
+Command-body selection belongs to consumers of the command registry. They
+resolve `ArgRole::Body` and descend the selected token with `descend_token`.
+Expression arguments use the expression parser. Lambda literals need the
+analyser's isolated frame and namespace handling; source descent grants no
+execution scope.
 
 There is no shared tokenisation memo: `build_document` runs a fresh
 `Lexer::with_source_map` each time. The descended stream is nonetheless
@@ -196,7 +194,7 @@ replaced, kept as a permanent regression net:
 
 - **Losslessness** — `full_text == source` over the real-world corpus (157 Tcl
   8.6/9.0 library files + fixtures), 120k randomised sources, and the edge-case
-  table in `rust/tcl-compiler/src/parsing/syntax/mod.rs`'s unit tests.
+  table in `rust/tcl-source/src/cst/mod.rs`'s unit tests.
 - **Position-equivalence** — red fragment tokens equal the lexer's non-trivia
   token stream (offsets, lines, UTF-16 columns, `in_quote`) over the same
   corpus and fuzz, including multi-line and unicode bodies. The randomised
@@ -206,15 +204,17 @@ replaced, kept as a permanent regression net:
   The last is a real fragment, not trivia: the lexer emits a separator
   backslash-newline as `Sep`, but a quoted-word content backslash-newline as
   an `Esc` token the tree must keep.
-- **Segment byte-identity** — `rust/tcl-compiler/tests/it_4/differential_segment.rs`
+- **Segment byte-identity** — `rust/tcl-source/tests/it_4/differential_segment.rs`
   compares the production `segment_commands_with_offset_and_config` against
   `frozen_oracle::segment_local`, a byte-for-byte snapshot of the token loop
   taken before the segmenter derived from the CST. Comparing against the live
   `segment_commands_local` would be tautological, since that is now the CST
-  derivation. Fields compared: `range`, `argv`, `texts`, `single_token_word`,
-  `all_tokens`, `preceding_comment`, and `expand_word`, over the edge-case
+  derivation. Fields compared: `span`, `argv`, `texts`, `single_token_word`,
+  semantic `all_tokens` (excluding trivia), `preceding_comment`, and
+  `expand_word`, over the edge-case
   table, the `tmp/tcl{8.4,8.5,8.6,9.0}` corpus when present, and nested-body
-  (non-zero base) anchoring.
+  (non-zero base) anchoring. A separate lexer-oracle check verifies retained
+  inter-word separators.
 
 ## Performance
 
@@ -244,14 +244,14 @@ tokenisers or cursor-local by nature, not duplicate segmenters.
 
 ## Pointers
 
-- Green layer: `rust/tcl-compiler/src/parsing/syntax/green.rs`
-- Red layer: `rust/tcl-compiler/src/parsing/syntax/red.rs`
-- Descent: `rust/tcl-compiler/src/parsing/syntax/descend.rs`
-- Constructor: `rust/tcl-compiler/src/parsing/syntax/build.rs`
-- Segment derivation: `rust/tcl-compiler/src/parsing/syntax/segment.rs`
-- Segmenter (consumer): `rust/tcl-compiler/src/segmenter.rs`
-- Tests: `rust/tcl-compiler/src/parsing/syntax/` unit tests, plus the
-  differential oracle in `rust/tcl-compiler/tests/it_4/differential_segment.rs`
+- Green layer: `rust/tcl-source/src/cst/green.rs`
+- Red layer: `rust/tcl-source/src/cst/red.rs`
+- Descent: `rust/tcl-source/src/cst/descend.rs`
+- Constructor: `rust/tcl-source/src/cst/build.rs`
+- Segment derivation: `rust/tcl-source/src/cst/segment.rs`
+- Segmenter (consumer): `rust/tcl-source/src/segment.rs`
+- Tests: `rust/tcl-source/src/cst/` unit tests, plus the
+  differential oracle in `rust/tcl-source/tests/it_4/differential_segment.rs`
 
 ## Related docs
 

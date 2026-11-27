@@ -395,7 +395,7 @@ fn finish(
 pub fn original_project_receiver_class(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     providers: &[OriginalProjectClassCards],
 ) -> Option<OriginalProjectReceiverClass> {
     original_project_receiver_class_in_unit(source, analysis, segment, providers, None)
@@ -407,7 +407,7 @@ pub fn original_project_receiver_class(
 pub fn original_project_receiver_class_in_unit(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     providers: &[OriginalProjectClassCards],
     unit: Option<&crate::compilation_unit::CompilationUnit>,
 ) -> Option<OriginalProjectReceiverClass> {
@@ -424,8 +424,8 @@ pub fn original_project_receiver_class_in_unit(
 }
 
 fn project_receiver_invocation_is_static(
-    actual: &crate::segmenter::SegmentedCommand,
-    segment: &crate::segmenter::SegmentedCommand,
+    actual: &tcl_source::segment::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     words: &[NativeWord],
 ) -> bool {
     if actual.span != segment.span
@@ -460,7 +460,7 @@ fn project_receiver_invocation_is_static(
 pub fn original_project_receiver_class_with_sources(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     providers: &[OriginalProjectClassCards],
     sources: Option<&crate::object_types::OriginalObjectCollectionSources>,
 ) -> Option<OriginalProjectReceiverClass> {
@@ -722,7 +722,7 @@ mod tests {
         providers: &[OriginalProjectClassCards],
     ) -> Option<OriginalProjectReceiverClass> {
         let analysis = Analyser::new().analyse(source, dialect);
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config?,
@@ -755,7 +755,7 @@ mod tests {
             None,
             input,
         );
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

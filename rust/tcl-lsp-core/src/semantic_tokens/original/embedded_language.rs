@@ -21,7 +21,7 @@
 use super::{ArgOverride, ScriptCtx, TokenKind, original_argument_token};
 use crate::semantic_tokens::mark_literal_fragments;
 use rustc_hash::FxHashMap;
-use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// Embedded conversion languages use the retained schema for every source
 /// domain and only the exact original operand at each effective ordinal.

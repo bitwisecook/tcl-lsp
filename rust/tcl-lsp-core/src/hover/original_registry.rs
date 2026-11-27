@@ -83,7 +83,7 @@ fn documentation_command(
     source: &str,
     analysis: &AnalysisResult,
     cursor: u32,
-) -> Option<tcl_compiler::segmenter::SegmentedCommand> {
+) -> Option<tcl_source::segment::SegmentedCommand> {
     let structure = crate::source_structure::SourceStructure::capture(
         source,
         Some(analysis),
@@ -148,7 +148,7 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
 /// retained parent selects the keyword; no runtime command is selected.
 fn document_member_row_hover(
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     parent: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
     cursor: u32,
 ) -> Option<String> {

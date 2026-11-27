@@ -37,11 +37,9 @@
 //! child green tree is built in local-offset space and the red
 //! [`SyntaxTree`] supplies the absolute anchoring; the dialect
 //! [`LexerConfig`] carries over (the `_and_config` plumbing).  No
-//! `insidequote` handling is threaded — `descend_command` never
-//! passes such a flag, and no production caller descends a quoted region.
+//! quoted-region descent is performed by this API.
 
 use tcl_lexer::{LexerConfig, SourceMap, Token, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::build::build_document;
 use super::green::GreenNode;
@@ -146,68 +144,6 @@ pub fn descend_token(sm: &SourceMap<'_>, token: Token, config: LexerConfig) -> D
     }
 }
 
-/// A registry-resolved `Body` argument of a command, descended.
-#[derive(Debug, Clone)]
-pub struct CommandBody {
-    /// The real argument index (into `args` / `arg_tokens`).
-    pub index: usize,
-    /// The body word's inner text.
-    pub text: String,
-    /// The owning `Str` token.
-    pub token: Token,
-    /// The body's child CST.
-    pub descended: Descended,
-}
-
-/// Descend each [`ArgRole::Body`] argument of a command as a child CST.
-///
-/// The single registry-aware descent entry point — the analogue of
-/// `green_tree.descend_command`, resolving body arguments through the
-/// registry's [`CommandRegistry::arg_indices_for_role`] (the Rust
-/// `iter_body_arguments`) so the set of descended bodies matches exactly.
-/// A body that is not a non-empty `Str` word is skipped (it is data, not
-/// a script the tree should re-lex).  [`ArgRole::Expr`] arguments are
-/// deliberately not routed here — they are handled by the expression
-/// lexer.
-///
-/// [`ArgRole::LambdaLiteral`] arguments are **also** deliberately not routed
-/// here, and a caller must not treat one as an ordinary body.  A lambda
-/// literal is a `{params body ?ns?}` *list*, and its body runs in a fresh
-/// call frame homed to the lambda's own namespace — never the caller's — so
-/// walking it needs an isolated scope, not just the right sub-span.  The
-/// owning consumer routes it through `apply`'s analyser hook instead; see
-/// `Analyser::dispatch_nested_segment`.
-///
-/// `args` and `arg_tokens` are the command's arguments (excluding the
-/// command name), parallel and 0-indexed; `sm` maps the region the tokens
-/// belong to.
-#[must_use]
-pub fn descend_command(
-    registry: &CommandRegistry,
-    sm: &SourceMap<'_>,
-    cmd_name: &str,
-    args: &[&str],
-    arg_tokens: &[Token],
-    config: LexerConfig,
-) -> Vec<CommandBody> {
-    let mut bodies = Vec::new();
-    for index in registry.arg_indices_for_role(cmd_name, args, ArgRole::Body) {
-        let (Some(&token), Some(&text)) = (arg_tokens.get(index), args.get(index)) else {
-            continue;
-        };
-        if token.kind != TokenType::Str || text.trim().is_empty() {
-            continue;
-        }
-        bodies.push(CommandBody {
-            index,
-            text: text.to_string(),
-            token,
-            descended: descend_token(sm, token, config),
-        });
-    }
-    bodies
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::green::SyntaxKind;
@@ -222,7 +158,7 @@ mod tests {
         // Source geometry and grammar; no header/value/worker authority.
         let source = "\u{feff}proc p {} {\u{feff}set name value}";
         let config = LexerConfig::for_file_grammar(
-            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
         );
         let image = tcl_lexer::SourceImage::document(source);
         let original = tcl_lexer::native_script_words_in(
@@ -247,8 +183,7 @@ mod tests {
                 ..config
             };
             let descended = descend_token(&sm, token, selected);
-            let commands =
-                crate::parsing::syntax::segment::segments_from_tree(descended.tree(), &sm);
+            let commands = crate::cst::segment::segments_from_tree(descended.tree(), &sm);
             assert!(descended.is_terminated());
             assert_eq!(commands.len(), 1);
             assert_eq!(commands[0].texts[0], "\u{feff}set");
@@ -372,86 +307,5 @@ mod tests {
             .into_iter()
             .filter(|t| t.kind == TokenType::Str)
             .collect()
-    }
-
-    #[test]
-    fn descend_command_resolves_body_args_only() {
-        // `for {set i 0} {$i < 10} {incr i} {puts $i}` — only the loop
-        // body (arg index 3) is a Body role; the init/next bodies are also
-        // Body for `for`, while the condition is Expr.  Verify the EXPR
-        // condition is NOT descended and the braced bodies are.
-        let registry = CommandRegistry::build_default();
-        let src = "for {set i 0} {$i < 10} {incr i} {puts $i}";
-        let sm = SourceMap::new(src);
-        // Segment to get cmd_name / args / arg_tokens parallel arrays.
-        let segs = crate::segmenter::segment_commands(src);
-        let cmd = &segs[0];
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let bodies = descend_command(
-            &registry,
-            &sm,
-            cmd.name(),
-            &args,
-            cmd.arg_tokens(),
-            LexerConfig::default(),
-        );
-        // `for` has Body args at init (0), next (2), body (3); the
-        // condition (1) is Expr and must not appear.
-        let indices: Vec<usize> = bodies.iter().map(|b| b.index).collect();
-        assert!(indices.contains(&3), "loop body must be descended");
-        assert!(
-            !indices.contains(&1),
-            "the Expr condition must NOT be descended"
-        );
-        // The descended body re-lexes to its inner script.
-        let loop_body = bodies.iter().find(|b| b.index == 3).unwrap();
-        assert!(loop_body.descended.is_terminated());
-        assert_eq!(loop_body.descended.tree().text(), "puts $i");
-    }
-
-    /// Helper: `descend_command` over the first command of `src`.
-    fn bodies_of(registry: &CommandRegistry, src: &str) -> Vec<CommandBody> {
-        let sm = SourceMap::new(src);
-        let segs = crate::segmenter::segment_commands(src);
-        let cmd = &segs[0];
-        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        descend_command(
-            registry,
-            &sm,
-            cmd.name(),
-            &args,
-            cmd.arg_tokens(),
-            LexerConfig::default(),
-        )
-    }
-
-    /// TN pin — a `LambdaLiteral` argument yields **no** `CommandBody` at all.
-    ///
-    /// Two things would be wrong with descending it here. Descending the whole
-    /// `{params body}` word reads the parameter list as a command head, an
-    /// `Unknown command 'name opt args'` false positive. Descending
-    /// just the body *element* fixes the sub-span but still hands the caller
-    /// an ordinary body, which every `descend_command` consumer walks in the
-    /// **enclosing** scope — and a lambda body runs in a fresh frame homed to
-    /// the lambda's own namespace, so its locals would leak into the calling
-    /// proc and its bareword calls would resolve in the wrong namespace.
-    /// The isolated walk belongs to `apply`'s analyser hook; see
-    /// `Analyser::dispatch_nested_segment`.
-    #[test]
-    fn descend_command_yields_no_body_for_a_lambda_literal() {
-        let registry = CommandRegistry::build_default();
-        for src in [
-            "apply {{name opt args} {puts $name}} a b c",
-            "apply {{a} {puts $a} ::ns} 1",
-            "apply $lambda 1",
-            "apply {{a} {}} 1",
-            "apply {{a}} 1",
-            r"apply {{} puts\ hi}",
-        ] {
-            assert!(
-                bodies_of(&registry, src).is_empty(),
-                "{src} must yield no descended body"
-            );
-        }
     }
 }

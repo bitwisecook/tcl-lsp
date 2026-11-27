@@ -125,7 +125,7 @@ fn return_does_not_remove_later_compiler_admission() {
     assert!(binding.proved_execution_target().is_none());
     assert!(binding.lookup_command_word("set").unknown);
     let map = tcl_lexer::SourceMap::new(source);
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .into_iter()
         .find(|segment| segment.span.start() == offset)
         .unwrap();
@@ -209,7 +209,7 @@ fn expanded_head_stamps_the_original_invocation_site_including_its_marker() {
     let source = "set command {set result READY}; {*}$command";
     let (bindings, config, _owner) = analyse(source);
     let map = tcl_lexer::SourceMap::new(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let segment = segments.last().unwrap();
     let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, segment);
     assert_ne!(
@@ -241,7 +241,7 @@ fn dynamically_compiled_unentered_arm_remains_in_parent_compiler_inventory() {
     );
     assert!(binding.admitted_inline_invocation().is_some());
     let map = tcl_lexer::SourceMap::new(source);
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .into_iter()
         .find(|segment| segment.span.start() == u32::try_from(source.find("if").unwrap()).unwrap())
         .unwrap();

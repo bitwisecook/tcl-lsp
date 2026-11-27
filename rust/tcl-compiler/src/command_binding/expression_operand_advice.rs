@@ -22,7 +22,9 @@
 //! represented read, physical address, successful evaluation or executable edit.
 
 use super::{CommandAllocationSite, SourceInvocationBinding, SourceVariableEvaluationOwner};
-use crate::ir::{CommandTokens, Provenance, WordExpr};
+use crate::ir::CommandTokens;
+use tcl_source::words::Provenance;
+use tcl_source::words::WordExpr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DeclarationExpressionReadAdvice {
@@ -30,7 +32,7 @@ pub(crate) struct DeclarationExpressionReadAdvice {
     child: CommandAllocationSite,
     name: String,
     spelling: String,
-    source: crate::ir::SourceSite,
+    source: tcl_source::words::SourceSite,
 }
 
 impl DeclarationExpressionReadAdvice {
@@ -273,7 +275,7 @@ mod tests {
         let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
         let base = u32::try_from(source.find(statement).unwrap()).unwrap();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(statement, base, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(statement, base, config)
                 .remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceImage::document(source).source_map(),

@@ -27,11 +27,14 @@
 
 use serde_json::{Value, json};
 
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::descend::descend_token;
-use tcl_compiler::parsing::syntax::green::SyntaxKind;
-use tcl_compiler::parsing::syntax::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::green::SyntaxKind;
+use tcl_source::cst::red::SyntaxElement;
+use tcl_source::cst::red::SyntaxNode;
+use tcl_source::cst::red::SyntaxToken;
+use tcl_source::cst::red::SyntaxTree;
 
 /// Maximum CST descent depth — a defensive stack-overflow bound, lifted to
 /// match the analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code

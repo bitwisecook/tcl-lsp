@@ -32,7 +32,7 @@ use tcl_lexer::TokenType;
 
 use crate::analyser::Analyser;
 use crate::analyser::types::{Diagnostic, ProcDef, Severity};
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 impl Analyser {
     /// The first syntax cut of a document that did not parse, with the
@@ -91,7 +91,7 @@ impl Analyser {
         let windows = std::mem::take(&mut self.concatenated_windows);
         let mut verdicts = Vec::new();
         for (script, span) in &windows {
-            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            let commands = tcl_source::segment::segment_commands_with_offset_and_config(
                 script,
                 span.start(),
                 config,

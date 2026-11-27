@@ -23,7 +23,6 @@ use super::{
     OriginalSummaryExpression, OriginalSummaryScript, Statement,
 };
 use crate::command_binding::OriginalInvocationSourcePurpose;
-use crate::ir::WordExpr;
 use crate::registry_invocation::{
     NormalTransferInvocation, ResolvedStatementInvocation,
     normal_transfer_invocation_with_metadata_context,
@@ -31,6 +30,7 @@ use crate::registry_invocation::{
 };
 use crate::ssa::SsaFunction;
 use crate::ssa::ValueKey;
+use tcl_source::words::WordExpr;
 
 macro_rules! n17_native_trace {
     ($($arg:tt)*) => {
@@ -613,7 +613,7 @@ impl<'a> NativeSummaryContext<'a> {
         start: u32,
         end: u32,
     ) -> Option<OriginalSummaryScript> {
-        let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+        let site = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
             expression.base.checked_add(start)?,
             expression.base.checked_add(end)?.checked_add(1)?,
         ));
@@ -639,13 +639,13 @@ impl<'a> NativeSummaryContext<'a> {
     pub(in crate::interprocedural::transfer) fn substitution(
         &self,
         parent: &CommandTokens,
-        site: &crate::ir::SourceSite,
+        site: &tcl_source::words::SourceSite,
         script: &str,
     ) -> Option<OriginalSummaryScript> {
         let metadata = n17_native_option("substitution.parent-metadata", self.metadata(parent))?;
         if n17_native_decline(
             "substitution.provenance",
-            site.provenance != crate::ir::Provenance::Source,
+            site.provenance != tcl_source::words::Provenance::Source,
         ) {
             return None;
         }
@@ -692,7 +692,7 @@ fn literal_word(word: &WordExpr) -> bool {
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
         WordExpr::Template { parts, .. } => parts
             .iter()
-            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })),
+            .all(|part| matches!(part, tcl_source::words::WordPart::Text { .. })),
         _ => false,
     }
 }

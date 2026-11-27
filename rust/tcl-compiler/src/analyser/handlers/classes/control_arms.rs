@@ -21,9 +21,9 @@
 use super::super::super::state::Analyser;
 use super::{ControlArm, MAX_UNKNOWN_BODY_DEPTH};
 use crate::lowering::structured::{braced_word_flags, quoted_word_flags};
-use crate::segmenter::SegmentedCommand;
 use crate::value_transfer::{WordForm, literal_selection};
 use tcl_lexer::{Span, TokenType};
+use tcl_source::segment::SegmentedCommand;
 
 #[derive(Default)]
 pub(super) struct ControlArms {
@@ -380,11 +380,11 @@ impl Analyser {
                     complete = false;
                     continue;
                 };
-                for (_, (body_word, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                for (_, (body_word, body_token)) in tcl_source::segment::flatten_case_list_clauses(
                     &self.source,
                     word,
                     token,
-                    &case,
+                    &case.shape(),
                     self.lexer_config(),
                 ) {
                     if body_token.kind == TokenType::Str
@@ -638,11 +638,11 @@ impl Analyser {
         let args = arm.controller.args();
         let tokens = arm.controller.arg_tokens();
         if let Some(list_index) = invocation.clause_list_index {
-            let clauses = crate::segmenter::flatten_case_list_clauses(
+            let clauses = tcl_source::segment::flatten_case_list_clauses(
                 &self.source,
                 args.get(list_index)?,
                 *tokens.get(list_index)?,
-                case,
+                &case.shape(),
                 self.lexer_config(),
             );
             return Some(

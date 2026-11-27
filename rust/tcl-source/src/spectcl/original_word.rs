@@ -18,7 +18,7 @@
 
 //! Original configured pack rows retain selected-word geometry, never rejection.
 
-use crate::segmenter::SegmentedCommand;
+use crate::segment::SegmentedCommand;
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, WordKind};
 

@@ -516,7 +516,7 @@ fn emitted_boundary(offset: u32, edits: &[SourceGapEdit]) -> Result<u32, MinifyR
 fn boolean_inversion_edit(
     source: &str,
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     argument: usize,
     inner: &str,
     env: super::MinifyEnv<'_>,
@@ -601,7 +601,7 @@ fn trace_minify_source(
 fn source_body_expression_gap_proofs(
     source: &str,
     analysis: &AnalysisResult,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     inventory: &tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory,
     env: super::MinifyEnv<'_>,
     native_arguments: &[usize],
@@ -881,7 +881,7 @@ fn redundant_paren_edits(
 }
 
 fn append_command_expression_gaps(
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     inventory: Option<
         &tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory,
     >,

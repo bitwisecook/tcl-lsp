@@ -143,7 +143,7 @@ mod tests {
             )
             .unwrap();
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         let [command] = segments.as_slice() else {
             panic!("one original command")

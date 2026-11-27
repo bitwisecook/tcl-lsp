@@ -20,11 +20,16 @@
 
 use super::{TaintColour, TaintLattice, TaintSourceContext, TaintWarning};
 use crate::compilation_unit::FunctionUnit;
-use crate::ir::{CommandBindingSites, CommandTokens, Module, SourceSite, WordExpr, WordPart};
+use crate::ir::CommandBindingSites;
+use crate::ir::CommandTokens;
+use crate::ir::Module;
 use crate::registry_invocation::{EffectiveCommandWords, EffectiveInvocationWord};
 use crate::ssa::{SsaSourceView, ValueKey};
 use std::collections::HashMap;
 use tcl_registry::{CommandRegistry, resolved_invocation::AuthoredSourceDestructivePathArguments};
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 struct SourceWarningInvocation {
     command: String,

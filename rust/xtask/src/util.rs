@@ -309,6 +309,7 @@ pub fn is_safe_command_name(name: &str) -> bool {
 /// one gate's concern belongs to both, so the root list is one list, not two
 /// that drift.
 pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
+    "rust/tcl-source/src",
     "rust/tcl-compiler/src",
     "rust/tcl-codegen/src",
     "rust/tcl-lsp-core/src",

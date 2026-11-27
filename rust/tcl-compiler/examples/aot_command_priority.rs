@@ -20,7 +20,7 @@
 //! compiler priority study.
 //!
 //! Segments every `.tcl` / `.test` file under the given corpus roots with the
-//! **real segmenter** (`tcl_compiler::segmenter::segment_commands`, the same
+//! **real segmenter** (`tcl_source::segment::segment_commands`, the same
 //! machinery the lowerer and analyser use — not a regex), recursing into:
 //!
 //! * `[...]` command substitutions found in any word's fragments (always
@@ -64,8 +64,9 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands;
 use tcl_syntax::case_list::{CallShape, CaseListShape, clause_list_call, split_case_list};
 
 const MAX_DEPTH: u32 = 96;
@@ -135,7 +136,7 @@ fn collect_tcl_files(root: &Path, out: &mut Vec<PathBuf>) {
 }
 
 /// Is every fragment of this word literal (no `Var`/`Cmd` substitution)?
-fn word_is_literal(fragments: &[tcl_compiler::segmenter::WordFragment]) -> bool {
+fn word_is_literal(fragments: &[tcl_source::segment::WordFragment]) -> bool {
     !fragments.is_empty()
         && fragments.iter().all(|f| {
             matches!(

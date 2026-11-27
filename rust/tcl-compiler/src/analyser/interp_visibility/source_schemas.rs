@@ -327,7 +327,7 @@ impl Analyser {
             let Some(text) = self.source.get(body.as_range()) else {
                 return;
             };
-            let Some(segment) = crate::segmenter::segment_commands_with_offset_and_config(
+            let Some(segment) = tcl_source::segment::segment_commands_with_offset_and_config(
                 text,
                 body.start(),
                 word.config().nested(),

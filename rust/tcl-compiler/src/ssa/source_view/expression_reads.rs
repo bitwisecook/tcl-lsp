@@ -23,8 +23,8 @@ use super::SsaSourceView;
 use super::word_reads::{
     SsaReadContents, SsaReadRepresentationAdvice, source_read_place, source_read_representations,
 };
-use crate::ir::SourceSite;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::SourceSite;
 
 /// Ordinary incoming slot reached in one or more actual activations.
 /// This is a logical input projection, not a scalar SSA value or a physical

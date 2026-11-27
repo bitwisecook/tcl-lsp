@@ -40,9 +40,7 @@ fn shifted_dispatch_regions_follow_original_moves_and_known_source_barriers() {
         ),
     ] {
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
-        let command = tcl_compiler::segmenter::segment_commands(source)
-            .pop()
-            .unwrap();
+        let command = tcl_source::segment::segment_commands(source).pop().unwrap();
         let regions = frame_shifted_dispatch_regions(source, &analysis, profile, &command);
         assert_eq!(
             regions
@@ -74,7 +72,7 @@ fn shifted_dispatch_regions_follow_original_moves_and_known_source_barriers() {
 #[test]
 fn expect_clause_flags_reach_each_clause_body() {
     let source = "expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}";
-    let command = tcl_compiler::segmenter::segment_commands(source)
+    let command = tcl_source::segment::segment_commands(source)
         .into_iter()
         .next()
         .expect("expect command");
@@ -104,7 +102,7 @@ fn expect_clause_flags_reach_each_clause_body() {
 #[test]
 fn inline_expect_clause_flags_reach_each_clause_body() {
     let source = "expect -re {^ready$} {puts ready} -timeout 5 timeout {puts slow}";
-    let command = tcl_compiler::segmenter::segment_commands(source)
+    let command = tcl_source::segment::segment_commands(source)
         .into_iter()
         .next()
         .expect("expect command");
@@ -137,7 +135,7 @@ fn malformed_case_lists_do_not_expose_nested_dispatch_regions() {
         "switch subject {a {puts hidden} orphan}",
         "switch subject {}",
     ] {
-        let command = tcl_compiler::segmenter::segment_commands(source)
+        let command = tcl_source::segment::segment_commands(source)
             .into_iter()
             .next()
             .expect("case-list command");
@@ -161,7 +159,7 @@ fn case_list_aliases_use_positioned_resolved_registry_identity() {
         "interp alias {} pick {} switch\n",
         "pick subject {default {puts through_alias}}\n",
     );
-    let commands = tcl_compiler::segmenter::segment_commands(source);
+    let commands = tcl_source::segment::segment_commands(source);
     assert!(
         nested_dispatch_regions(
             source,
@@ -200,7 +198,7 @@ fn deleted_or_rebound_case_list_aliases_do_not_expose_clause_bodies() {
             "pick subject {default {puts rebound_alias}}\n",
         ),
     ] {
-        let command = tcl_compiler::segmenter::segment_commands(source)
+        let command = tcl_source::segment::segment_commands(source)
             .into_iter()
             .last()
             .expect("alias call");
@@ -226,7 +224,7 @@ fn rooted_and_namespaced_case_list_aliases_expose_clause_bodies() {
         "::root_pick subject {default {puts rooted_alias}}\n",
         "::case_alias::pick subject {default {puts namespaced_alias}}\n",
     );
-    let commands = tcl_compiler::segmenter::segment_commands(source);
+    let commands = tcl_source::segment::segment_commands(source);
     for (command, marker) in [
         (&commands[3], "rooted_alias"),
         (&commands[4], "namespaced_alias"),

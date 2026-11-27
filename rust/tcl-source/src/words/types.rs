@@ -141,7 +141,7 @@ impl WordExpr {
             | Self::BracedLiteral { text, .. }
             | Self::Opaque { text, .. } => text.clone(),
             Self::Variable { spelling, .. } => {
-                crate::word_expr::compatibility_variable_spelling(spelling)
+                crate::words::compatibility_variable_spelling(spelling)
             }
             Self::CommandSubstitution { spelling, .. } => spelling.clone(),
             Self::Template { parts, .. } => parts.iter().map(WordPart::legacy_text).collect(),
@@ -149,7 +149,9 @@ impl WordExpr {
         }
     }
 
-    pub(super) fn from_lossy_snapshot(
+    /// Build opaque geometry when original source-word evidence is unavailable.
+    #[must_use]
+    pub fn from_lossy_snapshot(
         text: &str,
         span: Span,
         kind: tcl_lexer::TokenType,
@@ -234,7 +236,7 @@ impl WordPart {
         match self {
             Self::Text { text, .. } | Self::Opaque { text, .. } => text.clone(),
             Self::Variable { spelling, .. } => {
-                crate::word_expr::compatibility_variable_spelling(spelling)
+                crate::words::compatibility_variable_spelling(spelling)
             }
             Self::CommandSubstitution { spelling, .. } => spelling.clone(),
         }

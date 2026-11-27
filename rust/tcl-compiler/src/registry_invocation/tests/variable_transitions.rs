@@ -60,7 +60,7 @@ fn possible_name_operands_keep_expansion_cardinality_separate_from_name_values()
             crate::command_binding::SourceCommandBindings::analyse(&source, config, registry);
         let offset = source.find(command).unwrap();
         let offset_u32 = u32::try_from(offset).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset..],
             offset_u32,
             config,
@@ -144,7 +144,7 @@ fn possible_method_name_operands_do_not_create_normal_store_proof() {
         },
     );
     let offset = u32::try_from(source.find("set state").unwrap()).unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         "set state VALUE",
         offset,
         config,

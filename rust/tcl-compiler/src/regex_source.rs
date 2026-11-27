@@ -506,7 +506,7 @@ fn regex_pattern_word<'a>(
     stmt: &'a Statement,
     module: &crate::ir::Module,
     registry: &CommandRegistry,
-) -> Option<&'a crate::ir::WordExpr> {
+) -> Option<&'a tcl_source::words::WordExpr> {
     let tokens = stmt.tokens()?;
     let metadata = source_metadata_at(tokens, module, registry)?.context();
     let idx = if let Some(metadata) = metadata.filter(|metadata| {
@@ -552,7 +552,7 @@ fn regex_pattern_word<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
 
     fn spans_text(source: &str) -> Vec<String> {
         spans_text_dialect(source, tcl_dialect::DialectProfile::find("tcl9.0").unwrap())

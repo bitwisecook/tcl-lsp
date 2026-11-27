@@ -71,9 +71,9 @@ use tcl_registry::arg_role::ArgRole;
 use tcl_registry::model::DocumentCommandSurface;
 
 use super::types::{ProcArgTrait, ScriptParameter};
-#[cfg(test)]
-use crate::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
+#[cfg(test)]
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 mod body_scan;
 mod caller_frame;
@@ -427,7 +427,7 @@ impl<'p> ScanCtx<'p, '_> {
     fn body_assistance(
         &self,
         source: &str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> Option<Box<crate::registry_invocation::InvocationBodyAssistance>> {
         let bindings = self.identities.source_bindings_ref();
         if let Some(owner) = self.original_logical_lambda {
@@ -479,7 +479,7 @@ impl<'p> ScanCtx<'p, '_> {
     fn argument_values(
         &self,
         source: &str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         aliases: &Aliases<'p>,
     ) -> ArgumentValues<'p> {
         let Some(executed) = self.executed_source else {
@@ -701,7 +701,7 @@ struct ArgumentValues<'p> {
 impl<'p> ArgumentValues<'p> {
     fn lexical(
         source: &str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         parameters: &HashSet<&'p str>,
         aliases: &Aliases<'p>,
         config: LexerConfig,

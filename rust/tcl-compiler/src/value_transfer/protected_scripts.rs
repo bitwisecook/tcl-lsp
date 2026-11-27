@@ -66,7 +66,7 @@ impl LatticeDriver<'_> {
         {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             script,
             original.as_ref().map_or(
                 0,
@@ -85,7 +85,7 @@ impl LatticeDriver<'_> {
 
     fn run_protected<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
-        commands: &[crate::segmenter::SegmentedCommand],
+        commands: &[tcl_source::segment::SegmentedCommand],
         script: &str,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
@@ -177,7 +177,7 @@ impl LatticeDriver<'_> {
     /// and the runner orders none of them.
     fn protected_loop<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
-        seg: &crate::segmenter::SegmentedCommand,
+        seg: &tcl_source::segment::SegmentedCommand,
         state: &mut EvaluationState,
         from: &LatticeInputs<'_, S1, S2>,
         original: Option<&CommandTokens>,

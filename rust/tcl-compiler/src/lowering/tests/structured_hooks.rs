@@ -275,8 +275,11 @@ fn descriptor_binding_requirement_keeps_original_head_and_exact_metadata_without
         let mut lowerer = Lowerer::new(&registry);
         lowerer.word_space = WordSpace::new(&source, 0, lowerer.source_channel);
         lowerer.command_binding_site_stack.push(Vec::new());
-        let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(&source, 0, lowerer.config);
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
+            &source,
+            0,
+            lowerer.config,
+        );
         let key = registry.get_exact(label).unwrap().descriptor_key();
         lowerer.record_consumed_command_binding(
             &commands[0],

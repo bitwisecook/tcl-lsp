@@ -48,11 +48,15 @@ use bitflags::bitflags;
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ir::{CommandBindingSites, CommandTokens, Statement, WordExpr, WordPart};
+use crate::ir::CommandBindingSites;
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use crate::registry_invocation::{InvocationMetadataContext, NormalRepresentationInvocation};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_shapes::{parse_command_substitution_with_config, whole_word_scalar_var_name};
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 bitflags! {
     /// Properties of a rendered (post-backslash-subst) SSA value.

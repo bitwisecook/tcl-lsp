@@ -30,6 +30,7 @@ authors.workspace = true
 [dependencies]
 
 [dev-dependencies]
+tcl-source = { path = "../tcl-source" }
 # The VM under test, with its `test_support` interpreter constructors.
 tcl-vm = { path = "../tcl-vm", features = ["test-support"] }
 # The source compiler these tests run Tcl through. It sits above `tcl-vm`, so

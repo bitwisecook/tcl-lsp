@@ -53,8 +53,8 @@ fn reportable_dead_assignment(
                     .map(|word| {
                         matches!(
                             word,
-                            crate::ir::WordExpr::Literal { .. }
-                                | crate::ir::WordExpr::BracedLiteral { .. }
+                            tcl_source::words::WordExpr::Literal { .. }
+                                | tcl_source::words::WordExpr::BracedLiteral { .. }
                         )
                     })
             })

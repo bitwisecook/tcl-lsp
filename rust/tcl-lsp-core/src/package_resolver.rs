@@ -185,7 +185,7 @@ pub(super) fn walk_command_words_with_config(
     text: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<Vec<Vec<Token>>> {
-    let Ok(script) = tcl_compiler::segmenter::segment_script_image_with_offset_and_config(
+    let Ok(script) = tcl_source::segment::segment_script_image_with_offset_and_config(
         &tcl_lexer::SourceImage::document(text),
         0,
         config,

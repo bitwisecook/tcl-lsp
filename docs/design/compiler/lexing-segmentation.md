@@ -13,7 +13,7 @@ feed all downstream phases.
 
 Source: `rust/tcl-lexer/src/lexer.rs` (`Lexer`, `LexerConfig`, `tokenise_all`),
 `rust/tcl-lexer/src/tokens.rs`,
-`rust/tcl-compiler/src/segmenter.rs` (`SegmentedCommand`, `segment_commands`)
+`rust/tcl-source/src/segment.rs` (`SegmentedCommand`, `segment_commands`)
 
 ### Stage 1 — Lexing
 
@@ -92,7 +92,7 @@ this adapter; retain independent parser-kind, source-range and consumer checks.
 
 `segment_commands` does not run its own token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
-(`rust/tcl-compiler/src/parsing/syntax/`, see
+(`rust/tcl-source/src/cst/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
 it.  `rust/tcl-compiler/tests/it_4/differential_segment.rs` holds the derivation
 byte-identical to a frozen copy of the earlier token loop, so everything below

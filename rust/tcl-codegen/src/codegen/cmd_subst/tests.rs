@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use tcl_compiler::ir::WordExpr;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 #[test]
 fn a_builtin_is_named_by_any_root_marker() {
@@ -40,7 +40,7 @@ fn original_argument_tokens(
     config: tcl_lexer::LexerConfig,
 ) -> CommandTokens {
     let mut commands =
-        tcl_compiler::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)
             .unwrap();
     assert_eq!(commands.len(), 1);
     CommandTokens::from_segmented(

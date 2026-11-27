@@ -131,7 +131,8 @@ mod tests {
     fn channels(source: &str, profile: &str) -> Vec<OriginalChannelArgument> {
         let analysis = crate::analyser::Analyser::new().analyse(source, profile);
         let config = analysis.body_lexer_config.unwrap();
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,

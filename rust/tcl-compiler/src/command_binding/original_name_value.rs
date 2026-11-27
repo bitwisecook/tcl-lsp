@@ -367,7 +367,7 @@ mod tests;
 /// Match the sole owning IR word against the canonical original image/config
 /// producer. A source offset or equal displayed spelling is insufficient.
 pub(super) fn original_native_word(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     state: &super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<tcl_lexer::NativeWord> {
@@ -386,7 +386,7 @@ pub(super) fn original_native_word(
 }
 
 pub(super) fn capture_word(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     state: &super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalProducedNameValue> {
@@ -534,13 +534,13 @@ pub(super) fn original_variable_invocation(
 pub(super) struct OriginalWrittenSourceWords {
     site: super::CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
-    words: Arc<[crate::ir::WordExpr]>,
+    words: Arc<[tcl_source::words::WordExpr]>,
     dialect: Option<tcl_registry::InvocationDialect>,
 }
 
 impl OriginalWrittenSourceWords {
     pub(super) fn at_dispatch(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
         state: &super::ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
@@ -556,7 +556,7 @@ impl OriginalWrittenSourceWords {
 
     fn at_source(
         origin: &Arc<super::SourceOriginId>,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
         config: tcl_lexer::LexerConfig,
         dialect: Option<tcl_registry::InvocationDialect>,
@@ -933,7 +933,7 @@ impl<'a> OriginalSourceVariableCompilation<'a> {
     ) -> Option<&super::SourceNativeNamespaceBindingPreparation> {
         self.namespace
     }
-    pub(crate) fn original_words(&self) -> &[crate::ir::WordExpr] {
+    pub(crate) fn original_words(&self) -> &[tcl_source::words::WordExpr] {
         &self.original.words
     }
     pub(crate) const fn site(&self) -> &super::CommandAllocationSite {

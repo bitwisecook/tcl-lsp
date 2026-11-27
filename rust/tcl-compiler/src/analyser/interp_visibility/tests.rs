@@ -140,9 +140,12 @@ fn logical_lambda_formal_fields_keep_actual_defaults_names_and_current_source() 
     let mut analyser = Analyser::new();
     analyser.analyse_and_retain_result_for_test(source, "tcl");
     let input = analyser.resolved_analysis_input();
-    let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .remove(0);
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .remove(0);
     let receipt = analyser
         .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
         .unwrap();
@@ -208,7 +211,7 @@ fn logical_lambda_formal_fields_keep_actual_defaults_names_and_current_source() 
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
         let input = analyser.resolved_analysis_input();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -235,9 +238,12 @@ fn lambda_handler_requires_the_selected_parameter_and_body_fields() {
     let mut analyser = Analyser::new();
     analyser.analyse_and_retain_result_for_test(source, "tcl");
     let input = analyser.resolved_analysis_input();
-    let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .remove(0);
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .remove(0);
     let receipt = analyser
         .original_interp_apply_body(command.argv[0], command.arg_tokens(), &[])
         .unwrap();
@@ -275,7 +281,7 @@ fn logical_lambda_namespace_retains_original_fields_and_scope_applicability() {
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
         let input = analyser.resolved_analysis_input();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -352,7 +358,7 @@ fn logical_lambda_namespace_retains_original_fields_and_scope_applicability() {
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
         let input = analyser.resolved_analysis_input();
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

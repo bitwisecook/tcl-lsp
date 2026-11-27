@@ -94,8 +94,8 @@
 //! already anchors on its own base).
 
 use crate::analyser::types::{AutoPathEntry, AutoPathForm};
-use crate::segmenter::segment_commands_with_offset_and_config;
 use std::collections::HashMap;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Every directory one recorded [`AutoPathEntry`] adds to `auto_path`.
 ///
@@ -407,7 +407,7 @@ fn qualified_key(ns_prefix: &str, name: &str) -> String {
 
 /// The `PathConstantValue::Raw` for the word at `word_index` (an index into
 /// `seg.texts`, i.e. counting the command word).
-fn raw_value(seg: &crate::segmenter::SegmentedCommand, word_index: usize) -> PathConstantValue {
+fn raw_value(seg: &tcl_source::segment::SegmentedCommand, word_index: usize) -> PathConstantValue {
     PathConstantValue::Raw {
         text: seg.texts[word_index].clone(),
         literal: seg

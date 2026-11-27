@@ -120,9 +120,9 @@ use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{DeclaredFrameEffects, Statement};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
 
 /// Whether a function accesses variables whose *name* is computed at run
 /// time, split by the direction each blinds.
@@ -1284,7 +1284,7 @@ fn scan_original_expression(
 ) {
     let mut pending = vec![(expression, 0)];
     while let Some((node, depth)) = pending.pop() {
-        if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
             continue;
         }
@@ -1293,7 +1293,7 @@ fn scan_original_expression(
                 let nested = (|| {
                     let parent = parent?;
                     let base = base?;
-                    let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+                    let site = tcl_source::words::SourceSite::source(tcl_lexer::Span::new(
                         base.checked_add(*start)?,
                         base.checked_add(*end)?,
                     ));

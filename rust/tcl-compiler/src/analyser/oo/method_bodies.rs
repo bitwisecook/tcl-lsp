@@ -153,7 +153,7 @@ impl Analyser {
                 continue;
             }
             let base = mb.body_tok.span.start() + u32::from(mb.body_tok.content_offset);
-            let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+            let cmds = tcl_source::segment::segment_commands_with_offset_and_config(
                 &mb.body_text,
                 base,
                 self.file_lexer_config().nested(),

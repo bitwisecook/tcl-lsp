@@ -38,7 +38,7 @@ use tcl_registry::{CommandRegistry, InvocationArguments};
 pub fn source_declared_command_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<crate::command_binding::OriginalDeclaredCommandWords> {
     // naming.source.original-declared-command-word-contract
     // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
@@ -161,7 +161,7 @@ impl OriginalSourceRegistryContext {
     #[must_use]
     pub fn words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         self.realm
             .matches_resolved_analysis_input(&self.input)
@@ -195,7 +195,7 @@ impl OriginalSourceRegistryContext {
     #[must_use]
     pub fn registration_words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::from_image(&self.image),
@@ -240,7 +240,7 @@ impl OriginalSourceRegistryContext {
     /// generic body role, source effect, command selection or edit authority.
     pub(crate) fn conditional_native_case_words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         let source = self.image.try_text().ok()?;
         let context = self.input.context_registry();
@@ -261,7 +261,7 @@ impl OriginalSourceRegistryContext {
 pub fn selected_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     let config = analysis.body_lexer_config?;
@@ -289,7 +289,7 @@ pub(super) fn selected_registry_words_with_context(
     source: &str,
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     context: &tcl_registry::model::ContextRegistry,
 ) -> Option<OriginalRegistryWords> {
     let mut selected =
@@ -315,7 +315,7 @@ fn selected_captured_argument_values(
     source: &str,
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     context: &tcl_registry::model::ContextRegistry,
     selected: &OriginalRegistryWords,
 ) -> Option<std::sync::Arc<crate::command_binding::OriginalSourceCommandTransitionAdvice>> {
@@ -365,7 +365,7 @@ pub fn selected_registry_words_in_realm(
     source: &str,
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     let image = retained_document_image(source, realm, config)?;
@@ -376,7 +376,7 @@ pub(crate) fn selected_registry_words_in_original_image(
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     realm
@@ -404,7 +404,7 @@ pub(super) fn selected_registry_words_from_tokens(
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
     tokens: &crate::ir::CommandTokens,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     registry: &CommandRegistry,
     assistance: &crate::registry_invocation::RegistryInvocationAssistance,
 ) -> Option<OriginalRegistryWords> {
@@ -509,7 +509,7 @@ pub(super) fn conditional_native_case_source_words(
     realm: &crate::realm::CommandBindingRealm,
     input: &crate::analyser::ResolvedAnalysisInput,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     if input.has_hosted_source_name_context()
         || !realm.matches_resolved_analysis_input(input)
@@ -651,7 +651,7 @@ pub(super) fn original_source_argument_words(
 }
 
 pub(super) fn effective_operand_sources(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     tokens: &crate::ir::CommandTokens,
     effective: &crate::registry_invocation::EffectiveCommandWords,
     arguments: &[crate::registry_invocation::EffectiveInvocationWord],

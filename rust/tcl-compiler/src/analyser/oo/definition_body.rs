@@ -57,7 +57,7 @@ fn declares_variables(member: &MemberSpec) -> bool {
 /// variable; the first declaration of a name wins.
 pub(super) fn collect_var_decl_spans(
     grammar: &DefinitionBodyGrammar,
-    cmds: &[crate::segmenter::SegmentedCommand],
+    cmds: &[tcl_source::segment::SegmentedCommand],
     known: &[String],
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
@@ -127,7 +127,7 @@ impl Analyser {
     /// block, populating `class_def` from each subcommand.
     ///
     /// The body is re-segmented via
-    /// [`crate::segmenter::segment_commands_with_offset`] (no
+    /// [`tcl_source::segment::segment_commands_with_offset`] (no
     /// recovery — recovery is top-level only).  Dynamic bodies
     /// (non-`Str` tokens) skip the walk because they can't be
     /// statically re-segmented.
@@ -286,14 +286,14 @@ impl Analyser {
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // A translating Document channel folds CRLF in the cooked value; the
         // member spans below are original offsets, so segment the region.
-        let body_text = crate::segmenter::braced_body_source_region(
+        let body_text = tcl_source::segment::braced_body_source_region(
             &self.source,
             base_offset as usize,
             body_tok.span.end().saturating_sub(1) as usize,
             body_text,
         )
         .to_owned();
-        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        let cmds = tcl_source::segment::segment_commands_with_offset_and_config(
             &body_text,
             base_offset,
             self.file_lexer_config().nested(),
@@ -377,7 +377,7 @@ impl Analyser {
     fn collect_oo_definition_members(
         &mut self,
         grammar: &DefinitionBodyGrammar,
-        cmds: &[crate::segmenter::SegmentedCommand],
+        cmds: &[tcl_source::segment::SegmentedCommand],
         class_def: &mut ClassDef,
         scope_path: &[usize],
         definer_disabled: bool,
@@ -403,7 +403,7 @@ impl Analyser {
     fn collect_oo_definition_member(
         &mut self,
         grammar: &DefinitionBodyGrammar,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         class_def: &mut ClassDef,
         scope_path: &[usize],
         definer_disabled: bool,
@@ -625,7 +625,7 @@ pub(super) fn collect_class_level_bodies(
 /// parameters or a body span pointing at the wrong text.
 ///
 /// Element spans come from the segmenter
-/// ([`crate::segmenter::flatten_clause_list_elements_with_config`]), so each spliced
+/// ([`tcl_source::segment::flatten_clause_list_elements_with_config`]), so each spliced
 /// word carries its own true source range and downstream consumers
 /// (document symbols, `my`-dispatch, hover) get real positions rather than
 /// the whole-list span.
@@ -704,7 +704,7 @@ pub(super) fn expand_wrapper_block_members(
         return None;
     }
     let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+    let cmds = tcl_source::segment::segment_commands_with_offset_and_config(
         body_text,
         base_offset,
         config.nested(),
@@ -733,7 +733,7 @@ pub(super) fn expand_wrapper_block_members(
 
 pub(super) fn splice_static_member_expansions(
     source: &str,
-    cmd: &crate::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     config: tcl_lexer::LexerConfig,
 ) -> Option<(Vec<String>, Vec<Token>)> {
     let expand = cmd.expand_word.as_ref()?;
@@ -749,9 +749,11 @@ pub(super) fn splice_static_member_expansions(
             && cmd.single_token_word.get(i).copied().unwrap_or(false);
         if is_static_expansion {
             spliced = true;
-            for (element, element_tok) in crate::segmenter::flatten_clause_list_elements_with_config(
-                source, text, *tok, config,
-            ) {
+            for (element, element_tok) in
+                tcl_source::segment::flatten_clause_list_elements_with_config(
+                    source, text, *tok, config,
+                )
+            {
                 texts.push(element);
                 argv.push(element_tok);
             }

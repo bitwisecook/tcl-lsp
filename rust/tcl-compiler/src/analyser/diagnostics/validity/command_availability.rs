@@ -154,11 +154,11 @@ impl Analyser {
             ),
             AuthoredSourceSubcommandDiagnostic::Unknown { candidates } => {
                 let mut message = format!("Unknown subcommand '{word}' for '{command}'");
-                let suggestions = crate::text::suggest_similar(
+                let suggestions = tcl_source::text::suggest_similar(
                     word,
                     candidates.iter().copied(),
                     1,
-                    crate::text::scaled_max_distance(word),
+                    tcl_source::text::scaled_max_distance(word),
                 );
                 let fixes = suggestions
                     .first()

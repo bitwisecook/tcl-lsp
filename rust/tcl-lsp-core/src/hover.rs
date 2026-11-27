@@ -162,19 +162,15 @@ pub fn may_have_foreign_factory_hover(
     }
     let index = tcl_lexer::LineIndex::new(source);
     let offset = crate::definition::byte_offset_at(&index, source, line, character);
-    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-        source,
-        0,
-        input.lexer_config(),
-    )
-    .iter()
-    .any(|command| {
-        !command.is_partial
-            && command
-                .argv
-                .get(2)
-                .is_some_and(|word| word.span.start() <= offset && offset < command.span.end())
-    })
+    tcl_source::segment::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
+        .iter()
+        .any(|command| {
+            !command.is_partial
+                && command
+                    .argv
+                    .get(2)
+                    .is_some_and(|word| word.span.start() <= offset && offset < command.span.end())
+        })
 }
 
 /// Present an original conditional foreign class or member occurrence.

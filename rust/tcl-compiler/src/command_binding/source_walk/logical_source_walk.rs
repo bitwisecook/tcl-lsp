@@ -83,8 +83,8 @@ impl SourceCommandBindings {
     /// an actual activation or a Native completion.
     fn logical_called_source_body(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
@@ -182,8 +182,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     pub(super) fn walk_logical_called_source(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         compiled: &compiled_invocation::CompiledInvocationSelection,
         state: &mut ModuleCommandBindings,
@@ -202,7 +202,7 @@ impl SourceCommandBindings {
         branch.source_variables = Arc::new(variables);
         branch.variable_frame = body.frame.clone();
         branch.current_source_origin = Some(Arc::clone(&body.source.origin));
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &body.source.text,
             body.source.base(),
             context.config,
@@ -264,8 +264,8 @@ impl SourceCommandBindings {
     /// Descend a single authored namespace body under the Logical source owner.
     /// This supplies a source continuation only, never a Native handler receipt.
     fn logical_namespace_source_target(
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
@@ -359,8 +359,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     pub(super) fn walk_logical_namespace_source(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         compiled: &compiled_invocation::CompiledInvocationSelection,
         state: &mut ModuleCommandBindings,

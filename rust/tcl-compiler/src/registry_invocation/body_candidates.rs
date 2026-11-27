@@ -458,7 +458,7 @@ pub(crate) fn segmented_body_assistance(
     bindings: &crate::command_binding::SourceCommandBindings,
     source: &str,
     config: tcl_lexer::LexerConfig,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     base: u32,
     metadata: Option<&tcl_registry::model::ContextRegistry>,
 ) -> Option<Box<InvocationBodyAssistance>> {

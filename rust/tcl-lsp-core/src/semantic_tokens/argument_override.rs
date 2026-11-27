@@ -189,7 +189,7 @@ pub(super) fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) ->
 /// consulted against the registry's declared option tables.  A plain
 /// single-token bareword head (`puts`, a user proc) is *not* computed and stays
 /// on the registry-precise path.
-pub(super) fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
+pub(super) fn head_is_computed(seg: &tcl_source::segment::SegmentedCommand) -> bool {
     seg.argv
         .first()
         .is_some_and(|t| matches!(t.kind, TokenType::Var | TokenType::Cmd))

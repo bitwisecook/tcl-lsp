@@ -95,8 +95,11 @@ fn original_logical_unknown_callback_stays_open_without_compiler_admission() {
     assert!(binding.unknown);
     assert!(binding.proved_execution_target().is_none());
     assert!(binding.proved_handler_target().is_none());
-    let segments =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config());
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    );
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         input.lexer_config(),

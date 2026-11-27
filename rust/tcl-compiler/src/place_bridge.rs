@@ -35,8 +35,6 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
 use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
-#[cfg(test)]
-use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{
     command_subst_texts_with_config, scan_var_ref_forms_braced_with_config, vars_in_expr,
@@ -44,6 +42,8 @@ use crate::var_refs::{
 use crate::var_resolve::ResolveContext;
 #[cfg(test)]
 use crate::var_resolve::resolve_place;
+#[cfg(test)]
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 pub use crate::variable_bindings::{
     PointResolveContexts, build_point_resolve_contexts, build_point_resolve_contexts_with_entry,
