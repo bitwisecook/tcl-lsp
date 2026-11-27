@@ -91,6 +91,7 @@ fn source_regexp_warnings(
         quoted_uses: None,
         source_read: None,
         source,
+        withdrawn_writes: None,
     };
     let mut warnings = Vec::new();
     emit_regexp_pattern_warnings(
@@ -507,22 +508,30 @@ fn t100_silent_for_apply_tainted_argument() {
     );
 }
 
-/// FP fix / TN: `subst -nocommands $tainted` — the exact mitigation
-/// `subst`'s own hover snippet recommends — must not raise T100, since
-/// `-nocommands` disables the only hazard (command substitution) the
-/// code names.
+/// `subst -nocommands -novariables $tainted` runs no script, so it is no
+/// code sink. `-nocommands` alone still substitutes variables, and the
+/// `[cmd]` in an array index (`$a([cmd])`) runs under every Tcl release.
 #[test]
-fn t100_silent_for_subst_nocommands() {
+fn t100_for_subst_only_while_variables_or_commands_are_substituted() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let source = "set x [gets stdin]\nsubst -nocommands $x\n";
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-    assert!(
-        warnings.iter().all(|w| w.code != DiagCode::T100),
-        "subst -nocommands must not raise T100, got {warnings:?}",
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
+    for (switches, fires) in [
+        ("-nocommands -novariables", false),
+        ("-nocommands", true),
+        ("-nocommands -nobackslashes", true),
+    ] {
+        let source = format!("set x [gets stdin]\nsubst {switches} $x\n");
+        let cu = CompilationUnit::build_for(&source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            fires,
+            "subst {switches}: {warnings:?}",
+        );
+    }
 }
 
 /// TP regression: plain `subst $tainted` (no flags) keeps raising T100 —
@@ -544,19 +553,19 @@ fn t100_fires_for_subst_without_nocommands() {
     );
 }
 
-/// TN: the Tcl 9.1 positive option form without `-commands` is equally
-/// safe — `-variables` alone never runs command substitution.
+/// TN: the Tcl 9.1 positive form `-backslashes` alone runs no script.
+/// `-variables` does: tclsh 9.1.0 runs the `[cmd]` in `$a([cmd])`.
 #[test]
-fn t100_silent_for_subst_positive_form_without_commands() {
+fn t100_silent_for_subst_positive_backslashes_only() {
     use crate::compilation_unit::CompilationUnit;
     let registry = CommandRegistry::build_default();
-    let source = "set x [gets stdin]\nsubst -variables $x\n";
+    let source = "set x [gets stdin]\nsubst -backslashes $x\n";
     let cu =
         CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
     let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
     assert!(
         warnings.iter().all(|w| w.code != DiagCode::T100),
-        "subst -variables (Tcl 9.1 positive form) must not raise T100, got {warnings:?}",
+        "subst -backslashes (Tcl 9.1 positive form) must not raise T100, got {warnings:?}",
     );
 }
 

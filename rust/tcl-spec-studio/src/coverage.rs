@@ -266,6 +266,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_transform: _, taint_transform_when: _, taint_double_encode_colour: _,
         taint_sink_safe_colour: _,
         taint_sink_gate: _,
+        taint_validator: _,
         taint_numeric_coercion: _,
         credential_options: _,
         channel_configuration: _,
@@ -541,6 +542,12 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("taint_sink_safe_colour"),
     ),
     f("taint_sink_gate", Surface::Key("taint_sink_gate")),
+    f(
+        "taint_validator",
+        Surface::Excluded(
+            "A native validator over a call's literal words (design 393 `refines`); SpecTcl has no spelling for it yet.",
+        ),
+    ),
     f(
         "channel_configuration",
         Surface::Key("channel_configuration"),

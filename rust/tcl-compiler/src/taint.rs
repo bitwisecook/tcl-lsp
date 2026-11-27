@@ -1105,6 +1105,9 @@ struct TaintScan<'a, S> {
     source_read: Option<SourceWarningRead<'a>>,
     /// Retained grammar and metadata for wrapper mitigation candidates.
     source: TaintSourceContext<'a>,
+    /// For a sink reached after the command world was withdrawn, what each
+    /// unversioned variable may hold ([`definition_taint::withdrawn_world_writes`]).
+    withdrawn_writes: Option<&'a HashMap<String, TaintLattice>>,
 }
 
 /// Emit one warning per tainted use flowing into a classified sink.

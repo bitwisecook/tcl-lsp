@@ -155,6 +155,7 @@ impl std::fmt::Debug for SourceInvocationBinding {
             .field("provider_state_taint", &self.provider_state_taint)
             .field("declared_command", &self.declared_command)
             .field("catalogue_command", &self.catalogue_command)
+            .field("withdrawn_world_head", &self.withdrawn_world_head)
             .field("variable_frame", &self.variable_frame)
             .field("known_namespaces", &self.known_namespaces)
             .field("evaluated_argument_values", &self.evaluated_argument_values)
@@ -434,6 +435,7 @@ impl Default for SourceInvocationBinding {
             provider_state_taint: Vec::new(),
             declared_command: None,
             catalogue_command: None,
+            withdrawn_world_head: None,
             variable_context: Arc::default(),
             original_argument_completion: OriginalArgumentCompletion::Unknown,
             normal_variable_continuation: None,
@@ -501,6 +503,7 @@ impl Hash for SourceInvocationBinding {
         self.may_be_absent.hash(state);
         self.declared_command.hash(state);
         self.catalogue_command.hash(state);
+        self.withdrawn_world_head.hash(state);
         self.provider_state_taint.hash(state);
         self.evaluated_argument_values.hash(state);
         self.evaluated_argument_words.hash(state);
@@ -832,6 +835,16 @@ impl SourceInvocationBinding {
             .retain(|prefix| other.method_prefix_arguments.contains(prefix));
     }
 
+    /// Either side's withdrawn-world head is advice the join keeps, unless
+    /// the two name different commands.
+    fn join_withdrawn_world_head(&mut self, other: &Self) {
+        match (&self.withdrawn_world_head, &other.withdrawn_world_head) {
+            (None, Some(head)) => self.withdrawn_world_head = Some(head.clone()),
+            (Some(head), Some(other)) if head != other => self.withdrawn_world_head = None,
+            _ => {}
+        }
+    }
+
     pub(super) fn join(&mut self, other: &Self) {
         if self.original_logical_declaration_targets != other.original_logical_declaration_targets {
             self.original_logical_declaration_targets = None;
@@ -901,6 +914,7 @@ impl SourceInvocationBinding {
         if self.catalogue_command != other.catalogue_command {
             self.catalogue_command = None;
         }
+        self.join_withdrawn_world_head(other);
         self.unknown |= other.unknown;
         self.may_be_absent |= other.may_be_absent;
         if !Arc::ptr_eq(&self.known_namespaces, &other.known_namespaces)

@@ -30,15 +30,21 @@ use tcl_source::words::WordExpr;
 #[must_use]
 pub fn effective_command_words(tokens: &CommandTokens) -> Option<EffectiveCommandWords> {
     let Some(binding) = &tokens.source_binding else {
-        return Some(EffectiveCommandWords {
-            words: tokens.words().to_vec(),
-            origins: (0..tokens.words().len())
-                .map(InvocationWordOrigin::Written)
-                .collect(),
-            binding_prefix: Vec::new(),
-        });
+        return Some(written_command_words(tokens));
     };
     effective_words_for_target(tokens, binding.proved_execution_target()?)
+}
+
+/// The written words alone, with no binding prefix: what a command reached
+/// with no proved target is passed, read as advice only.
+pub(crate) fn written_command_words(tokens: &CommandTokens) -> EffectiveCommandWords {
+    EffectiveCommandWords {
+        words: tokens.words().to_vec(),
+        origins: (0..tokens.words().len())
+            .map(InvocationWordOrigin::Written)
+            .collect(),
+        binding_prefix: Vec::new(),
+    }
 }
 
 pub(super) fn original_logical_prefix_for_tokens<'a>(

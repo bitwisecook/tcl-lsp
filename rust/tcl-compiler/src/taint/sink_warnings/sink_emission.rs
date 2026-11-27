@@ -373,12 +373,7 @@ pub(in super::super) fn emit_sink_warnings<S: std::hash::BuildHasher>(
         if var_consumed_by_sanitiser(call, name) {
             continue;
         }
-        // What reaches the sink is the wrapper's result, not the variable, so
-        // the mitigations below judge the wrapper's proofs rather than the
-        // variable's — the same lattice the via-variable spelling would have
-        // handed them.
-        let t = var_wrapper_colours(call.registry, call.source, call.args, name, call.tokens, 0)
-            .map_or(t, |colours| t.shape_unproven().with(colours));
+        let t = wrapped_operand_taint(env, call, name, t);
         // Per-code mitigation suppression (T101, IRULE3001–3004).
         if sink_colour_mitigated(code, t) {
             continue;
@@ -486,4 +481,47 @@ fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
             .get(index)
             .is_some_and(|arg| arg_var_names_with_config(arg, call.source.config).may_contain(name))
     })
+}
+
+/// What reaches the sink is the wrapper's result, not the variable, so the
+/// mitigations judge the wrapper's proofs. A wrapper that is a procedure adds
+/// the mitigations its solved summary proves; a summary never clears the
+/// variable's own taint.
+fn wrapped_operand_taint<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
+    call: &SinkCall<'_>,
+    name: &str,
+    t: TaintLattice,
+) -> TaintLattice {
+    let wrapped = var_wrapper_colours(call.registry, call.source, call.args, name, call.tokens, 0);
+    let t = wrapped.map_or(t, |colours| t.shape_unproven().with(colours));
+    wrapped
+        .and_then(|_| summarised_wrapper_taint(env, call, name))
+        .filter(|summarised| summarised.is_tainted())
+        .map_or(t, |summarised| t.with(summarised.colours))
+}
+
+/// The join, under the solved procedure summaries, of every sink argument
+/// word that reads `name`.
+fn summarised_wrapper_taint<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
+    call: &SinkCall<'_>,
+    name: &str,
+) -> Option<TaintLattice> {
+    let tokens = call.tokens?;
+    let mut joined: Option<TaintLattice> = None;
+    for (index, arg) in call.args.iter().enumerate() {
+        if !super::super::arg_var_names_with_config(arg, call.source.config).may_contain(name) {
+            continue;
+        }
+        let taint = super::pattern_operands::summarised_pattern_taint(
+            env,
+            call.registry,
+            tokens,
+            call.argument_offset + index,
+            arg,
+        )?;
+        joined = Some(joined.map_or(taint, |held| held.join(taint)));
+    }
+    joined
 }

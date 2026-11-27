@@ -206,7 +206,9 @@ fn unmodelled_native_reentry(
             WorldStateDomain::LegacyExternal(SideEffectTarget::FileIo | SideEffectTarget::Process)
         )
     });
-    if host_io {
+    // Every command that installs a handler withdraws the stock channel
+    // proof, so while it holds no channel has one to run.
+    if host_io && !state.stock_tclsh_stdout {
         NativeReentry::ChannelHandler
     } else {
         NativeReentry::None

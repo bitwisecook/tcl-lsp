@@ -728,6 +728,10 @@ pub struct SourceInvocationBinding {
     /// Applicable nominal catalogue slot, including an unloaded provider.
     /// This carries assistance only and never establishes an implementation.
     pub catalogue_command: Option<DeclaredCommandCandidate>,
+    /// The written head of a dispatch reached after an opaque step withdrew
+    /// the command world. A may-analysis reads it as the command that ran
+    /// before the withdrawal; it never establishes an implementation.
+    pub(crate) withdrawn_world_head: Option<String>,
     /// Authoritative variable bindings, traces, lifetimes and allocation facts.
     pub variable_context: Arc<crate::var_resolve::ResolveContext>,
     original_argument_completion: OriginalArgumentCompletion,

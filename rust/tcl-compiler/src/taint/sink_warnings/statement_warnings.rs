@@ -40,7 +40,13 @@ use super::pattern_operands::emit_regexp_pattern_warnings;
 use super::sink_emission::emit_sink_warnings;
 use super::source_reads::SourceWarningMetadata;
 
-fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+/// Classify every command substitution in the statement's written argument
+/// words as an invocation of its own. A substitution in the command word is
+/// [`emit_command_head_substitution_warnings`]'s, so it is skipped here.
+fn emit_original_argument_substitution_warnings<
+    S: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
     ssa_stmt: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
@@ -64,7 +70,13 @@ fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::
     ) else {
         return;
     };
+    let head = parent.words().first().map(|word| word.source().span);
     for child in children {
+        if head.is_some_and(|head| {
+            head.start() <= child.span.start() && child.span.end() <= head.end()
+        }) {
+            continue;
+        }
         if let Some(tokens) = child.tokens {
             emit_retained_invocation_warnings(&tokens, ssa_stmt, taints, warnings, source, context);
         }
@@ -105,7 +117,7 @@ pub(in super::super) fn emit_statement_warnings<
     let stmt = &ssa_stmt.statement;
 
     if !context.source.allows_nominal_metadata() && matches!(stmt, Statement::AssignValue { .. }) {
-        emit_original_assign_value_warnings(ssa_stmt, taints, warnings, source, context);
+        emit_original_argument_substitution_warnings(ssa_stmt, taints, warnings, source, context);
         return;
     }
 
@@ -188,12 +200,7 @@ pub(in super::super) fn emit_statement_warnings<
     if let Some(tokens) = tokens
         && tokens.source_binding.is_some()
     {
-        // A proved wrapper's argument boundary is where its substituted words
-        // reach the wrapper: `eval p $x s` hands the concatenated script to
-        // `eval` there, while its phases and residual boundary pass nothing.
-        let wrapper = tokens.evaluated_arguments_invocation();
-        let tokens = wrapper.as_ref().unwrap_or(tokens);
-        emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
+        emit_bound_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
         return;
     }
 
@@ -223,6 +230,26 @@ pub(in super::super) fn emit_statement_warnings<
         ssa,
         context,
     );
+}
+
+/// A bound invocation, and every substitution in its written arguments.
+fn emit_bound_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    tokens: &CommandTokens,
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    source: crate::ssa::SsaSourceView<'_>,
+    context: &SinkWarningContext<'_, H>,
+) {
+    // A proved wrapper's argument boundary is where its substituted words
+    // reach the wrapper: `eval p $x s` hands the concatenated script to
+    // `eval` there, while its phases and residual boundary pass nothing.
+    let wrapper = tokens.evaluated_arguments_invocation();
+    let tokens = wrapper.as_ref().unwrap_or(tokens);
+    emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
+    if !context.source.allows_nominal_metadata() {
+        emit_original_argument_substitution_warnings(ssa_stmt, taints, warnings, source, context);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -314,7 +341,7 @@ type RetainedSinkCandidate = (
     Option<SourceWarningMetadata>,
 );
 
-fn retained_sink_candidates<H>(
+fn retained_sink_candidates<H: std::hash::BuildHasher>(
     tokens: &CommandTokens,
     context: &SinkWarningContext<'_, H>,
 ) -> (Vec<RetainedSinkCandidate>, bool) {
@@ -334,7 +361,7 @@ fn retained_sink_candidates<H>(
     )
 }
 
-fn ordinary_retained_sink_candidates<H>(
+fn ordinary_retained_sink_candidates<H: std::hash::BuildHasher>(
     tokens: &CommandTokens,
     context: &SinkWarningContext<'_, H>,
 ) -> (Vec<RetainedSinkCandidate>, bool) {
@@ -399,6 +426,11 @@ fn ordinary_retained_sink_candidates<H>(
                 .map(|shape| (shape.command, shape.effective, None)),
         );
     }
+    if candidates.is_empty()
+        && let Some(candidate) = withdrawn_world_sink_candidate(tokens, context)
+    {
+        candidates.push(candidate);
+    }
     if let Some(hosted) =
         crate::registry_invocation::hosted_source_taint_invocation(context.registry, tokens)
             .filter(|_| context.source.metadata.is_some() && !native_source)
@@ -431,6 +463,65 @@ fn ordinary_retained_sink_candidates<H>(
         ));
     }
     (candidates, native_source)
+}
+
+/// A dispatch reached after an opaque step withdrew the command world may
+/// still run the registry command its head named, unless this module defines
+/// a command by that name. A possible sink is reported, never proved.
+fn withdrawn_world_sink_candidate<H: std::hash::BuildHasher>(
+    tokens: &CommandTokens,
+    context: &SinkWarningContext<'_, H>,
+) -> Option<RetainedSinkCandidate> {
+    let binding = tokens
+        .source_binding
+        .as_ref()
+        .filter(|binding| binding.unknown)?;
+    let bare = binding
+        .withdrawn_world_head
+        .as_deref()?
+        .trim_start_matches("::");
+    if context.shadowed_builtins.contains(bare) || context.registry.get(bare).is_none() {
+        return None;
+    }
+    let effective = crate::registry_invocation::written_command_words(tokens);
+    Some((bare.to_owned(), effective, None))
+}
+
+fn withdrawn_world_writes<S: std::hash::BuildHasher>(
+    ssa: &SsaFunction,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    source: super::super::TaintSourceContext<'_>,
+) -> HashMap<String, TaintLattice> {
+    super::super::definition_taint::withdrawn_world_writes(
+        ssa,
+        taints,
+        TaintCtx {
+            registry,
+            ssa,
+            interproc: None,
+            known_procs: None,
+            dialect,
+            source,
+            taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
+            source_tokens: None,
+            word_offset: None,
+            source_word: None,
+        },
+    )
+}
+
+fn names_withdrawn_world_head(tokens: &CommandTokens, command: &str) -> bool {
+    tokens.source_binding.as_ref().is_some_and(|binding| {
+        binding.unknown
+            && binding
+                .withdrawn_world_head
+                .as_deref()
+                .is_some_and(|head| head.trim_start_matches("::") == command)
+    })
 }
 
 /// Diagnostics may inspect a known possible sink without upgrading its shape
@@ -474,7 +565,10 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
             (None, Some(reads)) => Some(SourceWarningMetadata::Original(Box::new(reads))),
             (invocation, None) => invocation,
         };
-        if !context.source.allows_nominal_metadata() && source_metadata.is_none() {
+        if !context.source.allows_nominal_metadata()
+            && source_metadata.is_none()
+            && !names_withdrawn_world_head(tokens, &command)
+        {
             continue;
         }
         let Some(args) = effective.argument_spellings(args) else {
@@ -632,6 +726,9 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop
     // (T100/output/log, then T102, then T104/T105).
 
+    let withdrawn_writes = tokens
+        .is_some_and(|tokens| names_withdrawn_world_head(tokens, command))
+        .then(|| withdrawn_world_writes(ssa, taints, registry, dialect, sink_call.source));
     let env = TaintScan {
         uses,
         taints,
@@ -639,6 +736,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         quoted_uses: Some(&ssa_stmt.quoted_uses),
         source_read: sink_call.source_read,
         source: sink_call.source,
+        withdrawn_writes: withdrawn_writes.as_ref(),
     };
 
     // T103: tainted data in a regexp/regsub pattern position.

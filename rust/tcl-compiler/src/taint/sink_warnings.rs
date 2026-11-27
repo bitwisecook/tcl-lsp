@@ -37,6 +37,7 @@ mod sink_emission;
 mod sink_wrappers;
 mod source_reads;
 mod statement_warnings;
+mod validators;
 
 pub(super) use branch_conditions::emit_branch_condition_warnings;
 #[cfg(test)]
@@ -465,6 +466,9 @@ fn taint_warning_report_impl<
         unavailable_replays: Some(&unavailable_replays),
     };
     let mut warnings: Vec<TaintWarning> = Vec::new();
+    let guards =
+        validators::ValidatorGuards::new(cfg, ssa, context.registry, context.source.config);
+    let rebound = names_written_as_arguments(ssa);
 
     for bn in cfg_order(cfg) {
         if !executable_blocks.contains(&bn) {
@@ -475,6 +479,7 @@ fn taint_warning_report_impl<
         };
 
         for (index, ssa_stmt) in ssa_block.statements.iter().enumerate() {
+            let from = warnings.len();
             emit_statement_warnings(
                 ssa_stmt,
                 taints,
@@ -482,6 +487,14 @@ fn taint_warning_report_impl<
                 crate::ssa::SsaSourceView::at_statement(ssa, bn, index),
                 context,
                 command_head_ctx,
+            );
+            retain_unrebound_advice(&ssa_stmt.statement, &rebound, &mut warnings, from);
+            guards.retain_unvalidated(
+                bn,
+                &ssa_stmt.uses,
+                context.shadowed_builtins,
+                &mut warnings,
+                from,
             );
         }
         let branch_ctx = BranchTaintCtx {
@@ -504,6 +517,47 @@ fn taint_warning_report_impl<
         TaintReplayAnalysis::Unavailable { unavailable }
     };
     TaintWarningReport { warnings, replays }
+}
+
+/// Every word a statement of this function passes as an argument. A
+/// withdrawn-world head named here may have been rebound (`rename p puts`,
+/// `interp alias {} puts {} p`), so it is no advice.
+fn names_written_as_arguments(ssa: &SsaFunction) -> HashSet<String> {
+    ssa.blocks
+        .values()
+        .flat_map(|block| &block.statements)
+        .filter_map(|statement| statement.statement.tokens())
+        .flat_map(|tokens| tokens.argv_texts.iter().skip(1))
+        .map(|word| word.trim_start_matches("::").to_owned())
+        .collect()
+}
+
+/// Drop the warnings a statement's withdrawn-world advice raised when the
+/// function may have rebound that head.
+fn retain_unrebound_advice(
+    statement: &crate::ir::Statement,
+    rebound: &HashSet<String>,
+    warnings: &mut Vec<TaintWarning>,
+    from: usize,
+) {
+    let Some(head) = statement
+        .tokens()
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        .filter(|binding| binding.unknown)
+        .and_then(|binding| binding.withdrawn_world_head.as_deref())
+        .map(|head| head.trim_start_matches("::"))
+        .filter(|head| rebound.contains(*head))
+    else {
+        return;
+    };
+    let mut index = from;
+    while index < warnings.len() {
+        if warnings[index].sink_command == head {
+            warnings.remove(index);
+        } else {
+            index += 1;
+        }
+    }
 }
 
 /// Per-block context for the branch-condition taint scan, bundled so

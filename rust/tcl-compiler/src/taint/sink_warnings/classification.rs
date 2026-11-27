@@ -53,7 +53,8 @@ use super::source_reads::SourceWarningMetadata;
 ///
 /// Before any of that, a command declaring
 /// [`tcl_registry::CommandSpec::taint_sink_gate`] gets one more check: when
-/// this call's own option flags disable its hazard (`subst -nocommands`),
+/// this call's own option flags disable its hazard (`subst -nocommands
+/// -novariables`),
 /// the call is not a sink at all, regardless of which code it would
 /// otherwise have classified as.
 pub(in super::super) fn classify_sink(
@@ -64,7 +65,7 @@ pub(in super::super) fn classify_sink(
 ) -> Option<(DiagCode, String)> {
     let canonical_command = registry.get(command).map_or(command, |spec| spec.name);
     // A call whose own option flags disable this command's hazard for
-    // *this* invocation (e.g. `subst -nocommands $tainted`) is not a sink
+    // *this* invocation (e.g. `subst -nocommands -novariables $x`) is not a sink
     // at all — checked before any classification below.
     if let Some(spec) = registry.get(command)
         && let Some(gate) = spec.taint_sink_gate
@@ -154,6 +155,16 @@ pub(in super::super) fn selected_sink_schema<'a>(
         return None;
     }
     let tokens = call.tokens?;
+    if let Some(binding) = tokens.source_binding.as_ref()
+        && binding.unknown
+        && binding
+            .withdrawn_world_head
+            .as_deref()
+            .is_some_and(|head| head.trim_start_matches("::") == call.command)
+    {
+        let spec = call.registry.get(call.command)?;
+        return Some((spec, spec.name.to_owned(), call.args.to_vec()));
+    }
     let selected = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         call.registry,
         Some(context),

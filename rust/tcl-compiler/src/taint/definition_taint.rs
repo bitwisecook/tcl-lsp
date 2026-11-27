@@ -491,3 +491,84 @@ pub(super) fn join_uses<S: std::hash::BuildHasher>(
     }
     t
 }
+
+/// What each variable a withdrawn-world dispatch writes may hold, by name.
+///
+/// After an opaque step withdraws the command world, a write such as
+/// `set y [subst $x]` is no proved store, so SSA gives `y` no version. A
+/// may-analysis reading the dispatch as the registry command its head named
+/// before the withdrawal takes the join of every such write: a source's
+/// written variable is tainted, any other carries its value words' taint.
+pub(super) fn withdrawn_world_writes<S: std::hash::BuildHasher>(
+    ssa: &SsaFunction,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+) -> HashMap<String, TaintLattice> {
+    let mut writes: HashMap<String, TaintLattice> = HashMap::new();
+    for block in ssa.blocks.values() {
+        for statement in &block.statements {
+            let Statement::Call {
+                args,
+                tokens: Some(tokens),
+                ..
+            } = &statement.statement
+            else {
+                continue;
+            };
+            let Some(head) = tokens
+                .source_binding
+                .as_ref()
+                .filter(|binding| binding.unknown)
+                .and_then(|binding| binding.withdrawn_world_head.as_deref())
+                .map(|head| head.trim_start_matches("::"))
+            else {
+                continue;
+            };
+            let Some(target) = ctx
+                .registry
+                .get(head)
+                .and_then(|spec| spec.assigns_variable_at)
+                .map(usize::from)
+            else {
+                continue;
+            };
+            let config = ctx.lexer_config();
+            let Some(name) = tokens.word_exprs.get(target + 1).and_then(|word| {
+                super::sink_warnings::static_word_expr_value(
+                    word,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )
+            }) else {
+                continue;
+            };
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            let taint = if tcl_registry::taint::is_taint_source(
+                ctx.registry,
+                head,
+                &arg_refs,
+                dialect_to_point(ctx.dialect),
+            ) {
+                TaintLattice::tainted()
+            } else {
+                args.iter()
+                    .enumerate()
+                    .filter(|(index, _)| *index != target)
+                    .fold(TaintLattice::clean(), |taint, (index, arg)| {
+                        let arg_ctx = TaintCtx {
+                            source_tokens: Some(tokens),
+                            word_offset: tokens.argv.get(index + 1).map(|span| span.start()),
+                            source_word: tokens.word_exprs.get(index + 1),
+                            ..ctx
+                        };
+                        taint.join(word_taint(arg, &statement.uses, taints, arg_ctx))
+                    })
+            };
+            writes
+                .entry(name)
+                .and_modify(|held| *held = held.join(taint))
+                .or_insert(taint);
+        }
+    }
+    writes
+}

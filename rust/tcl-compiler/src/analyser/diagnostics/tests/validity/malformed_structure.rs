@@ -42,13 +42,22 @@ fn e007_needs_the_actual_store_and_the_same_initialised_constant() {
     }
     assert!(!has_code(source, "tcl8.6", "E007"));
     assert!(has_code(source, "tcl8.6", "W002"));
+    // While the stock channel proof holds no channel carries a Tcl handler,
+    // so host I/O runs none: tclsh 9.1.0 rejects each of these final stores.
     for source in [
         "const fixed 3; puts -nonewline stdout ready; set fixed 4",
         "const fixed 3; chan put stdout ready; set fixed 4",
         "const fixed 3; chan puts stdout ready; set fixed 4",
         "const fixed 3; read stdin; set fixed 4",
-        "const fixed 3; exec true >@stdout; set fixed 4",
         "const fixed 3; catch {puts -nonewline stdout ready}; set fixed 4",
+    ] {
+        assert!(
+            has_code(source, "tcl9.1", "E007"),
+            "missing E007 for {source:?}"
+        );
+    }
+    for source in [
+        "const fixed 3; exec true >@stdout; set fixed 4",
         "const fixed 3; update; set fixed 4",
         "const fixed 3; update idletasks; set fixed 4",
         "const fixed 3; vwait ready; set fixed 4",

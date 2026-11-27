@@ -24,8 +24,8 @@ use tcl_dialect::model::SpecSurface;
 /// once evaluated, the same "unknowable statically" reasoning `eval` /
 /// `apply` document on their own `Unknown` side effects — except `subst`
 /// only evaluates a command when one is actually embedded in `string`
-/// *and* command substitution is enabled for this call (see
-/// `subst_evaluates_commands`/`taint_sink_gate` below), whereas `eval`
+/// *and* command or variable substitution is enabled for this call (see
+/// `subst_evaluates_code`/`taint_sink_gate` below), whereas `eval`
 /// unconditionally does. `reads`/`writes` stay `true` rather than `eval`'s
 /// `false`/`false` to match the sibling body-evaluating constructs that
 /// keep an unknown-but-present effect (`if`, `for`, `foreach`, `catch`)
@@ -256,28 +256,27 @@ pub(crate) fn fold_subst(args: &[&str]) -> Option<String> {
 }
 
 /// Whether a `subst` call — given its argument words, excluding the
-/// command name — performs *command* substitution, the only hazard T100
-/// warns about for this command (variable and backslash substitution alone
-/// cannot execute anything). Drives `CommandSpec::taint_sink_gate`, so
-/// `subst -nocommands $tainted` — the exact mitigation this command's own
-/// hover snippet recommends — correctly does not trip the code-injection
-/// sink it exists to avoid.
+/// command name — can run a script, the hazard T100 warns about for this
+/// command. Command substitution runs `[cmd]` directly, and variable
+/// substitution runs the `[cmd]` in an array index: `subst -nocommands
+/// {$a([cmd])}` runs `cmd` under tclsh 8.4 to 9.1 and Jim, as does 9.1's
+/// `subst -variables`. Only backslash substitution alone runs nothing.
+/// Drives `CommandSpec::taint_sink_gate`.
 ///
 /// One projection of [`crate::option_effect::substitution_kinds`] over this
 /// command's own switch table, which owns both families and the
-/// unreadable-call answer: this is that answer's `commands` field and nothing
-/// more, so the taint gate and the consumers of
+/// unreadable-call answer, so the taint gate and the consumers of
 /// [`crate::CommandRegistry::substitutions_performed`] can never disagree
 /// about the same call.
-fn subst_evaluates_commands(args: &[&str]) -> bool {
-    crate::option_effect::substitution_kinds(
+fn subst_evaluates_code(args: &[&str]) -> bool {
+    let kinds = crate::option_effect::substitution_kinds(
         OPTIONS,
         FAMILIES,
         InvocationArguments::literals(args),
         RESERVED_TRAILING_WORDS,
         None,
-    )
-    .commands
+    );
+    kinds.commands || kinds.variables
 }
 
 pub fn spec() -> CommandSpec {
@@ -335,16 +334,16 @@ pub fn spec() -> CommandSpec {
                 "subst ?-nobackslashes? ?-nocommands? ?-novariables? string",
                 "subst ?-backslashes? ?-commands? ?-variables? string",
             ],
-            snippet: "Applies the same variable, command, and backslash substitution rules Tcl itself uses when parsing a command word, but a second time: string is substituted once by the Tcl parser when the call to subst is itself parsed, then again by subst at runtime. This is what lets `subst {$x}` substitute `$x` even though the enclosing braces would normally suppress substitution.\n\nAll three substitution kinds run by default. -nobackslashes, -nocommands, and -novariables (every Tcl version) each turn off exactly the substitution they name; -nocommands is the one that matters for safety, since it is the only kind that can execute arbitrary code. One kind can still trigger another even when disabled: with -novariables, a `[command]` still expands any $variable inside it, since evaluating the command requires it; with -nocommands, a `$name([b])` array reference still runs the `[b]` inside its index, since resolving the variable requires it.\n\nTcl 9.1 adds inverted, positive-only switches -backslashes/-commands/-variables: giving any one of these turns every substitution off by default and enables only the ones named, so `subst -variables $s` is equivalent to `subst -nobackslashes -nocommands $s`. The two switch families cannot be combined in one call.\n\nA break inside an embedded command or variable index stops substitution immediately, keeping only the text produced so far; continue substitutes an empty string for that one embedded piece and keeps going; return (or any other completion code) substitutes the returned value for it. Any other error propagates as subst's own error.\n\n**Security**: without -nocommands (or a -variables/-backslashes-only call), any `[cmd]` in string is executed as Tcl, making subst a code-injection sink for untrusted input. Use `subst -nocommands $template` when only variable interpolation is needed, or prefer `[string map]` / `[format]` for safe templating.",
+            snippet: "Applies the same variable, command, and backslash substitution rules Tcl itself uses when parsing a command word, but a second time: string is substituted once by the Tcl parser when the call to subst is itself parsed, then again by subst at runtime. This is what lets `subst {$x}` substitute `$x` even though the enclosing braces would normally suppress substitution.\n\nAll three substitution kinds run by default. -nobackslashes, -nocommands, and -novariables (every Tcl version) each turn off exactly the substitution they name; command substitution is the kind that executes code, but disabling it alone is not enough. One kind can still trigger another even when disabled: with -novariables, a `[command]` still expands any $variable inside it, since evaluating the command requires it; with -nocommands, a `$name([b])` array reference still runs the `[b]` inside its index, since resolving the variable requires it.\n\nTcl 9.1 adds inverted, positive-only switches -backslashes/-commands/-variables: giving any one of these turns every substitution off by default and enables only the ones named, so `subst -variables $s` is equivalent to `subst -nobackslashes -nocommands $s`. The two switch families cannot be combined in one call.\n\nA break inside an embedded command or variable index stops substitution immediately, keeping only the text produced so far; continue substitutes an empty string for that one embedded piece and keeps going; return (or any other completion code) substitutes the returned value for it. Any other error propagates as subst's own error.\n\n**Security**: unless both -nocommands and -novariables are given (or, on 9.1, only -backslashes), a `[cmd]` in string is executed as Tcl, directly or inside an array index such as `$a([cmd])`, making subst a code-injection sink for untrusted input. For untrusted templates prefer `[string map]` / `[format]`.",
             source: "Tcl subst(n)",
-            examples: "set name Alice\nputs [subst {Hello, $name! Today is [clock format [clock seconds] -format %A].}]\n\n# Safe templating: disable command substitution for untrusted input\nset template {Welcome, $user!}\nputs [subst -nocommands $template]\n\n# Tcl 9.1: enable only variable substitution\nputs [subst -variables {$name < [expr {1+1}] > \\n}]",
+            examples: "set name Alice\nputs [subst {Hello, $name! Today is [clock format [clock seconds] -format %A].}]\n\n# Trusted template, no command substitution\nset template {Welcome, $user!}\nputs [subst -nocommands $template]\n\n# Tcl 9.1: enable only variable substitution\nputs [subst -variables {$name < [expr {1+1}] > \\n}]",
             return_value: "The fully-substituted string: break truncates it at the point of the exception, continue/return substitute their value for just that one embedded command or variable index, and any other error becomes subst's own error.",
         }),
         forms: FORMS,
         command_forms: NATIVE_FORMS,
         options: OPTIONS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
-        taint_sink_gate: Some(subst_evaluates_commands),
+        taint_sink_gate: Some(subst_evaluates_code),
         semantics: SemanticsDeclaration::Declared(&TEMPLATE),
         ..CommandSpec::DEFAULT
     }
@@ -352,7 +351,7 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{fold_subst, subst_evaluates_commands};
+    use super::{fold_subst, subst_evaluates_code};
 
     #[test]
     fn subst_literal_effects_preserve_enabled_substitutions() {
@@ -390,15 +389,25 @@ mod tests {
     }
 
     #[test]
-    fn subst_evaluates_commands_default_is_true() {
-        assert!(subst_evaluates_commands(&["$tainted"]));
+    fn subst_evaluates_code_default_is_true() {
+        assert!(subst_evaluates_code(&["$tainted"]));
     }
 
     #[test]
-    fn subst_evaluates_commands_legacy_nocommands_disables() {
-        assert!(!subst_evaluates_commands(&["-nocommands", "$tainted"]));
-        // Order-independent, and other legacy negatives don't interfere.
-        assert!(!subst_evaluates_commands(&[
+    fn subst_evaluates_code_until_commands_and_variables_are_both_off() {
+        // `$a([cmd])` runs `cmd` while variables are substituted.
+        assert!(subst_evaluates_code(&["-nocommands", "$tainted"]));
+        assert!(subst_evaluates_code(&[
+            "-nocommands",
+            "-nobackslashes",
+            "$tainted"
+        ]));
+        assert!(!subst_evaluates_code(&[
+            "-nocommands",
+            "-novariables",
+            "$tainted"
+        ]));
+        assert!(!subst_evaluates_code(&[
             "-novariables",
             "-nocommands",
             "$tainted"
@@ -406,19 +415,18 @@ mod tests {
     }
 
     #[test]
-    fn subst_evaluates_commands_legacy_other_negatives_leave_commands_on() {
-        assert!(subst_evaluates_commands(&["-novariables", "$tainted"]));
-        assert!(subst_evaluates_commands(&["-nobackslashes", "$tainted"]));
+    fn subst_evaluates_code_legacy_other_negatives_leave_commands_on() {
+        assert!(subst_evaluates_code(&["-novariables", "$tainted"]));
+        assert!(subst_evaluates_code(&["-nobackslashes", "$tainted"]));
     }
 
     #[test]
-    fn subst_evaluates_commands_positive_form_requires_explicit_commands() {
-        // Tcl 9.1 positive form: everything defaults off, so
-        // `-variables` alone never runs command substitution.
-        assert!(!subst_evaluates_commands(&["-variables", "$tainted"]));
-        assert!(!subst_evaluates_commands(&["-backslashes", "$tainted"]));
-        assert!(subst_evaluates_commands(&["-commands", "$tainted"]));
-        assert!(subst_evaluates_commands(&[
+    fn subst_evaluates_code_positive_form_needs_commands_or_variables() {
+        // Tcl 9.1 positive form: everything defaults off.
+        assert!(subst_evaluates_code(&["-variables", "$tainted"]));
+        assert!(!subst_evaluates_code(&["-backslashes", "$tainted"]));
+        assert!(subst_evaluates_code(&["-commands", "$tainted"]));
+        assert!(subst_evaluates_code(&[
             "-variables",
             "-commands",
             "$tainted"
@@ -426,20 +434,20 @@ mod tests {
     }
 
     #[test]
-    fn subst_evaluates_commands_stops_scanning_at_the_string_operand() {
+    fn subst_evaluates_code_stops_scanning_at_the_string_operand() {
         // Only flags *before* the string operand matter — a `-nocommands`-
         // shaped word after it (an arity-error call shape) is the string
         // argument's own trailing content, not a switch, and must not
         // suppress the sink.
-        assert!(subst_evaluates_commands(&["$x", "-nocommands"]));
+        assert!(subst_evaluates_code(&["$x", "-nocommands"]));
     }
 
     /// A call with no operand at all is an arity error, and one the resolver
     /// cannot read: its conservative "every kind" answer keeps the sink live
     /// rather than letting a malformed call suppress T100.
     #[test]
-    fn subst_evaluates_commands_stays_on_for_an_operand_less_call() {
-        assert!(subst_evaluates_commands(&["-nocommands"]));
+    fn subst_evaluates_code_stays_on_for_an_operand_less_call() {
+        assert!(subst_evaluates_code(&["-nocommands"]));
     }
 
     #[test]

@@ -253,7 +253,9 @@ pub(crate) use body_topology::{
 use effective_words::{
     compose_effective_words, frozen_argument_values, original_logical_prefix_for_tokens,
 };
-pub(crate) use effective_words::{compose_original_effective_words, effective_words_for_target};
+pub(crate) use effective_words::{
+    compose_original_effective_words, effective_words_for_target, written_command_words,
+};
 pub use effective_words::{effective_command_words, frozen_argument_words};
 #[cfg(test)]
 pub(crate) use expression_operand_advice::OriginalExpressionOperandAdvice;
