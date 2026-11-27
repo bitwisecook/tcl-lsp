@@ -355,7 +355,7 @@ fn annotate_source_file_error(vm: &mut Vm, path: &[u8], completion: &Completion<
         frame.extend_from_slice(&text);
         frame.extend_from_slice(format!(" line {})", vm.error_line()).as_bytes());
         let message = completion.result.string_bytes();
-        vm.seed_error_info_frame(&*message, frame);
+        vm.seed_file_error_frame(&*message, frame);
     }
 }
 

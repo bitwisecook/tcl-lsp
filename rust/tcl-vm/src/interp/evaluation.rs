@@ -141,7 +141,8 @@ impl Vm {
                 .compile_plain_module_as(src, &namespace, evaluation)
                 .map(Rc::new);
         }
-        let entry = self.native_compilation_entry_for_namespace(&namespace, false)?;
+        let mut entry = self.native_compilation_entry_for_namespace(&namespace, false)?;
+        entry.direct_evaluation = true;
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error(
                 tcl_runtime_api::CompileError::Unsupported(
