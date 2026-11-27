@@ -683,7 +683,7 @@ impl Vm {
 
     pub(crate) fn init_auto_path(&mut self, args: &[Value]) -> Completion<Value> {
         if !args.is_empty() {
-            return err_wrong_args(self, "tcl::InitAutoPath");
+            return err_wrong_args(self, "tcl::InitAutoPath ");
         }
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,

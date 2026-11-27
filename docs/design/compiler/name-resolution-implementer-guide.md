@@ -1774,6 +1774,18 @@ claiming a successful List conversion. Located literal expansions still use
 their original element line receipts; dynamic expansion does not invent source
 coordinates.
 
+A compiler selects over the vector `TclParseCommand` leaves, not over the
+authored words. `project_native_compiler_words` performs that flattening: a
+pure-TEXT `{*}` literal becomes one `LiteralExpansion` operand per list member,
+and any other expansion keeps `EXPAND_WORD`. A surviving expansion makes
+`CompileCommandTokens` skip a compileProc that lacks `CMD_COMPILES_EXPANDED`,
+so it selects the generic invocation, as does a dynamic expansion through an
+ensemble. A grammar is selected over flattened operands only when its recipe
+consumes them: `ArgumentList` through `NativeCompiledListRecipe::ProjectedElements`
+or its constant forms, and `dict create` through its own projection. Every
+other grammar still selects `Unknown`, because selecting it would let a recipe
+read the original vector's indices.
+
 An ensemble's runtime implementation and its compiler registration/configuration are independent owners. A modified native map can make the runtime handler opaque while retaining the same native ensemble compiler. `NativeCommandCompiler` exports its actual configuration; `NativeEnsembleCompilerPrerequisite` retains the public token, namespace incarnation, map and selected worker's compiler capability. `SourceNamedInvocationProof::captured_name()` returns the compiled name without donating stock semantics to its late handler. An unmodelled delegated worker compiler remains a provider obligation.
 
 Map construction has its own counted-input purpose:

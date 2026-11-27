@@ -65,3 +65,35 @@ fn standalone_and_tcl_9_0_4_share_command_head_expansion_semantics() {
         .expect("Tcl 9.0.4 oracle succeeds");
     assert_eq!(result, oracle);
 }
+
+/// `TclParseCommand` flattens a pure-TEXT `{*}` literal into simple words
+/// before the `list` and `dict create` compilers run, inside procedures and
+/// in a compiled branch that never executes. Expected: tclsh 8.6.18, 9.0.4
+/// and 9.1.0.
+#[test]
+fn a_flattened_literal_expansion_compiles_as_its_spelled_out_words() {
+    const SCRIPT: &str = r#"set out {}
+proc p1 {q} { list p {*}{a {b c}} $q {*}"d e" }
+proc p2 {} { dict create {*}{a 1 b 2} }
+proc p3 {q} { dict create k $q {*}{a 1} }
+proc p4 {} { list {*}{} }
+proc p5 {} { list {*}{a \x41} }
+proc p6 {} { catch {dict create {*}{a b c}} m; set m }
+set v 0
+if {$v} { set never [dict create {*}{a b c}] }
+lappend out [p1 x] [p2] [p3 x] [p4] [p5] [p6]
+"#;
+    const FLATTENED: &str = "{p a {b c} x d e} {a 1 b 2} {k x a 1} {} {a A} \
+{wrong # args: should be \"dict create ?key value ...?\"}";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        let mut interp = Interp::new();
+        interp.set_runtime_version(version);
+        let code = interp.eval_str(SCRIPT.as_bytes());
+        let result = String::from_utf8(interp.result_bytes()).expect("runtime result is UTF-8");
+        assert_eq!(
+            (code, result.as_str()),
+            (Code::Ok, FLATTENED),
+            "{version:?}"
+        );
+    }
+}

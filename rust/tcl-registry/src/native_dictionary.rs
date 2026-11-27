@@ -1023,6 +1023,58 @@ mod compiler_tests {
         }
     }
 
+    /// `TclParseCommand` splits a pure-TEXT `{*}` literal into simple words, so
+    /// `TclCompileDictCreateCmd` sees exactly the words spelled out; a member it
+    /// cannot split keeps `EXPAND_WORD` and the compileProc is skipped.
+    #[test]
+    fn a_flattened_literal_expansion_selects_as_its_spelled_out_words() {
+        use crate::native_compiler_words::NativeCompilerWords;
+        let context = NativeCompilationContext {
+            mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+            frame: NativeCompilationFrame::ProcedureCode,
+            ..Default::default()
+        };
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let select = |source: &str| {
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let parsed = tcl_lexer::native_script_words_in(
+                    image,
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    dialect.native_string_protocol().unwrap(),
+                )
+                .unwrap();
+                NativeDictionaryCommand::Create
+                    .spec(true)
+                    .select_native_words(&words, 1, Some(dialect), context)
+            };
+            for (expanded, spelled) in [
+                ("dict create {*}{a 1 b 2}", "dict create a 1 b 2"),
+                ("dict create k $v {*}{a 1}", "dict create k $v a 1"),
+                ("dict create {*}{a 1 b}", "dict create a 1 b"),
+            ] {
+                assert_eq!(select(expanded), select(spelled), "{version:?} {expanded}");
+            }
+            assert_ne!(
+                select("dict create a 1 b 2"),
+                NativeCompilationSelection::Unknown,
+                "{version:?}"
+            );
+            assert_eq!(
+                select(r"dict create {*}{a \x41}"),
+                NativeCompilationSelection::Generic,
+                "{version:?}"
+            );
+        }
+    }
+
     #[test]
     fn original_dictionary_named_fallback_counts_selectors_not_operands() {
         let registry = crate::CommandRegistry::build_default();

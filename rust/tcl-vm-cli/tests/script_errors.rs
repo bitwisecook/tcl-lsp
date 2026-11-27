@@ -165,6 +165,7 @@ fn a_long_path_is_cut_as_each_release_cuts_it() {
     let cut = &full[..150];
     for release in RELEASES {
         let output = Command::new(env!("CARGO_BIN_EXE_tclvm"))
+            .env_remove("TCL_LIBRARY")
             .args(["--tcl-version", release])
             .arg(&path)
             .output()

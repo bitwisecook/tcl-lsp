@@ -216,6 +216,15 @@ fn ensemble_command_plan(
 ) -> Result<NativeByteCommandPlan, NativeByteCommandUnavailable> {
     use tcl_registry::native_ensemble::NativeEnsembleWorkerSelection;
     use tcl_registry::native_selected_worker::OriginalSelectedWorkerInvocation;
+    // `CompileCommandTokens` skips a compileProc without
+    // `CMD_COMPILES_EXPANDED` whenever a word expands at run time, and no
+    // ensemble has it. A literal expansion is flattened by the parser first.
+    if (1..captured.shapes().len()).any(|index| {
+        captured.shapes()[index] == NativeCompilationWordShape::Expanded
+            && captured.literal(index).is_none()
+    }) {
+        return Ok(NativeByteCommandPlan::Generic);
+    }
     let configuration = binding
         .compiler
         .as_ref()

@@ -91,7 +91,8 @@ impl Builder<'_> {
                     }
                 }
                 if let Operation::Concat { prepared_words, .. }
-                | Operation::FormatStringConcat { prepared_words, .. } = &mut operation
+                | Operation::FormatStringConcat { prepared_words, .. }
+                | Operation::ListOperands { prepared_words, .. } = &mut operation
                 {
                     if let Some(word) = prepared_words.remove(&index) {
                         words.push(word);
@@ -255,7 +256,7 @@ impl Builder<'_> {
                                 ))
                     }
                     Operation::List(NativeCompiledListRecipe::DynamicElements { .. }, _) => index > 0,
-                    Operation::Concat { operands, .. } | Operation::FormatStringConcat { operands, .. } => operands.iter().any(|operand| matches!(operand, NamespaceOperand::Original(word) if index == *word)),
+                    Operation::Concat { operands, .. } | Operation::FormatStringConcat { operands, .. } | Operation::ListOperands { operands, .. } => operands.iter().any(|operand| matches!(operand, NamespaceOperand::Original(word) if index == *word)),
                     Operation::Switch(switch) => matches!(
                         switch.recipe.subject,
                         tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(word)
