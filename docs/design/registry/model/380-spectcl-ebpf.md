@@ -247,7 +247,7 @@ pub fn ebpf_contribution(env: &ResolvedEnvironment) -> Box<dyn AnalyserContribut
 
 `tcl-lib-bpf` (the image, `BpfPolicy` and `EbpfFacts`) depends on the
 registry core and `tcl-dialect`. `bpf-tcl-ir` depends on it, `tcl-ir` and
-`tcl-lowering`, and no longer on `tcl-analysis` (item 386). The entry points
+`tcl-lowering`, and no longer on `tcl-analysis` (item 464). The entry points
 register the contribution.
 
 ### 5. Parity (332's rule)
@@ -332,15 +332,47 @@ rbpf, asserted in tests/socket_filter.rs:95-116: 0, 40, 0
 
 ## Work list
 
-1. 380: `tcl-lib-bpf`, the two packs, the environment rows (`closed
-   -evaluation never`), `BpfPolicy`; with item 457, `tcl dis`, `tclvm` and
-   the runtime refuse a `bpf` document.
-2. 381: `CompileRecipe::Target`, the reader and printer, `bpf-tcl-ir` dispatch.
-3. 382: `EbpfFacts` and `KernelAbi`; lift the hand tables.
-4. 383: the analyser contribution, `check` rules, hover, completion.
-5. 384: 342 `test` rows; the Tcl model as a runner.
-6. 385: explorer views; CLI and MCP routing.
-7. 386: drop `bpf-tcl-ir`'s `tcl-analysis` and `tcl-native-plan` edges.
+Each plan item has its own entry here; the plan links to it.
+
+### 458: tcl-lib-bpf, the packs and the policy
+
+`tcl-lib-bpf`, the two packs, the environment rows (`closed -evaluation
+never`), `BpfPolicy`; with item 457, `tcl dis`, `tclvm` and the runtime refuse
+a `bpf` document. Design: [placement](#1-placement-two-libraries-and-an-environment-not-a-dialect),
+[the surface](#2-the-surface-as-spectcl-3).
+
+### 459: compile ebpf rows
+
+`CompileRecipe::Target`, the reader and printer, `bpf-tcl-ir` dispatch.
+Design: [the surface](#2-the-surface-as-spectcl-3), [parity](#5-parity-332s-rule),
+[migration](#6-migration) steps 1 and 3.
+
+### 460: EbpfFacts and KernelAbi
+
+`EbpfFacts` and `KernelAbi`; lift the hand tables. Design:
+[consumers](#4-consumers) (the codegen row and the interfaces), [migration](#6-migration) step 2.
+
+### 461: eBPF analysis
+
+The analyser contribution, `check` rules, hover, completion. Design:
+[consumers](#4-consumers) (the analyser, formatter, minifier, optimiser and
+refactor rows), [grammar needs](#3-grammar-needs-370), [migration](#6-migration) step 4.
+
+### 462: eBPF test rows
+
+342 `test` rows; the Tcl model as a runner. Design: [consumers](#4-consumers)
+(the tests row), [verification](#verification).
+
+### 463: explorer, CLI and MCP
+
+Explorer views (`ebpf-ir`, `ebpf-asm`, `verifier`, `chain`); CLI and MCP
+routing. Design: [consumers](#4-consumers) (the explorer and MCP, CLI rows).
+
+### 464: bpf-tcl-ir's edges
+
+Drop `bpf-tcl-ir`'s `tcl-analysis` and `tcl-native-plan` edges, and finish
+[migration](#6-migration) step 5. Design: [consumers](#4-consumers) (the
+dependency paragraph after the interfaces).
 
 ## Verification
 
