@@ -32,6 +32,7 @@ name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
+tcl-bigip-schema = { path = "../tcl-bigip-schema" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-host-native = { path = "../tcl-host-native" }
 tcl-test-support = { path = "../tcl-test-support" }

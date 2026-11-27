@@ -38,10 +38,10 @@
 //! Single-file resolution: targets resolve within the open document only.
 //! Cross-file links await a workspace config index in the LSP.
 
+use tcl_bigip_schema::BigipRegistry;
+use tcl_bigip_schema::default_registry;
 use tcl_irules::extract_irules_object_references;
 use tcl_lexer::LineIndex;
-use tcl_registry::BigipRegistry;
-use tcl_registry::bigip::default_registry;
 
 use crate::graph::{
     GraphContext, ObjectNode, build_objects_for_source, normalise_reference_for_kind,

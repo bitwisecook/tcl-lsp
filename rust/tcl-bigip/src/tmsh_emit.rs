@@ -40,7 +40,7 @@ use crate::parser::BigipConfig;
 use crate::parser::header::{ObjectTypeIndex, parse_generic_header};
 use crate::parser::helpers::extract_blocks;
 use crate::value::ListItemValue;
-use tcl_registry::bigip::BigipRegistry;
+use tcl_bigip_schema::BigipRegistry;
 
 /// The order in which kinds get emitted. Generic foundation objects come
 /// first so any LTM object that references them resolves cleanly.

@@ -52,7 +52,7 @@ pub struct BigipGenericObject {
     /// references on object kinds that do not yet have a bespoke model.
     pub body: String,
     /// Version from the source SCF header, if it declared one.
-    pub tmos_version: Option<tcl_registry::profile_defaults::BigipVersion>,
+    pub tmos_version: Option<tcl_bigip_schema::profile_defaults::BigipVersion>,
     /// Source span, when captured.
     pub range: Option<Range>,
 }

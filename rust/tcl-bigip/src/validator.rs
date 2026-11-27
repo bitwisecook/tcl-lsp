@@ -45,13 +45,13 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::LazyLock;
 
 use regex::Regex;
+use tcl_bigip_schema::base_objects::base_object_identities;
+use tcl_bigip_schema::profile_defaults::{BigipVersion, profile_field_defaults};
 use tcl_core_types::DiagCode;
 use tcl_irules::{
     IrulesEventHandler, OriginalIrulesSourceContext, extract_original_irules_event_handlers,
 };
 use tcl_lexer::LineIndex;
-use tcl_registry::base_objects::base_object_identities;
-use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 use tcl_registry::profiles::ProfileFacts;
 use tcl_registry::relation::RelationVerdict;
 
@@ -1032,11 +1032,11 @@ fn reference_supplied_by_property(
 
 fn check_measured_address_syntax(
     object: &crate::model::BigipGenericObject,
-    field: &tcl_registry::bigip::BigipPropertySpec,
+    field: &tcl_bigip_schema::BigipPropertySpec,
     raw: &str,
     out: &mut Vec<ConfigDiagnostic>,
 ) -> bool {
-    use tcl_registry::bigip::AddressGrammar;
+    use tcl_bigip_schema::AddressGrammar;
 
     if object
         .tmos_version
@@ -1045,7 +1045,7 @@ fn check_measured_address_syntax(
         return true;
     }
     let mut valid = true;
-    let mut check = |field: &tcl_registry::bigip::BigipPropertySpec, path: &[&str], value: &str| {
+    let mut check = |field: &tcl_bigip_schema::BigipPropertySpec, path: &[&str], value: &str| {
         let value = crate::parser::helpers::unquote(value);
         // registry-axis-ok: irreducible — the literal sentinel admitted by BigipPropertySpec::allow_none; until never
         if !field.address_validation.checks_syntax() || (field.allow_none && value == "none") {
@@ -1120,7 +1120,7 @@ fn check_address_route_domain(
 /// not already owned by a specialised BIGIP6001–6012 check. This intentionally
 /// consumes `REFERENCE_EDGES` rather than a hand-maintained object-name table.
 fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnostic>) {
-    let registry = tcl_registry::bigip::BigipRegistry::build();
+    let registry = tcl_bigip_schema::BigipRegistry::build();
     let objects: Vec<(&crate::model::BigipGenericObject, &'static str)> = config
         .generic_objects
         .iter()
@@ -1167,7 +1167,7 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
             if *from_kind == "ltm_virtual" && matches!(property.as_str(), "rules" | "pool") {
                 continue;
             }
-            for edge in tcl_registry::bigip::reference_edges_from(from_kind)
+            for edge in tcl_bigip_schema::reference_edges_from(from_kind)
                 .filter(|edge| edge.section.is_none() && edge.property == property)
             {
                 for value in property_reference_values(&object.module, &property, &parsed.value) {
@@ -1212,7 +1212,7 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
 }
 
 fn resolves_factory_reference(
-    registry: &tcl_registry::bigip::BigipRegistry,
+    registry: &tcl_bigip_schema::BigipRegistry,
     target_kinds: &[&str],
     candidates: &[String],
 ) -> bool {
@@ -1242,7 +1242,7 @@ fn factory_object_identity(module: &str, object_type: &str, name: &str) -> Strin
 /// parser's last-write-wins model can continue. The registry kind prevents two
 /// unrelated object families that happen to share a path from being conflated.
 fn check_duplicate_registry_objects(config: &BigipConfig, out: &mut Vec<ConfigDiagnostic>) {
-    let registry = tcl_registry::bigip::BigipRegistry::build();
+    let registry = tcl_bigip_schema::BigipRegistry::build();
     let mut seen: HashSet<(&str, &str)> = HashSet::new();
     for (_, object) in &config.generic_objects {
         let Some(kind) = registry.kind_for_header(&object.module, &object.object_type) else {

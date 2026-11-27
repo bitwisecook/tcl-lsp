@@ -33,8 +33,8 @@
 
 use std::collections::HashMap;
 
+use tcl_bigip_schema::BigipRegistry;
 use tcl_lexer::LineIndex;
-use tcl_registry::bigip::BigipRegistry;
 
 use crate::model::r#gen::parsers::{
     parse_bigip_apm_oauth_db_instance, parse_bigip_apm_policy_agent, parse_bigip_apm_policy_item,

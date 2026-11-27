@@ -1,5 +1,28 @@
 # Current LSP naming migration state
 
+## Active data and source extractions: 118a, 251/281
+
+118a moves the BIG-IP schema into `tcl-bigip-schema`, with no edge from the
+command registry. Generic consumers read it through `tcl-bigip::schema`.
+Schema-only golden tests, metadata checks and snapshots follow the data;
+118b's model generator and data encoding remain separate work. Baseline:
+registry display-kind and object-query golden tests both pass
+(`/tmp/118a-registry-baseline-work.log`). All 30 schema tests pass
+(`/tmp/118a-schema-tests-work.log`), as do schema all-target Clippy
+(`/tmp/118a-schema-clippy-work.log`) and workspace all-target checking
+(`/tmp/118a-workspace-check-work.log`). Of 575 moved data files, only a
+profile-default doc link changed; the schema data is byte-identical. Registry
+normal/build dependencies exclude the schema (`/tmp/118a-registry-tree-work.log`).
+The dependency-boundary tests (2/2) and xtask all-target Clippy pass
+(`/tmp/118a-layering-tests-work.log`, `/tmp/118a-xtask-clippy-work.log`).
+All 12 host lockfiles resolve offline without dependency version changes
+(`/tmp/118a-host-lockfiles-work.log`). The shard manifest covers all 224
+targets; this also repairs two pre-existing missing VM target rows.
+Full gates will run after the source extraction; they have not yet run for
+these changes under the development-push exception.
+The source extraction follows 118a, preserving registry-independent CST/word
+geometry and keeping recovery and binding services with their consumers.
+
 ## Benchmark, test boundaries and runtime repairs
 
 - BPF signed division's public regression passes on the combined in-tree

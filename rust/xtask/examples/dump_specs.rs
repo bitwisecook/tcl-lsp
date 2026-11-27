@@ -22,7 +22,7 @@
 //! group, using a normalised schema shared with the reference dumper, so
 //! the two outputs can be diffed to catch spec drift.
 //!
-//! Usage: `cargo run -q --example dump_specs -- <group>`
+//! Usage: `cargo run --profile test -p xtask -q --example dump_specs -- <group>`
 //! where <group> is one of:
 //!   tcl stdlib tcllib irules iapps tk expect
 //!
@@ -265,7 +265,7 @@ fn sub_record_json(spec: &CommandSpec, sub: &SubCommand) -> String {
 }
 
 /// Full-field signature for one `BigIP` property (recursive over blocks).
-fn bigip_prop_sig(p: &tcl_registry::bigip::BigipPropertySpec) -> String {
+fn bigip_prop_sig(p: &tcl_bigip_schema::BigipPropertySpec) -> String {
     let mut secs: Vec<&str> = p.in_sections.to_vec();
     secs.sort_unstable();
     let mut enums: Vec<&str> = p.enum_values.to_vec();
@@ -276,9 +276,7 @@ fn bigip_prop_sig(p: &tcl_registry::bigip::BigipPropertySpec) -> String {
     flags.sort_unstable();
     let mut ops: Vec<&str> = p.list_operators.to_vec();
     ops.sort_unstable();
-    let shape = p
-        .shape_kind
-        .map_or("", tcl_registry::bigip::ValueKind::as_str);
+    let shape = p.shape_kind.map_or("", tcl_bigip_schema::ValueKind::as_str);
     let numfmt = |v: Option<f64>| -> String {
         match v {
             None => String::new(),
@@ -410,7 +408,7 @@ fn main() {
 
     // BIG-IP object registry: one JSON record per object kind.
     if group == "bigip" {
-        let reg = tcl_registry::bigip::BigipRegistry::build();
+        let reg = tcl_bigip_schema::BigipRegistry::build();
         let mut specs: Vec<_> = reg.specs().to_vec();
         specs.sort_by_key(|s| s.kind_spec.kind);
         for spec in specs {

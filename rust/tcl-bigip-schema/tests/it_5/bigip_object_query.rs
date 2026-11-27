@@ -31,7 +31,7 @@
 
 use std::collections::BTreeSet;
 
-use tcl_registry::bigip::default_registry;
+use tcl_bigip_schema::default_registry;
 
 fn fixture(name: &str) -> String {
     let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));

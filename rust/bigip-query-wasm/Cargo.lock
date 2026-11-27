@@ -1128,6 +1128,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tcl-bigip-schema",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-irules",
@@ -1150,10 +1151,19 @@ dependencies = [
  "regex",
  "serde_json",
  "tcl-bigip",
+ "tcl-bigip-schema",
  "tcl-core-types",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-bigip-schema"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-dialect",
 ]
 
 [[package]]

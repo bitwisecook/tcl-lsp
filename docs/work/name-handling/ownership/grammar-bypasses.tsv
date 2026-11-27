@@ -393,7 +393,7 @@ rust/tcl-registry/src/f5/iapp_metadata.rs	lists	parse_iapp_action_metadata:split
 rust/tcl-registry/src/f5/iapp_metadata.rs	scripts	parse_iapp_action_metadata:trim	-	3
 rust/tcl-registry/src/model/declaration.rs	lists	from_stub_flags:split_whitespace	-	1
 rust/tcl-registry/src/native_expression_program.rs	elements	c_eager_compiler_scripts:contains	-	1
-rust/tcl-registry/src/profile_defaults/mod.rs	scripts	parse:trim	-	3
+rust/tcl-bigip-schema/src/profile_defaults/mod.rs	scripts	parse:trim	-	3
 rust/tcl-registry/src/profiles.rs	scripts	parse_profile_directive:trim	-	1
 rust/tcl-registry/src/profiles.rs	scripts	profile_directive_payload:trim	-	1
 rust/tcl-registry/src/profiles.rs	scripts	profile_directive_payload:trim_start	-	2

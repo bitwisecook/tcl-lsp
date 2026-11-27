@@ -24,7 +24,7 @@
 //! and family fan-outs (`"ltm monitor"`, `"ltm profile"`, …) must match the
 //! golden exactly, including the fan-out kind sets.
 
-use tcl_registry::bigip::default_registry;
+use tcl_bigip_schema::default_registry;
 
 #[test]
 fn display_kinds_match_golden() {

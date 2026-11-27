@@ -175,7 +175,7 @@ pub struct FieldDefault {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ProfileDefaults {
     /// Registry profile *type* name, uppercase (matches
-    /// [`crate::profiles::ProfileSpec::name`]): `"TCP"`, `"HTTP"`, `"CLIENTSSL"`.
+    /// the command registry's profile descriptors): `"TCP"`, `"HTTP"`, `"CLIENTSSL"`.
     pub profile: &'static str,
     /// tmsh object kind these defaults belong to (`"ltm profile tcp"`).
     pub tmsh_kind: &'static str,

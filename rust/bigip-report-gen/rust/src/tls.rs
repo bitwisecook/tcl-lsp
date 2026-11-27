@@ -22,9 +22,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde_json::{Map, Value as J};
 use tcl_bigip::parser::parse_bigip_conf;
+use tcl_bigip::schema::profile_defaults::BigipVersion;
 use tcl_bigip::tls::import_bigip_tls;
 use tcl_bigip::validator::{ProfileDefaultState, collect_profile_default_evidence};
-use tcl_registry::profile_defaults::BigipVersion;
 use tcl_sslictcl::{
     ClientFamily, EstimateInput, KeyMatchStatus, TrustPurpose, embedded_dataset, estimate,
 };

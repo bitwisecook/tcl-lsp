@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-bigip-schema = { path = "../tcl-bigip-schema" }
 fluent-uri = "0.4.1"
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }

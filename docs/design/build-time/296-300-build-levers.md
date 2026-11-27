@@ -389,13 +389,13 @@ Seven are over 2,000 lines:
 
 | File | Lines | Size | Kind | Generator today | Where after item 118 |
 |---|---|---|---|---|---|
-| `tcl-registry/src/base_objects/generated_names.rs` | 21,712 | 688 KB | table, `&[(&str, &str, &str)]` | none (item 119) | BIG-IP schema crate |
-| `tcl-registry/src/base_objects/generated_objects.rs` | 20,419 | 1,080 KB | table, `&[BaseObject]` with field slices | none | BIG-IP schema crate |
+| `tcl-bigip-schema/src/base_objects/generated_names.rs` | 21,712 | 688 KB | table, `&[(&str, &str, &str)]` | none (item 119) | BIG-IP schema crate |
+| `tcl-bigip-schema/src/base_objects/generated_objects.rs` | 20,419 | 1,080 KB | table, `&[BaseObject]` with field slices | none | BIG-IP schema crate |
 | `tcl-dialect/src/generated_release_facts.rs` | 11,445 | 300 KB | table, `&[ReleaseFacts]` | `cargo xtask release-facts` | `tcl-dialect` (hub, 41 dependents) |
 | `tcl-bigip/src/model/gen/canon.rs` | 7,088 | 228 KB | code, `Canon` impls | none (item 119) | `tcl-bigip`, generated from the schema crate |
-| `tcl-registry/src/bigip/references.rs` | 5,061 | 148 KB | table, `&[ReferenceEdge]` | none | BIG-IP schema crate |
+| `tcl-bigip-schema/src/bigip/references.rs` | 5,061 | 148 KB | table, `&[ReferenceEdge]` | none | BIG-IP schema crate |
 | `tcl-bigip/src/model/gen/parsers.rs` | 3,645 | 164 KB | code, parse functions | none | `tcl-bigip` |
-| `tcl-registry/src/profile_defaults/generated.rs` | 2,213 | 80 KB | table, `&[ProfileDefaults]` | none | BIG-IP schema crate |
+| `tcl-bigip-schema/src/profile_defaults/generated.rs` | 2,213 | 80 KB | table, `&[ProfileDefaults]` | none | BIG-IP schema crate |
 
 Item 118 moves four of the tables into a crate that only `tcl-lib-irules`,
 `tcl-lib-iapps` and `tcl-bigip` depend on, so their cost is then paid only on a

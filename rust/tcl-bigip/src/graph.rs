@@ -27,10 +27,10 @@
 //! value-spec dispatch, the legacy token-scan fallback, and — for `ltm`/`gtm`
 //! rule bodies — the iRule object-reference walker (`tcl-irules`).
 
+use tcl_bigip_schema::BigipRegistry;
+use tcl_bigip_schema::default_registry;
 use tcl_irules::extract_irules_object_references;
 use tcl_lexer::LineIndex;
-use tcl_registry::BigipRegistry;
-use tcl_registry::bigip::default_registry;
 
 use crate::error::BigipError;
 use crate::model::ModelObject;

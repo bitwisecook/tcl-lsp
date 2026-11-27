@@ -28,8 +28,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::BuildHasher;
 
 use serde::{Deserialize, Serialize};
+use tcl_bigip_schema::profile_defaults::{BigipVersion, profile_field_defaults};
 use tcl_registry::event_facts::events_for_profile;
-use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 use tcl_sslictcl::{
     Certificate, Endpoint, KeyMatch, ProtocolVersion, TlsValue, evaluate_private_key_match,
     parse_certificates,

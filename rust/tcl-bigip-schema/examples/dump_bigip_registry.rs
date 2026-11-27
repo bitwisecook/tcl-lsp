@@ -20,13 +20,12 @@
 //! header types and property names. Used by the registry differential test
 //! to assert the registry carries every property the golden registry declares.
 //!
-//! Usage: `cargo run -p tcl-registry --example dump_bigip_registry`
+//! Usage: `cargo run -p tcl-bigip-schema --example dump_bigip_registry`
 
 use std::fmt::Write as _;
 
 fn main() {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
-    let reg = tcl_registry::bigip::BigipRegistry::build();
+    let reg = tcl_bigip_schema::BigipRegistry::build();
     let mut out = String::new();
     for spec in reg.specs() {
         let headers: Vec<String> = spec

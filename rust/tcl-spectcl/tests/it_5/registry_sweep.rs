@@ -59,7 +59,6 @@ use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
 use tcl_registry::arity::{Arity, ArityWindow};
-use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::hover::FormKind;
 use tcl_registry::lifecycle::Lifecycle;

@@ -159,7 +159,7 @@ rust/tcl-lsp-server/src/workspace.rs	analysis-memo	RoundReschedule:Mutex	-	1
 rust/tcl-lsp-server/src/workspace/project_inputs.rs	analysis-memo	refresh_cross_file_evidence:Mutex	-	1
 rust/tcl-mcp/src/diag_meta.rs	analysis-memo	META:OnceLock	-	1
 rust/tcl-mcp/src/tools.rs	analysis-memo	SESSION:OnceLock	-	1
-rust/tcl-registry/src/bigip/mod.rs	analysis-memo	REGISTRY:OnceLock	-	1
+rust/tcl-bigip-schema/src/bigip/mod.rs	analysis-memo	REGISTRY:OnceLock	-	1
 rust/tcl-registry/src/body_execution.rs	analysis-memo	CACHE:Box	-	1
 rust/tcl-registry/src/body_execution.rs	analysis-memo	CACHE:OnceLock	-	1
 rust/tcl-registry/src/cache.rs	analysis-memo	CORE_SURFACE_REGISTRIES:Mutex	-	1

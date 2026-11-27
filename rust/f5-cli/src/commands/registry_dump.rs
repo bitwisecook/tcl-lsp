@@ -38,9 +38,7 @@ use std::path::Path;
 
 use tcl_cli_support::registry_for_dialect;
 use tcl_registry::command_snapshot::command_registry_snapshot;
-use tcl_registry::snapshot::{
-    Json, event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot,
-};
+use tcl_registry::snapshot::{Json, event_graph_snapshot, profile_graph_snapshot};
 
 /// The `f5-irules` command-registry snapshot (core Tcl + iRules commands).
 fn commands_snapshot() -> Json {
@@ -52,14 +50,17 @@ fn commands_snapshot() -> Json {
 pub fn run_registry_dump(section: &str, output: Option<&Path>) -> anyhow::Result<u8> {
     let json = match section {
         "profiles" => profile_graph_snapshot(),
-        "objects" => object_graph_snapshot(),
+        "objects" => serde_json::from_value(tcl_bigip::schema::object_graph_snapshot())?,
         "events" => event_graph_snapshot(),
         "commands" => commands_snapshot(),
         "all" => {
             let mut m = BTreeMap::new();
             m.insert("commands".to_owned(), commands_snapshot());
             m.insert("events".to_owned(), event_graph_snapshot());
-            m.insert("objects".to_owned(), object_graph_snapshot());
+            m.insert(
+                "objects".to_owned(),
+                serde_json::from_value(tcl_bigip::schema::object_graph_snapshot())?,
+            );
             m.insert("profiles".to_owned(), profile_graph_snapshot());
             Json::Object(m)
         }

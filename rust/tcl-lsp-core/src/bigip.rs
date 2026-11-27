@@ -32,7 +32,7 @@
 //!   (`bigip.conf`, `bigip_base.conf`, …).
 //! * [`document_symbols`] — a `module → kind → object` outline built
 //!   directly from the stanza headers, using the
-//!   [`BigipRegistry`](tcl_registry::bigip::BigipRegistry) object-type
+//!   [`BigipRegistry`](tcl_bigip::schema::BigipRegistry) object-type
 //!   index for longest-prefix `(module, object-type)` resolution.
 //!   Nameless global singletons (`auth password-policy`,
 //!   `net self-allow`, …) fall back to their kind label so no outline
@@ -43,8 +43,8 @@ use std::collections::BTreeMap;
 use rustc_hash::FxHashSet;
 use tcl_bigip::parser::{ObjectTypeIndex, block_spans, brace_regions, parse_generic_header};
 
+use tcl_bigip::schema::{BigipPropertySpec, BigipRegistry, ValueKind};
 use tcl_lexer::LineIndex;
-use tcl_registry::bigip::{BigipPropertySpec, BigipRegistry, ValueKind};
 
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
 use crate::folding::{FoldKind, FoldingRange};

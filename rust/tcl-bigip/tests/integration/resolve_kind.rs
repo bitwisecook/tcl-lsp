@@ -25,7 +25,7 @@
 
 use tcl_bigip::graph::resolve_kind_in_configs;
 use tcl_bigip::parser::parse_bigip_conf;
-use tcl_registry::BigipRegistry;
+use tcl_bigip_schema::BigipRegistry;
 
 #[test]
 fn resolve_kind() {

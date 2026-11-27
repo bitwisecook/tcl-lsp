@@ -21,7 +21,6 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
-mod bigip_object_query;
 mod dialect_profile;
 mod sslictcl_pack;
 mod tcl91_dialect;

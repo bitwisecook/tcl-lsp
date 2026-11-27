@@ -25,8 +25,8 @@
 //! iteration, header resolution, partition-prefixing, and `generic_objects`
 //! index.
 
+use tcl_bigip_schema::BigipRegistry;
 use tcl_lexer::LineIndex;
-use tcl_registry::bigip::BigipRegistry;
 
 use crate::model::{BigipGenericObject, ModelObject};
 use crate::range::Range;
@@ -152,7 +152,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
         .take_while(|line| line.is_empty() || line.starts_with('#'))
         .find_map(|line| {
             let version = line.strip_prefix("#TMSH-VERSION:")?;
-            tcl_registry::profile_defaults::BigipVersion::parse(version)
+            tcl_bigip_schema::profile_defaults::BigipVersion::parse(version)
         });
 
     let mut config = BigipConfig {

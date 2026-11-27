@@ -195,3 +195,7 @@ export with no Git revision supplied returns `null` for `sourceRevision`.
   ownership rules for the cross-cutting helpers.
 - [`pipeline-lsp-first.md`](pipeline-lsp-first.md) — pipeline layering
   for LSP use cases.
+
+`tcl-bigip-schema` is the BIG-IP configuration-data owner, below `tcl-bigip`
+and independent of the command registry. Generic adapters consume its typed
+schema through `tcl-bigip::schema`.

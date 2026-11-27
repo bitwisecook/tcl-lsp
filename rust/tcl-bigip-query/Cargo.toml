@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-bigip-schema = { path = "../tcl-bigip-schema" }
 tcl-bigip = { path = "../tcl-bigip" }
 # The shared native-stack safety-net primitive — see
 # `value.rs`'s `MAX_VALUE_WALK_DEPTH`. Dependency-free leaf crate, so it
