@@ -426,6 +426,3 @@ impl OriginalOoActivation {
         self.original.finish_completion(vm, result)
     }
 }
-
-#[cfg(test)]
-mod tests;

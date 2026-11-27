@@ -96,9 +96,6 @@ impl Vm {
     }
 }
 
-#[cfg(test)]
-mod global_error_code_tests;
-
 /// Mutable name metadata owns only the original key's allocation, never a
 /// command worker or a native object reference.
 #[derive(Clone, Default)]

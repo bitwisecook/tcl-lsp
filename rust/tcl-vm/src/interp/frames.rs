@@ -90,13 +90,6 @@ impl ParkedFlow {
             namespace_context::NamespaceExecutionContext::Resolved(ROOT_NS),
         )
     }
-
-    #[cfg(test)]
-    pub(crate) fn current_namespace_token(&self) -> NsId {
-        self.current_namespace_execution_context()
-            .resolved_token()
-            .expect("test requires a resolved parked namespace")
-    }
 }
 
 impl Vm {
@@ -720,15 +713,6 @@ impl Vm {
                     .map(|slot| slot.simple.clone())
             })
             .collect()
-    }
-
-    /// The `ProcDef` for a user proc, if `name` resolves to one (`info body`/`args`).
-    #[cfg(test)]
-    pub(crate) fn proc_def(&self, name: &str) -> Option<Rc<crate::command::ProcDef>> {
-        match self.lookup_command(name) {
-            Some(Command::Proc(p)) => Some(p.declaration()),
-            _ => None,
-        }
     }
 
     /// Query a procedure using the purpose-selected native byte lookup.

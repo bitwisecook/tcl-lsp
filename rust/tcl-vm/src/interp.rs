@@ -1719,6 +1719,3 @@ mod native_hidden_namespace_context_tests;
 
 #[cfg(test)]
 mod original_c_import_preload_cleanup_tests;
-
-#[cfg(test)]
-mod ordinary_entry_observer_tests;

@@ -136,21 +136,6 @@ pub(crate) fn interpreter_with_output(
     vm
 }
 
-/// Retain an actual native core and source compiler, then load exactly the
-/// independently selected distribution libraries. An empty selection remains
-/// a core-and-compiler fixture; no catalogue or process-wide default supplies
-/// additional libraries.
-pub(crate) fn interpreter_with_scripted_libraries(
-    profile: &'static tcl_dialect::DialectProfile,
-    libraries: &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary],
-) -> Vm {
-    let mut vm = interpreter(profile);
-    for &library in libraries {
-        vm.install_scripted_library(library);
-    }
-    vm
-}
-
 /// Load every scripted distribution library, as the provider's own shell does.
 pub(crate) fn install_distribution(vm: &mut Vm) {
     for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {

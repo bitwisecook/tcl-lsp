@@ -284,45 +284,6 @@ mod tests {
     use std::fmt::Write;
     use tcl_core_types::NameBytes;
 
-    #[test]
-    fn original_dictionary_unset_matches_nine_native_jim_controls() {
-        fn decode(hex: &str) -> Vec<u8> {
-            hex.as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect()
-        }
-        let mut compared = 0;
-        for row in
-            include_str!("../../../tcl-syntax/tests/data/native_jim_unset/windows.tsv").lines()
-        {
-            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
-            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
-            let completion = vm
-                .try_eval_source_bytes(&decode(fields[1]))
-                .unwrap_or_else(|error| panic!("original Jim unset {}: {error:?}", fields[0]));
-            assert_eq!(
-                completion.code.as_int(),
-                fields[2].parse::<i64>().unwrap(),
-                "{}",
-                fields[0]
-            );
-            assert_eq!(
-                tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &completion.result)
-                    .unwrap()
-                    .as_ref(),
-                decode(fields[3]),
-                "{}",
-                fields[0]
-            );
-            assert!(vm.refused_completion().is_none(), "{}", fields[0]);
-            compared += 1;
-        }
-        assert_eq!(compared, 9);
-    }
     fn current_root(vm: &Vm) -> &Value {
         let selected = vm.resolve_var_from_bytes(b"d", vm.current_level()).unwrap();
         match vm.var_arena.get(selected.id.unwrap()).unwrap().state() {

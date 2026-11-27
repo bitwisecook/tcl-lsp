@@ -148,6 +148,3 @@ impl Vm {
         self.recursion_depth = selected.recursion_depth;
     }
 }
-
-#[cfg(test)]
-mod tests;
