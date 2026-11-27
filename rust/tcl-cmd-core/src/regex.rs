@@ -788,6 +788,16 @@ fn notbol_at(cps: &[i32], offset: usize) -> bool {
     }
 }
 
+/// [`notbol_at`] as `regexp` reads it under `version`: 8.4 suppresses `^` at
+/// every positive offset, newline or not.
+fn regexp_notbol_at(cps: &[i32], offset: usize, version: TclVersion) -> bool {
+    if version.regexp_restart_after_newline_is_bol() {
+        notbol_at(cps, offset)
+    } else {
+        offset > 0
+    }
+}
+
 /// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
 /// character length, clamped to `0` (Tcl resets negatives to the start).
 /// C hands `TclGetIntForIndexM` the string length as the value of `end`, so

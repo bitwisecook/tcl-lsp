@@ -85,6 +85,16 @@ impl TclVersion {
         self.release_policy().regex_z_anchor
     }
 
+    /// Whether `regexp` lets `^` match at a `-start` or `-all` restart offset
+    /// that follows a newline. Tcl 8.4's `Tcl_RegexpObjCmd` sets `REG_NOTBOL`
+    /// for the whole call once the offset is positive, so `regexp -start 3
+    /// -line -inline {^.} "ab\ncd"` is empty on tclsh 8.4.20 and `c` on 8.5.19
+    /// through 9.1.0; `regsub` reads the preceding character on every release.
+    #[must_use]
+    pub const fn regexp_restart_after_newline_is_bol(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
     /// The prefix `CompileRegexp` (`tclRegexp.c`) puts before a regex compile
     /// error's detail. Tcl 9.0 reworded it: tclsh 8.4.20, 8.5.19 and 8.6.18
     /// say `couldn't compile …`, 9.0.4 and 9.1.0 say `cannot compile …`.
