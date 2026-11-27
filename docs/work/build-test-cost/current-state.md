@@ -213,6 +213,37 @@ the checkout's `target/debug/build/` holds every unit since it was created
 (`tcl-compiler` 135, `tcl-vm` 88, `tcl-registry` 66); a fresh worktree is
 needed for that column.
 
+### Items 118a, 251/281: data and source boundaries
+
+27 November 2026, `work`, with the repository build environment. Package
+counts deduplicate `cargo tree -e normal,build --prefix none --format '{p}'`.
+The edit probes run `cargo check --locked -p tcl-sslictcl --lib
+--message-format=json`, prime the selected consumer, append one comment line,
+collect non-fresh local package artifacts, then restore the source bytes.
+These are dependency/rebuild observations, not release latency measurements.
+
+| Observation | Before extraction | After extraction |
+|---|---|---|
+| SslicTcl normal/build package cone | 126 | 101 |
+| Standalone source normal/build package cone | no independent source crate | 18; no compiler or registry |
+| SslicTcl compiler/registry dependency | both present | neither present |
+| Local packages rebuilt for the selected SslicTcl library after a source-segment edit | parser lived inside the compiler cone | exactly `tcl-source`, `tcl-sslictcl` |
+| Local packages rebuilt for the selected SslicTcl library after a registry edit | registry was in its cone | zero |
+| BIG-IP schema files compiled inside the command registry | 575 | zero; schema is an independent leaf |
+| Cold compile time, rlib size and whole-workspace reverse-cone timings | unavailable as a comparable clean baseline | not claimed from this mixed worktree/cache |
+| Release analysis latency and VM benchmark delta | CI-owned baseline | unavailable here; remeasure through item 106a's CI harness |
+
+Evidence: `/tmp/source-sslictcl-cone-before-work.txt`,
+`/tmp/source-sslictcl-cone-after-work.txt`,
+`/tmp/source-cone-after-work.txt`,
+`/tmp/source-rebuild-source-edit-work.jsonl`,
+`/tmp/source-registry-rebuild-registry-edit-work.jsonl`.
+The initial warm check rebuilt the nine foundation/source/consumer packages;
+the separate source-edit and registry-edit probes above followed warm checks.
+All temporary source edits were restored. The extraction's functional and
+baseline-failure comparisons are in the
+[name-handling validation snapshot](../name-handling/current-state.md).
+
 ### Item 246 (step 0, `tcl-compiler`): before → after
 
 `cargo test -p tcl-compiler --lib --no-run` after appending one line to
