@@ -402,10 +402,10 @@ original command selection, native compiler admission or an active frame.
   layer supplies the shared command interfaces). Both runtimes use the same
   pure-Rust ARE engine (`tcl-regex`), so ARE-only syntax — `\m`/`\M`/`[[:<:]]`
   word edges, POSIX longest-match submatches — behaves alike on both and matches
-  tclsh. The engine drives *slices* `text[offset..]`
-  (+ `REG_NOTBOL`) rather than tclsh's whole-string+offset, so a **truly-empty**
-  pattern at end-of-string differs (`regsub -all {} abc X` → `XaXbXcX` on both
-  runtimes vs tclsh 8.6.18/9.0.4's `XaXbXc`).
+  tclsh. As C's `Tcl_RegExpExecObj` does, the engine matches the subject from
+  the `-start` or `-all` restart offset with no left context, so `\A`, `\m`
+  and `\y` fire there and only `^` honours `REG_NOTBOL`: `regsub -all {\A.}
+  abc X` is `XXX` on both runtimes and tclsh 8.4.20–9.1.0.
 - `regexp -about` and `regsub -command` are served on both runtimes (#2124).
   `-about` is an ordinary answer on every release. `-command` is versioned by
   the interpreter's pinned release, because its option table is: a `bad switch

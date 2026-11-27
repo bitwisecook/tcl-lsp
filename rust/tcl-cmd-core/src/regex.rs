@@ -319,11 +319,12 @@ pub trait RegexEngine {
     }
 
     /// Find the leftmost match in `cps` (the whole subject as codepoints) at or
-    /// after character `offset`. `notbol` requests that `^` not match at
-    /// `offset` (the FFI engine's `REG_NOTBOL`; a context-aware crate engine can
-    /// ignore it). The answer is three-way: the match in **absolute**
-    /// character offsets, a completed no-match, or why the search established
-    /// neither — which is never a no-match.
+    /// after character `offset`, matching as C Tcl does against the subject
+    /// from `offset` on: `\A` and word-boundary context start at `offset`, and
+    /// `notbol` (`REG_NOTBOL`) stops `^` matching there. The answer is
+    /// three-way: the match in **absolute** character offsets, a completed
+    /// no-match, or why the search established neither — which is never a
+    /// no-match.
     fn exec(
         re: &mut Self::Regex,
         cps: &[i32],
@@ -789,6 +790,8 @@ fn notbol_at(cps: &[i32], offset: usize) -> bool {
 
 /// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
 /// character length, clamped to `0` (Tcl resets negatives to the start).
+/// C hands `TclGetIntForIndexM` the string length as the value of `end`, so
+/// `end` is one past the last character, not the last character.
 ///
 /// `N` in `end±N` is a user-supplied integer, so `len - 1 ± N` is done with
 /// `saturating_*`: `end+9999999999999999999` would otherwise overflow `isize`
@@ -816,9 +819,9 @@ fn resolve_start_checked<O: NativeIndexOps>(
                 format!("expected integer but got \"{text}\"").into_bytes(),
             ));
         }
-        crate::index::resolve_in(text, char_len, syntax)
+        crate::index::resolve_in(text, end_basis(char_len), syntax)
     } else {
-        crate::index::resolve_for_ops(ops, text, char_len)
+        crate::index::resolve_for_ops(ops, text, end_basis(char_len))
     }
     .map_err(RegexError::from)?;
     Ok(usize::try_from(idx).unwrap_or(0))
@@ -841,8 +844,14 @@ fn resolve_start_original<O: NativeIndexOps>(
     if syntax.regex_start_grammar() == tcl_dialect::RegexStartGrammar::Integer {
         return resolve_start_checked(ops, spec, char_len);
     }
-    let idx = crate::index::resolve_value(ops, &args[at], char_len).map_err(RegexError::from)?;
+    let idx = crate::index::resolve_value(ops, &args[at], end_basis(char_len))
+        .map_err(RegexError::from)?;
     Ok(usize::try_from(idx).unwrap_or(0))
+}
+
+/// The length whose `end` is `char_len`, as `-start` reads it.
+const fn end_basis(char_len: usize) -> usize {
+    char_len.saturating_add(1)
 }
 
 /// The compile flags + `-all`/`-start` shared by both commands' option sets.

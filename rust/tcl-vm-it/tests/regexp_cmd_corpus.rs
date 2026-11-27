@@ -35,6 +35,12 @@
 //! written in the same TSV shape (name / constraints / returnCodes / result
 //! codepoints / body codepoints) and their `-result` was measured on tclsh
 //! 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0, all five agreeing.
+//!
+//! The `regexp-start-anchor.*` rows are ours too: C Tcl matches against the
+//! subject from `-start` on, so `\A` and word-boundary context start there
+//! while `^` honours `REG_NOTBOL`. Row 5 is the shape of tcllib 2.0's
+//! `string::token` lexer, which broke `string::token::shell`. Measured on
+//! tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0, all five agreeing.
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -126,19 +132,6 @@ fn skip_reason(c: &Case) -> Option<&'static str> {
     // each body in isolation, with no tcltest inter-test state.
     if matches!(c.name.as_str(), "regexp-4.4" | "regexp-22.5") {
         return Some("depends on inter-test setup state");
-    }
-    // `-start` index parsing/validation and its `-all`/`\A` interaction live in
-    // the cmd-core option-parsing + match loop, not the engine.
-    if matches!(
-        c.name.as_str(),
-        "regexp-6.9"
-            | "regexp-11.8"
-            | "regexp-15.9"
-            | "regexp-16.4"
-            | "regexp-16.7"
-            | "regexp-16.8"
-    ) {
-        return Some("cmd-core -start index handling (plumbing, not engine)");
     }
     None
 }

@@ -78,18 +78,18 @@ fn original_match_targets_are_borrowed_and_assigned_before_the_next_match() {
 
 #[test]
 fn resolve_start_handles_integer_and_end_forms() {
-    // regexp `-start` index: integer / end / end±N against the char
-    // length, clamped to 0.
+    // regexp `-start` index: integer / end / end±N, `end` being the char
+    // length itself (one past the last character), clamped to 0.
     assert_eq!(resolve_start_checked(&mut ListOps, b"5", 10).unwrap(), 5);
     assert_eq!(resolve_start_checked(&mut ListOps, b"0", 10).unwrap(), 0);
-    assert_eq!(resolve_start_checked(&mut ListOps, b"end", 10).unwrap(), 9);
+    assert_eq!(resolve_start_checked(&mut ListOps, b"end", 10).unwrap(), 10);
     assert_eq!(
         resolve_start_checked(&mut ListOps, b"end-2", 10).unwrap(),
-        7
+        8
     );
     assert_eq!(
         resolve_start_checked(&mut ListOps, b"end+1", 10).unwrap(),
-        10
+        11
     );
     assert_eq!(resolve_start_checked(&mut ListOps, b"1+1", 10).unwrap(), 2);
     assert_eq!(resolve_start_checked(&mut ListOps, b"0x2", 10).unwrap(), 2);

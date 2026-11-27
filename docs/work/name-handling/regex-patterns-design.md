@@ -78,5 +78,9 @@ Analysis (`analyser-mcp.out`):
 ## Status on the current source
 
 Item 153 makes the folder decline the restart-sensitive forms in `r14`.
-The engine correction and W210 on `switch -matchvar` in procedures (`r11`)
-remain open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
+Item 154's engine correction has landed: `AreEngine` matches the subject
+from the offset under the caller's `REG_NOTBOL`, and `r14` matches tclsh
+8.4–9.1 in the VM and the runtime. It was found through tcllib 2.0's
+`string::token::shell`, whose lexer matches `\A(…)` at successive offsets.
+The folder still declines those forms, and W210 on `switch -matchvar` in
+procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

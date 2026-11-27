@@ -164,18 +164,20 @@ impl RegexEngine for AreEngine {
         re: &mut CompiledRegex,
         cps: &[i32],
         offset: usize,
-        _notbol: bool,
+        notbol: bool,
         limits: MatchLimits<'_>,
     ) -> RegexpPrecision<RegMatch> {
-        // This engine is context-aware: anchors are resolved against absolute
-        // positions in the whole subject, so the `notbol` hint is unnecessary
-        // (the trait permits ignoring it).
+        // `Tcl_RegExpExecObj` hands regexec the subject from `offset` on, so
+        // `\A` and the word-boundary context start there and only `^` sees the
+        // caller's `REG_NOTBOL`.
         let CompiledRegex::C(re) = re else {
             return RegexpPrecision::Declined(PrecisionDecline::FormUnsupported {
                 option: "C regexp execution on a Jim artifact",
             });
         };
-        let subject: Vec<u32> = cps.iter().map(|&c| c as u32).collect();
+        let offset = offset.min(cps.len());
+        let subject: Vec<u32> = cps[offset..].iter().map(|&c| c as u32).collect();
+        let eflags = if notbol { defs::REG_NOTBOL } else { 0 };
         let already = limits.spent.map_or(0, std::cell::Cell::get);
         let engine_limits = ExecLimits {
             fuel: limits
@@ -184,15 +186,15 @@ impl RegexEngine for AreEngine {
                 .saturating_sub(already),
             cancel: limits.cancel,
         };
-        let (outcome, spent) = re.exec_metered(&subject, offset, 0, &engine_limits);
+        let (outcome, spent) = re.exec_metered(&subject, 0, eflags, &engine_limits);
         if let Some(counter) = limits.spent {
             counter.set(already.saturating_add(spent));
         }
         match outcome {
             ExecOutcome::Matched(groups) => {
                 let span = |s: &crate::Span| RegMatch {
-                    so: s.start,
-                    eo: s.end,
+                    so: s.start + offset,
+                    eo: s.end + offset,
                 };
                 let whole = groups
                     .first()
@@ -221,7 +223,7 @@ impl RegexEngine for AreEngine {
     /// Bumped with any change to what a pattern compiles to or matches.
     const IDENTITY: EngineIdentity = EngineIdentity {
         name: "tcl-regex ARE",
-        revision: 2,
+        revision: 3,
     };
 
     fn retained_bytes(re: &CompiledRegex) -> usize {
