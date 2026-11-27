@@ -64,3 +64,6 @@ pub use source::OriginalBpfSource;
 pub use template::TemplateDef;
 pub use ty::ByteOrder;
 pub use unroll::unroll_loops;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

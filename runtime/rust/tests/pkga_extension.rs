@@ -274,3 +274,5 @@ fn the_vectors_leave_nothing_allocated() {
     );
     assert_eq!(tcl_test_double_free_count(), 0);
 }
+
+tcl_registry::testing::install_shipped!();

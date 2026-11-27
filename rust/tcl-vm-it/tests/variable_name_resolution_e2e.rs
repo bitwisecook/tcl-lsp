@@ -707,3 +707,5 @@ fn try_fallthrough_vectors_match_each_tclsh() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

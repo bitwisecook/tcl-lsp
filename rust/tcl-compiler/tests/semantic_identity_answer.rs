@@ -126,3 +126,5 @@ fn rename_fixture_uses_one_identity_for_moved_command_and_another_for_new_name()
     assert_eq!(before, moved);
     assert_ne!(before, new_name);
 }
+
+tcl_registry::testing::install_shipped!();

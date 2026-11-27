@@ -59,6 +59,7 @@ crate-type = ["cdylib"]
 [dependencies]
 bigip-report-gen-rust = { path = "../rust" }
 tcl-bigip-io = { path = "../../tcl-bigip-io" }
+tcl-registry = { path = "../../tcl-registry" }
 # Parse the SCF for `sys file ssl-cert` cache-paths so the matching PEM can be
 # pulled out of the UCS filestore for the certs tab.
 tcl-bigip = { path = "../../tcl-bigip" }

@@ -550,3 +550,5 @@ fn no_input_durability_is_raised() {
         offenders.join("\n  ")
     );
 }
+
+tcl_registry::testing::install_shipped!();

@@ -457,3 +457,5 @@ fn bare_matches_path_is_the_glob_regex() {
         assert_eq!(path.value, r"(?s)^/v[12]/.*\.json$", "{operator}");
     }
 }
+
+tcl_registry::testing::install_shipped!();

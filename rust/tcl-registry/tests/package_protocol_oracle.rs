@@ -207,3 +207,5 @@ fn jim_package_lookup_and_unsupported_version_surfaces_match_live_reference() {
         "1.0\n1.0\n1"
     );
 }
+
+tcl_registry::testing::install_shipped!();

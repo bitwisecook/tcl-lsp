@@ -43,3 +43,5 @@ mod command_binding;
 mod compilation_unit;
 mod optimiser;
 mod value_transfer_witnesses;
+
+tcl_registry::testing::install_shipped!();

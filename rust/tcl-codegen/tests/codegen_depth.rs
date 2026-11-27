@@ -1312,3 +1312,5 @@ fn backend_lower_module_handbuilt_empty_module() {
         "terminal op was {last:?}"
     );
 }
+
+tcl_registry::testing::install_shipped!();

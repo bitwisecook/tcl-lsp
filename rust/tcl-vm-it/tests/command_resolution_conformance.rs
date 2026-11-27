@@ -77,3 +77,5 @@ fn vm_dispatch_matches_every_vector() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

@@ -51,6 +51,7 @@ fn time<T>(label: &str, iters: u32, mut f: impl FnMut() -> T) -> f64 {
 // A linear profiling script: setup, then one timed block per measured path.
 #[allow(clippy::too_many_lines)]
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let rel = std::env::var("FILE")
         .unwrap_or_else(|_| "tcllib-2.0/modules/practcl/practcl.tcl".to_owned());

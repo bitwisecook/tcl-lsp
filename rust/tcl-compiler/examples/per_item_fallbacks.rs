@@ -235,6 +235,7 @@ fn print_slowest(rows: &[Row]) {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     // `ROOT` points the sweep at a different corpus (e.g. a directory of
     // size-truncated copies, to check how cost scales with document length).
     let root = std::env::var("ROOT").map_or_else(

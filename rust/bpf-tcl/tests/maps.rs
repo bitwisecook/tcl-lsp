@@ -74,3 +74,5 @@ fn unknown_map_is_rejected() {
     let err = compile_module("when SOCKET_FILTER { map_get v nope {0}\n accept }\n").unwrap_err();
     assert_eq!(err.code, BpfDiag::UndefinedVar);
 }
+
+tcl_registry::testing::install_shipped!();

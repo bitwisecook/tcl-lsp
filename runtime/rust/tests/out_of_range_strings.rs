@@ -93,3 +93,5 @@ fn tcl85_reads_an_out_of_range_double_string_as_a_number() {
         .join("\n")
     );
 }
+
+tcl_registry::testing::install_shipped!();

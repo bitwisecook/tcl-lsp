@@ -367,3 +367,6 @@ pub fn resolve_object_ref_args(
     }
     matches
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

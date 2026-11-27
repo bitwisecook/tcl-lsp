@@ -714,6 +714,7 @@ impl ExecutableAnalysisAvailability {
     /// its original source. Consumers must not replay the wrapper after its phases.
     ///
     /// ```
+    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
     /// let unavailable = ExecutableAnalysisAvailability::SourceUnavailable;
     /// assert_eq!(unavailable.evaluated_regions().count(), 0);

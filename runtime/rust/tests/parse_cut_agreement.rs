@@ -164,3 +164,5 @@ fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         }
     }
 }
+
+tcl_registry::testing::install_shipped!();

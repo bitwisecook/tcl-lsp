@@ -177,3 +177,5 @@ mod vscode_parity;
 
 #[path = "e2e/naming_source_view_owners.rs"]
 mod naming_source_view_owners;
+
+tcl_registry::testing::install_shipped!();

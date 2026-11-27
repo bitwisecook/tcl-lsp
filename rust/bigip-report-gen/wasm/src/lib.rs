@@ -41,6 +41,12 @@ use tcl_bigip_io::{
     PassphraseOptions, is_pgp_bytes, is_ucs_bytes, resolve_passphrase, ucs_archive_to_scf,
 };
 
+/// Install the command surfaces before any export reads the registry.
+#[wasm_bindgen(start)]
+pub fn start() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}
+
 /// Turn one uploaded file into SCF text.
 ///
 /// * `name` — the file name (its `.ucs` extension disambiguates a plain-gzip

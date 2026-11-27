@@ -265,3 +265,5 @@ fn empty_key_render_opt() {
         ],
     );
 }
+
+tcl_registry::testing::install_shipped!();

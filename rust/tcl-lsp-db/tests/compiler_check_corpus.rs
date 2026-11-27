@@ -638,3 +638,5 @@ fn a_declared_script_encoding_invalidates_and_admits_the_8x_fold() {
         "returning to auto must decline again"
     );
 }
+
+tcl_registry::testing::install_shipped!();

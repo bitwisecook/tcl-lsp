@@ -33,6 +33,7 @@ use tcl_registry::model::ingress::{
 };
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let mut out = String::new();
     for profile in DialectProfile::all() {
         let registry = static_context_for(profile.name).commands();

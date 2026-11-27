@@ -336,3 +336,5 @@ fn rbpf_map_object_still_runs() {
     let mut pkt = vec![0u8; 8];
     assert_eq!(run_socket_filter(&obj, &mut pkt).unwrap(), 99);
 }
+
+tcl_registry::testing::install_shipped!();

@@ -154,3 +154,5 @@ fn int64_min_is_spelled_as_each_release_spells_it() {
     }
     let _ = std::fs::remove_dir_all(path.parent().expect("scratch directory"));
 }
+
+tcl_registry::testing::install_shipped!();

@@ -491,3 +491,5 @@ fn a_folded_expression_error_starts_as_each_release_starts_it() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+tcl_registry::testing::install_shipped!();

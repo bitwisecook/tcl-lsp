@@ -1315,3 +1315,5 @@ fn an_execution_trace_does_not_re_fire_inside_its_own_callback() {
     );
     assert_eq!(got, "ea\nin:A\nout:A");
 }
+
+tcl_registry::testing::install_shipped!();

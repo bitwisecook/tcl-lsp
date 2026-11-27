@@ -23,6 +23,7 @@
 //! reconstructs the dataclasses from.
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let mut args = std::env::args().skip(1);
     let path = args
         .next()

@@ -198,13 +198,13 @@ fn generic_declaration_words_do_not_collide_across_dialects() {
 /// alone, and no word is declared twice.
 #[test]
 fn every_declaration_word_is_gated_to_sslictcl() {
-    let specs = tcl_registry::commands::sslictcl::sslictcl_command_specs();
+    let specs = tcl_registry::installed().specs_of("sslictcl");
     assert!(
         specs.len() > 50,
         "the pack covers the whole vocabulary, got {}",
         specs.len()
     );
-    for spec in &specs {
+    for spec in specs {
         assert_eq!(
             spec.surface,
             Some(SpecSurface::SSLICTCL),
@@ -268,7 +268,7 @@ fn the_vocabulary_table_is_the_pack() {
     // Every word the pack declares is either a block statement of the table,
     // the header, or a member of some block — nothing floats free.
     let table_blocks: Vec<&str> = VOCABULARY.iter().map(|&(name, _)| name).collect();
-    for spec in tcl_registry::commands::sslictcl::sslictcl_command_specs() {
+    for spec in tcl_registry::installed().specs_of("sslictcl") {
         let known = spec.name == "sslictcl"
             || table_blocks.contains(&spec.name)
             || VOCABULARY
@@ -356,7 +356,8 @@ fn a_predicate_body_is_opaque_and_not_a_declaration_block() {
         "a reader still collapses the braced word"
     );
     // The one word in the whole pack that is script-shaped.
-    let opaque: Vec<&str> = tcl_registry::commands::sslictcl::sslictcl_command_specs()
+    let opaque: Vec<&str> = tcl_registry::installed()
+        .specs_of("sslictcl")
         .iter()
         .filter(|spec| spec.arg_role_at(0) == Some(ArgRole::OpaqueScript))
         .map(|spec| spec.name)
@@ -438,7 +439,7 @@ fn enumerated_value_domains_offer_their_canonical_spellings() {
     let values: Vec<&str> = schema.arg_values_at(0).iter().map(|v| v.value).collect();
     assert_eq!(values, ["1"]);
     // No other row closes an argument.
-    for spec in tcl_registry::commands::sslictcl::sslictcl_command_specs() {
+    for spec in tcl_registry::installed().specs_of("sslictcl") {
         assert_eq!(
             spec.closed_value_args.is_empty(),
             spec.name != "schema",
@@ -486,7 +487,7 @@ fn the_document_grammar_names_the_top_level_declarations() {
         .collect();
     reachable.sort_unstable();
     reachable.dedup();
-    for spec in tcl_registry::commands::sslictcl::sslictcl_command_specs() {
+    for spec in tcl_registry::installed().specs_of("sslictcl") {
         assert!(
             reachable.contains(&spec.name),
             "`{}` is painted by no grammar, so dropping the keyword trait \

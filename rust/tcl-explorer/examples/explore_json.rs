@@ -28,6 +28,7 @@
 use std::io::Read;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let mut dialect = String::from("tcl8.6");
     let mut source: Option<String> = None;
     let mut path: Option<String> = None;

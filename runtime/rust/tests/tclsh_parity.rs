@@ -204,3 +204,5 @@ fn the_runtime_reads_each_script_as_each_tclsh_does() {
         }
     }
 }
+
+tcl_registry::testing::install_shipped!();

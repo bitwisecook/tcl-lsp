@@ -602,3 +602,6 @@ mod tests {
         assert!(!result.snapshots().is_empty());
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

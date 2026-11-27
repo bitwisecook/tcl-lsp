@@ -24,3 +24,5 @@
 mod option_row_editing;
 mod pack_store;
 mod spectcl_roundtrip;
+
+tcl_registry::testing::install_shipped!();

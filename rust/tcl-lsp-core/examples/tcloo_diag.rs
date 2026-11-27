@@ -35,6 +35,7 @@ use tcl_lexer::{LexerConfig, LineIndex, TokenType};
 use tcl_registry::CommandRegistry;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("usage: tcloo_diag <dir|file>...");

@@ -30,3 +30,5 @@ mod formatting_keywords;
 mod hover_completion;
 mod inlay_hints;
 mod lsp_navigation;
+
+tcl_registry::testing::install_shipped!();

@@ -36,6 +36,7 @@ use std::process::ExitCode;
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let args: Vec<String> = std::env::args().collect();
     std::thread::Builder::new()
         .stack_size(WORKER_STACK_SIZE)
@@ -44,3 +45,6 @@ fn main() -> ExitCode {
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

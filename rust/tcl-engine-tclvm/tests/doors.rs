@@ -691,3 +691,5 @@ fn an_embedder_provides_a_package_and_a_library_through_the_engine_itself() {
         Some("{{} Lib}")
     );
 }
+
+tcl_registry::testing::install_shipped!();

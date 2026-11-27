@@ -559,3 +559,6 @@ mod tests {
         assert_eq!(format_verdict(ProgType::Xdp, 3), "XDP_TX (r0=3)");
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

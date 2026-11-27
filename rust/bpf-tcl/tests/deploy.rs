@@ -102,3 +102,5 @@ fn attach_does_not_disturb_the_program_body() {
     let v = bpf_tcl::run::run_socket_filter(&obj, &mut pkt).expect("runs");
     assert_eq!(v, 2); // XDP_PASS — body unaffected by the attach metadata
 }
+
+tcl_registry::testing::install_shipped!();

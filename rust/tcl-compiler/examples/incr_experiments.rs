@@ -70,6 +70,7 @@ fn diags_before(r: &AnalysisResult, ins: u32) -> Vec<&Diagnostic> {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let dialect = "tcl8.6";
 

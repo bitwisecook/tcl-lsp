@@ -842,6 +842,7 @@ fn summary_registry_dirs(findings: &Path, pair: PairArgs) -> Vec<(Option<TclVers
 }
 
 fn main() -> std::process::ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let cli = Cli::parse();
     let timeout = Duration::from_millis(cli.timeout_ms);
     let config = GenConfig {
@@ -1640,3 +1641,6 @@ fn time_seed() -> u64 {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

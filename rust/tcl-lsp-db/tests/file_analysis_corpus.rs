@@ -219,3 +219,5 @@ fn file_analysis_incremental_matches_full_over_corpus() {
         bad.join("\n")
     );
 }
+
+tcl_registry::testing::install_shipped!();

@@ -49,3 +49,5 @@ fn unknown_include_kind_errors() {
         "stderr should flag the unknown kind: {err}"
     );
 }
+
+tcl_registry::testing::install_shipped!();

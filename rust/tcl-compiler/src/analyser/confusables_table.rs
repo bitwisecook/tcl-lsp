@@ -79,6 +79,7 @@ pub static BIDI_CONTROLS: &[(char, &str)] = &[
 /// ([`BIDI_CONTROLS`]), else `None`.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_compiler::analyser::confusables_table::bidi_control_name;
 ///
 /// assert_eq!(bidi_control_name('\u{202e}'), Some("RIGHT-TO-LEFT OVERRIDE"));

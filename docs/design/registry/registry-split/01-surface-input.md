@@ -393,3 +393,115 @@ fn lsort_is_known() {
 - **C8 (D-I):** the table gains a hook-runner column.
 - **New:** the test macro from step 3 on is `tcl_registry::testing::install!`, not `tcl_catalogue::testing` (R2/R6 had left this line stale).
 - **Engine fixer handoff (D-B):** the engine rows follow 334 §3.
+
+## As built (27 November 2026)
+
+What landed, in two commits on `work`, and where it departs from the design
+above.
+
+**Built as designed.** `registry/surfaces.rs` holds `Surface`, `SpecSource`,
+`Placement`, `SurfaceView`, an empty `HookTable`, `SurfaceSet`, `install`,
+`installed`, `try_installed` and `InstallConflict`, re-exported at the crate
+root with `CommandRegistry::from_surfaces`. `commands::SHIPPED` is the one
+list; `SPEC_PACKS`, `SpecPack`, the `shared_group!` cells, `authored_groups`,
+`compiled_command_names`, `TAINT_SOURCE_INDEX` and `tmsh_command_specs` are
+gone. `build_default` is `from_surfaces(installed().base())`; `load_surface`
+asks the installed set which surface claims the layer; the W002 universe, the
+two provenance indexes, the taint-source index (now built from every
+installed surface) and the safe-interpreter hidden list are `SurfaceSet`
+indexes; `fixed_math_function_metadata` reads the `tcl` surface. Spec Studio
+and `xtask` (`evaluation_contexts`, `semantics_matrix`, `audit_option_dialects`)
+and `xtask-backing` read the installed set and `Surface::source_dir`. Every
+binary and example installs first in `main`; the WASM hosts install in their
+`start` function or constructor, the Python module in its init, and
+`runtime/rust` and `tcl-vm-wasm` at interpreter creation unless the host has
+installed. About 200 test harnesses carry `tcl_registry::testing::install_shipped!()`,
+and the doctests of `tcl-registry`, `tcl-compiler` and `tcl-lsp-core` a hidden
+`install_shipped()` line. A read before any install panics with
+`surfaces::NOT_INSTALLED`.
+
+**Decisions taken where the design was silent or wrong against the code.**
+
+1. *No `ctor`.* The workspace sets `unsafe_code = "forbid"`, and `ctor`'s
+   expansion carries `#[allow(unsafe_code)]`, which a `forbid` rejects
+   (E0453). The `testing` macro places the start-up function in the
+   platform constructor section itself (`.init_array`, `__mod_init_func`,
+   `.CRT$XCU`), as `ctor` does. The lint is not reported inside an external
+   macro's expansion, so harnesses compile under the `forbid`; inside
+   `tcl-registry` the macro cannot be used, and the crate's own unit tests
+   install `SHIPPED` on the first `installed()` under `cfg(test)`. This is a
+   life-before-main hook the `forbid` does not see; the owner should confirm
+   it or choose another mechanism before step 3 relies on it. A harness with
+   a conflicting second install aborts at start-up with the conflict.
+2. *The cell lives in the `Surface`.* Each `Surface` and `SurfaceView` is a
+   `static` with a `SpecCell`, so `from_surfaces` builds no copy and reads no
+   global, and a subset registry shares the leaked specs.
+3. *`Placement::BaseLayer`.* Tk is loaded by every default build and also
+   counts the `Tk` layer as loaded; a third variant says so. Layers are
+   claimed by provider, so `SurfaceLayer::Core(F5Irules, _)` at any release
+   finds the iRules surface, as the old `match` did.
+4. *The tmsh view filters by name* (`tmsh::` prefix) over the iApps
+   surface's own specs, so the tmsh layer's specs are now the very iApps
+   specs rather than a second leaked copy.
+5. *Provenance covers built surfaces only*, as `authored_groups` did; a
+   `Registered` surface reports no pack.
+6. *`SHIPPED` order is the old `authored_groups` order* (`tcl` first), so
+   `spec_packs_of` and the default build are unchanged. Spec Studio's pack
+   list now follows it too (`thread` moved from first to after `itcl`).
+7. *Universe order.* The universe now adds surfaces in `SHIPPED` order, so
+   the `providers` and `rows` vectors of `providers_in_any_dialect` list
+   `bpf` and `expect` in a different position for five names (`close`,
+   `loop`, `map`, `next`, `send`). Membership is unchanged, the only reader
+   tests membership, and `dialect_names_for_rows` sorts before it renders.
+8. *Engines.* `runtime/rust` and `tcl-vm-wasm` install `SHIPPED` when nothing
+   is installed, standing in for `tcl-catalogue-core` until item 291.
+9. *Done-when glob.* The plan's `--glob '!commands/**'` matches nothing under
+   `rust/tcl-registry/src`; the check is run as `--glob '!**/commands/**'`.
+
+**Verification.**
+
+- *Same answers:* a throwaway test dumped, for the default registry and every
+  catalogue profile, each name's specs (provenance and a digest of the spec's
+  `Debug` with addresses removed), the document grammar, and for every name
+  `known_in_any_dialect`, `providers_in_any_dialect`, `taint_source` and
+  `spec_packs_of`, plus the hidden list. Base and this step differ only in
+  decision 7's five lines (53,671 lines compared).
+- *Loud failure:* `tcl-registry/tests/install_contract.rs` (no harness
+  install) checks the panic message, `from_surfaces` without an install,
+  idempotence and `InstallConflict`.
+- *Entry points:* `tests/installs_surfaces.rs` in `tcl-cli`, `f5-cli`,
+  `tcl-vm-cli`, `tcl-debugger` and `bpf-tcl` run the binary from a harness
+  that installs nothing. With `tclvm`'s install removed the test fails with
+  the not-installed message.
+- *Failsets:* `tcl-registry` (lib, integration, examples) and
+  `tcl-spec-studio` fail the same tests as the base commit.
+- `cargo clippy --workspace --all-targets -D warnings`, `cargo fmt --check`
+  and `make xtask-gates` pass (the `memo-type` ledger is updated).
+
+**Build cost** of an edit to one spec (`commands/tcl/lsort_.rs`) followed by
+`cargo test -p tcl-compiler --no-run`, warm target, `CARGO_INCREMENTAL=0`:
+
+| | crates rebuilt | seconds |
+|---|---|---|
+| before | 3 (`tcl-registry`, `tcl-vm`, `tcl-compiler`) | 392 |
+| after | 3 (the same) | 415 |
+
+The step moves no code between crates, so the cost is unchanged by design
+(the 6% difference is within run-to-run noise on this shared machine); steps
+263 and 264 are what move it.
+
+**Not done in this step.**
+
+- *Jim's side door (work list 5).* `register_core_surface_specs`,
+  `core_surface_generation` and `tcl_spectcl::core_surfaces::ensure` remain.
+  Making Jim a `Registered` surface means the install lists differ by entry
+  point (the ones that link `tcl-spectcl` add it), so `testing` needs a
+  list-taking `install!` and the Jim tests in `tcl-spectcl` and
+  `tcl-compiler-it` move to it. That is the next part of 262.
+- *Entry-point tests* for `tcl-lsp-server` (its e2e suite spawns the binary
+  and fails without the install, but has no dedicated test), `tcl-mcp`,
+  `tcl-fuzz`, `sslictcl-data`, `bigip-report-gen`, `xtask` and
+  `xtask-backing` (exercised by `make xtask-gates`), and the WASM and Python
+  hosts, which this container cannot build (no `wasm32-unknown-unknown`
+  target).
+- Open question 1 stands: `thread` and `sslictcl` keep `in_universe: false`.

@@ -193,7 +193,8 @@ struct CoreCommand {
 /// specs must declare the same backing.
 fn core_commands() -> Result<BTreeMap<&'static str, CoreCommand>> {
     let mut core: BTreeMap<&'static str, CoreCommand> = BTreeMap::new();
-    for spec in tcl_registry::commands::tcl::tcl_command_specs()
+    for spec in tcl_registry::installed()
+        .specs_of("tcl")
         .iter()
         .filter(|spec| spec.required_package.is_none())
         .filter(|spec| {
@@ -561,7 +562,7 @@ fn scan_file_surface(root: &std::path::Path) -> Result<FileSurface> {
 
 fn file_fidelity_errors(root: &std::path::Path) -> Result<Vec<String>> {
     let (arms, arities) = scan_file_surface(root)?;
-    let specs = tcl_registry::commands::tcl::tcl_command_specs();
+    let specs = tcl_registry::installed().specs_of("tcl");
     let file = specs
         .iter()
         .find(|s| s.name == "file")

@@ -39,6 +39,7 @@ pub enum ExecutedScriptMapping {
 /// One evaluated body, shared by word, list and concatenated-script consumers.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// use std::sync::Arc;
 /// use tcl_compiler::command_binding::{CommandAllocationSite, ExecutedScriptSource, SourceOriginId};
 /// let parent = CommandAllocationSite {

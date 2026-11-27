@@ -298,3 +298,5 @@ fn no_golden_snapshot_is_orphaned() {
          run `cargo xtask pack-goldens`"
     );
 }
+
+tcl_registry::testing::install_shipped!();

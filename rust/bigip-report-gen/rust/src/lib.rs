@@ -78,3 +78,6 @@ pub use tcl_bigip_query::build_architecture;
 /// The full f5-query manual (grammar + builtins + cookbook), re-exported so the
 /// wasm builder / report can embed a reference panel.
 pub use tcl_bigip_query::manual::format_manual;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

@@ -711,3 +711,5 @@ fn multi_ucs_shared_cache_path_does_not_collide() {
         "each device shows its own certificate, not a shared/collided one"
     );
 }
+
+tcl_registry::testing::install_shipped!();

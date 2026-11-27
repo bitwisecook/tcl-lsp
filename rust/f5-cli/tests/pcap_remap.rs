@@ -323,3 +323,5 @@ fn overlay_makes_unknown_trailer_known() {
     );
     assert!(output.is_file(), "output should be written");
 }
+
+tcl_registry::testing::install_shipped!();

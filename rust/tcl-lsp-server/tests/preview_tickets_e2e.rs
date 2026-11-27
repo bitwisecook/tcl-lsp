@@ -1710,3 +1710,5 @@ async fn a_pack_declared_configuration_member_declares_no_method() {
         "`rex greet` resolves to nothing: {definition}",
     );
 }
+
+tcl_registry::testing::install_shipped!();

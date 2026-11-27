@@ -248,3 +248,5 @@ fn project_diagnostics_incremental_matches_fresh_over_corpus() {
     }
     prog.finish("120 iterations");
 }
+
+tcl_registry::testing::install_shipped!();

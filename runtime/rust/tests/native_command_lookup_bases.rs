@@ -90,3 +90,5 @@ fn current_path_root_resolution_matches_real_oracle_vectors() {
         }
     }
 }
+
+tcl_registry::testing::install_shipped!();

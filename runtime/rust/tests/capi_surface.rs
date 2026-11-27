@@ -666,3 +666,5 @@ fn an_error_code_object_is_released_once_it_is_stated() {
     assert_eq!(tcl_test_finalize(), 0, "the fresh code was freed");
     assert_eq!(tcl_test_double_free_count(), 0);
 }
+
+tcl_registry::testing::install_shipped!();

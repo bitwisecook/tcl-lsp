@@ -680,7 +680,7 @@ mod tests {
     /// half.
     #[test]
     fn the_registry_spec_documents_every_axis_issue_2070() {
-        let specs = tcl_registry::commands::spectcl::spectcl_command_specs();
+        let specs = tcl_registry::installed().specs_of("spectcl");
         let dialect = specs
             .iter()
             .find(|spec| spec.name == "dialect")

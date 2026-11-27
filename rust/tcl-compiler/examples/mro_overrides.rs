@@ -356,6 +356,7 @@ fn report_examples(hierarchy: &ClassHierarchy, definers: &HashMap<String, Vec<St
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let roots = resolve_roots();
 
     println!("# mro_overrides — method-override frequency across a corpus");

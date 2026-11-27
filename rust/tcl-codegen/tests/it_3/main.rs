@@ -32,3 +32,5 @@ mod inlining_interproc_residual;
 mod optimiser_codegen_residual;
 mod release_optimiser_safety;
 mod release_units;
+
+tcl_registry::testing::install_shipped!();

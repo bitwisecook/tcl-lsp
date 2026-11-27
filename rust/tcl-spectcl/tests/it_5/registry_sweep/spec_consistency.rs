@@ -264,7 +264,7 @@ fn is_bare_operator_head(spec: &tcl_registry::CommandSpec) -> bool {
 fn a_spec_outside_the_core_set_declares_only_its_own_builtin() {
     use tcl_registry::RuntimeBacking;
 
-    let specs = tcl_registry::commands::tcl::tcl_command_specs();
+    let specs = tcl_registry::installed().specs_of("tcl");
     let core: std::collections::BTreeMap<&str, RuntimeBacking> = specs
         .iter()
         // The bare operator spelling (`+`) is `expr` grammar that nothing
@@ -312,7 +312,7 @@ fn a_shipped_builtin_names_its_registered_implementation() {
 
     let registry = CommandRegistry::build_default();
     let mut shipped = 0;
-    for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
+    for spec in tcl_registry::installed().specs_of("tcl") {
         match spec.runtime_backing {
             RuntimeBacking::ShippedBuiltin { identity } => {
                 let registered =

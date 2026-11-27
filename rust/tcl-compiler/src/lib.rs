@@ -234,6 +234,10 @@ pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value
 /// Crate version string.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// assert!(!tcl_compiler::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

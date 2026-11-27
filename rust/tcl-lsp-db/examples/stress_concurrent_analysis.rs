@@ -424,6 +424,7 @@ fn final_correctness_check(
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let params = RunParams {
         procs: env_usize("STRESS_PROCS", 600),
         readers: env_usize("STRESS_READERS", 8),

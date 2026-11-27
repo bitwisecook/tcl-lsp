@@ -65,6 +65,7 @@ path = "src/main.rs"
 
 [dependencies]
 tcl-lsp-server = { path = "../tcl-lsp-server" }
+tcl-registry = { path = "../tcl-registry" }
 tower-lsp-server = { version = "0.23", default-features = false }
 tower = { version = "0.5", features = ["util"] }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }

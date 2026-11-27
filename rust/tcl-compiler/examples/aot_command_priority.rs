@@ -447,6 +447,7 @@ fn walk_group(
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
     let mut roots: Vec<String> = Vec::new();
     let mut csv_path: Option<String> = None;

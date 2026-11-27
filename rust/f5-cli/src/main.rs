@@ -24,5 +24,9 @@
 #![forbid(unsafe_code)]
 
 fn main() -> std::process::ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     f5_cli::run(std::env::args_os())
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

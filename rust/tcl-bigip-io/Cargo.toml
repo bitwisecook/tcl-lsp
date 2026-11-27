@@ -49,6 +49,7 @@ glomar-pgp = "0.4"
 glomar = { version = "0.4", features = ["wasm-js"] }
 
 [dev-dependencies]
+tcl-registry = { path = "../tcl-registry" }
 temp-env = "0.3"
 flate2 = "1"
 tar = "0.4"

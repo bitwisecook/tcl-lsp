@@ -161,3 +161,5 @@ fn kernel_socket_filter_length_loads() {
         "sock-len",
     );
 }
+
+tcl_registry::testing::install_shipped!();

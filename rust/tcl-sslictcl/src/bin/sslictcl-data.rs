@@ -28,6 +28,7 @@ use tcl_sslictcl::{
 };
 
 fn main() -> ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -90,3 +91,6 @@ fn compile_trust(output: &str, input_files: &[String]) -> Result<(), String> {
     let canonical = canonical_dataset_json(&dataset).map_err(|error| error.to_string())?;
     fs::write(output, canonical).map_err(|error| format!("cannot write {output}: {error}"))
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

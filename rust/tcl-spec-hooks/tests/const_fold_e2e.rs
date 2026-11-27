@@ -309,3 +309,5 @@ fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
     }
     pack_hooks::clear_host();
 }
+
+tcl_registry::testing::install_shipped!();

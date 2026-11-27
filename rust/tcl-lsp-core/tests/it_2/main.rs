@@ -27,3 +27,5 @@ mod file_ops_bigip_residual;
 mod references_rename;
 mod references_residual;
 mod semantic_tokens;
+
+tcl_registry::testing::install_shipped!();

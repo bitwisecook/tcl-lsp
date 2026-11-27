@@ -94,6 +94,7 @@ fn encode_interproc(cu: &CompilationUnit) -> usize {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let dialect = "tcl8.6";
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();

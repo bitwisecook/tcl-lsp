@@ -39,6 +39,7 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (standalone, init, analysis, native, wat, rest): (
         bool,

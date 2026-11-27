@@ -36,6 +36,7 @@ use std::io::{BufRead, Write};
 use tcl_debugger::backend::{DebugBackend, DebugError, VmBackend};
 
 fn main() -> std::process::ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let Some(path) = std::env::args().nth(1) else {
         eprintln!("usage: tcl-debug <script.tcl>   (interactive CLI)");
         eprintln!("       tcl-debug --dap          (Debug Adapter Protocol over stdio)");
@@ -197,3 +198,6 @@ mod tests {
         assert_eq!(command_and_operand(" \t"), None);
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

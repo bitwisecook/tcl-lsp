@@ -39,3 +39,5 @@ mod tcl_expr_eval;
 mod type_propagation;
 mod var_escape_residual2;
 mod w210_short_circuit;
+
+tcl_registry::testing::install_shipped!();

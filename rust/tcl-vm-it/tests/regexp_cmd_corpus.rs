@@ -182,3 +182,5 @@ fn regexp_cmd_corpus() {
     }
     assert!(failures.is_empty(), "{} cases failed", failures.len());
 }
+
+tcl_registry::testing::install_shipped!();

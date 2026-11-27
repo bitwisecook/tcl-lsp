@@ -642,3 +642,6 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         },
     )
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

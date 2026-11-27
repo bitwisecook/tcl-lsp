@@ -663,6 +663,7 @@ enum Command {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     dispatch(Cli::parse().command)
 }
 
@@ -911,3 +912,6 @@ fn definitions_gate() -> anyhow::Result<ExitCode> {
         ExitCode::FAILURE
     })
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

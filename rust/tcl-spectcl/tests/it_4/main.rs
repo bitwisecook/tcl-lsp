@@ -26,3 +26,5 @@ mod jim_surface_roster;
 mod lazy_bundled;
 mod spectcl_dialect_analysis;
 mod value_transfers;
+
+tcl_registry::testing::install_shipped!();

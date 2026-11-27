@@ -22,3 +22,5 @@
 mod dialect_seam;
 mod tests;
 mod value_transfer_parity;
+
+tcl_registry::testing::install_shipped!();

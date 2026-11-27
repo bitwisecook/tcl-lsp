@@ -445,6 +445,7 @@ fn run_lane(oracle: &Tclsh, paths: &[PathBuf], archive: &str) -> Result<bool, Bo
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let directory = Path::new(PROBE);
     let archive = fs::read_to_string(directory.join("frames.out"))?;
     let mut paths = fs::read_dir(directory.join("frames"))?

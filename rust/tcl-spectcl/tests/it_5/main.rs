@@ -31,3 +31,5 @@ mod surface_roster_trust;
 mod upf_hooks;
 mod variable_reference_boundaries;
 mod workspace_trust;
+
+tcl_registry::testing::install_shipped!();

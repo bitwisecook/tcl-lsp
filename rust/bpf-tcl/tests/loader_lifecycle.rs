@@ -67,3 +67,5 @@ fn two_deployments_use_disjoint_ownership_labelled_pins() {
     assert!(!a.owns_pin(&b.programs[0].pin));
     assert!(!b.owns_pin(&a.programs[0].pin));
 }
+
+tcl_registry::testing::install_shipped!();

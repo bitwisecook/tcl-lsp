@@ -685,3 +685,5 @@ fn a_quote_away_from_word_start_or_after_a_separator_is_not_a_weld() {
         assert_eq!(result, want, "{sheet}");
     }
 }
+
+tcl_registry::testing::install_shipped!();

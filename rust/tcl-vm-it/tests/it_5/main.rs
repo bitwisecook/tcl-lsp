@@ -63,3 +63,5 @@ mod tailcall_uplevel_e2e;
 mod value_ops;
 mod value_source_tests;
 mod variable_container_models;
+
+tcl_registry::testing::install_shipped!();

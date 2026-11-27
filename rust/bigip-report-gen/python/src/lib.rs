@@ -670,6 +670,7 @@ fn build_enrichment(devices_json: &str, architecture_json: &str) -> PyResult<Str
 /// The native BIG-IP query engine binding.
 #[pymodule]
 fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     // `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
     // carries `0.1.0` and is never bumped (releases are tag-only), so the
     // manifest version would have `f5-report --version` report `engine 0.1.0`

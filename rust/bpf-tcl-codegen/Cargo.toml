@@ -32,5 +32,8 @@ tcl-core-types = { path = "../tcl-core-types" }
 bpf-tcl-ir = { path = "../bpf-tcl-ir" }
 tcl-lexer = { path = "../tcl-lexer" }
 
+[dev-dependencies]
+tcl-registry = { path = "../tcl-registry" }
+
 [lints]
 workspace = true

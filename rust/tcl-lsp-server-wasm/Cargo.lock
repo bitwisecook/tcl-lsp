@@ -1828,6 +1828,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-lsp-server",
+ "tcl-registry",
  "tower",
  "tower-lsp-server",
  "wasm-bindgen",
@@ -1946,6 +1947,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-registry",
  "tcl-syntax",
  "x509-parser",
 ]

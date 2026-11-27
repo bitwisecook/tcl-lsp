@@ -55,6 +55,7 @@ impl Write for Stdout {
 const STACK_BYTES: usize = 512 * 1024 * 1024;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let code = std::thread::Builder::new()
         .stack_size(STACK_BYTES)
         .spawn(run)

@@ -78,3 +78,5 @@ fn producer_to_json_consumer_stream_with_versioned_abi() {
     assert!(lines[1].contains("\"user_port\":80"));
     assert_eq!(rb.delivered(), 2);
 }
+
+tcl_registry::testing::install_shipped!();

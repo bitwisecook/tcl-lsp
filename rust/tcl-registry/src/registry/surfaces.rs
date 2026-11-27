@@ -239,6 +239,18 @@ impl SurfaceSet {
             .find(|surface| surface.id == id)
     }
 
+    /// The specs of the installed surface `id`.
+    ///
+    /// # Panics
+    ///
+    /// When no installed surface has that id.
+    #[must_use]
+    pub fn specs_of(&self, id: &str) -> &'static [&'static CommandSpec] {
+        self.surface(id)
+            .unwrap_or_else(|| panic!("the {id} surface is installed"))
+            .specs()
+    }
+
     /// The installed surface that claims `layer`, and the specs it brings.
     #[must_use]
     pub fn layer(
@@ -422,5 +434,9 @@ pub fn installed() -> &'static SurfaceSet {
     if let Some(set) = INSTALLED.get() {
         return set;
     }
-    install(crate::commands::SHIPPED).unwrap_or_else(|conflict| panic!("{conflict}"))
+    // The crate's own unit tests share one harness with no entry point.
+    if cfg!(test) {
+        return install(crate::commands::SHIPPED).unwrap_or_else(|conflict| panic!("{conflict}"));
+    }
+    panic!("{NOT_INSTALLED}")
 }

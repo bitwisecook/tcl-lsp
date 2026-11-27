@@ -115,3 +115,6 @@ pub fn tclvm_host_with(config: HostConfig) -> HookHost<TclVmEngine> {
     HookHost::with_config(TclVmEngine::new, config)
         .with_pinned_engine_factory(engine_for_hook_release)
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

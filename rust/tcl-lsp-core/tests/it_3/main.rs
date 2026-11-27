@@ -30,3 +30,5 @@ mod lsp_lens_links_symbols;
 mod name_resolution;
 mod oo_mro_parity;
 mod selection_range;
+
+tcl_registry::testing::install_shipped!();

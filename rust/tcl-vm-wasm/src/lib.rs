@@ -66,6 +66,7 @@ impl std::io::Write for Capture {
 /// A non-OK completion (error / uncaught return) appends its message so the host
 /// observes failures rather than a silent empty result.
 fn run(script: &[u8]) -> Vec<u8> {
+    let _ = tcl_registry::try_installed().map_or_else(tcl_registry::install_shipped, Ok);
     let buf = Rc::new(RefCell::new(Vec::new()));
     // A native-core 9.0 interpreter: only the native core names commands.
     let Some(mut vm) = Vm::with_native_core(

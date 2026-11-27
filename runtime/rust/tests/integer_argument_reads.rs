@@ -1299,3 +1299,5 @@ fn seek_origins_and_after_idle_report_as_c_does() {
         "TCL WRONGARGS",
     )]);
 }
+
+tcl_registry::testing::install_shipped!();

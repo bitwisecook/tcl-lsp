@@ -25,6 +25,7 @@
 use std::fmt::Write as _;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let reg = tcl_registry::bigip::BigipRegistry::build();
     let mut out = String::new();
     for spec in reg.specs() {

@@ -188,3 +188,5 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

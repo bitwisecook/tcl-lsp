@@ -54,6 +54,7 @@ fn rss_kib() -> u64 {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let mut args = std::env::args().skip(1);
     let edits: u32 = args.next().and_then(|a| a.parse().ok()).unwrap_or(200);
     // Which work each keystroke drives, so the growth can be bisected onto a

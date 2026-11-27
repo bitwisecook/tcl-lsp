@@ -57,7 +57,11 @@ fn repo_root() -> PathBuf {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     match Cli::parse().command {
         Command::WasmBacking { check } => command_backing::run(check),
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

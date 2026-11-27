@@ -1137,3 +1137,5 @@ fn codegen_retains_a_custom_profile_with_a_catalogue_name() {
     let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert!(std::ptr::eq(module.profile, custom));
 }
+
+tcl_registry::testing::install_shipped!();

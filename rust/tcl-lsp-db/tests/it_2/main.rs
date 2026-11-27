@@ -22,3 +22,5 @@
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
 mod overlay_generations;
+
+tcl_registry::testing::install_shipped!();

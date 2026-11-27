@@ -324,6 +324,7 @@ impl EvaluatedBodyRegion {
     /// retains every dependency before attaching the plan to command tokens.
     ///
     /// ```
+    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_compiler::execution_region::{EvaluatedBodyRegion, ExecutionRegionDependency};
     /// use tcl_compiler::ir::{Script, SourceSite};
     /// use tcl_lexer::Span;

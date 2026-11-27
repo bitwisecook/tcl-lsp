@@ -25,3 +25,5 @@ mod library_bootstrap_presence;
 mod native_byte_literals;
 mod native_variable_declaration;
 mod thread_exit_retirement;
+
+tcl_registry::testing::install_shipped!();

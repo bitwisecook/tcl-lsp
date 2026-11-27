@@ -514,3 +514,5 @@ fn query_archive_file_donors_keep_original_bytes_before_mutation() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+tcl_registry::testing::install_shipped!();

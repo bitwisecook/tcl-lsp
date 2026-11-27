@@ -117,6 +117,7 @@ pub enum CompletionCodeSelection {
 /// Unlike a rejected literal, unresolved numeric grammar retains unknown.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_registry::completion::{CompletionCodeSelection, CompletionCodePolicy, resolve_completion_code_selector};
 /// use tcl_syntax::number::Numbers;
 /// assert_eq!(resolve_completion_code_selector("ok", Numbers::Unknown, CompletionCodePolicy::Unknown),

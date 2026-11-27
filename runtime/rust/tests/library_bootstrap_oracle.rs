@@ -328,3 +328,5 @@ fn init_auto_path_presence_matches_each_native_core() {
         assert_eq!(oracle.stdout, b"\n", "Jim");
     }
 }
+
+tcl_registry::testing::install_shipped!();

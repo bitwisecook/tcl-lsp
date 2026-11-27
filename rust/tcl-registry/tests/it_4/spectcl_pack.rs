@@ -92,10 +92,10 @@ fn generic_statement_words_do_not_collide_across_dialects() {
 /// completions in every ordinary Tcl document.
 #[test]
 fn every_statement_word_is_gated_to_spectcl() {
-    let specs = tcl_registry::commands::spectcl::spectcl_command_specs();
+    let specs = tcl_registry::installed().specs_of("spectcl");
     assert!(specs.len() > 100, "the pack covers the whole vocabulary");
     let mut names: Vec<&str> = specs.iter().map(|s| s.name).collect();
-    for spec in &specs {
+    for spec in specs {
         assert_eq!(
             spec.surface,
             Some(SpecSurface::SPECTCL),

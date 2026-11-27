@@ -54,3 +54,6 @@ pub use ucs::{
     read_ucs_member_source, ucs_archive_to_scf, ucs_archive_to_scf_source, ucs_to_scf,
     ucs_to_scf_source,
 };
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

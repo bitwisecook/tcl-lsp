@@ -695,6 +695,7 @@ impl PossibleHandlerBodyFlow {
     /// remain absent rather than inheriting a sequence from role order.
     ///
     /// ```
+    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_registry::native_compilation::{PossibleBodyTopology, PossibleHandlerBodyFlow};
     /// use tcl_registry::{VariableAliasFrame, script_body_flow::ScriptBodyFlow};
     /// let selected = PossibleHandlerBodyFlow {

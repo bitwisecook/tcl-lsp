@@ -65,3 +65,5 @@ fn namespace_queries_match_original_source_reports() {
         assert_eq!(actual_queries, expected_queries.strip_suffix('\n').unwrap(), "{environment}");
     }
 }
+
+tcl_registry::testing::install_shipped!();

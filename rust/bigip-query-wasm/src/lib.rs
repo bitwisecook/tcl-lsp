@@ -35,6 +35,12 @@ use tcl_bigip_query::output;
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, run_query as engine_run_query};
 
+/// Install the command surfaces before any export reads the registry.
+#[wasm_bindgen(start)]
+pub fn start() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}
+
 /// Run a `f5-query` expression against the embedded configs.
 ///
 /// * `expr` — the query expression.

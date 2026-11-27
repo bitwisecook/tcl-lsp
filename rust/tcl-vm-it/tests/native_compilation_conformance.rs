@@ -1952,3 +1952,5 @@ fn expression_ordering_retains_actual_native_character_units() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+tcl_registry::testing::install_shipped!();

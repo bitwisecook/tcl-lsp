@@ -370,3 +370,5 @@ fn per_item_matches_analyse_under_edits() {
     );
     eprintln!("per-item edit gate: {checked} files, {steps} edited states, all byte-identical");
 }
+
+tcl_registry::testing::install_shipped!();

@@ -454,6 +454,7 @@ dependencies = [
  "bpf-tcl-ir",
  "rbpf",
  "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -463,6 +464,7 @@ dependencies = [
  "bpf-tcl-ir",
  "tcl-core-types",
  "tcl-lexer",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -4454,6 +4456,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-core-types",
  "tcl-platform",
+ "tcl-registry",
  "temp-env",
  "thiserror 2.0.21",
 ]

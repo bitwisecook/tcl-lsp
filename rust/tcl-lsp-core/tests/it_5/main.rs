@@ -31,3 +31,5 @@ mod mathfunc_and_word_recognition;
 mod minify_residual;
 mod semantic_tokens_residual;
 mod stub_arg_roles;
+
+tcl_registry::testing::install_shipped!();

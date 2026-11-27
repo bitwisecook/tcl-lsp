@@ -145,8 +145,9 @@ fn complete_rows_match_the_c_evidence() {
 /// `tmsh::create`, `modify` and `delete` change needs a device to evidence.
 #[test]
 fn tmsh_commands_state_their_effects_as_unknown() {
-    let tmsh: Vec<_> = tcl_registry::commands::iapps::iapps_command_specs()
-        .into_iter()
+    let tmsh: Vec<_> = tcl_registry::installed()
+        .specs_of("iapps")
+        .iter()
         .filter(|spec| spec.name.starts_with("tmsh::"))
         .collect();
     assert!(tmsh.len() >= 30, "{}", tmsh.len());

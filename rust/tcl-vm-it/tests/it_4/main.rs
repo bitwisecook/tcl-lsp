@@ -33,3 +33,5 @@ mod package_diagnostics_e2e;
 mod selected_frame_coroutines;
 mod string_is_failindex_receipt;
 mod tcltest_load;
+
+tcl_registry::testing::install_shipped!();

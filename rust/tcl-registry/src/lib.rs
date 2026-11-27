@@ -589,6 +589,7 @@ pub use world_effect::{
 /// Crate version string.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// assert!(!tcl_registry::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -678,8 +678,13 @@ const KNOWN_UNSPECIFIED: &[(&str, Option<&str>, &str, &str)] = &[];
 
 /// The core Tcl command specs, built once for the whole cross-check rather
 /// than once per probe.
-static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
-    LazyLock::new(tcl_registry::commands::tcl::tcl_command_specs);
+static TCL_SPECS: LazyLock<Vec<CommandSpec>> = LazyLock::new(|| {
+    tcl_registry::installed()
+        .specs_of("tcl")
+        .iter()
+        .map(|spec| (*spec).clone())
+        .collect()
+});
 
 /// Every option name authored for *command* in at least one of the audit's
 /// actual C engine profiles, without a package-version filter: the command's

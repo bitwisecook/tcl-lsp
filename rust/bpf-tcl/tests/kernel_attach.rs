@@ -391,3 +391,5 @@ impl Drop for DisposableCgroup {
         let _ = std::fs::remove_dir(&self.path);
     }
 }
+
+tcl_registry::testing::install_shipped!();

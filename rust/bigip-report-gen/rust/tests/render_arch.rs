@@ -134,3 +134,5 @@ fn manifest_note_when_defined() {
     assert!(html.contains("from manifest"), "manifest note shown");
     assert!(html.contains("DNS Edge"), "manifest label applied");
 }
+
+tcl_registry::testing::install_shipped!();

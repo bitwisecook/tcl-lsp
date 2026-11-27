@@ -110,3 +110,5 @@ fn analyser_settlement_matches_every_vector() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

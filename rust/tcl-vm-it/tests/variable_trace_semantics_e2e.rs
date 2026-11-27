@@ -1294,3 +1294,5 @@ fn vectors_match_real_tclsh() {
         }
     }
 }
+
+tcl_registry::testing::install_shipped!();

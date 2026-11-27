@@ -23,6 +23,7 @@
 //! `AplModel` from.
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let path = std::env::args().nth(1).expect("usage: dump_apl <path>");
     let src = std::fs::read_to_string(&path).expect("read source");
     let model = tcl_bigip::apl::parse_apl(&src);

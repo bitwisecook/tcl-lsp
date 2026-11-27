@@ -38,3 +38,5 @@ mod unused_var_tricky_features;
 mod var_escape_cfg_catch;
 mod var_escape_cfg_tree_arms;
 mod var_escape_typeinfer;
+
+tcl_registry::testing::install_shipped!();

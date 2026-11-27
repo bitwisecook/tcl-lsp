@@ -74,6 +74,7 @@ fn requires_json(r: Option<&tcl_registry::events::EventRequires>) -> String {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let registry = static_context_for("f5-irules").commands();
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();

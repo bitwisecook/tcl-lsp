@@ -441,3 +441,5 @@ puts [list $r [info commands ::N::*] [namespace exists ::N]]"
         "{Q ::N} ::N::q 1"
     );
 }
+
+tcl_registry::testing::install_shipped!();

@@ -229,3 +229,5 @@ fn proved_constant_rewrite_changes_source_and_preserves_native_result() {
         assert_eq!(outcome.stdout, b"5\n", "{dialect}: {rewritten}");
     }
 }
+
+tcl_registry::testing::install_shipped!();

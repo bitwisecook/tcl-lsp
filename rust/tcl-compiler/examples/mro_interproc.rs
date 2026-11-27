@@ -807,6 +807,7 @@ fn print_parameter_ceiling(tax: &Taxonomy, param_class: &ParamClass, ceiling_by_
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let roots: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     if roots.is_empty() {
         eprintln!("usage: mro_interproc <corpus dirs...>");

@@ -165,6 +165,7 @@ fn shipping_code(diags: &[Diagnostic], offset: u32) -> &'static str {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let roots = parse_roots();
     let files = gather_files(&roots);
     let reg = CommandRegistry::build_default();

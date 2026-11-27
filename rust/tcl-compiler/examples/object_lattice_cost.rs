@@ -305,6 +305,7 @@ fn print_fast_path_and_edges(rows: &[Row]) {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let roots: Vec<PathBuf> = if args.is_empty() {
         ["experiments/corpus"].iter().map(PathBuf::from).collect()

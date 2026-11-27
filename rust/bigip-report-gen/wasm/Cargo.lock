@@ -141,6 +141,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-io",
+ "tcl-registry",
  "wasm-bindgen",
 ]
 
@@ -1616,6 +1617,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-registry",
  "tcl-syntax",
  "x509-parser",
 ]

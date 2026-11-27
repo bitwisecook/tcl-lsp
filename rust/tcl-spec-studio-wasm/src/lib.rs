@@ -42,6 +42,7 @@ mod snapshots;
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
 }
 
 fn to_string(value: &Value) -> String {

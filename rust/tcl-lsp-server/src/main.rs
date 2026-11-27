@@ -75,6 +75,7 @@ const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let code = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(WORKER_STACK_SIZE)
@@ -165,3 +166,6 @@ async fn serve() -> i32 {
 /// `tcl-lsp-server-wasm`.
 #[cfg(target_family = "wasm")]
 fn main() {}
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

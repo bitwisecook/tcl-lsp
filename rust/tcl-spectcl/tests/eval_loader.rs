@@ -1624,3 +1624,5 @@ fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

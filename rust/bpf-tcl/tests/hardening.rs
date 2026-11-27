@@ -250,3 +250,5 @@ fn stack_pressure_is_reported_with_source_context() {
         err.msg
     );
 }
+
+tcl_registry::testing::install_shipped!();

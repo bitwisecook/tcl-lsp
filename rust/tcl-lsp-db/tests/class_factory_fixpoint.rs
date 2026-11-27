@@ -475,3 +475,5 @@ fn an_overriding_manufacturer_survives_the_extra_link() {
         "the override's own layout is read, not guessed: {spec:?}"
     );
 }
+
+tcl_registry::testing::install_shipped!();

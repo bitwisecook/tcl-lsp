@@ -258,3 +258,5 @@ fn unknown_transport_rejected_by_clap() {
     let (_out, _err, code) = run(&["fetch", "--host", "h", "--transport", "bogus"], &[]);
     assert_eq!(code, 2, "clap rejects an unknown transport");
 }
+
+tcl_registry::testing::install_shipped!();

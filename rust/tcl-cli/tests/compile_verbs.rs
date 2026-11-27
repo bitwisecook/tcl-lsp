@@ -529,3 +529,5 @@ fn dis_keeps_a_declarations_result_without_an_optimiser() {
         assert_eq!(&after[..expected.len()], expected, "{dialect}:\n{body}");
     }
 }
+
+tcl_registry::testing::install_shipped!();

@@ -86,3 +86,5 @@ fn default_section_is_all_and_serialises() {
     assert_eq!(output.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&output.stdout).contains("\"commands\":"));
 }
+
+tcl_registry::testing::install_shipped!();

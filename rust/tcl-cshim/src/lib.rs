@@ -1625,3 +1625,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

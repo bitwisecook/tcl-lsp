@@ -186,6 +186,7 @@ fn measure_edit(
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let path = std::env::args_os()
         .nth(1)
         .expect("usage: w210_body_probe <687-line caching probe Tcl file>");

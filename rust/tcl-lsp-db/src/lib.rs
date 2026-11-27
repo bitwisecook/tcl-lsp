@@ -1015,3 +1015,6 @@ mod readonly_source_optimisation_owner_tests;
 
 #[cfg(test)]
 mod original_optimiser_memo_transport_tests;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

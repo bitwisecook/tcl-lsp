@@ -758,6 +758,7 @@ impl CapturedLifecycleSpec {
     /// names or expansions retain `UnknownArguments`.
     ///
     /// ```
+    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_registry::{CommandRegistry, InvocationArguments};
     /// use tcl_registry::body_execution::{BodyExecutionSelection};
     /// let registry = CommandRegistry::build_default();

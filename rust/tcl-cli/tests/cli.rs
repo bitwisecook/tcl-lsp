@@ -230,3 +230,5 @@ fn diag_codes_by_file(out: &[u8]) -> Vec<(String, String)> {
         })
         .collect()
 }
+
+tcl_registry::testing::install_shipped!();

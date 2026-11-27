@@ -411,6 +411,7 @@ fn run() -> Result<(), (u8, String)> {
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let result = std::thread::Builder::new()
         .stack_size(WORKER_STACK_SIZE)
         .spawn(run)
@@ -427,3 +428,6 @@ fn main() -> ExitCode {
         }
     }
 }
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

@@ -28,6 +28,7 @@ use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let mut src = String::new();
     std::io::stdin().read_to_string(&mut src).expect("stdin");
     let registry = CommandRegistry::build_default();

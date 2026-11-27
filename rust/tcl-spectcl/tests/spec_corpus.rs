@@ -1914,3 +1914,5 @@ fn a_hostile_pack_degrades_to_abstention_and_never_hangs() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

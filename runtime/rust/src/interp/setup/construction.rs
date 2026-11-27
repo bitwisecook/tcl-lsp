@@ -84,6 +84,14 @@ pub(crate) fn default_host() -> Rc<dyn tcl_platform::Host> {
     host
 }
 
+/// The shipped command surfaces, installed at interpreter creation unless the
+/// host already installed its own set.
+fn install_surfaces() {
+    if tcl_registry::try_installed().is_none() {
+        let _ = tcl_registry::install_shipped();
+    }
+}
+
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
     /// result, and the predefined variables that C installs in
@@ -108,6 +116,7 @@ impl Interp {
         profile: &'static tcl_dialect::DialectProfile,
         inputs: tcl_registry::special_vars::NativeBootstrapInputs,
     ) -> Option<Interp> {
+        install_surfaces();
         let protocol =
             tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
         if protocol.names().tcl_version().is_some() {
@@ -131,6 +140,7 @@ impl Interp {
             tcl_registry::special_vars::NativeBootstrapInputs,
         )>,
     ) -> Interp {
+        install_surfaces();
         #[cfg(test)]
         let mut constructor_diagnostic = ConstructorDiagnostics::new(Kind::Bootstrap);
         let profile = native.as_ref().map_or_else(

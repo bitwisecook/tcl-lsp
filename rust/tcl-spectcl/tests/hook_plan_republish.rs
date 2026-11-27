@@ -87,3 +87,5 @@ fn an_unchanged_hook_plan_keeps_the_evaluator_epoch_1657() {
         "control: an edited hook body is a new evaluator",
     );
 }
+
+tcl_registry::testing::install_shipped!();

@@ -89,3 +89,6 @@ pub use trust::{
     embedded_dataset,
 };
 pub use vocabulary::{DECLARATIONS, Declaration, Member, ValueDomain};
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

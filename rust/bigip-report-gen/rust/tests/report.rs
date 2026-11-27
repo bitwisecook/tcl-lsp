@@ -853,3 +853,5 @@ fn bigip_21_1_ai_defaults_and_mcp_persistence_reach_the_report() {
     assert_eq!(persistence["fields"]["type"], "mcp");
     assert_eq!(persistence["fields"]["mcp-encryption-passphrase"], "none");
 }
+
+tcl_registry::testing::install_shipped!();

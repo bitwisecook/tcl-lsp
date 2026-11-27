@@ -1435,3 +1435,5 @@ int OriginalInventory_Init(Tcl_Interp *interp) {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

@@ -103,3 +103,5 @@ fn the_flag_needs_a_build_with_the_feature() {
         stderr(&output)
     );
 }
+
+tcl_registry::testing::install_shipped!();

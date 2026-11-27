@@ -148,3 +148,5 @@ fn no_policy_is_unrestricted() {
     }\n";
     assert_eq!(verdict(src, 8), 7);
 }
+
+tcl_registry::testing::install_shipped!();

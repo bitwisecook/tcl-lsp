@@ -61,3 +61,6 @@ pub mod wireshark_profile;
 
 pub use error::BigipError;
 pub use range::{Position, Range};
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

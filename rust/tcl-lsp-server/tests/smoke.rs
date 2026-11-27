@@ -55,3 +55,5 @@ mod hover_smoke;
 mod inlay_hint_smoke;
 #[path = "smoke/signature_help_smoke.rs"]
 mod signature_help_smoke;
+
+tcl_registry::testing::install_shipped!();

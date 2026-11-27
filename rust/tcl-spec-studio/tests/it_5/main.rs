@@ -24,3 +24,5 @@
 mod mobile_layout;
 mod schema_coverage;
 mod web_contract;
+
+tcl_registry::testing::install_shipped!();

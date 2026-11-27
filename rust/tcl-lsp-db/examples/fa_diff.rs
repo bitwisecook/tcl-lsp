@@ -28,6 +28,7 @@ use tcl_lsp_db::{
 };
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let rel = std::env::var("FILE").expect("set FILE (relative to repo root)");
     let dialect = std::env::var("DIALECT").unwrap_or_else(|_| "tcl8.6".to_owned());

@@ -51,6 +51,7 @@ impl Counts {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let dirs: Vec<String> = std::env::args().skip(1).collect();
     if dirs.is_empty() {
         eprintln!("usage: tcloo_dispatch <dir|file>...");

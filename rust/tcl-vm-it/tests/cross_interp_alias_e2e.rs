@@ -277,3 +277,5 @@ fn jim_child_handle_aliases_keep_original_parent_lookup_and_retirement() {
         assert_eq!(common::vm_output(script, "jim"), expected);
     }
 }
+
+tcl_registry::testing::install_shipped!();

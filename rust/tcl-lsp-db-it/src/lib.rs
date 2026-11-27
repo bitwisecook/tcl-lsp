@@ -21,3 +21,6 @@
 //! entry). Keeping them out of `tcl-lsp-db`'s own dev-dependencies means an
 //! edit to the VM, the code generator or the `SpecTcl` stack does not rebuild
 //! `tcl-lsp-db`'s tests.
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

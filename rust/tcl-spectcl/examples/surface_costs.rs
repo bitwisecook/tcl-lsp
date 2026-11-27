@@ -191,6 +191,7 @@ fn equivalence_costs() {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     tcl_spectcl::demand::enable();
     println!("{:<44} {:>13} {:>12}", "phase", "wall", "rss growth");
     timed(

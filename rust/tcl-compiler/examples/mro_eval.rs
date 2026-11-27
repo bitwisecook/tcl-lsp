@@ -398,6 +398,7 @@ fn print_report(ablations: &[Ablation], pa: &PassA, pb: &PassB) {
 }
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let roots = corpus_roots(&args);
 

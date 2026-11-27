@@ -192,3 +192,5 @@ fn simulate_json_populates_simulated_fields() {
     );
     assert!(json.contains("\"action\": \"pool_select\""), "{json}");
 }
+
+tcl_registry::testing::install_shipped!();

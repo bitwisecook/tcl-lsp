@@ -168,3 +168,5 @@ fn openssl_tracks_overrides_and_preserves_unsupported_input() {
             .contains("unsupported OpenSSL assignment `FutureOption`")
     }));
 }
+
+tcl_registry::testing::install_shipped!();

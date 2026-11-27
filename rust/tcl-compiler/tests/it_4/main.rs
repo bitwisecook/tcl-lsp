@@ -37,3 +37,5 @@ mod span_char_boundaries;
 mod taint_depth;
 mod text_utils;
 mod wasm_api_architecture;
+
+tcl_registry::testing::install_shipped!();

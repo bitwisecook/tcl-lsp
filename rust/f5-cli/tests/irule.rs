@@ -320,3 +320,5 @@ fn minify_aggressive_survives_deeply_nested_irule() {
         "expected a clean exit (0 or a reported error, 2), got {code}; stdout={out:?} stderr={err:?}"
     );
 }
+
+tcl_registry::testing::install_shipped!();

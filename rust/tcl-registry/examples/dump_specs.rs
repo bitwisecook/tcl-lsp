@@ -30,29 +30,25 @@
 //! `.tclspec` loadables under `specs/` (`docs/design/registry/spec-packs.md`).
 
 use std::fmt::Write as _;
-use tcl_registry::commands;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::spec::CommandSpec;
 
+/// The groups this dump has always offered.
+const GROUPS: &[&str] = &["tcl", "stdlib", "tcllib", "irules", "iapps", "tk", "expect"];
+
 fn group_specs(group: &str) -> Vec<CommandSpec> {
-    match group {
-        "tcl" => commands::tcl::tcl_command_specs(),
-        "stdlib" => commands::stdlib::stdlib_command_specs(),
-        "tcllib" => commands::tcllib::tcllib_command_specs(),
-        "irules" => commands::irules::irules_command_specs(),
-        "iapps" => commands::iapps::iapps_command_specs(),
-        "tk" => commands::tk::tk_command_specs(),
-        "expect" => commands::expect::expect_command_specs(),
-        // No EDA groups: `sdc_base` and the five vendor libraries ship as
-        // bundled `.tclspec` loadables under `specs/` and have no compiled-in
-        // collector to dump (`docs/design/registry/spec-packs.md`). The pack files are
-        // the dump.
-        other => {
-            eprintln!("unknown group: {other}");
-            std::process::exit(2);
-        }
+    // No EDA groups: `sdc_base` and the five vendor libraries ship as
+    // bundled `.tclspec` loadables under `specs/`; the pack files are the dump.
+    if !GROUPS.contains(&group) {
+        eprintln!("unknown group: {group}");
+        std::process::exit(2);
     }
+    tcl_registry::installed()
+        .specs_of(group)
+        .iter()
+        .map(|spec| (*spec).clone())
+        .collect()
 }
 
 /// The catalogue dialect names a spec's surface covers.
@@ -399,6 +395,7 @@ fn deep_dump(group: &str) {
 // splitting it into helpers would scatter the one linear control flow.
 #[allow(clippy::too_many_lines)]
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     let group = std::env::args().nth(1).unwrap_or_else(|| {
         eprintln!("usage: dump_specs <group>");
         std::process::exit(2);

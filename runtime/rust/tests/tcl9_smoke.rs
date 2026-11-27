@@ -199,3 +199,5 @@ fn every_tcl9_smoke_sample_matches_its_oracle() {
         failures.join("\n")
     );
 }
+
+tcl_registry::testing::install_shipped!();

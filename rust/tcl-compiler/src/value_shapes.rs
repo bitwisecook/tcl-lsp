@@ -82,6 +82,7 @@ pub fn is_pure_var_ref(text: &str, config: tcl_lexer::LexerConfig) -> bool {
 /// The literal scalar name of one whole reference under its source grammar.
 ///
 /// ```
+/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_compiler::value_shapes::whole_word_scalar_var_name;
 /// let config = tcl_lexer::LexerConfig::default();
 /// assert_eq!(whole_word_scalar_var_name("$cmd", config), Some("cmd"));

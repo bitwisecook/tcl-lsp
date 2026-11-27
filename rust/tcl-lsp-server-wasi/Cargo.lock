@@ -1816,6 +1816,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-lsp-server",
+ "tcl-registry",
  "tokio",
  "tower",
  "tower-lsp-server",
@@ -1934,6 +1935,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-registry",
  "tcl-syntax",
  "x509-parser",
 ]

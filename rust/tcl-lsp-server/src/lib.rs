@@ -1357,3 +1357,6 @@ mod cooperative_fresh_analysis_tests;
 
 #[cfg(test)]
 mod virtual_workspace_uri_tests_1734;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

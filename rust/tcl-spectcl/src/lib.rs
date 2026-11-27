@@ -139,3 +139,6 @@ pub const PACK_EXTENSION: &str = "tclspec";
 /// word produces, so every cached pack must be rebuilt once against the
 /// translating loader rather than served from a pre-2.0 entry.
 pub const VOCABULARY_VERSION: &str = "2";
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

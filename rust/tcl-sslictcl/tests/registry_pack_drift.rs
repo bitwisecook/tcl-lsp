@@ -116,7 +116,8 @@ fn the_pack_and_the_vocabulary_name_the_same_words() {
         top_level,
         "the document grammar is exactly the table's top-level declarations"
     );
-    let packed: BTreeSet<&str> = tcl_registry::commands::sslictcl::sslictcl_command_specs()
+    let packed: BTreeSet<&str> = tcl_registry::installed()
+        .specs_of("sslictcl")
         .iter()
         .map(|spec| spec.name)
         .collect();
@@ -443,3 +444,5 @@ fn openness_does_not_change_the_declared_member_set() {
         );
     }
 }
+
+tcl_registry::testing::install_shipped!();

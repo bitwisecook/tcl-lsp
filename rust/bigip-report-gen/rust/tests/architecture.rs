@@ -196,3 +196,5 @@ fn malformed_manifest_is_reported_not_fatal() {
     // Auto-detection still ran.
     assert_eq!(a["links"].as_array().unwrap().len(), 1);
 }
+
+tcl_registry::testing::install_shipped!();

@@ -292,3 +292,6 @@ mod tests {
 }
 
 mod native_return_merge;
+
+#[cfg(test)]
+tcl_registry::testing::install_shipped!();

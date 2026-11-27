@@ -98,6 +98,7 @@ mod wasi_poll;
 const STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
     // A current-thread runtime with the timer wheel, and nothing else. wasip1
     // has no thread-spawn syscall, so `new_multi_thread` builds and then fails
     // at run time with `os error 58`; `enable_io` would want a reactor there is
