@@ -290,6 +290,10 @@ not internal implementation detail.
   behind a `test-support` feature.
 - **A test that breaks on a behaviour-preserving refactor** is testing the
   implementation. Rewrite it against the boundary it should guard.
+- **Existing tests are cleaned up too** (owner, 27 November 2026; plan item
+  499). A change that edits a test file brings that file's tests into line:
+  rewrite private-state assertions against the public API or the oracle, or
+  delete them and record what they asserted.
 
 ## Documentation
 
