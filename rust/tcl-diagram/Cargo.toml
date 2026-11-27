@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
 tcl-dialect = { path = "../tcl-dialect" }

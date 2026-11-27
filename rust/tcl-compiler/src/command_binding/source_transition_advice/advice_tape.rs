@@ -187,7 +187,7 @@ impl OriginalSourceTransitionAdviceTape {
         // extents select parser input; reporting strings select nothing.
         let region = tcl_lexer::Span::new(offset, original.last()?.span().end());
         let body = SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &body,
             offset,
             config.nested(),

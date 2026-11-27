@@ -95,7 +95,7 @@ fn original_diagnostic_frame_keeps_root_values_and_expanded_loop_bindings() {
     let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
     let bindings = super::super::super::SourceCommandBindings::analyse(source, config, registry);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceImage::document(source).source_map(),
         config,
@@ -182,7 +182,7 @@ fn declaration_substitution_keeps_exact_original_component_ranges() {
         let source = format!("# original prefix\n{command}");
         let base = u32::try_from(source.len() - command.len()).unwrap();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(command, base, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(command, base, config)
                 .remove(0);
         let tokens =
             CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(&source), config, &segment);
@@ -365,7 +365,7 @@ fn unentered_declaration_suffix_does_not_grant_original_dispatch() {
     let original = "set a 1";
     let offset = u32::try_from(source.find(original).unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(original, offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config(original, offset, config)
             .remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceImage::document(source).source_map(),

@@ -387,10 +387,21 @@ fn hosted_wrapper_invocations(
         .map(|nested| {
             let hosted =
                 crate::registry_invocation::hosted_source_taint_invocation(registry, nested)?;
-            Some((
-                hosted.metadata.shape().command().to_owned(),
-                nested.argv_texts.get(1..)?.to_vec(),
-            ))
+            // The raw transform condition trusts a word's text only with its
+            // written braces, as the statement-level reading does.
+            let arguments = nested
+                .argv_texts
+                .get(1..)?
+                .iter()
+                .enumerate()
+                .map(|(index, spelling)| match nested.word_exprs.get(index + 1) {
+                    Some(tcl_source::words::WordExpr::BracedLiteral { text, .. }) => {
+                        format!("{{{text}}}")
+                    }
+                    _ => spelling.clone(),
+                })
+                .collect();
+            Some((hosted.metadata.shape().command().to_owned(), arguments))
         })
         .collect()
 }

@@ -244,7 +244,7 @@ pub(crate) fn from_source_words(
 pub(crate) fn selected_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     registry: &CommandRegistry,
 ) -> Option<OriginalRegistryWords> {
     tcl_compiler::registry_invocation::source_structure::selected_registry_words(
@@ -256,7 +256,7 @@ pub(crate) fn selected_registry_words(
 /// Same shared argv projection in a retained decoded-lambda source phase.
 pub(crate) fn decoded_lambda_registry_words(
     phase: &tcl_compiler::lambda_literal::OriginalDecodedLambdaFormattingBody,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> Option<OriginalRegistryWords> {
     phase.words(segment, input).map(from_source_words)
@@ -264,7 +264,7 @@ pub(crate) fn decoded_lambda_registry_words(
 
 pub(crate) fn conditional_lambda_registry_words(
     phase: &tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     input: &tcl_compiler::analyser::ResolvedAnalysisInput,
 ) -> Option<OriginalRegistryWords> {
     phase.words(segment, input).map(from_source_words)
@@ -274,7 +274,7 @@ pub(crate) fn conditional_lambda_registry_words(
 pub(crate) fn source_registry_words(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     tcl_compiler::registry_invocation::source_structure::source_registry_words(
         source, analysis, segment,
@@ -286,7 +286,7 @@ pub(crate) fn source_registry_words(
 pub(crate) fn source_registry_words_in_definition_body(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     parent: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
     tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body(
@@ -300,7 +300,7 @@ pub(crate) fn source_registry_words_in_definition_body(
 pub(crate) fn source_produced_command_prefix_words(
     source: &str,
     analysis: &AnalysisResult,
-    producer: &tcl_compiler::segmenter::SegmentedCommand,
+    producer: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     tcl_compiler::registry_invocation::source_structure::source_produced_command_prefix_words(
         source, analysis, producer,
@@ -315,7 +315,7 @@ pub(crate) fn selected_vendor_registry_words_at(
     cursor: u32,
 ) -> Option<(
     tcl_compiler::registry_invocation::OriginalConditionalVendorRegistryMetadata,
-    tcl_compiler::segmenter::SegmentedCommand,
+    tcl_source::segment::SegmentedCommand,
 )> {
     tcl_compiler::registry_invocation::source_structure::selected_vendor_registry_words_at(
         source, analysis, cursor,
@@ -328,12 +328,7 @@ pub(crate) fn selected_vendor_registry_words_at(
 pub(crate) fn registry_commands_in_source(
     source: &str,
     analysis: &AnalysisResult,
-) -> Option<
-    Vec<(
-        tcl_compiler::segmenter::SegmentedCommand,
-        OriginalRegistryWords,
-    )>,
-> {
+) -> Option<Vec<(tcl_source::segment::SegmentedCommand, OriginalRegistryWords)>> {
     let walk = crate::refactor::FrameWalk::new(source, analysis)?;
     let selector = RegistrySourceWalk {
         source,
@@ -357,10 +352,7 @@ impl RegistrySourceWalk<'_> {
         text: &str,
         base: u32,
         depth: u32,
-        out: &mut Vec<(
-            tcl_compiler::segmenter::SegmentedCommand,
-            OriginalRegistryWords,
-        )>,
+        out: &mut Vec<(tcl_source::segment::SegmentedCommand, OriginalRegistryWords)>,
     ) {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
             return;
@@ -404,7 +396,7 @@ mod source_words_tests {
         analysis.all_procs.clear();
         let config = analysis.body_lexer_config.unwrap();
         let commands =
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = source_registry_words(source, &analysis, &commands[1]).unwrap();
         assert_eq!(words.arguments.len(), 2);
         assert!(

@@ -458,6 +458,7 @@ pub(super) fn source_binding_projection_in(
         provider_state_taint: state.tainted_provider_state.iter().cloned().collect(),
         declared_command,
         catalogue_command,
+        withdrawn_world_head: None,
         variable_context: Arc::clone(&state.source_variables),
         original_argument_completion: OriginalArgumentCompletion::Unknown,
         normal_variable_continuation: None,

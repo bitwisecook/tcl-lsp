@@ -195,7 +195,7 @@ fn original_summary_child_keeps_bom_alias_and_complete_parent_correspondence() {
             let (_, site) = parent
                 .words()
                 .iter()
-                .find_map(crate::ir::WordExpr::sole_command_substitution)?;
+                .find_map(tcl_source::words::WordExpr::sole_command_substitution)?;
             module.original_substitution(parent, site, script)
         })
         .expect("genuine retained bracket child");

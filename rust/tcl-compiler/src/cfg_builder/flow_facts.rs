@@ -110,15 +110,12 @@ pub(super) fn exact_statement_completion(
         tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar)
     });
     let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-    let literal =
-        |word: &crate::ir::WordExpr| match crate::registry_invocation::effective_invocation_word(
-            word,
-            config.escapes,
-            rules,
-        ) {
+    let literal = |word: &tcl_source::words::WordExpr| {
+        match crate::registry_invocation::effective_invocation_word(word, config.escapes, rules) {
             crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(value),
             _ => None,
-        };
+        }
+    };
     // Words execute before dispatch. An exact command completion cannot hide
     // an error from a substituted head or argument.
     tokens

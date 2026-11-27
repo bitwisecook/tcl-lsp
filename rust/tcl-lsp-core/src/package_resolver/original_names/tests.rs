@@ -20,7 +20,7 @@ use super::*;
 #[test]
 fn command_offset_index_retains_the_first_complete_matching_segment() {
     let source = "set auto_index(a) [list source a.tcl]\nset auto_index(b) [list source b.tcl]\n";
-    let parsed = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let parsed = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         LexerConfig::default(),
@@ -52,7 +52,7 @@ fn command_offset_index_retains_the_first_complete_matching_segment() {
             _ => panic!("head-offset join changed: {offset}"),
         }
     }
-    let empty: [tcl_compiler::segmenter::SegmentedCommand; 0] = [];
+    let empty: [tcl_source::segment::SegmentedCommand; 0] = [];
     assert!(index_commands_by_offset(&empty).is_empty());
 }
 

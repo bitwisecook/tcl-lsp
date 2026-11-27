@@ -21,9 +21,9 @@
 use super::super::super::state::Analyser;
 use super::super::super::types::{ClassDef, ClassFactory, FactoryMember, FactoryWord, MemberSide};
 use super::{InjectedMember, ManufacturerLayout, ResolvedClassCreation, UserMetaclass};
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
 use tcl_lexer::{Token, TokenType};
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
 
 impl ManufacturerLayout {
     /// A registry-declared manufacturer's own word layout, with nothing
@@ -296,7 +296,7 @@ impl Analyser {
         let word = original.body_word();
         let body_span = word.content_span().ok()?;
         let body = word.image().try_text().ok()?.get(body_span.as_range())?;
-        crate::segmenter::segment_commands_with_offset_and_config(
+        tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             body_span.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),

@@ -94,7 +94,7 @@ impl<'a> OriginalProcedureArguments<'a> {
 pub fn original_procedure_arguments<'a>(
     source: &str,
     analysis: &'a AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalProcedureArguments<'a>> {
     // naming.source.original-procedure-argument-topology
     // docs/design/analysis/name-resolution-proofs/original-procedure-argument-topology.md

@@ -33,7 +33,6 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::segment_script_image_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::SourceSyntaxStructure;
 use tcl_lsp_core::refactor::equality_source::{scalar_string_disjunction, scalar_string_equality};
@@ -42,6 +41,7 @@ use tcl_lsp_core::refactor::{
     original_exact_switch_source_at_analysis,
 };
 use tcl_registry::ArgRole;
+use tcl_source::segment::segment_script_image_with_offset_and_config;
 
 const DIALECT: &str = "f5-irules";
 
@@ -756,7 +756,7 @@ mod original_arm_parser_purpose_tests {
         );
         assert!(parse_set_or_return("\u{feff}set x value", config).is_none());
         assert_eq!(
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            tcl_source::segment::segment_commands_with_offset_and_config(
                 "\u{feff}set x value",
                 0,
                 config

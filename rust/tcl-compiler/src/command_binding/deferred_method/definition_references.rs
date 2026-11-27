@@ -146,7 +146,7 @@ pub(super) fn capture_standalone_definition_references(
         )?;
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,
@@ -237,7 +237,7 @@ pub(super) fn capture_definition_method_references(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     state: &ModuleCommandBindings,
     scope: DefinitionReferenceScope,
     context: SourceExecutionContext<'_>,
@@ -431,7 +431,7 @@ fn capture_class_block_references(
     context: SourceExecutionContext<'_>,
 ) -> Option<Vec<super::super::definition_method_references::SourceDefinitionMethodReferencePhase>> {
     let map = tcl_lexer::SourceMap::from_image(&block.text).with_base(block.base(), 0, 0);
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &block.text,
         block.base(),
         context.config,

@@ -123,9 +123,10 @@ mod tests {
         let source = "unavailable\ninfo body missing";
         let analysis = native_analysis(source);
         let config = analysis.body_lexer_config.unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .unwrap();
         let realm = analysis.retained_command_realm().unwrap();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
@@ -177,7 +178,7 @@ mod tests {
             let analysis = native_analysis(source);
             let config = analysis.body_lexer_config.unwrap();
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .pop()
                     .unwrap();
             assert!(

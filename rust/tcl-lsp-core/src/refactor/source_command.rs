@@ -19,7 +19,7 @@
 //! Readonly current-source command selection over the shared body geometry.
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// Select the innermost command in the authentic original source structure.
 /// Body and lambda extents come from the shared source-role owner. This

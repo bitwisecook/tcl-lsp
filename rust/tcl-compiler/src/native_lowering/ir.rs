@@ -46,7 +46,7 @@ use super::cells::CellPlace;
 use super::elide::{BarrierDecision, IncrGuard};
 use super::representation::Representation;
 use crate::executable_ir::CompletionId;
-use crate::ir::NodeId;
+use tcl_source::words::NodeId;
 
 /// Identity of one NLIR value inside its function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

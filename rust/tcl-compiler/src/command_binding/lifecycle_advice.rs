@@ -409,7 +409,7 @@ mod tests {
         );
         let offset = u32::try_from(source.find(wrapper).unwrap()).unwrap();
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(wrapper, offset, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(wrapper, offset, config)
                 .remove(0);
         let mut tokens = CommandTokens::from_segmented(
             &tcl_lexer::SourceImage::document(&source).source_map(),

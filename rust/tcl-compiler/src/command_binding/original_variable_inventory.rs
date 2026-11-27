@@ -105,7 +105,8 @@ mod tests {
                 ..Default::default()
             },
         );
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let tokens = |index: usize| {
             let segment = &segments[index];
             let mut tokens = crate::ir::CommandTokens::from_segmented(

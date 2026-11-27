@@ -155,9 +155,9 @@ fn literal_tokens(command: &str, args: &[String]) -> crate::ir::CommandTokens {
         argv_texts: words.clone(),
         word_exprs: words
             .into_iter()
-            .map(|text| crate::ir::WordExpr::Literal {
+            .map(|text| tcl_source::words::WordExpr::Literal {
                 text,
-                source: crate::ir::SourceSite::source(span),
+                source: tcl_source::words::SourceSite::source(span),
             })
             .collect(),
         argv_kinds: vec![tcl_lexer::TokenType::Esc; args.len().saturating_add(1)],
@@ -240,9 +240,10 @@ fn argument_boundary_omits_outer_dispatch_but_retains_nested_and_missing_read_ef
         ("unknown-wrapper [opaque]", true),
         ("unknown-wrapper $x", true),
     ] {
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .unwrap();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -355,9 +356,9 @@ fn dynamic_or_expanded_transition_operands_require_a_wildcard_clobber() {
     else {
         panic!("test call has structured tokens");
     };
-    tokens.word_exprs[1] = crate::ir::WordExpr::Variable {
+    tokens.word_exprs[1] = tcl_source::words::WordExpr::Variable {
         spelling: "$name".to_owned(),
-        source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 0)),
     };
     assert_eq!(
         transition_alias_pairs(&dynamic, &registry, Some(test_context())),
@@ -377,11 +378,11 @@ fn dynamic_or_expanded_transition_operands_require_a_wildcard_clobber() {
     else {
         panic!("test call has structured tokens");
     };
-    tokens.word_exprs[2] = crate::ir::WordExpr::Expand {
-        source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
-        word: Box::new(crate::ir::WordExpr::Literal {
+    tokens.word_exprs[2] = tcl_source::words::WordExpr::Expand {
+        source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        word: Box::new(tcl_source::words::WordExpr::Literal {
             text: "args".to_owned(),
-            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+            source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 0)),
         }),
     };
     assert_eq!(
@@ -470,9 +471,9 @@ fn is_clobber_resolves_code_evaluating_subcommands() {
     else {
         panic!("test call has structured tokens");
     };
-    tokens.word_exprs[1] = crate::ir::WordExpr::Variable {
+    tokens.word_exprs[1] = tcl_source::words::WordExpr::Variable {
         spelling: "$operation".to_owned(),
-        source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        source: tcl_source::words::SourceSite::source(tcl_lexer::Span::new(0, 0)),
     };
     assert!(is_clobber(&computed_subcommand, &reg, Some(test_context())));
 }

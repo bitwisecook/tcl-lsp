@@ -141,7 +141,7 @@ fn last_words(
 ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
     let analysis = Analyser::new().analyse(source, dialect);
     let config = analysis.body_lexer_config.unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     source_registry_words(source, &analysis, commands.last().unwrap())
 }
 
@@ -200,11 +200,11 @@ fn logical_last_body_words(
     let analysis = Analyser::new().analyse(source, "tcl");
     let config = analysis.body_lexer_config?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    let roots = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let roots = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let root = source_registry_words(source, &analysis, roots.first()?)?;
     let bodies = root.source_script_bodies(&context);
     let span = bodies.first()?.content_span();
-    let children = crate::segmenter::segment_commands_with_offset_and_config(
+    let children = tcl_source::segment::segment_commands_with_offset_and_config(
         source.get(span.as_range())?,
         span.start(),
         config,
@@ -222,7 +222,8 @@ fn authored_source_transitions_keep_order_prefixes_and_conditional_authority() {
         let mut analysis = Analyser::new().analyse(source, dialect);
         analysis.command_invocations.clear();
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         assert!(
             source_registry_words(source, &analysis, &commands[0]).is_none(),
             "{dialect}"
@@ -323,7 +324,7 @@ fn authored_immediate_bodies_keep_mutation_and_callback_obligations_separate() {
         let analysis = Analyser::new().analyse(&source, dialect);
         let config = analysis.body_lexer_config.unwrap();
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(&source, 0, config);
         let words =
             source_registry_words(&source, &analysis, commands.last().unwrap()).expect(dialect);
         let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
@@ -408,7 +409,8 @@ fn authored_dynamic_operands_keep_source_advice_before_the_future_barrier() {
         let source = "opaque; interp alias {} pick {} switch; pick $value {default {puts body}}; pick subject {default {puts after}}";
         let analysis = Analyser::new().analyse(source, dialect);
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = source_registry_words(source, &analysis, &commands[2]).expect(dialect);
         let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
             panic!("dynamic argv changed source purpose");
@@ -536,7 +538,8 @@ fn authored_logical_source_advice_keeps_its_explicit_input_and_original_operands
                 source,
                 input.clone(),
             );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         assert!(syntax.words(&commands[0]).is_none());
         let foreign_generation =
             context.with_command_store(context.commands().snapshot().shared_registry());
@@ -608,7 +611,8 @@ fn authored_logical_source_advice_keeps_its_explicit_input_and_original_operands
                 source,
                 input.clone(),
             );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         assert!(syntax.words(commands.last().unwrap()).is_none(), "{source}");
     }
 }
@@ -688,7 +692,7 @@ fn original_logical_unicode_transitions_keep_exact_alias_and_move_inputs() {
                 source,
                 input.clone(),
             );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -732,7 +736,7 @@ fn original_logical_unicode_transitions_keep_exact_alias_and_move_inputs() {
                 source,
                 input.clone(),
             );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -755,7 +759,7 @@ fn original_logical_nested_expression_keeps_bom_head_and_parent_configuration() 
         );
     let start = u32::try_from(source.find("\u{feff}match λ").unwrap()).unwrap();
     let end = u32::try_from(source.find("]}").unwrap()).unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[start as usize..end as usize],
         start,
         input.lexer_config().nested(),
@@ -781,7 +785,7 @@ fn original_logical_nested_expression_keeps_bom_head_and_parent_configuration() 
     );
     assert!(advice.original_head().native_input().is_none());
     assert_eq!(advice.logical_source_input(), Some(&input));
-    let changed = crate::segmenter::segment_commands_with_offset_and_config(
+    let changed = tcl_source::segment::segment_commands_with_offset_and_config(
         "match λ λ out",
         start,
         input.lexer_config().nested(),

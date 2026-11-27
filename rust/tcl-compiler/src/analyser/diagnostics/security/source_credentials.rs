@@ -335,7 +335,7 @@ mod tests {
             [] as [&crate::analyser::types::Diagnostic; 0]
         );
         let mut analyser = analyse(source, &input);
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

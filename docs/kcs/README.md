@@ -97,6 +97,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
   — a feature-toggle test samples the provider once right after disabling it
   and is flaky (or fails deterministically) instead of waiting on the result.
+- [kcs-issue-tclvm-cannot-find-a-bundled-package.md](kcs-issue-tclvm-cannot-find-a-bundled-package.md)
+  — `package require msgcat` fails under `tclvm`, or startup reports
+  `application-specific initialization failed`.
 
 ## Q&A
 

@@ -290,7 +290,7 @@ impl SourceCommandBindings {
 
     pub(super) fn compiled_invocation_offsets_in_words(
         &self,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
     ) -> Vec<u32> {
         let Some(root) = self.root_origin.as_ref() else {

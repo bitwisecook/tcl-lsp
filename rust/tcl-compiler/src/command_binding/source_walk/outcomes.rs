@@ -65,7 +65,7 @@ pub(in super::super) fn opaque_source_invocation(
 pub(in super::super) struct SourceNativeNormalCompletion {
     pub(in super::super) site: CommandAllocationSite,
     pub(in super::super) config: tcl_lexer::LexerConfig,
-    pub(in super::super) words: Vec<crate::ir::WordExpr>,
+    pub(in super::super) words: Vec<tcl_source::words::WordExpr>,
     pub(in super::super) operation: tcl_registry::SemanticOperationId,
 }
 
@@ -93,7 +93,7 @@ impl SourceNativeNormalCompletion {
 pub(in super::super) struct SourceConditionalHandlerNormal {
     pub(in super::super) site: CommandAllocationSite,
     pub(in super::super) config: tcl_lexer::LexerConfig,
-    pub(in super::super) words: Vec<crate::ir::WordExpr>,
+    pub(in super::super) words: Vec<tcl_source::words::WordExpr>,
     pub(in super::super) operation: tcl_registry::SemanticOperationId,
     pub(in super::super) entry: OriginalSourcePointEntry,
 }

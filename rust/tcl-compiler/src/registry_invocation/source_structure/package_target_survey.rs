@@ -233,7 +233,7 @@ impl OriginalPackageIndexSourceSurvey {
     #[must_use]
     pub fn words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<OriginalRegistryWords> {
         logical_source_registry_words_in_original_image(
             &self.source.image,
@@ -256,7 +256,7 @@ impl OriginalPackageIndexSourceSurvey {
         {
             return None;
         }
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             image.try_text().ok()?.get(command.span.as_range())?,
             command.span.start(),
             config.nested(),
@@ -732,7 +732,8 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let config = tcl_lexer::LexerConfig::default();
         let survey = OriginalPackageIndexSourceSurvey::capture(source, &registry, config);
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = survey.words(&segments[0]).unwrap();
         assert!(matches!(
             words.source(),

@@ -35,7 +35,7 @@ use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
 #[cfg(test)]
 use crate::ir::MethodKind;
 use crate::ir::{CommandBindingSite, CommandTokens, Module, Procedure, Script, Statement};
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 #[cfg(test)]
 use tcl_syntax::word_rules::WordValueRules;
 
@@ -148,7 +148,7 @@ fn seg_word_is_simple(seg: &SegmentedCommand, idx: usize) -> bool {
 /// Weaker than the negation of [`seg_word_is_static_literal`], and
 /// deliberately so: a **compound** literal word (`{body}x`, two literal tokens
 /// welded together) is still spelled out in the source, so a body walk that
-/// clamps it with [`crate::segmenter::body_text_in_region`] rebases honest
+/// clamps it with [`tcl_source::segment::body_text_in_region`] rebases honest
 /// spans. `{*}$n` under an expansionless grammar looks the same
 /// from the representative token alone — braced, multi-token — yet its second
 /// fragment substitutes, so its value appears nowhere in the document.
@@ -562,7 +562,7 @@ pub struct Lowerer<'r> {
     /// the space it inherits.
     ///
     /// Held so the lowerer can *check* a body word's rebase against the text
-    /// it claims to slice ([`crate::segmenter::body_text_in_region`] in
+    /// it claims to slice ([`tcl_source::segment::body_text_in_region`] in
     /// [`Self::lower_body_from_tok`]) rather than trusting the arithmetic —
     /// the same guard the analyser applies.  Empty until a
     /// script is lowered, which the guard reads as "nothing to compare
@@ -572,7 +572,7 @@ pub struct Lowerer<'r> {
     word_space: WordSpace,
 }
 
-/// The text a [`crate::ir::WordExpr`] is decomposed from, and the offset its
+/// The text a [`tcl_source::words::WordExpr`] is decomposed from, and the offset its
 /// first byte sits at in the span space the segmentation used.
 ///
 /// Deliberately *not* [`Lowerer::source`]: a word is read from the very text
@@ -625,7 +625,7 @@ impl WordSpace {
 /// independently-recursive walkers over the same source cap at the same
 /// depth, so no consumer of this crate depends on one pass reaching a
 /// deeper nesting level than another. All three read that depth from
-/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], so it is a shared
+/// [`tcl_source::limits::MAX_SOURCE_NEST_DEPTH`], so it is a shared
 /// *budget* rather than a shared *convention*.
 ///
 /// This walk is the one the budget is sized by: at eight Rust frames per
@@ -633,7 +633,7 @@ impl WordSpace {
 /// sibling, and it is the walk whose recursion the ~400-nested-`foreach`
 /// reproducer aborted on.
 const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit =
-    crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
+    tcl_source::limits::MAX_SOURCE_NEST_DEPTH;
 
 /// Shared construction bound for consumers deriving nested source bodies.
 /// A subset frontend must decline further descent when this limit is exceeded.
@@ -1066,7 +1066,7 @@ pub fn first_fatal_parse_cut(
 pub fn command_at_time_script_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
-) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
+) -> Result<tcl_source::segment::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
     command_at_time_script_image(&tcl_lexer::SourceImage::document(source), config)
 }
 
@@ -1076,8 +1076,8 @@ pub fn command_at_time_script_with_config(
 pub fn command_at_time_script_image(
     source: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
-) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
-    crate::segmenter::segment_script_image_with_offset_and_config(source, 0, config)
+) -> Result<tcl_source::segment::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
+    tcl_source::segment::segment_script_image_with_offset_and_config(source, 0, config)
 }
 
 /// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of

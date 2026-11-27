@@ -133,7 +133,7 @@ impl SourceCommandBindings {
             variable.source_span_in(template.text.bytes(), template.base(), context.config)?;
         Some(self.observe_variable_substitution(
             template.try_text().ok()?.get(range)?,
-            &crate::ir::SourceSite::source(span),
+            &tcl_source::words::SourceSite::source(span),
             template.try_text().ok()?,
             template.base(),
             state,

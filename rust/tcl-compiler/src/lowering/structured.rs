@@ -35,7 +35,7 @@ use crate::ir::{
     ForeachIterator, HandlerMatch, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler,
 };
 use crate::lowering_hooks::word_content_base;
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 use tcl_syntax::expr::ExprNode;
 
 use super::Lowerer;

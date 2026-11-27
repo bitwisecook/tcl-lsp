@@ -53,6 +53,18 @@ impl ModuleCommandBindings {
         }
     }
 
+    /// Record a re-entry the walk cannot see but which, like a procedure's
+    /// entry, leaves the document's command world in place.
+    pub(in super::super) fn mark_unmodelled_reentry(&mut self) {
+        self.unmodelled_reentry = true;
+        self.stock_tclsh_stdout = false;
+    }
+
+    /// Whether code this walk did not follow may have run since entry.
+    pub(in super::super) const fn unmodelled_reentry(&self) -> bool {
+        self.unmodelled_reentry
+    }
+
     pub(in super::super) fn mark_opaque_binding_mutation(&mut self) {
         Arc::make_mut(&mut self.command_observers)
             .fresh_procedures

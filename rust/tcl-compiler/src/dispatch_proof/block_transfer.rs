@@ -30,7 +30,7 @@ use crate::effect_ssa::{CallbackSummary, WorldStateIntentKind, project_effect_fo
 use crate::executable_ir::{
     ExecutableFunction, ExecutableInstruction, ExecutableTerminator, InvocationResolution,
 };
-use crate::ir::{Statement, WordExpr};
+use crate::ir::Statement;
 use crate::state_ssa::StateSite;
 use crate::state_ssa::adapters::{WorldRegion, WorldRegionKind, WorldSubjectScope};
 use crate::world_state_ssa::EdgeCompletion;
@@ -40,6 +40,7 @@ use tcl_registry::{
     EffectFootprint, Reentrancy, StateTransition, StateTransitionCommit, StateTransitionFact,
     StateTransitionKnowledge, TransitionSubject,
 };
+use tcl_source::words::WordExpr;
 
 /// Join predecessor edge states into a block-entry state.  `None` means no
 /// predecessor state has been computed yet (a cycle edge before its first

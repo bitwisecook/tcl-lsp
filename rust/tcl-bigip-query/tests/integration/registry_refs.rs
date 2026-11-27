@@ -44,7 +44,7 @@ use tcl_bigip::parser::parse_bigip_conf;
 use tcl_bigip_query::eval::Root;
 use tcl_bigip_query::projection::root_container;
 use tcl_bigip_query::value::Value;
-use tcl_registry::bigip::{default_registry, reference_targets};
+use tcl_bigip_schema::{default_registry, reference_targets};
 
 const FIXTURES: &[(&str, &str)] = &[
     (
@@ -519,7 +519,7 @@ fn projection_pathref_targets_agree_with_the_registry() {
         report.unexplained.is_empty(),
         "{} projection reference target(s) the registry does not confirm and \
          ACCEPTED_DIVERGENCE does not explain.\nEither correct the target, add \
-         the missing edge to rust/tcl-registry/src/bigip/references.rs, or record \
+         the missing edge to rust/tcl-bigip-schema/src/bigip/references.rs, or record \
          it with a reason:\n{}",
         report.unexplained.len(),
         report.unexplained.join("\n")

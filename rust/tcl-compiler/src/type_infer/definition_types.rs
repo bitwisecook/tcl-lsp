@@ -23,7 +23,7 @@ use super::literals::literal_type;
 use super::word_types::{lowered_expression_result_type, value_word_type};
 use super::{WordTypingCtx, return_type_for_command};
 use crate::ir::Statement;
-use crate::types::{Elements, TypeLattice, TypeShape, shape_join};
+use crate::types::{Elements, TypeKind, TypeLattice, TypeShape, shape_join};
 use crate::var_resolve::VariableCellTable;
 use tcl_registry::{TclType, VarWriteTyping};
 
@@ -372,10 +372,22 @@ pub(super) fn elements_of_def_typing<S: std::hash::BuildHasher>(
             let group_defs = defs.get(def_cursor..def_cursor + nvars).unwrap_or(&[]);
             def_cursor += nvars;
             let container_shape = args.get(group).and_then(|w| container_word_shape(ctx, w));
+            // A substituted container of no known type (`[list $a $b]` over
+            // untyped words) gives its elements no known intrep either.
+            let unknown_substitution = container_shape.is_none()
+                && args.get(group).is_some_and(|word| {
+                    let word = word.trim();
+                    word.starts_with('[')
+                        && value_word_type(ctx, word, None).kind() == TypeKind::Overdefined
+                });
             for (j, def) in group_defs.iter().enumerate() {
                 per_def.insert(
                     ctx.variable_key(def).unwrap_or_else(|| def.clone().into()),
-                    foreach_var_lattice(container_shape.as_ref(), nvars, j),
+                    if unknown_substitution {
+                        TypeLattice::overdefined()
+                    } else {
+                        foreach_var_lattice(container_shape.as_ref(), nvars, j)
+                    },
                 );
             }
         }

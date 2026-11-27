@@ -134,7 +134,7 @@ fn call_with_words(command: &str, args: &[&str]) -> Statement {
         .chain(args.iter().copied())
         .collect::<Vec<_>>()
         .join(" ");
-    let segment = crate::segmenter::segment_commands(&source).remove(0);
+    let segment = tcl_source::segment::segment_commands(&source).remove(0);
     let tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(&source),
         tcl_lexer::LexerConfig::default(),

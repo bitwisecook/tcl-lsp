@@ -514,6 +514,19 @@ impl Builder<'_> {
             NativeInstructionPlan::Append { target, recipe, .. } => {
                 Operation::Append(self.target(target, depth)?, recipe)
             }
+            NativeInstructionPlan::List(NativeCompiledListRecipe::ProjectedElements { operands }) => {
+                let mut prepared_words = HashMap::new();
+                let operands = operands
+                    .iter()
+                    .map(|operand| {
+                        self.namespace_operand(&captured, operand, &mut prepared_words, depth)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Operation::ListOperands {
+                    operands,
+                    prepared_words,
+                }
+            }
             NativeInstructionPlan::List(recipe) => {
                 let index = match &recipe {
                     NativeCompiledListRecipe::EmptyString => Some(self.literals.intern_bytes(b"")),
@@ -521,7 +534,8 @@ impl Builder<'_> {
                         self.literals
                             .register_private_constant_list(members, self.stamp.source_protocol),
                     ),
-                    NativeCompiledListRecipe::DynamicElements { .. } => None,
+                    NativeCompiledListRecipe::DynamicElements { .. }
+                    | NativeCompiledListRecipe::ProjectedElements { .. } => None,
                 };
                 Operation::List(recipe, index)
             }

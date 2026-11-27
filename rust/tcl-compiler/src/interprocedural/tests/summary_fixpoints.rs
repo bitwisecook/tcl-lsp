@@ -126,6 +126,34 @@ fn unknown_call_sets_has_unknown_calls() {
     assert!(!s.pure);
 }
 
+/// Host I/O may run a channel handler on Tcl 9, which withdraws proofs that
+/// no unseen code ran, but the next core command still resolves to its
+/// registry spec: neither statement is a barrier or an unknown call.
+#[test]
+fn host_io_followed_by_a_core_call_is_neither_barrier_nor_unknown() {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        for source in [
+            "proc ::f {} { puts stdout x; close stdout }",
+            "proc ::f {} { puts [gets stdin] }",
+            "proc ::f {} { read stdin; exec true; list a }",
+        ] {
+            let ia = build_in(source, dialect);
+            let s = fixture_proc(&ia, "::f").unwrap();
+            assert!(!s.has_unknown_calls, "{dialect}: {source}");
+            assert!(!s.has_barrier, "{dialect}: {source}");
+            assert!(!s.pure, "{dialect}: {source}");
+        }
+    }
+}
+
+/// `update` runs event handlers registered anywhere, which the walk does
+/// not follow: on Tcl 9 that is a real barrier.
+#[test]
+fn event_loop_entry_stays_a_barrier_on_tcl9() {
+    let ia = build_in("proc ::f {} { update; list a }", "tcl9.1");
+    assert!(fixture_proc(&ia, "::f").unwrap().has_barrier);
+}
+
 #[test]
 fn can_fold_gated_on_pure_and_return_shape() {
     // Pure + literal → can fold.

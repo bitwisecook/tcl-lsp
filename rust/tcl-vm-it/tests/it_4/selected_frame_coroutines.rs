@@ -25,7 +25,7 @@ use tcl_dialect::DialectProfile;
 fn diagnose_entry_stage(source: &str, profile: &'static DialectProfile) {
     let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),

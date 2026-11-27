@@ -81,11 +81,12 @@ pub use source_command::find_original_command_at;
 pub use switch_to_dict::switch_to_dict;
 
 use crate::original_invocation::schema_argument_roles;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex};
 #[cfg(test)]
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use crate::definition::LspRange;
 
@@ -1820,7 +1821,7 @@ mod original_parse_purpose_tests {
         assert!(walk.complete());
         assert_eq!(
             walk.segment_document("\u{feff}set changed VALUE"),
-            [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
+            [] as [tcl_source::segment::SegmentedCommand; 0]
         );
         assert!(!walk.complete());
     }

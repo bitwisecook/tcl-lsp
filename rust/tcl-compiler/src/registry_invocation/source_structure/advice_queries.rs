@@ -642,7 +642,7 @@ pub(super) fn registered_original_words_at<'a>(
 pub fn source_authored_command_prefix(
     source: &str,
     analysis: &AnalysisResult,
-    producer: &crate::segmenter::SegmentedCommand,
+    producer: &tcl_source::segment::SegmentedCommand,
 ) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
     // naming.source.original-authored-command-prefix-data
     // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
@@ -677,7 +677,7 @@ pub fn source_authored_command_prefix(
 pub fn source_produced_command_prefix_words(
     source: &str,
     analysis: &AnalysisResult,
-    producer: &crate::segmenter::SegmentedCommand,
+    producer: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     // naming.source.original-produced-command-prefix
     // docs/design/analysis/name-resolution-proofs/original-produced-command-prefix.md
@@ -703,7 +703,7 @@ pub(crate) fn source_produced_command_prefix_words_in(
     source: &str,
     input: &crate::analyser::ResolvedAnalysisInput,
     realm: &crate::realm::CommandBindingRealm,
-    producer: &crate::segmenter::SegmentedCommand,
+    producer: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     let context = input.context_registry();
     let image = tcl_lexer::SourceImage::document(source);
@@ -754,7 +754,7 @@ fn produced_prefix_words(
     source: &str,
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     prefix: crate::command_binding::OriginalSourceProducedCommandPrefix,
 ) -> Option<OriginalRegistryWords> {
     use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};

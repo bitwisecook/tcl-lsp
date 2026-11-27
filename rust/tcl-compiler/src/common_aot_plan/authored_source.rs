@@ -187,7 +187,7 @@ impl OriginalAuthoredProgramSourcePlan {
         {
             return Err(Decline::RootSourceUnavailable);
         }
-        let original = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let original = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &module.source,
             0,
             module.native_lexer_config(),

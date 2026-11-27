@@ -144,7 +144,7 @@ fn dynamic_name_write_blocks_load_forwarding() {
 #[test]
 fn depth_exhaustion_blocks_dynamic_name_load_forwarding() {
     let mut nested = "[set $name 2]".to_owned();
-    for _ in 0..=crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.0 {
+    for _ in 0..=tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.0 {
         nested = format!("[list {nested}]");
     }
     let source = format!("proc ::f {{name}} {{ set x 1; set sink {nested}; return $x }}");

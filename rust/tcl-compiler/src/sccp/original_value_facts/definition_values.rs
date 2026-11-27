@@ -219,7 +219,7 @@ fn fold_retained_assignment_expression<S: std::hash::BuildHasher>(
 }
 
 fn fold_retained_expression_word<S: std::hash::BuildHasher>(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     tokens: &crate::ir::CommandTokens,
     statement: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
@@ -285,7 +285,7 @@ pub(super) fn fold_original_substitution_value<
     S2: std::hash::BuildHasher,
 >(
     tokens: &crate::ir::CommandTokens,
-    site: &crate::ir::SourceSite,
+    site: &tcl_source::words::SourceSite,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     source: SsaSourceView<'_>,
@@ -323,7 +323,7 @@ pub(super) fn fold_original_substitution_value<
 
 fn fold_prepared_invocation_expression(
     spelling: &str,
-    site: &crate::ir::SourceSite,
+    site: &tcl_source::words::SourceSite,
     inputs: RetainedExpressionFoldInputs<'_>,
 ) -> Option<LatticeValue> {
     let grammar = inputs.policy.preparation_context()?.lexer_grammar;

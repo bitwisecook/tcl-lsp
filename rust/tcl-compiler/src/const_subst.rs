@@ -543,16 +543,16 @@ impl<'a> ConstSubstCtx<'a> {
                     .map(str::to_owned)
                 };
                 match word {
-                    crate::ir::WordExpr::Literal { .. }
-                    | crate::ir::WordExpr::BracedLiteral { .. } => value(),
-                    crate::ir::WordExpr::Template { parts, .. }
+                    tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. } => value(),
+                    tcl_source::words::WordExpr::Template { parts, .. }
                         if parts
                             .iter()
-                            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })) =>
+                            .all(|part| matches!(part, tcl_source::words::WordPart::Text { .. })) =>
                     {
                         value()
                     }
-                    crate::ir::WordExpr::Variable { spelling, source } => {
+                    tcl_source::words::WordExpr::Variable { spelling, source } => {
                         let access = tokens.variable_access_at(source, spelling)?;
                         if self.retained_argument_variable_access_closed(access) {
                             return value();
@@ -568,7 +568,7 @@ impl<'a> ConstSubstCtx<'a> {
                             tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)?;
                         (self.lookup_var)(name)
                     }
-                    crate::ir::WordExpr::CommandSubstitution { source, .. } => {
+                    tcl_source::words::WordExpr::CommandSubstitution { source, .. } => {
                         let mut selected = calls.sites
                             .iter()
                             .filter(|child| child.span.start() == source.span.start());
@@ -841,7 +841,7 @@ impl<'a> ConstSubstCtx<'a> {
             || LexerConfig::for_profile(self.registry.profile()),
             |dialect| LexerConfig::from_grammar(dialect.lexer_grammar),
         );
-        if !crate::segmenter::has_exactly_one_command_with_config(inner, config) {
+        if !tcl_source::segment::has_exactly_one_command_with_config(inner, config) {
             return None;
         }
         let sm = SourceMap::new(inner);

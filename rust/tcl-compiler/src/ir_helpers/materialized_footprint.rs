@@ -254,7 +254,7 @@ pub(crate) fn expression_possible_writes_with_metadata_context(
 pub(crate) fn footprint_command_words(
     source: &SourceMap<'_>,
     config: LexerConfig,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<CommandWord> {
     let words = super::command_words(source, config, command);
     if words.iter().any(|word| !word.has_source_geometry()) {
@@ -284,7 +284,7 @@ pub(crate) fn footprint_command_words(
 
 fn value_commands(text: &str, config: LexerConfig) -> Vec<(bool, Vec<CommandWord>)> {
     let source = SourceMap::new(text);
-    crate::segmenter::segment_commands_with_offset_and_config(
+    tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         0,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -335,8 +335,8 @@ fn script_writes(
     // Bracket nesting inside one word and re-evaluated bodies are separate
     // axes: a body level costs this walk's three recursive frames, so bodies
     // share the braced-body cap the stack budget is derived from.
-    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth.bracket)
-        || crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth.body)
+    if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth.bracket)
+        || tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth.body)
     {
         out.opaque = true;
         return;
@@ -832,9 +832,12 @@ mod original_written_footprint_tests {
         };
         let source = "list ${a{b} \"[set é]$x\" {é $x}";
         let map = SourceMap::new(source);
-        let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
-                .remove(0);
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
+            source,
+            0,
+            config.nested(),
+        )
+        .remove(0);
         let words = footprint_command_words(&map, config, &command);
         assert_eq!(words[1].raw, "${a{b}");
         assert_eq!(words[2].raw, "\"[set é]$x\"");

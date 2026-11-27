@@ -18,9 +18,12 @@
 
 //! Original source carriers for `NativeLowering` descriptor queries.
 
-use crate::ir::{CommandTokens, Module, Script, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Module;
+use crate::ir::Script;
 use crate::registry_invocation::InvocationMetadataContext;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// Immutable source carriers, without dispatch or compiler admission.
 #[derive(Default)]

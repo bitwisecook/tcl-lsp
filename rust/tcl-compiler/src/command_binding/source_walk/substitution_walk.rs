@@ -27,7 +27,7 @@ use super::outcomes::{opaque_source_invocation, publish_source_branch};
 use std::sync::Arc;
 
 pub(in super::super) fn original_variable_arena(
-    original: Option<&(&str, crate::ir::SourceSite)>,
+    original: Option<&(&str, tcl_source::words::SourceSite)>,
     state: &ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<tcl_lexer::ExecutablePartArena> {
@@ -52,9 +52,9 @@ pub(in super::super) fn original_variable_arena(
 pub(in super::super) fn original_variable_source<'s>(
     document: &'s str,
     base: u32,
-    source: &crate::ir::SourceSite,
+    source: &tcl_source::words::SourceSite,
     config: tcl_lexer::LexerConfig,
-) -> Option<(&'s str, crate::ir::SourceSite)> {
+) -> Option<(&'s str, tcl_source::words::SourceSite)> {
     let start = usize::try_from(source.span.start().checked_sub(base)?).ok()?;
     if document.as_bytes().get(start) != Some(&b'$') {
         return None;
@@ -65,7 +65,7 @@ pub(in super::super) fn original_variable_source<'s>(
     let span = reference.source_span(document.as_bytes(), start, base)?;
     Some((
         spelling,
-        crate::ir::SourceSite {
+        tcl_source::words::SourceSite {
             span,
             provenance: source.provenance.clone(),
         },
@@ -176,13 +176,13 @@ fn finish_index_list(
 impl SourceCommandBindings {
     pub(in super::super) fn walk_substitutions(
         &mut self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         document: &str,
         base: u32,
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        use crate::ir::WordExpr;
+        use tcl_source::words::WordExpr;
         match word {
             WordExpr::Variable { spelling, source } => {
                 self.observe_variable_substitution(spelling, source, document, base, state, context)
@@ -226,7 +226,7 @@ impl SourceCommandBindings {
     /// walk of a handler body.
     fn source_model_substitution_access(
         &self,
-        original: Option<&(&str, crate::ir::SourceSite)>,
+        original: Option<&(&str, tcl_source::words::SourceSite)>,
         arena: Option<&tcl_lexer::ExecutablePartArena>,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
@@ -248,7 +248,7 @@ impl SourceCommandBindings {
     pub(in super::super) fn observe_variable_substitution(
         &mut self,
         spelling: &str,
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         document: &str,
         base: u32,
         state: &mut ModuleCommandBindings,
@@ -318,7 +318,7 @@ impl SourceCommandBindings {
                 )
             });
             if let Some((original, read_site)) = &original
-                && read_site.provenance == crate::ir::Provenance::Source
+                && read_site.provenance == tcl_source::words::Provenance::Source
             {
                 self.record_variable_access(
                     read_site,
@@ -541,7 +541,7 @@ impl SourceCommandBindings {
                 .zip(source.offset.checked_add(span.end()))
         {
             self.record_variable_access(
-                &crate::ir::SourceSite::source(tcl_lexer::Span::new(start, end)),
+                &tcl_source::words::SourceSite::source(tcl_lexer::Span::new(start, end)),
                 spelling,
                 state,
                 context.variable_read_owner,

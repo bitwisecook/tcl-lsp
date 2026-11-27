@@ -53,10 +53,10 @@
 //! command substitution.
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use tcl_core_types::DiagCode;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 use super::helpers::expr_simplify::expr_has_command_subst;
 use super::helpers::spans::{original_statement_rewrite_span, statement_delete_rewrite_range};

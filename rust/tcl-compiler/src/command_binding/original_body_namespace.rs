@@ -307,7 +307,7 @@ mod tests {
         );
         let image = tcl_lexer::SourceImage::document(source);
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .expect("original whole-source segmentation");
         let tokens = segments
             .iter()
@@ -356,7 +356,7 @@ mod tests {
         );
         let image = tcl_lexer::SourceImage::document(source);
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .expect("original whole-source geometry segmentation");
         let tokens = segments
             .iter()
@@ -886,7 +886,7 @@ mod tests {
         );
         let image = tcl_lexer::SourceImage::document(source);
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
         bindings.stamp_original_tokens(&mut parent);
@@ -959,9 +959,10 @@ mod tests {
         );
         let offset = u32::try_from(source.find(command).unwrap()).unwrap();
         let part = tcl_lexer::SourceImage::document(command);
-        let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&part, offset, config)
-                .unwrap();
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
+            &part, offset, config,
+        )
+        .unwrap();
         let image = tcl_lexer::SourceImage::document(&source);
         let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
         bindings.stamp_original_tokens(&mut parent);
@@ -1106,7 +1107,7 @@ mod tests {
             fixture.entry.options(),
         );
         let image = tcl_lexer::SourceImage::document(source);
-        fixture.tokens = crate::segmenter::segment_commands_image_with_offset_and_config(
+        fixture.tokens = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             0,
             fixture.input.lexer_config(),

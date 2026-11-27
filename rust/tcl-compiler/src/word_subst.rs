@@ -32,7 +32,7 @@
 //!    nothing at all, where the same code with `lindex $x 0` on its own line
 //!    reports both halves.
 //!
-//! Builds on [`crate::word_expr`], which owns splitting one word into its
+//! Builds on [`tcl_source::words`], which owns splitting one word into its
 //! substitution components; this module is the statement-level view of that —
 //! which *commands* a statement's words run, and in what order.
 //!
@@ -58,7 +58,11 @@ use tcl_lexer::Span;
 
 use tcl_registry::model::DocumentCommandSurface;
 
-use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 mod checked_inventory;
 mod dependency_regions;

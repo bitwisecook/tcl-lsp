@@ -20,8 +20,9 @@
 
 use super::super::helpers::parse_subst_template;
 use super::super::{CodegenCtx, Op, Operand, bytecode_imm};
-use tcl_compiler::ir::{CommandTokens, WordExpr};
+use tcl_compiler::ir::CommandTokens;
 use tcl_registry::hooks::InlineCodegenHookId;
+use tcl_source::words::WordExpr;
 
 impl CodegenCtx<'_> {
     // Private inline helpers for emit_inline_cmd_subst.

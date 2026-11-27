@@ -243,7 +243,7 @@ manifest, with each line's provenance class.
 | 14.0–21.1 | tmsh `cli version` values accepted on 21.1.0.1 (11.5.0 and 11.6.0 refused) | `evidence/tcl/bigip-tmsh-cli-version-scope.md` |
 | 17.5 | selected and loaded in that transcript | same |
 | 9.0, 9.3, 9.4, 10.0, 10.2, 11.0, 11.3, 11.4, 11.5, 15.0, 16.1, 17.0, 21.1 | lifecycle keys in iRules command and event data | `commands/irules/*`, `events/` |
-| 13.1, 15.1, 16.0, 16.1 | profile-default snapshots (13.1.0.8, 13.1.5, 15.1.0.0, 16.0.1, 16.1.3.2) | `tcl-registry/src/profile_defaults/` |
+| 13.1, 15.1, 16.0, 16.1 | profile-default snapshots (13.1.0.8, 13.1.5, 15.1.0.0, 16.0.1, 16.1.3.2) | `tcl-bigip-schema/src/profile_defaults/` |
 | 13.1, 17.1 | iApp `requires-bigip-version-min/max` tests | `tcl-registry/src/f5/iapp_metadata.rs:298` |
 | 12.0 | iRulesLX introduction | `docs/references/command-spec/callback-surface-catalogue.json` |
 

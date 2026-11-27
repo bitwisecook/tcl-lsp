@@ -308,6 +308,15 @@ pub struct InlineCaseClause {
 }
 
 impl CaseListSpec {
+    /// Clause-list syntax consumed by registry-independent source tooling.
+    #[must_use]
+    pub const fn shape(&self) -> tcl_syntax::case_list::CaseListShape<'static> {
+        tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        }
+    }
+
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
         subject_args: 1,

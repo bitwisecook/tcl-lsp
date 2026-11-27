@@ -32,9 +32,12 @@ use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, ResultStability, StateTransitionKnowledge, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::ir::{NodeId, Provenance, SourceSite, Statement};
+use crate::ir::Statement;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
+use tcl_source::words::NodeId;
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
 
 // Expression-key alias
 

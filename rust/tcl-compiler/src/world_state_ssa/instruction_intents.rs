@@ -179,7 +179,7 @@ pub(super) fn conservative_region_intents() -> Vec<(WorldStateIntentKind, WorldR
 pub(super) fn original_word_evaluation_runs_commands(
     function: &ExecutableFunction,
     value: crate::executable_ir::ExecutableValueId,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
 ) -> bool {
     function
         .original_word_command_effects(value, word)
@@ -194,8 +194,9 @@ pub(super) fn original_word_evaluation_runs_commands(
 /// Variable substitutions are deliberately excluded: a variable read can
 /// only run code through a live variable trace, which the contents analysis
 /// ([`crate::dispatch_proof`]) discharges or fails closed on explicitly.
-pub(super) fn word_evaluation_runs_commands(word: &crate::ir::WordExpr) -> bool {
-    use crate::ir::{WordExpr, WordPart};
+pub(super) fn word_evaluation_runs_commands(word: &tcl_source::words::WordExpr) -> bool {
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     match word {
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } | WordExpr::Variable { .. } => {
             false

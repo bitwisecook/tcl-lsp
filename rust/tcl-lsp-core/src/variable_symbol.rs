@@ -520,9 +520,9 @@ fn native_root_source_reference<'a>(
     analysis
         .retained_command_realm()?
         .stamp_original_tokens(&mut tokens);
-    let read = tokens.variable_access_for_site(&tcl_compiler::ir::SourceSite {
+    let read = tokens.variable_access_for_site(&tcl_source::words::SourceSite {
         span: root.source_span(),
-        provenance: tcl_compiler::ir::Provenance::Source,
+        provenance: tcl_source::words::Provenance::Source,
     })?;
     let original_input = root.policy().recipe().combined_variable_input(root.bytes());
     let absolute = original_input.root().qualification()

@@ -363,7 +363,7 @@ fn original_unknown_case_advice_refuses_missing_foreign_changed_and_shadowed_own
         original_logical_source_case_for_tokens(&missing, current.commands(), metadata).is_none()
     );
     let mut altered = tokens.clone();
-    let crate::ir::WordExpr::Variable { spelling, .. } = &mut altered.word_exprs[1] else {
+    let tcl_source::words::WordExpr::Variable { spelling, .. } = &mut altered.word_exprs[1] else {
         panic!("original written subject")
     };
     *spelling = "$other".into();

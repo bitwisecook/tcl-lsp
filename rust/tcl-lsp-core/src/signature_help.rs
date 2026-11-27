@@ -344,7 +344,7 @@ fn command_context_with_args(
     let mut argument_count = arg_token_count;
     let mut active_parameter = active_param;
     {
-        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(region.start..region.end)?,
             base,
             local_config,

@@ -17,8 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::{Arc, BTreeSet, CommandAllocationSite, SourceCommandBindings, SourceOriginId};
-use crate::ir::{SourceSite, WordExpr};
 use tcl_lexer::Span;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 fn words(spans: &[(u32, u32)]) -> Vec<WordExpr> {
     spans

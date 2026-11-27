@@ -27,7 +27,7 @@ use tcl_syntax::naming::NamePolicyProtocol;
 /// Static pre-argv head with its complete original source-vector owner. This
 /// value supplies lookup bytes, independently of selected compiler recipes.
 pub(in super::super) fn original_static_command_head_input(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &super::super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
@@ -53,7 +53,7 @@ pub(in super::super) fn original_static_command_head_input(
 /// Expanded heads retain their native list child; a captured byte value never
 /// borrows a complete static word or a pre-argument compiler coordinate.
 pub(in super::super) fn original_command_head_input(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &super::super::ModuleCommandBindings,
     context: super::super::SourceExecutionContext<'_>,
@@ -118,7 +118,10 @@ impl super::super::SourceInvocationBinding {
 
     pub(crate) fn original_recorded_command(
         &self,
-    ) -> Option<(crate::segmenter::SegmentedCommand, crate::ir::CommandTokens)> {
+    ) -> Option<(
+        tcl_source::segment::SegmentedCommand,
+        crate::ir::CommandTokens,
+    )> {
         self.with_original_recorded_command(|command, tokens| (command.clone(), tokens))
     }
 
@@ -126,7 +129,7 @@ impl super::super::SourceInvocationBinding {
     /// or tokens alone. The immutable lexical owner outlives the projection.
     fn with_original_recorded_command<T>(
         &self,
-        project: impl FnOnce(&crate::segmenter::SegmentedCommand, crate::ir::CommandTokens) -> T,
+        project: impl FnOnce(&tcl_source::segment::SegmentedCommand, crate::ir::CommandTokens) -> T,
     ) -> Option<T> {
         let site = self.invocation_site()?;
         let (words, config) = self.original_recorded_name_words()?;
@@ -466,7 +469,7 @@ impl super::super::SourceInvocationBinding {
 
     pub(super) fn original_recorded_name_words(
         &self,
-    ) -> Option<(&[crate::ir::WordExpr], tcl_lexer::LexerConfig)> {
+    ) -> Option<(&[tcl_source::words::WordExpr], tcl_lexer::LexerConfig)> {
         let site = self.invocation_site()?;
         if let Some(original) = &self.original_written_words {
             return (original.site == *site).then_some((original.words.as_ref(), original.config));
@@ -492,7 +495,7 @@ impl super::super::SourceInvocationBinding {
     pub(super) fn original_logical_source_geometry_words(
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
-    ) -> Option<(&[crate::ir::WordExpr], tcl_lexer::LexerConfig)> {
+    ) -> Option<(&[tcl_source::words::WordExpr], tcl_lexer::LexerConfig)> {
         input.has_logical_source_name_context().then_some(())?;
         if self.original_written_words.is_some() || self.original_compiler_words.is_some() {
             return self.original_recorded_name_words();
@@ -581,7 +584,7 @@ impl super::super::SourceInvocationBinding {
     pub(super) fn original_recorded_written_name_input(
         &self,
         written: usize,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         config: tcl_lexer::LexerConfig,
     ) -> Option<SignatureSourceNameInput> {
         let site = self.invocation_site()?;
@@ -635,7 +638,7 @@ impl super::super::SourceInvocationBinding {
     fn recorded_written_name_input_in(
         &self,
         written: usize,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         config: tcl_lexer::LexerConfig,
         native: &[tcl_lexer::NativeWord],
         purpose: &OriginalRecordedNamePurpose,
@@ -677,7 +680,7 @@ impl super::super::SourceInvocationBinding {
 
     fn original_recorded_name_purpose(
         &self,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         config: tcl_lexer::LexerConfig,
     ) -> Option<OriginalRecordedNamePurpose> {
         let candidate = if let Some(point) = &self.lookup_state {

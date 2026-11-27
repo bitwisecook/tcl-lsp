@@ -19,7 +19,7 @@
 //! `bigip-data-schema` — the BIG-IP object-spec data consistency gate
 //! for the hand-maintained object specs.
 //!
-//! Specs under `rust/tcl-registry/src/bigip/data/` are grouped by each
+//! Specs under `rust/tcl-bigip-schema/src/bigip/data/` are grouped by each
 //! spec's `module` field, with one source file per tmsh module. A large
 //! module is filed by tmsh component: `<module>.rs` declares one file per
 //! component under `<module>/`, and a large component does the same below
@@ -45,7 +45,7 @@
 //!   (regex over `kind: "..."` — the per-module data modules are private to
 //!   `tcl-registry`, so an xtask outside that crate cannot enumerate them
 //!   per-file through the public API) must find exactly the same kind set
-//!   the compiled registry ([`tcl_registry::bigip::data::all_specs`])
+//!   the compiled registry ([`tcl_bigip_schema::data::all_specs`])
 //!   reports — catching a module declared in `data/mod.rs` (`mod x;`) but
 //!   never aggregated into `all_specs()`'s `v.extend(...)` chain (the
 //!   "half-wired" case);
@@ -68,7 +68,7 @@ use regex::Regex;
 
 use crate::util::repo_root;
 
-const DATA_DIR: &str = "rust/tcl-registry/src/bigip/data";
+const DATA_DIR: &str = "rust/tcl-bigip-schema/src/bigip/data";
 
 /// Reference targets already unresolved when this gate was introduced —
 /// tmsh action verbs (`start`, `stop`, `save`, `restart`, `load`) that share
@@ -416,7 +416,7 @@ fn analyse() -> Result<Findings> {
         }
     }
 
-    let registry_kinds: BTreeSet<String> = tcl_registry::bigip::data::all_specs()
+    let registry_kinds: BTreeSet<String> = tcl_bigip_schema::data::all_specs()
         .into_iter()
         .map(|spec| spec.kind_spec.kind.to_owned())
         .collect();

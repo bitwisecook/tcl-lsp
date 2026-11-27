@@ -88,7 +88,7 @@ pub(super) fn factory(
             let identity =
                 original_call_words([class_invoked, original_factory].into_iter().chain(args));
             (
-                format!("::{n}").into_bytes(),
+                tcl_syntax::naming::root_unrooted_key(&n).into_bytes(),
                 n,
                 args,
                 vec![class_invoked.clone(), original_factory.clone()],
@@ -153,7 +153,7 @@ pub(super) fn fresh_obj_name(vm: &mut Vm) -> String {
 /// namespace (an object's method, a namespaced proc) does not resolve it
 /// relative to that namespace: C's `TclOO` names it absolutely.
 fn fresh_obj_command(vm: &mut Vm) -> String {
-    format!("::{}", fresh_obj_name(vm))
+    tcl_syntax::naming::root_unrooted_key(&fresh_obj_name(vm))
 }
 
 /// Create object `obj_key` as an instance of `class_key`, run its constructor

@@ -31,8 +31,8 @@ use std::sync::OnceLock;
 use regex::Regex;
 use serde_json::{Map, Value as J};
 use tcl_bigip::object_names::{object_path_partition, owner_partition_reference_paths};
+use tcl_bigip::schema::profile_defaults::BigipVersion;
 use tcl_registry::events::EventRegistry;
-use tcl_registry::profile_defaults::BigipVersion;
 
 use crate::jutil::{barr, bbool, bstr, sarr};
 use crate::query::{Source, query};

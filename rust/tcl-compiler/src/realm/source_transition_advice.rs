@@ -399,7 +399,7 @@ impl super::CommandBindingRealm {
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
         offset: u32,
-    ) -> Option<crate::segmenter::SegmentedCommand> {
+    ) -> Option<tcl_source::segment::SegmentedCommand> {
         self.matches_resolved_analysis_input(input).then_some(())?;
         let image = self.original_source_image()?;
         let config = input.lexer_config();
@@ -437,7 +437,7 @@ impl super::CommandBindingRealm {
         if span.start() != offset {
             return None;
         }
-        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
             image.try_text().ok()?.get(span.as_range())?,
             span.start(),
             config.nested(),

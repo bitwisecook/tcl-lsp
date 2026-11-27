@@ -45,7 +45,7 @@ fn original_logical_expression_child_retains_alias_actual_base_and_no_native_rec
     let syntax = OriginalSourceRegistryContext::capture(source, input.clone());
     let start = u32::try_from(source.find("\u{feff}match λ").unwrap()).unwrap();
     let end = u32::try_from(source.find("]}").unwrap()).unwrap();
-    let children = crate::segmenter::segment_commands_with_offset_and_config(
+    let children = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[start as usize..end as usize],
         start,
         input.lexer_config().nested(),
@@ -75,7 +75,7 @@ fn original_logical_expression_child_retains_alias_actual_base_and_no_native_rec
     let mut changed = input.lexer_config();
     changed.strict_quoting = !changed.strict_quoting;
     assert!(!advice.matches_source(&tcl_lexer::SourceImage::document(source), changed));
-    let shifted = crate::segmenter::segment_commands_with_offset_and_config(
+    let shifted = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[start as usize..end as usize],
         start + 1,
         input.lexer_config().nested(),

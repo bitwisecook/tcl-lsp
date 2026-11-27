@@ -228,7 +228,7 @@ impl BodyTouch {
         config: tcl_lexer::LexerConfig,
         depth: u32,
     ) {
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             self.all = true;
             return;
         }

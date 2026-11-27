@@ -45,9 +45,9 @@
 
 use std::collections::HashMap;
 
-use tcl_compiler::depth_guard::MAX_EXPR_NODE_DEPTH;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{IfClause, Script, Statement, SwitchArm, TryHandler};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Return a new [`Script`] with `rename` applied everywhere reachable.
 #[must_use]

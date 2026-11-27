@@ -29,9 +29,10 @@ use super::{
     EffectiveCommandWords, InvocationWordOrigin, NormalRepresentationInvocation,
     ResolvedStatementInvocation, resolved_tokens_invocation_with_metadata_context,
 };
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_source::words::WordExpr;
 
 /// Value retained by a successful selected variable assignment.
 /// This representation projection supplies neither an opcode nor a write proof.

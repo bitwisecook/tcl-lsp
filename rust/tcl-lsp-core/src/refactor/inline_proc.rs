@@ -72,12 +72,12 @@
 //! ```
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 #[cfg(test)]
 use tcl_dialect::BracedVarStyle;
 use tcl_dialect::NumberSyntax;
 use tcl_lexer::LexerConfig;
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
@@ -200,7 +200,7 @@ fn check_inline_script(replacement: &str, config: LexerConfig) -> Option<()> {
 /// The inlined replacement text for `call`, or the reason it cannot be built.
 fn plan_inline(
     source: &str,
-    call: &tcl_compiler::segmenter::SegmentedCommand,
+    call: &tcl_source::segment::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
     _registry: &CommandRegistry,
@@ -278,7 +278,7 @@ fn plan_inline(
 #[derive(Clone, Copy)]
 struct InlineBodySyntax<'a> {
     command: &'a BodyCommand,
-    nested: &'a [tcl_compiler::segmenter::SegmentedCommand],
+    nested: &'a [tcl_source::segment::SegmentedCommand],
     numbers: NumberSyntax,
 }
 
@@ -286,7 +286,7 @@ struct InlineBodySyntax<'a> {
 /// topology. Frozen values never erase a written variable or command read.
 fn original_inline_body(
     source: &str,
-    call: &tcl_compiler::segmenter::SegmentedCommand,
+    call: &tcl_source::segment::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
     walk: &super::FrameWalk<'_>,
@@ -389,7 +389,7 @@ struct BodyCommand {
     /// Exact original content origin in the full document.
     origin: u32,
     /// The body's single command, with absolute document spans.
-    command: tcl_compiler::segmenter::SegmentedCommand,
+    command: tcl_source::segment::SegmentedCommand,
 }
 
 /// Extract the proc's body and require it to be exactly one command.
@@ -476,7 +476,7 @@ struct Binding {
 /// no activation, runtime equivalence or editing authority follows from them.
 fn bind_arguments(
     source: &str,
-    call: &tcl_compiler::segmenter::SegmentedCommand,
+    call: &tcl_source::segment::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     walk: &super::FrameWalk<'_>,
 ) -> Result<Vec<Binding>, String> {
@@ -572,7 +572,7 @@ fn bind_arguments(
 fn reject_frame_sensitive_body(
     source: &str,
     body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    nested: &[tcl_source::segment::SegmentedCommand],
     walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
     for command in std::iter::once(&body.command).chain(nested) {
@@ -600,7 +600,7 @@ fn reject_frame_sensitive_body(
 fn reject_body_variable_writes(
     source: &str,
     body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    nested: &[tcl_source::segment::SegmentedCommand],
     walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
     for command in std::iter::once(&body.command).chain(nested) {
@@ -646,7 +646,7 @@ fn reject_body_variable_writes(
 fn body_variable_references(
     source: &str,
     body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    nested: &[tcl_source::segment::SegmentedCommand],
     walk: &super::FrameWalk<'_>,
 ) -> Result<Vec<super::VariableReference>, String> {
     let mut references = std::collections::BTreeMap::new();
@@ -710,7 +710,7 @@ fn reject_args_reference(
 fn substitute_bindings(
     source: &str,
     body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    nested: &[tcl_source::segment::SegmentedCommand],
     bindings: &[Binding],
     walk: &super::FrameWalk<'_>,
     numbers: NumberSyntax,
@@ -823,7 +823,7 @@ fn literal_substitution_container(
     analysis: &AnalysisResult,
     walk: &super::FrameWalk<'_>,
     body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
+    nested: &[tcl_source::segment::SegmentedCommand],
     reference: tcl_lexer::Span,
     value: &str,
 ) -> Option<String> {
@@ -897,7 +897,7 @@ fn literal_substitution_container(
 /// `for`'s condition are all covered without this module naming any of them.
 fn expr_argument_ranges(
     source: &str,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     walk: &super::FrameWalk<'_>,
 ) -> Result<Vec<(usize, usize)>, String> {
     let words = walk
@@ -1031,7 +1031,7 @@ type InlineBodyReferences<'references, 'expressions> = (
 
 fn collect_inline_body_references(
     source: &str,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     walk: &super::FrameWalk<'_>,
     call: (
         &tcl_compiler::ir::CommandTokens,

@@ -24,7 +24,14 @@ use std::process::{Command, ExitCode};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
-const PROTECTED: &[&str] = &["tcl-compiler", "tcl-codegen", "tcl-lsp-core", "tcl-lsp-db"];
+const PROTECTED: &[&str] = &[
+    "tcl-compiler",
+    "tcl-codegen",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-bigip-schema",
+    "tcl-source",
+];
 
 #[derive(Deserialize)]
 struct Config {
@@ -52,12 +59,32 @@ struct Package {
 #[derive(Deserialize)]
 struct Dependency {
     name: String,
+    kind: Option<String>,
 }
 
 fn violations(packages: &[Package], policy: &BTreeMap<&str, &BTreeSet<String>>) -> Vec<String> {
     let mut violations = Vec::new();
     for package in packages {
+        let allowed: Option<&[&str]> = match package.name.as_str() {
+            "tcl-bigip-schema" => Some(&["tcl-dialect"]),
+            "tcl-source" => Some(&["tcl-core-types", "tcl-dialect", "tcl-lexer", "tcl-syntax"]),
+            _ => None,
+        };
         for dependency in &package.dependencies {
+            if allowed.is_some_and(|owners| {
+                !(owners.contains(&dependency.name.as_str())
+                    || (package.name == "tcl-source"
+                        && dependency.kind.as_deref() == Some("dev")
+                        && dependency.name == "tcl-test-support"))
+                    && packages
+                        .iter()
+                        .any(|candidate| candidate.name == dependency.name)
+            }) {
+                violations.push(format!(
+                    "{} -> {} is outside its foundation owners",
+                    package.name, dependency.name
+                ));
+            }
             if policy
                 .get(dependency.name.as_str())
                 .is_some_and(|wrappers| !wrappers.contains(&package.name))
@@ -146,6 +173,22 @@ mod tests {
         assert_eq!(
             violations(&metadata.packages, &policy),
             ["tcl-lexer -> tcl-lsp-core is outside the declared layers"]
+        );
+    }
+    #[test]
+    fn source_and_schema_keep_their_foundation_boundary() {
+        let graph = r#"{"packages":[
+            {"name":"tcl-source","dependencies":[{"name":"tcl-registry"}]},
+            {"name":"tcl-bigip-schema","dependencies":[{"name":"tcl-registry"}]},
+            {"name":"tcl-registry","dependencies":[]}
+        ]}"#;
+        let metadata: Metadata = serde_json::from_str(graph).unwrap();
+        assert_eq!(
+            violations(&metadata.packages, &BTreeMap::new()),
+            [
+                "tcl-bigip-schema -> tcl-registry is outside its foundation owners",
+                "tcl-source -> tcl-registry is outside its foundation owners",
+            ]
         );
     }
 }

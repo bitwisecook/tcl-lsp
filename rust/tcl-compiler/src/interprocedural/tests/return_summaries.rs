@@ -76,7 +76,7 @@ fn return_word_classification_keeps_literal_names_and_selected_grammar() {
         ] {
             let source = format!("return {raw}");
             let commands =
-                crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(&source, 0, config);
             let tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceMap::new(&source),
                 config,

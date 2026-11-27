@@ -147,9 +147,7 @@ fn simulation_command_labels(source: &str) -> Result<BTreeSet<String>> {
     let config = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
     let mut labels = BTreeSet::new();
     let mut found = BTreeSet::new();
-    for command in
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-    {
+    for command in tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config) {
         if command.name() != "namespace"
             || command.args().len() != 3
             || command.args()[..2] != ["eval", "::itest::cmd"]
@@ -160,7 +158,7 @@ fn simulation_command_labels(source: &str) -> Result<BTreeSet<String>> {
             !command.is_partial && command.arg_tokens()[2].kind == tcl_lexer::TokenType::Str,
             "simulation command roster requires an original braced namespace body"
         );
-        for variable in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        for variable in tcl_source::segment::segment_commands_with_offset_and_config(
             &command.args()[2],
             0,
             config.nested(),

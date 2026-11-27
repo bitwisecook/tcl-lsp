@@ -538,7 +538,9 @@ fn original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_ve
         );
         if expected {
             let mut altered = tokens.clone();
-            let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut altered.word_exprs[1] else {
+            let tcl_source::words::WordExpr::BracedLiteral { text, .. } =
+                &mut altered.word_exprs[1]
+            else {
                 panic!("original whole braced body");
             };
             *text = "set fabricated VALUE".to_owned();

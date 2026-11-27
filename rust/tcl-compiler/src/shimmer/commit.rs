@@ -50,12 +50,12 @@ use tcl_registry::{CommandRegistry, TclType};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 use super::hints::is_pure_value;
 use super::hints::{inert_effective_args, is_numeric_compatible};
@@ -474,7 +474,7 @@ impl CommitWalker<'_> {
     pub(super) fn cost_for_word(
         &self,
         source: crate::ssa::SsaSourceView<'_>,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         read: crate::ssa::SsaReadReference,
         semantic: TclType,
         expected: TclType,
@@ -1097,7 +1097,7 @@ fn push_invocation_var_read(
         &crate::registry_invocation::NormalRepresentationInvocation,
         usize,
     ),
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     expected: TclType,
     span: Span,
 ) {
@@ -1115,7 +1115,7 @@ fn push_invocation_var_read(
 fn push_var_read(
     ctx: &CommitCtx<'_>,
     out: &mut Vec<TypedRead>,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     expected: TclType,
     span: Span,
 ) {
@@ -1329,7 +1329,7 @@ mod tests {
                         .expect("original amount words")
                         .words()[2];
                     assert!(
-                        matches!(word, crate::ir::WordExpr::BracedLiteral { text, .. }
+                        matches!(word, tcl_source::words::WordExpr::BracedLiteral { text, .. }
                         if text == "$step")
                     );
                     assert!(reads.iter().all(|read| read.sym != step));

@@ -20,9 +20,9 @@
 
 use crate::render_spectcl;
 use std::collections::{BTreeMap, BTreeSet};
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{SourceMap, SourceSegmentationPurpose};
+use tcl_source::cst::build::build_document;
+use tcl_source::cst::segment::segments_from_document;
 use tcl_spectcl::export::Registration;
 
 // The CST side: finding a statement's bytes

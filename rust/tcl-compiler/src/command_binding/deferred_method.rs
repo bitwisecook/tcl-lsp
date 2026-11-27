@@ -59,7 +59,7 @@ pub enum SourceMethodReceiver {
 pub struct SourceReceiverMethodEntry {
     name: String,
     original_name: SignatureSourceNameInput,
-    name_source: crate::ir::SourceSite,
+    name_source: tcl_source::words::SourceSite,
     receiver: SourceMethodReceiver,
     exported: bool,
     declaring_class: Option<super::SourceCommandTarget>,
@@ -132,7 +132,7 @@ impl SourceReceiverMethodEntry {
     }
     /// Exact original name-word site, including its source provenance.
     #[must_use]
-    pub fn name_source(&self) -> &crate::ir::SourceSite {
+    pub fn name_source(&self) -> &tcl_source::words::SourceSite {
         &self.name_source
     }
     /// Instance or class-object declaration receiver.
@@ -248,7 +248,7 @@ impl SourceCommandBindings {
         };
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,
@@ -334,7 +334,7 @@ impl SourceCommandBindings {
         let definition = &configuration.body;
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let phases = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let phases = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,
@@ -370,7 +370,7 @@ impl SourceCommandBindings {
     ) {
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,

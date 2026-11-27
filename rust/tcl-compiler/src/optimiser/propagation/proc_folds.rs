@@ -270,7 +270,8 @@ pub(super) fn try_fold_static_proc_call(
         .all(|word| {
             matches!(
                 word,
-                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. }
             )
         })
         .then(|| call.argument_count())

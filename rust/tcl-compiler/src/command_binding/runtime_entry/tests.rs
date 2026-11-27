@@ -1177,7 +1177,7 @@ fn assert_observed_compiler_plan(
         "{version:?}"
     );
     assert!(next.variable_context.dynamic_traces, "{version:?}");
-    let segments = crate::segmenter::segment_commands(source);
+    let segments = tcl_source::segment::segment_commands(source);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         tcl_lexer::LexerConfig::default(),
@@ -1307,7 +1307,7 @@ fn nested_noop_keeps_the_actual_header_selected_before_argument_replacement() {
                 ))
     );
     // The original parent carrier must retain this exact nested operation.
-    let segments = crate::segmenter::segment_commands(source);
+    let segments = tcl_source::segment::segment_commands(source);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         tcl_lexer::LexerConfig::default(),
@@ -1657,7 +1657,7 @@ fn original_captured_named_admission_preserves_source_and_unknown_axes() {
         tcl_dialect::TclVersion::V9_1,
     ] {
         let analysis = analyse_mapped_ensemble_source(&snapshot, version, source);
-        let segments = crate::segmenter::segment_commands(source);
+        let segments = tcl_source::segment::segment_commands(source);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             tcl_lexer::LexerConfig::default(),

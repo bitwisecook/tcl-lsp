@@ -39,7 +39,7 @@ fn original_logical_body_topology_requires_the_supplied_complete_input_at_same_r
         )
         .unwrap();
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .pop()
             .unwrap();

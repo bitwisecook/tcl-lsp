@@ -20,9 +20,9 @@
 
 use super::super::Lowerer;
 use crate::ir::Statement;
-use crate::segmenter::SegmentedCommand;
 use std::collections::HashMap;
 use tcl_lexer::TokenType;
+use tcl_source::segment::SegmentedCommand;
 
 /// Return `(name, literal)` when *seg* is `set name {literal}`.
 ///

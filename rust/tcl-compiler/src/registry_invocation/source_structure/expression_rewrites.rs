@@ -30,7 +30,7 @@ use tcl_registry::CommandRegistry;
 pub fn original_expression_gap_compaction(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     candidate: &str,
 ) -> Option<crate::command_binding::OriginalExpressionGapCompaction> {
     let config = analysis.body_lexer_config?;
@@ -138,7 +138,7 @@ impl OriginalExpressionBooleanInversion {
 pub fn original_expression_boolean_comparison_inversion(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     argument: usize,
     candidate: &str,
 ) -> Option<OriginalExpressionBooleanInversion> {
@@ -257,7 +257,7 @@ fn reflection_free_bodies(
         let Some(text) = source.get(span.as_range()) else {
             return false;
         };
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             span.start(),
             input.lexer_config(),
@@ -272,7 +272,7 @@ fn reflection_free_bodies(
 fn reflection_free_command(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     context: &tcl_registry::model::ContextRegistry,
     depth: u32,
 ) -> bool {
@@ -406,7 +406,7 @@ fn hosted_expression_operator_rewrite(
 pub fn original_expression_operator_rewrite(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     argument: usize,
     candidate: &str,
     kind: OriginalExpressionOperatorRewriteKind,
@@ -480,7 +480,7 @@ pub fn original_expression_operator_rewrite(
 pub fn original_expression_syntax_gap_compaction(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     argument: usize,
     candidate: &str,
 ) -> Option<OriginalExpressionSyntaxGapCompaction> {

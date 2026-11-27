@@ -68,7 +68,7 @@ fn logical_class_calls_keep_their_separate_source_consumer_domain() {
     let result = Analyser::new().analyse(source, "tcl");
     assert!(result.allows_retained_logical_declaration_advice());
     assert!(result.original_class_declarations().next().is_none());
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         result.body_lexer_config.unwrap(),
@@ -104,7 +104,7 @@ fn original_class_call_method_candidates_keep_call_horizons_and_captured_selecto
     let source = "oo::class create C {self method ping {} {}}; C ping; rename C M; C ping; M ping; interp alias {} A {} M ping; A; rename M {}; M ping";
     let result = analysis(source);
     assert!(result.original_completed_command_world().is_none());
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         result.body_lexer_config.unwrap(),

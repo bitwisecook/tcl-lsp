@@ -22,7 +22,7 @@ use super::*;
 
 fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
     let start = u32::try_from(analyser.source.rfind(needle).unwrap()).unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         analyser
             .source
             .get(usize::try_from(start).unwrap()..)

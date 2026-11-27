@@ -237,7 +237,7 @@ pub(crate) fn original_native_source_structured_invocation(
     ) || tokens
         .words()
         .iter()
-        .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+        .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     {
         n17_source_trace!("decline=native-structure-purpose-or-expansion");
         return None;
@@ -634,7 +634,7 @@ mod tests {
             original.first()?.span().start(),
             original.last()?.span().end(),
         );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(span.as_range())?,
             span.start(),
             input.lexer_config().nested(),

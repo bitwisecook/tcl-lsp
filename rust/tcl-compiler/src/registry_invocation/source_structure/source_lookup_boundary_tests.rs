@@ -33,7 +33,8 @@ fn original_source_lookup_facet_is_independent_of_advisory_body_roles() {
     ] {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
         assert_eq!(
             words.roles(),

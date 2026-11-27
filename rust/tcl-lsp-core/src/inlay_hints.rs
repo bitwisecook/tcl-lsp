@@ -639,7 +639,7 @@ fn binary_short(c: char) -> Option<&'static str> {
 fn format_args(
     source: &str,
     analysis: &AnalysisResult,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<(FormatOperand, tcl_registry::FormatStringArg)> {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md

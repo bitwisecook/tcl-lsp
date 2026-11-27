@@ -25,7 +25,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::compile_84::{Command, Compile, Script, Segmenter, Word};
 use tcl_runtime_api::{CompileFailure, CompileUnit};
 
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// Why 8.4's compiler refuses `source` compiled as `unit` (only in a
 /// procedure body do `foreach`, `lappend` and a `catch` with a variable

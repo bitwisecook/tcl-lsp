@@ -26,7 +26,9 @@
 //! is incomplete (`info complete` → 0), which is what `is_partial` marks.
 
 use std::collections::HashSet;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands, segment_commands_with_recovery};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands;
+use tcl_source::segment::segment_commands_with_recovery;
 
 fn names(cmds: &[SegmentedCommand]) -> Vec<&str> {
     cmds.iter().map(SegmentedCommand::name).collect()
@@ -61,7 +63,7 @@ fn semicolon_separator() {
 fn empty_source_is_no_commands() {
     assert_eq!(
         segment_commands(""),
-        [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
+        [] as [tcl_source::segment::SegmentedCommand; 0]
     );
 }
 
@@ -69,7 +71,7 @@ fn empty_source_is_no_commands() {
 fn comment_only_is_no_commands() {
     assert_eq!(
         segment_commands("# just a comment"),
-        [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
+        [] as [tcl_source::segment::SegmentedCommand; 0]
     );
 }
 
@@ -205,7 +207,7 @@ fn expansion_marker_recorded() {
 // `brace_line_continuation` axis the §2 N-rules ride).
 
 fn segment_f5(src: &str) -> Vec<SegmentedCommand> {
-    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    tcl_source::segment::segment_commands_with_offset_and_config(
         src,
         0,
         tcl_lexer::LexerConfig::for_dialect("f5-irules"),

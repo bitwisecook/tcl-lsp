@@ -76,7 +76,7 @@ impl Analyser {
         if self.source.get(content.as_range()) != Some(literal) {
             return;
         }
-        let children = crate::segmenter::segment_commands_with_offset_and_config(
+        let children = tcl_source::segment::segment_commands_with_offset_and_config(
             literal,
             content.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(body.config()),
@@ -257,7 +257,7 @@ impl Analyser {
         let Some(source) = self.source.get(body.as_range()) else {
             return false;
         };
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             body.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
@@ -795,11 +795,11 @@ fn w127_suggestion_fix(
     message: &mut String,
 ) -> Vec<crate::analyser::types::CodeFix> {
     use std::fmt::Write as _;
-    let suggestions = crate::text::suggest_similar(
+    let suggestions = tcl_source::text::suggest_similar(
         value,
         allowed.iter().copied(),
         1,
-        crate::text::scaled_max_distance(value),
+        tcl_source::text::scaled_max_distance(value),
     );
     let Some(best) = suggestions.first() else {
         return Vec::new();
@@ -987,7 +987,8 @@ mod original_catch_child_purpose_tests {
                 .any(|row| row.code == DiagCode::W302)
         );
         assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let Some(OriginalDiagnosticSource::Registry(original)) =
             analyser.original_diagnostic_source_for_segment(commands.last().unwrap())
         else {
@@ -999,7 +1000,7 @@ mod original_catch_child_purpose_tests {
         assert_eq!(body.image().bytes(), source.as_bytes());
         let content = body.content_span().unwrap();
         assert_eq!(source.get(content.as_range()), Some("\u{feff}dispose gone"));
-        let children = crate::segmenter::segment_commands_with_offset_and_config(
+        let children = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(content.as_range()).unwrap(),
             content.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),

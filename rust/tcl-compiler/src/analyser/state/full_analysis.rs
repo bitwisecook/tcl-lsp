@@ -274,7 +274,7 @@ impl Analyser {
         // the per-command IRULE1001 hint can consult it without recomputing.
         self.prepare_source_walk_indexes(source);
         let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
-        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
+        let mut commands = tcl_source::segment::segment_commands_with_recovery_and_config(
             source,
             &known_commands,
             self.file_lexer_config(),
@@ -523,7 +523,7 @@ impl Analyser {
     /// record the body for later isolated analysis instead of recursing.
     pub(in super::super) fn walk_commands_top_level(
         &mut self,
-        commands: &[crate::segmenter::SegmentedCommand],
+        commands: &[tcl_source::segment::SegmentedCommand],
         ghost_recovery_applied: bool,
     ) {
         // A source shell interprets nothing.
@@ -554,7 +554,7 @@ impl Analyser {
                 // straight to E200.
                 let brace_partial = matches!(
                     cmd_ref.partial_delimiter,
-                    Some(crate::segmenter::UnclosedDelimiter::Brace)
+                    Some(tcl_source::segment::UnclosedDelimiter::Brace)
                 );
                 let region_end = self.source.len();
                 if !(self.emit_unterminated_delimiter_diagnostics(cmd_ref, region_end)

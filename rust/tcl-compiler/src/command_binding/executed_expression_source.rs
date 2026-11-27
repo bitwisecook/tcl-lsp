@@ -22,9 +22,11 @@ use super::{
     CommandAllocationSite, ExecutedScriptMapping, ExecutedScriptSource, MaterialisedSourceKind,
     SourceOriginId,
 };
-use crate::ir::{Provenance, SourceSite, WordExpr};
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, Span};
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 /// One exact native expression value with truthful operand source mappings.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -297,10 +299,11 @@ mod tests {
     fn expression(source: &str, values: &[&str]) -> ExecutedExpressionSource {
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
-        let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .next()
-            .unwrap();
+        let command =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .next()
+                .unwrap();
         let words = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,

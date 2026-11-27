@@ -47,7 +47,7 @@ fn original_recovered_written_words_keep_full_source_and_component_extents_separ
     assert!(words[0].iter().all(CommandWord::has_source_geometry));
     let map = SourceMap::new(source);
     let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config.nested())
             .remove(0);
     let original = CommandTokens::from_segmented(&map, config, &command);
     assert_eq!(map.text(original.words()[5].source().span), "${a{b");
@@ -63,7 +63,7 @@ fn original_written_word_inventory_refuses_changed_cst_vectors_and_source_geomet
     let source = "prefix; list {é $x}";
     let map = SourceMap::new(source);
     let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config.nested())
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config.nested())
             .remove(1);
     assert_eq!(command_words(&map, config, &command)[1].raw, "{é $x}");
     let mut changed = command.clone();

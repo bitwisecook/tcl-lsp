@@ -303,7 +303,7 @@ fn original_argument_matches(word: &NativeWord, text: &str, token: Token) -> boo
     let Ok(source) = word.try_text() else {
         return false;
     };
-    let mut projection = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut projection = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         word.word_span().start(),
         word.config().nested(),

@@ -313,7 +313,7 @@ fn logical_member_name_ingress_refuses_reconstructed_wrapper_vectors() {
         .unwrap()
         .original_source_image()
         .unwrap();
-    let outer = crate::segmenter::segment_commands_with_offset_and_config(
+    let outer = tcl_source::segment::segment_commands_with_offset_and_config(
         direct_source,
         0,
         actual_input.lexer_config(),
@@ -336,7 +336,7 @@ fn logical_member_name_ingress_refuses_reconstructed_wrapper_vectors() {
     )
     .unwrap();
     let content = crate::registry_invocation::original_written_script_body_span(&body).unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &direct_source[content.as_range()],
         content.start(),
         actual_input.lexer_config().nested(),
@@ -443,7 +443,7 @@ fn original_member_script_projection_keeps_body_bom_as_keyword_content() {
         .is_none()
     );
     let source = "private {\u{feff}method ghost {} {}}";
-    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     let expanded =

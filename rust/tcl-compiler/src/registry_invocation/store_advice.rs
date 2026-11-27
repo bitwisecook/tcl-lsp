@@ -23,10 +23,11 @@
 
 use super::InvocationMetadataContext;
 use crate::command_binding::CommandAllocationSite;
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::ContentsOrigin;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// Original declared setter ordering, independent of physical store entry.
 /// No cell, contents version, successful completion or edit escapes this type.
@@ -361,7 +362,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-        crate::segmenter::segment_commands_with_offset_and_config(
+        tcl_source::segment::segment_commands_with_offset_and_config(
             procedure
                 .body_source
                 .as_deref()
@@ -534,9 +535,10 @@ mod tests {
             let command = "set unusedvar 1";
             let offset =
                 u32::try_from(source.find(command).unwrap()).expect("fixture source offset");
-            let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
-                    .remove(0);
+            let segment = tcl_source::segment::segment_commands_with_offset_and_config(
+                command, offset, config,
+            )
+            .remove(0);
             let mut tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceImage::document(source).source_map(),
                 config,

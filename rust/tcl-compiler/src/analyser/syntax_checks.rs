@@ -40,7 +40,7 @@ use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
 use super::types::{CodeFix, Diagnostic, Severity};
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// E201: a `[` command substitution with no closing `]`.  Emits the
 /// user-facing E201 diagnostic (the ghost-token re-lex that would produce

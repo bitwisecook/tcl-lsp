@@ -21,9 +21,9 @@
 use super::super::Lowerer;
 use super::super::commands::resolved_top_level_priority;
 use crate::ir::{CommandTokens, Procedure, Statement};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 impl Lowerer<'_> {
     pub(in super::super) fn try_lower_when_declaration(

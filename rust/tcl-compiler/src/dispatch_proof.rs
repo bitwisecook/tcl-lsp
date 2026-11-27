@@ -68,9 +68,10 @@ use tcl_registry::{DispatchDependencies, TraceOperation, TransitionSubject, Worl
 use crate::executable_ir::ExecutableFunction;
 #[cfg(test)]
 use crate::executable_ir::{ExecutableInstruction, ExecutableTerminator, InvocationResolution};
-use crate::ir::{WordExpr, WordPart};
 use crate::state_ssa::adapters::WorldInterpreterScope;
 use crate::world_state_ssa::{EdgeCompletion, edge_completion, successors_of};
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 mod block_transfer;
 mod state_transitions;

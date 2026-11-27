@@ -21,7 +21,7 @@
 //!
 //! The `sys application template` schema carries three facts the single
 //! environment cannot preserve, and the registry's own object schema
-//! already lists all three (`crate::bigip::data::sys`):
+//! already lists all three (the BIG-IP configuration schema):
 //!
 //! - `requires-bigip-version-min` / `requires-bigip-version-max` — the
 //!   template's own BIG-IP compatibility interval, which is *positive
@@ -392,30 +392,5 @@ mod tests {
         assert!(unbounded.bigip_range.contains(&version("11.5.0")));
         assert_eq!(unbounded.permits_role("admin"), None);
         assert!(unbounded.widens_authorisation());
-    }
-
-    /// The three properties this overlay reads are the ones the shipping
-    /// BIG-IP object schema declares for `sys application template` — the
-    /// overlay and the schema cannot drift apart silently.
-    #[test]
-    fn the_properties_exist_in_the_bigip_object_schema() {
-        let registry = crate::bigip::BigipRegistry::build();
-        let spec = registry
-            .get("sys_application_template")
-            .expect("the template object kind");
-        let mut names = std::collections::HashSet::new();
-        let mut stack: Vec<&crate::bigip::BigipPropertySpec> = spec.properties.iter().collect();
-        while let Some(property) = stack.pop() {
-            names.insert(property.name);
-            stack.extend(property.block.iter());
-        }
-        for property in [
-            "requires-bigip-version-min",
-            "requires-bigip-version-max",
-            "role-acl",
-            "run-as",
-        ] {
-            assert!(names.contains(property), "{property} missing from schema");
-        }
     }
 }

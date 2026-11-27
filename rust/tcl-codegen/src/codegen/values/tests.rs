@@ -792,7 +792,7 @@ fn increment_tokens(
     config: tcl_lexer::LexerConfig,
 ) -> tcl_compiler::ir::CommandTokens {
     let segment =
-        tcl_compiler::segmenter::segment_commands_image_with_offset_and_config(source, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(source, 0, config)
             .unwrap()
             .remove(0);
     tcl_compiler::ir::CommandTokens::from_segmented(

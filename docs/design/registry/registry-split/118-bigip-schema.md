@@ -7,136 +7,33 @@ registry split's steps and depends on none of them. Item 119 (generators with
 from one owner) consumes the crate. The overview is
 [splitting tcl-registry](../registry-split-design.md).
 
-## Problem
+## Current boundary
 
-The registry carries a BIG-IP configuration schema that no command spec
-reads. Counted with `wc -l` on 26 November 2026:
+`tcl-bigip-schema` owns `bigip/`, `base_objects/`, `profile_defaults/`
+and the object-graph snapshot. It depends on `tcl-dialect` and `serde_json`,
+with no command-registry edge. `tcl-registry` neither contains nor re-exports
+these tables, including through dev-dependencies.
 
-| Module | Lines | Form |
-|---|---|---|
-| `bigip/` | 126,137 | 121k hand-maintained `BigipObjectSpec` statics under `bigip/data/` (30 tmsh modules; each file says "Hand-maintained: edit them directly"), plus `bigip/references.rs`, 5,061 lines marked `@generated` |
-| `base_objects/` | 42,349 | `generated_names.rs` and `generated_objects.rs`, both `@generated`: a 17.1 base-configuration snapshot as `BaseObject` tables |
-| `profile_defaults/` | 2,862 | `generated.rs` (`@generated`), version-ranged profile field defaults |
-| `f5/` | 4,913 | not schema (below) |
+The schema exports typed descriptors, `BigipRegistry`, base identities,
+profile defaults and `object_graph_snapshot() -> serde_json::Value`.
+Registry profile/event snapshots retain their existing canonical ASCII JSON
+writer; the CLI converts the object JSON at that presentation boundary.
+Neither snapshot producer depends on the other.
 
-The first three are a leaf:
+Direct consumers are `tcl-bigip`, `tcl-bigip-query` and `xtask`.
+`tcl-bigip::schema` exposes the model's schema contract to LSP, CLI and
+report adapters. `deny.toml` and `crate-layer` enforce this incoming boundary;
+`crate-layer` also rejects workspace dependencies beyond the schema's
+foundation owner. Schema-only golden queries, complete property sweeps and
+iApp-property checks live in the schema crate's public integration harness.
 
-- **What they need.** `bigip/` names one item outside itself:
-  `tcl_dialect::VersionKey::BigipVersion` (`bigip/mod.rs:618`).
-  `base_objects` reads `profile_defaults`. `profile_defaults` names
-  `crate::profiles` only in a doc comment (`profile_defaults/mod.rs:178`).
-- **Who reads them inside the registry.** `snapshot.rs`
-  (`object_graph_snapshot`, `snapshot.rs:177`), which only the registry's
-  tests call (`tests/it_2/snapshot.rs`), and one test in `f5/iapp_metadata.rs`
-  (line 402, under the `#[cfg(test)]` at line 283).
-- **No command spec reads them.**
-  `rg 'crate::(bigip|base_objects|profile_defaults)' commands` returns
-  nothing. The iRules hits on `Bigip` are the `SideEffectTarget::BigipConfig`
-  effect, which is core vocabulary.
+The data remains Rust, including generated base snapshots and defaults.
+The F5 execution evidence model remains in the command registry. 118b owns
+model generation, vocabulary-comparison cleanup and any change of data form.
 
-Outside the registry they are read by `tcl-bigip` (13 files),
-`bigip-report-gen` (3), `tcl-bigip-query` (2), `f5-cli` (1), `tcl-lsp-core`
-(`bigip.rs`, 1) and `xtask` (`bigip_data_schema.rs`, which validates
-`bigip/data/` by path).
+### Planned 118b: `tcl-bigip`'s model from the schema
 
-`f5/` is a different thing. It is the f5-tcl evidence layer: execution contexts
-(`BigIpExecutionContext::TmmIRule` and others), measured builds, variable
-storage domains, name policy, rule identity, a conformance corpus, iApp
-metadata and the tmsh syntax-version axis. In production code it depends
-on `irules_policy` (`evidence.rs:31`, `corpus.rs:55`), `state_transition`
-and `invocation_words` (`tmsh_syntax.rs:58-59`), and on `tcl_syntax::naming`
-(`naming.rs:22`); its tests add `events`, `special_vars`, `profiles`,
-`model` and `bigip`. Its readers are `tcl-compiler` (20 files), `tcl-vm`
-(5), `runtime/rust` (2), `tcl-irule-test` (2), `tcl-lsp-db` and `tcl-diagram`.
-
-`tcl-bigip` (57,992 lines) keeps a second statement of the schema:
-
-- **`model/gen/`.** 17,133 lines of generated parsers, canonical forms and
-  dispatch (`canon.rs` 7,088, `parsers.rs` 3,645, `dispatch.rs` 1,852), with
-  no gate between them and the registry's specs. Q2 recovered the original
-  generator from git (`553b71b6dd:scripts/codegen/gen_bigip_model_rust.py`).
-- **Word comparisons.** The `registry-axes` ratchet holds 216 comparisons in
-  `tcl-bigip` today (the plan says 219). Most are schema words that collide
-  with registry words: `graph.rs` 33, `parser/bespoke.rs` 27,
-  `model/gen/dispatch.rs` 16, `parser/driver.rs` 13. Examples are
-  `kind == "pool"` and the `"client-ssl" => ProfileType::ClientSsl` arms.
-
-## Design
-
-### 118a: `tcl-bigip-schema`
-
-A data crate that depends only on `tcl-dialect`:
-
-- **Holds** `bigip/`, `base_objects/`, `profile_defaults/`, and
-  `snapshot.rs`'s object-graph half.
-- **Does not hold `f5/`.** It splits three ways (decision 1).
-
-```rust
-// tcl-bigip-schema
-pub use bigip::{BigipObjectSpec, BigipObjectKindSpec, BigipPropertySpec, BigipRegistry, ValueKind};
-pub mod base_objects;     // shipped base identities (17.1)
-pub mod profile_defaults; // version-ranged profile field defaults
-pub mod references;       // reference edges
-pub fn object_graph_snapshot() -> Json;
-```
-
-Consumers rewrite `tcl_registry::bigip::…`, `tcl_registry::base_objects::…`
-and `tcl_registry::profile_defaults::…` to `tcl_bigip_schema::…` in the same
-change. In `tcl-bigip`, for example:
-
-**Before:**
-
-```rust
-use tcl_registry::bigip::BigipRegistry;                         // tmsh_emit.rs
-use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults}; // tls.rs
-```
-
-**After:**
-
-```rust
-use tcl_bigip_schema::BigipRegistry;
-use tcl_bigip_schema::profile_defaults::{BigipVersion, profile_field_defaults};
-```
-
-Where the parts go, and who reads the new crate:
-
-```mermaid
-flowchart LR
-  subgraph registry["tcl-registry today"]
-    bigip["bigip/"]
-    base["base_objects/"]
-    defaults["profile_defaults/"]
-    f5["f5/"]
-  end
-  bigip --> schema["tcl-bigip-schema"]
-  base --> schema
-  defaults --> schema
-  f5 -. "builds and releases, item 301" .-> tclDialect["tcl-dialect"]
-  f5 -. "execution context, naming, storage, rule identity" .-> core["tcl-registry core"]
-  f5 -. "command presence, corpus" .-> libIrules["tcl-lib-irules"]
-  f5 -. "iapp_metadata; tmsh_syntax" .-> libIapps["tcl-lib-iapps; tcl-lib-tmsh"]
-  tclBigip["tcl-bigip"] --> schema
-  query["tcl-bigip-query"] --> schema
-  report["bigip-report-gen"] --> schema
-  cli["f5-cli"] --> schema
-  lsp["tcl-lsp-core, bigip.rs"] --> schema
-  xtask["xtask bigip_data_schema"] --> schema
-  schema --> tclDialect
-```
-
-`tcl-registry`'s root re-export (`lib.rs:448`) goes. `tcl-registry`
-has no edge to the new crate.
-
-In step 4's [crate roles](04-dependency-hygiene.md#crate-roles) the crate has
-a role of its own, `schema`. It may depend only on foundation crates, and
-only `tcl-bigip`, `tcl-bigip-*` and `xtask` may depend on it. It is a leaf
-edited rarely, unlike a surface, but at 171k lines it must not sit under the
-core or a generic crate. `tcl-lsp-core`, which needs it for one file, reads
-it through `tcl-bigip`.
-
-### `tcl-bigip`'s model from the schema
-
-`tcl-bigip`'s generic model is generated from `tcl-bigip-schema` plus explicit
+118b will generate `tcl-bigip`'s generic model from `tcl-bigip-schema` plus explicit
 annotations, as Q4 decided:
 
 - **The generator** is the recovered one, ported to `cargo xtask
@@ -230,18 +127,19 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
 2. Rewrite the consumers (`tcl-bigip`, `tcl-bigip-query`, `bigip-report-gen`,
    `f5-cli`, `tcl-lsp-core`, `xtask`'s `bigip_data_schema.rs` `DATA_DIR`), and
    drop the registry's re-export.
-3. Add the crate to `crate-roles.tsv` as `data`, and to the shard map.
-4. Port the model generator to `cargo xtask gen-bigip-model --check`. Add the
-   annotation table, and regenerate `model/gen/`.
-5. Rewrite the 216 comparisons onto schema facts, file by file, lowering the
-   `registry-axes` ratchet as each file clears.
+3. Add the crate to the workspace, dependency policy and shard map.
 
 118b:
 
-1. Measure open questions 1 and 2.
-2. Emit the base snapshot and profile defaults as data from item 119's
+1. Port the model generator to `cargo xtask gen-bigip-model --check`. Add the
+   annotation table, and regenerate `model/gen/`.
+2. Rewrite the 216 comparisons onto schema facts, file by file, lowering the
+   `registry-axes` ratchet as each file clears.
+
+3. Measure open questions 1 and 2.
+4. Emit the base snapshot and profile defaults as data from item 119's
    generators, and decode them once.
-3. Derive the reference edges from the descriptors, and delete
+5. Derive the reference edges from the descriptors, and delete
    `references.rs`.
 
 ## Verification
@@ -250,10 +148,11 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
   - `tcl-bigip-schema` holds `bigip/`, `base_objects/` and `profile_defaults/`,
     and none of them remain in `tcl-registry`;
   - `cargo tree -p tcl-registry` lists no `tcl-bigip-schema`;
-  - `tcl-bigip`'s `model/gen/` is generated from the schema under
-    `--check`;
-  - `registry-axes` reports zero comparisons in `tcl-bigip` (216 today).
-- **118b is done when** the base snapshot and profile defaults load from
+  - schema public golden tests and property sweeps pass;
+  - workspace consumers use the schema directly or through `tcl-bigip::schema`.
+- **118b is done when** the model generator has a `--check` gate,
+  `registry-axes` reports zero model vocabulary comparisons, the base snapshot
+  and profile defaults load from
   embedded data, `references.rs` is gone, and the answers are unchanged.
 - **Same answers.**
   - `tcl-bigip`'s and `tcl-bigip-query`'s test suites and the

@@ -54,7 +54,7 @@ pub(crate) struct DeclarationInvocationFlow {
     pub removal_arguments: Vec<usize>,
     pub aliases: Vec<String>,
     pub caller_frame_aliases: Vec<String>,
-    pub caller_alias_operands: Vec<crate::ir::WordExpr>,
+    pub caller_alias_operands: Vec<tcl_source::words::WordExpr>,
     /// Exact conditional schema, retained only by the representation graph.
     pub representation_words: Option<super::source_structure::OriginalRegistryWords>,
     /// Original point has the shared quiet scalar-context receipt.
@@ -360,7 +360,8 @@ pub(crate) fn declaration_source_flow_corresponds(
     context: &tcl_registry::model::ContextRegistry,
 ) -> Option<()> {
     let source = source_flow.representation_words.as_ref()?;
-    let crate::ir::WordExpr::Literal { text, .. } = source_flow.effective.words.first()? else {
+    let tcl_source::words::WordExpr::Literal { text, .. } = source_flow.effective.words.first()?
+    else {
         return None;
     };
     if text != source.command()
@@ -1139,7 +1140,7 @@ mod tests {
         ] {
             let image = tcl_lexer::SourceImage::document(source);
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .remove(0);
             let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
             let effective = effective_command_words(&tokens).unwrap();

@@ -56,11 +56,13 @@ use tcl_compiler::backend_registry::{
     SelectionFacts, SelectionInput, SelectionRegion, SelectorAttemptFailure, SelectorDecision,
     SelectorPriority, SelectorRequest,
 };
-use tcl_compiler::ir::{SourceSite, WordExpr, WordPart};
 use tcl_compiler::native_lowering::cells::{CellPlace, VariableWordDecline, variable_word_place};
 use tcl_compiler::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Recursion cap for nested command substitution and compound-word parts.
 ///
@@ -521,7 +523,7 @@ fn nested_words(
 mod tests {
     use super::*;
     use tcl_compiler::ir::CommandTokens;
-    use tcl_compiler::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
 
     /// The structured words of the first command in `source`.
     fn words(source: &str) -> Vec<WordExpr> {

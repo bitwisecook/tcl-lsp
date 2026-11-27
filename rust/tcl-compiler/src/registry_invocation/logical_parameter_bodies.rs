@@ -80,7 +80,7 @@ pub(crate) fn logical_parameter_body_assistance(
     realm: &crate::realm::CommandBindingRealm,
     body: &std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
     source: &str,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     base: u32,
 ) -> Option<Box<InvocationBodyAssistance>> {
     let input = realm
@@ -203,7 +203,7 @@ pub(crate) fn logical_lambda_parameter_body_assistance(
     owner: &LogicalLambdaSourceOwner,
     selected_child_body: Option<&OriginalSourceScriptBody>,
     source: &str,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     base: u32,
 ) -> Option<Box<InvocationBodyAssistance>> {
     let input = realm
@@ -303,7 +303,7 @@ pub(crate) fn unpositioned_body_assistance(
     bindings: &crate::command_binding::SourceCommandBindings,
     source: &str,
     config: tcl_lexer::LexerConfig,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     metadata: Option<&tcl_registry::model::ContextRegistry>,
 ) -> Option<Box<InvocationBodyAssistance>> {
     let registry = surface.commands();

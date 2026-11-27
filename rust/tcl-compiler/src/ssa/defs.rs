@@ -20,12 +20,15 @@
 
 use super::{SsaInvocationContext, is_effect_marker};
 use crate::cfg::BlockId;
-use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
 use rustc_hash::FxHashSet;
 use std::collections::BTreeSet;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 use tcl_syntax::naming::unattributed_dynamic_written_variable_target as is_dynamic_write_target;
 
 pub(super) fn bound_names(

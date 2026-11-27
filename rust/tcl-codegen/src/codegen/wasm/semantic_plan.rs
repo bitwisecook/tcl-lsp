@@ -27,12 +27,13 @@ use tcl_compiler::executable_ir::{
     ExecutableInstruction, ExecutableTerminator, ExecutableValueId, GenericInvoke,
     InvocationResolution,
 };
-use tcl_compiler::ir::{NodeId, WordExpr};
 use tcl_registry::SemanticOperationId;
 use tcl_runtime_api::codegen_abi::{
     WASM32_CODEGEN_DATA_END, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_SIZE,
     WASM32_POINTER_BYTES,
 };
+use tcl_source::words::NodeId;
+use tcl_source::words::WordExpr;
 
 /// Immutable semantic input for one prebuilt-argv invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]

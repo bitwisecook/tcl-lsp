@@ -45,7 +45,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 #[cfg(test)]
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 use super::state::Analyser;
 #[cfg(test)]

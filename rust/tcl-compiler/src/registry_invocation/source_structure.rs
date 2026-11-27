@@ -271,7 +271,7 @@ fn first_tail_command(
     tail: &str,
     offset: u32,
     config: tcl_lexer::LexerConfig,
-) -> Option<crate::segmenter::SegmentedCommand> {
+) -> Option<tcl_source::segment::SegmentedCommand> {
     let mut end = 256;
     while !config.brace_line_continuation.continues() && end < tail.len() {
         let mut cut = end;
@@ -279,14 +279,14 @@ fn first_tail_command(
             cut -= 1;
         }
         let window = &tail[..cut];
-        let settled = crate::segmenter::segment_script_image_with_offset_and_config(
+        let settled = tcl_source::segment::segment_script_image_with_offset_and_config(
             &tcl_lexer::SourceImage::document(window),
             offset,
             config,
         )
         .is_ok_and(|script| script.commands.len() >= 2);
         if settled {
-            return crate::segmenter::segment_commands_with_offset_and_config(
+            return tcl_source::segment::segment_commands_with_offset_and_config(
                 window, offset, config,
             )
             .into_iter()
@@ -294,7 +294,7 @@ fn first_tail_command(
         }
         end = end.saturating_mul(2);
     }
-    crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
+    tcl_source::segment::segment_commands_with_offset_and_config(tail, offset, config)
         .into_iter()
         .next()
 }
@@ -1118,8 +1118,8 @@ pub(crate) struct OriginalSourceCase {
     layout: tcl_registry::spec::CaseInvocation,
     bodies: tcl_registry::case_bodies::CaseBodyOperands,
     patterns: Vec<String>,
-    subject: crate::ir::WordExpr,
-    folded_subject: Option<crate::ir::WordExpr>,
+    subject: tcl_source::words::WordExpr,
+    folded_subject: Option<tcl_source::words::WordExpr>,
     subject_literal: Option<String>,
     scripts: Vec<super::OriginalSourceScriptBody>,
     config: tcl_lexer::LexerConfig,

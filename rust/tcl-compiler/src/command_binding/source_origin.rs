@@ -236,7 +236,7 @@ impl SourceOriginId {
     #[must_use]
     pub fn original_lexical_command(
         &self,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {

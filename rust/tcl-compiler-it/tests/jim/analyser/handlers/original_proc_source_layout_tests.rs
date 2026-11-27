@@ -36,14 +36,9 @@ fn analyser() -> Analyser {
     ))
 }
 
-fn fixture(
-    source: &str,
-) -> (
-    AnalysisResult,
-    Vec<tcl_compiler::segmenter::SegmentedCommand>,
-) {
+fn fixture(source: &str) -> (AnalysisResult, Vec<tcl_source::segment::SegmentedCommand>) {
     let result = analyser().analyse(source, "jimtcl");
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         result.resolved_input.as_ref().unwrap().lexer_config(),

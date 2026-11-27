@@ -175,7 +175,7 @@ impl Analyser {
         }
         let grammar = definer.grammar;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        let cmds = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             base_offset,
             self.file_lexer_config().nested(),
@@ -277,7 +277,7 @@ impl Analyser {
     /// synthetic name of the nameless forms is decided here.
     fn dispatch_snit_member(
         &mut self,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
         ctx: &mut ClassBodyCtx<'_>,
         instance_vars: &[String],
         type_vars: &[String],

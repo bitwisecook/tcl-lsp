@@ -94,11 +94,12 @@ const SANCTIONED_PREFIXES: &[&str] = &[
 const CFG_OWNER: &str = "rust/tcl-compiler/src/cfg_builder/mod.rs";
 
 /// The segmenter defines the blind entries rule 4 names.
-const SEGMENTER_OWNER: &str = "rust/tcl-compiler/src/segmenter.rs";
+const SEGMENTER_OWNER: &str = "rust/tcl-source/src/segment.rs";
 
 /// Crates whose *documents* are Tcl under a dialect, where a bare list
 /// split of a word is a second list grammar (rule 3).
 const DOCUMENT_CRATES: &[&str] = &[
+    "rust/tcl-source/src/",
     "rust/tcl-compiler/src/",
     "rust/tcl-codegen/src/",
     "rust/tcl-lsp-core/src/",
@@ -619,7 +620,7 @@ mod tests {
     fn a_blind_segmenter_entry_is_a_hit_outside_the_segmenter() {
         let src = "for c in segment_commands(source) {}\n";
         assert_eq!(scan(REL, src).len(), 1);
-        assert_eq!(scan("rust/tcl-compiler/src/segmenter.rs", src).len(), 0);
+        assert_eq!(scan("rust/tcl-source/src/segment.rs", src).len(), 0);
         assert_eq!(
             scan(
                 REL,

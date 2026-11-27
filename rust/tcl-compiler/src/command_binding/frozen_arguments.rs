@@ -19,8 +19,8 @@
 //! Frozen expansion values and their original written argument ownership.
 
 use super::{Arc, ModuleCommandBindings, SourceScriptOperands};
-use crate::ir::WordExpr;
 use crate::registry_invocation::{EffectiveInvocationWord as Word, InvocationWordOrigin as Origin};
+use tcl_source::words::WordExpr;
 
 pub(super) fn freeze_word(
     word: &WordExpr,
@@ -235,10 +235,11 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let metadata = tcl_registry::model::semantic::SemanticContext::for_profile(profile);
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .last()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .last()
+                .unwrap();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -306,10 +307,11 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
         );
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .find(|segment| segment.span.start() == offset)
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .find(|segment| segment.span.start() == offset)
+                .unwrap();
         let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, &segment);
         bindings.stamp_original_tokens(&mut tokens);
         let effective = crate::registry_invocation::effective_command_words(&tokens).unwrap();
@@ -390,7 +392,7 @@ mod tests {
             let bindings =
                 SourceCommandBindings::analyse_with_options(source, config, &registry, options);
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .remove(0);
             let mut tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceMap::new(source),
@@ -415,7 +417,7 @@ mod tests {
             let bindings =
                 SourceCommandBindings::analyse_with_options(source, config, &registry, options);
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .remove(0);
             let mut tokens = crate::ir::CommandTokens::from_segmented(
                 &tcl_lexer::SourceMap::new(source),

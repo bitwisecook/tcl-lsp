@@ -35,7 +35,7 @@ use tcl_registry::definer::DefinitionBodyGrammar;
 /// kind when the spelling still names the document's own command.
 pub(super) fn unrecorded_head_kind(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
 ) -> (TokenKind, u32) {
     let Some(traits) = unrecorded_command_spec(ctx, seg).map(|spec| spec.traits) else {
         return (TokenKind::Function, 0);
@@ -54,7 +54,7 @@ pub(super) fn unrecorded_head_kind(
 /// selects the descriptor, so it grants no binding.
 pub(super) fn unrecorded_command_spec(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
 ) -> Option<&'static tcl_registry::CommandSpec> {
     use tcl_compiler::realm::RealmBindingFact;
     let head = seg.argv.first()?;
@@ -89,7 +89,7 @@ pub(super) fn unrecorded_command_spec(
 /// Registry roles of an unrecorded command, from its written spellings.
 fn insert_unrecorded_command_roles(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if let Some(spec) = unrecorded_command_spec(ctx, seg) {
@@ -99,7 +99,7 @@ fn insert_unrecorded_command_roles(
 
 pub(super) fn command_role_overrides(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     original: Option<&crate::original_invocation::OriginalRegistryWords>,
     member_bodies: Option<
         &[tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody],
@@ -180,7 +180,7 @@ pub(super) fn command_role_overrides(
 /// most the single adjacent value word is claimed; a boolean option followed by
 /// another option therefore claims no value.
 fn insert_generic_option_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Only a *computed* head — a `$var` / `[cmd]` substitution or a
@@ -275,7 +275,7 @@ fn is_generic_option_word(text: &str) -> bool {
 /// builtin source descriptors. They cannot recover a refused builtin head.
 fn insert_lexical_user_overrides(
     ctx: ScriptCtx<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // naming.core.original-inlay-retained-context
@@ -298,7 +298,7 @@ fn insert_lexical_user_overrides(
 /// receiver and grants no edit.
 pub(super) fn declared_class_for_body<'a>(
     ctx: ScriptCtx<'a>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
 ) -> Option<&'a str> {
     ctx.analysis?
         .class_body_spans
@@ -344,7 +344,7 @@ pub(super) fn next_original_definition_grammar(
 
 pub(super) fn insert_original_proc_role_overrides(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) -> Vec<(tcl_lexer::Span, TokenKind, u32)> {
     let Some(analysis) = ctx.analysis else {
@@ -436,7 +436,7 @@ pub(super) fn insert_original_proc_role_overrides(
 }
 
 fn insert_original_procedure_argument_role_geometry(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     bindings: &[tcl_syntax::formal_params::FormalByteArgumentBinding],
     arguments: &[tcl_compiler::registry_invocation::EffectiveInvocationWord],
     operands: &[Option<
@@ -515,7 +515,7 @@ fn insert_original_procedure_argument_role_geometry(
 /// Project the shared original produced prefix onto its own written operands.
 /// Captured values have no current anchor; the builder head stays its own call.
 pub(super) fn merge_list_quoted_command_overrides(
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     ctx: ScriptCtx<'_>,
     produced: &crate::original_invocation::OriginalRegistryWords,
     overrides: &mut FxHashMap<u32, ArgOverride>,

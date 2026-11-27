@@ -20,10 +20,10 @@
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::optimiser::helpers::expr_simplify::eq_ne_compares_as_strings;
 use tcl_core_types::DiagCode;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 impl Analyser {
     /// W114: actual selected nested expression evaluation in an original
@@ -52,7 +52,7 @@ impl Analyser {
             let Some(text) = self.source.get(body.as_range()) else {
                 continue;
             };
-            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            let commands = tcl_source::segment::segment_commands_with_offset_and_config(
                 text,
                 body.start(),
                 tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),

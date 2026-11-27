@@ -401,7 +401,7 @@ mod tests {
     fn advice_entry_points(input: &ResolvedAnalysisInput) -> Vec<crate::analyser::AnalysisResult> {
         let source = "proc p {} {global x; puts $x}";
         let profile = input.analyser_profile();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),

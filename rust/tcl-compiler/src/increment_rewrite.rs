@@ -336,7 +336,7 @@ fn prospective_increment(
         }
     }
     let segments =
-        crate::segmenter::segment_commands_with_offset_and_config(&replacement, 0, config);
+        tcl_source::segment::segment_commands_with_offset_and_config(&replacement, 0, config);
     let [segment] = segments.as_slice() else {
         return None;
     };

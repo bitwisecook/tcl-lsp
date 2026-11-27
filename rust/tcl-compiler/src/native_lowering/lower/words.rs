@@ -23,7 +23,6 @@ use super::super::cells::{CellPlace, VariableWordDecline, variable_word_place};
 use super::super::ir::{NativeOp, NativeType, NativeValueId};
 use super::super::representation::Representation;
 use super::{Lowerer, MAX_WORD_DEPTH};
-use crate::ir::{SourceSite, WordExpr, WordPart};
 use crate::registry_invocation::{
     RegistryInvocationResolution, resolve_word_exprs,
     resolved_tokens_invocation_with_metadata_context,
@@ -31,6 +30,9 @@ use crate::registry_invocation::{
 use crate::types::TypeShape;
 use tcl_registry::NativeLowering;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 impl Lowerer<'_> {
     // Words.

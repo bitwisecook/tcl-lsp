@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn smoke_bundled_tcl_has_balanced_top_level_commands() {
         for (name, src) in BUNDLE {
-            let cmds = tcl_compiler::segmenter::segment_commands(src);
+            let cmds = tcl_source::segment::segment_commands(src);
             assert!(
                 cmds.iter().all(|c| !c.is_partial),
                 "{name} has an unbalanced / partial top-level command (syntax error)"

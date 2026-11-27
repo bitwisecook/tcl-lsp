@@ -64,7 +64,7 @@ fn normal_result_type<S: std::hash::BuildHasher>(
     {
         let arguments = words
             .iter()
-            .map(crate::ir::WordExpr::legacy_text)
+            .map(tcl_source::words::WordExpr::legacy_text)
             .collect::<Vec<_>>();
         let references = arguments.iter().map(String::as_str).collect::<Vec<_>>();
         if let Some(result) =
@@ -183,9 +183,10 @@ pub(super) fn lowered_expression_result_type<S: std::hash::BuildHasher>(
 pub(super) fn value_word_type<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     value: &str,
-    retained: Option<&crate::ir::WordExpr>,
+    retained: Option<&tcl_source::words::WordExpr>,
 ) -> TypeLattice {
-    use crate::ir::{WordExpr, WordPart};
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     let config = ctx.config;
     let parsed = retained
         .is_none()
@@ -243,10 +244,10 @@ fn source_class_construction_candidate<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     tokens: &crate::ir::CommandTokens,
 ) -> TypeLattice {
-    fn literal(word: Option<&crate::ir::WordExpr>) -> Option<&str> {
+    fn literal(word: Option<&tcl_source::words::WordExpr>) -> Option<&str> {
         match word? {
-            crate::ir::WordExpr::Literal { text, .. }
-            | crate::ir::WordExpr::BracedLiteral { text, .. } => Some(text.as_str()),
+            tcl_source::words::WordExpr::Literal { text, .. }
+            | tcl_source::words::WordExpr::BracedLiteral { text, .. } => Some(text.as_str()),
             _ => None,
         }
     }
@@ -276,7 +277,7 @@ fn source_class_construction_candidate<S: std::hash::BuildHasher>(
 /// Type the original sole nested command using the same source metadata.
 fn command_word_result_type<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
 ) -> TypeLattice {
     let config = ctx.config;
     let Some(mut commands) =
@@ -347,7 +348,7 @@ fn command_word_result_type<S: std::hash::BuildHasher>(
 /// this adapter only supplies the value lattice of those retained statements.
 pub(super) fn retained_contents_type<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
 ) -> TypeLattice {
     if let Some(read) = ctx.source.read_word(word)
         && let Some(version) = read.version

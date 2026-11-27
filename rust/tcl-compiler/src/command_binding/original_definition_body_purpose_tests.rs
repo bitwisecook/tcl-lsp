@@ -51,7 +51,7 @@ fn original_definition_body_projection_keeps_bom_geometry_and_parent_config_sepa
             .unwrap();
         assert!(matches!(
             nested.words()[1],
-            crate::ir::WordExpr::Variable { .. }
+            tcl_source::words::WordExpr::Variable { .. }
         ));
         let first_close = tcl_lexer::LexerConfig {
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
@@ -62,7 +62,7 @@ fn original_definition_body_projection_keeps_bom_geometry_and_parent_config_sepa
             .unwrap();
         assert!(matches!(
             nested.words()[1],
-            crate::ir::WordExpr::Template { .. }
+            tcl_source::words::WordExpr::Template { .. }
         ));
         assert!(nested.source_binding.is_none());
     }

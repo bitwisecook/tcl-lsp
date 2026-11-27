@@ -50,6 +50,7 @@
 2	tcl-sslictcl	lib	tcl-sslictcl	tcl_sslictcl
 2	tcl-sslictcl::golden	test	tcl-sslictcl	golden
 2	tcl-syntax::expr_parser_coverage	test	tcl-syntax	expr_parser_coverage
+2	tcl-vm-cli::library_init	test	tcl-vm-cli	library_init
 2	tcl-vm-cli::static_extensions	test	tcl-vm-cli	static_extensions
 2	tcl-vm-cli::switch_option_scan	test	tcl-vm-cli	switch_option_scan
 2	tcl-vm-cli::wide_min_spelling	test	tcl-vm-cli	wide_min_spelling
@@ -57,7 +58,7 @@
 2	tcl-vm-it::element_recovery_traces_e2e	test	tcl-vm-it	element_recovery_traces_e2e
 2	tcl-vm-cli::installs_surfaces	test	tcl-vm-cli	installs_surfaces
 2	bpf-tcl::installs_surfaces	test	bpf-tcl	installs_surfaces
-2	tcl-sslictcl::installs_surfaces	test	tcl-sslictcl	installs_surfaces
+2	tcl-sslictcl::data_cli	test	tcl-sslictcl	data_cli
 2	bigip-report-gen-rust::installs_surfaces	test	bigip-report-gen-rust	installs_surfaces
 3	bigip-report-gen-rust::apm	test	bigip-report-gen-rust	apm
 3	bigip-report-gen-rust::gtm	test	bigip-report-gen-rust	gtm
@@ -110,6 +111,7 @@
 3	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 3	tcl-vm-cli::nested_loop_exits	test	tcl-vm-cli	nested_loop_exits
 3	tcl-vm-cli::script_errors	test	tcl-vm-cli	script_errors
+3	tcl-vm-cli::script_library	test	tcl-vm-cli	script_library
 3	tcl-vm-cli::unset_trace_parts	test	tcl-vm-cli	unset_trace_parts
 3	tcl-vm-cli::stdin_pipe	test	tcl-vm-cli	stdin_pipe
 3	tcl-vm-it::command_traces_e2e	test	tcl-vm-it	command_traces_e2e
@@ -175,7 +177,6 @@
 4	tcl-spectcl::pack_source_e2e	test	tcl-spectcl	pack_source_e2e
 4	tcl-spectcl::spec_corpus	test	tcl-spectcl	spec_corpus
 4	tcl-sslictcl::bin/sslictcl-data	bin	tcl-sslictcl	sslictcl-data
-4	tcl-sslictcl::registry_pack_drift	test	tcl-sslictcl	registry_pack_drift
 4	tcl-syntax::command_resolution_conformance	test	tcl-syntax	command_resolution_conformance
 4	tcl-syntax::execution_resolution_conformance	test	tcl-syntax	execution_resolution_conformance
 4	tcl-syntax::it_4	test	tcl-syntax	it_4
@@ -241,3 +242,9 @@
 5	tcl-vm-it::step_trace_inline_e2e	test	tcl-vm-it	step_trace_inline_e2e
 5	tcl-vm::it_5	test	tcl-vm	it_5
 5	tcl-mcp::installs_surfaces	test	tcl-mcp	installs_surfaces
+5	tcl-bigip-schema	lib	tcl-bigip-schema	tcl_bigip_schema
+5	tcl-bigip-schema::it_5	test	tcl-bigip-schema	it_5
+3	tcl-vm-cli::exec_child_status	test	tcl-vm-cli	exec_child_status
+5	tcl-vm-it::oo_unknown_dispatch_e2e	test	tcl-vm-it	oo_unknown_dispatch_e2e
+4	tcl-source	lib	tcl-source	tcl_source
+4	tcl-source::it_4	test	tcl-source	it_4

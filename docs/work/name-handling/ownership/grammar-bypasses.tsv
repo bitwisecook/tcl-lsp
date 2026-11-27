@@ -183,7 +183,6 @@ rust/tcl-compiler/src/optimiser/propagation/return_folds.rs	scripts	try_fold_ret
 rust/tcl-compiler/src/optimiser/tail_call.rs	scripts	parse_return_subst:trim	-	2
 rust/tcl-compiler/src/optimiser/tail_call.rs	scripts	split_command_words:trim	-	1
 rust/tcl-compiler/src/optimiser/unused_procs.rs	scripts	comment_out:trim	-	1
-rust/tcl-compiler/src/parsing/syntax/descend.rs	scripts	descend_command:trim	-	1
 rust/tcl-compiler/src/path_concat.rs	scripts	build_file_join_fix_with_config:trim	-	1
 rust/tcl-compiler/src/path_concat.rs	scripts	find_path_concat_warnings:trim	-	1
 rust/tcl-compiler/src/place_bridge.rs	elements	element_writes_observed_with_contexts:contains	-	1
@@ -199,7 +198,7 @@ rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	try_
 rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs	scripts	evaluate_def_with_math:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs	scripts	fold_iteration_value:trim	-	1
 rust/tcl-compiler/src/sccp/solver/frame_clobbers.rs	scripts	expr:trim	-	1
-rust/tcl-compiler/src/segmenter.rs	scripts	segment_commands_with_recovery_and_config:trim	-	1
+rust/tcl-source/src/segment.rs	scripts	segment_commands_with_recovery_and_config:trim	-	1
 rust/tcl-compiler/src/semantic_optimisation.rs	scripts	from_names:trim	-	1
 rust/tcl-compiler/src/shimmer/byte_array.rs	scripts	track_payload_sink:trim	-	1
 rust/tcl-compiler/src/signature_scan/params.rs	scripts	parse_param_list_lenient:trim	-	2
@@ -224,9 +223,9 @@ rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_at:trim	-	1
 rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_step:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval.rs	scripts	parse_integer_operand_with_policy:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval/condition_facts.rs	elements	variable_name:contains	-	1
-rust/tcl-compiler/src/text.rs	encodings	edit_distance:chars	Sizes strsim work rows by Rust scalar count.	2
-rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance:chars	-	1
-rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance_strict:chars	-	1
+rust/tcl-source/src/text.rs	encodings	edit_distance:chars	Sizes strsim work rows by Rust scalar count.	2
+rust/tcl-source/src/text.rs	encodings	scaled_max_distance:chars	-	1
+rust/tcl-source/src/text.rs	encodings	scaled_max_distance_strict:chars	-	1
 rust/tcl-compiler/src/type_infer/caller_safe_factories.rs	scripts	empty_source_class:trim	-	1
 rust/tcl-compiler/src/type_infer/container_elements.rs	scripts	build_exact_elements:trim	-	1
 rust/tcl-compiler/src/type_infer/container_elements.rs	scripts	constant_index:trim	-	1
@@ -393,7 +392,7 @@ rust/tcl-registry/src/f5/iapp_metadata.rs	lists	parse_iapp_action_metadata:split
 rust/tcl-registry/src/f5/iapp_metadata.rs	scripts	parse_iapp_action_metadata:trim	-	3
 rust/tcl-registry/src/model/declaration.rs	lists	from_stub_flags:split_whitespace	-	1
 rust/tcl-registry/src/native_expression_program.rs	elements	c_eager_compiler_scripts:contains	-	1
-rust/tcl-registry/src/profile_defaults/mod.rs	scripts	parse:trim	-	3
+rust/tcl-bigip-schema/src/profile_defaults/mod.rs	scripts	parse:trim	-	3
 rust/tcl-registry/src/profiles.rs	scripts	parse_profile_directive:trim	-	1
 rust/tcl-registry/src/profiles.rs	scripts	profile_directive_payload:trim	-	1
 rust/tcl-registry/src/profiles.rs	scripts	profile_directive_payload:trim_start	-	2

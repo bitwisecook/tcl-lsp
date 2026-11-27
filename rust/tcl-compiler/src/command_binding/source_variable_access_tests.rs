@@ -170,7 +170,8 @@ fn word_variable_sites_equal_the_native_read_inventory_on_every_c_release() {
         let accesses = reads(&bindings, source);
         let map = tcl_lexer::SourceMap::new(source);
         let mut represented = 0;
-        for segment in crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+        for segment in
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         {
             let tokens = crate::ir::CommandTokens::from_segmented(&map, config, &segment);
             for word in tokens.words() {

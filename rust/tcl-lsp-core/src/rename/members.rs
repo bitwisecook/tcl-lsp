@@ -687,7 +687,7 @@ fn override_family(analysis: &AnalysisResult, seed_class: &str, method: &str) ->
 /// The analyser's `command_invocations` collection records
 /// invocations at the top level only; method bodies aren't
 /// walked.  To find call sites we re-segment each sibling
-/// method body via [`tcl_compiler::segmenter::segment_commands_with_offset`]
+/// method body via [`tcl_source::segment::segment_commands_with_offset`]
 /// and match on the segmented command's head token.
 ///
 /// Returns `Some(edits)` when a class member matched `word`,

@@ -23,8 +23,8 @@ use super::super::helpers::{SubstPart, parse_subst_template};
 use super::super::values::split_array_ref;
 use super::super::{CodegenCtx, Op, Operand};
 use super::has_escaped_subst_marker;
-use tcl_compiler::ir::WordExpr;
 use tcl_compiler::word_subst::whole_word_command_tokens;
+use tcl_source::words::WordExpr;
 
 impl CodegenCtx<'_> {
     /// Emit a simple value — handles `${var}` references and literals.
@@ -211,7 +211,7 @@ impl CodegenCtx<'_> {
     /// Evaluate the retained lexical components of an unchanged template.
     /// Command components retain their own source proof; decoded text is data.
     fn emit_retained_template(&mut self, value: &str, word: &WordExpr) -> bool {
-        use tcl_compiler::ir::WordPart;
+        use tcl_source::words::WordPart;
         let WordExpr::Template { parts, .. } = word else {
             return false;
         };
@@ -300,7 +300,7 @@ impl CodegenCtx<'_> {
     fn emit_retained_expression(&mut self, value: &str, word: &WordExpr) -> bool {
         let WordExpr::Opaque {
             text,
-            reason: tcl_compiler::ir::WordOpacity::DialectSubstitution,
+            reason: tcl_source::words::WordOpacity::DialectSubstitution,
             ..
         } = word
         else {

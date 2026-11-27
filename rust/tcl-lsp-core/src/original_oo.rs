@@ -189,7 +189,7 @@ pub(crate) fn relation_word_at<'a>(
 pub(crate) fn command_head_names_class(
     analysis: &AnalysisResult,
     source: &str,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     let Some(config) = analysis.body_lexer_config else {
         return false;

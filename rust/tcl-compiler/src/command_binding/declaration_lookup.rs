@@ -435,7 +435,7 @@ impl SourceInvocationBinding {
         }) && tokens
             .words()
             .iter()
-            .all(|word| !matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .all(|word| !matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     }
 
     /// The original declaration selected at this conditional call point.
@@ -752,7 +752,7 @@ impl SourceInvocationBinding {
             return false;
         };
         let image = tcl_lexer::SourceImage::from_bytes(bytes, arena.image().channel());
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             body.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(observation.config),

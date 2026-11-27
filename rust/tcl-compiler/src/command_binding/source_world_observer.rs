@@ -22,7 +22,7 @@
 use super::SourceOutcomes;
 
 pub(super) fn observe_command(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     command: &SourceOutcomes,
     prefix_complete: bool,
 ) {

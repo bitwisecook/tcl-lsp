@@ -21,9 +21,10 @@
 use super::super::{SsaReadReference, Symbol, ValueKey, Version};
 use super::SsaSourceView;
 use crate::cfg::BlockId;
-use crate::ir::{SourceSite, WordExpr};
 use crate::var_resolve::ContentsOrigin;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 /// Closed contents-presence alternatives for a potential missing-read diagnostic.
 /// This evidence supplies neither an SSA value nor a guaranteed read failure.

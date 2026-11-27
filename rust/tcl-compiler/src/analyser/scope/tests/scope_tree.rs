@@ -49,7 +49,7 @@ fn configured_scope_scanners_preserve_irules_brace_boundary_and_84_literals() {
     let input = analysis.resolved_input.as_ref().unwrap();
     let config = input.lexer_config();
     let registry = input.borrowed_context_registry().commands();
-    let cmd = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let cmd = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .into_iter()
         .next()
         .expect("fixture command");
@@ -65,7 +65,8 @@ fn configured_scope_scanners_preserve_irules_brace_boundary_and_84_literals() {
     assert!(reads.iter().any(|r| r.name == "y"));
 
     let eight_four = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
-    let old = crate::segmenter::segment_commands_with_offset_and_config("cmd {*}$x", 0, eight_four);
+    let old =
+        tcl_source::segment::segment_commands_with_offset_and_config("cmd {*}$x", 0, eight_four);
     assert!(old[0].expand_word.is_none(), "8.4 must keep {{*}} literal");
     let first_close = "set x ${a{b}c}\n";
     let tokens =

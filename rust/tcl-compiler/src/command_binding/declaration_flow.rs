@@ -27,13 +27,15 @@ pub(super) mod representation;
 use super::declaration_layout::DeclarationLayouts;
 use super::{CommandAllocationSite, ExecutedScriptSource, SourceInvocationBinding};
 use crate::ir::CommandTokens;
-#[cfg(test)]
-use crate::ir::{WordExpr, WordPart};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+#[cfg(test)]
+use tcl_source::words::WordExpr;
+#[cfg(test)]
+use tcl_source::words::WordPart;
 
 mod command_flow;
 mod evaluation;

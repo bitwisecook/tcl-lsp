@@ -75,7 +75,7 @@ fn absolute_member_alias_catalogue_retains_generic_source_metadata() {
             let realm = analysis.retained_command_realm().unwrap();
             let config = input.lexer_config();
             let end = advice.original_words().last().unwrap().span().end();
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 &source[offset as usize..end as usize],
                 offset,
                 config.nested(),

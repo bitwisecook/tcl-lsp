@@ -1381,6 +1381,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tcl-bigip-schema",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-irules",
@@ -1420,11 +1421,20 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-bigip",
+ "tcl-bigip-schema",
  "tcl-core-types",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
  "x509-parser",
+]
+
+[[package]]
+name = "tcl-bigip-schema"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -1464,7 +1474,6 @@ dependencies = [
  "num-traits",
  "regex",
  "rustc-hash",
- "strsim",
  "tcl-bytecode-tables",
  "tcl-cmd-core",
  "tcl-core-types",
@@ -1474,6 +1483,7 @@ dependencies = [
  "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
+ "tcl-source",
  "tcl-syntax",
  "thiserror",
  "unicode-general-category",
@@ -1493,6 +1503,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-source",
  "tcl-syntax",
 ]
 
@@ -1534,6 +1545,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-source",
  "tcl-syntax",
 ]
 
@@ -1604,6 +1616,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-source"
+version = "0.1.0"
+dependencies = [
+ "strsim",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-sslictcl"
 version = "0.1.0"
 dependencies = [
@@ -1616,11 +1639,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
- "tcl-registry",
+ "tcl-source",
  "tcl-syntax",
  "x509-parser",
 ]

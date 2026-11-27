@@ -21,9 +21,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::ir::WordExpr;
 use crate::registry_invocation::OriginalSourceCommandProjection;
 use tcl_lexer::{LexerConfig, SourceImage};
+use tcl_source::words::WordExpr;
 
 type ProjectionKey = (u32, LexerConfig);
 type ProjectionEntries = HashMap<ProjectionKey, Vec<Arc<ProjectionEntry>>>;
@@ -165,11 +165,12 @@ impl OriginalSourceProjectionMemo {
 mod tests {
     use super::*;
     use crate::command_binding::SourceOriginId;
-    use crate::ir::{CommandTokens, Provenance};
+    use crate::ir::CommandTokens;
+    use tcl_source::words::Provenance;
 
     fn original_words(image: &SourceImage, config: LexerConfig) -> (u32, Vec<WordExpr>) {
         let commands =
-            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)
                 .unwrap();
         let command = commands.last().unwrap();
         (
@@ -188,7 +189,7 @@ mod tests {
     ) -> (u32, Vec<WordExpr>) {
         let local =
             SourceImage::from_bytes(&image.bytes()[start..start + body.len()], image.channel());
-        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &local,
             u32::try_from(start).unwrap(),
             config.nested(),
@@ -256,7 +257,7 @@ mod tests {
                         .unwrap()
                         .get(first_word.span().start() as usize..last_word.span().end() as usize)
                         .unwrap();
-                    let reparsed = crate::segmenter::segment_commands_with_offset_and_config(
+                    let reparsed = tcl_source::segment::segment_commands_with_offset_and_config(
                         source,
                         first_word.span().start(),
                         config.nested(),
@@ -428,7 +429,7 @@ mod tests {
                 SourceImage::document(source),
                 SourceImage::native(source.as_bytes()),
             ] {
-                let top = crate::segmenter::segment_commands_image_with_offset_and_config(
+                let top = tcl_source::segment::segment_commands_image_with_offset_and_config(
                     &image, 0, config,
                 )
                 .unwrap();

@@ -574,6 +574,9 @@ impl SourceCommandBindings {
             // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
             // Keep the same conditional Logical lookup selected above. It has
             // no Native head receipt and supplies no Native execution permits.
+            if binding.unknown && binding.targets.is_empty() && point.state.has_opaque_domain() {
+                binding.withdrawn_world_head.clone_from(&point.head);
+            }
             if point.original_head_input.is_none() && point.original_logical_lookup_head().is_none()
             {
                 binding.unknown = true;

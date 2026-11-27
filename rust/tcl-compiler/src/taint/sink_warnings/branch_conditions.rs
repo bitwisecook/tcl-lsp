@@ -288,6 +288,7 @@ fn emit_one_branch_condition_command<S: std::hash::BuildHasher>(
         quoted_uses: None,
         source_read: Some(source_read),
         source: ctx.source,
+        withdrawn_writes: None,
     };
     emit_sink_warnings(
         &env,
@@ -326,7 +327,7 @@ fn retained_branch_command_tokens(
     {
         return None;
     }
-    let source_site = crate::ir::SourceSite::source(Span::new(start, end));
+    let source_site = tcl_source::words::SourceSite::source(Span::new(start, end));
     let mut nested =
         crate::word_subst::nested_command_words(text, &source_site, owner.config).ok()?;
     nested.inherit_nested_bindings(owner.tokens);
@@ -473,6 +474,7 @@ fn emit_branch_condition_nested_command_warnings_standalone<S: std::hash::BuildH
             quoted_uses: None,
             source_read: None,
             source: ctx.source,
+            withdrawn_writes: None,
         };
         let sink_call = SinkCall {
             source: ctx.source,

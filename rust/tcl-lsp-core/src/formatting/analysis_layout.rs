@@ -20,8 +20,9 @@
 
 use std::collections::BTreeMap;
 
-use tcl_compiler::{analyser::AnalysisResult, segmenter::SegmentedCommand};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{DocumentLineEndingProjection, LexerConfig, NativeWord, Span};
+use tcl_source::segment::SegmentedCommand;
 
 pub(super) struct AnalysisFormattingLayout {
     projection: DocumentLineEndingProjection,

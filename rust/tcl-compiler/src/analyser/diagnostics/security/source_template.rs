@@ -270,7 +270,7 @@ fn substitution_narrowing_switches(
 fn original_template_segment(
     unit: &crate::compilation_unit::FunctionUnit,
     record: &crate::sccp::TemplatePlanRecord,
-) -> Option<crate::segmenter::SegmentedCommand> {
+) -> Option<tcl_source::segment::SegmentedCommand> {
     let statements = unit
         .cfg
         .command_binding_sites
@@ -380,7 +380,7 @@ mod tests {
             .collect()
     }
     fn last_original(analyser: &Analyser, source: &str) -> OriginalDiagnosticInvocation {
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),

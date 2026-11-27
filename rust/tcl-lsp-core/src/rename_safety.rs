@@ -120,8 +120,8 @@
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, MemberSide};
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LineIndex, Span, TokenType};
+use tcl_source::segment::SegmentedCommand;
 
 use crate::definition::LspRange;
 use crate::definition::span_to_range;
@@ -727,7 +727,7 @@ fn dispatch_hazard(
             let receiver = original_words
                 .word_exprs
                 .first()
-                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+                .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
                 .and_then(|(spelling, _)| strip_var_decoration(spelling, Some(config)));
             // Compound variable heads remain untracked hazards; a variable
             // prefix cannot narrow them with its own source class metadata.

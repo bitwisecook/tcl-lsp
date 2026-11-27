@@ -29,10 +29,12 @@ use crate::executable_ir::{
     CompletionCase, CompletionId, ExecutableArgvId, ExecutableBlock, ExecutableFunctionId,
     GenericInvoke, build_linear_executable_ir, build_linear_executable_ir_with_metadata_context,
 };
-use crate::ir::{NodeId, SourceSite, WordExpr};
 use crate::lowering::lower_to_ir;
 use crate::registry_invocation::resolve_word_exprs;
 use crate::state_ssa::CfgStateSite;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 fn source() -> SourceSite {
     SourceSite::source(Span::new(0, 0))
@@ -246,7 +248,7 @@ fn changed_evaluated_word_cannot_reuse_original_source_effect_absence() {
             .map(crate::executable_ir::OriginalCommandEffect::into_known),
         Some(Some(false))
     );
-    let changed = crate::ir::WordExpr::Variable {
+    let changed = tcl_source::words::WordExpr::Variable {
         spelling: "$different".to_owned(),
         source: original.source().clone(),
     };

@@ -41,7 +41,8 @@ pub(super) use source_index::original_index_diagnostics;
 use tcl_core_types::DiagCode;
 use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType};
 
-use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use super::types::{Diagnostic, Severity};
 

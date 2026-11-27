@@ -870,7 +870,7 @@ mod original_source_correspondence_tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         let realm = analysis.retained_command_realm().unwrap();
         let offset = u32::try_from(source.find("my ping").unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset as usize..offset as usize + 7],
             offset,
             input.lexer_config(),

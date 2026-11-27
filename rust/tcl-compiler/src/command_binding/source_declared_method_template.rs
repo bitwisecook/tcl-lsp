@@ -109,7 +109,7 @@ impl AnalysisResult {
     pub fn original_declared_self_method_template(
         &self,
         source: &str,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         read: u32,
     ) -> Option<OriginalDeclaredSelfMethodTemplate> {
         // naming.tcloo.original-declared-self-method-caller-template
@@ -196,7 +196,7 @@ impl AnalysisResult {
 fn caller_context<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     read: u32,
 ) -> Option<(
     &'a OriginalLexicalMemberContext,
@@ -343,7 +343,7 @@ mod tests {
         let offset = u32::try_from(source.rfind("my ")?).ok()?;
         let context = lexical_context_at(&analysis.global_scope, offset, None)?;
         let range = context.body_word().content_span().ok()?;
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             &source[range.as_range()],
             range.start(),
             context.resolved_input().lexer_config(),

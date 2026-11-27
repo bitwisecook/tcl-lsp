@@ -41,7 +41,8 @@ use std::collections::BTreeMap;
 
 use super::ir::NativeValueId;
 use crate::executable_ir::CellReference;
-use crate::ir::{Provenance, SourceSite};
+use tcl_source::words::Provenance;
+use tcl_source::words::SourceSite;
 
 /// One Tcl variable cell addressed by name.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

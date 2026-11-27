@@ -27,7 +27,8 @@ fn original_source_schema_uses_retained_word_dialect_for_file_grammar() {
         let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
         let config = analysis.body_lexer_config.unwrap();
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words = source_registry_words(source, &analysis, &command).expect(dialect);
         let grammar = words
             .dialect

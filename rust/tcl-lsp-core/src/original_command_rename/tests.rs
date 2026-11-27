@@ -74,7 +74,7 @@ fn authored_declaration_queue_uses_actual_frame_walk_and_refuses_foreign_source(
 fn result_completion_command(
     source: &str,
     walk: &crate::refactor::FrameWalk<'_>,
-) -> tcl_compiler::segmenter::SegmentedCommand {
+) -> tcl_source::segment::SegmentedCommand {
     let start = source.rfind("return ").unwrap();
     let end = source.rfind('}').unwrap();
     let commands = walk.segment_nested(&source[start..end], u32::try_from(start).unwrap());

@@ -218,7 +218,9 @@ use tcl_registry::InvocationWordKind;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, InvocationFacts, InvocationWord, InvocationWords};
 
-use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 use tcl_syntax::word_rules::WordValueRules;
 
 mod body_assistance;
@@ -251,7 +253,9 @@ pub(crate) use body_topology::{
 use effective_words::{
     compose_effective_words, frozen_argument_values, original_logical_prefix_for_tokens,
 };
-pub(crate) use effective_words::{compose_original_effective_words, effective_words_for_target};
+pub(crate) use effective_words::{
+    compose_original_effective_words, effective_words_for_target, written_command_words,
+};
 pub use effective_words::{effective_command_words, frozen_argument_words};
 #[cfg(test)]
 pub(crate) use expression_operand_advice::OriginalExpressionOperandAdvice;
@@ -438,7 +442,7 @@ pub(crate) fn with_source_argument_words<T>(
     let first = tcl_lexer::word_span_at(source, arg_tokens.first()?.span);
     let last = tcl_lexer::word_span_at(source, arg_tokens.last()?.span);
     let text = source.get(first.start() as usize..last.end() as usize)?;
-    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         first.start(),
         config.nested(),
@@ -594,7 +598,7 @@ pub struct OriginalSourceCutProcedureDeclaration<'a> {
     body: OriginalSourceScriptBody,
     head_correspondence: SourceCutStoredHead,
     header: CommandTokens,
-    command: crate::segmenter::SegmentedCommand,
+    command: tcl_source::segment::SegmentedCommand,
 }
 
 /// A value-only declaration-word join, never source command selection.

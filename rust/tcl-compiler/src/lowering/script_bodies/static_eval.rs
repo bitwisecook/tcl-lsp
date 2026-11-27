@@ -20,9 +20,9 @@
 
 use super::super::{Lowerer, SUBST_NOCOMMANDS_KINDS};
 use crate::ir::Statement;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{SourceSegmentationPurpose, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_source::segment::SegmentedCommand;
 
 /// If *`cmd_text`* is `list lit1 lit2 ...` with all-literal
 /// arguments, return the body text the list would evaluate to —
@@ -38,7 +38,7 @@ pub(in super::super) fn eval_list_literal_body(
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let image = tcl_lexer::SourceImage::native(cmd_text.as_bytes());
-    let inner = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let inner = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &image,
         0,
         config.nested(),
@@ -130,9 +130,11 @@ pub(in super::super) fn body_has_dynamic_barrier(
     use tcl_lexer::TokenType;
     use tcl_registry::prelude::Traits;
     let image = tcl_lexer::SourceImage::native(body_text.as_bytes());
-    let Some(commands) =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config.nested())
-    else {
+    let Some(commands) = tcl_source::segment::segment_commands_image_with_offset_and_config(
+        &image,
+        0,
+        config.nested(),
+    ) else {
         return true;
     };
     for sc in &commands {

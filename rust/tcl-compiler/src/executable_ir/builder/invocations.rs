@@ -26,13 +26,16 @@ use super::super::{
 use super::{
     ControlContext, FunctionBuilder, IdAllocator, RegionEmissionSite, StatementTail, child_path,
 };
-use crate::ir::{NodeId, SourceSite, Statement, WordExpr};
+use crate::ir::Statement;
 use crate::registry_invocation::{
     InvocationMetadataContext, RegistryInvocationDecline,
     RegistryInvocationResolution as InvocationResolution,
     resolve_command_tokens_with_metadata_context,
 };
 use tcl_registry::CommandRegistry;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 impl FunctionBuilder {
     fn retain_original_word_sources(

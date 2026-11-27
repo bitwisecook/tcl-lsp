@@ -29,7 +29,7 @@ fn original_registry_class_definers_require_the_selected_source_and_complete_arg
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl");
         analyser.registry = Some(analyser.profile_registry());
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),
@@ -157,7 +157,7 @@ fn original_factory_headers_require_the_actual_graph_occupancy_and_arguments() {
             .into_iter()
             .collect(),
         ));
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),

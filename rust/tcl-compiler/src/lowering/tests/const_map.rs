@@ -215,7 +215,7 @@ fn local_body_literal_reference_lookup_uses_whole_scalar_source_geometry() {
 fn local_body_literal_retention_requires_actual_assignment_and_decodes_the_written_key() {
     let config = tcl_lexer::LexerConfig::default();
     let source = r"set b\x6fdy {return original}";
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let seg = &commands[0];
     let assignment = Statement::AssignConst {
         span: seg.span,
@@ -271,7 +271,7 @@ fn local_body_literal_generic_call_with_empty_defs_withdraws_all_retained_values
     let mut lowerer = Lowerer::new(&registry);
     let source = "unknown_writer $computed replacement";
     lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let call = lowerer.lower_default(&commands[0], "::");
     assert!(matches!(&call, Statement::Call { defs, .. } if defs.is_empty()));
     let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
@@ -314,7 +314,7 @@ fn local_body_literal_opcode_without_original_quiet_source_owner_cannot_retain_c
     )]));
     lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
     let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, lowerer.config);
     let seg = &commands[0];
     let synthetic = Statement::AssignConst {
         span: seg.span,

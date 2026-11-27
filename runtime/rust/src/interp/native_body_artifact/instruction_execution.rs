@@ -636,6 +636,21 @@ impl Interp {
                 self.set_result(value.as_ptr());
                 Ok(Code::Ok)
             }
+            Operation::ListOperands { operands, .. } => {
+                let values = operands
+                    .iter()
+                    .map(|operand| {
+                        self.body_namespace_operand(artifact, command, operand, execution)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let members: Vec<_> = values.iter().map(obj::Owned::as_ptr).collect();
+                let value = obj::Owned::fresh(crate::list::new_list_obj_native(
+                    &members,
+                    artifact.stamp.source_protocol,
+                ));
+                self.set_result(value.as_ptr());
+                Ok(Code::Ok)
+            }
             Operation::Concat {
                 literal, operands, ..
             } => {

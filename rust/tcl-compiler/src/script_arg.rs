@@ -38,7 +38,7 @@
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
-use crate::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 
 /// Project the source layout of a single literal-head list-built script.
 ///
@@ -149,7 +149,7 @@ fn drop_leading_word(seg: &SegmentedCommand) -> Option<SegmentedCommand> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
 
     fn reg() -> &'static CommandRegistry {
         tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
@@ -244,13 +244,13 @@ mod tests {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
             let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
             let parent =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .pop()
                     .unwrap();
             let body = parent.argv[2];
             let sm = tcl_lexer::SourceMap::new(source);
-            let child = crate::parsing::syntax::descend::descend_token(&sm, body, config);
-            let commands = crate::parsing::syntax::segment::segments_from_tree(child.tree(), &sm);
+            let child = tcl_source::cst::descend::descend_token(&sm, body, config);
+            let commands = tcl_source::cst::segment::segments_from_tree(child.tree(), &sm);
             let producer = &commands[0];
             let words =
                 crate::registry_invocation::source_structure::source_produced_command_prefix_words(

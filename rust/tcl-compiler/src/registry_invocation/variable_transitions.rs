@@ -28,9 +28,10 @@ use super::word_resolution::{
     resolve_registry_words_in_realm_with_metadata_context,
 };
 use super::{PossibleVariableAliasTransitions, ResolvedStatementInvocation, VariableNameOperands};
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, InvocationFacts, InvocationWord};
+use tcl_source::words::WordExpr;
 
 /// Namespace import/export directives of one converged handler and frozen argv.
 /// This metadata supplies neither a physical mutation nor an execution,

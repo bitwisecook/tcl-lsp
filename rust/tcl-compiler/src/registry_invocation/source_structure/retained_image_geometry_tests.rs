@@ -38,7 +38,7 @@ fn source_schema_geometry_reuses_the_whole_retained_image_and_keeps_currency() {
     let original = realm.original_source_image().unwrap();
     let reused = retained_document_image(source, realm, config).unwrap();
     assert_eq!(reused.bytes().as_ptr(), original.bytes().as_ptr());
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     assert_eq!(segments.len(), 2);
     for segment in &segments {
         let words = source_registry_words(source, &analysis, segment).unwrap();

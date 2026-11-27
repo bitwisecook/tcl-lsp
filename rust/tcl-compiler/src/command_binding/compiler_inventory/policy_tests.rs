@@ -170,7 +170,7 @@ fn original_each_invocation_keeps_inline_generic_and_rejected_visits() {
         {
             let (inventory, config, _owner) = namespace_analysis(source, name);
             let segment =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .into_iter()
                     .next()
                     .unwrap();
@@ -224,7 +224,7 @@ fn assert_original_switch_preflight(name: &str, row: &str) {
     let case: usize = fields[0].parse().unwrap();
     let source = SWITCH_SOURCES[case];
     let (inventory, config, _owner) = namespace_analysis(source, name);
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .into_iter()
         .next()
         .unwrap();
@@ -416,7 +416,7 @@ fn original_switch_source_admission_withdraws_changed_or_truncated_vectors() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,
@@ -465,7 +465,8 @@ fn original_switch_source_admission_withdraws_changed_or_truncated_vectors() {
         NativeCompilationSelection::Unknown
     );
     let mut changed = tokens.clone();
-    let crate::ir::WordExpr::BracedLiteral { text, .. } = changed.word_exprs.last_mut().unwrap()
+    let tcl_source::words::WordExpr::BracedLiteral { text, .. } =
+        changed.word_exprs.last_mut().unwrap()
     else {
         panic!("original list arms")
     };
@@ -498,7 +499,8 @@ fn original_variable_join_with_unknown_withdraws_compiler_word_owner() {
         let source = "set x";
         let (inventory, config, _owner) = namespace_analysis(source, name);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -539,7 +541,7 @@ fn original_namespace_source_admission_rejects_changed_or_truncated_vectors() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,

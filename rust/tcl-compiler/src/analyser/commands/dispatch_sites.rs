@@ -261,7 +261,7 @@ impl Analyser {
                     position.character.get(),
                 );
                 let bindings = self.head_identities.source_bindings_ref();
-                let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                let commands = tcl_source::segment::segment_commands_with_offset_and_config(
                     &cmd_text,
                     base,
                     config.nested(),

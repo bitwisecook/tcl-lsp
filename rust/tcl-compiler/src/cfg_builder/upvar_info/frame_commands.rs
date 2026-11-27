@@ -40,7 +40,7 @@ fn original_scalar_argument<'a>(
         return None;
     }
     let (spelling, source) = word.sole_variable_substitution()?;
-    if source.provenance != crate::ir::Provenance::Source {
+    if source.provenance != tcl_source::words::Provenance::Source {
         return None;
     }
     tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)

@@ -28,7 +28,7 @@ use tcl_runtime_api::closed_native_consumer::ClosedSourceRefusal;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::const_subst::{ConstSubstCtx, SelectedConstFold};
-use crate::ir::WordExpr;
+use tcl_source::words::WordExpr;
 
 /// Maximum accepted UTF-8 source bytes for request selection.
 pub const MAX_APPLICATION_SOURCE_BYTES: usize = 4096;
@@ -307,8 +307,9 @@ fn corresponding_commands(
     edits: &[(std::ops::Range<usize>, String)],
     config: tcl_lexer::LexerConfig,
 ) -> Result<(), ClosedSourceRefusal> {
-    let original = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
-    let rewritten = crate::segmenter::segment_commands_with_offset_and_config(candidate, 0, config);
+    let original = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
+    let rewritten =
+        tcl_source::segment::segment_commands_with_offset_and_config(candidate, 0, config);
     if original.len() != rewritten.len() {
         return Err(ClosedSourceRefusal::Source);
     }
@@ -447,7 +448,7 @@ fn literal_text(word: &WordExpr) -> Option<String> {
         WordExpr::Template { parts, .. } => parts
             .iter()
             .map(|part| match part {
-                crate::ir::WordPart::Text { text, .. } => Some(text.as_str()),
+                tcl_source::words::WordPart::Text { text, .. } => Some(text.as_str()),
                 _ => None,
             })
             .collect(),

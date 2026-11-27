@@ -29,7 +29,7 @@ use std::path::Path;
 use anyhow::Context;
 use tcl_bigip::parser::header::{ObjectTypeIndex, parse_generic_header};
 use tcl_bigip::parser::helpers::extract_blocks;
-use tcl_registry::BigipRegistry;
+use tcl_bigip::schema::BigipRegistry;
 
 use crate::cli::FormatArgs;
 

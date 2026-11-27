@@ -21,8 +21,8 @@
 use super::super::super::state::Analyser;
 use super::super::super::types::{ClassDef, MemberSide};
 use super::{MAX_UNKNOWN_BODY_DEPTH, UserMetaclass};
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::Span;
+use tcl_source::segment::SegmentedCommand;
 
 /// What one statement of an unknown-dispatch body proves — see
 /// [`Analyser::unknown_dispatch_binds_instance`].

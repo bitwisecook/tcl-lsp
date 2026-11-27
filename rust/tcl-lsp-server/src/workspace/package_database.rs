@@ -174,9 +174,7 @@ pub(in super::super) fn document_module_paths(
         file.to_str(),
     );
     let mut roots = Vec::new();
-    for command in
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-    {
+    for command in tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config) {
         let Some(words) = source_registry_words(source, analysis, &command) else {
             continue;
         };

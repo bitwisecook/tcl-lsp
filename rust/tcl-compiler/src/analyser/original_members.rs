@@ -617,7 +617,7 @@ impl Analyser {
     pub(super) fn retain_original_member_metadata(
         &self,
         grammar: &DefinitionBodyGrammar,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         class: &mut ClassDef,
         scope_path: &[usize],
     ) {
@@ -1068,7 +1068,7 @@ impl Producer<'_> {
             }
             let selected = SourceImage::from_bytes(body.bytes(), image.channel());
             checkpoint = "body-segmentation";
-            let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+            let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
                 &selected,
                 region.start(),
                 body.lexer_config().nested(),
@@ -1702,7 +1702,7 @@ impl Producer<'_> {
             return None;
         }
         let selected = SourceImage::from_bytes(body.bytes(), image.channel());
-        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &selected,
             region.start(),
             body.lexer_config().nested(),
@@ -1749,7 +1749,7 @@ impl Producer<'_> {
             return None;
         }
         let image = SourceImage::from_bytes(body.bytes(), self.origin.source_image().channel());
-        for command in crate::segmenter::segment_commands_image_with_offset_and_config(
+        for command in tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             region.start(),
             config.nested(),

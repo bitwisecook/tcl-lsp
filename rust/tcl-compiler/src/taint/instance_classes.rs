@@ -287,7 +287,7 @@ fn apply_original_substitutions(
             .chain(calls.iter().filter_map(|child| child.tokens.as_ref()))
             .flat_map(CommandTokens::words)
             .any(|word| {
-                matches!(word, crate::ir::WordExpr::BracedLiteral { source, .. }
+                matches!(word, tcl_source::words::WordExpr::BracedLiteral { source, .. }
                     if source.span.start() < call.span.start()
                         && source.span.end() > call.span.end())
             });

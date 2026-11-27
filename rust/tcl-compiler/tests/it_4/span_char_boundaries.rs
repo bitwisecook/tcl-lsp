@@ -145,7 +145,7 @@ fn a_well_formed_braced_body_is_analysed_whole() {
 
 #[test]
 fn contiguous_prefix_keeps_a_verbatim_body_and_clamps_a_welded_one() {
-    use tcl_compiler::segmenter::contiguous_prefix;
+    use tcl_source::segment::contiguous_prefix;
 
     // Verbatim: the body value is the source between the braces.
     let src = "if {1} {puts hi}\n";
@@ -171,7 +171,7 @@ fn contiguous_prefix_keeps_a_verbatim_body_and_clamps_a_welded_one() {
 
 #[test]
 fn body_text_in_region_leaves_a_position_preserving_overlay_alone() {
-    use tcl_compiler::segmenter::body_text_in_region;
+    use tcl_source::segment::body_text_in_region;
 
     // `eval {} foo` is walked through `concat_script_window`, whose padded
     // window blanks the delimiters but keeps `foo` at its written offset.  It

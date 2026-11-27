@@ -28,7 +28,7 @@ fn original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers()
         let input = analysis.resolved_input.as_ref().unwrap();
         let registry = input.borrowed_context_registry().commands();
         let realm = analysis.retained_command_realm().unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -37,7 +37,7 @@ fn original_body_parameter_source_refuses_unknown_lookup_and_replaced_handlers()
             .executed_script_for_word(commands.last().unwrap().argv[3].span)
             .unwrap();
         let body = script.try_text().unwrap();
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             0,
             input.lexer_config().nested(),
@@ -68,7 +68,7 @@ fn assert_jim_parameter_source_refuses_foreign_inputs(
     metadata: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
 ) {
     let second_offset = u32::try_from(source.rfind("upvar").unwrap()).unwrap();
     let mut second_tokens = CommandTokens::from_segmented(
@@ -133,13 +133,16 @@ fn original_body_parameter_source_keeps_jim_formals_scope_and_execution_refusals
     let registry = input.borrowed_context_registry().commands();
     let realm = analysis.retained_command_realm().unwrap();
     let bindings = realm.source_bindings_ref();
-    let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config());
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    );
     let script = realm
         .executed_script_for_word(commands[0].argv[3].span)
         .unwrap();
     let body = script.try_text().unwrap();
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         body,
         0,
         input.lexer_config().nested(),

@@ -32,8 +32,8 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyser::types::{AnalysisResult, Diagnostic};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 fn gather_tcl(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
     if out.len() >= cap {

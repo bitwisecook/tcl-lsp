@@ -21,11 +21,10 @@
 use super::{ArgOverride, ScriptCtx};
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{ClassDef, ClassHierarchy};
-use tcl_compiler::{
-    registry_invocation::source_structure::{self, OriginalRegistryWords},
-    segmenter::SegmentedCommand,
-};
+use tcl_compiler::registry_invocation::source_structure;
+use tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords;
 use tcl_registry::definer::{BuiltinMethodReceiver, DefinitionBodyGrammar, MethodReach};
+use tcl_source::segment::SegmentedCommand;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ReceiverSourceUnavailable {

@@ -155,7 +155,7 @@ fn logical_constructor_candidates_require_the_actual_source_input_and_vector() {
         crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
             .unwrap();
     let offset = source.find("C new").unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &source[offset..offset + "C new".len()],
         u32::try_from(offset).unwrap(),
         input.lexer_config(),
@@ -188,7 +188,7 @@ fn advisory_argument_edges_keep_original_substitution_shapes() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let source = r#"list $object "${two words}" {$object} {[C new]} prefix$object $object(key) ${object(key)}"#;
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,

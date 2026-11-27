@@ -19,9 +19,9 @@
 //! How a body uses each parameter, read from the original source words: references, forwarding, aliases, conditions and returns.
 
 use super::{LocalFacts, ProcArgTrait, ProcScan, ScanCtx};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ir::ProcedureId;
 use std::collections::HashSet;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 pub(super) fn original_parameter_observation_owner(scan: ProcScan<'_>) -> Option<ProcedureId> {
     let select = || {
@@ -399,7 +399,7 @@ pub(super) fn original_parameter_expression_config(
 }
 
 pub(super) fn note_original_return_parameter(
-    value: Option<&crate::ir::WordExpr>,
+    value: Option<&tcl_source::words::WordExpr>,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {

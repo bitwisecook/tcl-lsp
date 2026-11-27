@@ -258,7 +258,7 @@ impl SourceCommandBindings {
         &mut self,
         image: &tcl_lexer::SourceImage,
         base: u32,
-        segments: &[crate::segmenter::SegmentedCommand],
+        segments: &[tcl_source::segment::SegmentedCommand],
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) {

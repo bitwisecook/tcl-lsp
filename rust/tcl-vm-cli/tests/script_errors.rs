@@ -35,9 +35,11 @@ fn scratch(test: &str) -> PathBuf {
 }
 
 /// Run the script at `path` under `release`: its stdout, its stderr with the
-/// path written `PATH`, and whether it exited 1.
+/// path written `PATH`, and whether it exited 1. No `TCL_LIBRARY` reaches it,
+/// as none reaches the reference `tclsh` wrappers.
 fn run(path: &Path, release: &str) -> (String, String, bool) {
     let output = Command::new(env!("CARGO_BIN_EXE_tclvm"))
+        .env_remove("TCL_LIBRARY")
         .args(["--tcl-version", release])
         .arg(path)
         .env("LC_ALL", "C.UTF-8")
@@ -163,6 +165,7 @@ fn a_long_path_is_cut_as_each_release_cuts_it() {
     let cut = &full[..150];
     for release in RELEASES {
         let output = Command::new(env!("CARGO_BIN_EXE_tclvm"))
+            .env_remove("TCL_LIBRARY")
             .args(["--tcl-version", release])
             .arg(&path)
             .output()

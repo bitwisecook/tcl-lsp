@@ -27,8 +27,11 @@ use super::super::{NativeLoweringDecline, StatementOutcome};
 use super::Lowerer;
 use super::words::variable_place;
 use crate::executable_ir::LoweredOperation;
-use crate::ir::{CommandTokens, SourceSite, Statement, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Statement;
 use tcl_core_types::Code as CompletionCode;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 use tcl_syntax::number::Number;
 
 impl Lowerer<'_> {
@@ -53,7 +56,7 @@ impl Lowerer<'_> {
         braced: bool,
     ) -> Option<CellPlace> {
         if let Some(tokens) = operation.original_tokens.as_deref() {
-            (operation.source.provenance == crate::ir::Provenance::Source).then_some(())?;
+            (operation.source.provenance == tcl_source::words::Provenance::Source).then_some(())?;
             let (command, _) = tokens
                 .source_binding
                 .as_ref()?
@@ -79,7 +82,7 @@ impl Lowerer<'_> {
         expected: &str,
     ) -> Option<crate::registry_invocation::OriginalSourceArgument<'b>> {
         let tokens = operation.original_tokens.as_deref()?;
-        (operation.source.provenance == crate::ir::Provenance::Source).then_some(())?;
+        (operation.source.provenance == tcl_source::words::Provenance::Source).then_some(())?;
         let (command, _) = tokens
             .source_binding
             .as_ref()?

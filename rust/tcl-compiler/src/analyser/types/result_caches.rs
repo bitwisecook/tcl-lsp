@@ -73,7 +73,7 @@ pub(super) enum HeadMetadataRow {
 }
 
 pub(super) type SourceWordsRows = Vec<(
-    crate::segmenter::SegmentedCommand,
+    tcl_source::segment::SegmentedCommand,
     SourceWordsRowInputs,
     Option<crate::registry_invocation::source_structure::OriginalRegistryWords>,
 )>;
@@ -137,7 +137,7 @@ impl AnalysisResult {
 
     fn source_words_row_inputs(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> SourceWordsRowInputs {
         let head = segment.argv.first().map(|word| word.span.start());
         SourceWordsRowInputs {
@@ -161,7 +161,7 @@ impl AnalysisResult {
     /// The memoised words of `segment` under the current inputs, if any.
     pub(crate) fn memoised_source_words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
     ) -> Option<MemoisedSourceWords> {
         let stamp = self.source_words_stamp()?;
         let memo = self
@@ -183,7 +183,7 @@ impl AnalysisResult {
 
     pub(crate) fn memoise_source_words(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         words: Option<&crate::registry_invocation::source_structure::OriginalRegistryWords>,
     ) {
         let Some(stamp) = self.source_words_stamp() else {

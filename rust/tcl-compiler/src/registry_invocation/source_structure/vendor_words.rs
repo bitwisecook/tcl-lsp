@@ -138,7 +138,7 @@ pub fn selected_vendor_registry_words_at(
     cursor: u32,
 ) -> Option<(
     crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
-    crate::segmenter::SegmentedCommand,
+    tcl_source::segment::SegmentedCommand,
 )> {
     let config = analysis.body_lexer_config?;
     analysis
@@ -181,7 +181,7 @@ pub fn selected_vendor_registry_words_at(
     let end = words.last()?.span().end();
     let text = source.get(start as usize..end as usize)?;
     let mut commands =
-        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+        tcl_source::segment::segment_commands_with_offset_and_config(text, start, config.nested());
     if !trace_remote_source_flag("vendor.single_command", Some(cursor), commands.len() == 1) {
         return None;
     }

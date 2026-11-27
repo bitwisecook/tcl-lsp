@@ -52,7 +52,7 @@ pub struct SpecPackNoticeSubject {
     word: String,
     span: Span,
     line: u32,
-    original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+    original: Option<tcl_source::spectcl::OriginalPackSourceWord>,
 }
 
 impl std::fmt::Debug for SpecPackNoticeSubject {
@@ -269,7 +269,7 @@ impl SpecPackNoticeSubject {
     /// inferred DSL body or loader-causality/edit permission is supplied here.
     #[must_use]
     pub fn from_original_word(
-        original: tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord,
+        original: tcl_source::spectcl::OriginalPackSourceWord,
         word: &str,
         kind: SpecPackNoticeKind,
     ) -> Option<Self> {
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     fn every_row_head_alone_on_its_line_has_a_row_subject() {
         let source = "\nspeclib folder 1 {\n    command f::s {\n        arity 1\n        arg 0 -role Value\n        const_fold -inputs {words} {words ctx} {\n            set x 1\n        }\n        a 1; b 2\n    }\n}\n";
-        let config = tcl_compiler::parsing::spectcl_source::pack_source_lexer_config(
+        let config = tcl_source::spectcl::pack_source_lexer_config(
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
         let rows = SpecPackNoticeSubject::for_rows(source, config);
@@ -638,12 +638,10 @@ mod tests {
     #[test]
     fn original_spec_notice_selected_geometry_keeps_duplicate_sites_distinct() {
         let source = "speclib demo 1 {command demo {arty 1; arty 2}}";
-        let config = tcl_compiler::parsing::spectcl_source::pack_source_lexer_config(
+        let config = tcl_source::spectcl::pack_source_lexer_config(
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
-        let root =
-            tcl_compiler::parsing::spectcl_source::original_pack_source_statements(source, config)
-                [0]
+        let root = tcl_source::spectcl::original_pack_source_statements(source, config)[0]
             .local_word(3)
             .unwrap()
             .in_document();

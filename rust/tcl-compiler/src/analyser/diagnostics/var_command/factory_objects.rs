@@ -29,7 +29,7 @@ impl Analyser {
     /// catalogue applicability come from the shared point owner.
     fn nominal_object_result(
         &self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         parent: Option<&crate::ir::CommandTokens>,
         registry: &tcl_registry::CommandRegistry,
         module: &crate::ir::Module,
@@ -209,11 +209,11 @@ impl Analyser {
 
 /// Retained scalar source syntax used by conditional return advice.
 pub(super) fn returned_scalar_reference_name(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let (reference, source) = word.sole_variable_substitution()?;
-    (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+    (source.provenance == tcl_source::words::Provenance::Source).then_some(())?;
     tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).map(str::to_owned)
 }
 
@@ -231,7 +231,7 @@ pub(super) fn original_source_return_operand<'a>(
     module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
     tokens: &'a crate::ir::CommandTokens,
-) -> Option<&'a crate::ir::WordExpr> {
+) -> Option<&'a tcl_source::words::WordExpr> {
     let source = crate::registry_invocation::source_structure::original_registry_words_for_module(
         module, registry, tokens,
     )?;
@@ -272,7 +272,7 @@ fn collect_factory_body_facts(
     module: &crate::ir::Module,
     context: &tcl_registry::model::ContextRegistry,
     nominal_result: &impl Fn(
-        &crate::ir::WordExpr,
+        &tcl_source::words::WordExpr,
         Option<&crate::ir::CommandTokens>,
     ) -> (bool, Option<BodyFrameId>),
     returned_callees: &mut FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
@@ -371,7 +371,7 @@ fn seed_factory_maps(
     fu: &crate::compilation_unit::FunctionUnit,
     module: &crate::ir::Module,
     nominal_result: &impl Fn(
-        &crate::ir::WordExpr,
+        &tcl_source::words::WordExpr,
         Option<&crate::ir::CommandTokens>,
     ) -> (bool, Option<BodyFrameId>),
     maps: &mut FactoryMaps,

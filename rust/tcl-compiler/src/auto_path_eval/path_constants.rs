@@ -505,7 +505,7 @@ pub fn constant_path_assignments(
 /// Inventory segmented original commands in the global lexical frame.
 #[must_use]
 pub fn constant_path_assignments_from_commands(
-    commands: &[crate::segmenter::SegmentedCommand],
+    commands: &[tcl_source::segment::SegmentedCommand],
     profile: &'static DialectProfile,
 ) -> PathConstantAssignments {
     constant_path_assignments_in_namespace(commands, profile, None)
@@ -514,7 +514,7 @@ pub fn constant_path_assignments_from_commands(
 /// This is lexical advice, not proof of an entered native namespace or frame.
 #[must_use]
 pub fn constant_path_assignments_in_namespace(
-    commands: &[crate::segmenter::SegmentedCommand],
+    commands: &[tcl_source::segment::SegmentedCommand],
     profile: &'static DialectProfile,
     namespace: Option<&str>,
 ) -> PathConstantAssignments {
@@ -530,7 +530,7 @@ pub fn constant_path_assignments_in_namespace(
 /// simulation must pass the shared authored logical naming selector.
 #[must_use]
 pub fn constant_path_assignments_with_naming_policy(
-    commands: &[crate::segmenter::SegmentedCommand],
+    commands: &[tcl_source::segment::SegmentedCommand],
     profile: &'static DialectProfile,
     policy: Option<NamePolicyProtocol>,
     namespace: Option<&str>,
@@ -631,7 +631,7 @@ fn target(
 /// Where an unread command's own effects can begin: Tcl substitutes every
 /// word before it invokes the command, so at the first nested command
 /// substitution, which runs first, or else at the command's end.
-fn effect_barrier(command: &crate::segmenter::SegmentedCommand) -> u32 {
+fn effect_barrier(command: &tcl_source::segment::SegmentedCommand) -> u32 {
     command
         .word_fragments
         .iter()
@@ -649,7 +649,7 @@ struct PathCollectionContext<'a> {
 }
 
 fn collect(
-    commands: &[crate::segmenter::SegmentedCommand],
+    commands: &[tcl_source::segment::SegmentedCommand],
     profile: &'static DialectProfile,
     scope: &Scope,
     base: u32,
@@ -752,7 +752,7 @@ fn collect(
 }
 
 fn collect_namespace_body(
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     args: &[&str],
     registry: &tcl_registry::CommandRegistry,
     head: &str,
@@ -824,7 +824,7 @@ fn collect_namespace_body(
 }
 
 fn collect_assignments(
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     args: &[&str],
     pairs: Vec<(usize, Option<usize>)>,
     declares: bool,

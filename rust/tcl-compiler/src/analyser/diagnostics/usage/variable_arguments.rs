@@ -129,7 +129,7 @@ impl Analyser {
                 &proposed_source,
                 input,
             );
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             &proposed_source,
             0,
             destination.editing_input().lexer_config(),
@@ -232,11 +232,11 @@ impl Analyser {
             let suggestion = if vars.iter().any(|name| name == bare) {
                 bare
             } else {
-                crate::text::suggest_similar(
+                tcl_source::text::suggest_similar(
                     bare,
                     vars.iter().map(String::as_str),
                     1,
-                    crate::text::scaled_max_distance_strict(bare),
+                    tcl_source::text::scaled_max_distance_strict(bare),
                 )
                 .first()
                 .copied()
@@ -309,7 +309,7 @@ impl Analyser {
     /// not fire — see [`tcl_syntax::naming::is_braced_indirect_array_ref`].
     pub(in crate::analyser) fn emit_w216_brace_then_paren(
         &mut self,
-        cmd: &crate::segmenter::SegmentedCommand,
+        cmd: &tcl_source::segment::SegmentedCommand,
     ) {
         if cmd.texts.is_empty() {
             return;

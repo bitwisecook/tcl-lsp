@@ -242,7 +242,7 @@ pub enum SourceNativeCompilerAdmission {
 pub struct SourceOriginalCompilerWords {
     pub config: tcl_lexer::LexerConfig,
     pub site: CommandAllocationSite,
-    pub words: Arc<[crate::ir::WordExpr]>,
+    pub words: Arc<[tcl_source::words::WordExpr]>,
 }
 
 impl SourceInvocationBinding {
@@ -380,7 +380,7 @@ impl SourceNativeStructuredPreparation {
     }
 }
 
-pub(super) fn word_shape(word: &crate::ir::WordExpr) -> NativeCompilationWordShape {
+pub(super) fn word_shape(word: &tcl_source::words::WordExpr) -> NativeCompilationWordShape {
     crate::registry_invocation::native_compilation_word_shape(word)
 }
 
@@ -450,7 +450,7 @@ pub(super) fn body_context<'a>(
 /// Construct the retained selection outside recursive body interpretation.
 #[inline(never)]
 pub(super) fn select_invocation_boxed(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     state: &ModuleCommandBindings,
     context: &super::SourceExecutionContext<'_>,
     offset: u32,
@@ -463,7 +463,7 @@ pub(super) fn select_invocation_boxed(
 }
 
 fn compiler_head_decline(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     dialect: Option<tcl_registry::InvocationDialect>,
 ) -> Option<CompiledInvocationSelection> {
     match words
@@ -498,7 +498,7 @@ fn unproven_head_selection(
 }
 
 pub(super) fn select_invocation(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     state: &ModuleCommandBindings,
     context: super::SourceExecutionContext<'_>,
     offset: u32,
@@ -658,7 +658,7 @@ fn trace_original_compiler_targets(
 }
 
 fn initial_compilation_selection(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     state: &ModuleCommandBindings,
     context: super::SourceExecutionContext<'_>,
     offset: u32,
@@ -738,7 +738,7 @@ fn close_execution_certainty(result: &mut CompiledInvocationSelection) {
 
 #[derive(Clone, Copy)]
 struct CompilerInvocation<'a> {
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     arguments: &'a [tcl_registry::InvocationWord<'a>],
     shapes: &'a [NativeCompilationWordShape],
     before: &'a SourceInvocationBinding,

@@ -272,7 +272,7 @@ mod tests {
         let binding = realm.invocation_at_source("", 0);
         let (_, mut tokens) = binding.original_recorded_command().unwrap();
         tokens.source_binding = Some(binding);
-        let crate::ir::WordExpr::Literal { text, .. } = &mut tokens.word_exprs[1] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut tokens.word_exprs[1] else {
             panic!("literal procedure name");
         };
         *text = "q".into();

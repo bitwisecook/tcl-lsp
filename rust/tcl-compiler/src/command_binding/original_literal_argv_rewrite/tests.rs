@@ -21,7 +21,7 @@ use super::*;
 fn receipt(source: &str, profile: &str) -> Option<OriginalLiteralExpressionBracing> {
     let analysis = crate::analyser::Analyser::new().analyse(source, profile);
     let config = analysis.body_lexer_config?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let command = commands.last()?;
     let mut tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, command);
@@ -37,7 +37,7 @@ fn receipt(source: &str, profile: &str) -> Option<OriginalLiteralExpressionBraci
 fn gap_receipt(source: &str, candidate: &str) -> Option<OriginalExpressionGapCompaction> {
     let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
     let config = analysis.body_lexer_config?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     crate::registry_invocation::source_structure::original_expression_gap_compaction(
         source,
         &analysis,
@@ -54,7 +54,7 @@ fn operator_receipt(
 ) -> Option<crate::registry_invocation::source_structure::OriginalExpressionOperatorRewrite> {
     let analysis = crate::analyser::Analyser::new().analyse(source, profile);
     let config = analysis.body_lexer_config?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     crate::registry_invocation::source_structure::original_expression_operator_rewrite(
         source,
         &analysis,
@@ -189,7 +189,8 @@ fn original_boolean_inversion_retains_leaf_and_dispatch_owners() {
     let receipt = |source: &str, candidate: &str| {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         crate::registry_invocation::source_structure::original_expression_boolean_comparison_inversion(
                 source, &analysis, commands.last()?, 0, candidate,
             )
@@ -254,7 +255,8 @@ fn original_boolean_inversion_retains_selected_version_floor() {
     let receipt = |source: &str, profile: &str, candidate: &str| {
         let analysis = crate::analyser::Analyser::new().analyse(source, profile);
         let config = analysis.body_lexer_config?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         crate::registry_invocation::source_structure::original_expression_boolean_comparison_inversion(
                 source, &analysis, commands.last()?, 0, candidate,
             )
@@ -324,7 +326,8 @@ fn syntax_expression_gaps_keep_token_data_and_dispatch_guards() {
     let receipt = |source: &str, candidate: &str| {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         crate::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
             source,
             &analysis,

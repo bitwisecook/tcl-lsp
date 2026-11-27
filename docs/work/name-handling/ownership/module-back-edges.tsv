@@ -21,6 +21,7 @@ cfg	command_binding	7
 cfg	dynamic_names	6
 cfg	native_compilation_admission	1
 cfg	registry_invocation	2
+cfg_builder	optimiser	8
 cfg_builder	tcl_expr_eval	7
 cfg_builder	value_transfer	1
 command_binding	analyser	18
@@ -28,6 +29,7 @@ command_binding	analyser::types::AnalysisResult	76
 command_binding	compilation_unit	1
 command_binding	connection_scope	1
 command_binding	lowering	1
+command_binding	optimiser	3
 command_binding	shimmer	1
 command_binding	ssa	17
 command_binding	ssa::source_view	6
@@ -93,8 +95,6 @@ sccp	optimiser::elimination	1
 sccp	ssa::source_view	10
 sccp	value_transfer::queries	1
 script_binds	analyser::types::AnalysisResult	1
-segmenter	analyser	1
-segmenter	analyser::types	3
 signature_scan	analyser	2
 signature_scan	analyser::types::AnalysisResult	2
 signature_scan::scope	analyser::types	1

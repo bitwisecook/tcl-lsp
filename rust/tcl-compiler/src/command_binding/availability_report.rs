@@ -90,6 +90,7 @@ impl SourceInvocationBinding {
             provider_state_taint,
             declared_command,
             catalogue_command,
+            withdrawn_world_head,
             variable_context,
             original_argument_completion,
             normal_variable_continuation,

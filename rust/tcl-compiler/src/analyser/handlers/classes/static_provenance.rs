@@ -21,9 +21,9 @@
 use super::super::super::state::Analyser;
 use super::super::super::types::ProcDef;
 use super::MAX_UNKNOWN_BODY_DEPTH;
-use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::params::bind_proc_formals;
 use tcl_lexer::Span;
+use tcl_source::segment::SegmentedCommand;
 
 enum StaticScriptOutcome {
     FallsThrough(String),
@@ -222,7 +222,7 @@ impl Analyser {
             env.clear();
             return Some(());
         }
-        for seg in crate::segmenter::segment_commands_with_offset_and_config(
+        for seg in tcl_source::segment::segment_commands_with_offset_and_config(
             body,
             0,
             self.file_lexer_config().nested(),

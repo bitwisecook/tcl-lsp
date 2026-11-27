@@ -588,7 +588,7 @@ impl AuthoredSourceTaintInvocation {
 
     /// Original operand value/geometry at the held source point. This is not
     /// a cell or a donated display-name lookup.
-    pub(crate) fn owns_operand(&self, original: &crate::ir::WordExpr) -> bool {
+    pub(crate) fn owns_operand(&self, original: &tcl_source::words::WordExpr) -> bool {
         self.tokens.words().iter().any(|word| word == original)
     }
 

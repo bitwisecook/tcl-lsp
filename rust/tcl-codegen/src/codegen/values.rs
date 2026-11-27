@@ -1045,7 +1045,7 @@ impl CodegenCtx<'_> {
     pub(super) fn try_emit_original_operand_word(
         &mut self,
         value: &str,
-        word: &tcl_compiler::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
     ) -> bool {
         if value != word.legacy_text() {
             return false;
@@ -1070,7 +1070,7 @@ impl CodegenCtx<'_> {
     /// synthetic/captured operand without a unique written slot stays unknown.
     pub(super) fn original_variable_operand(
         &self,
-        word: &tcl_compiler::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
     ) -> Option<tcl_syntax::native_variable_words::NativeVariableWordOperand> {
         let original = self.original_compiler_words()?;
         let mut matches = self
@@ -1129,7 +1129,7 @@ impl CodegenCtx<'_> {
     /// authoring contexts keep their distinct checked compatibility projection.
     pub(super) fn original_scalar_operand_slot(
         &mut self,
-        word: &tcl_compiler::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
     ) -> Option<usize> {
         use tcl_syntax::native_variable_words::NativeVariableWordOperand;
         let name = match self.original_variable_operand(word) {
@@ -1337,7 +1337,7 @@ impl CodegenCtx<'_> {
             .cloned();
         if let Some(word) = word {
             let braced =
-                amount_braced || matches!(word, tcl_compiler::ir::WordExpr::BracedLiteral { .. });
+                amount_braced || matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. });
             self.emit_word_from_source(amount, braced, Some(&word));
         } else {
             // Unlocated IR amounts have already been evaluated. Their bytes

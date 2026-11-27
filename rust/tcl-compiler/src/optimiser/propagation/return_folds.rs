@@ -118,10 +118,10 @@ fn fold_return_builtin(
     ctx: &PassContext<'_>,
     module: &crate::ir::Module,
     tokens: &CommandTokens,
-    value_word: &crate::ir::WordExpr,
+    value_word: &tcl_source::words::WordExpr,
     constants: &std::collections::HashMap<String, String>,
 ) -> Option<String> {
-    let crate::ir::WordExpr::CommandSubstitution { source, .. } = value_word else {
+    let tcl_source::words::WordExpr::CommandSubstitution { source, .. } = value_word else {
         return None;
     };
     let registry = ctx.registry?;
@@ -256,7 +256,7 @@ pub(super) fn try_fold_return_terminator(
     if expr.is_some() {
         return;
     }
-    let Some(crate::ir::WordExpr::Variable { spelling, .. }) = value_word.as_ref() else {
+    let Some(tcl_source::words::WordExpr::Variable { spelling, .. }) = value_word.as_ref() else {
         return;
     };
     let Some(name) = whole_scalar_variable_reference_name(spelling, module.lexer_config) else {

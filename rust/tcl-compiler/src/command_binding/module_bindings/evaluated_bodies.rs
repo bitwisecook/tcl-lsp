@@ -487,7 +487,7 @@ pub(in super::super) fn constructed_script_words_with_optional_metadata(
         ),
     };
     let commands =
-        crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config.nested());
+        tcl_source::segment::segment_commands_with_offset_and_config(inner, 0, config.nested());
     let [command] = commands.as_slice() else {
         return None;
     };

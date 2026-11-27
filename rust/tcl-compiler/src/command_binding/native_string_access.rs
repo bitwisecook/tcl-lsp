@@ -22,7 +22,7 @@
 use super::{
     Arc, ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
 };
-use crate::ir::WordPart;
+use tcl_source::words::WordPart;
 
 /// Effect-only result class. Constructors remain in the actual producer module;
 /// ownership/currentness stays in the frozen outcome and exact stored cell.

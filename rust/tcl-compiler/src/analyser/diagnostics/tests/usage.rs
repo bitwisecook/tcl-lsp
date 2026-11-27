@@ -656,7 +656,7 @@ fn variable_name_positions_are_registry_driven() {
         let source = format!("{cmd} {}", args.join(" "));
         let mut analyser = Analyser::new();
         let analysis = analyser.analyse(&source, "tcl8.6");
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             &source,
             0,
             analysis.body_lexer_config.unwrap(),

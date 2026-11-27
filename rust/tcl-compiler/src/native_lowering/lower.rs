@@ -59,11 +59,13 @@ use crate::executable_ir::{
     ExecutableTerminator, ExecutableValueId,
 };
 use crate::intervals::Interval;
-use crate::ir::{Module, NodeId, SourceSite};
+use crate::ir::Module;
 use crate::registry_invocation::InvocationMetadataContext;
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
 use crate::var_escape::types::ProcEscapeSummary;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
 
 mod expressions;
 mod invocations;

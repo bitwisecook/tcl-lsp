@@ -195,7 +195,7 @@ mod tests {
                     },
                 );
                 let segment =
-                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                         .into_iter()
                         .last()
                         .unwrap();

@@ -21,10 +21,10 @@
 use super::Lowerer;
 use crate::ir::{CommandBindingSite, CommandTokens, Statement};
 use crate::lowering_hooks::{LoweringCommand, ResolvedLowering};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::IrulesExecutionContext;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 mod default_call;
 mod invocation_metadata;

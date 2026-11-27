@@ -249,7 +249,7 @@ impl CodegenCtx<'_> {
         &mut self,
         expr: &ExprNode,
         value: Option<&str>,
-        value_word: Option<&tcl_compiler::ir::WordExpr>,
+        value_word: Option<&tcl_source::words::WordExpr>,
     ) {
         let start = self.instructions.len();
         if !self.emit_expr(expr) {
@@ -359,7 +359,7 @@ impl CodegenCtx<'_> {
             // substitution leaves it alone; `emit_value` would interpolate
             // `a [id 9] b` into `a RAN b`.
             self.push_lit_verbatim(val);
-        } else if let Some(tcl_compiler::ir::WordExpr::Variable { spelling, .. }) = value_word
+        } else if let Some(tcl_source::words::WordExpr::Variable { spelling, .. }) = value_word
             && value_word
                 .as_ref()
                 .is_some_and(|word| val == word.legacy_text())

@@ -284,7 +284,7 @@ pub(in super::super) fn special_variable_definition_at_span(
         data.statements.iter().enumerate().find_map(|(index, _)| {
             let tokens =
                 crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
-            let contains = |word: &crate::ir::WordExpr| {
+            let contains = |word: &tcl_source::words::WordExpr| {
                 let original = fu.abs_span(word.source().span);
                 original.start() <= span.start() && span.end() <= original.end()
             };

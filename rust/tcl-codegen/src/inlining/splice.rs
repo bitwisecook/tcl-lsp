@@ -359,7 +359,7 @@ fn evaluated_words(call: &Statement, cid: usize) -> Option<(Vec<Statement>, Stat
     {
         return None;
     }
-    let tcl_compiler::ir::WordExpr::Literal { text: head, .. } = tokens.words().first()? else {
+    let tcl_source::words::WordExpr::Literal { text: head, .. } = tokens.words().first()? else {
         return None;
     };
     let mut words = vec![Statement::AssignConst {

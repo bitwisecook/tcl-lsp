@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }

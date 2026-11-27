@@ -132,8 +132,9 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> bool {
-        use crate::ir::{WordExpr, WordPart};
         use crate::signature_scan::scope::SignatureSourceNameInput;
+        use tcl_source::words::WordExpr;
+        use tcl_source::words::WordPart;
         self.original_argument_completion.is_normal()
             && matches!(tokens.words().get(1), Some(WordExpr::Template { parts, rejected: None, .. }) if !parts.is_empty() && parts.iter().all(|part| matches!(part, WordPart::Text { .. })))
             && matches!(
@@ -191,6 +192,7 @@ impl SourceInvocationBinding {
             .state
             .source_execution_observed(target.identity.as_ref())
             || snapshot.state.source_step_observed()
+            || snapshot.state.unmodelled_reentry()
         {
             return false;
         }
@@ -572,7 +574,7 @@ impl SourceCommandBindings {
         {
             return calls;
         }
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &script.text,
             0,
             config.nested(),

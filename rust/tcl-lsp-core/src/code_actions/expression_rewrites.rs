@@ -138,8 +138,7 @@ fn original_operator_rewrite_allowed(
     let Some(config) = analysis.body_lexer_config else {
         return false;
     };
-    let commands =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let [command] = commands.as_slice() else {
         return false;
     };

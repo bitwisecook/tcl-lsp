@@ -28,9 +28,10 @@ use crate::executable_ir::{
     CompletionCase, CompletionId, ExecutableArgvId, ExecutableBlock, ExecutableBlockId,
     ExecutableFunctionId, GenericInvoke,
 };
-use crate::ir::{NodeId, SourceSite};
 use crate::registry_invocation::resolve_word_exprs;
 use tcl_core_types::Code as CompletionCode;
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
 
 fn source() -> SourceSite {
     SourceSite::source(Span::new(0, 0))

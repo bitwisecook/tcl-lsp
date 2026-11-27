@@ -31,7 +31,12 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
 
-use crate::ir::{CommandTokens, Module, Script, Statement, WordExpr, WordPart};
+use crate::ir::CommandTokens;
+use crate::ir::Module;
+use crate::ir::Script;
+use crate::ir::Statement;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Conditional no-error source walk under one genuine Logical Module.
 /// Every child retains its original point/vector; source syntax does not supply

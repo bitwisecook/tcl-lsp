@@ -21,8 +21,8 @@
 use super::SourceStructure;
 use std::sync::Arc;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{NativeWord, SourceImage, Span, Token};
+use tcl_source::segment::SegmentedCommand;
 
 /// Readonly original script geometry from one complete retained analysis.
 /// Source roles, lexical substitutions and declaration bodies supply syntax

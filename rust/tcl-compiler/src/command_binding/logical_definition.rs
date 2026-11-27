@@ -37,7 +37,7 @@ struct LogicalProcedureDefinition {
 }
 
 pub(super) fn transfer(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     target: &SourceCommandTarget,
     offset: u32,
     state: &mut ModuleCommandBindings,
@@ -56,7 +56,7 @@ pub(super) fn transfer(
 /// The prepared argv boundary may select an authored model handler without
 /// a Native compiler or head input. Exact quiet source capture stays mandatory.
 pub(super) fn transfer_selected(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &mut ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -77,7 +77,7 @@ pub(super) fn transfer_selected(
 
 impl LogicalProcedureDefinition {
     fn capture(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         target: &SourceCommandTarget,
         offset: u32,
         state: &ModuleCommandBindings,
@@ -311,7 +311,7 @@ pub(super) fn hosted_entry<'a>(
 }
 
 pub(super) fn original_invocation_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -321,7 +321,7 @@ pub(super) fn original_invocation_words(
 }
 
 fn original_entry_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -345,7 +345,7 @@ fn original_entry_words(
 }
 
 pub(super) fn original_static_invocation_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -359,7 +359,7 @@ pub(super) fn original_static_invocation_words(
 
 /// [`original_static_invocation_words`] in a hosted rule's advisory walk.
 pub(super) fn original_hosted_static_invocation_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -380,7 +380,7 @@ pub(super) fn static_value(word: &NativeWord) -> Option<String> {
 /// A hosted handler's `set name WORD` whose value word is substituted: the
 /// head and the name are static, the value is one unexpanded word.
 pub(super) fn original_hosted_store_invocation_words(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -670,7 +670,7 @@ proc p "other {last default}" {return SECOND}"#;
                 .original_logical_source_name_advice_input(),
             Some(input)
         );
-        let offset = crate::segmenter::segment_commands_with_offset_and_config(
+        let offset = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             input.lexer_config(),
@@ -993,7 +993,7 @@ proc p "other {last default}" {return SECOND}"#;
             options,
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
         );
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &source,
             0,
             context.config,

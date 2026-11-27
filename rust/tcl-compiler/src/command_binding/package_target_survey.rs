@@ -54,7 +54,7 @@ fn package_index_source_tokens(
     command: &tcl_lexer::NativeScriptCommandWords,
 ) -> Option<crate::ir::CommandTokens> {
     let source = image.try_text().ok()?;
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source.get(command.span.as_range())?,
         command.span.start(),
         input.lexer_config().nested(),
@@ -204,8 +204,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     pub(super) fn walk_logical_survey_command(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         compiled: &compiled_invocation::CompiledInvocationSelection,
         state: &mut ModuleCommandBindings,
@@ -259,7 +259,7 @@ struct LogicalSurveyDispatch<'a> {
 /// redefined selections decline.
 #[inline(never)]
 fn logical_survey_target(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     offset: u32,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,

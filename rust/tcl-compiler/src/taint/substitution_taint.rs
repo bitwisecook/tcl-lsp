@@ -24,13 +24,13 @@ use super::registry_colours::{
 };
 use super::word_taint::word_taint;
 use super::{TaintColour, TaintCtx, TaintLattice, is_sanitiser};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::CommandTokens;
 use crate::ssa::{Symbol, ValueKey};
 use std::collections::HashMap;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 pub(super) fn expr_yields_boolean(expr: &ExprNode) -> bool {
     match expr {
@@ -167,7 +167,7 @@ pub(super) fn retained_taint_substitution(word: &str, ctx: TaintCtx<'_>) -> Opti
         let span = Span::new(offset, offset.checked_add(u32::try_from(word.len()).ok()?)?);
         crate::word_subst::nested_command_words(
             word,
-            &crate::ir::SourceSite::source(span),
+            &tcl_source::words::SourceSite::source(span),
             ctx.lexer_config(),
         )
         .ok()?
@@ -432,6 +432,7 @@ fn classify_substitution_taint(
                 effective,
                 normal,
                 nested,
+                proved_point: false,
             })),
         };
     }
@@ -470,6 +471,8 @@ fn classify_substitution_taint(
     {
         return Err(t);
     }
+    let proved_point = resolved.is_none()
+        && point_target.is_some_and(|target| target.registry_backed && target.prepended.is_empty());
     Ok(Box::new(SubstitutionTaintPlan {
         cmd: cmd.to_owned(),
         hosted: None,
@@ -477,6 +480,7 @@ fn classify_substitution_taint(
         effective,
         normal,
         nested,
+        proved_point,
     }))
 }
 
@@ -490,6 +494,9 @@ struct SubstitutionTaintPlan {
     pub(super) effective: Option<crate::registry_invocation::EffectiveCommandWords>,
     normal: Option<crate::registry_invocation::NormalTaintInvocation>,
     nested: Option<CommandTokens>,
+    /// The written head is proved to name this registry command, though no
+    /// normal invocation was retained.
+    proved_point: bool,
 }
 
 pub(super) fn substitution_word_taint<S: std::hash::BuildHasher>(
@@ -547,13 +554,45 @@ pub(super) fn substitution_word_taint<S: std::hash::BuildHasher>(
         .iter()
         .map(String::as_str)
         .collect();
-    finish_substitution_taint(
+    let t = finish_substitution_taint(
         t,
         plan.normal.as_ref(),
         ctx,
         (cmd, plan.hosted.is_some()),
         &arg_refs,
-    )
+    );
+    if plan.proved_point
+        && plan.normal.is_none()
+        && let Some(colour) = plan
+            .nested
+            .as_ref()
+            .and_then(|nested| proved_point_transform(cmd, nested, ctx))
+    {
+        return t.with(colour);
+    }
+    t
+}
+
+/// The registry transform of a proved head, read over its written words
+/// with their braces, which the raw transform condition requires before it
+/// trusts a word's text as its value.
+fn proved_point_transform(
+    cmd: &str,
+    nested: &CommandTokens,
+    ctx: TaintCtx<'_>,
+) -> Option<TaintColour> {
+    let written: Vec<String> = nested
+        .argv_texts
+        .get(1..)?
+        .iter()
+        .enumerate()
+        .map(|(index, spelling)| match nested.word_exprs.get(index + 1) {
+            Some(tcl_source::words::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
+            _ => spelling.clone(),
+        })
+        .collect();
+    let refs: Vec<&str> = written.iter().map(String::as_str).collect();
+    transform_colour(ctx.registry, cmd.trim_start_matches("::"), &refs)
 }
 
 /// A handler command's arguments as its transform condition reads them: the
@@ -566,7 +605,7 @@ pub(super) fn hosted_argument_spellings(
     args.iter()
         .enumerate()
         .map(|(index, spelling)| match effective.words.get(index + 1) {
-            Some(crate::ir::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
+            Some(tcl_source::words::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
             _ => spelling.clone(),
         })
         .collect()

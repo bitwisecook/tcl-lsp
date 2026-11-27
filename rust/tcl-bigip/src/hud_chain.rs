@@ -37,8 +37,8 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
+use tcl_bigip_schema::base_objects::base_object_identities;
 use tcl_irules::{OriginalIrulesSourceContext, extract_original_irules_event_handlers};
-use tcl_registry::base_objects::base_object_identities;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 

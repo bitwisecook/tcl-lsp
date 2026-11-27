@@ -239,7 +239,7 @@ pub fn return_command_tokens(
     };
     let span = fu.abs_span(*span);
     let text = source.get(span.start() as usize..span.end() as usize)?;
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         span.start(),
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),

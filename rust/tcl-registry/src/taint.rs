@@ -365,12 +365,12 @@ pub const IRULES_TAINT_SOURCE_PREFIXES: &[&str] = &[
 /// * the [`Traits::TAINT_SOURCE`] flag on the matched
 ///   [`crate::SubCommand`], for subcommand-shaped sources such as
 ///   `chan gets` / `chan read` / `encoding convertfrom`; and
-/// * the registry's dialect-agnostic taint-source index
-///   ([`CommandRegistry::taint_source`]) — the iRules namespace getters
-///   (`HTTP::path`, `IP::client_addr`, …), each declaring its source
-///   colour on its own [`crate::CommandSpec::taint_source`]. The index is
-///   global, so these fire
-///   in every dialect (even `tcl8.6`).
+/// * the registry's taint-source index ([`CommandRegistry::taint_source`])
+///   — the iRules namespace getters (`HTTP::path`, `IP::client_addr`, …),
+///   each declaring its source colour on its own
+///   [`crate::CommandSpec::taint_source`]. The index is global, so an entry
+///   counts only where its spec is visible: under `dialect` when one is
+///   given, else in `registry`'s own surface.
 #[must_use]
 pub fn is_taint_source(
     registry: &CommandRegistry,
@@ -378,7 +378,6 @@ pub fn is_taint_source(
     args: &[&str],
     dialect: Option<SurfaceQuery<'_>>,
 ) -> bool {
-    let _ = dialect;
     if let Some(spec) = registry.get(command) {
         if spec
             .traits
@@ -403,7 +402,7 @@ pub fn is_taint_source(
             return true;
         }
     }
-    registry.taint_source(command).is_some()
+    registry.taint_source(command).is_some() && registry.get_for_surface(command, dialect).is_some()
 }
 
 /// The taint colour a source `command` (with `args`) stamps on its
@@ -1146,6 +1145,86 @@ pub fn setter_constraints(
     registry.get(command).map_or(&[], |s| s.setter_constraints)
 }
 
+/// A [`crate::CommandSpec::taint_validator`]: the validated argument and the
+/// colours a true result proves of it.
+pub type TaintValidator = fn(&[&str]) -> Option<(usize, TaintColour)>;
+
+/// The colours a passing validator proves of a value made only of letters,
+/// digits and underscores: one shell word, no CR or LF, no leading `-`.
+pub const VALIDATED_ATOM: TaintColour = TaintColour::SHELL_ATOM
+    .union(TaintColour::CRLF_FREE)
+    .union(TaintColour::NON_DASH_PREFIXED);
+
+/// `string is CLASS ?-strict? ?-failindex var? string` validates `string`
+/// only for `digit` and `alnum` with `-strict`: without it the empty string
+/// passes, and `integer`, `wordchar` and the rest admit a sign, white space,
+/// a newline or punctuation (tclsh 8.6.18 and 9.1.0).
+#[must_use]
+pub fn string_is_validator(args: &[&str]) -> Option<(usize, TaintColour)> {
+    let (&"is", rest) = args.split_first()? else {
+        return None;
+    };
+    let (&class, rest) = rest.split_first()?;
+    if !matches!(class, "digit" | "alnum") || rest.is_empty() {
+        return None;
+    }
+    let (switches, _) = rest.split_at(rest.len() - 1);
+    let mut strict = false;
+    let mut words = switches.iter();
+    while let Some(&word) = words.next() {
+        match word {
+            "-strict" => strict = true,
+            "-failindex" => {
+                words.next()?;
+            }
+            _ => return None,
+        }
+    }
+    strict.then_some((args.len() - 1, VALIDATED_ATOM))
+}
+
+/// `regexp ?-nocase? ?--? {^[CLASS]+$} string` validates `string` when the
+/// braced pattern is one bracket class of letters, digits and underscores,
+/// repeated and anchored at both ends. With no `-line` or `-lineanchor`,
+/// `$` matches only at the end of the string, so no newline passes.
+#[must_use]
+pub fn regexp_validator(args: &[&str]) -> Option<(usize, TaintColour)> {
+    let mut index = 0;
+    while let Some(&word) = args.get(index) {
+        match word {
+            "-nocase" => index += 1,
+            "--" => {
+                index += 1;
+                break;
+            }
+            _ if word.starts_with('-') => return None,
+            _ => break,
+        }
+    }
+    let pattern = args.get(index)?.strip_prefix('{')?.strip_suffix('}')?;
+    let class = pattern.strip_prefix("^[")?.strip_suffix("]+$")?;
+    let mut chars = class.chars().peekable();
+    let mut any = false;
+    while let Some(first) = chars.next() {
+        if !(first.is_ascii_alphanumeric() || first == '_') {
+            return None;
+        }
+        if chars.peek() == Some(&'-') {
+            chars.next();
+            let last = chars.next()?;
+            let same_kind = (first.is_ascii_lowercase() && last.is_ascii_lowercase())
+                || (first.is_ascii_uppercase() && last.is_ascii_uppercase())
+                || (first.is_ascii_digit() && last.is_ascii_digit());
+            if !same_kind || last < first {
+                return None;
+            }
+        }
+        any = true;
+    }
+    // The validated word is the one after the pattern; match variables follow.
+    (any && args.len() > index + 1).then_some((index + 1, VALIDATED_ATOM))
+}
+
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
@@ -1229,21 +1308,26 @@ mod tests {
     }
 
     #[test]
-    fn http_uri_is_a_source_in_every_dialect() {
-        // `TAINT_HINTS` is an import-time global, so `HTTP::uri`
-        // is a taint source even when analysing a non-iRules document
-        // (e.g. `tcl8.6`, where the iRules spec set is not loaded). This
-        // is what lets the generic option-injection / sink checks fire on
-        // iRules data regardless of the document's declared dialect.
+    fn http_uri_is_a_source_only_where_its_spec_is_loaded() {
+        // The iRules getters' index is global, so a getter counts only where
+        // its own spec is visible: not under plain Tcl, where `HTTP::uri` is
+        // an unknown command, and in a registry that loaded the iRules set.
         let registry = CommandRegistry::build_default();
-        assert!(is_taint_source(&registry, "HTTP::uri", &[], None));
+        assert!(!is_taint_source(&registry, "HTTP::uri", &[], None));
+        assert!(is_taint_source(&irules_registry(), "HTTP::uri", &[], None));
+    }
+
+    fn irules_registry() -> CommandRegistry {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        registry
     }
 
     #[test]
     fn http_path_source_colour_is_path_prefixed() {
         // The getter form carries `PATH_PREFIXED`, augmented to
         // `NON_DASH_PREFIXED` — the option-injection-safe colour set.
-        let registry = CommandRegistry::build_default();
+        let registry = irules_registry();
         let colour = taint_source_colour(&registry, "HTTP::path", &[], None).unwrap();
         assert!(colour.contains(TaintColour::TAINTED));
         assert!(colour.contains(TaintColour::PATH_PREFIXED));
@@ -1266,7 +1350,7 @@ mod tests {
     fn ip_and_port_source_colours_are_augmented() {
         // IP / port getters prove NON_DASH_PREFIXED + CRLF_FREE +
         // SHELL_ATOM on top of their IP_ADDRESS / PORT colour.
-        let registry = CommandRegistry::build_default();
+        let registry = irules_registry();
         let ip = taint_source_colour(&registry, "IP::client_addr", &[], None).unwrap();
         assert!(
             ip.contains(TaintColour::IP_ADDRESS | TaintColour::CRLF_FREE | TaintColour::SHELL_ATOM)
@@ -1279,7 +1363,7 @@ mod tests {
     fn plain_irules_source_is_bare_tainted() {
         // A prefix-matched getter without a special colour is plain
         // TAINTED — no mitigating colours.
-        let registry = CommandRegistry::build_default();
+        let registry = irules_registry();
         let colour = taint_source_colour(&registry, "HTTP::header", &["host"], None).unwrap();
         assert_eq!(colour, TaintColour::TAINTED);
     }

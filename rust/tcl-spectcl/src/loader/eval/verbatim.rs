@@ -28,7 +28,7 @@ impl VerbatimBody {
         head: &str,
         args: &[String],
         actual_body: &str,
-    ) -> Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord> {
+    ) -> Option<tcl_source::spectcl::OriginalPackSourceWord> {
         // The evaluated body is the braced word's value, in which each
         // backslash-newline has folded to one space; the verbatim text keeps
         // it, and with it the line count (C keeps the lines of a folded

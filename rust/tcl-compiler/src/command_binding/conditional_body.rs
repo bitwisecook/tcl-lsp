@@ -982,7 +982,7 @@ mod original_body_frame_tests {
         let bindings = super::SourceCommandBindings::analyse(source, config, registry);
         let offset = u32::try_from(source.find("setter name").unwrap()).unwrap();
         let read = u32::try_from(source.find("$name").unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "setter name",
             offset,
             config,
@@ -1043,7 +1043,7 @@ mod original_body_frame_tests {
         let bindings = super::SourceCommandBindings::analyse(source, config, registry);
         let offset = u32::try_from(source.find("NameProcess x obj").unwrap()).unwrap();
         let read = u32::try_from(source.find("$name").unwrap()).unwrap() + 1;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "NameProcess x obj",
             offset,
             config,

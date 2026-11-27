@@ -61,3 +61,6 @@ pub mod wireshark_profile;
 
 pub use error::BigipError;
 pub use range::{Position, Range};
+
+/// Configuration schema consumed by the BIG-IP model and its adapters.
+pub use tcl_bigip_schema as schema;

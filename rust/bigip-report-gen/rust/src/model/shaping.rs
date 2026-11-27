@@ -22,8 +22,8 @@ use super::{clean_arr, clean_field, clean_path, event_registry, partition_of, py
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use serde_json::{Map, Value as J};
 use std::collections::{BTreeSet, HashMap};
+use tcl_bigip::schema::profile_defaults::{BigipVersion, profile_field_defaults};
 use tcl_bigip::value::Destination;
-use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
 // --- per-type shaping --------------------------------------------------------
 

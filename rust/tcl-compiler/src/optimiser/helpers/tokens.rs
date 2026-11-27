@@ -44,7 +44,7 @@ pub fn extract_body_text(
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let raw = source.get(body_span.as_range())?;
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         raw,
         0,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -70,7 +70,7 @@ pub fn extract_body_text(
     // An empty selected body returns the empty Tcl value; removing it can
     // expose the preceding command's result. The caller needs an explicit
     // result-use proof before this case can be rewritten.
-    let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let body_commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &text,
         0,
         tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),
@@ -83,7 +83,7 @@ pub fn extract_body_text(
         crate::ir::CommandTokens::from_segmented(&body_map, config, command)
             .words()
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Opaque { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Opaque { .. }))
     }) {
         return None;
     }

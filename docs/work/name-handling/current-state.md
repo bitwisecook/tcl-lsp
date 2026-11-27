@@ -1,5 +1,97 @@
 # Current LSP naming migration state
 
+## Data and source extractions: 118a, 251/281
+
+All three items are implemented on `work`. 118b's model generator,
+vocabulary-comparison cleanup and data encoding remain separate work.
+
+- `tcl-bigip-schema` owns all 575 BIG-IP schema data files. Their bytes are
+  unchanged apart from one profile-default documentation link. The registry
+  neither contains nor depends on the schema. Generic consumers use
+  `tcl-bigip::schema`; the schema's workspace dependency is `tcl-dialect`.
+- `tcl-source` owns configured CST, segmentation, pack syntax, word geometry,
+  source provenance, spelling helpers and structural recursion limits. Its
+  four foundation workspace dependencies and `strsim` form an 18-package
+  normal/build cone. Recovery diagnostics and binding stay in the compiler.
+  The unused registry-dispatched CST descent API and compiler re-exports are
+  removed. The dependency policy rejects upward source/schema edges.
+- SslicTcl uses the source crate and its normal/build cone falls from 126 to
+  101 packages, with no compiler or registry. Registry-pack parity tests live
+  in SpecTcl. SpecTcl's source readers use `tcl-source`; optimiser/evaluator
+  hooks and binding claims retain the compiler dependency.
+
+Validation:
+
+- All 30 schema tests pass, including the two goldens that passed before the
+  move: `/tmp/118a-schema-tests-work.log`,
+  `/tmp/118a-registry-baseline-work.log`. Schema Clippy and the two
+  dependency-policy tests pass: `/tmp/118a-schema-clippy-work.log`,
+  `/tmp/118a-layering-tests-work.log`.
+- All 150 source tests pass; two existing manual campaigns remain ignored:
+  `/tmp/source-tests-final-work.log`. The frozen segment oracle's three
+  stale trivia expectations were reproduced before and after moving it,
+  then corrected to compare semantic fragments, with a separate lexer
+  oracle for retained separators. It covers 256 installed Tcl corpus files;
+  the lexer differential covers 21,408 nested bodies in 175 files under
+  three dialects. Baseline: `/tmp/source-differential-baseline-work.log`.
+- All 84 SslicTcl tests, eight relocated registry-pack parity tests, three
+  shipped-pack goldens/upgrades and four public compiler boundary tests pass:
+  `/tmp/source-sslictcl-tests-work.log`,
+  `/tmp/source-spectcl-parity-tests-work.log`,
+  `/tmp/source-spectcl-source-tests-work.log`,
+  `/tmp/source-compiler-boundary-tests-work.log`.
+- Workspace all-target checking and Clippy, offline x509 Clippy and all four
+  x509 tests, and runtime Clippy pass:
+  `/tmp/source-workspace-check-work.log`,
+  `/tmp/source-rust-check-final-work.log`. The two existing VM name-prefix
+  joins now use the naming owner; VM library Clippy passes:
+  `/tmp/source-vm-owner-clippy-work.log`.
+- All 12 host lockfiles resolve offline, with external package versions
+  unchanged: `/tmp/source-host-lockfiles-work.log`. Current shard metadata
+  covers 227 targets. Python, Rust-test, LSP and SpecTcl CI path classifiers,
+  moved smoke ownership and heavy-tier identities follow the new owners.
+- The 50-gate architecture batch initially passed 44 checks; all six failures
+  and the module ledger now pass in the focused recheck:
+  `/tmp/source-rust-drift-final-work.log`,
+  `/tmp/source-architecture-final-work.log`. This includes owner resolution,
+  layering, pack goldens, registry axes, source/segmentation ownership and
+  generated inventories. The upstream truncated VM test licence notice is
+  repaired. The Rust-tail checks pass: all 353 core command backings agree, embedded
+  SslicTcl source data is valid, all 35 C-API exports have ownership rows,
+  authored native/WASM header declarations agree with their exports, and
+  every xtask gate is reachable: `/tmp/source-rust-tail-work.log`. The
+  optional wasm32 header compilation was skipped because wasi-sdk was not
+  configured in that check; no compile result is claimed.
+
+Remaining validation obligations before a PR:
+
+- `prep-pr` formatting, generation and editor checks completed; the full
+  workspace Rust smoke compilation was stopped at 97% disk usage before
+  exhaustion. No ENOSPC occurred. Full smoke remains unexecuted:
+  `/tmp/source-prep-pr-work.log`.
+- Word-expression differential: the same three failures before/after
+  extraction (`jim_expression_substitution_is_never_a_literal`,
+  `owner_matches_oracle_on_edge_cases`, `owner_matches_oracle_over_samples`).
+  Pack source execution: the same two failures before/after
+  (`a_reference_body_answers_through_the_host_as_the_procedure_does`,
+  `a_derived_body_runs_under_the_release_the_call_is_analysed_under`). Both
+  comparisons have zero new failures against the actual `ea2497682`
+  checkout, then restore `work`: `/tmp/source-word-baseline-work.log`,
+  `/tmp/source-word-boundary-tests-work.log`,
+  `/tmp/source-pack-baseline-work.log`,
+  `/tmp/source-spectcl-source-tests-work.log`.
+- The manual test-cleanup survey reports candidate growth across existing
+  and relocated modules. No allowances were raised; item 499 retains review
+  and inventory reconciliation: `/tmp/source-test-cleanup-work.log`.
+
+The [build-cost record](../build-test-cost/current-state.md) contains the
+measured dependency cones and edit probes: a segment edit rebuilds exactly
+source and SslicTcl for the selected SslicTcl library; a registry edit rebuilds
+zero packages there. Clean cold/release timings remain explicitly unavailable.
+
+Development pushes use the explicit `work` exception. No PR merge is
+requested or authorised by that exception.
+
 ## Benchmark, test boundaries and runtime repairs
 
 - BPF signed division's public regression passes on the combined in-tree
@@ -10,8 +102,8 @@
   changes. Logs: `/tmp/bpf-combined-signed-tests-work.log`,
   `/tmp/bpf-combined-codegen-tests-work.log`. All-target BPF Clippy passes
   with warnings denied (`/tmp/bpf-combined-clippy-work.log`).
-- Item 499's survey is implemented. `cargo xtask test-cleanup --write` and
-  `--check` pass: 2,704 modules, 13,346 candidate function bodies, 48 crates.
+- Item 499's survey is implemented. Its current reconciliation obligation
+  is recorded above. The earlier baseline passed `--write` and `--check`: 2,704 modules, 13,346 candidate function bodies, 48 crates.
   All 4 recogniser/ratchet tests pass. This is a documented syntactic review
   queue, not a claim that every listed assertion is invalid or that all
   implementation assertions have been found. Logs:

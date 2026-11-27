@@ -19,10 +19,10 @@
 //! Commands that run a body script: `foreach`, `switch`, `catch` and `uplevel`.
 
 use super::super::state::Analyser;
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{Token, TokenType};
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
+use tcl_source::segment::SegmentedCommand;
 
 impl Analyser {
     /// Handle `uplevel #0 { body }`: the script runs in the global
@@ -385,7 +385,7 @@ impl Analyser {
     ///    — pattern and body args alternate inline.
     /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
     ///    — pattern/body pairs live inside a single braced
-    ///    block.  See [`crate::segmenter::flatten_clause_list_elements_with_config`]
+    ///    block.  See [`tcl_source::segment::flatten_clause_list_elements_with_config`]
     ///    for how that braced form is split.
     ///
     /// Bodies that are literally ``-`` are fall-through markers
@@ -427,11 +427,11 @@ impl Analyser {
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let clauses = crate::segmenter::flatten_case_list_clauses(
+            let clauses = tcl_source::segment::flatten_case_list_clauses(
                 &self.source,
                 &body_text,
                 body_tok,
-                &case,
+                &case.shape(),
                 self.lexer_config(),
             );
             let shape = tcl_syntax::case_list::CaseListShape {

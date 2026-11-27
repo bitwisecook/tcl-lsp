@@ -20,12 +20,12 @@
 
 use super::super::state::Analyser;
 use super::{DispatchSite, original_document_source_image};
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
-use crate::segmenter::SegmentedCommand;
 use std::sync::Arc;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::ArgRole;
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
+use tcl_source::segment::SegmentedCommand;
 
 /// A readonly mini-language template from an original whole written word.
 /// Registry selection owns its effective ordinal; the operand owns its value
@@ -182,7 +182,7 @@ impl Analyser {
         let text = self
             .source
             .get(first.span().start() as usize..last.span().end() as usize)?;
-        let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             first.span().start(),
             config.nested(),
@@ -493,7 +493,7 @@ impl Analyser {
             // vector. Its immutable CST carries no lookup or Native admission.
             return Some((prepared.command().clone(), first.clone()));
         }
-        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             first.span().start(),
             config.nested(),

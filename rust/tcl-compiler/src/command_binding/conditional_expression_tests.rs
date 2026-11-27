@@ -37,7 +37,7 @@ fn original(
         },
     );
     let source_part = command;
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source_part,
         u32::try_from(offset).unwrap(),
         config,

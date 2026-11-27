@@ -162,7 +162,7 @@ impl ScanCtx<'_> {
     /// compatibility. Positional handlers accept direct written operands only.
     pub(super) fn with_selected_schema<T>(
         &self,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> T,
     ) -> Option<T> {
         let registry = self.registry?;
@@ -260,7 +260,7 @@ impl ScanCtx<'_> {
 
     pub(super) fn original_callback_prefix(
         &self,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         written: usize,
     ) -> Option<crate::command_binding::OriginalCallbackPrefix> {
         let registry = self.registry?;
@@ -466,7 +466,7 @@ impl ScanCtx<'_> {
 
     pub(super) fn original_command_words(
         &self,
-        command: &crate::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> Option<Vec<tcl_lexer::NativeWord>> {
         let plan = tcl_lexer::native_script_words_in(
             self.original_image.clone()?,

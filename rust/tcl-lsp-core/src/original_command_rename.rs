@@ -563,7 +563,7 @@ fn coverage_region(
 fn quiet_store_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     offset: u32,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
     let Some(receipt) = walk.quiet_store_for_rename_coverage(document.source, command) else {
@@ -582,7 +582,7 @@ fn quiet_store_coverage(
 fn authored_result_completion_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     offset: u32,
     depth: u32,
     pending: &mut Vec<(usize, usize, u32)>,
@@ -607,7 +607,7 @@ fn authored_result_completion_coverage(
 fn queue_source_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     receiver: Option<ReceiverNames<'_>>,
     (depth, pending): (u32, &mut Vec<(usize, usize, u32)>),
 ) -> Result<bool, OriginalCommandRenameRefusal> {
@@ -629,7 +629,7 @@ fn queue_source_coverage(
 fn queue_declaration(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     receiver: Option<ReceiverNames<'_>>,
     depth: u32,
     pending: &mut Vec<(usize, usize, u32)>,
@@ -1565,7 +1565,7 @@ fn ensemble_dispatch_reference<'a>(
 fn member_coverage(
     document: OriginalDeclarationDocument<'_>,
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     words: &[tcl_lexer::NativeWord],
     context: &source_coverage::RequestContext<'_, '_>,
     (depth, pending): (u32, &mut Vec<(usize, usize, u32)>),

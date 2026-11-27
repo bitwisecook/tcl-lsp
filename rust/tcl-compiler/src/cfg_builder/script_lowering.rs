@@ -73,10 +73,11 @@ impl CfgBuilder<'_> {
     /// are the run whose exact completion a handler is matched against
     /// (`set z 0; error boom` completes with an error whichever command raises).
     pub(super) fn leaves_from_the_state_before(&self, stmt: &Statement) -> bool {
-        let literal = |word: &crate::ir::WordExpr| {
+        let literal = |word: &tcl_source::words::WordExpr| {
             matches!(
                 word,
-                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. }
             )
         };
         match stmt {
@@ -297,7 +298,8 @@ impl CfgBuilder<'_> {
             || matches!(
                 value_word,
                 Some(
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                    tcl_source::words::WordExpr::Literal { .. }
+                        | tcl_source::words::WordExpr::BracedLiteral { .. }
                 )
             )
         {

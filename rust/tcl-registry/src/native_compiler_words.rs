@@ -54,6 +54,12 @@ pub enum NativeCompiledListRecipe {
         /// Exact member value bytes, preserving their order and empty values.
         members: Vec<Vec<u8>>,
     },
+    /// Operands after `TclParseCommand` flattened a literal `{*}` word, each
+    /// evaluated or pushed and then assembled by the List opcode.
+    ProjectedElements {
+        /// Original words and literal expansion members, in argv order.
+        operands: Vec<crate::native_compiler_word_projection::NativeCompilerWordOperand>,
+    },
 }
 
 /// Original List operand layout cannot be supplied to the native compiler.
@@ -61,7 +67,7 @@ pub enum NativeCompiledListRecipe {
 pub enum NativeCompiledListUnavailable {
     /// The index does not address operands in this complete original vector.
     OperandGeometry,
-    /// Native parser list-expansion projection has not been retained.
+    /// An expansion survives the parser and is evaluated at run time.
     Expansion,
 }
 
@@ -293,7 +299,7 @@ impl<'w> NativeCompilerWords<'w> {
         }
         let shapes = &self.shapes[operand_from..];
         if shapes.contains(&NativeCompilationWordShape::Expanded) {
-            return Err(NativeCompiledListUnavailable::Expansion);
+            return self.projected_list_recipe(operand_from, physical_version);
         }
         if shapes.is_empty() {
             return Ok(NativeCompiledListRecipe::EmptyString);
@@ -304,6 +310,41 @@ impl<'w> NativeCompilerWords<'w> {
             return Ok(NativeCompiledListRecipe::PrivateConstant { members });
         }
         Ok(NativeCompiledListRecipe::DynamicElements { from: operand_from })
+    }
+
+    /// The List recipe over the vector `TclParseCommand` leaves once it has
+    /// flattened each pure-TEXT `{*}` literal. An expansion that survives is
+    /// evaluated at run time, which this recipe cannot assemble.
+    fn projected_list_recipe(
+        &self,
+        operand_from: usize,
+        physical_version: TclVersion,
+    ) -> Result<NativeCompiledListRecipe, NativeCompiledListUnavailable> {
+        let projected = crate::native_compiler_word_projection::project_native_compiler_words(
+            self,
+            physical_version,
+        )
+        .map_err(|_| NativeCompiledListUnavailable::OperandGeometry)?;
+        let operands = projected
+            .get(operand_from..)
+            .ok_or(NativeCompiledListUnavailable::OperandGeometry)?;
+        if operands
+            .iter()
+            .any(|word| word.shape == NativeCompilationWordShape::Expanded)
+        {
+            return Err(NativeCompiledListUnavailable::Expansion);
+        }
+        if operands.is_empty() {
+            return Ok(NativeCompiledListRecipe::EmptyString);
+        }
+        if physical_version >= TclVersion::V8_6
+            && let Some(members) = operands.iter().map(|word| word.literal.clone()).collect()
+        {
+            return Ok(NativeCompiledListRecipe::PrivateConstant { members });
+        }
+        Ok(NativeCompiledListRecipe::ProjectedElements {
+            operands: operands.iter().map(|word| word.operand.clone()).collect(),
+        })
     }
 
     /// Native compile-time increment amount from a fresh private string object.
@@ -481,6 +522,7 @@ mod tests {
         NativeCompilationGrammar, NativeCompilationMode, NativeCompilationSelection,
         NativeCompilationSpec,
     };
+    use crate::native_compiler_word_projection::NativeCompilerWordOperand;
     use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
 
     fn words(source: &[u8]) -> Vec<NativeWord> {
@@ -708,12 +750,27 @@ mod tests {
             spec.select_native_words(&captured, 0, dialect, context),
             NativeCompilationSelection::Unknown
         );
-        let expanded = words(b"list {*}{A B}");
-        let expanded = NativeCompilerWords::capture(&expanded, captured.source_protocol()).unwrap();
-        assert_eq!(
-            spec.select_native_words(&expanded, 1, dialect, context),
-            NativeCompilationSelection::Unknown
-        );
+        // TclParseCommand flattens a pure-TEXT literal before TclCompileListCmd
+        // runs; a member it cannot split leaves EXPAND_WORD, which the generic
+        // invocation evaluates.
+        for (source, flattened) in [
+            (b"list {*}{A B}".as_slice(), true),
+            (b"list x {*}{A {B C}} $y".as_slice(), true),
+            (br"list {*}{A \x41}".as_slice(), false),
+        ] {
+            let expanded = words(source);
+            let expanded =
+                NativeCompilerWords::capture(&expanded, captured.source_protocol()).unwrap();
+            let selected = spec.select_native_words(&expanded, 1, dialect, context);
+            if flattened {
+                assert!(
+                    matches!(selected, NativeCompilationSelection::Inline { .. }),
+                    "{selected:?}"
+                );
+            } else {
+                assert_eq!(selected, NativeCompilationSelection::Generic);
+            }
+        }
     }
     #[test]
     fn list_recipes_retain_version_frame_and_original_member_values() {
@@ -787,12 +844,56 @@ mod tests {
                 .unwrap();
         assert_eq!(
             view.list_recipe(1, TclVersion::V9_1),
-            Err(NativeCompiledListUnavailable::Expansion)
+            Ok(NativeCompiledListRecipe::PrivateConstant {
+                members: vec![b"A".to_vec(), b"B".to_vec()],
+            })
         );
         assert_eq!(
             view.list_recipe(0, TclVersion::V9_1),
             Err(NativeCompiledListUnavailable::OperandGeometry)
         );
+    }
+
+    /// `TclParseCommand` splits a pure-TEXT `{*}` literal before
+    /// `TclCompileListCmd` runs; an expansion it leaves is evaluated at run time.
+    #[test]
+    fn flattened_list_recipes_keep_argv_ordered_operands() {
+        let empty = words(b"list {*}{}");
+        let view = NativeCompilerWords::capture(&empty, NativeStringProtocol::C(TclVersion::V9_1))
+            .unwrap();
+        assert_eq!(
+            view.list_recipe(1, TclVersion::V9_1),
+            Ok(NativeCompiledListRecipe::EmptyString)
+        );
+        let mixed = words(b"list x {*}{A B} $y");
+        let view = NativeCompilerWords::capture(&mixed, NativeStringProtocol::C(TclVersion::V9_1))
+            .unwrap();
+        let Ok(NativeCompiledListRecipe::ProjectedElements { operands }) =
+            view.list_recipe(1, TclVersion::V9_1)
+        else {
+            panic!("a mixed flattened vector keeps its argv-ordered operands");
+        };
+        assert_eq!(operands.len(), 4);
+        assert_eq!(operands[0], NativeCompilerWordOperand::Original(1));
+        assert!(matches!(
+            &operands[1],
+            NativeCompilerWordOperand::LiteralExpansion { original_word: 2, value, .. } if value == b"A"
+        ));
+        assert!(matches!(
+            &operands[2],
+            NativeCompilerWordOperand::LiteralExpansion { original_word: 2, value, .. } if value == b"B"
+        ));
+        assert_eq!(operands[3], NativeCompilerWordOperand::Original(3));
+        for dynamic in [b"list {*}$y".as_slice(), br"list {*}{A \x41}".as_slice()] {
+            let original = words(dynamic);
+            let view =
+                NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_1))
+                    .unwrap();
+            assert_eq!(
+                view.list_recipe(1, TclVersion::V9_1),
+                Err(NativeCompiledListUnavailable::Expansion)
+            );
+        }
     }
 
     #[test]

@@ -76,7 +76,8 @@ fn original_format_gates_read_literal_values_without_promoting_dynamic_words() {
         let result = Analyser::new().analyse(source, "tcl8.4");
         let config = result.body_lexer_config.unwrap();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words = crate::registry_invocation::source_structure::source_registry_words(
             source, &result, &segment,
         )

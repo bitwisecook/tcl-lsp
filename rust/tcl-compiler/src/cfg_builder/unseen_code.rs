@@ -175,7 +175,7 @@ impl CfgBuilder<'_> {
             return true;
         }
         // Past the cap the text is not read, so it is taken to run anything.
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             return true;
         }
         let reaches = |text: &str| {

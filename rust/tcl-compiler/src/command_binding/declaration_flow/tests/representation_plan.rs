@@ -33,7 +33,7 @@ fn conditional_root_naming_is_scoped_to_the_original_command() {
     let config = input.lexer_config();
     let realm = analysis.retained_command_realm().unwrap();
     let image = tcl_lexer::SourceImage::document(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     realm
         .source_bindings_ref()
@@ -111,7 +111,7 @@ fn conditional_representation_head_correspondence_checks_original_receipts() {
     let bindings = realm.source_bindings_ref();
     let image = tcl_lexer::SourceImage::document(source);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
     bindings.stamp_original_tokens(&mut tokens);
     let binding = tokens.source_binding.as_ref().unwrap();
@@ -191,15 +191,15 @@ fn conditional_representation_head_correspondence_checks_original_receipts() {
     );
     assert!(check(&original, &observed));
     let mut changed = original.clone();
-    if let crate::ir::WordExpr::Literal { text, .. } = &mut changed.effective.words[0] {
+    if let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed.effective.words[0] {
         *text = "foreign".to_owned();
     } else {
         panic!("expected source head");
     }
     assert!(!check(&changed, &observed));
     let mut changed = original.clone();
-    if let crate::ir::WordExpr::Literal { source, .. } = &mut changed.effective.words[0] {
-        *source = crate::ir::SourceSite::opaque(tcl_lexer::Span::new(1, 2));
+    if let tcl_source::words::WordExpr::Literal { source, .. } = &mut changed.effective.words[0] {
+        *source = tcl_source::words::SourceSite::opaque(tcl_lexer::Span::new(1, 2));
     } else {
         panic!("expected source head");
     }
@@ -323,7 +323,7 @@ fn conditional_substitution_context_requires_exact_single_child() {
     let config = context.input.lexer_config();
     let image = tcl_lexer::SourceImage::document(source);
     let make_child = |offset| {
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "lindex $pt 1",
             offset,
             config,
@@ -604,7 +604,8 @@ fn conditional_loop_receipts_require_known_count_and_original_binder() {
         let config = input.lexer_config();
         let realm = analysis.retained_command_realm().unwrap();
         let image = tcl_lexer::SourceImage::document(source);
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
         realm
             .source_bindings_ref()
@@ -666,7 +667,7 @@ fn conditional_body_context_requires_exact_original_loop_and_source() {
     let config = input.lexer_config();
     let realm = analysis.retained_command_realm().unwrap();
     let image = tcl_lexer::SourceImage::document(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     realm
         .source_bindings_ref()
@@ -694,7 +695,7 @@ fn conditional_body_context_requires_exact_original_loop_and_source() {
     );
     let offset = u32::try_from(source.find("incr x").unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config("incr x", offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config("incr x", offset, config)
             .remove(0);
     let child = CommandTokens::from_segmented(&image.source_map(), config, &segment);
     let site = CommandAllocationSite {
@@ -788,7 +789,7 @@ fn conditional_body_context_requires_exact_original_loop_and_source() {
     for (label, raw_offset) in [("nested", nested), ("sibling", sibling)] {
         let offset = u32::try_from(raw_offset).unwrap();
         let segment =
-            crate::segmenter::segment_commands_with_offset_and_config("incr x", offset, config)
+            tcl_source::segment::segment_commands_with_offset_and_config("incr x", offset, config)
                 .remove(0);
         let other = CommandTokens::from_segmented(&image.source_map(), config, &segment);
         let other_site = CommandAllocationSite {
@@ -873,7 +874,7 @@ fn conditional_root_representation_flow_covers_reported_foreach() {
     let realm = analysis.retained_command_realm().unwrap();
     let bindings = realm.source_bindings_ref();
     let image = tcl_lexer::SourceImage::document(source);
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let segments = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
     bindings.stamp_original_tokens(&mut tokens);
     let report = tokens

@@ -45,10 +45,11 @@ fn normal_ensemble_leaf_requires_the_actual_release_worker() {
                 let bindings = crate::command_binding::SourceCommandBindings::analyse(
                     &source, config, registry,
                 );
-                let segment =
-                    crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config)
-                        .pop()
-                        .unwrap();
+                let segment = tcl_source::segment::segment_commands_with_offset_and_config(
+                    &source, 0, config,
+                )
+                .pop()
+                .unwrap();
                 let tokens = CommandTokens::from_segmented(
                     &tcl_lexer::SourceMap::new(&source),
                     config,

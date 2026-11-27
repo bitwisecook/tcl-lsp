@@ -584,7 +584,7 @@ mod tests {
             let analysis = crate::analyser::Analyser::new()
                 .with_resolved_input(input.clone())
                 .analyse(source, input.analyser_profile().name);
-            let offset = crate::segmenter::segment_commands_with_offset_and_config(
+            let offset = tcl_source::segment::segment_commands_with_offset_and_config(
                 source,
                 0,
                 input.lexer_config(),
@@ -804,7 +804,7 @@ mod tests {
         .invocation_at_source(
             head,
             if head.is_empty() {
-                crate::segmenter::segment_commands_with_offset_and_config(
+                tcl_source::segment::segment_commands_with_offset_and_config(
                     source,
                     0,
                     tcl_lexer::LexerConfig::for_profile(Some(selected)),

@@ -24,7 +24,7 @@ fn nested_heads(source: &str, dialect: &str) -> Vec<CollectedHead> {
     let sm = SourceMap::new(source);
     let mut heads = Vec::new();
     let mut expressions = Vec::new();
-    let last = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let last = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     for token in last
@@ -237,9 +237,10 @@ fn nested_source_inventory_keeps_reference_only_scripts_out_of_dispatch() {
             .with_resolved_input(input)
             .analyse(source, profile.name);
         let sm = SourceMap::new(source);
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .unwrap();
         let token = *segment
             .all_tokens
             .iter()

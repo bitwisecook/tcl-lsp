@@ -542,7 +542,7 @@ pub fn slice(source: &str, span: Span) -> &str {
 /// # Why the raw span is one byte short for a quoted final word
 ///
 /// A statement's span is the segmenter's command span
-/// ([`tcl_compiler::segmenter::command_span`]): the first token's start through
+/// ([`tcl_source::segment::command_span`]): the first token's start through
 /// `widen_word_end` of the last. That widening carries a deliberate **type
 /// gate** — it covers a braced (`{…}`) or bracketed (`[…]`) final word, but
 /// *not* a quoted one, because `cmd.range` consumers (W105 unbraced-body

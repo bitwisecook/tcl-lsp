@@ -299,7 +299,7 @@ fn enclosing(
 struct OriginalProcedureCalls<'a> {
     document: OriginalCallDocument<'a>,
     walk: crate::refactor::FrameWalk<'a>,
-    commands: Vec<tcl_compiler::segmenter::SegmentedCommand>,
+    commands: Vec<tcl_source::segment::SegmentedCommand>,
 }
 impl<'a> OriginalProcedureCalls<'a> {
     fn capture(document: OriginalCallDocument<'a>) -> Option<Self> {
@@ -314,7 +314,7 @@ impl<'a> OriginalProcedureCalls<'a> {
             commands,
         })
     }
-    fn at_cursor(&self, cursor: u32) -> Option<&tcl_compiler::segmenter::SegmentedCommand> {
+    fn at_cursor(&self, cursor: u32) -> Option<&tcl_source::segment::SegmentedCommand> {
         let mut selected = self.commands.iter().filter(|command| {
             crate::refactor::FrameWalk::native_words(&self.walk, self.document.source, command)
                 .and_then(|words| words.first().map(tcl_lexer::NativeWord::span))

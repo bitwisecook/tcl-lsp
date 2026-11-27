@@ -517,7 +517,7 @@ pub(super) fn scan_obj_method_region(
     depth: u32,
     sink: &mut SpanSink<'_>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
     let source = ctx.source;
     if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;

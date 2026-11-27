@@ -39,9 +39,10 @@ fn original_source_correspondence_keeps_its_retained_full_editing_input() {
         let analysis = Analyser::new().analyse(source, dialect);
         let image = SourceImage::document(source);
         let config = analysis.body_lexer_config.unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .pop()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .pop()
+                .unwrap();
         assert!(
             analysis.matches_original_source_image(&image, config),
             "{dialect}"

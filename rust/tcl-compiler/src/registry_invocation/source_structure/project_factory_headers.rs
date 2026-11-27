@@ -330,7 +330,7 @@ impl OriginalForeignFactoryBody {
     fn source_call<'a>(
         source: &str,
         analysis: &'a AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         caller_document: u64,
         providers: &[(u64, OriginalProjectFactoryHeaders)],
     ) -> Option<(
@@ -450,7 +450,7 @@ impl OriginalForeignFactoryBody {
     fn capture(
         source: &str,
         analysis: &AnalysisResult,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         caller_document: u64,
         providers: &[(u64, OriginalProjectFactoryHeaders)],
     ) -> Option<Self> {
@@ -843,7 +843,7 @@ pub fn original_foreign_factory_bodies(
     if crate::source_graph::current_analysis(source, analysis).is_none() {
         return Vec::new();
     }
-    crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
+    tcl_source::segment::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
         .iter()
         .filter_map(|segment| {
             OriginalForeignFactoryBody::capture(source, analysis, segment, caller_document, headers)

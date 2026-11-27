@@ -23,9 +23,10 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use super::equality_source::scalar_string_disjunction as try_or_chain;
 use super::source_rewrite::{generated_script_words, reindent_script, selected_proposed_spec};
@@ -605,7 +606,7 @@ fn resolve_dg_name(dg_name: &str, default_descriptor: &str) -> String {
 /// Indent of the command's first line.
 fn command_indent<'a>(
     source: &'a str,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     line_index: &LineIndex,
 ) -> &'a str {
     let cmd_line = line_index.line_at(cmd.span.start());

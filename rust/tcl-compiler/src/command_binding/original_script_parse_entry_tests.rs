@@ -123,7 +123,7 @@ fn original_jim_whole_script_parse_refuses_prefix_publication_but_keeps_valid_sc
     assert!(jim.points.is_empty());
     assert!(!jim.final_state.procedure_bodies.contains("::selected"));
     let image = tcl_lexer::SourceImage::document(invalid);
-    let syntax = crate::segmenter::segment_script_image_with_offset_and_config(
+    let syntax = tcl_source::segment::segment_script_image_with_offset_and_config(
         &image,
         0,
         input.lexer_config(),

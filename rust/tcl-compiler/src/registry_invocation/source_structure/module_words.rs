@@ -35,7 +35,7 @@ pub(crate) fn original_segment_for_tokens(
     analysis: &AnalysisResult,
     tokens: &crate::ir::CommandTokens,
 ) -> Option<(
-    crate::segmenter::SegmentedCommand,
+    tcl_source::segment::SegmentedCommand,
     Vec<tcl_lexer::NativeWord>,
 )> {
     let config = analysis.body_lexer_config?;
@@ -53,7 +53,7 @@ pub(crate) fn original_segment_for_tokens(
     let end = native.last()?.span().end();
     let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
     let mut segments =
-        crate::segmenter::segment_commands_with_offset_and_config(text, start, config.nested());
+        tcl_source::segment::segment_commands_with_offset_and_config(text, start, config.nested());
     if segments.len() != 1 {
         return None;
     }
@@ -282,7 +282,7 @@ pub(crate) fn original_immediate_body_commands_for_module(
             return None;
         }
         for original in body.original_commands(context)? {
-            let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            let segments = tcl_source::segment::segment_commands_with_offset_and_config(
                 source.get(original.span.as_range())?,
                 original.span.start(),
                 input.lexer_config(),
@@ -344,7 +344,7 @@ pub fn original_logical_registry_words_for_command(
         return None;
     }
     let text = source.get(command.span.as_range())?;
-    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
         text,
         command.span.start(),
         config.nested(),

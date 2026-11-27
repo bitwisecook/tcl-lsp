@@ -98,7 +98,7 @@ fn control_arm_metadata_requires_the_actual_selected_body_source() {
     ] {
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
-        let controller = crate::segmenter::segment_commands_with_offset_and_config(
+        let controller = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),
@@ -152,7 +152,8 @@ fn control_arm_positions_require_actual_original_body_containers() {
         analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
         let config = analyser.file_lexer_config();
         let controller =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let context = analyser.retained_static_source_context().unwrap();
         let words = crate::registry_invocation::source_structure::source_registry_words_at(
             source,
@@ -284,7 +285,7 @@ fn segment_completion_retains_return_depth_and_implementation_identity() {
         analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
         // The public walk clears transient registry state after returning.
         analyser.registry = Some(analyser.profile_registry());
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.lexer_config(),
@@ -536,7 +537,7 @@ fn static_write_invalidation_preserves_scalar_parenthesis_names() {
         let source = format!("set {name} VALUE");
         let mut analyser = Analyser::new();
         analyser.analyse_and_retain_result_for_test(&source, "tcl");
-        let command = crate::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             &source,
             0,
             analyser.file_lexer_config().nested(),

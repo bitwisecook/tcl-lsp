@@ -19,9 +19,9 @@
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
 use tcl_compiler::analyser::AnalysisResult;
-#[cfg(test)]
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
+#[cfg(test)]
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use super::source_rewrite::{RewriteObligation, select};
 use super::{RefactorEdit, Refactoring};

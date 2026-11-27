@@ -240,7 +240,7 @@ aliases ([step 6](crate-split/06-tcl-ir.md)):
 **Before:**
 
 ```rust
-use tcl_compiler::segmenter::SegmentedCommand;
+use tcl_source::segment::SegmentedCommand;
 use tcl_compiler::command_binding::SourceNamespaceKey;
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::analyser::Analyser;

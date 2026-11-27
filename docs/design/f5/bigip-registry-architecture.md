@@ -19,7 +19,7 @@ The user-facing payoff is consistent behaviour across `f5 grep`, `f5 query`,
 rename, and semantic tokens: every place that asks "what does this property
 reference?" hits the same dispatch.
 
-The catalogue is a compile-time static in `rust/tcl-registry/src/bigip/`;
+The catalogue is a compile-time static in `rust/tcl-bigip-schema/src/bigip/`;
 the typed values it describes live in `rust/tcl-bigip/src/value/`; the
 consumers are `rust/tcl-bigip` (graph, links, tmsh emission) and
 `rust/tcl-bigip-query` (DSL projection).
@@ -27,7 +27,7 @@ consumers are `rust/tcl-bigip` (graph, links, tmsh emission) and
 ## Object kind catalogue
 
 Every object kind is a curated `BigipObjectSpec` entry under
-`rust/tcl-registry/src/bigip/data/`, one module per TMSH module (`ltm.rs`,
+`rust/tcl-bigip-schema/src/bigip/data/`, one module per TMSH module (`ltm.rs`,
 `gtm.rs`, `net.rs`, `security.rs`, `sys.rs`, …). A large module is filed by
 tmsh word: `ltm profile http` is in `data/ltm/profile/http.rs`, and each
 level's file lists its tables in `tables()`. A kind too large for one file
@@ -259,7 +259,7 @@ Adding a new typed value:
 1. Define the type in `rust/tcl-bigip/src/value/` with `Display` +
    `parse` / `try_parse`, and re-export it from `value/mod.rs`.
 2. Give the property its `BigipPropertySpec` fields in the relevant
-   file under `rust/tcl-registry/src/bigip/data/` — at minimum `value_type`,
+   file under `rust/tcl-bigip-schema/src/bigip/data/` — at minimum `value_type`,
    plus `references` and `list_operators` where they apply.
 3. Add a `ReferenceEdge` if the property names another kind.
 4. Add an arm to `pilot_references` in `rust/tcl-bigip/src/graph.rs` so the

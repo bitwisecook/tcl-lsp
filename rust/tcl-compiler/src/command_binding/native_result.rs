@@ -1239,7 +1239,7 @@ mod tests {
             let bindings = inspect(source);
             let offset = u32::try_from(source.rfind("set").unwrap()).unwrap();
             let binding = bindings.invocation_at_source("set", offset);
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            let segment = tcl_source::segment::segment_commands_with_offset_and_config(
                 source,
                 0,
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
@@ -1271,7 +1271,7 @@ mod tests {
             ] {
                 let bindings = inspect(source);
                 let offset = u32::try_from(source.rfind("set").unwrap()).unwrap();
-                let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                let segment = tcl_source::segment::segment_commands_with_offset_and_config(
                     source,
                     0,
                     tcl_lexer::LexerConfig::from_grammar(profile.grammar),

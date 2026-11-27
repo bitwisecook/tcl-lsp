@@ -40,10 +40,14 @@ use std::path::{Path, PathBuf};
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
-use tcl_compiler::ir::{CommandTokens, SourceSite, WordExpr, WordOpacity, WordPart};
-use tcl_compiler::segmenter::{
-    SegmentedCommand, WordFragment, segment_commands_with_offset_and_config,
-};
+use tcl_compiler::ir::CommandTokens;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::WordFragment;
+use tcl_source::segment::segment_commands_with_offset_and_config;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordOpacity;
+use tcl_source::words::WordPart;
 
 /// Repo root — two directories above `CARGO_MANIFEST_DIR`.
 fn repo_root() -> PathBuf {

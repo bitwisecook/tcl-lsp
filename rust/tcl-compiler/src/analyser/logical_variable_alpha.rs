@@ -96,7 +96,7 @@ fn inspect_conditional_variable_source(
         return None;
     }
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)?;
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)?;
     if segments.len() != plan.commands.len() {
         return None;
     }
@@ -142,7 +142,7 @@ struct ConditionalInspection<'a> {
 impl ConditionalInspection<'_> {
     fn inspect_command(
         &self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         command: &tcl_lexer::NativeScriptCommandWords,
         covered: &mut Vec<Span>,
     ) -> Option<ConditionalCall> {

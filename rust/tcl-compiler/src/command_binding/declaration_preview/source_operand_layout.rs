@@ -66,7 +66,7 @@ impl OriginalDeclarationSourceOperandAttachment {
 pub(in super::super) struct OriginalDeclarationSourceOperandLayout {
     pub(in super::super) site: CommandAllocationSite,
     pub(in super::super) config: tcl_lexer::LexerConfig,
-    pub(in super::super) words: Arc<[crate::ir::WordExpr]>,
+    pub(in super::super) words: Arc<[tcl_source::words::WordExpr]>,
     pub(super) dialect: tcl_registry::InvocationDialect,
     pub(super) read: OriginalProcedureReadDeclaration,
     pub(super) header: DeclaredProcedureHeader,
@@ -82,7 +82,7 @@ pub(in super::super) struct OriginalDeclarationSourceOperandLayout {
 pub(in super::super) struct OriginalDeclarationSourceOperation {
     pub(super) site: CommandAllocationSite,
     pub(super) config: tcl_lexer::LexerConfig,
-    pub(super) words: Arc<[crate::ir::WordExpr]>,
+    pub(super) words: Arc<[tcl_source::words::WordExpr]>,
     pub(in super::super) operation:
         tcl_registry::source_operation::AuthoredSourceOperationContinuation,
 }
@@ -511,7 +511,7 @@ fn original_operand_command_layouts(
     if plan.fatal_tail.is_some() {
         return None;
     }
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         image,
         content.start(),
         row.config.nested(),

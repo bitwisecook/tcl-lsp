@@ -194,7 +194,7 @@ pub(super) fn original_stock_helper<'a>(
 
 fn prepare_method(
     site: u32,
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     state: &ModuleCommandBindings,
     target: &SourceCommandTarget,
     context: SourceExecutionContext<'_>,
@@ -329,7 +329,7 @@ fn plan_method_publication(
 impl SourceCommandBindings {
     pub(in crate::command_binding) fn walk_jim_stock_method(
         site: u32,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,
         context: SourceExecutionContext<'_>,

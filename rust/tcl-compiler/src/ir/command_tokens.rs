@@ -18,12 +18,12 @@
 
 //! The original parsed tokens of one command invocation and the proofs carried beside them.
 
-use super::provenance::{Provenance, SourceSite};
 use super::source_bpf_command::SourceBpfCommand;
 use super::synthetic_marker::SyntheticMarker;
-use super::word_expr::WordExpr;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::words::WordExpr;
+use tcl_source::words::{Provenance, SourceSite};
 
 /// Original parsed tokens for a command invocation.
 ///

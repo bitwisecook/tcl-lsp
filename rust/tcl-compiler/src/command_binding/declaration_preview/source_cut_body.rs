@@ -24,10 +24,11 @@ use super::super::{
 };
 use super::{SourceCommandBindings, original_declaration_layouts};
 use crate::analyser::ResolvedAnalysisInput;
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use crate::registry_invocation::OriginalSourceScriptBody;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use tcl_source::words::WordExpr;
 
 pub(crate) struct OriginalSourceCutBodyRows {
     owner: Arc<OriginalSourceAnalysisOwner>,

@@ -40,12 +40,12 @@ use tcl_registry::TclType;
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 use super::ShimmerWarning;
 use super::hints::is_free_first_conversion;

@@ -99,7 +99,7 @@ fn authored_stored_callback_selector(
     context: &tcl_registry::model::ContextRegistry,
     class: &tcl_compiler::analyser::ClassDef,
     method: &tcl_compiler::analyser::types::OriginalSourceMethodMetadata,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> Option<tcl_lexer::Span> {
     use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
     use tcl_compiler::signature_scan::original_name::SignatureSourceNameKey;
@@ -331,8 +331,8 @@ fn collect_stored_callback_writes(
     counts: &mut std::collections::HashMap<String, usize>,
 ) -> bool {
     use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
 
     if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || end > ctx.source.len() {
         return true;
@@ -471,7 +471,7 @@ fn stored_callback_schema(
 /// remains data.
 pub(super) fn list_built_self_reference_spans(
     ctx: MyMethodScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<tcl_lexer::Span> {
     callback_targets_from_command(ctx, cmd)
         .into_iter()
@@ -499,7 +499,7 @@ pub(super) fn list_built_self_reference_spans(
 /// exact same source classification as references/rename/code-lens.
 fn callback_targets_from_command(
     ctx: MyMethodScan<'_>,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<PrefixTargetAtSpan> {
     use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
     use tcl_lexer::TokenType;
@@ -554,7 +554,7 @@ fn callback_targets_from_command(
             let Some(variable) = original_words
                 .word_exprs
                 .get(*written)
-                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+                .and_then(tcl_source::words::WordExpr::sole_variable_substitution)
                 .and_then(|(spelling, _)| strip_var_decoration(spelling, Some(ctx.config)))
             else {
                 continue;
@@ -593,10 +593,7 @@ fn callback_targets_from_command(
 ///
 /// `expand_word` is `None` for the overwhelming majority of commands — no word
 /// uses expansion — and a per-word flag list otherwise.
-fn positions_are_literal_through(
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
-    upto: usize,
-) -> bool {
+fn positions_are_literal_through(cmd: &tcl_source::segment::SegmentedCommand, upto: usize) -> bool {
     cmd.expand_word
         .as_ref()
         .is_none_or(|flags| flags.iter().take(upto + 1).all(|expanded| !expanded))
@@ -611,7 +608,7 @@ pub(super) struct PrefixTargetAtSpan {
 /// Map an effective builder operand to its genuine whole written source token.
 fn written_prefix_operand(
     words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     ordinal: usize,
 ) -> Option<tcl_lexer::Token> {
     use tcl_compiler::registry_invocation::InvocationWordOrigin;
@@ -642,9 +639,9 @@ fn command_prefix_targets_from_word(
     depth: u32,
 ) -> Vec<PrefixTargetAtSpan> {
     use tcl_compiler::registry_invocation::source_structure;
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
     use tcl_registry::Traits;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
 
     if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || word_tok.kind != TokenType::Cmd {
         return Vec::new();
@@ -722,7 +719,7 @@ fn command_prefix_targets_from_word(
 
 fn built_command_prefix_targets(
     ctx: MyMethodScan<'_>,
-    builder: &tcl_compiler::segmenter::SegmentedCommand,
+    builder: &tcl_source::segment::SegmentedCommand,
     words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     context: &tcl_registry::model::ContextRegistry,
 ) -> Vec<PrefixTargetAtSpan> {
@@ -854,7 +851,7 @@ fn stored_callback_is_consumed(
     target: PrefixTargetAtSpan,
     depth: u32,
 ) -> bool {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
     if start >= end || end > ctx.source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return false;
     }
@@ -882,7 +879,7 @@ fn command_prefix_target_in_region(
     depth: u32,
     cursor_offset: u32,
 ) -> Option<PrefixTargetAtSpan> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_source::segment::segment_commands_with_offset_and_config;
 
     if start >= end || end > ctx.source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return None;
@@ -935,7 +932,7 @@ pub(super) fn original_self_receiver_word(ctx: MyMethodScan<'_>, head: tcl_lexer
     let Ok(offset) = u32::try_from(*start) else {
         return false;
     };
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         &ctx.source[*start..*end],
         offset,
         ctx.config.nested(),

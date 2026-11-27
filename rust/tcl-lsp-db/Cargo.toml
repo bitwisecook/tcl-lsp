@@ -30,6 +30,7 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-syntax = { path = "../tcl-syntax" }

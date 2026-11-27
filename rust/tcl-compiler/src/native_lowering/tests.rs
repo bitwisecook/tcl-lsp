@@ -1705,7 +1705,7 @@ fn original_native_descriptor_queries_retain_child_bindings_and_current_module_i
             "{environment}: original expression recipe"
         );
         let mut changed_words = child.words().to_vec();
-        let crate::ir::WordExpr::Literal { text, .. } = &mut changed_words[0] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed_words[0] else {
             panic!("actual literal child head");
         };
         *text = "different".to_owned();

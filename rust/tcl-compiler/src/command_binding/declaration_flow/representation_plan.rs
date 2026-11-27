@@ -26,10 +26,11 @@ use super::{
     ConditionalRepresentationTarget, DeclarationFlowFrame, DeclarationReadPointScope,
     representation,
 };
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
+use tcl_source::words::WordExpr;
 
 impl Builder<'_> {
     /// Naming geometry at this exact original root command. Later commands

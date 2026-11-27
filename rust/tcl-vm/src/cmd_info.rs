@@ -647,7 +647,21 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 ok(result)
             }
             "script" => ok(Value::string(vm.current_script())),
-            "nameofexecutable" => ok(Value::empty()),
+            // The host's running executable (`Tcl_GetNameOfExecutable`), the
+            // same one `::tcl::InitAutoPath` derives `<parent>/lib` from.
+            "nameofexecutable" => match rest {
+                [] => ok(Value::new_native_string_bytes(
+                    vm.host_rc()
+                        .env()
+                        .current_exe()
+                        .unwrap_or_default()
+                        .as_bytes(),
+                )),
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info nameofexecutable\"",
+                ),
+            },
             // TclOO introspection — dispatched into the object system.
             "object" => crate::cmd_oo::info_object(vm, rest),
             "class" => crate::cmd_oo::info_class(vm, rest),

@@ -48,7 +48,7 @@ pub(in super::super) fn source_command_tokens_boxed(
     image: &tcl_lexer::SourceImage,
     base: u32,
     config: tcl_lexer::LexerConfig,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Box<crate::ir::CommandTokens> {
     #[cfg(any(test, debug_assertions))]
     let _timing = root_owner_work::Timing::at(root_owner_work::Query::SourceWordTokens);
@@ -61,7 +61,7 @@ pub(in super::super) fn source_command_tokens_boxed(
 
 #[cfg(test)]
 fn trace_original_selection(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     site: u32,
     state: &ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
@@ -94,7 +94,7 @@ fn trace_original_selection(
 
 #[cfg(test)]
 fn trace_original_arguments(
-    words: &[crate::ir::WordExpr],
+    words: &[tcl_source::words::WordExpr],
     site: u32,
     state: &ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
@@ -208,7 +208,7 @@ impl SourceCommandBindings {
         image: &tcl_lexer::SourceImage,
         base: u32,
         state: &mut ModuleCommandBindings,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         let SourceExecutionContext { config, .. } = *context;
@@ -394,8 +394,8 @@ impl SourceCommandBindings {
         source: &str,
         base: u32,
         state: &mut ModuleCommandBindings,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         context: &SourceExecutionContext<'_>,
     ) -> Box<PreparedSourceArguments> {
         #[cfg(any(test, debug_assertions))]

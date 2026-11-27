@@ -127,7 +127,7 @@ be re-entered for nested bodies (brace/bracket contents).
 
 ### 2. Command Segmenter
 
-**File:** `rust/tcl-compiler/src/segmenter.rs` — `segment_commands()`
+**File:** `rust/tcl-source/src/segment.rs` — `segment_commands()`
 
 Tcl has no traditional grammar — a "program" is a sequence of commands, each
 being a list of whitespace-separated words terminated by a newline or
@@ -175,7 +175,7 @@ which is what populates `ProcDef::doc` / `ClassDef::doc`.
 
 ### 3. Error Recovery
 
-**File:** `rust/tcl-compiler/src/segmenter.rs` — `segment_with_recovery()`
+**File:** `rust/tcl-compiler/src/analyser/state/syntax_recovery.rs` — `segment_with_recovery()`
 
 When the segmenter encounters an unclosed delimiter (`{`, `[`, `"`), recovery
 kicks in:
@@ -941,8 +941,8 @@ tables.
 | `rust/tcl-lexer/src/span.rs`, `source_map.rs`, `line_index.rs` | Byte spans and offset → line/column resolution |
 | `rust/tcl-lexer/src/substitution.rs` | Tcl backslash substitution helpers |
 | `rust/tcl-lexer/src/expr_lexer.rs` | Expression tokenisation |
-| `rust/tcl-compiler/src/segmenter.rs` | Command segmentation, chunking, and recovery |
-| `rust/tcl-compiler/src/parsing/syntax/` | The lossless red-green concrete syntax tree |
+| `rust/tcl-source/src/segment.rs` | Command segmentation and chunking; registry-aware recovery belongs to the analyser |
+| `rust/tcl-source/src/cst/` | The lossless red-green concrete syntax tree |
 | `rust/tcl-syntax/src/expr/` | Expression parsing (`parser.rs`), AST (`ast.rs`), operators, and folding |
 | `rust/tcl-compiler/src/analyser/` | Semantic analysis, scope tracking, per-command handlers |
 | `rust/tcl-compiler/src/analyser/diagnostics/` | Diagnostic emitters by family — `usage.rs`, `security.rs`, `validity.rs`, `dataflow.rs`, `version_gate.rs`, … |

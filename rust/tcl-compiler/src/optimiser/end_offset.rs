@@ -35,10 +35,11 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, TokenType};
 
 use crate::compilation_unit::CompilationUnit;
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Script, Statement};
-use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use super::{Optimisation, PassContext};
 
@@ -515,7 +516,7 @@ fn prepared_length_subtraction(
     }
     let subtraction = subtraction.parse::<i32>().ok()?;
     let base = preparation.source.base();
-    let site = crate::ir::SourceSite::source(Span::new(
+    let site = tcl_source::words::SourceSite::source(Span::new(
         base.checked_add(*start)?,
         base.checked_add(*end)?,
     ));
@@ -593,8 +594,8 @@ fn original_index_expression(
     let operand = shape.argument_offset.checked_add(1)?;
     (shape.effective.words.len() == operand.checked_add(1)?).then_some(())?;
     let written = written_word(&shape, operand)?;
-    let (crate::ir::WordExpr::BracedLiteral { text, .. }
-    | crate::ir::WordExpr::Literal { text, .. }) = expression.words().get(written)?
+    let (tcl_source::words::WordExpr::BracedLiteral { text, .. }
+    | tcl_source::words::WordExpr::Literal { text, .. }) = expression.words().get(written)?
     else {
         return None;
     };
@@ -647,7 +648,7 @@ fn try_end_offset_from_length_expr(
         return None;
     }
     let offset = subtraction.parse::<i64>().ok()?.checked_sub(1)?;
-    let site = crate::ir::SourceSite::source(Span::new(
+    let site = tcl_source::words::SourceSite::source(Span::new(
         base.checked_add(*start)?,
         base.checked_add(*end)?,
     ));

@@ -54,9 +54,9 @@ and parser-facing diagnostics steady across a partial edit or a syntax error.
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/segmenter.rs` — `SegmentedCommand`, `WordFragment`,
+- `rust/tcl-source/src/segment.rs` — `SegmentedCommand`, `WordFragment`,
   `segment_commands*`.
-- `rust/tcl-compiler/src/parsing/syntax/` — the red-green CST (`green.rs`,
+- `rust/tcl-source/src/cst/` — the red-green CST (`green.rs`,
   `red.rs`, `build.rs`, `segment.rs`, `descend.rs`).
 - `rust/tcl-compiler/src/analyser/recovery.rs` — the in-place repairs.
 - `rust/tcl-compiler/src/analyser/syntax_checks.rs` — the detectors recovery

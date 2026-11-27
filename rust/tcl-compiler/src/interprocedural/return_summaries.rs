@@ -19,10 +19,10 @@
 //! The return shape of a procedure: classifying each `return`, whether a body always or may return, and the summary fields derived from them.
 
 use super::{ConstantReturn, MAX_INTERPROCEDURAL_WALK_DEPTH, ReturnKind};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ir::ProcedureId;
 use std::collections::{HashMap, HashSet};
 use tcl_registry::value_transfer::ExactValue;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Classify a single `Statement::Return` by its word, for the summary's
 /// return shapes: a literal is its value through the exact value ingress —
@@ -32,7 +32,7 @@ use tcl_registry::value_transfer::ExactValue;
 pub(super) fn classify_return(
     value: Option<&str>,
     braced: bool,
-    word: Option<&crate::ir::WordExpr>,
+    word: Option<&tcl_source::words::WordExpr>,
     expr: Option<&crate::expr_ast::ExprNode>,
     params: &HashSet<String>,
     config: Option<tcl_lexer::LexerConfig>,
@@ -52,7 +52,7 @@ pub(super) fn classify_return(
     }
     if !braced
         && let Some(config) = config
-        && let Some(crate::ir::WordExpr::Variable { spelling, .. }) = word
+        && let Some(tcl_source::words::WordExpr::Variable { spelling, .. }) = word
         && let Some(name) =
             tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
         && params.contains(name)

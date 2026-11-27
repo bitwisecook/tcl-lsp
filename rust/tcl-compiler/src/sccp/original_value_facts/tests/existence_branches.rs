@@ -325,7 +325,8 @@ fn assert_missing_entry_retains_only_declared_query(
     let query = "info exists local";
     let offset = u32::try_from(declaration.find(query).unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(query, offset, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(query, offset, config)
+            .remove(0);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(declaration),
         config,

@@ -22,11 +22,11 @@ use super::super::{Lowerer, source_body_syntax};
 use crate::expr_parser::parse_expr_for_profile_with_lexer_config;
 use crate::ir::{CommandTokens, Statement};
 use crate::lowering_hooks::extract_proved_expr_arg;
-use crate::segmenter::SegmentedCommand;
 use tcl_dialect::model::surface_admits;
 use tcl_lexer::TokenType;
 use tcl_registry::ArgRole;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 impl Lowerer<'_> {
     /// Whether this concrete invocation is declared to initialise an unset
@@ -247,7 +247,7 @@ impl Lowerer<'_> {
                 let effective = &invocation.effective;
                 let word = effective.words.get(index + 1)?;
                 let value = invocation.argument_literal(index)?;
-                let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. })
+                let braced = matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. })
                     || effective.written_argument(index).is_none();
                 let name = crate::naming::element_var_name_braced(&value, braced);
                 if invocation.with_metadata_schema(self.registry, context?, realm, |selected| {

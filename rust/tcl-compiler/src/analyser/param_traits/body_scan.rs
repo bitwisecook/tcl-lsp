@@ -25,10 +25,10 @@ use super::{
     Aliases, ArgumentValues, MAX_DEPTH, ScanCtx, TraitScanEnv, infer_param_traits_deep_at_depth,
 };
 use crate::cfg_builder::frame_effects::DirectCallerEffects;
-use crate::segmenter::segment_commands_with_offset_and_config;
 use std::collections::{HashMap, HashSet};
 use tcl_lexer::{LexerConfig, TokenType};
 use tcl_registry::arg_role::ArgRole;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Single-level command scan shared by both passes.  Extracts
 /// segmented commands from `source` and dispatches each through
@@ -79,7 +79,7 @@ fn scan_commands_bounded<'p>(
 
 fn scan_segment<'p>(
     source: &str,
-    seg: &crate::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
@@ -294,7 +294,7 @@ pub(super) fn scan_deep<'p>(
 
 fn deep_lambda_parts(
     source: &str,
-    seg: &crate::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     ctx: &ScanCtx<'_, '_>,
     idx: usize,
     selected_lambda: Option<crate::registry_invocation::OriginalSourceScriptBody>,
@@ -346,7 +346,7 @@ fn deep_lambda_parts(
 
 fn scan_deep_lambda<'p>(
     source: &str,
-    seg: &crate::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     view: Option<&crate::registry_invocation::InvocationBodyAssistance>,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,

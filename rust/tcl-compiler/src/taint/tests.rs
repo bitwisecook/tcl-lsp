@@ -19,6 +19,7 @@
 mod callback_replay;
 mod command_heads;
 mod definition_taint;
+mod design_393_gaps;
 mod destructive_files;
 mod irules_sinks;
 mod lattice;

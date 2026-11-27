@@ -581,6 +581,20 @@ impl CodegenCtx<'_> {
                 );
                 operations.push(Task::PoolLiteral(index));
             }
+            NativeCompiledListRecipe::ProjectedElements { operands } => {
+                let count = operands.len();
+                for operand in operands {
+                    let Some(task) = Self::native_namespace_word_task(&command.words, operand)
+                    else {
+                        return false;
+                    };
+                    operations.push(task);
+                }
+                operations.push(Task::Operation(
+                    Op::LIST,
+                    vec![Operand::Imm(super::super::bytecode_imm(count))],
+                ));
+            }
         }
         true
     }

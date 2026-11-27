@@ -304,7 +304,7 @@ impl AnalysisResult {
         }
         let config = self.body_lexer_config?;
         let start = usize::try_from(allocation.site.offset).ok()?;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source.get(start..)?,
             allocation.site.offset,
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(config),

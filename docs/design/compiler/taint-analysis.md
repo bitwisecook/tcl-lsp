@@ -84,10 +84,11 @@ evidence, all registry data:
 - `Traits::TAINT_SOURCE` on a resolved `SubCommand` (`chan gets`,
   `chan read`, `encoding convertfrom`) — resolved prefix-aware, so an
   abbreviation cannot dodge it;
-- the registry's dialect-agnostic taint-source index
-  (`CommandRegistry::taint_source`), which holds the iRules namespace getters
-  (`HTTP::header`, `HTTP::cookie`, `IP::client_addr`, …) with each spec's own
-  `taint_source` colour.
+- the registry's taint-source index (`CommandRegistry::taint_source`), which
+  holds the iRules namespace getters (`HTTP::header`, `HTTP::cookie`,
+  `IP::client_addr`, …) with each spec's own `taint_source` colour. The index
+  is global, so an entry counts only where its spec is visible: under the
+  queried dialect, or in the registry's own surface when none is given.
 
 `taint_source_colour` returns the colour the source stamps, augmented with
 derived safety properties.
@@ -136,6 +137,32 @@ transform, or passthrough — is not a no-op: `TaintLattice::shape_unproven`
 keeps the `TAINTED` bit but strips the `T102_SAFE` shape colours, because an
 arbitrary transformation (`string tolower`, `lindex [split …]`) cannot be
 assumed to preserve a "cannot start with `-`" proof.
+
+### Validators
+
+A command whose true result proves something about one of its arguments
+declares `CommandSpec::taint_validator`: given the call's argument words, the
+argument it validates and the colours it proves. `string is digit|alnum
+-strict` and `regexp ?-nocase? {^[CLASS]+$} string` (a class of letters,
+digits and underscores) prove `SHELL_ATOM | CRLF_FREE | NON_DASH_PREFIXED`;
+`string is integer` proves nothing, since it accepts `-5`, ` 5` and `"5\n"`.
+The sink pass (`sink_warnings/validators.rs`) keeps a warning only when no
+dominating block entered by a branch's true edge tests the same SSA version
+of its variable with a validator, alone or as a conjunct of `&&`. `||`, `!`
+and any other condition shape prove nothing.
+
+### A withdrawn command world
+
+An opaque step (a dynamic `eval` or `subst`, an unresolved `package
+require`, a loop back edge over one) withdraws the command-binding world, so
+later dispatches have no proved target. Lowering and the must-proof
+diagnostics keep treating them as unknown. Taint is a may-analysis, so a
+dispatch whose binding is unknown for that reason carries
+`SourceInvocationBinding::withdrawn_world_head`, the head it named, as
+advice: the registry command of that name is a possible sink unless the
+module defines a command by it. Such a sink reads an operand as the join of
+every version of the variable and of every withdrawn-world write of it
+(`definition_taint::withdrawn_world_writes`); with neither it reads clean.
 
 ### Interprocedural taint propagation
 

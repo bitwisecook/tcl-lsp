@@ -80,8 +80,6 @@ pub mod arg_role;
 pub mod arity;
 pub mod array_iteration;
 pub mod authored_math_functions;
-pub mod base_objects;
-pub mod bigip;
 pub mod body_execution;
 pub mod body_kind;
 pub mod bpf_op;
@@ -255,7 +253,6 @@ pub mod pack_origin;
 pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;
-pub mod profile_defaults;
 pub(crate) mod profile_queries;
 pub mod profiles;
 pub mod registry;
@@ -460,7 +457,6 @@ pub fn install_shipped() -> Result<&'static SurfaceSet, InstallConflict> {
 }
 pub use arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 pub use arity::Arity;
-pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{

@@ -728,6 +728,10 @@ pub struct SourceInvocationBinding {
     /// Applicable nominal catalogue slot, including an unloaded provider.
     /// This carries assistance only and never establishes an implementation.
     pub catalogue_command: Option<DeclaredCommandCandidate>,
+    /// The written head of a dispatch reached after an opaque step withdrew
+    /// the command world. A may-analysis reads it as the command that ran
+    /// before the withdrawal; it never establishes an implementation.
+    pub(crate) withdrawn_world_head: Option<String>,
     /// Authoritative variable bindings, traces, lifetimes and allocation facts.
     pub variable_context: Arc<crate::var_resolve::ResolveContext>,
     original_argument_completion: OriginalArgumentCompletion,
@@ -799,7 +803,7 @@ pub struct SourceCommandTarget {
 pub(crate) struct OriginalCompilationLookupAdvice {
     snapshot: Arc<SourceLookupSnapshot>,
     site: CommandAllocationSite,
-    words: Arc<[crate::ir::WordExpr]>,
+    words: Arc<[tcl_source::words::WordExpr]>,
     config: tcl_lexer::LexerConfig,
     targets: Vec<SourceCommandTarget>,
     dialect: tcl_registry::InvocationDialect,
@@ -1026,7 +1030,7 @@ struct SourceLifecycleCoverage {
 #[derive(Debug, Clone)]
 pub struct SourceVariableAccess {
     /// Exact source reference, including its variable wrapper and index.
-    pub source: crate::ir::SourceSite,
+    pub source: tcl_source::words::SourceSite,
     /// Actual evaluation that reached this read; lexical containment alone is insufficient.
     pub owner: SourceVariableEvaluationOwner,
     /// Original undecoded source spelling used by the variable grammar owner.
@@ -1294,8 +1298,8 @@ pub struct SourceExecutionContext<'a> {
 #[derive(Clone, Copy)]
 struct SourceCommandInput<'a> {
     image: &'a tcl_lexer::SourceImage,
-    segment: &'a crate::segmenter::SegmentedCommand,
-    words: &'a [crate::ir::WordExpr],
+    segment: &'a tcl_source::segment::SegmentedCommand,
+    words: &'a [tcl_source::words::WordExpr],
     effective: &'a [crate::registry_invocation::EffectiveInvocationWord],
 }
 
@@ -1303,8 +1307,8 @@ struct SourceCommandInput<'a> {
 struct SourceNativeInvocation<'a> {
     compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
     compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
-    segment: &'a crate::segmenter::SegmentedCommand,
-    words: &'a [crate::ir::WordExpr],
+    segment: &'a tcl_source::segment::SegmentedCommand,
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
     invocation: &'a tcl_registry::InvocationWords<'a>,
@@ -1326,7 +1330,7 @@ struct SourceArgumentReceipts<'a> {
 struct SourceScriptOperands<'a> {
     compilation_spec: Option<&'a tcl_registry::native_compilation::NativeCompilationSpec>,
     compilation_selection: &'a tcl_registry::native_compilation::NativeCompilationSelection,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
     arguments: &'a tcl_registry::InvocationArguments<'a>,
@@ -1366,7 +1370,7 @@ struct SourceLifecycleInvocation<'a> {
     spec: &'a tcl_registry::body_execution::CapturedLifecycleSpec,
     arguments: tcl_registry::InvocationArguments<'a>,
     site: u32,
-    words: &'a [crate::ir::WordExpr],
+    words: &'a [tcl_source::words::WordExpr],
     written_arguments: Option<&'a [crate::registry_invocation::EffectiveInvocationWord]>,
     target: &'a SourceCommandTarget,
 }
@@ -1467,6 +1471,10 @@ pub struct ModuleCommandBindings {
     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
     /// The original stock process sink is still free of Tcl callbacks.
     stock_tclsh_stdout: bool,
+    /// A native may have run a channel handler the walk did not follow.
+    /// Command lookups keep the document's command world; a proof that no
+    /// unseen code ran since entry does not hold.
+    unmodelled_reentry: bool,
     allocation_counts: Arc<BTreeMap<(CommandAllocationSite, SourceCommandKey), u8>>,
     namespace_allocation_counts:
         Arc<BTreeMap<(CommandAllocationSite, tcl_core_types::ByteNamespacePath), u8>>,

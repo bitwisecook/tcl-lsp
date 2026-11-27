@@ -75,10 +75,14 @@ use crate::cfg_builder::global_write_info::{
     own_frame_global_writes_with_metadata_context,
 };
 use crate::command_binding::ModuleCommandBindings;
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::ir::{DeferredWrites, Module, Script, Statement, WordExpr};
+use crate::ir::DeferredWrites;
+use crate::ir::Module;
+use crate::ir::Script;
+use crate::ir::Statement;
 use crate::ir_helpers::{CommandWord, evaluated_command_substitutions, tokenise_command_words};
 use crate::registry_invocation::{EffectiveInvocationWord, InvocationMetadataContext};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
+use tcl_source::words::WordExpr;
 
 /// The names the callback scripts of `module` write, destroy or bind.
 ///

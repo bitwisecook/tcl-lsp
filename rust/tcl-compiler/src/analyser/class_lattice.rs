@@ -502,14 +502,15 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
 /// Source lookup determines constructor identity; names from the signature
 /// index alone cannot promote an unknown invocation into a known class.
 fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     parent: Option<&crate::ir::CommandTokens>,
     registry: &tcl_registry::CommandRegistry,
     index: &HashMap<String, ClassDef, S>,
     config: tcl_lexer::LexerConfig,
     context: crate::registry_invocation::InvocationMetadataContext<'_>,
 ) -> AssignKind {
-    use crate::ir::{WordExpr, WordPart};
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     if let Some(commands) = crate::value_shapes::command_substitution_tokens(word, parent, config) {
         if let Some(binding) = commands
             .last()
@@ -584,7 +585,7 @@ fn original_objdefine_receiver(
         .as_ref()?
         .original_lexer_config_for_tokens(tokens)?;
     let (reference, source) = word.sole_variable_substitution()?;
-    (source.provenance == crate::ir::Provenance::Source).then_some(())?;
+    (source.provenance == tcl_source::words::Provenance::Source).then_some(())?;
     tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config).map(str::to_owned)
 }
 

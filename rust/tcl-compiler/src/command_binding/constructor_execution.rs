@@ -149,7 +149,7 @@ impl SourceCommandBindings {
     pub(super) fn walk_original_constructor(
         &mut self,
         site: u32,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         effective: &[EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -315,7 +315,7 @@ impl SourceCommandBindings {
     fn select_original_constructor(
         &self,
         site: u32,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         effective: &[EffectiveInvocationWord],
         state: &ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -407,7 +407,7 @@ impl SourceCommandBindings {
         site: u32,
         definition: &super::ClassDefinitionReceipt,
         target: &SourceCommandTarget,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) {
@@ -430,7 +430,7 @@ impl SourceCommandBindings {
 
     fn original_constructor_inputs(
         site: u32,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         effective: &[EffectiveInvocationWord],
         state: &ModuleCommandBindings,
         target: &SourceCommandTarget,

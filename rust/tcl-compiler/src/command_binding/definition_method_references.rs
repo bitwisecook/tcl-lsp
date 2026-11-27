@@ -23,9 +23,10 @@ use super::{
     SourceCommandTarget, SourceMethodReceiver, SourceReceiverMethodEntry,
     executed_script_source::source_text,
 };
-use crate::ir::{WordExpr, WordPart};
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LexerConfig, Span};
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// A method-name reference retained independently of callable method lookup.
 /// The entry, when present, is the original declaration at this definition

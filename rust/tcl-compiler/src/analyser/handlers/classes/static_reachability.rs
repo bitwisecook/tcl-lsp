@@ -20,9 +20,9 @@
 
 use super::super::super::state::Analyser;
 use super::{ControlArm, MAX_UNKNOWN_BODY_DEPTH};
-use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::params::bind_proc_formals;
 use tcl_lexer::Span;
+use tcl_source::segment::SegmentedCommand;
 
 impl Analyser {
     fn logical_segment_invocation_completion(

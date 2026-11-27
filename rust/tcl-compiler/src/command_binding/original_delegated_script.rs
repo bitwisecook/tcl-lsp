@@ -35,7 +35,7 @@ use super::{
 /// in. Completion is checked only after the walk and parent restoration.
 pub(super) struct OriginalDelegatedScript {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: SourceCommandTarget,
     body: super::ExecutedScriptSource,
@@ -198,7 +198,7 @@ fn literal_script(
         native.segment.span.start(),
         context.config,
     )?;
-    let literal = matches!(written, crate::ir::WordExpr::BracedLiteral { .. })
+    let literal = matches!(written, tcl_source::words::WordExpr::BracedLiteral { .. })
         || super::literal_word_script::is_exact_literal_word_script(
             native,
             argument_offset,

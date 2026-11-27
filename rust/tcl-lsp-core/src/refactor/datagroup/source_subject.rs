@@ -20,10 +20,10 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::registry_invocation::source_structure::source_registry_words_at;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{ExecutablePart, LexerConfig, NativeWord, SourceImage};
 use tcl_registry::spec::{CaseInvocation, CaseMatchMode};
 use tcl_registry::{CommandRegistry, InvocationWord, InvocationWords, ResolvedInvocation};
+use tcl_source::segment::SegmentedCommand;
 
 /// One scalar variable-reference word in an explicitly supplied source fragment.
 /// This is selected-grammar syntax only: it retains no complete-document input,
@@ -436,7 +436,7 @@ mod standalone_literal_schema_tests {
             ),
         ] {
             let command =
-                tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                     .remove(0);
             let result = standalone_exact_switch_source(source, &command, &registry, config);
             assert_eq!(

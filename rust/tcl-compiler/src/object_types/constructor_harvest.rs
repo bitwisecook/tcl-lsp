@@ -222,7 +222,7 @@ pub(super) fn constructor_class(
 }
 
 pub(super) fn sole_substitution_tokens(
-    word: &crate::ir::WordExpr,
+    word: &tcl_source::words::WordExpr,
     parent: &crate::ir::CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<crate::ir::CommandTokens> {

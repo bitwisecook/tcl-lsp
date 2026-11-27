@@ -265,15 +265,17 @@ fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
         }),
         Arc::new(Mutex::new(Box::new(Stdout) as Box<dyn Write + Send>)),
     );
-    // As tclsh does, source the real library's `init.tcl` when `TCL_LIBRARY`
-    // names one: its `unknown`, `auto_path` and `tclIndex` autoload reach the
-    // standard library (`::pkg::create`, …). Without a library, install the
-    // on-demand autoloader so library procs (word.tcl, …) still resolve.
-    if std::env::var("TCL_LIBRARY").is_ok_and(|library| !library.is_empty()) {
-        let completion = vm.init_library();
-        if completion.code.is_ok() {
-            return vm;
-        }
+    // `Tcl_Init` as `Tcl_Main` runs it: find and source the library's
+    // `init.tcl` as the emulated release does. Its `unknown`, `auto_path`,
+    // `tclIndex` autoload and `package unknown` reach the standard library
+    // (`::pkg::create`, msgcat, …). A library found but failing is reported
+    // as `Tcl_Main` reports it; with none found, or after a failure, the
+    // on-demand autoloader stands in so library procs (word.tcl, …) resolve.
+    let completion = vm.init_library();
+    if completion.code.is_ok() {
+        return vm;
+    }
+    if !vm.library_search_found_nothing(&completion) {
         eprintln!(
             "application-specific initialization failed: {}",
             completion.result.to_str()
@@ -322,7 +324,13 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
 /// evaluated directly, and a completion other than `ok` reporting its
 /// `-errorinfo` to stderr.
 fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
-    let result = vm.eval_file(path, src, true);
+    let result = match vm.try_eval_file(path, src, true) {
+        Ok(result) => result,
+        Err(refusal) => {
+            vm.report_stderr_text(&refusal.to_string());
+            return 1;
+        }
+    };
     if let Some(code) = vm.take_exit() {
         return code;
     }

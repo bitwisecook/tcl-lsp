@@ -162,7 +162,7 @@ impl BodySemanticSourceTransport {
         &self,
         operation: &mut crate::executable_ir::LoweredOperation,
     ) -> Option<()> {
-        if operation.source != crate::ir::SourceSite::source(operation.statement.span()) {
+        if operation.source != tcl_source::words::SourceSite::source(operation.statement.span()) {
             return None;
         }
         let mut statements = self
@@ -824,9 +824,9 @@ pub enum InvocationEffectInput<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::NodeId;
     use crate::lowering::lower_to_ir;
     use crate::mixed_region_plan::{InvocationSelection, RegionPlan};
+    use tcl_source::words::NodeId;
 
     fn source_bundle_comparison_fixture(
         other: &str,
@@ -952,7 +952,8 @@ mod tests {
         assert!(!changed.matches_rebound_source(&right, &source, &target));
 
         let mut changed = left.clone();
-        first_comparison_operation(&mut changed).source.provenance = crate::ir::Provenance::Opaque;
+        first_comparison_operation(&mut changed).source.provenance =
+            tcl_source::words::Provenance::Opaque;
         assert!(!changed.matches_rebound_source(&right, &source, &target));
 
         let mut changed = left.clone();
@@ -1121,7 +1122,7 @@ mod tests {
             function: crate::execution_region::evaluated_region_test_fixture(),
         };
         assert_eq!(availability.evaluated_regions().count(), 1);
-        assert!(availability.invocations().all(|invoke| invoke.original_words.first().is_none_or(|word| !matches!(word, crate::ir::WordExpr::Literal { text, .. } if text == "tcltest::test"))));
+        assert!(availability.invocations().all(|invoke| invoke.original_words.first().is_none_or(|word| !matches!(word, tcl_source::words::WordExpr::Literal { text, .. } if text == "tcltest::test"))));
         assert!(
             availability
                 .effect_inputs()

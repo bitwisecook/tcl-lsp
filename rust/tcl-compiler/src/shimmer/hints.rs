@@ -237,7 +237,8 @@ pub(super) fn literal_target_read(
         .all(|word| {
             matches!(
                 word,
-                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. }
             )
         })
         .then_some(())?;
@@ -249,7 +250,8 @@ pub(super) fn literal_target_read(
         .all(|word| {
             matches!(
                 word,
-                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                tcl_source::words::WordExpr::Literal { .. }
+                    | tcl_source::words::WordExpr::BracedLiteral { .. }
             )
         })
         .then_some(())?;
@@ -295,7 +297,7 @@ pub fn inert_effective_args(
                 crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
             );
             (prefix
-                || (matches!(word, crate::ir::WordExpr::BracedLiteral { .. })
+                || (matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. })
                     && !evaluated.contains(&index)))
             .then_some(index)
         })

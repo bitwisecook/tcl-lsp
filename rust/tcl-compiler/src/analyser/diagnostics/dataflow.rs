@@ -375,7 +375,7 @@ is renamed or deleted in this file."
 /// suffix (W210): a case-insensitive twin among `defined_vars` wins at
 /// any edit distance ([`find_case_mismatch`] — the established W210/W211/
 /// W220 behaviour), otherwise the closest *other* defined name within
-/// the length-scaled edit budget ([`crate::text::scaled_max_distance`],
+/// the length-scaled edit budget ([`tcl_source::text::scaled_max_distance`],
 /// so a short typo can't fish an unrelated short name). `None` when
 /// nothing is close — the message then stays suffix-free.
 fn undefined_var_suggestion<'a>(
@@ -388,14 +388,14 @@ fn undefined_var_suggestion<'a>(
     // The read variable can itself appear in `defined_vars` when it is
     // assigned later in the function (`puts $x; set x 1`) — never
     // suggest the typo as its own correction.
-    crate::text::suggest_similar(
+    tcl_source::text::suggest_similar(
         variable,
         defined_vars
             .iter()
             .map(String::as_str)
             .filter(|name| *name != variable),
         1,
-        crate::text::scaled_max_distance_strict(variable),
+        tcl_source::text::scaled_max_distance_strict(variable),
     )
     .first()
     .copied()

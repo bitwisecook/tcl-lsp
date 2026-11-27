@@ -245,8 +245,8 @@ mod tests {
     };
 
     use super::*;
-    use crate::ir::NodeId;
     use crate::state_ssa::adapters::{WorldInterpreterScope, WorldNamespaceScope, WorldRegionKind};
+    use tcl_source::words::NodeId;
 
     fn base_site() -> StateSite {
         StateSite::node(NodeId::from_path(vec![17]), 4)

@@ -216,7 +216,7 @@ impl Analyser {
         let native = self.original_visibility_words(&argv)?;
         let end = native.last()?.span().end();
         let text = self.source.get(head.span.start() as usize..end as usize)?;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             head.span.start(),
             self.file_lexer_config().nested(),

@@ -32,7 +32,7 @@ use tcl_registry::command_snapshot::{
     command_entry_json, command_registry_snapshot, command_registry_snapshots,
 };
 use tcl_registry::model::ingress::static_context_for;
-use tcl_registry::snapshot::{event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot};
+use tcl_registry::snapshot::{event_graph_snapshot, profile_graph_snapshot};
 
 #[test]
 fn command_registry_snapshot_is_wellformed_and_deterministic() {
@@ -130,7 +130,6 @@ fn graph_snapshots_are_wellformed_and_deterministic() {
     // no core-tclsh analogue — structural proof only).
     for (name, dump) in [
         ("profile", profile_graph_snapshot().dumps_indent2()),
-        ("object", object_graph_snapshot().dumps_indent2()),
         ("event", event_graph_snapshot().dumps_indent2()),
     ] {
         assert!(dump.starts_with('{'), "{name}-graph must be a JSON object");
@@ -140,10 +139,6 @@ fn graph_snapshots_are_wellformed_and_deterministic() {
     assert_eq!(
         profile_graph_snapshot().dumps_indent2(),
         profile_graph_snapshot().dumps_indent2()
-    );
-    assert_eq!(
-        object_graph_snapshot().dumps_indent2(),
-        object_graph_snapshot().dumps_indent2()
     );
     assert_eq!(
         event_graph_snapshot().dumps_indent2(),

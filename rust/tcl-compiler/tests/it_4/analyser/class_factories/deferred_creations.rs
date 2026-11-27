@@ -131,7 +131,7 @@ fn the_incremental_path_records_the_same_classes_as_a_full_analysis() {
         "precondition: the full analysis records the class"
     );
 
-    let commands = tcl_compiler::segmenter::segment_commands(&src);
+    let commands = tcl_source::segment::segment_commands(&src);
     let split = commands.len() - 1;
     let (prefix, dirty) = commands.split_at(split);
     let mut analyser = Analyser::new();
@@ -164,11 +164,11 @@ fn a_deferred_creation_never_leaks_into_the_next_document() {
     let mut analyser = Analyser::new();
     let first =
         format!("{COMPUTED_METACLASS}::T::D::class create ::T::W {{ method go {{}} {{}} }}\n");
-    let first_commands = tcl_compiler::segmenter::segment_commands(&first);
+    let first_commands = tcl_source::segment::segment_commands(&first);
     let _ = analyser.analyse_commands(&first, &first_commands, "tcl9.0", false);
 
     let second = COMPUTED_METACLASS.to_owned();
-    let second_commands = tcl_compiler::segmenter::segment_commands(&second);
+    let second_commands = tcl_source::segment::segment_commands(&second);
     let result = analyser.analyse_commands(&second, &second_commands, "tcl9.0", true);
     assert!(
         !result.all_classes.contains_key("::T::W"),

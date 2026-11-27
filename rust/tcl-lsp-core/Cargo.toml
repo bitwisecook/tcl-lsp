@@ -36,6 +36,7 @@ truth-table = []
 transport-fixtures = []
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-dialect = { path = "../tcl-dialect" }

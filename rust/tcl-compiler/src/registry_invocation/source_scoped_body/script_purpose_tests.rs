@@ -79,7 +79,8 @@ fn complete_body_coverage_refuses_unrepresented_lambda_containers() {
         let syntax =
             super::super::source_structure::OriginalSourceRegistryContext::capture(source, input);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words = syntax.words(&command).unwrap();
         assert!(
             words
@@ -122,7 +123,8 @@ fn original_lambda_bodies_retain_actual_list_container_and_unchanged_source() {
         let syntax =
             super::super::source_structure::OriginalSourceRegistryContext::capture(source, input);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let Some(words) = syntax.words(&command) else {
             assert!(expected.is_none(), "missing original schema: {source}");
             continue;
@@ -165,7 +167,7 @@ fn original_definition_parent(
     let config = analysis.body_lexer_config.unwrap();
     let context = analysis.resolved_input.as_ref().unwrap().context_registry();
     let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let words =
         super::super::source_structure::source_registry_words(source, &analysis, &command).unwrap();
     let parent = words.source_script_bodies(&context).remove(0);
@@ -179,7 +181,7 @@ fn definition_child_at(
     head: &str,
 ) -> OriginalSourceScriptBody {
     let body_region = parent.content_span();
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source.get(body_region.as_range()).unwrap(),
         body_region.start(),
         analysis.body_lexer_config.unwrap(),
@@ -334,7 +336,8 @@ fn mixed_lambda_roles_cannot_donate_immediate_caller_source_context() {
         let syntax =
             super::super::source_structure::OriginalSourceRegistryContext::capture(source, input);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words = syntax.words(&command).unwrap();
         let bodies = words.source_script_bodies(&context);
         assert_eq!(bodies.len(), 1);
@@ -414,7 +417,8 @@ fn original_definition_parent_uses_actual_plain_current_immediate_body_metadata(
             .with_resolved_input(input)
             .analyse(source, profile.name);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let parent =
             super::super::source_structure::source_registry_words(source, &analysis, &command)
                 .unwrap()
@@ -473,7 +477,7 @@ fn original_definition_parent_declines_structural_foreign_and_uncontained_source
     let source = "oo::class create C {}; if 1 {method outside}";
     let (analysis, parent) = original_definition_parent(source, "tcl8.6");
     let context = analysis.resolved_input.as_ref().unwrap().context_registry();
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         analysis.body_lexer_config.unwrap(),
@@ -866,7 +870,8 @@ fn original_expression_script_regions_use_actual_grammar_and_container() {
         let analysis = crate::analyser::Analyser::new().analyse(source, dialect);
         let config = analysis.body_lexer_config.unwrap();
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words =
             super::super::source_structure::source_registry_words(source, &analysis, &command)
                 .unwrap();
@@ -898,7 +903,8 @@ fn original_expression_script_regions_use_actual_grammar_and_container() {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(0);
         let words =
             super::super::source_structure::source_registry_words(source, &analysis, &command)
                 .unwrap();
@@ -938,7 +944,7 @@ fn original_script_inventory_separates_reference_syntax_from_potential_evaluatio
         crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
     let syntax =
         super::super::source_structure::OriginalSourceRegistryContext::capture(source, input);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let reference = syntax.words(&commands[0]).unwrap();
     assert_eq!(reference.source_script_bodies(&context).len(), 1);
     assert_eq!(

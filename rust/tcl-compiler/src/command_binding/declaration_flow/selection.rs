@@ -109,7 +109,7 @@ impl Builder<'_> {
                         .get(first.start() as usize..last.end() as usize)?,
                     source.channel(),
                 );
-                let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+                let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
                     &image,
                     first.start(),
                     self.config.nested(),

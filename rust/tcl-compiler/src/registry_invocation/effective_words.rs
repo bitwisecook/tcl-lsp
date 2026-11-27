@@ -20,8 +20,9 @@
 
 use super::word_resolution::{EffectiveInvocationWord, effective_invocation_word, invocation_word};
 use super::{EffectiveCommandWords, InvocationWordOrigin};
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::InvocationWord;
+use tcl_source::words::WordExpr;
 
 /// Compose effective execution words exactly once from the shared point binding.
 /// Native compiled selection can differ from the later live lookup target.
@@ -29,15 +30,21 @@ use tcl_registry::InvocationWord;
 #[must_use]
 pub fn effective_command_words(tokens: &CommandTokens) -> Option<EffectiveCommandWords> {
     let Some(binding) = &tokens.source_binding else {
-        return Some(EffectiveCommandWords {
-            words: tokens.words().to_vec(),
-            origins: (0..tokens.words().len())
-                .map(InvocationWordOrigin::Written)
-                .collect(),
-            binding_prefix: Vec::new(),
-        });
+        return Some(written_command_words(tokens));
     };
     effective_words_for_target(tokens, binding.proved_execution_target()?)
+}
+
+/// The written words alone, with no binding prefix: what a command reached
+/// with no proved target is passed, read as advice only.
+pub(crate) fn written_command_words(tokens: &CommandTokens) -> EffectiveCommandWords {
+    EffectiveCommandWords {
+        words: tokens.words().to_vec(),
+        origins: (0..tokens.words().len())
+            .map(InvocationWordOrigin::Written)
+            .collect(),
+        binding_prefix: Vec::new(),
+    }
 }
 
 pub(super) fn original_logical_prefix_for_tokens<'a>(
@@ -176,8 +183,8 @@ fn append_expansion_elements(
             .unwrap_or_default();
         effective.words.push(WordExpr::Opaque {
             text: text.to_owned(),
-            source: crate::ir::SourceSite::opaque(word.source().span),
-            reason: crate::ir::WordOpacity::LossySnapshot,
+            source: tcl_source::words::SourceSite::opaque(word.source().span),
+            reason: tcl_source::words::WordOpacity::LossySnapshot,
         });
         effective
             .origins
@@ -193,19 +200,19 @@ pub(crate) fn compose_original_effective_words(
     let span = tokens.words().first()?.source().span;
     let mut words = vec![WordExpr::Literal {
         text: command.to_owned(),
-        source: crate::ir::SourceSite::opaque(span),
+        source: tcl_source::words::SourceSite::opaque(span),
     }];
     let mut origins = vec![InvocationWordOrigin::ResolvedHead];
     for (index, value) in prepended.iter().enumerate() {
         words.push(match value {
             EffectiveInvocationWord::Literal(text) => WordExpr::Literal {
                 text: text.clone(),
-                source: crate::ir::SourceSite::opaque(span),
+                source: tcl_source::words::SourceSite::opaque(span),
             },
             _ => WordExpr::Opaque {
                 text: String::new(),
-                source: crate::ir::SourceSite::opaque(span),
-                reason: crate::ir::WordOpacity::LossySnapshot,
+                source: tcl_source::words::SourceSite::opaque(span),
+                reason: tcl_source::words::WordOpacity::LossySnapshot,
             },
         });
         origins.push(InvocationWordOrigin::BindingPrefix(index));

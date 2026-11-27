@@ -41,7 +41,7 @@ fn complete_logical_declaration_tokens(
     let image = tcl_lexer::SourceImage::document(source);
     let part = tcl_lexer::SourceImage::document(command);
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&part, offset, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&part, offset, config)
             .unwrap();
     let [segment] = segments.as_slice() else {
         panic!("one original source vector");
@@ -338,7 +338,7 @@ fn inventory_in_world(
     );
     let offset = u32::try_from(source.find(command).unwrap()).unwrap();
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
+        tcl_source::segment::segment_commands_with_offset_and_config(command, offset, config)
             .remove(0);
     let mut tokens = crate::ir::CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
@@ -433,7 +433,7 @@ fn original_registry_advice_retains_body_shadowing_and_original_word_currency() 
         readonly.unanimous_command_words().unwrap().command(),
         "puts"
     );
-    let crate::ir::WordExpr::Literal { text, .. } = &mut changed.word_exprs[0] else {
+    let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed.word_exprs[0] else {
         panic!("a bare literal original head");
     };
     *text = "set".to_owned();
@@ -1330,7 +1330,7 @@ fn public_declaration_consumer_retains_original_authored_body_namespace() {
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
     let realm = crate::realm::document_realm_bindings(source, profile, &registry);
     let offset = u32::try_from(source.find("upvar").unwrap()).unwrap();
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(
         "upvar 1 other local",
         offset,
         config,
@@ -1538,7 +1538,7 @@ fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key()
     let source = "eval \"\\uFEFFputs done\"";
     let image = tcl_lexer::SourceImage::document(source);
     let segment =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let tokens = super::super::source_command_tokens_boxed(&image, 0, config, &segment);
     let parent = CommandAllocationSite {
         source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(source))),
@@ -1580,7 +1580,7 @@ fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key()
     assert!(syntax.commands.keys().any(|key| key.config == config));
     assert!(syntax.commands.keys().any(|key| key.config == content));
     let whole =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&body.text, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&body.text, 0, config)
             .unwrap();
     assert_eq!(
         whole[0].texts[0], "puts",

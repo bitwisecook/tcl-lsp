@@ -21,12 +21,12 @@
 use super::{
     Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
 };
-use crate::ir::WordPart;
+use tcl_source::words::WordPart;
 
 impl SourceCommandBindings {
     pub(super) fn walk_template_substitutions(
         &mut self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         parts: &[WordPart],
         document: &str,
         base: u32,
@@ -233,7 +233,7 @@ impl EvaluatedVariableIndex {
             | WordPart::CommandSubstitution { source, .. }
             | WordPart::Opaque { source, .. } => source,
         };
-        if source.provenance != crate::ir::Provenance::Source {
+        if source.provenance != tcl_source::words::Provenance::Source {
             self.closed = false;
             return;
         }
@@ -452,7 +452,7 @@ mod tests {
                 if case == "OPAQUE_PROC_HEAD" {
                     let offset = u32::try_from(source.rfind("p\\uD800 VALUE").unwrap()).unwrap();
                     let map = tcl_lexer::SourceMap::new(&source);
-                    let command = crate::segmenter::segment_commands_with_offset_and_config(
+                    let command = tcl_source::segment::segment_commands_with_offset_and_config(
                         &source, 0, config,
                     )
                     .into_iter()

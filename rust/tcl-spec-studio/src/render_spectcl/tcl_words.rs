@@ -24,9 +24,9 @@ use super::*;
 
 /// A descriptor word must retain both raw loader text and its Unicode value.
 pub(super) fn word(text: &str) -> Option<String> {
-    use tcl_compiler::parsing::spectcl_source::{
-        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
-    };
+    use tcl_source::spectcl::PackWordSourcePurpose;
+    use tcl_source::spectcl::PackWordSourceStyle;
+    use tcl_source::spectcl::pack_verbatim_source_word;
     pack_verbatim_source_word(
         text,
         PackWordSourcePurpose::StaticDescriptor,
@@ -36,9 +36,9 @@ pub(super) fn word(text: &str) -> Option<String> {
 
 /// Prose and blocks preserve the explicit braced presentation.
 pub(super) fn braced(text: &str) -> Option<String> {
-    use tcl_compiler::parsing::spectcl_source::{
-        PackWordSourcePurpose, PackWordSourceStyle, pack_verbatim_source_word,
-    };
+    use tcl_source::spectcl::PackWordSourcePurpose;
+    use tcl_source::spectcl::PackWordSourceStyle;
+    use tcl_source::spectcl::pack_verbatim_source_word;
     pack_verbatim_source_word(
         text,
         PackWordSourcePurpose::StaticDescriptor,
@@ -48,7 +48,7 @@ pub(super) fn braced(text: &str) -> Option<String> {
 
 /// Each element and the enclosing word are checked by the same actual owner.
 pub(super) fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
-    tcl_compiler::parsing::spectcl_source::pack_descriptor_list_source_word(items)
+    tcl_source::spectcl::pack_descriptor_list_source_word(items)
 }
 
 /// The elements of a JSON string array as a list word.

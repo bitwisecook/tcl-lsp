@@ -25,7 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::bigip::BigipRegistry;
+use tcl_bigip_schema::BigipRegistry;
 
 use super::helpers::tokenise_header;
 

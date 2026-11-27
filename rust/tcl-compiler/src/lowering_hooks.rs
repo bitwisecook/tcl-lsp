@@ -348,7 +348,10 @@ fn original_nested_expression_topology(
     config: LexerConfig,
 ) -> Option<crate::command_binding::SourceConditionalExpressionEvaluation> {
     let word = tokens.words().get(index)?;
-    if !matches!(word, crate::ir::WordExpr::CommandSubstitution { .. }) {
+    if !matches!(
+        word,
+        tcl_source::words::WordExpr::CommandSubstitution { .. }
+    ) {
         return None;
     }
     let mut nested =
@@ -1129,7 +1132,7 @@ fn extract_single_expr_arg_with_binding(
 ) -> Option<(String, String, String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
-    if !crate::segmenter::has_exactly_one_command_with_config(text, config) {
+    if !tcl_source::segment::has_exactly_one_command_with_config(text, config) {
         return None;
     }
     let sm = SourceMap::new(text);

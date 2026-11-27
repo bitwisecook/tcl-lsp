@@ -36,7 +36,7 @@ fn scope_reference_forms_keep_literal_closing_braces_and_nested_sigil_names() {
     let input = analysis.resolved_input.as_ref().unwrap();
     let registry = input.borrowed_context_registry().commands();
     let mut reads = Vec::new();
-    for command in crate::segmenter::segment_commands_with_offset_and_config(source, 0, config) {
+    for command in tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config) {
         collect_script_command_reads(source, &analysis, &command, registry, config, &mut reads);
     }
     let sigils: Vec<_> = reads.iter().filter(|read| read.name == "$n").collect();

@@ -21,11 +21,11 @@
 use super::{CapturePurpose, PendingSourceRegion, SourceScriptContext, SourceStructure};
 use std::collections::VecDeque;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{
     ExecutablePart, ExecutableText, LexerConfig, NativeWord, SourceImage, Span, WordKind,
 };
 use tcl_registry::ArgRole;
+use tcl_source::segment::SegmentedCommand;
 
 #[derive(Clone, Copy)]
 pub(super) struct BodyGeometry {

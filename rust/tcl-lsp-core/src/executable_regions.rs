@@ -28,11 +28,12 @@ use crate::original_invocation::schema_script_arguments;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::lambda_literal::{split_lambda_literal, split_original_lambda_literal};
 use tcl_compiler::realm::CommandBindingRealm;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType, close_quote_offset_in};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
 
@@ -690,11 +691,11 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         // marks a substitution-free quoted action as `Str`; dynamic and
         // backslash-built actions remain opaque, so this traversal cannot
         // invent a statically executable body.
-        for (_, (body_text, body_token)) in tcl_compiler::segmenter::flatten_case_list_clauses(
+        for (_, (body_text, body_token)) in tcl_source::segment::flatten_case_list_clauses(
             self.source,
             list,
             token,
-            spec,
+            &spec.shape(),
             self.config,
         ) {
             if spec.fallthrough_body == Some(body_text.as_str()) {
@@ -719,7 +720,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
 
 /// Return a statically executable case action's verbatim script region.
 ///
-/// [`tcl_compiler::segmenter::flatten_case_list_clauses`] only gives a
+/// [`tcl_source::segment::flatten_case_list_clauses`] only gives a
 /// `TokenType::Str` body token to an action that it proved literal.  List
 /// elements may still be braced, quoted, or bare, so strip their opening
 /// delimiter here while retaining the segmenter's absolute spans.  The list

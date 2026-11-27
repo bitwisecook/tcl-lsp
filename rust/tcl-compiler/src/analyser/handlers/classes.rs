@@ -20,8 +20,8 @@
 
 use super::super::state::Analyser;
 use super::super::types::ClassFactory;
-use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_source::segment::SegmentedCommand;
 
 mod class_definitions;
 mod class_factories;
@@ -142,7 +142,7 @@ impl Analyser {
             return;
         };
         let registry = context.commands().as_ref();
-        let block = crate::segmenter::segment_commands_with_offset_and_config(
+        let block = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             base,
             self.file_lexer_config().nested(),
@@ -217,11 +217,13 @@ impl Analyser {
             raw.strip_prefix(['{', '"'])
                 .map_or((raw, start), |inner| (inner, start.saturating_add(1)))
         };
-        Some(crate::segmenter::segment_commands_with_offset_and_config(
-            body,
-            u32::try_from(base).unwrap_or(0),
-            self.file_lexer_config().nested(),
-        ))
+        Some(
+            tcl_source::segment::segment_commands_with_offset_and_config(
+                body,
+                u32::try_from(base).unwrap_or(0),
+                self.file_lexer_config().nested(),
+            ),
+        )
     }
 
     /// The statements of the script at `span`, plus those of every nested

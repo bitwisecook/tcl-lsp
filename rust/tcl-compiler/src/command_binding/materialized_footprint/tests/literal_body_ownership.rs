@@ -193,7 +193,8 @@ fn original_literal_body_ownership_keeps_availability_and_source_currency() {
             .is_none()
         );
         let mut changed = tokens.clone();
-        let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed.word_exprs[1] else {
+        let tcl_source::words::WordExpr::BracedLiteral { text, .. } = &mut changed.word_exprs[1]
+        else {
             panic!("original body word");
         };
         *text = "set fabricated VALUE".to_owned();

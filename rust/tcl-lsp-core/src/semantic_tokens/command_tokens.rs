@@ -49,7 +49,7 @@ pub(super) struct CommandTokenSources<'a> {
 
 pub(super) fn emit_selected_command_head(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     original: Option<&crate::original_invocation::OriginalRegistryWords>,
     member_head: Option<(&tcl_lexer::NativeWord, Span)>,
     entries: &mut Vec<Entry>,
@@ -97,7 +97,7 @@ pub(super) fn emit_selected_command_head(
 /// ends the qualifier, as a selected head is shown.
 fn push_written_head(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     entries: &mut Vec<Entry>,
 ) {
     let head = seg.argv[0];
@@ -152,7 +152,7 @@ fn push_written_head(
 /// where no selected definition-member inventory covers the command.
 pub(super) fn document_member(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
 ) -> Option<&'static tcl_registry::definer::MemberSpec> {
     if ctx.original_definition_members.is_some()
         || seg.single_token_word.first() != Some(&true)
@@ -172,7 +172,7 @@ pub(super) fn document_member(
 
 pub(super) fn deferred_produced_command_words(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     deferred_role: bool,
 ) -> Option<crate::original_invocation::OriginalRegistryWords> {
     let full_source = ctx.full_source;
@@ -190,7 +190,7 @@ pub(super) fn deferred_produced_command_words(
 
 pub(super) fn command_body_context<'a>(
     ctx: ScriptCtx<'a>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     original: Option<&crate::original_invocation::OriginalRegistryWords>,
     head_text: &str,
     arg_texts: &[&str],
@@ -304,7 +304,7 @@ pub(super) fn command_deferred_role_starts(
 pub(super) fn collect_command_tokens(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     sources: &CommandTokenSources<'_>,
     entries: &mut Vec<Entry>,
     depth: u32,

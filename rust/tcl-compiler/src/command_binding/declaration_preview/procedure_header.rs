@@ -209,7 +209,7 @@ pub(in super::super) fn declaration_tokens(
             .get(first.start() as usize..last.end() as usize)?,
         site.source.source_image().channel(),
     );
-    let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &image,
         first.start(),
         observation.config.nested(),

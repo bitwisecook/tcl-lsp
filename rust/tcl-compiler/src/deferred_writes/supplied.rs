@@ -332,7 +332,7 @@ impl SourceScan<'_> {
         include_names: bool,
         depth: u32,
     ) {
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             self.out.any = true;
             return;
         }
@@ -481,7 +481,7 @@ impl SourceScan<'_> {
         context: &ValueContext<'_>,
         depth: u32,
     ) {
-        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        if tcl_source::limits::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             self.out.any = true;
             return;
         }

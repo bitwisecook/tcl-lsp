@@ -19,9 +19,13 @@
 //! Closed retained calls in original declaration syntax.
 
 use super::{CompilationUnit, DiagCode, Optimisation, PassContext};
-use crate::ir::{CommandTokens, Procedure, ProcedureId, Statement, WordExpr};
+use crate::ir::CommandTokens;
+use crate::ir::Procedure;
+use crate::ir::ProcedureId;
+use crate::ir::Statement;
 use crate::registry_invocation::InvocationMetadataContext;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 struct CurrentSourceUnit<'a> {
     unit: &'a CompilationUnit,
@@ -184,7 +188,7 @@ fn literal_call_words(tokens: &CommandTokens) -> bool {
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
         WordExpr::Template { parts, .. } => parts
             .iter()
-            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })),
+            .all(|part| matches!(part, tcl_source::words::WordPart::Text { .. })),
         _ => false,
     })
 }

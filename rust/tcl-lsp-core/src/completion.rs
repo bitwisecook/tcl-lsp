@@ -193,8 +193,8 @@ struct FilteredCandidates<T> {
 /// **Fuzzy fallback** — when nothing prefix-matches and the typed
 /// fragment is at least [`MIN_FUZZY_FRAGMENT_CHARS`] characters —
 /// returns the candidates within the shared "did you mean…?" edit
-/// budget ([`tcl_compiler::text::scaled_max_distance`]), ranked by
-/// `(distance, name)` via [`tcl_compiler::text::rank_suggestions`] and
+/// budget ([`tcl_source::text::scaled_max_distance`]), ranked by
+/// `(distance, name)` via [`tcl_source::text::rank_suggestions`] and
 /// capped at [`MAX_FUZZY_SUGGESTIONS`], so a typo'd fragment
 /// (`lsaerch`) still offers its target (`lsearch`) instead of an
 /// empty list.
@@ -221,15 +221,15 @@ fn filter_candidates<T>(
             fuzzy: false,
         };
     }
-    let budget = tcl_compiler::text::scaled_max_distance(partial);
+    let budget = tcl_source::text::scaled_max_distance(partial);
     let scored: Vec<(usize, T)> = candidates
         .into_iter()
         .filter_map(|candidate| {
-            let distance = tcl_compiler::text::edit_distance(partial, name_of(&candidate));
+            let distance = tcl_source::text::edit_distance(partial, name_of(&candidate));
             (distance <= budget).then_some((distance, candidate))
         })
         .collect();
-    let ranked = tcl_compiler::text::rank_suggestions(scored, MAX_FUZZY_SUGGESTIONS, &name_of);
+    let ranked = tcl_source::text::rank_suggestions(scored, MAX_FUZZY_SUGGESTIONS, &name_of);
     FilteredCandidates {
         fuzzy: !ranked.is_empty(),
         candidates: ranked,

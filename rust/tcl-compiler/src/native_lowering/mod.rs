@@ -56,7 +56,7 @@ use tcl_registry::hooks::LoweringHookId;
 pub use lower::{LoweringInput, lower_function};
 
 use self::elide::{BarrierDecision, CellDecision};
-use crate::ir::NodeId;
+use tcl_source::words::NodeId;
 
 /// Why one statement kept the source-text rung ([`ir::NativeOp::EvalSource`])
 /// or a nested word declined native evaluation.

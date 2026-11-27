@@ -29,7 +29,7 @@ pub(crate) struct OriginalSourceTaintReadOperands {
     actual_tokens: Arc<crate::ir::CommandTokens>,
     original: Vec<tcl_lexer::NativeWord>,
     config: LexerConfig,
-    reads: Option<Vec<(String, crate::ir::SourceSite)>>,
+    reads: Option<Vec<(String, tcl_source::words::SourceSite)>>,
     script_layout: Option<OriginalTaintScriptLayout>,
 }
 
@@ -46,7 +46,7 @@ struct OriginalTaintScriptLayout {
 pub(crate) enum OriginalSourceReadSites<'a> {
     Unowned,
     Unknown,
-    Known(Vec<(&'a str, &'a crate::ir::SourceSite)>),
+    Known(Vec<(&'a str, &'a tcl_source::words::SourceSite)>),
 }
 
 impl OriginalSourceTaintReadOperands {
@@ -58,7 +58,7 @@ impl OriginalSourceTaintReadOperands {
     /// substitution grammar. This grants no reached read, cell or contents.
     pub(crate) fn read_sites<'a>(
         &'a self,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
         name: &str,
     ) -> OriginalSourceReadSites<'a> {
         if !self.owns_word(word) {
@@ -96,7 +96,7 @@ impl OriginalSourceTaintReadOperands {
             .then_some(layout.arguments.as_slice())
     }
 
-    pub(crate) fn owns_word(&self, word: &crate::ir::WordExpr) -> bool {
+    pub(crate) fn owns_word(&self, word: &tcl_source::words::WordExpr) -> bool {
         self.actual_tokens
             .words()
             .iter()
@@ -113,7 +113,7 @@ fn original_source_read_sites(
     tokens: &crate::ir::CommandTokens,
     original: &[tcl_lexer::NativeWord],
     config: LexerConfig,
-) -> Option<Vec<(String, crate::ir::SourceSite)>> {
+) -> Option<Vec<(String, tcl_source::words::SourceSite)>> {
     let children = crate::word_subst::checked_argument_lifted_calls(tokens, config)?;
     let image = original.first()?.image();
     let mut reads = Vec::new();
@@ -137,7 +137,7 @@ fn original_source_read_sites(
 
 fn append_original_word_read_sites(
     word: &tcl_lexer::NativeWord,
-    reads: &mut Vec<(String, crate::ir::SourceSite)>,
+    reads: &mut Vec<(String, tcl_source::words::SourceSite)>,
 ) -> Option<()> {
     use tcl_lexer::ExecutablePart;
     let arena = word.executable_parts();
@@ -147,7 +147,7 @@ fn append_original_word_read_sites(
                 let spelling = std::str::from_utf8(arena.bytes(part.span)?)
                     .ok()?
                     .to_owned();
-                let site = crate::ir::SourceSite::source(arena.source_span(part)?);
+                let site = tcl_source::words::SourceSite::source(arena.source_span(part)?);
                 reads.push((spelling, site));
             }
             ExecutablePart::Expression { .. } | ExecutablePart::ParseError(_) => return None,
@@ -286,7 +286,7 @@ pub(crate) fn original_compiled_list_head(
         || tokens
             .words()
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     {
         return None;
     }
@@ -745,7 +745,7 @@ pub(crate) fn native_source_taint_invocation(
         || tokens
             .words()
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     {
         return None;
     }
@@ -1254,7 +1254,8 @@ mod tests {
         let registry = context.commands();
         let config = LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let image = SourceImage::document(source);
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let segments =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let mut tokens = CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::from_image(&image),
             config,

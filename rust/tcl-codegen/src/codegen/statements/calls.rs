@@ -21,7 +21,7 @@
 use super::super::values::split_array_ref;
 use super::super::{CodegenCtx, Op, Operand};
 use tcl_compiler::codegen_helpers::has_unescaped_subst;
-use tcl_compiler::ir::WordExpr;
+use tcl_source::words::WordExpr;
 
 impl CodegenCtx<'_> {
     /// Push variable reference for store operations (name/key on stack).
@@ -128,7 +128,7 @@ impl CodegenCtx<'_> {
             return;
         };
         let site = word.source();
-        if site.provenance != tcl_compiler::ir::Provenance::Source
+        if site.provenance != tcl_source::words::Provenance::Source
             || self.source.is_empty()
             || self.source.get(site.span.as_range()).is_none()
         {

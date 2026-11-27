@@ -43,7 +43,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-compiler/src/command_binding/root_owner_work.rs` | 5 | file | work-stage labels of the root owner's trace, not Tcl words |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_analysis_cache_corpus.rs` | 2 | site | a corpus fixture key, not a command |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs` | 2 | site | selects which calls a debug trace logs |
-| irreducible | never | `rust/tcl-compiler/src/parsing/spectcl_source.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-diagram/src/graph.rs` | 12 | file | the diagram IR's own node kinds and branch labels, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 4 | file | a URI scheme and a home-directory marker, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs` | 1 | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
@@ -59,6 +58,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/object_dispatch.rs` | 1 | site | same reason as this loop's other "--" check above |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | same primitive-syntax reason |
+| irreducible | never | `rust/tcl-source/src/spectcl.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs` | 1 | file | a conformance table's empty-cell marker, not a Tcl word |
 | options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 5 | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs` | 1 | site | the HTTP getter's normalising flag |
@@ -139,7 +139,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/optimiser/profiles.rs` | 1 |
 | `rust/tcl-compiler/src/optimiser/propagation.rs` | 2 |
 | `rust/tcl-compiler/src/scan_predicate.rs` | 2 |
-| `rust/tcl-compiler/src/segmenter.rs` | 2 |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 |
 | `rust/tcl-compiler/src/signature_scan/ctx.rs` | 1 |
 | `rust/tcl-compiler/src/signature_scan/factory.rs` | 1 |
@@ -172,6 +171,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-mcp/src/spectcl.rs` | 4 |
 | `rust/tcl-mcp/src/tools.rs` | 1 |
 | `rust/tcl-numeric/src/boolean.rs` | 3 |
+| `rust/tcl-source/src/segment.rs` | 2 |
 | `rust/tcl-sslictcl/src/dsl.rs` | 24 |
 | `rust/tcl-sslictcl/src/estimate.rs` | 2 |
 | `rust/tcl-sslictcl/src/nginx.rs` | 10 |

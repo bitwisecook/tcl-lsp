@@ -214,7 +214,7 @@ pub enum NativeOperandObjectIdentity {
         /// Original numeric producer and native preparation.
         producer: std::sync::Arc<crate::native_numeric::SourceNativeNumericObject>,
         /// Exact original read extent.
-        read: crate::ir::SourceSite,
+        read: tcl_source::words::SourceSite,
         /// Every actual physical alternative at this read.
         cells: Vec<crate::place::CellIdentity>,
     },

@@ -410,7 +410,7 @@ pub(crate) struct CfgBuilder<'a> {
 /// truncated-but-valid CFG instead of a crash. No real source nests
 /// anywhere near this.
 ///
-/// Shares [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`] with the lowering
+/// Shares [`tcl_source::limits::MAX_SOURCE_NEST_DEPTH`] with the lowering
 /// and analyser body walks — one budget, derived from a measured per-level
 /// stack cost, rather than three copies of a hand-picked 256.
 ///
@@ -421,7 +421,7 @@ pub(crate) struct CfgBuilder<'a> {
 /// its 8,288 bytes a level is what the budget must still afford for that
 /// caller — the same defence-in-depth role the optimiser and codegen walks
 /// play over the same IR.
-const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
+const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = tcl_source::limits::MAX_SOURCE_NEST_DEPTH;
 
 impl<'a> CfgBuilder<'a> {
     fn with_procedure_summary_owners(mut self, owners: OriginalProcedureSummaryOwners) -> Self {

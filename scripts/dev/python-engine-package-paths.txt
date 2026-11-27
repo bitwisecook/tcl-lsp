@@ -7,6 +7,7 @@ rust/bigip-report-gen
 rust/tcl-bigip
 rust/tcl-bigip-io
 rust/tcl-bigip-query
+rust/tcl-bigip-schema
 rust/tcl-bytecode-tables
 rust/tcl-cmd-core
 rust/tcl-compiler
@@ -22,6 +23,7 @@ rust/tcl-platform
 rust/tcl-regex
 rust/tcl-registry
 rust/tcl-runtime-api
+rust/tcl-source
 rust/tcl-sslictcl
 rust/tcl-syntax
 rust/tcl-value-syntax

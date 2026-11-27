@@ -38,7 +38,7 @@ fn original(source: &str, input: &ResolvedAnalysisInput) -> crate::ir::CommandTo
     )
     .unwrap();
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .pop()
             .unwrap();
@@ -272,7 +272,7 @@ fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
     )
     .unwrap();
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .pop()
             .unwrap();

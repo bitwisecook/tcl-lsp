@@ -29,9 +29,9 @@ use super::{
     ExecutableFunction, ExecutableFunctionId, ExecutableInstruction, ExecutableTerminator,
     ExecutableValueId, GenericInvoke, LoweredOperation, OpaqueRegion, StructuredRegion,
 };
-use crate::ir::WordExpr;
 use std::collections::{BTreeMap, BTreeSet};
 use tcl_core_types::Code as CompletionCode;
+use tcl_source::words::WordExpr;
 
 impl ExecutableFunction {
     /// Validate the bounded executable-IR invariants.

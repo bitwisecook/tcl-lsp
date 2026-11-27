@@ -19,8 +19,9 @@
 //! Nested native expressions selected through invocation proofs, with their verbatim source anchors.
 
 use super::lifted_calls;
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_lexer::Span;
+use tcl_source::words::WordExpr;
 
 /// A proved nested native expression with its verbatim source anchor.
 #[derive(Debug, Clone)]

@@ -22,9 +22,9 @@ use super::{
     Arc, ModuleCommandBindings, SourceExecutionContext, SourceNamespaceKey, SourceOriginId,
 };
 use crate::analyser::ResolvedAnalysisInput;
-use crate::ir::SourceSite;
 use crate::var_resolve::{ContentsOrigin, ResolveContext};
 use tcl_lexer::{ExecutablePart, NativeWord};
+use tcl_source::words::SourceSite;
 
 /// A current source value retains its original word and stored read provenance.
 /// It cannot become a static word, Native argv, read or completed invocation.
@@ -40,7 +40,7 @@ pub(super) struct LogicalOriginalWordValue {
 
 impl LogicalOriginalWordValue {
     pub(super) fn capture_invocation(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         offset: u32,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
@@ -173,7 +173,7 @@ mod tests {
             options,
         )
         .unwrap();
-        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             0,
             input.lexer_config(),

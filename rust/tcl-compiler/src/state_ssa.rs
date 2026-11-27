@@ -37,7 +37,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::cfg::BlockId;
-use crate::ir::NodeId;
+use tcl_source::words::NodeId;
 
 /// A version of a mutable state location.
 ///
@@ -1341,8 +1341,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::cfg::BlockId;
-    use crate::ir::NodeId;
     use crate::place::{Index, LOCAL_NS, array_elem, array_whole, scalar};
+    use tcl_source::words::NodeId;
 
     use super::adapters::{
         PlaceOverlapPolicy, WorldInterpreterScope, WorldNamespaceScope, WorldRegion,

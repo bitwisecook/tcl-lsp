@@ -21,8 +21,9 @@
 use super::super::{CodegenCtx, Op, Operand, bytecode_imm, end_relative_imm};
 use super::parse_cmd_parts_with_config;
 use tcl_cmd_core::index::{Encoded, IndexCompiler};
-use tcl_compiler::ir::{CommandTokens, WordExpr};
+use tcl_compiler::ir::CommandTokens;
 use tcl_registry::hooks::InlineCodegenHookId;
+use tcl_source::words::WordExpr;
 
 impl CodegenCtx<'_> {
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.

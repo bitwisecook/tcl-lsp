@@ -149,7 +149,7 @@ struct Walker<'a, 'v> {
 impl Walker<'_, '_> {
     fn control(
         &self,
-        segment: &tcl_compiler::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         original: &tcl_lexer::NativeScriptCommandWords,
     ) -> Option<Control> {
         let words = if let Some(survey) = self.survey {
@@ -249,7 +249,7 @@ impl Walker<'_, '_> {
             self.complete = false;
             return Some(reached.with(Condition::Undecidable));
         }
-        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             text,
             region.start(),
             self.config.at_depth(depth),

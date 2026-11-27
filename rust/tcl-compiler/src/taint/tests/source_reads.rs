@@ -36,6 +36,7 @@ fn original_operand_reference_names_keep_data_and_current_grammar_without_ssa_gr
             quoted_uses: None,
             source_read: None,
             source,
+            withdrawn_writes: None,
         };
         for (reference, name) in [
             ("${$literal}", "$literal"),
@@ -94,6 +95,7 @@ fn original_sink_read_keeps_missing_ssa_contents_unknown() {
             quoted_uses: None,
             source_read: None,
             source: TaintSourceContext::for_function(registry, &unit.top_level),
+            withdrawn_writes: None,
         };
         assert_eq!(
             operand_read_taint(&env, "missing", tokens.words().get(1))

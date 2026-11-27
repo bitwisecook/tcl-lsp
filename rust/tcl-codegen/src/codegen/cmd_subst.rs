@@ -642,7 +642,7 @@ impl CodegenCtx<'_> {
         };
         tcl_compiler::word_subst::nested_command_words(
             spelling,
-            &tcl_compiler::ir::SourceSite::opaque(tcl_lexer::Span::new(0, 0)),
+            &tcl_source::words::SourceSite::opaque(tcl_lexer::Span::new(0, 0)),
             self.lexer_config(),
         )
         .ok()

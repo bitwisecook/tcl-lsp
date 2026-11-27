@@ -1253,10 +1253,15 @@ Numbered `INT-a` onwards, to be placed after the plan's renumbering.
 - **Taint under 9.x** (confirms 393's bug 1). `proc p {} { set line [gets
   stdin]; eval $line }` draws T100 under `--dialect tcl8.6` and only W101
   under `tcl9.1`; § 9's `save` draws T101 under 8.6 and nothing under 9.1.
-- **Interprocedural `hasUnknownCalls`.** `proc f {} { puts stdout x; close
-  stdout }` gives `hasUnknownCalls: true` and `hasBarrier: true` in `tcl
-  explore --json`, while each statement alone gives `false` for both. So does
-  `proc f {} { puts [gets stdin] }`. Every command there is a core command.
+- **Interprocedural `hasUnknownCalls`** (fixed). Under `tcl9.0` and
+  `tcl9.1`, `proc f {} { puts stdout x; close stdout }` gave
+  `hasUnknownCalls: true` and `hasBarrier: true` in `tcl explore --json`,
+  while each statement alone gave `false` for both. So did
+  `proc f {} { puts [gets stdin] }`. The binding walk treated host I/O's
+  possible channel-handler re-entry as an unknown command-table mutation, so
+  the next lookup had no target. It now records only that unseen code may
+  have run, which withdraws E007's no-observer proof and leaves command
+  lookups in place.
 
 ## Review fixes (26 November 2026)
 

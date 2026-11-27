@@ -469,7 +469,7 @@ mod tests {
     }
     fn original_at(analyser: &Analyser, source: &str, call: &str) -> OriginalDiagnosticInvocation {
         let start = u32::try_from(source.find(call).unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             call,
             start,
             analyser.lexer_config(),
@@ -498,7 +498,7 @@ mod tests {
 
     fn queue_written(analyser: &mut Analyser, source: &str, call: &str) {
         let start = u32::try_from(source.find(call).unwrap()).unwrap();
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             call,
             start,
             analyser.lexer_config(),

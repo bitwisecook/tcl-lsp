@@ -57,7 +57,7 @@ impl SourceCommandBindings {
 
     fn record_rule_declaration(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         incoming: &ModuleCommandBindings,
         target: &SourceCommandTarget,
         declaration: (
@@ -109,8 +109,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     pub(super) fn retain_rule_loader_events(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
@@ -147,7 +147,7 @@ impl SourceCommandBindings {
 
     fn retain_rule_loader_file_policy(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
+        segment: &tcl_source::segment::SegmentedCommand,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -188,8 +188,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     fn retain_rule_loader_event(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -278,8 +278,8 @@ impl SourceCommandBindings {
     #[inline(never)]
     pub(super) fn walk_rule_loader_procedure(
         &mut self,
-        segment: &crate::segmenter::SegmentedCommand,
-        words: &[crate::ir::WordExpr],
+        segment: &tcl_source::segment::SegmentedCommand,
+        words: &[tcl_source::words::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         incoming: &ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -373,7 +373,7 @@ pub(super) fn rule_loader_rejection(
 /// Whether the statement's head is a bare word no command answers to in the
 /// world before the statement's own words are substituted.
 pub(super) fn has_unknown_literal_head(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     incoming: &ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
 ) -> bool {
@@ -390,7 +390,7 @@ pub(super) fn has_unknown_literal_head(
 /// Whether the written head names only loader declarations (`when`, `proc`,
 /// ...) in the world before the statement.
 pub(super) fn is_rule_loader_declaration_head(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     incoming: &ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
 ) -> bool {
@@ -424,7 +424,7 @@ fn rule_loader_target_is_eligible(
 }
 
 fn validated_rule_declaration(
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     incoming: &ModuleCommandBindings,
     target: &SourceCommandTarget,
     context: SourceExecutionContext<'_>,

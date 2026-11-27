@@ -147,7 +147,7 @@ fn binds(
     }
     let list_rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
     let Some(segments) =
-        crate::segmenter::segment_commands_image_with_offset_and_config(script, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(script, 0, config)
     else {
         return false;
     };
@@ -254,7 +254,7 @@ fn binds(
 
 fn decoded_binding_root(
     image: &tcl_lexer::SourceImage,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     word: usize,
     config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
@@ -293,7 +293,7 @@ pub(crate) fn linear_declaration_read_layout(
     dialect: tcl_registry::InvocationDialect,
 ) -> Option<LinearDeclarationReadLayout> {
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)?;
+        tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)?;
     for segment in segments {
         if segment.is_partial {
             return None;
@@ -352,8 +352,9 @@ pub(crate) fn linear_declaration_read_layout(
 }
 
 #[cfg(test)]
-fn linear_operand(word: &crate::ir::WordExpr, config: tcl_lexer::LexerConfig) -> bool {
-    use crate::ir::{WordExpr, WordPart};
+fn linear_operand(word: &tcl_source::words::WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+    use tcl_source::words::WordExpr;
+    use tcl_source::words::WordPart;
     let variable = |spelling: &str| {
         tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
             .ok()
@@ -376,7 +377,7 @@ fn linear_operand(word: &crate::ir::WordExpr, config: tcl_lexer::LexerConfig) ->
 
 fn literal_body_image(
     image: &tcl_lexer::SourceImage,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     word: usize,
     config: tcl_lexer::LexerConfig,
 ) -> Option<tcl_lexer::SourceImage> {
@@ -680,7 +681,8 @@ mod tests {
                 .is_some()
         );
         let mut changed_tokens = tokens.clone();
-        let crate::ir::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1] else {
+        let tcl_source::words::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1]
+        else {
             panic!("literal procedure name");
         };
         *text = "q".into();
@@ -893,7 +895,8 @@ mod tests {
             assert!(!recipe.owns_original_read(tcl_lexer::Span::new(start, end)));
             assert!(!recipe.owns_original_read(tcl_lexer::Span::new(0, 4)));
             let mut changed_tokens = tokens.clone();
-            let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_tokens.word_exprs[3]
+            let tcl_source::words::WordExpr::BracedLiteral { text, .. } =
+                &mut changed_tokens.word_exprs[3]
             else {
                 panic!("original braced procedure body");
             };

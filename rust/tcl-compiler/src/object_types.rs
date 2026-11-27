@@ -58,10 +58,10 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-#[cfg(test)]
-use crate::ir::WordExpr;
 use crate::ir::{MethodKind, ProcedureId};
 use tcl_core_types::BodyFrameId;
+#[cfg(test)]
+use tcl_source::words::WordExpr;
 
 mod constructor_harvest;
 mod object_flow;
@@ -159,7 +159,7 @@ pub struct ObjectHandleRead {
 /// so its class remains candidate evidence and cannot license specialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhysicalObjectTypeReadEvidence {
-    source: crate::ir::SourceSite,
+    source: tcl_source::words::SourceSite,
     evaluation: crate::command_binding::SourceVariableEvaluationOwner,
     unit: String,
     frame: BodyFrameId,
@@ -172,7 +172,7 @@ pub struct PhysicalObjectTypeReadEvidence {
 impl PhysicalObjectTypeReadEvidence {
     /// Exact lexical read and its retained provenance.
     #[must_use]
-    pub fn source(&self) -> &crate::ir::SourceSite {
+    pub fn source(&self) -> &tcl_source::words::SourceSite {
         &self.source
     }
 
@@ -320,7 +320,7 @@ impl ObjectHandleFacts {
     pub fn physical_type_read_at(
         &self,
         frame: BodyFrameId,
-        source: &crate::ir::SourceSite,
+        source: &tcl_source::words::SourceSite,
         evaluation: &crate::command_binding::SourceVariableEvaluationOwner,
     ) -> Option<&PhysicalObjectTypeReadEvidence> {
         let mut proofs = self.physical_type_reads.iter().filter(|proof| {

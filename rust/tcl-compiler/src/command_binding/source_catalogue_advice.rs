@@ -387,9 +387,9 @@ mod tests {
             .analyse(source, profile.name)
     }
 
-    fn callback(source: &str, analysis: &AnalysisResult) -> crate::segmenter::SegmentedCommand {
+    fn callback(source: &str, analysis: &AnalysisResult) -> tcl_source::segment::SegmentedCommand {
         let offset = source.find("after idle $cb").unwrap();
-        crate::segmenter::segment_commands_with_offset_and_config(
+        tcl_source::segment::segment_commands_with_offset_and_config(
             &source[offset..offset + "after idle $cb".len()],
             u32::try_from(offset).unwrap(),
             analysis.resolved_input.as_ref().unwrap().lexer_config(),

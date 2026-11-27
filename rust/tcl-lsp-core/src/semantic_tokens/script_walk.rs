@@ -36,11 +36,11 @@ use super::regex_subtokens::{mark_regex_source_words, push_regex_subtokens};
 use super::variable_name_roles::VarNameArgRoles;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_dialect::NumberSyntax;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Maximum body / expr / command-substitution recursion depth — guards
 /// against pathological nesting.
@@ -426,7 +426,7 @@ pub(super) fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut V
 /// than a misleading command highlight.
 pub(super) fn emit_static_command_head(
     ctx: ScriptCtx<'_>,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    seg: &tcl_source::segment::SegmentedCommand,
     entries: &mut Vec<Entry>,
 ) {
     let Some(&head_tok) = seg.argv.first() else {

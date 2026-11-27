@@ -210,7 +210,7 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
             OriginalProjectProcedureRoles::capture(&caller_analysis).unwrap(),
         ]
     );
-    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         caller_input.lexer_config(),

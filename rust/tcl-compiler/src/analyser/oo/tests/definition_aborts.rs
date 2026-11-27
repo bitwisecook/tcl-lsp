@@ -842,7 +842,7 @@ fn missing_class_source_cannot_publish_native_definition_stubs() {
     missing.result.resolved_input = None;
     missing.result.all_classes.clear();
     missing.source = source.to_owned().into();
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         missing.lexer_config(),

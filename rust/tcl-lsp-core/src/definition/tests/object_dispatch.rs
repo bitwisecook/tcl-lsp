@@ -107,7 +107,7 @@ fn original_external_self_visibility_requires_its_own_entry_after_internal_dispa
                         .is_some()
                 );
             } else {
-                let selected = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                let selected = tcl_source::segment::segment_commands_with_offset_and_config(
                     &call,
                     offset,
                     analysis.body_lexer_config.unwrap(),

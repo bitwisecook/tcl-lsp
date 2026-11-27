@@ -135,6 +135,64 @@ impl NativeCompilationSpec {
         self.select_original_operand_words(words, operand_from, shapes, dialect, context, version)
     }
 
+    /// Select over the vector `TclParseCommand` leaves after flattening each
+    /// pure-TEXT `{*}` literal into simple words. An expansion that survives
+    /// keeps `EXPAND_WORD`, so `CompileCommandTokens` skips the compileProc.
+    /// Only a grammar whose recipe reads the flattened operands is selected;
+    /// every other one still lacks that projection.
+    fn select_flattened_operand_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        context: NativeCompilationContext,
+        version: TclVersion,
+    ) -> NativeCompilationSelection {
+        use NativeCompilationSelection as Selection;
+        let Ok(projected) =
+            crate::native_compiler_word_projection::project_native_compiler_words(words, version)
+        else {
+            return Selection::Unknown;
+        };
+        let (Some(head), Some(operands)) = (projected.first(), projected.get(operand_from..))
+        else {
+            return Selection::Unknown;
+        };
+        if operands
+            .iter()
+            .any(|word| word.shape == NativeCompilationWordShape::Expanded)
+        {
+            return Selection::Generic;
+        }
+        let shapes: Vec<_> = operands.iter().map(|word| word.shape).collect();
+        match self.grammar {
+            NativeCompilationGrammar::ArgumentList => self
+                .select_shape_grammar(&shapes, version, context)
+                .unwrap_or(Selection::Unknown),
+            NativeCompilationGrammar::Dictionary {
+                command: crate::native_dictionary::NativeDictionaryCommand::Create,
+                ensemble,
+            } => {
+                let (Some(head), Some(arguments)) = (
+                    flattened_word(head),
+                    operands
+                        .iter()
+                        .map(flattened_word)
+                        .collect::<Option<Vec<_>>>(),
+                ) else {
+                    return Selection::Unknown;
+                };
+                crate::native_dictionary::NativeDictionaryCommand::Create.select(
+                    ensemble,
+                    InvocationWords::structured(head, &arguments),
+                    &shapes,
+                    version,
+                    context,
+                )
+            }
+            _ => Selection::Unknown,
+        }
+    }
+
     fn select_original_value_words(
         self,
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
@@ -616,7 +674,7 @@ impl NativeCompilationSpec {
                 words.shapes()[index] == NativeCompilationWordShape::Expanded
                     && words.literal(index).is_some()
             }) {
-                Selection::Unknown
+                self.select_flattened_operand_words(words, operand_from, context, version)
             } else {
                 Selection::Generic
             };
@@ -661,5 +719,17 @@ impl NativeCompilationSpec {
             context,
             NamedCompilerOperandView::SelectedWorker,
         )
+    }
+}
+
+/// A flattened compiler word as the selection view reads it.
+fn flattened_word(
+    word: &crate::native_compiler_word_projection::NativeProjectedCompilerWord,
+) -> Option<crate::InvocationWord<'_>> {
+    match &word.literal {
+        Some(bytes) => std::str::from_utf8(bytes)
+            .ok()
+            .map(crate::InvocationWord::Literal),
+        None => Some(crate::InvocationWord::Dynamic),
     }
 }

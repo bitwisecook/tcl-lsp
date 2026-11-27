@@ -20,9 +20,9 @@
 
 use super::super::state::Analyser;
 use super::qualify;
-use crate::parsing::syntax::descend::descend_token;
-use crate::parsing::syntax::segment::segments_from_tree;
 use tcl_lexer::{Span, Token, TokenType};
+use tcl_source::cst::descend::descend_token;
+use tcl_source::cst::segment::segments_from_tree;
 use tcl_syntax::list::find_element;
 
 impl Analyser {

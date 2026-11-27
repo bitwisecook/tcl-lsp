@@ -27,7 +27,7 @@ use super::{
     NativeCompilationEpochs, NativeCoreRecipe, NativeErrorState, NativeInvocationState,
     NativeRegisteredCommandToken, OutputWriter, PackageState, PendingControl, RECURSION_LIMIT,
     ROOT_INTERP, VarBinding, VarTableOwner, VariableObservers, Vm, VmCommandGuards,
-    authored_package, authored_rule_callables, authored_tmm_static, err, err_wrong_args,
+    authored_package, authored_rule_callables, authored_tmm_static, err_wrong_args,
     initial_package_prefer, native_operation_currency, ok, standard_host, variable_cleanup,
 };
 use crate::command::ProcDef;
@@ -683,7 +683,7 @@ impl Vm {
 
     pub(crate) fn init_auto_path(&mut self, args: &[Value]) -> Completion<Value> {
         if !args.is_empty() {
-            return err_wrong_args(self, "tcl::InitAutoPath");
+            return err_wrong_args(self, "tcl::InitAutoPath ");
         }
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
@@ -789,57 +789,43 @@ impl Vm {
             .collect()
     }
 
-    /// Initialise the selected Tcl script library through the same compiler and
-    /// evaluator used by `eval`, command substitutions, and ordinary `source`.
+    /// `Tcl_Init`: find and source the script library's `init.tcl` the way
+    /// the emulated release does ([`crate::library_init`]), through the same
+    /// compiler and evaluator used by `eval`, command substitutions, and
+    /// ordinary `source`.
     ///
-    /// The host selects the exact library through `TCL_LIBRARY`. A compiler
-    /// must have been installed with [`Self::set_compiler`].
+    /// An embedder that set `::tcl_library` names the only place looked;
+    /// otherwise `$env(TCL_LIBRARY)` and the release's own fallbacks. The
+    /// bootstrap's mirrors of the host library paths (`::tcl_library` from
+    /// `TCL_LIBRARY`, an empty `::auto_path`) are withdrawn first: C creates
+    /// neither before `Tcl_Init`. A search that finds no `init.tcl` at all
+    /// fails with errorCode `TCLVM LIBRARY ABSENT`. A compiler must have been
+    /// installed with [`Self::set_compiler`].
     pub fn init_library(&mut self) -> Completion<Value> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
-        // `tclInit` tries an existing `tcl_library` first, then a non-empty
-        // `env(TCL_LIBRARY)`.
-        let selected = match self.read_var_traced("::tcl_library").unwrap_or_default() {
-            Some(value) => match tcl_syntax::value::ValueOps::native_string_bytes(self, &value) {
-                Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
-                Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
-            },
-            None => None,
-        };
-        let library =
-            selected.unwrap_or_else(|| self.host_rc().env().get("TCL_LIBRARY").unwrap_or_default());
-        if let Err(error) = scope.check(self) {
-            return crate::command::completion_from_cmd_error(self, error);
+        let mirrored = self.host_rc().env().get("TCL_LIBRARY").unwrap_or_default();
+        if self
+            .get_var("::tcl_library")
+            .is_some_and(|library| *library.to_str() == *mirrored)
+        {
+            self.unset_global_raw("::tcl_library");
         }
-        if library.is_empty() {
-            return err("can't find Tcl library: TCL_LIBRARY is empty");
-        }
-        let init_path = format!("{library}/init.tcl");
-        let exists = self
-            .host_rc()
-            .filesystem()
-            .and_then(|fs| fs.read(&init_path).ok())
-            .is_some();
-        if let Err(error) = scope.check(self) {
-            return crate::command::completion_from_cmd_error(self, error);
-        }
-        if !exists {
-            return err(format!("can't find {init_path} (set TCL_LIBRARY)"));
-        }
-        if let Err(completion) = self.set_var_bytes(
-            b"::tcl_library",
-            Value::new_native_string_bytes(library.as_bytes()),
-        ) {
-            return completion;
+        if self
+            .get_var("::auto_path")
+            .is_some_and(|path| path.to_str().is_empty())
+        {
+            self.unset_global_raw("::auto_path");
         }
         if let Err(error) = scope.check(self) {
             return crate::command::completion_from_cmd_error(self, error);
         }
-        let script = format!("source {}", tcl_syntax::list::list_element(&init_path));
+        let error_variables = ["::errorInfo", "::errorCode"].map(|name| (name, self.get_var(name)));
+        let script = crate::library_init::search_script(self.runtime_version());
         let initialization = self.begin_package_initialization();
-        let completion = match self.eval_source(&script) {
+        let completion = match self.eval_source(script) {
             Ok(completion) => completion,
             Err(error) => crate::command::completion_from_tcl_error(self, error),
         };
@@ -848,10 +834,41 @@ impl Vm {
             return crate::command::completion_from_cmd_error(self, error);
         }
         if completion.code.is_ok() {
-            self.state.initialised_library =
-                Some(Value::new_native_string_bytes(library.as_bytes()));
+            self.state.initialised_library = self
+                .get_var("::tcl_library")
+                .map(|library| Value::new_native_string_bytes(library.to_str().as_bytes()));
+        } else if self.library_search_found_nothing(&completion) {
+            // With no library to run the interpreter starts as one never
+            // initialised: no `tcl_library` (the search leaves it at the last
+            // place it looked) and the error state it had before the search.
+            self.unset_global_raw("::tcl_library");
+            for (name, value) in error_variables {
+                match value {
+                    Some(value) => self.write_scalar_raw(name, value),
+                    None => self.unset_global_raw(name),
+                }
+            }
+            self.reset_error_state_for_eval();
         }
         completion
+    }
+
+    /// Whether `completion` is a library search that found no `init.tcl`
+    /// anywhere (errorCode `TCLVM LIBRARY ABSENT`), rather than a library that
+    /// failed: tclvm then runs without one, where tclsh always has its own.
+    pub fn library_search_found_nothing(&mut self, completion: &Completion<Value>) -> bool {
+        completion.code == tcl_runtime_api::Code::Error
+            && self
+                .return_options(completion)
+                .as_list()
+                .ok()
+                .and_then(|pairs| {
+                    pairs
+                        .chunks(2)
+                        .find(|pair| pair.len() == 2 && &*pair[0].to_str() == "-errorcode")
+                        .map(|pair| &*pair[1].to_str() == "TCLVM LIBRARY ABSENT")
+                })
+                .unwrap_or(false)
     }
 
     /// Source the selected real Tcl library while retaining operational

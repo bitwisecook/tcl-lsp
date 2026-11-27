@@ -33,7 +33,8 @@ fn original_procedure_arguments_keep_actual_formals_prefixes_and_child_anchors()
         analysis.global_scope.procs.clear();
         analysis.command_invocations.clear();
         let config = analysis.body_lexer_config.unwrap();
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let call = commands.last().unwrap();
         let prototype =
             original_procedure_arguments(source, &analysis, call).expect("actual source prototype");
@@ -71,7 +72,7 @@ fn original_procedure_arguments_keep_actual_formals_prefixes_and_child_anchors()
     }
     let source = "proc target {first {second DEFAULT}} {}; target ONLY";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         analysis.body_lexer_config.unwrap(),
@@ -93,7 +94,7 @@ fn original_procedure_arguments_keep_missing_original_correspondence_terminal() 
     let source = "proc target {value} {}; target ONE";
     let mut analysis = Analyser::new().analyse(source, "tcl8.6");
     let config = analysis.body_lexer_config.unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let call = commands.last().unwrap();
     assert!(original_procedure_arguments(source, &analysis, call).is_some());
     analysis
@@ -105,7 +106,7 @@ fn original_procedure_arguments_keep_missing_original_correspondence_terminal() 
     assert!(original_procedure_arguments(source, &analysis, call).is_none());
     let source = "proc target {value} {}; set values ONE; target {*}$values";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         analysis.body_lexer_config.unwrap(),

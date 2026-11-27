@@ -117,6 +117,26 @@ impl CompilerTraversal<'_> {
         None
     }
 
+    fn original_list_operands(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_compiler_words::NativeCompiledListRecipe,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_compiler_words::NativeCompiledListRecipe as Recipe;
+        match recipe {
+            Recipe::DynamicElements { from } => self.original_operands(
+                words,
+                (*from..words.len()).map(NativeCompilerWordOperand::Original),
+                context,
+            ),
+            Recipe::ProjectedElements { operands } => {
+                self.original_operands(words, operands.iter().cloned(), context)
+            }
+            Recipe::EmptyString | Recipe::PrivateConstant { .. } => None,
+        }
+    }
+
     fn original_non_control_compilation(
         &mut self,
         words: &[WordExpr],
@@ -135,18 +155,8 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Concat(
                 tcl_registry::native_instruction_plan::NativeConcatInstruction::Operands(operands),
             ) => self.original_operands(words, operands.iter().cloned(), context),
-            NativeInstructionPlan::List(
-                tcl_registry::native_compiler_words::NativeCompiledListRecipe::DynamicElements {
-                    from,
-                },
-            ) => self.original_operands(
-                words,
-                (*from..words.len()).map(NativeCompilerWordOperand::Original),
-                context,
-            ),
-            NativeInstructionPlan::Concat(_)
-            | NativeInstructionPlan::ClockRead(_)
-            | NativeInstructionPlan::List(_) => None,
+            NativeInstructionPlan::List(recipe) => self.original_list_operands(words, recipe, context),
+            NativeInstructionPlan::Concat(_) | NativeInstructionPlan::ClockRead(_) => None,
             NativeInstructionPlan::FormatStringConcat(recipe) => self.original_operands(
                 words,
                 recipe.pieces.iter().filter_map(|piece| match piece {
@@ -1003,7 +1013,7 @@ impl CompilerTraversal<'_> {
         }
         let mut pending = vec![(arena.root(), 0, context.depth)];
         while let Some((list, next, depth)) = pending.pop() {
-            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+            if tcl_source::limits::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
                 self.require_provider();
                 continue;
             }

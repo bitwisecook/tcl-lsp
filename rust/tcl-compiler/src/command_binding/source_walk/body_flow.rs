@@ -105,9 +105,11 @@ pub(super) fn authored_braced_operand<'a>(
     native: SourceNativeInvocation<'a>,
     argument: usize,
     value: &str,
-) -> Option<&'a crate::ir::SourceSite> {
+) -> Option<&'a tcl_source::words::SourceSite> {
     match native.script_operands().written_word(argument)? {
-        crate::ir::WordExpr::BracedLiteral { text, source } if text == value => Some(source),
+        tcl_source::words::WordExpr::BracedLiteral { text, source } if text == value => {
+            Some(source)
+        }
         _ => None,
     }
 }

@@ -23,10 +23,10 @@ use crate::command_binding::{
     RetainedSourceBodyInventory, SourceAnalysisOptions, SourceCommandBindings,
 };
 use crate::ir::{Script, Statement};
-use crate::segmenter::SegmentedCommand;
 use std::collections::HashMap;
 use tcl_lexer::{SourceSegmentationPurpose, TokenType};
 use tcl_registry::events::IrulesExecutionContext;
+use tcl_source::segment::SegmentedCommand;
 
 mod body_units;
 mod const_map;
@@ -149,7 +149,7 @@ impl Lowerer<'_> {
     ) -> Option<Vec<SegmentedCommand>> {
         let image =
             tcl_lexer::SourceImage::from_bytes(text.as_bytes(), self.current_source_channel());
-        crate::segmenter::segment_commands_image_with_offset_and_config(
+        tcl_source::segment::segment_commands_image_with_offset_and_config(
             &image,
             base,
             purpose.config(self.config),
@@ -416,7 +416,7 @@ impl Lowerer<'_> {
     /// it: the value is the brace content welded to the tail with the closing
     /// `}` dropped, so every token past the drop slides one byte left — an
     /// off-by-one span on ASCII, an offset inside a UTF-8 sequence on
-    /// anything else.  [`crate::segmenter::body_text_in_region`]
+    /// anything else.  [`tcl_source::segment::body_text_in_region`]
     /// clamps such a value to the contiguous braced part and passes an
     /// ordinary body through untouched; the analyser's `analyse_body`
     /// applies it too, and this is the lowering side of the same guard.
@@ -430,19 +430,19 @@ impl Lowerer<'_> {
     /// A translating Document channel folds CRLF in a braced word's cooked
     /// value while its spans stay original offsets, so a braced body maps
     /// back to its source region first
-    /// ([`crate::segmenter::braced_body_source_region`]).
+    /// ([`tcl_source::segment::braced_body_source_region`]).
     fn guarded_body_text(&self, tok: tcl_lexer::Token, text: &str) -> String {
         if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
             return text.to_owned();
         }
         let base = (tok.span.start() + u32::from(tok.content_offset)) as usize;
-        let text = crate::segmenter::braced_body_source_region(
+        let text = tcl_source::segment::braced_body_source_region(
             &self.source,
             base,
             tok.span.end().saturating_sub(1) as usize,
             text,
         );
-        crate::segmenter::body_text_in_region(&self.source, base, tok.span.end() as usize, text)
+        tcl_source::segment::body_text_in_region(&self.source, base, tok.span.end() as usize, text)
             .to_owned()
     }
 

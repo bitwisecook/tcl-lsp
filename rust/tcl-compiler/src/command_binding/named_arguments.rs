@@ -22,7 +22,7 @@ use super::{Arc, SourceExecutionContext};
 use crate::registry_invocation::EffectiveInvocationWord;
 
 pub(super) struct ProjectedNamedArguments {
-    pub(super) words: Vec<crate::ir::WordExpr>,
+    pub(super) words: Vec<tcl_source::words::WordExpr>,
     pub(super) effective: Vec<EffectiveInvocationWord>,
     original: Option<OriginalNamedWords>,
     arguments: Option<Vec<EffectiveInvocationWord>>,
@@ -37,14 +37,14 @@ pub(super) struct ProjectedNamedArguments {
 /// Exact source words inherited from a complete original invocation before
 /// the selected private handler consumes ensemble selectors.
 pub(super) struct OriginalNamedWords {
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     native: Vec<tcl_lexer::NativeWord>,
 }
 
 impl OriginalNamedWords {
     fn capture(
         image: &tcl_lexer::SourceImage,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         context: &SourceExecutionContext<'_>,
         consumed: usize,
     ) -> Option<Self> {
@@ -61,7 +61,7 @@ impl OriginalNamedWords {
 
     fn from_complete(
         image: &tcl_lexer::SourceImage,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         config: tcl_lexer::LexerConfig,
         consumed: usize,
     ) -> Option<Self> {
@@ -80,7 +80,7 @@ impl OriginalNamedWords {
     pub(super) fn words_for(
         &self,
         image: &tcl_lexer::SourceImage,
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         config: tcl_lexer::LexerConfig,
     ) -> Option<&[tcl_lexer::NativeWord]> {
         (words == self.words.as_slice()
@@ -131,7 +131,7 @@ impl ProjectedNamedArguments {
     /// written words; known expansion is flattened only after that projection.
     #[inline(never)]
     pub(super) fn capture(
-        words: &[crate::ir::WordExpr],
+        words: &[tcl_source::words::WordExpr],
         effective: &[EffectiveInvocationWord],
         incoming: &super::ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
@@ -216,7 +216,7 @@ mod tests {
         let image = tcl_lexer::SourceImage::document(source);
         let config = tcl_lexer::LexerConfig::default();
         let segments =
-            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+            tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
                 .unwrap();
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::from_image(&image),

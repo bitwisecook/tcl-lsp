@@ -32,10 +32,10 @@ use tcl_compiler::command_binding::{
     OriginalSourceConstructorCall,
 };
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LineIndex, SourceImage, SourceMap, Span};
+use tcl_source::segment::SegmentedCommand;
 
 /// Readonly navigation purpose, independent of lookup or edit authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

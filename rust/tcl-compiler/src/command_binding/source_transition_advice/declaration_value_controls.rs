@@ -29,7 +29,7 @@ const SOURCE: &str = "proc helper {} {return VALUE}";
 struct Fixture {
     source: String,
     analysis: AnalysisResult,
-    command: crate::segmenter::SegmentedCommand,
+    command: tcl_source::segment::SegmentedCommand,
     tokens: CommandTokens,
     original: Vec<tcl_lexer::NativeWord>,
     tape: OriginalSourceTransitionAdviceTape,
@@ -59,9 +59,12 @@ fn fixture(source: &str) -> Fixture {
     let realm = analysis.retained_command_realm().unwrap();
     let input = analysis.resolved_input.as_ref().unwrap();
     let image = realm.original_source_image().unwrap();
-    let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .remove(0);
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .remove(0);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::from_image(image),
         input.lexer_config(),

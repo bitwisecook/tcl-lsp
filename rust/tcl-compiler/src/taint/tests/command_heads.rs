@@ -167,7 +167,7 @@ fn constant_command_head_candidates_use_retained_escape_grammar() {
 #[test]
 fn explicit_unknown_binding_cannot_recover_a_same_spelled_sink() {
     let source = "eval $x";
-    let command = crate::segmenter::segment_commands(source).remove(0);
+    let command = tcl_source::segment::segment_commands(source).remove(0);
     let tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         tcl_lexer::LexerConfig::default(),

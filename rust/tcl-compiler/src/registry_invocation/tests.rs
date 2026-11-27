@@ -21,8 +21,9 @@ use crate::interprocedural::test_body_identity::fixture_id;
 use super::*;
 use tcl_registry::StateTransition;
 
-use crate::ir::{SourceSite, WordOpacity};
-use crate::segmenter::segment_commands;
+use tcl_source::segment::segment_commands;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordOpacity;
 
 mod body_assistance;
 mod expression_operand_advice;
@@ -51,7 +52,7 @@ fn logical_source_tokens(
         )
         .unwrap();
     let segment =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+        tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
             .unwrap()
             .pop()
             .unwrap();
@@ -75,7 +76,7 @@ fn last_source_tokens(source: &str) -> CommandTokens {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let bindings = crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment)
@@ -107,7 +108,7 @@ fn native_operation_plan_retains_original_words_and_reports_missing_source() {
             ..crate::command_binding::SourceAnalysisOptions::default()
         },
     );
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     let mut tokens =
@@ -162,7 +163,7 @@ fn f5_source_tokens_in_realm(
             ..crate::command_binding::SourceAnalysisOptions::default()
         },
     );
-    let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    let segment = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
         .pop()
         .unwrap();
     CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment)

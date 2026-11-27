@@ -24,8 +24,12 @@ use tcl_registry::{CommandRegistry, NativeLowering};
 use tcl_syntax::expr::{BinOp, ExprNode};
 
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::ir::{CommandTokens, Procedure, ProcedureId, Statement, WordExpr};
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::ir::Procedure;
+use tcl_compiler::ir::ProcedureId;
+use tcl_compiler::ir::Statement;
 use tcl_compiler::registry_invocation::InvocationMetadataContext;
+use tcl_source::words::WordExpr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RetainedI64Publication {

@@ -33,7 +33,9 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use indexmap::IndexMap;
-use tcl_registry::profile_defaults::{BigipVersion, profile_field_default, profile_field_defaults};
+use tcl_bigip_schema::profile_defaults::{
+    BigipVersion, profile_field_default, profile_field_defaults,
+};
 use tcl_registry::profiles::ProfileRegistry;
 
 use crate::builtins::{BuiltinSpec, as_str, plain};

@@ -20,9 +20,9 @@
 
 use super::sink_warnings::{original_scalar_reference_name, static_word_expr_value};
 use super::{LocalInstanceClasses, TaintColour, TaintCtx, TaintLattice, dialect_to_point};
-use crate::ir::WordExpr;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, TaintColourAtom, Traits};
+use tcl_source::words::WordExpr;
 
 // Source-command classification
 

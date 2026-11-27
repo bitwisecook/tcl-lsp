@@ -81,6 +81,7 @@ fn original_argv_disposition_requires_the_canonical_effect_carrier() {
 }
 
 use super::*;
+use tcl_source::words::{Provenance, SourceSite, WordExpr, WordOpacity};
 
 #[test]
 fn original_logical_declaration_cards_cover_missing_namespace_without_publication() {
@@ -237,7 +238,7 @@ fn statement_carriers_require_unanimous_ownership_and_keep_synthetic_phases_dist
 fn braced_argument_query_rejects_command_head_and_out_of_range_indices() {
     let source = "{lappend} {name} {$value} $other";
     let config = LexerConfig::default();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
     assert!(tokens.arg_is_braced_literal(0));
     assert!(tokens.arg_is_braced_literal(1));
@@ -260,7 +261,7 @@ fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations
             r#"list $value "$value" {x\y} \u0000"#,
         ] {
             let commands =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
             assert_eq!(commands.len(), 1);
             let tokens =
                 CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
@@ -272,7 +273,7 @@ fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations
         if dialect.lexer_grammar.expand_syntax {
             let source = "list {*}{ONE TWO}";
             let commands =
-                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
             let tokens =
                 CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
             assert!(matches!(tokens.words()[1], WordExpr::Expand { .. }));
@@ -292,7 +293,7 @@ fn original_word_carrier_refuses_same_count_text_and_word_changes() {
     // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
     let source = "list ONE";
     let config = LexerConfig::default();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let original = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
     assert!(original.original_words_match_argv_text());
     let mut changed = original.clone();
@@ -354,7 +355,7 @@ fn module_value_rules_retain_actual_axes_before_assistance_names() {
 fn quoted_variable_identity_uses_the_reference_site() {
     let source = "list \"${a}\" \"$a[upvar 0 y a]$a\" {$a}";
     let config = LexerConfig::default();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
     let (spelling, read) = tokens.words()[1]
         .sole_variable_substitution()
@@ -372,7 +373,8 @@ fn structured_variable_references_preserve_original_syntax() {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let config =
             LexerConfig::for_profile(Some(registry.profile().expect("actual native grammar")));
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
         for (index, expected) in [
             (1, "$a"),

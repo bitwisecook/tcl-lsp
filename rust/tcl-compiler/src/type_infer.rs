@@ -375,7 +375,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
     fn written_variable_type(
         &self,
         spelling: &str,
-        retained: Option<&crate::ir::WordExpr>,
+        retained: Option<&tcl_source::words::WordExpr>,
     ) -> Option<TypeLattice> {
         if let Some(word) = retained {
             return Some(retained_contents_type(self, word));
@@ -454,7 +454,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
     }
 }
 
-fn written_variable_word_matches(word: &crate::ir::WordExpr, spelling: &str) -> bool {
+fn written_variable_word_matches(word: &tcl_source::words::WordExpr, spelling: &str) -> bool {
     word.sole_variable_substitution()
         .is_some_and(|(original, _)| original == spelling || word.legacy_text() == spelling)
 }

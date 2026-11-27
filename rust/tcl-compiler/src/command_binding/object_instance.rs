@@ -85,7 +85,7 @@ impl SourceInvocationBinding {
     #[must_use]
     pub fn frozen_object_instance_at_dispatch(
         &self,
-        head: &crate::ir::WordExpr,
+        head: &tcl_source::words::WordExpr,
     ) -> Option<&SourceObjectInstanceProof> {
         let frozen = self.frozen_head_object.as_ref()?;
         let proof = &frozen.object;
@@ -171,7 +171,7 @@ impl SourceInvocationBinding {
     pub fn object_receiver_method_entry<'a>(
         &'a self,
         access: &'a SourceVariableAccess,
-        head: &crate::ir::WordExpr,
+        head: &tcl_source::words::WordExpr,
     ) -> Option<(
         &'a SourceCommandTarget,
         &'a super::SourceReceiverMethodEntry,

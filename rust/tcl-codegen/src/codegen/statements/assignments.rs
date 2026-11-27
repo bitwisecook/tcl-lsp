@@ -21,7 +21,8 @@
 use super::super::values::split_array_ref;
 use super::super::{CodegenCtx, Op, Operand};
 use tcl_compiler::codegen_helpers::has_unescaped_subst;
-use tcl_compiler::ir::{Statement, WordExpr};
+use tcl_compiler::ir::Statement;
+use tcl_source::words::WordExpr;
 
 /// A static store's name word, resolved by
 /// [`CodegenCtx::store_target`] — see that method for the rule and its oracle.

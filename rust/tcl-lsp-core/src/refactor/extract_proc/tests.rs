@@ -801,14 +801,14 @@ fn extracts_an_irule_selection_across_the_brace_separator_idiom() {
     let snippet = "if {$x}{ set y 1 }";
     // Document the drift this test guards: the same text really does
     // segment differently under the two grammars.
-    let default_cmds = tcl_compiler::segmenter::segment_commands(snippet);
+    let default_cmds = tcl_source::segment::segment_commands(snippet);
     assert_eq!(
         default_cmds[0].argv.len(),
         2, // `if` + one composite `{$x}{ set y 1 }` argument
         "default grammar must weld `}}{{` into one word: {:?}",
         default_cmds[0].texts
     );
-    let irules_cmds = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let irules_cmds = tcl_source::segment::segment_commands_with_offset_and_config(
         snippet,
         0,
         tcl_lexer::LexerConfig::for_dialect("f5-irules"),

@@ -364,7 +364,7 @@ fn current_input_protocol(
     }
     // A word of two or more parts is concatenated into a fresh string object
     // each time; no earlier holder gave it a list or abstract representation.
-    if let Some(crate::ir::WordExpr::Template {
+    if let Some(tcl_source::words::WordExpr::Template {
         parts,
         rejected: None,
         ..
@@ -472,8 +472,8 @@ pub(super) fn original_operand_is_current(
                 .is_some_and(|word| {
                     matches!(
                         word,
-                        crate::ir::WordExpr::Literal { .. }
-                            | crate::ir::WordExpr::BracedLiteral { .. }
+                        tcl_source::words::WordExpr::Literal { .. }
+                            | tcl_source::words::WordExpr::BracedLiteral { .. }
                     )
                 })
         })

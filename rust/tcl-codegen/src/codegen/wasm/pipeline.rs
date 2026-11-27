@@ -1052,7 +1052,7 @@ mod tests {
 
         let off_regions = off.plan.region_plan().plan().expect("off region plan");
         let on_regions = on.plan.region_plan().plan().expect("on region plan");
-        let node = tcl_compiler::ir::NodeId::from_path(vec![0]);
+        let node = tcl_source::words::NodeId::from_path(vec![0]);
         assert_eq!(
             off_regions.region(&node).unwrap().selected_kind(),
             tcl_compiler::mixed_region_plan::RegionSelectionKind::GenericPrebuiltArgv

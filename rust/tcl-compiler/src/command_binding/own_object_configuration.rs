@@ -33,7 +33,7 @@ use tcl_registry::{
 pub(super) struct OriginalOwnObjectMethodConfiguration {
     receiver: Arc<SourceObjectInstanceProof>,
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     target_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     handler: super::SourceCommandTarget,
@@ -46,7 +46,7 @@ pub(super) struct OriginalOwnObjectMethodConfiguration {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct OriginalOwnObjectMethodTransfer {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     worker: super::SourceCommandTarget,
     recipe: tcl_registry::definer::NativeDeferredMethodSetter,
     entry: super::SourceReceiverMethodEntry,
@@ -215,7 +215,7 @@ fn inline_member_definition(
     let values = members
         .iter()
         .map(|word| {
-            (word.source().provenance == crate::ir::Provenance::Source).then(|| {
+            (word.source().provenance == tcl_source::words::Provenance::Source).then(|| {
                 crate::registry_invocation::effective_invocation_word(word, config.escapes, rules)
             })
         })
@@ -231,7 +231,7 @@ fn inline_member_definition(
     let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
     let definition = super::ExecutedScriptSource::contiguous(Arc::clone(origin), text, start)?;
     let map = tcl_lexer::SourceMap::from_image(&definition.text).with_base(start, 0, 0);
-    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &definition.text,
         start,
         config.nested(),
@@ -301,7 +301,7 @@ fn own_object_method_transfers(
 ) -> Option<Vec<OriginalOwnObjectMethodTransfer>> {
     let context = *context;
     let map = tcl_lexer::SourceMap::from_image(&body.text).with_base(body.base(), 0, 0);
-    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &body.text,
         body.base(),
         context.config.nested(),

@@ -20,8 +20,8 @@
 
 use super::{CapturePurpose, SourceStructure};
 use tcl_compiler::analyser::{AnalysisResult, ResolvedAnalysisInput};
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{SourceImage, Span};
+use tcl_source::segment::SegmentedCommand;
 
 /// Completeness of independently selected original script syntax only.
 /// Complete supplies no dispatch/call-graph closure, execution or Normal result.

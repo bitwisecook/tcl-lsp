@@ -18,10 +18,10 @@
 
 //! Where command substitutions sit: the commands inside an expression tree and the value and expression surfaces of one statement whose `[…]` run while it is evaluated.
 
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use tcl_registry::CommandRegistry;
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// Return `true` if *expr* contains at least one command
 /// substitution (`[cmd ...]`). Used by CFG lowering to decide

@@ -87,7 +87,7 @@ impl OriginalLogicalFrameInvocation {
                 .get(self.written_argument(argument)?.checked_add(1)?)?,
         };
         let (spelling, source) = word.sole_variable_substitution()?;
-        if source.provenance != crate::ir::Provenance::Source {
+        if source.provenance != tcl_source::words::Provenance::Source {
             return None;
         }
         let reference =

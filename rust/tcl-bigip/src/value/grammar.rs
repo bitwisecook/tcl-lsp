@@ -18,7 +18,7 @@
 
 //! Read address properties with the grammar declared by the BIG-IP registry.
 
-use tcl_registry::bigip::{AddressGrammar, default_registry};
+use tcl_bigip_schema::{AddressGrammar, default_registry};
 
 use super::{
     Address, BigIpName, Destination, FQDN, IPAddress, MemberKey, Network, Port, WildcardAddress,

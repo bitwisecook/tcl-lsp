@@ -241,7 +241,7 @@ enum Command {
     },
 
     /// Verify the hand-maintained BIG-IP object-spec data
-    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent.
+    /// (`rust/tcl-bigip-schema/src/bigip/data/`) is internally consistent.
     #[command(name = "bigip-data-schema")]
     BigipDataSchema {
         /// Accepted for symmetry with the other gates (the lint always

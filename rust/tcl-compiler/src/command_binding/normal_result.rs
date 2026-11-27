@@ -92,11 +92,11 @@ impl NormalOutcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct InvocationResultBasis {
     binding: SourceInvocationBinding,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
 }
 
 impl InvocationResultBasis {
-    pub(super) fn of(point: &SourceBindingPoint, words: &[crate::ir::WordExpr]) -> Self {
+    pub(super) fn of(point: &SourceBindingPoint, words: &[tcl_source::words::WordExpr]) -> Self {
         Self {
             binding: SourceCommandBindings::query_dispatch_points(std::iter::once(point)),
             words: words.to_vec(),
@@ -671,7 +671,8 @@ mod tests {
         offset: usize,
         config: tcl_lexer::LexerConfig,
     ) -> crate::ir::CommandTokens {
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let command = commands
             .iter()
             .find(|command| usize::try_from(command.span.start()).unwrap() == offset)
@@ -770,7 +771,7 @@ mod tests {
     fn scoped_procedure_tokens(source: &str) -> crate::ir::CommandTokens {
         let (bindings, config) = inventory_for(source, "tcl9.0");
         let offset = source.find("[answer]").unwrap() + 1;
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+        let segment = tcl_source::segment::segment_commands_with_offset_and_config(
             "answer",
             u32::try_from(offset).unwrap(),
             config,

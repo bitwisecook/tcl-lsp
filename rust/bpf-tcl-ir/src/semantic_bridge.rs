@@ -650,7 +650,9 @@ mod tests {
             CompletionId, ExecutableBlock, ExecutableBlockId, ExecutableFunction,
             ExecutableFunctionId, ExecutableInstruction, ExecutableTerminator, ExecutableValueId,
         };
-        use tcl_compiler::ir::{NodeId, SourceSite, WordExpr};
+        use tcl_source::words::NodeId;
+        use tcl_source::words::SourceSite;
+        use tcl_source::words::WordExpr;
 
         let function_id = ExecutableFunctionId::new(7);
         let block_id = ExecutableBlockId::new(function_id, 0);

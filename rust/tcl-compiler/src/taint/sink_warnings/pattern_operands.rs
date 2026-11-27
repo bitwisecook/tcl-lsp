@@ -188,7 +188,7 @@ fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
 
 /// The pattern word's taint under the solved procedure return summaries, so
 /// an inline call to a quoting procedure proves what its assigned result would.
-fn summarised_pattern_taint<S: std::hash::BuildHasher>(
+pub(super) fn summarised_pattern_taint<S: std::hash::BuildHasher>(
     env: &TaintScan<'_, S>,
     registry: &CommandRegistry,
     source_tokens: &CommandTokens,

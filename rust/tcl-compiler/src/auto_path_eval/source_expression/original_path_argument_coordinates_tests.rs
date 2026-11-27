@@ -30,7 +30,7 @@ fn original(source: &str) -> (AnalysisResult, NativeWord) {
     let analysis = crate::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, profile.name);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let words = source_registry_words(source, &analysis, commands.last().unwrap()).unwrap();
     let word = words.operands()[1]
         .as_ref()

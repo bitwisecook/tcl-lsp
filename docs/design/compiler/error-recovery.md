@@ -8,9 +8,9 @@ and lets the rest of the pipeline proceed on the repaired parse.
 
 Source:
 
-- `rust/tcl-compiler/src/segmenter.rs` — `segment_with_recovery`, the re-lex
+- `rust/tcl-compiler/src/analyser/state/syntax_recovery.rs` — `segment_with_recovery`, the re-lex
   driver.
-- `rust/tcl-compiler/src/parsing/syntax/build.rs` and `segment.rs` —
+- `rust/tcl-source/src/cst/build.rs` and `segment.rs` —
   `build_document_with_ghosts` and `segments_from_document`, the re-parse.
 - `rust/tcl-compiler/src/analyser/syntax_checks.rs` — the per-code heuristics
   (`detect_e201` and its `e201_at_comment` / `e201_at_command` / `e201_at_brace`
@@ -35,7 +35,7 @@ from a recovered parse stay correct against the user's untouched buffer.
 source
    │
    ▼
-segment_commands_local()          ← first plain parse (CST → SegmentedCommands)
+segment_commands_with_offset_and_config()  ← first plain CST parse
    │
    ▼
 unterminated_bracket_diagnostics()  per command

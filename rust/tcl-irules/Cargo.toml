@@ -33,6 +33,7 @@ authors.workspace = true
 test-instrumentation = []
 
 [dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }

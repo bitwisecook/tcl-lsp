@@ -126,7 +126,7 @@ impl SourceCommandBindings {
     pub(super) fn walk_ensemble_dispatch(
         &mut self,
         site: u32,
-        original_words: Option<&[crate::ir::WordExpr]>,
+        original_words: Option<&[tcl_source::words::WordExpr]>,
         effective: &[EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,

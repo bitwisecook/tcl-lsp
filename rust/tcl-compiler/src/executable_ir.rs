@@ -36,11 +36,16 @@ use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::expr_ast::ExprNode;
-use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode, WordExpr};
+use crate::ir::Script;
+use crate::ir::Statement;
+use crate::ir::SwitchMode;
 use crate::registry_invocation::InvocationMetadataContext;
 pub use crate::registry_invocation::{
     OwnedInvocationResolutionUnresolved, RegistryInvocationResolution as InvocationResolution,
 };
+use tcl_source::words::NodeId;
+use tcl_source::words::SourceSite;
+use tcl_source::words::WordExpr;
 
 mod builder;
 mod dominance;

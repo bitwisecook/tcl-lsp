@@ -182,10 +182,14 @@ impl<'a> FunctionLattice<'a> {
 
     /// The constant `name` holds at the statement spanning `span`, when
     /// the lattice proves one.
-    fn constant_at(&self, span: tcl_lexer::Span, word: &crate::ir::WordExpr) -> Option<String> {
+    fn constant_at(
+        &self,
+        span: tcl_lexer::Span,
+        word: &tcl_source::words::WordExpr,
+    ) -> Option<String> {
         let unit = self.unit?;
         let located = self.statements.get(&(span.start(), span.end()))?.as_ref()?;
-        let crate::ir::WordExpr::Variable { spelling, source } = word else {
+        let tcl_source::words::WordExpr::Variable { spelling, source } = word else {
             return None;
         };
         let read = crate::ssa::SsaSourceView::at_statement(&unit.ssa, located.block, located.index)

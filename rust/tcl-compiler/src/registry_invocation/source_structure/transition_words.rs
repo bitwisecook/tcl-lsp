@@ -30,7 +30,7 @@ pub(in super::super) fn logical_source_registry_words(
     source: &str,
     realm: &crate::realm::CommandBindingRealm,
     input: &crate::analyser::ResolvedAnalysisInput,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     if realm
         .source_bindings_ref()
@@ -74,7 +74,7 @@ pub(super) fn logical_source_registry_words_in_original_image(
     image: &tcl_lexer::SourceImage,
     realm: &crate::realm::CommandBindingRealm,
     input: &crate::analyser::ResolvedAnalysisInput,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     if realm
         .source_bindings_ref()
@@ -115,7 +115,7 @@ pub(super) fn native_source_registry_words(
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     retained_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
 ) -> Option<OriginalRegistryWords> {
     let image = retained_document_image(source, realm, config)?;
@@ -154,7 +154,7 @@ fn native_source_metadata(
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     retained_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
 ) -> Option<crate::registry_invocation::OriginalConditionalRegistryMetadata> {
     let registry = context.commands();
@@ -244,7 +244,7 @@ fn conditional_source_values(
 
 fn conditional_source_operands(
     native: &[tcl_lexer::NativeWord],
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     origin: &OriginalRegistrySource,
 ) -> Vec<Option<OriginalOperandSource>> {
     native
@@ -274,7 +274,7 @@ fn conditional_source_registry_words(
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     metadata: crate::registry_invocation::OriginalConditionalRegistryMetadata,
 ) -> Option<OriginalRegistryWords> {
     use crate::registry_invocation::InvocationWordOrigin;
@@ -373,7 +373,7 @@ fn source_transition_registry_words(
     config: tcl_lexer::LexerConfig,
     realm: &crate::realm::CommandBindingRealm,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> Option<OriginalRegistryWords> {
     let image = retained_document_image(source, realm, config)?;
     let mut tokens = crate::ir::CommandTokens::from_segmented(
@@ -406,7 +406,7 @@ pub(crate) fn conditional_lambda_formatting_words(
     source: &str,
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     advice: &crate::command_binding::OriginalSourceCommandTransitionAdvice,
 ) -> Option<OriginalRegistryWords> {
     let mut words =
@@ -426,7 +426,7 @@ pub(crate) fn source_transition_words_from_advice(
         original.first()?.span().start(),
         original.last()?.span().end(),
     );
-    let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+    let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
         source.get(span.as_range())?,
         span.start(),
         config.nested(),
@@ -441,7 +441,7 @@ pub(super) fn source_transition_words_with_segment(
     source: &str,
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
 ) -> Option<OriginalRegistryWords> {
     let image = matching_document_image(source, advice.original_words().first()?.image())?;
@@ -454,7 +454,7 @@ fn source_transition_words_with_segment_in_image(
     image: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ContextRegistry,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     advice: crate::command_binding::OriginalSourceCommandTransitionAdvice,
 ) -> Option<OriginalRegistryWords> {
     use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};

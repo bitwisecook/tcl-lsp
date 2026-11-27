@@ -606,14 +606,14 @@ impl Analyser {
                  ``info exists`` / ``upvar``, but {detail}"
             );
             let candidates = self.scope_variable_names(scope_path);
-            let suggestions = crate::text::suggest_similar(
+            let suggestions = tcl_source::text::suggest_similar(
                 &runtime_name,
                 candidates
                     .iter()
                     .map(String::as_str)
                     .filter(|name| *name != runtime_name),
                 1,
-                crate::text::scaled_max_distance_strict(&runtime_name),
+                tcl_source::text::scaled_max_distance_strict(&runtime_name),
             );
             if let Some(best) = suggestions.first() {
                 use std::fmt::Write as _;

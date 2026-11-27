@@ -275,10 +275,10 @@ mod tests {
         call: &str,
     ) -> (
         OriginalDiagnosticInvocation,
-        crate::segmenter::SegmentedCommand,
+        tcl_source::segment::SegmentedCommand,
     ) {
         let base = u32::try_from(source.find(call).unwrap()).unwrap();
-        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut segments = tcl_source::segment::segment_commands_with_offset_and_config(
             call,
             base,
             analyser.lexer_config(),

@@ -22,7 +22,6 @@ use super::super::{Lowerer, join_namespace, seg_word_is_static_braced};
 use super::DefinerCall;
 use super::procedures::{parse_formal_param_names, qualify_proc_name};
 use crate::ir::{CommandTokens, MethodDef, MethodKind, Statement};
-use crate::segmenter::SegmentedCommand;
 use std::collections::{HashMap, HashSet};
 use tcl_lexer::SourceSegmentationPurpose;
 use tcl_registry::definer::{
@@ -30,6 +29,7 @@ use tcl_registry::definer::{
     MemberRow,
 };
 use tcl_registry::{ArgRole, InvocationArguments, InvocationWord};
+use tcl_source::segment::SegmentedCommand;
 use tcl_syntax::word_rules::WordValueRules;
 
 impl Lowerer<'_> {
@@ -921,7 +921,7 @@ pub(in super::super) fn statement_words(
 /// result directly.
 pub(in super::super) fn declared_member_vars(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
-    segments: &[crate::segmenter::SegmentedCommand],
+    segments: &[tcl_source::segment::SegmentedCommand],
     surface: Option<tcl_dialect::model::SurfaceQuery<'_>>,
     config: tcl_lexer::LexerConfig,
 ) -> HashSet<String> {

@@ -61,7 +61,8 @@ fn original_selected_commands_keep_the_parent_prologue_and_complete_vector_separ
             .with_resolved_input(input.clone())
             .analyse(source, profile.name);
         let realm = analysis.retained_command_realm().unwrap();
-        let parent = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let parent =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let actual = parent.last().unwrap();
         assert_eq!(actual.argv[0].span.start(), offset, "{source:?}");
         let image = tcl_lexer::SourceImage::document(source);

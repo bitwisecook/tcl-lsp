@@ -43,12 +43,12 @@ use tcl_cli_support::{
 };
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use tcl_compiler::segmenter::{
-    SegmentedCommand, UnclosedDelimiter, segment_commands_with_offset_and_config,
-};
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 use tcl_registry::snapshot::Json;
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::UnclosedDelimiter;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 /// Unified-diff context lines. Exposes `--context` (default
 /// 3); the Rust CLI surface does not, so the default is used.

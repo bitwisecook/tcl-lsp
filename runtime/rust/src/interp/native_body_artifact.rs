@@ -218,6 +218,11 @@ enum Operation {
     ),
     Invoke,
     List(NativeCompiledListRecipe, Option<usize>),
+    /// A List the parser flattened from a literal `{*}` word.
+    ListOperands {
+        operands: Vec<NamespaceOperand>,
+        prepared_words: HashMap<usize, WordInstruction>,
+    },
     FormatStringConcat {
         operands: Vec<NamespaceOperand>,
         prepared_words: HashMap<usize, WordInstruction>,

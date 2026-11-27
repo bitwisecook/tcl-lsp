@@ -312,8 +312,11 @@ mod tests {
     use crate::analyser::{Analyser, AnalysisResult};
     use crate::registry_invocation::source_structure::source_declared_command_words;
 
-    fn last_command(source: &str, analysis: &AnalysisResult) -> crate::segmenter::SegmentedCommand {
-        crate::segmenter::segment_commands_with_offset_and_config(
+    fn last_command(
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> tcl_source::segment::SegmentedCommand {
+        tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),
@@ -482,7 +485,8 @@ mod tests {
         let config = tcl_lexer::LexerConfig::for_file_grammar(
             tcl_dialect::DialectProfile::plain_tcl().grammar,
         );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let commands =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
         let results = [
             Analyser::new().analyse(source, "tcl8.6"),
             Analyser::new()
@@ -509,8 +513,8 @@ mod tests {
         source: &str,
         analysis: &AnalysisResult,
         fragment: &str,
-    ) -> crate::segmenter::SegmentedCommand {
-        crate::segmenter::segment_commands_with_offset_and_config(
+    ) -> tcl_source::segment::SegmentedCommand {
+        tcl_source::segment::segment_commands_with_offset_and_config(
             fragment,
             u32::try_from(source.find(fragment).unwrap()).unwrap(),
             analysis.body_lexer_config.unwrap(),
@@ -521,7 +525,7 @@ mod tests {
     fn logical_receipt_at(
         source: &str,
         fragment: &str,
-    ) -> (AnalysisResult, crate::segmenter::SegmentedCommand) {
+    ) -> (AnalysisResult, tcl_source::segment::SegmentedCommand) {
         let analysis = Analyser::new().analyse(source, "tcl");
         let command = command_at(source, &analysis, fragment);
         (analysis, command)

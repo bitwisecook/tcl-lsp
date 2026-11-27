@@ -88,7 +88,7 @@ pub(crate) fn nested_dispatch_regions(
     source: &str,
     analysis: &AnalysisResult,
     _dialect: &'static tcl_dialect::DialectProfile,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     // naming.core.original-dispatch-region-context
     // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
@@ -129,7 +129,7 @@ pub(crate) fn frame_shifted_dispatch_regions(
     source: &str,
     analysis: &AnalysisResult,
     _dialect: &'static tcl_dialect::DialectProfile,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     // Source structure identifies possible shifted bodies, never an entered frame.
     let Some(RetainedDispatchContext { context, .. }) = retained_dispatch_context(source, analysis)
@@ -182,7 +182,7 @@ pub(crate) fn frame_shifted_dispatch_regions(
 /// child projections. Completeness belongs to the checked source walker;
 /// neither an empty projection nor a missing command can issue a census.
 pub(super) struct RetainedDispatchRegions {
-    pub(super) command: tcl_compiler::segmenter::SegmentedCommand,
+    pub(super) command: tcl_source::segment::SegmentedCommand,
     regions: Vec<(usize, usize)>,
 }
 
@@ -254,7 +254,7 @@ impl DispatchRegionCensus {
         &self,
         source: &str,
         analysis: &AnalysisResult,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> Option<&[(usize, usize)]> {
         let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
         if self.image.bytes() != source.as_bytes()
@@ -291,7 +291,7 @@ pub(crate) fn dispatch_scan_regions(
     source: &str,
     analysis: &tcl_compiler::analyser::AnalysisResult,
     dialect: &'static tcl_dialect::DialectProfile,
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();

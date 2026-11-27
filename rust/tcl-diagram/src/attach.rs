@@ -406,7 +406,7 @@ pub fn proc_call_refs_for_analysis(
             continue;
         };
         let mut commands =
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(text, start, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(text, start, config);
         if commands.len() != 1 {
             continue;
         }

@@ -371,7 +371,7 @@ fn original_oo_roles_do_not_use_final_members_for_an_earlier_or_stale_call() {
     let mut analysis = Analyser::new().analyse(source, "tcl8.6");
     let roles = OriginalTokenRoles::capture(source, Some(&analysis));
     assert!(roles.current);
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         analysis.body_lexer_config.unwrap(),

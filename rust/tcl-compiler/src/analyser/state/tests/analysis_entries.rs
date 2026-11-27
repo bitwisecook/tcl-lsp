@@ -87,10 +87,13 @@ fn retained_analysis_fixture_keeps_the_returned_source_owner_for_private_queries
         &tcl_lexer::SourceImage::document(source),
         input.lexer_config()
     ));
-    let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, input.lexer_config())
-            .pop()
-            .unwrap();
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
+        source,
+        0,
+        input.lexer_config(),
+    )
+    .pop()
+    .unwrap();
     assert!(
         analyser
             .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
@@ -102,7 +105,7 @@ fn retained_analysis_fixture_keeps_the_returned_source_owner_for_private_queries
 fn unavailable_overlay_is_retained_before_every_analysis_walk() {
     let overlay = u64::MAX;
     let source = "proc must_not_be_walked {} {set x 1}; must_not_be_walked";
-    let commands = crate::segmenter::segment_commands(source);
+    let commands = tcl_source::segment::segment_commands(source);
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let missing = analyser
         .try_analysis_context()
@@ -151,7 +154,7 @@ fn original_whole_source_recovery_keeps_file_config_and_typed_warning_fields() {
             Analyser::new().with_resolved_input(input.clone())
         });
         analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
-        let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+        let mut commands = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),
@@ -160,7 +163,7 @@ fn original_whole_source_recovery_keeps_file_config_and_typed_warning_fields() {
         assert_eq!(
             commands
                 .iter()
-                .map(crate::segmenter::SegmentedCommand::name)
+                .map(tcl_source::segment::SegmentedCommand::name)
                 .collect::<Vec<_>>(),
             ["set", "puts"]
         );
@@ -234,7 +237,7 @@ fn original_prepared_input_records_the_file_boundary_and_preserves_supplied_conf
         prepared.lexer_config(),
     ));
     assert_eq!(project_result(&ordinary), project_result(&retained));
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         prepared.lexer_config(),
@@ -260,7 +263,7 @@ fn original_prepared_input_records_the_file_boundary_and_preserves_supplied_conf
     let result = selected.analyse(source, "tcl8.4");
     assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
     assert_eq!(result.body_lexer_config, Some(config));
-    let command = crate::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         result.resolved_input.as_ref().unwrap().lexer_config(),
@@ -293,7 +296,7 @@ fn original_incremental_completeness_retains_the_supplied_parser_configuration()
             config,
         );
         let commands =
-            crate::segmenter::segment_commands_with_offset_and_config(previous, 0, config);
+            tcl_source::segment::segment_commands_with_offset_and_config(previous, 0, config);
         let result = Analyser::new()
             .with_resolved_input(input.clone())
             .analyse_incremental(previous, &commands, source, "tcl9.1");
@@ -401,7 +404,7 @@ fn original_next_line_noqa_matches_all_actual_analyser_ingresses() {
     let source = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub hold {script:body}\n# tcl-lsp: stubs-end\nhold {\n# noqa: W210\n# comment-only\n}\n";
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let full = Analyser::new().analyse(source, profile.name);
     let (chunked, _) =
         Analyser::new().analyse_chunked(source, vec![commands.clone()], profile.name);
@@ -429,7 +432,7 @@ fn analyse_threads_next_line_noqa_into_suppressed_lines() {
 fn analyse_chunked_threads_next_line_noqa_into_suppressed_lines() {
     // Same wiring through ``analyse_chunked`` — the LSP's
     // primary incremental entry point.
-    use crate::segmenter::SegmentedCommand;
+    use tcl_source::segment::SegmentedCommand;
     let mut a = Analyser::new();
     let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];
     let (r, _) = a.analyse_chunked("# noqa: W210\nset x 1\n", cmds, "tcl");
@@ -441,7 +444,7 @@ fn analyse_chunked_threads_next_line_noqa_into_suppressed_lines() {
 fn analyse_commands_threads_next_line_noqa_into_suppressed_lines() {
     // Same wiring through ``analyse_commands`` — the snapshot-
     // restore entry point.
-    use crate::segmenter::SegmentedCommand;
+    use tcl_source::segment::SegmentedCommand;
     let mut a = Analyser::new();
     let cmds: Vec<SegmentedCommand> = Vec::new();
     let r = a.analyse_commands("# noqa: W210\nset x 1\n", &cmds, "tcl", true);
@@ -552,7 +555,7 @@ fn analyse_commands_pre_segmented_records_proc() {
     // ``analyse_commands`` is the incremental entry — same
     // dispatcher as ``analyse``, but without re-segmentation.
     // Smoke-test that a pre-segmented chunk records its proc.
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
     let source = "proc foo {} {}";
     let commands = segment_commands(source);
     let mut a = Analyser::new();
@@ -564,7 +567,7 @@ fn analyse_commands_pre_segmented_records_proc() {
 fn analyse_commands_fires_stray_close_bracket() {
     // The incremental / chunked path runs the E100 stray-`]`
     // check too, matching `analyse`.
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
     let source = "puts foo]";
     let commands = segment_commands(source);
     let mut a = Analyser::new();
@@ -588,7 +591,7 @@ fn analyse_chunked_returns_per_chunk_snapshots() {
     // ``analyse_chunked`` returns one snapshot per chunk.
     // Two chunks → two snapshots; the second snapshot
     // captures cumulative state.
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
     let source = "set x 1\nproc foo {} {}";
     // Chunks carry the document's own offsets.
     let mut commands = segment_commands(source).into_iter();
@@ -611,7 +614,7 @@ fn analyse_commands_finalise_false_skips_diagnostic_tail() {
     // When ``finalise=false``, the dedupe/disabled-codes
     // filters don't run — useful for partial-snapshot paths
     // where the tail is deferred.
-    use crate::segmenter::segment_commands;
+    use tcl_source::segment::segment_commands;
     let source = "proc set {} {}"; // would normally trip W113
     let commands = segment_commands(source);
     let mut a = Analyser::new();
@@ -637,7 +640,7 @@ fn analyse_chunked_seeds_file_suppression_minus_one_sentinel() {
     // ``analyse_chunked`` does the same so consumers see the
     // file-wide directives via the same surface regardless of
     // which entry point dispatched.
-    use crate::segmenter::SegmentedCommand;
+    use tcl_source::segment::SegmentedCommand;
     let mut a = Analyser::new();
     let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];
     let (r, _) = a.analyse_chunked("# tcl-lsp: disable=W210,W211\nset x 1\n", cmds, "tcl");
@@ -650,7 +653,7 @@ fn analyse_chunked_seeds_file_suppression_minus_one_sentinel() {
 fn analyse_commands_seeds_file_suppression_minus_one_sentinel() {
     // Same assertion through ``analyse_commands`` — the
     // snapshot-restore entry point.
-    use crate::segmenter::SegmentedCommand;
+    use tcl_source::segment::SegmentedCommand;
     let mut a = Analyser::new();
     let cmds: Vec<SegmentedCommand> = Vec::new();
     let r = a.analyse_commands(
@@ -708,7 +711,7 @@ fn analyse_incremental_matches_full_under_fuzz() {
     let mut rng = IncrLcg(0xD1FF_ACE5_1234_9876);
     let mut checked = 0usize;
     for base in bases {
-        let prev_cmds = crate::segmenter::segment_commands(base);
+        let prev_cmds = tcl_source::segment::segment_commands(base);
         let blen = base.len();
         for _ in 0..70 {
             let mut s = (rng.next_u32() as usize) % (blen + 1);
@@ -740,7 +743,7 @@ fn analyse_incremental_matches_full_under_fuzz() {
 #[test]
 fn analyse_incremental_falls_back_on_incomplete_and_stubs() {
     let base = "set x 1\nputs hi\n";
-    let prev = crate::segmenter::segment_commands(base);
+    let prev = tcl_source::segment::segment_commands(base);
     // Incomplete (unterminated brace) -> full-analyse fallback, still
     // identical to a direct full analyse.
     let incomplete = "set x 1\nproc p {} {\n";

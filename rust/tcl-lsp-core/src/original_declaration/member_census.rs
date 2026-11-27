@@ -163,7 +163,7 @@ pub(crate) fn complete_member_name_census(
 impl MemberCensus<'_> {
     fn classify(
         &mut self,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
     ) -> Option<MemberCensusCommand> {
         use tcl_registry::{AuthoredSourceSelfDispatch, Traits};
         let head = command.argv.first()?;
@@ -360,7 +360,7 @@ pub(crate) fn word_member_mentions(
 /// An expanded member keeps its `Expand` token and stays unmatched.
 fn census_member_matches(
     member: &crate::source_structure::SourceSyntaxDefinitionMember<'_>,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     let words = member.original_words();
     words
@@ -424,7 +424,7 @@ fn census_admits_member(
 /// member naming classes only. It runs no script and dispatches no member.
 pub(crate) fn class_relation_member(
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     use tcl_registry::ArgRole;
     use tcl_registry::definer::{MemberEffect, MemberRefKind, RelationSlot};
@@ -466,7 +466,7 @@ pub(crate) fn class_relation_member(
 /// An `export`/`unexport` definition member naming methods only.
 pub(crate) fn class_visibility_member(
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     use tcl_registry::definer::{MemberEffect, MemberRefKind};
     let Some(head) = command.argv.first() else {
@@ -507,7 +507,7 @@ pub(crate) enum CommandRenameMember {
 /// `simple_names`.
 pub(crate) fn command_rename_member(
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    command: &tcl_compiler::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     simple_names: &[&[u8]],
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Result<Option<CommandRenameMember>, ()> {

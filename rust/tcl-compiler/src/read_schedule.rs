@@ -18,9 +18,10 @@
 
 //! Exact repeated-read contents evidence for source rewrite schedules.
 
-use crate::ir::{CommandTokens, SourceSite};
+use crate::ir::CommandTokens;
 use crate::var_resolve::{ContentsOrigin, resolve_substitution_access};
 use tcl_registry::{CommandRegistry, InvocationDialect, TraceOperation};
+use tcl_source::words::SourceSite;
 
 /// Two original reads select the same live, unobserved stored value.
 /// This proves read continuity only. Consumers must independently prove the
@@ -39,8 +40,8 @@ impl RepeatedReadContentsWitness {
         registry: &CommandRegistry,
     ) -> Option<Self> {
         if first == second
-            || first.provenance != crate::ir::Provenance::Source
-            || second.provenance != crate::ir::Provenance::Source
+            || first.provenance != tcl_source::words::Provenance::Source
+            || second.provenance != tcl_source::words::Provenance::Source
         {
             return None;
         }

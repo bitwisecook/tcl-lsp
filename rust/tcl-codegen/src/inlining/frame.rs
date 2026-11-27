@@ -57,14 +57,22 @@ use tcl_lexer::LexerConfig;
 use tcl_lexer::{Lexer, SourceMap, TokenType};
 use tcl_registry::CommandRegistry;
 
-use tcl_compiler::depth_guard::MAX_EXPR_NODE_DEPTH;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
-use tcl_compiler::ir::{CommandTokens, Module, Procedure, Script, Statement, WordExpr, WordPart};
-#[cfg(test)]
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::ir::Module;
+use tcl_compiler::ir::Procedure;
+use tcl_compiler::ir::Script;
+use tcl_compiler::ir::Statement;
 #[cfg(test)]
 use tcl_compiler::var_refs::variable_name_role_words;
 use tcl_compiler::var_refs::{VarReferenceScanner, VarScanOptions};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
+#[cfg(test)]
+use tcl_source::segment::SegmentedCommand;
+#[cfg(test)]
+use tcl_source::segment::segment_commands_with_offset_and_config;
+use tcl_source::words::WordExpr;
+use tcl_source::words::WordPart;
 
 /// Whether every variable `proc`'s body reads is bound when it is read.
 pub(super) fn reads_only_bound_names(proc: &Procedure, source: SourceContext<'_>) -> bool {

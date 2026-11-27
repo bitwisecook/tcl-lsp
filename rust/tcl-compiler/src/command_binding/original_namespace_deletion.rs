@@ -141,7 +141,7 @@ impl AppliedOriginalNamespaceDeletions {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalNamespaceDeletion {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: super::SourceCommandTarget,
     current: SourceNamespaceKey,

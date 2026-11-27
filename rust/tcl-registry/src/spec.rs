@@ -1042,8 +1042,15 @@ pub struct CommandSpec {
     /// `subst`, whose `-nocommands` flag (or, from Tcl 9.1, an
     /// `-backslashes`/`-variables` positive form with no `-commands`)
     /// disables the only hazard T100 warns about — see
-    /// `tcl_registry::commands::tcl::subst_::subst_evaluates_commands`.
+    /// `tcl_registry::commands::tcl::subst_::subst_evaluates_code`.
     pub taint_sink_gate: Option<fn(&[&str]) -> bool>,
+
+    /// A validator: given a call's argument words (excluding the command
+    /// name), the index of the argument whose value a *true* result proves
+    /// and the colours it proves, or `None` when this call proves nothing.
+    /// `string is digit -strict $x` proves `$x` a shell atom; `string is
+    /// integer` proves nothing, as it accepts `-5`, ` 5` and `"5\n"`.
+    pub taint_validator: Option<crate::taint::TaintValidator>,
 
     /// Which of a call's own argument words this command reads as numbers —
     /// a T100 numeric-coercion sink when one carries taint, as an operand of a
@@ -1404,6 +1411,7 @@ impl CommandSpec {
             || self.taint_double_encode_colour.is_some()
             || self.taint_sink_safe_colour.is_some()
             || self.taint_sink_gate.is_some()
+            || self.taint_validator.is_some()
             || self.taint_numeric_coercion.is_some()
             || self.taint_output_sink.is_some()
             || !self.taint_output_sink_subcommands.is_empty()

@@ -33,8 +33,9 @@ use super::{
     RegistryInvocationShape, ResolvedStatementInvocation, SourceCutDeclarationWordCorrespondence,
     source_schema_queries, source_structure,
 };
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::CommandTokens;
 use tcl_registry::{CommandRegistry, InvocationFacts};
+use tcl_source::words::WordExpr;
 
 /// Same-owner quiet scalar-store source coverage, not registry transition facts.
 /// Only the original full-input/point/operand and quiet-write kernel below can
@@ -447,7 +448,7 @@ impl<'a> OriginalSourceCutProcedureDeclaration<'a> {
 pub fn original_source_cut_procedure_declaration_for_coverage<'a>(
     source: &str,
     analysis: &'a crate::analyser::AnalysisResult,
-    command: &crate::segmenter::SegmentedCommand,
+    command: &tcl_source::segment::SegmentedCommand,
     survey: &crate::command_binding::OriginalSingleSourceCutSurvey<'_>,
 ) -> Option<OriginalSourceCutProcedureDeclaration<'a>> {
     if source_cut_refuses(

@@ -56,8 +56,8 @@ Source text
   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ 1. Lexer         Lexer::tokenise_all()    → Vec<Token>               │  rust/tcl-lexer/src/lexer.rs
-│ 2. Segmenter     segment_commands()       → Vec<SegmentedCommand>    │  rust/tcl-compiler/src/segmenter.rs
-│      (derived byte-identically from the red-green CST)               │  rust/tcl-compiler/src/parsing/syntax/
+│ 2. Segmenter     segment_commands()       → Vec<SegmentedCommand>    │  rust/tcl-source/src/segment.rs
+│      (derived byte-identically from the red-green CST)               │  rust/tcl-source/src/cst/
 │ 3. IR Lowering   lower_to_ir()            → ir::Module               │  rust/tcl-compiler/src/lowering/mod.rs
 │ 4. CFG           build_cfg_function()     → cfg::Function            │  rust/tcl-compiler/src/cfg_builder/mod.rs
 │ 5. SSA           build_ssa()              → SsaFunction              │  rust/tcl-compiler/src/ssa.rs
@@ -133,17 +133,17 @@ pub struct Token {
   column can never be handed to an LSP consumer without an explicit
   conversion through `LineIndex::position_at_utf16`.
 
-### Stage 2 — Segmenter types (`rust/tcl-compiler/src/segmenter.rs`)
+### Stage 2 — Segmenter types (`rust/tcl-source/src/segment.rs`)
 
 > `segment_commands()` builds the canonical lossless **red-green concrete syntax
-> tree** (`rust/tcl-compiler/src/parsing/syntax/`, see
+> tree** (`rust/tcl-source/src/cst/`, see
 > [syntax-tree.md](syntax-tree.md)) and derives the `SegmentedCommand`
 > list from it.  The tree is the *backing* for the parallel-array view below,
 > not a different shape: every example's Stage 2 data structure is exactly what
 > a token-level walk of the same command yields.
 
 ```rust
-// rust/tcl-compiler/src/segmenter.rs
+// rust/tcl-source/src/segment.rs
 pub struct SegmentedCommand {
     pub span: Span,                             // byte span of the whole command
     pub argv: Vec<Token>,                       // representative token per word
@@ -3146,7 +3146,7 @@ end of the line without a matching `]`.
 
 ### Stage 0 — Error recovery
 
-`rust/tcl-compiler/src/segmenter.rs` runs a first-pass parse via
+`rust/tcl-source/src/segment.rs` runs a first-pass parse via
 `segment_commands()`.  The segmenter detects that the `Cmd` token starting
 at `[` is unterminated (the character after the `Cmd` text is not `]`).
 
@@ -4156,7 +4156,7 @@ Source text  ──────────────────────�
 
 Each stage transforms the data into a richer representation:
 1. **Tokens** — flat character-level classification (`rust/tcl-lexer/src/tokens.rs`)
-2. **SegmentedCommand** — word-level grouping with command boundaries (`rust/tcl-compiler/src/segmenter.rs`)
+2. **SegmentedCommand** — word-level grouping with command boundaries (`rust/tcl-source/src/segment.rs`)
 3. **IR nodes** — typed, structured command semantics (`rust/tcl-compiler/src/ir.rs`)
 4. **CFG blocks** — explicit control flow with terminators (`rust/tcl-compiler/src/cfg.rs`)
 5. **SSA** — variable versioning with phi nodes at merge points (`rust/tcl-compiler/src/ssa.rs`)

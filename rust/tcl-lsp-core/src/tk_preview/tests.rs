@@ -89,7 +89,7 @@ fn original_tk_literals_keep_braced_data_and_the_actual_full_configuration() {
             .with_resolved_input(input)
             .analyse(source, profile.name);
         let command =
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
                 .remove(0);
         let original = TkSourceCommand::capture(source, &analysis, &command);
         assert_eq!(literal_word(&original, 3).unwrap().0, expected);
@@ -108,7 +108,7 @@ fn original_tk_literals_refuse_substitution_expansion_and_foreign_source() {
         r"label .w -text \uD800",
     ] {
         let analysis = tk_source_analysis(source, profile, registry);
-        let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let command = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),
@@ -119,7 +119,7 @@ fn original_tk_literals_refuse_substitution_expansion_and_foreign_source() {
     }
     let source = "label .w -text kept";
     let analysis = tk_source_analysis(source, profile, registry);
-    let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+    let command = tcl_source::segment::segment_commands_with_offset_and_config(
         source,
         0,
         analysis.body_lexer_config.unwrap(),

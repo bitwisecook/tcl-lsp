@@ -87,8 +87,7 @@ fn logical_definer_class_context_uses_the_selected_installation_name_operand() {
         .analyse(source, "report");
     let config = analysis.body_lexer_config.unwrap();
     let command =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let words =
         crate::original_invocation::source_registry_words(source, &analysis, &command).unwrap();
     let selected = words
@@ -504,7 +503,7 @@ fn retained_head_colours_keep_the_selected_full_context_descriptor_traits() {
         let words = crate::original_invocation::source_registry_words(
             source,
             &analysis,
-            &tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            &tcl_source::segment::segment_commands_with_offset_and_config(
                 source,
                 0,
                 analysis.body_lexer_config.unwrap(),
@@ -531,8 +530,7 @@ fn retained_head_colours_keep_the_selected_full_context_descriptor_traits() {
 fn original_head_evidence(source: &str, analysis: &AnalysisResult) -> String {
     let config = analysis.body_lexer_config.unwrap();
     let segment =
-        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let words = crate::original_invocation::source_registry_words(source, analysis, &segment);
     let owned = words.as_ref().and_then(|words| words.head_source());
     let word = owned.and_then(|owned| owned.word());

@@ -26,10 +26,14 @@ use super::{
     FactMode, FactSink, ObjectFlowEdge, ObjectHandleFacts, OwnerIndex, ScanContext, frame_for_unit,
 };
 use crate::compilation_unit::CompilationUnit;
-use crate::ir::{MethodCoordinate, MethodKind, ProcedureId, Statement, WordExpr};
+use crate::ir::MethodCoordinate;
+use crate::ir::MethodKind;
+use crate::ir::ProcedureId;
+use crate::ir::Statement;
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::BodyFrameId;
 use tcl_registry::CommandRegistry;
+use tcl_source::words::WordExpr;
 
 /// VTA-lite object-flow fixpoint.  Propagates object classes from the seeded
 /// handles along four kinds of type-propagation edge — assignment (aliasing),

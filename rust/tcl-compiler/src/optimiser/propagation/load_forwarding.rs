@@ -436,7 +436,8 @@ fn report_load_forward(
     } = use_stmt
     {
         for (i, argv_span) in tokens.argv.iter().enumerate() {
-            let Some(word @ crate::ir::WordExpr::Variable { spelling, .. }) = tokens.words().get(i)
+            let Some(word @ tcl_source::words::WordExpr::Variable { spelling, .. }) =
+                tokens.words().get(i)
             else {
                 continue;
             };

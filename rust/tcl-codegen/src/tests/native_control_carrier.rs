@@ -33,7 +33,6 @@ use tcl_compiler::lowering::source_body_syntax::{
 use tcl_compiler::lowering_hooks::{
     ArgTokenKind, LoweringCommand, ResolvedLowering, extract_proved_expr_arg,
 };
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_dialect::model::surface_admits;
 use tcl_lexer::SourceSegmentationPurpose;
 use tcl_lexer::TokenType;
@@ -44,6 +43,7 @@ use tcl_registry::definer::{
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::{ArgRole, CommandRegistry, InvocationArguments, InvocationWord};
+use tcl_source::segment::SegmentedCommand;
 use tcl_syntax::word_rules::WordValueRules;
 
 // tcl-lsp — a language server and toolchain for Tcl

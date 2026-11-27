@@ -308,7 +308,7 @@ fn lower_native_target(
         source.try_text(),
         lowerer.module.advisory_top_level_namespace(),
     ) {
-        if crate::segmenter::segment_commands_image_with_offset_and_config(
+        if tcl_source::segment::segment_commands_image_with_offset_and_config(
             source,
             0,
             lowerer.config,

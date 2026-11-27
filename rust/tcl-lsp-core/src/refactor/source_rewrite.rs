@@ -21,8 +21,8 @@
 
 use super::{FrameWalk, Refactoring};
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 #[derive(Clone, Copy)]
 pub(super) enum RewriteObligation {

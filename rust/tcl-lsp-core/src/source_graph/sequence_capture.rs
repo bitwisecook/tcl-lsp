@@ -195,7 +195,7 @@ impl SequenceCapture<'_> {
     /// Bodies this command enters once, immediately and in the current frame.
     fn entered_bodies(
         &self,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
         flow: CommandFlow,
     ) -> Vec<tcl_lexer::Span> {
@@ -355,7 +355,7 @@ impl SequenceCapture<'_> {
             .collect()
     }
 
-    fn declares_head(&self, command: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
+    fn declares_head(&self, command: &tcl_source::segment::SegmentedCommand) -> bool {
         command.texts.first().is_some_and(|head| {
             self.declared
                 .contains(tcl_syntax::naming::key_holder_and_tail(head).1.as_bytes())
@@ -548,7 +548,7 @@ impl DocumentSequence {
         &mut self,
         capture: &SequenceCapture<'_>,
         region: usize,
-        command: &tcl_compiler::segmenter::SegmentedCommand,
+        command: &tcl_source::segment::SegmentedCommand,
         words: Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
         flow: Option<CommandFlow>,
     ) {

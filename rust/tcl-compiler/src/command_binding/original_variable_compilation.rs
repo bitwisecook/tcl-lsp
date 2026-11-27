@@ -42,7 +42,7 @@ use tcl_syntax::{
 /// A genuine original Logical substitution can consult only the existing
 /// symbolic source storage. It issues no Native root, compiler or read receipt.
 pub(super) fn logical_original_substitution_access(
-    original: Option<&(&str, crate::ir::SourceSite)>,
+    original: Option<&(&str, tcl_source::words::SourceSite)>,
     arena: Option<&tcl_lexer::ExecutablePartArena>,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -56,7 +56,7 @@ pub(super) fn logical_original_substitution_access(
 /// [`logical_original_substitution_access`] in a hosted F5 rule's advisory
 /// walk of a handler body, under the authored naming simulation.
 pub(super) fn hosted_original_substitution_access(
-    original: Option<&(&str, crate::ir::SourceSite)>,
+    original: Option<&(&str, tcl_source::words::SourceSite)>,
     arena: Option<&tcl_lexer::ExecutablePartArena>,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -67,7 +67,7 @@ pub(super) fn hosted_original_substitution_access(
 
 fn original_source_model_substitution_access(
     input: &crate::analyser::ResolvedAnalysisInput,
-    original: Option<&(&str, crate::ir::SourceSite)>,
+    original: Option<&(&str, tcl_source::words::SourceSite)>,
     arena: Option<&tcl_lexer::ExecutablePartArena>,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -75,7 +75,7 @@ fn original_source_model_substitution_access(
     let (spelling, site) = original?;
     let arena = arena?;
     let origin = state.current_source_origin.as_ref()?;
-    if site.provenance != crate::ir::Provenance::Source
+    if site.provenance != tcl_source::words::Provenance::Source
         || &state.variable_frame != context.frame
         || state.source_variables.namespace != context.namespace
         || !matches!(origin.kind(), super::SourceOriginKind::Authored(_))
@@ -853,7 +853,7 @@ mod logical_substitution_tests {
         input: &crate::analyser::ResolvedAnalysisInput,
         inspect: impl FnOnce(
             &mut ModuleCommandBindings,
-            &(&str, crate::ir::SourceSite),
+            &(&str, tcl_source::words::SourceSite),
             &tcl_lexer::ExecutablePartArena,
             SourceExecutionContext<'_>,
         ) -> T,
@@ -882,10 +882,11 @@ mod logical_substitution_tests {
             "ELEMENT",
             registry,
         );
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-            .into_iter()
-            .next()
-            .unwrap();
+        let segment =
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .next()
+                .unwrap();
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::new(source),
             config,
@@ -1052,7 +1053,7 @@ mod logical_substitution_tests {
                         .is_none()
                 );
                 let mut changed = original.clone();
-                changed.1.provenance = crate::ir::Provenance::Opaque;
+                changed.1.provenance = tcl_source::words::Provenance::Opaque;
                 assert!(
                     logical_original_substitution_access(
                         Some(&changed),

@@ -440,14 +440,14 @@ impl Analyser {
             // and suggesting the very name that no longer resolves would be
             // a self-referential fix.
             let suggestions = original_name.map_or_default(|name| {
-                crate::text::suggest_similar(
+                tcl_source::text::suggest_similar(
                     name,
                     candidate_strs
                         .iter()
                         .copied()
                         .filter(|candidate| *candidate != name),
                     1,
-                    crate::text::scaled_max_distance(name),
+                    tcl_source::text::scaled_max_distance(name),
                 )
             });
             let mut message = format!("Unresolved command '{name}' at this source point");

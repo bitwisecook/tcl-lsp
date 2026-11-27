@@ -480,7 +480,7 @@ fn unattributed_namespace_word(
     cell: &str,
     considered: &[Span],
     nested: &[(usize, usize)],
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
 ) -> Option<(Span, HazardKind)> {
     for tok in &cmd.argv {
         let span = tok.span;
@@ -523,7 +523,7 @@ fn namespace_hazard_reason(cell: &str, written: &str, kind: HazardKind) -> Strin
 }
 
 fn computed_namespace_word(
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cmd: &tcl_source::segment::SegmentedCommand,
     cell: &str,
     roles: Option<&[(usize, tcl_registry::ArgRole)]>,
     metadata: Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'_>>,
@@ -598,7 +598,7 @@ fn namespace_rename_hazard(
     let census = crate::references::DispatchRegionCensus::capture(source, analysis);
     let mut complete_dispatch = census.is_some();
     let mut hazard: Option<(Span, HazardKind)> = None;
-    let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
+    let mut visit = |cmd: &tcl_source::segment::SegmentedCommand| {
         if hazard.is_some() {
             return;
         }

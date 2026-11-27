@@ -19,8 +19,8 @@
 //! O110 constant reassociation across `+`/`-` and `*` chains.
 
 use super::{OperandTypes, int_literal_value, make_int_literal};
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, render_expr};
+use tcl_source::limits::MAX_EXPR_NODE_DEPTH;
 
 /// **O110 constant reassociation.** Combine the integer-literal constants
 /// across a left-associative `+`/`-` (resp. `*`) chain while keeping every

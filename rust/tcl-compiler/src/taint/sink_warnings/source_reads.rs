@@ -57,12 +57,28 @@ pub(in super::super) fn operand_read_taint<S: std::hash::BuildHasher>(
     name: &str,
     original: Option<&WordExpr>,
 ) -> Option<TaintLattice> {
+    // An unproved dispatch selects no SSA version, so it may read any version
+    // of the variable or any withdrawn-world write of it.
+    if let Some(writes) = env.withdrawn_writes.filter(|_| original.is_some()) {
+        let written = writes
+            .get(name)
+            .copied()
+            .unwrap_or_else(TaintLattice::clean);
+        return Some(
+            env.taints
+                .iter()
+                .filter(|((held, _), _)| env.ssa.var_name(*held) == name)
+                .fold(written, |taint, (_, held)| taint.join(*held)),
+        );
+    }
+    let versioned = env
+        .ssa
+        .var_symbol(name)
+        .is_some_and(|symbol| env.uses.contains_key(&symbol));
     if let Some(hosted) = env.source_read {
         return hosted.taint(name, original?, env.taints);
     }
-    if let Some(symbol) = env.ssa.var_symbol(name)
-        && let Some(&_version) = env.uses.get(&symbol)
-    {
+    if versioned {
         let value = var_taint(name, env.uses, env.taints, env.ssa);
         if value.is_conservative_global_seed_only() {
             return None;

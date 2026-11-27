@@ -30,6 +30,7 @@ authors.workspace = true
 [dependencies]
 
 [dev-dependencies]
+tcl-source = { path = "../tcl-source" }
 tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
 # Seeds Jim's compiled-in core surface (`core_surfaces::install`) and loads
 # `.tclspec` packs; it depends on `tcl-compiler`, so these tests live here

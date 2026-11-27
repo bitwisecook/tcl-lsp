@@ -22,11 +22,11 @@ use super::definition_taint::var_taint;
 use super::sink_warnings::static_word_expr_value;
 use super::substitution_taint::{retained_taint_substitution, substitution_word_taint};
 use super::{TaintColour, TaintCtx, TaintLattice, TaintProvenance};
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::ssa::{Symbol, ValueKey};
 use crate::value_shapes::parse_command_substitution_with_config;
 use std::collections::HashMap;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst_in};
+use tcl_source::limits::MAX_BRACKET_TEXT_DEPTH;
 
 /// Infer the taint of an argument word from already-known per-variable
 /// taint values.
@@ -328,7 +328,7 @@ pub(super) fn retained_word_source(
         if !tokens.words().contains(source_word)
             || !matches!(
                 source_word.source().provenance,
-                crate::ir::Provenance::Source
+                tcl_source::words::Provenance::Source
             )
         {
             return None;
@@ -363,7 +363,7 @@ pub(super) fn original_component_read_taint<S: std::hash::BuildHasher>(
     }) else {
         return TaintLattice::tainted();
     };
-    let site = crate::ir::SourceSite::source(access.source.span);
+    let site = tcl_source::words::SourceSite::source(access.source.span);
     let mut selected = None;
     for (block, data) in &ctx.ssa.blocks {
         for (index, statement) in data.statements.iter().enumerate() {

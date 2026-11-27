@@ -144,7 +144,7 @@ on the edge's `RelationMode`.
 |---|---|
 | `rust/tcl-registry/src/profiles.rs` | `ProfileSpec`, `ProtocolNamespaceSpec`, `StackModification`, `ProfileRegistry` |
 | `rust/tcl-registry/src/profile_queries.rs` | `ProfileQueries` — the one availability API |
-| `rust/tcl-registry/src/profile_defaults/` | per-profile default settings |
+| `rust/tcl-bigip-schema/src/profile_defaults/` | per-profile default settings |
 | `rust/tcl-registry/src/events.rs` | `EventProps`, `implied_profiles`, flow chains |
 | `rust/tcl-registry/src/event_facts/` | structural event → category facts |
 | `rust/tcl-registry/src/commands/irules/call.rs` | the `call` spec |

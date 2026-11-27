@@ -695,11 +695,8 @@ fn load_sources_unpublished_inner(
                 let observations = std::rc::Rc::clone(&observations);
                 let including_file = file.path.clone();
                 crate::loader::IncludeContext::new(move |name| {
-                    let path = tcl_compiler::parsing::spectcl_source::include_file_path(
-                        &including_file,
-                        name,
-                    )
-                    .unwrap_or_else(|| including_file.clone());
+                    let path = tcl_source::spectcl::include_file_path(&including_file, name)
+                        .unwrap_or_else(|| including_file.clone());
                     let error = "include requires an owned source-provider reader".to_owned();
                     observations
                         .borrow_mut()

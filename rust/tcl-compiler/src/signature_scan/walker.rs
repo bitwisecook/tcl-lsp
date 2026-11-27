@@ -54,10 +54,9 @@ use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
 use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
-use crate::segmenter::{
-    SegmentedCommand, segment_commands_with_offset_and_config,
-    segment_commands_with_recovery_and_config,
-};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
+use tcl_source::segment::segment_commands_with_recovery_and_config;
 
 /// Walk *source* as a Tcl script, emitting records for every command
 /// the dispatcher recognises.
@@ -1059,7 +1058,7 @@ mod tests {
         assert_eq!(result.auto_path_entries.len(), 1);
         assert_eq!(result.auto_path_entries[0].raw, "/opt/library");
         let selected =
-            crate::segmenter::segment_commands("search-path grow auto_path /opt/library");
+            tcl_source::segment::segment_commands("search-path grow auto_path /opt/library");
         assert_eq!(result.auto_path_entries[0].range, selected[0].argv[3].span);
         assert_eq!(
             super::super::extract_signatures("search-path grow unrelated /opt/library", &registry,)
@@ -1445,7 +1444,7 @@ mod tests {
     fn extract_proc_body(src: &str) -> (String, Token) {
         // Pluck the proc body from the segmenter so we get a real
         // `Str` token with correct content_offset/span.
-        let cmds = crate::segmenter::segment_commands(src);
+        let cmds = tcl_source::segment::segment_commands(src);
         let proc_cmd = cmds.first().expect("one command");
         let body_tok = proc_cmd.argv[3];
         let span = body_tok.span;

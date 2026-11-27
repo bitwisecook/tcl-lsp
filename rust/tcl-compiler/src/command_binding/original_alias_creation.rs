@@ -28,7 +28,7 @@ use tcl_registry::{CommandBindingTransition, InvocationFacts, StateTransition};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalAliasCreation {
     site: CommandAllocationSite,
-    words: Vec<crate::ir::WordExpr>,
+    words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: super::SourceCommandTarget,
     inputs: Vec<SignatureSourceNameInput>,

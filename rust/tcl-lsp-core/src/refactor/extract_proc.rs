@@ -82,8 +82,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_source::segment::SegmentedCommand;
+use tcl_source::segment::segment_commands_with_offset_and_config;
 
 #[cfg(test)]
 use tcl_dialect::BracedVarStyle;

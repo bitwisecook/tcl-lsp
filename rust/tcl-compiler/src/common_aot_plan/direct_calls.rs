@@ -445,7 +445,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         tokens
             .words()
             .iter()
-            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+            .any(|word| matches!(word, tcl_source::words::WordExpr::Expand { .. }))
     }) {
         return decline(DirectProcDecline::ExpandedArgumentsUnsupported);
     }

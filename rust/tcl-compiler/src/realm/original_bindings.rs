@@ -166,17 +166,20 @@ mod tests {
         );
         let image = SourceImage::document(source);
         let map = SourceMap::from_image(&image);
-        let outer =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let outer = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+            .remove(0);
         let mut original = crate::ir::CommandTokens::from_segmented(&map, config, &outer);
         realm.bindings.stamp_original_tokens(&mut original);
         let mut shared = crate::ir::CommandTokens::from_segmented(&map, config, &outer);
         realm.stamp_original_tokens(&mut shared);
         assert_eq!(original, shared);
         assert!(shared.nested_bindings.len() >= 2);
-        let inner =
-            crate::segmenter::segment_commands_with_offset_and_config("set y [set z 1]", 7, config)
-                .remove(0);
+        let inner = tcl_source::segment::segment_commands_with_offset_and_config(
+            "set y [set z 1]",
+            7,
+            config,
+        )
+        .remove(0);
         let mut nested = crate::ir::CommandTokens::from_segmented(&map, config, &inner);
         realm.stamp_original_tokens(&mut nested);
         let retained = realm.retained_original_invocation(14);
@@ -304,10 +307,10 @@ mod tests {
         let config = LexerConfig::for_file_grammar(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
         );
-        let outer =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let outer = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+            .remove(0);
         let offset = u32::try_from(source.find("namespace eval B").unwrap()).unwrap();
-        let inner = crate::segmenter::segment_commands_with_offset_and_config(
+        let inner = tcl_source::segment::segment_commands_with_offset_and_config(
             "namespace eval B {set x 1}",
             offset,
             config,
@@ -364,7 +367,8 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let command =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(1);
+            tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)
+                .remove(1);
         let offset = command.span.start();
         let span = command.argv[2].span;
         let input = realm

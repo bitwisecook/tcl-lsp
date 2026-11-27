@@ -14,13 +14,11 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-tcl-compiler = { path = "../tcl-compiler" }
+tcl-source = { path = "../tcl-source" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
-# The data binary installs the registry's surfaces; the library reads none.
-tcl-registry = { path = "../tcl-registry" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = "0.23"

@@ -196,8 +196,8 @@ impl OriginalProjectProcedureArguments<'_> {
 }
 
 fn project_procedure_geometry_matches(
-    actual: &crate::segmenter::SegmentedCommand,
-    segment: &crate::segmenter::SegmentedCommand,
+    actual: &tcl_source::segment::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
 ) -> bool {
     actual.span == segment.span
         && actual.argv == segment.argv
@@ -254,7 +254,7 @@ fn project_procedure_has_duplicate_formals(formals: &SignatureSourceFormalParame
 pub fn original_project_procedure_arguments<'a>(
     source: &str,
     analysis: &AnalysisResult,
-    segment: &crate::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     providers: &'a [OriginalProjectProcedureRoles],
 ) -> Option<OriginalProjectProcedureArguments<'a>> {
     let input = analysis.resolved_input.as_ref()?;
@@ -424,8 +424,11 @@ mod tests {
     use super::*;
     use crate::analyser::Analyser;
 
-    fn last_command(source: &str, analysis: &AnalysisResult) -> crate::segmenter::SegmentedCommand {
-        crate::segmenter::segment_commands_with_offset_and_config(
+    fn last_command(
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> tcl_source::segment::SegmentedCommand {
+        tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),
@@ -627,7 +630,7 @@ mod tests {
         ] {
             let caller = Analyser::new().analyse(source, "tcl");
             let offset = u32::try_from(source.rfind("reader retained").unwrap()).unwrap();
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 &source[offset as usize..source.len() - 2],
                 offset,
                 caller.body_lexer_config.unwrap().nested(),
@@ -654,7 +657,7 @@ mod tests {
             let source = "namespace eval N {proc reader {value} {}; rename reader {}; proc caller {} {reader retained}}";
             let caller = Analyser::new().analyse(source, dialect);
             let offset = u32::try_from(source.rfind("reader retained").unwrap()).unwrap();
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
+            let command = tcl_source::segment::segment_commands_with_offset_and_config(
                 &source[offset as usize..source.len() - 2],
                 offset,
                 caller.body_lexer_config.unwrap().nested(),
@@ -698,7 +701,7 @@ mod arity_prefix_tests {
                 ("proc unrelated {} {llength ONE TWO}; reader retained", true),
             ] {
                 let caller = Analyser::new().analyse(source, dialect);
-                let command = crate::segmenter::segment_commands_with_offset_and_config(
+                let command = tcl_source::segment::segment_commands_with_offset_and_config(
                     source,
                     0,
                     caller.body_lexer_config.unwrap(),

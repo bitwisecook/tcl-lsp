@@ -44,7 +44,8 @@ fn original_logical_tokens_in_image(
         )
         .unwrap();
     let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config).unwrap();
+        tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)
+            .unwrap();
     let [segment] = segments.as_slice() else {
         panic!("one original command")
     };
@@ -745,7 +746,7 @@ fn entered_operand_tokens(
             ..crate::command_binding::SourceAnalysisOptions::default()
         },
     );
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let mut tokens = CommandTokens::from_segmented(
         &tcl_lexer::SourceMap::new(source),
         config,

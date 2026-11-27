@@ -92,7 +92,7 @@ pub(super) fn identify_body_args(
             None
         };
         let segments = if aligned.is_none() {
-            tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            tcl_source::segment::segment_commands_with_offset_and_config(
                 source,
                 source_offset,
                 config.lexer_config(),
@@ -275,7 +275,7 @@ fn apply_original_fallback_bodies(
 fn apply_expression_bracing(
     cmd: &mut ParsedCommand,
     whole: &str,
-    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    segment: &tcl_source::segment::SegmentedCommand,
     identities: &FormattingSourceLayout,
     config: &FormatterConfig,
     registry: &CommandRegistry,
@@ -329,7 +329,7 @@ fn apply_selected_command_roles(
     identities: &FormattingSourceLayout,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-    position: (&str, &tcl_compiler::segmenter::SegmentedCommand),
+    position: (&str, &tcl_source::segment::SegmentedCommand),
 ) -> Option<SelectedCommandRoleOwners> {
     let (whole, segment) = position;
     let logical = match &selected.source {

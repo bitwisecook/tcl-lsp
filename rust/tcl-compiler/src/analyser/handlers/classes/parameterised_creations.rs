@@ -433,11 +433,11 @@ impl Analyser {
                     ) else {
                         continue;
                     };
-                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                    for (_, (_, body_token)) in tcl_source::segment::flatten_case_list_clauses(
                         &self.source,
                         word,
                         token,
-                        &case,
+                        &case.shape(),
                         self.lexer_config(),
                     ) {
                         if body_token.kind != TokenType::Str {
@@ -556,11 +556,11 @@ impl Analyser {
                     ) else {
                         continue;
                     };
-                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                    for (_, (_, body_token)) in tcl_source::segment::flatten_case_list_clauses(
                         &self.source,
                         word,
                         token,
-                        &case,
+                        &case.shape(),
                         self.lexer_config(),
                     ) {
                         if body_token.kind != TokenType::Str {

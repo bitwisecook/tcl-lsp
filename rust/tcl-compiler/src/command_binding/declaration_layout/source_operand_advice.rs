@@ -424,7 +424,7 @@ impl super::super::SourceInvocationBinding {
         &self,
         registry: &tcl_registry::CommandRegistry,
         tokens: &crate::ir::CommandTokens,
-        word: &crate::ir::WordExpr,
+        word: &tcl_source::words::WordExpr,
     ) -> Option<DeclarationSourceVariableOperandAdvice> {
         let source = self.declaration_source_operand_layout_advice(registry, tokens)?;
         if let DeclarationSourceOperandLayoutKind::Original(_) = &source.kind {
@@ -436,7 +436,7 @@ impl super::super::SourceInvocationBinding {
                 source_operations: Arc::from([]),
             });
         }
-        if word.source().provenance != crate::ir::Provenance::Source
+        if word.source().provenance != tcl_source::words::Provenance::Source
             || !tokens.words().iter().any(|original| original == word)
         {
             return None;

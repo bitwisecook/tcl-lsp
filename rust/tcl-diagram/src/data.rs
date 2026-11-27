@@ -386,7 +386,7 @@ fn original_action_source(mut node: Value, at: u32, context: &DiagramContext<'_>
         let Some(tail) = context.source.get(at as usize..) else {
             return node;
         };
-        let Some(segment) = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        let Some(segment) = tcl_source::segment::segment_commands_with_offset_and_config(
             tail,
             at,
             input.lexer_config(),

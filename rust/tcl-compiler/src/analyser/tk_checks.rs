@@ -840,11 +840,11 @@ impl Analyser {
             }
         }
         for (arg, span) in findings {
-            let suggestions = crate::text::suggest_similar(
+            let suggestions = tcl_source::text::suggest_similar(
                 &arg,
                 known.iter().copied(),
                 1,
-                crate::text::scaled_max_distance(&arg),
+                tcl_source::text::scaled_max_distance(&arg),
             );
             let mut message = format!("Unknown option '{arg}' for {cmd_name}.");
             let mut fixes: Vec<super::types::CodeFix> = Vec::new();

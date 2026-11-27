@@ -21,7 +21,7 @@ use super::*;
 fn output_names(source: &str, dialect: &str) -> Vec<String> {
     let analysis = Analyser::new().analyse(source, dialect);
     let config = analysis.body_lexer_config.unwrap();
-    let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let commands = tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     let words = crate::registry_invocation::source_structure::source_registry_words(
         source,
         &analysis,
@@ -115,7 +115,7 @@ fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
     let analysis = Analyser::new().analyse(source, "tcl8.6");
     let config = analysis.body_lexer_config.unwrap();
     let command =
-        crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let words = crate::registry_invocation::source_structure::source_registry_words(
         source, &analysis, &command,
     )

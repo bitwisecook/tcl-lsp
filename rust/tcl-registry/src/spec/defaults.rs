@@ -148,6 +148,7 @@ impl CommandSpec {
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
+        taint_validator: None,
         taint_numeric_coercion: None,
         credential_options: &[],
         channel_configuration: None,

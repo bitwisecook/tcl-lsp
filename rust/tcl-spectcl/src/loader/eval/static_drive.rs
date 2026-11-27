@@ -115,9 +115,9 @@ pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
 /// stops the fast path and the interpreter path from disagreeing about a
 /// row that substitutes.
 pub(super) fn substitution_free(stmt: &Stmt) -> bool {
-    stmt.words.iter().all(|word| {
-        tcl_compiler::parsing::spectcl_source::pack_source_word_is_literal(&word.text, word.braced)
-    })
+    stmt.words
+        .iter()
+        .all(|word| tcl_source::spectcl::pack_source_word_is_literal(&word.text, word.braced))
 }
 
 /// Capture a run of static statements without the interpreter, recursing

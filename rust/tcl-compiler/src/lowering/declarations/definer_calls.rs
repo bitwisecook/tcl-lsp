@@ -21,9 +21,9 @@
 use super::super::{Lowerer, MAX_LOWER_NEST_DEPTH, word_is_static_braced};
 use super::DefinerCall;
 use crate::ir::{CommandTokens, Script, Statement};
-use crate::segmenter::SegmentedCommand;
 use tcl_registry::ArgRole;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_source::segment::SegmentedCommand;
 
 impl Lowerer<'_> {
     /// Read an exact definition layout from the selected original invocation.

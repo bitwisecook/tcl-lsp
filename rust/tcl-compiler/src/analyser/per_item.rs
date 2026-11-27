@@ -506,7 +506,7 @@ impl Analyser {
         &mut self,
         source: &str,
         dialect: &str,
-    ) -> Vec<crate::segmenter::SegmentedCommand> {
+    ) -> Vec<tcl_source::segment::SegmentedCommand> {
         use std::collections::HashSet;
 
         let retained = self.retain_walk_source(source);
@@ -578,7 +578,7 @@ impl Analyser {
             self.file_lexer_config(),
         );
         let known: HashSet<&str> = self.recovery_known_commands.iter().collect();
-        crate::segmenter::segment_commands_with_recovery_and_config(
+        tcl_source::segment::segment_commands_with_recovery_and_config(
             source,
             &known,
             self.file_lexer_config(),

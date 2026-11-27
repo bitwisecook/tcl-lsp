@@ -988,7 +988,8 @@ fn collect_debug_flag_names(
     let mut names = std::collections::HashSet::new();
     let mut open = false;
     let bindings = resolver.source_bindings_ref();
-    let declarations = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    let declarations =
+        tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config);
     for candidate in declarations.iter().flat_map(|command| {
         bindings
             .deferred_rule_declaration_candidates(command.span.start())

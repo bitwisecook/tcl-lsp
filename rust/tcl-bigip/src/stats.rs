@@ -24,7 +24,7 @@
 
 use std::collections::HashMap;
 
-use tcl_registry::bigip::default_registry;
+use tcl_bigip_schema::default_registry;
 
 use crate::graph::{ObjectGraph, ObjectNode};
 use crate::parser::driver::BigipConfig;

@@ -388,7 +388,7 @@ mod tests {
         );
         let source = "uplevel 1 \"pré $value\"; interp eval $child $script";
         let analyser = analyse(source, &current);
-        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        let segments = tcl_source::segment::segment_commands_with_offset_and_config(
             source,
             0,
             current.lexer_config(),
