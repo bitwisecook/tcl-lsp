@@ -1388,9 +1388,8 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         } else {
             None
         };
-        let param_names: FxHashSet<&str> = proc_def
-            .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
-            .unwrap_or_default();
+        let param_names: FxHashSet<&str> =
+            proc_def.map_or_default(|pd| pd.params.iter().map(|p| p.name.as_str()).collect());
 
         let mut var_gen = NameGenerator::new();
         let existing: FxHashSet<String> = scope.variables.keys().cloned().collect();
@@ -2797,10 +2796,7 @@ fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
 /// Render one command's arguments to their minified string forms.
 fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u32) -> Vec<String> {
     let registry = env.registry;
-    let cmd_name = cmd_args
-        .first()
-        .map(|a| token_text(sm, a))
-        .unwrap_or_default();
+    let cmd_name = cmd_args.first().map_or_default(|a| token_text(sm, a));
     // The head's *effective command identity*: which registry command the
     // spelling really names once the document's `namespace import` / `interp
     // alias` / `rename` / built-in-shadowing `proc` statements are folded in
@@ -2831,13 +2827,12 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
                 .inline_clause_start
                 .and_then(|start| spec.inline_clauses(&post_refs, start))
         })
-        .map(|clauses| {
+        .map_or_default(|clauses| {
             clauses
                 .into_iter()
                 .filter_map(|clause| clause.body_index.map(|index| index + 1))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
     for (i, arg) in cmd_args.iter().enumerate() {
@@ -2921,8 +2916,7 @@ fn role_indices(
 fn token_text(sm: &SourceMap, arg: &Arg) -> String {
     arg.tokens
         .first()
-        .map(|&t| sm.token_text(t).to_owned())
-        .unwrap_or_default()
+        .map_or_default(|&t| sm.token_text(t).to_owned())
 }
 
 /// First character a token will render as.

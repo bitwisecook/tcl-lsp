@@ -814,8 +814,7 @@ fn build_interprocedural_analysis_inner(
     let (effect_reads, effect_writes) = fixpoint_effects(&local);
     let seedless = units
         .and_then(|units| units.seedless)
-        .map(|units| seedless_returns(ir_module, units, &pure, registry, dialect))
-        .unwrap_or_default();
+        .map_or_default(|units| seedless_returns(ir_module, units, &pure, registry, dialect));
     // Where the load may first run each procedure, and where each one's
     // `proc` statement surely runs: one fact for the completion proof and
     // the instance lifecycle proof.
@@ -825,7 +824,7 @@ fn build_interprocedural_analysis_inner(
     // does not.
     let completes = units
         .and_then(|units| units.seedless)
-        .map(|units| {
+        .map_or_default(|units| {
             completion::procedures_complete(
                 ir_module,
                 tcl_registry::model::DocumentCommandSurface::new(registry, declared),
@@ -833,8 +832,7 @@ fn build_interprocedural_analysis_inner(
                 units.mutations,
                 &|callee, caller| reach.defined(callee, caller),
             )
-        })
-        .unwrap_or_default();
+        });
 
     let mut procedures = materialise_summaries(
         ir_module,
@@ -892,8 +890,7 @@ fn build_interprocedural_analysis_inner(
                 })
                 .collect()
         })
-        .map(TransferSummaries)
-        .unwrap_or_default();
+        .map_or_default(TransferSummaries);
 
     InterproceduralAnalysis {
         procedures,
@@ -1834,14 +1831,14 @@ fn declared_defaults(
     params_raw: &str,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> HashMap<String, String> {
-    crate::signature_scan::params::parse_param_list_strict(params_raw, rules)
-        .map(|formals| {
+    crate::signature_scan::params::parse_param_list_strict(params_raw, rules).map_or_default(
+        |formals| {
             formals
                 .into_iter()
                 .filter_map(|formal| Some((formal.name, formal.default?)))
                 .collect()
-        })
-        .unwrap_or_default()
+        },
+    )
 }
 
 /// Per-procedure scratch facts consumed by the summary-building
@@ -3857,8 +3854,7 @@ mod tests {
         let mut calls: Vec<String> = ia
             .procedures
             .get(caller)
-            .map(|s| s.calls.clone())
-            .unwrap_or_default();
+            .map_or_default(|s| s.calls.clone());
         calls.sort();
         calls
     }

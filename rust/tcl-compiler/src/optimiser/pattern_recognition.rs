@@ -62,7 +62,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     walk_script(ctx, &cu.ir_module.top_level, &top_ints, top_pack, 0);
     for (qname, proc) in &cu.ir_module.procedures {
         let fu = cu.procedures.get(qname);
-        let ints = fu.map(int_var_names).unwrap_or_default();
+        let ints = fu.map_or_default(int_var_names);
         let pack = fu.is_some_and(|f| !f.dynamic_barrier_blocks_value_motion());
         walk_script(ctx, &proc.body, &ints, pack, 0);
     }

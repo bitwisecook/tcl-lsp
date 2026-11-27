@@ -619,27 +619,23 @@ fn retained_children_of(
     parents: &[Option<NsId>],
     arena: &[NamespacePath],
 ) -> Vec<NsId> {
-    record
-        .child_orders
-        .get(&parent)
-        .map(|order| {
-            order
-                .keys()
-                .into_iter()
-                .filter_map(|tail| {
-                    let tail = core::str::from_utf8(tail).ok()?;
-                    record.subtree.values().find_map(|id| {
-                        (parents.get(id.0 as usize).copied().flatten() == Some(parent)
-                            && arena
-                                .get(id.0 as usize)
-                                .and_then(|path| path.last())
-                                .is_some_and(|segment| segment == tail))
-                        .then_some(*id)
-                    })
+    record.child_orders.get(&parent).map_or_default(|order| {
+        order
+            .keys()
+            .into_iter()
+            .filter_map(|tail| {
+                let tail = core::str::from_utf8(tail).ok()?;
+                record.subtree.values().find_map(|id| {
+                    (parents.get(id.0 as usize).copied().flatten() == Some(parent)
+                        && arena
+                            .get(id.0 as usize)
+                            .and_then(|path| path.last())
+                            .is_some_and(|segment| segment == tail))
+                    .then_some(*id)
                 })
-                .collect()
-        })
-        .unwrap_or_default()
+            })
+            .collect()
+    })
 }
 
 /// Identity domain for metadata that follows a command binding.  Tcl permits
@@ -2523,8 +2519,7 @@ impl Vm {
         }
         let child_ids: Vec<InterpId> = self
             .st_of(id)
-            .map(|st| st.children.values().copied().collect())
-            .unwrap_or_default();
+            .map_or_default(|st| st.children.values().copied().collect());
         for c in child_ids {
             self.retire_interp(c);
         }
@@ -2905,8 +2900,7 @@ impl Vm {
             .map(|name| {
                 let value = self
                     .get_var(&name)
-                    .map(|v| v.to_str().to_string())
-                    .unwrap_or_default();
+                    .map_or_default(|v| v.to_str().to_string());
                 DebugVar { name, value }
             })
             .collect();
@@ -4962,8 +4956,7 @@ impl Vm {
     fn mark_interp_trusted(&mut self, id: InterpId) {
         let names: Vec<String> = self
             .st_of(id)
-            .map(|state| state.hidden_commands.keys().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|state| state.hidden_commands.keys().cloned().collect());
         self.in_interp(id, |vm| {
             vm.bump_cmd_epoch();
             vm.invalidate_lookup_guards();
@@ -5891,8 +5884,7 @@ impl Vm {
             "hidden" => {
                 let mut names: Vec<String> = self
                     .st_of(id)
-                    .map(|st| st.hidden_commands.keys().cloned().collect())
-                    .unwrap_or_default();
+                    .map_or_default(|st| st.hidden_commands.keys().cloned().collect());
                 names.sort();
                 ok(Value::list(names.into_iter().map(Value::string).collect()))
             }
@@ -7115,7 +7107,7 @@ impl Vm {
     fn command_table_hash_order(&self, namespace: NsId) -> Vec<(String, u64)> {
         self.ns_command_order
             .get(&namespace)
-            .map(|order| {
+            .map_or_default(|order| {
                 order
                     .keys()
                     .into_iter()
@@ -7131,7 +7123,6 @@ impl Vm {
                     })
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// One retained namespace token's command entries in its Tcl hash-table
@@ -7146,7 +7137,7 @@ impl Vm {
         record
             .command_orders
             .get(&namespace)
-            .map(|order| {
+            .map_or_default(|order| {
                 order
                     .keys()
                     .into_iter()
@@ -7161,7 +7152,6 @@ impl Vm {
                     })
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// Record `namespace export` patterns for the current namespace. C's
@@ -8553,19 +8543,16 @@ impl Vm {
     }
 
     fn child_namespace_ids_hash_order(&self, parent: NsId) -> Vec<NsId> {
-        self.ns_child_order
-            .get(&parent)
-            .map(|order| {
-                order
-                    .keys()
-                    .into_iter()
-                    .filter_map(|tail| {
-                        let tail = core::str::from_utf8(tail).ok()?;
-                        self.ns_children.get(&(parent, tail.to_owned())).copied()
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.ns_child_order.get(&parent).map_or_default(|order| {
+            order
+                .keys()
+                .into_iter()
+                .filter_map(|tail| {
+                    let tail = core::str::from_utf8(tail).ok()?;
+                    self.ns_children.get(&(parent, tail.to_owned())).copied()
+                })
+                .collect()
+        })
     }
 
     /// Record a provided package version.
@@ -8618,8 +8605,7 @@ impl Vm {
         self.package_state
             .package_ifneeded
             .get(name)
-            .map(|versions| versions.keys().cloned().collect())
-            .unwrap_or_default()
+            .map_or_default(|versions| versions.keys().cloned().collect())
     }
 
     /// The selected loader version for a package currently being evaluated.

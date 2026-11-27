@@ -1524,7 +1524,7 @@ fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(
     let mut links: Vec<(usize, String)> = inputs
         .frames
         .get(&declared.qualified_name)
-        .map(|frame| {
+        .map_or_default(|frame| {
             frame
                 .param_targets
                 .iter()
@@ -1533,8 +1533,7 @@ fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(
                     Some((index, local.clone()))
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     links.sort_unstable();
     links
 }
@@ -1864,8 +1863,7 @@ fn linked_roles(
     let linked: HashSet<&str> = inputs
         .frames
         .get(&declared.qualified_name)
-        .map(|frame| frame.param_targets.values().map(String::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|frame| frame.param_targets.values().map(String::as_str).collect());
     value_roles(declared)
         .into_iter()
         .zip(&declared.params)

@@ -4106,11 +4106,7 @@ impl Vm {
             Op::NSUPVAR => {
                 let local = lvt_name(imm0(instr));
                 let var = pop(f).to_str();
-                let ns = f
-                    .stack
-                    .last()
-                    .map(|v| v.to_str().to_string())
-                    .unwrap_or_default();
+                let ns = f.stack.last().map_or_default(|v| v.to_str().to_string());
                 let target = if ns == "::" || ns.is_empty() {
                     var.to_string()
                 } else {
@@ -5245,7 +5241,7 @@ impl Vm {
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
                 let updated = self.dict_update_single(&cur, &key, |old| {
-                    let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
+                    let mut s = old.map_or_default(|v| v.to_str().to_string());
                     s.push_str(&value.to_str());
                     Ok(Value::string(s))
                 });

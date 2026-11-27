@@ -179,13 +179,12 @@ pub fn run_server(reader: &mut impl BufRead, writer: &mut impl Write) -> std::io
                 let lines: Vec<u32> = req
                     .pointer("/arguments/breakpoints")
                     .and_then(Value::as_array)
-                    .map(|bps| {
+                    .map_or_default(|bps| {
                         bps.iter()
                             .filter_map(|b| b.get("line").and_then(Value::as_u64))
                             .map(|l| u32::try_from(l).unwrap_or(0))
                             .collect()
-                    })
-                    .unwrap_or_default();
+                    });
                 srv.breakpoints = srv.backend.set_breakpoints(&lines).unwrap_or_default();
                 let verified: Vec<Value> = srv
                     .breakpoints

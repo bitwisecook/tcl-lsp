@@ -88,12 +88,11 @@ fn parse_entries(data: &Value) -> Vec<RegistryEntry> {
             tags: item
                 .get("tags")
                 .and_then(Value::as_array)
-                .map(|a| {
+                .map_or_default(|a| {
                     a.iter()
                         .filter_map(|t| t.as_str().map(ToString::to_string))
                         .collect()
-                })
-                .unwrap_or_default(),
+                }),
             sources,
         });
     }

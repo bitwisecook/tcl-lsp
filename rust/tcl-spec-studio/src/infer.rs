@@ -165,11 +165,7 @@ pub fn infer_from_body(params: &str, body: &str, dialect: &str) -> InferredFacts
     let mut analyser = Analyser::new();
     analyser.deep_param_traits = true;
     let result = analyser.analyse(&source, dialect);
-    let callbacks = result
-        .all_procs
-        .get(NAME)
-        .map(callback_slots)
-        .unwrap_or_default();
+    let callbacks = result.all_procs.get(NAME).map_or_default(callback_slots);
     facts_in(&unit_of(&source, dialect), NAME, callbacks)
 }
 

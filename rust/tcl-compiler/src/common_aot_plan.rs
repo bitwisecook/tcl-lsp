@@ -1706,9 +1706,7 @@ fn collect_materialisable_slots(
                 .map(|(slot, name)| (name, u32::try_from(slot).unwrap_or(u32::MAX)))
                 .collect()
         } else {
-            summary
-                .map(|summary| summary.local_slots.clone())
-                .unwrap_or_default()
+            summary.map_or_default(|summary| summary.local_slots.clone())
         };
         // The lowered module's own numeral grammar (`Module::dialect`) — the
         // same source `codegen_module` reads, so a slot decision made here and

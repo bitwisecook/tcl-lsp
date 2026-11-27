@@ -142,7 +142,7 @@ fn code_word_to_int(spec: &str) -> Option<i64> {
 /// chaining): the superseded exception's options ride along on the new one.
 /// Replaces an existing `-during` (a handler over a handler) rather than dup it.
 fn add_during(options: &Value, prior: &Value) -> Value {
-    let mut out: Vec<Value> = options.as_list().map(|l| (*l).clone()).unwrap_or_default();
+    let mut out: Vec<Value> = options.as_list().map_or_default(|l| (*l).clone());
     let mut i = 0;
     while i + 1 < out.len() {
         if &*out[i].to_str() == "-during" {

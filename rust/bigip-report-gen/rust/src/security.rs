@@ -372,8 +372,7 @@ fn check_snmp_communities(id: &'static str, ctx: &Ctx) -> Vec<Finding> {
     let communities_raw = parse_properties(&block.body)
         .into_iter()
         .find(|(k, _)| k == "communities")
-        .map(|(_, v)| v)
-        .unwrap_or_default();
+        .map_or_default(|(_, v)| v);
     let entries = parse_keyed_block_entries(&communities_raw);
     if entries.is_empty() {
         return vec![Finding {
@@ -395,8 +394,7 @@ fn check_snmp_communities(id: &'static str, ctx: &Ctx) -> Vec<Finding> {
         let community_name = props
             .iter()
             .find(|(k, _)| k == "community-name")
-            .map(|(_, v)| tcl_bigip::parser::helpers::unquote(v).to_owned())
-            .unwrap_or_default();
+            .map_or_default(|(_, v)| tcl_bigip::parser::helpers::unquote(v).to_owned());
         let access = props
             .iter()
             .find(|(k, _)| k == "access")

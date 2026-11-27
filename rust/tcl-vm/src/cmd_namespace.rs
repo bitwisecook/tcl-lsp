@@ -483,9 +483,7 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 }
 
 fn first(rest: &[Value]) -> String {
-    rest.first()
-        .map(|v| v.to_str().to_string())
-        .unwrap_or_default()
+    rest.first().map_or_default(|v| v.to_str().to_string())
 }
 
 /// `namespace ensemble create|exists|configure` (`TclNamespaceEnsembleCmd`,

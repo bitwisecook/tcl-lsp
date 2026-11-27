@@ -532,7 +532,7 @@ fn detect_links(devices: &[J]) -> Vec<Link> {
     // Pre-compute each device's served-address index.
     let served: Vec<BTreeMap<String, String>> = devices
         .iter()
-        .map(|d| d.as_object().map(served_addresses).unwrap_or_default())
+        .map(|d| d.as_object().map_or_default(served_addresses))
         .collect();
 
     let mut links: Vec<Link> = Vec::new();

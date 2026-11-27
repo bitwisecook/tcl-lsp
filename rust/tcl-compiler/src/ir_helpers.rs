@@ -1573,14 +1573,13 @@ fn walk_protected_scripts(
     let protected: Vec<usize> = context
         .registry
         .clause_plan(lookup, args)
-        .map(|plan| {
+        .map_or_default(|plan| {
             plan.clauses
                 .iter()
                 .filter(|clause| clause.timing == tcl_registry::ClauseTiming::Protected)
                 .flat_map(|clause| clause.operands(tcl_registry::ArgRole::Body))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     for index in protected {
         let Some(source_index) = index.checked_sub(shift) else {
             continue;

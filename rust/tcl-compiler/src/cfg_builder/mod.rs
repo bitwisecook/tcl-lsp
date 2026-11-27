@@ -1222,8 +1222,7 @@ impl<'a> CfgBuilder<'a> {
         let target = canonical_command.as_deref().unwrap_or(command.as_str());
         self.global_write_procs
             .get(target)
-            .map(|info| info.names.iter().cloned().collect())
-            .unwrap_or_default()
+            .map_or_default(|info| info.names.iter().cloned().collect())
     }
 
     /// Whole-frame blindness the statement's calls impose on *this*

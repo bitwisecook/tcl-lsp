@@ -141,18 +141,14 @@ fn build_pass_context<'a>(
     // passes run before elimination and cannot recover the current handler
     // from a nested script, so protecting the union is sound; handler-local
     // refinement remains elimination's concern.
-    ctx.cross_event_vars = cu
-        .connection_scope
-        .as_ref()
-        .map(|scope| {
-            scope
-                .cross_event_defs
-                .iter()
-                .chain(scope.cross_event_imports.iter())
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default();
+    ctx.cross_event_vars = cu.connection_scope.as_ref().map_or_default(|scope| {
+        scope
+            .cross_event_defs
+            .iter()
+            .chain(scope.cross_event_imports.iter())
+            .cloned()
+            .collect()
+    });
     ctx
 }
 

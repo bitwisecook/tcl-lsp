@@ -120,8 +120,7 @@ const CONTAINER_SUFFIXES: &[&str] = &["conf", "scf", "ucs"];
 fn suffix_lower(path: &str) -> String {
     Path::new(path)
         .extension()
-        .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default()
+        .map_or_default(|e| e.to_string_lossy().to_ascii_lowercase())
 }
 
 /// The final path component of *label* without its last suffix, falling back
@@ -281,8 +280,7 @@ fn flatten_rule_path(rule_full_path: Option<&str>, fallback_label: &str) -> Stri
     }
     let mut stem = Path::new(fallback_label)
         .file_name()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
+        .map_or_default(|s| s.to_string_lossy().into_owned());
     if stem.is_empty() || stem == "<stdin>" || stem == "-" {
         "irule".clone_into(&mut stem);
     }

@@ -1745,8 +1745,7 @@ impl Analyser {
     #[must_use]
     pub(in crate::analyser) fn scope_variable_names(&self, scope_path: &[usize]) -> Vec<String> {
         scope_at(&self.result.global_scope, scope_path)
-            .map(|s| s.variables.keys().cloned().collect())
-            .unwrap_or_default()
+            .map_or_default(|s| s.variables.keys().cloned().collect())
     }
 
     /// Record a **namespace-qualified** variable occurrence (see

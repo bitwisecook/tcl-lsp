@@ -1436,12 +1436,8 @@ pub fn event_satisfies(
     {
         return false;
     }
-    if !requires.profiles.is_empty()
-        && !profiles.stack_satisfies(requires.profiles, props.implied_profiles)
-    {
-        return false;
-    }
-    true
+    requires.profiles.is_empty()
+        || profiles.stack_satisfies(requires.profiles, props.implied_profiles)
 }
 
 // Full static data — auto-generated.

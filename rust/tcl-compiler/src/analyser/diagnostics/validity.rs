@@ -519,14 +519,13 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .map(|repaired| {
+            .map_or_default(|repaired| {
                 vec![crate::analyser::types::CodeFix::review(
                     span,
                     tcl_syntax::list::list_element(&repaired),
                     "Split the grouped fields into separate parameters",
                 )]
-            })
-            .unwrap_or_default();
+            });
         analyser.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::E006,
@@ -608,7 +607,7 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .map(|repaired| {
+            .map_or_default(|repaired| {
                 let mut repaired_fields = fields.clone();
                 repaired_fields[0] = repaired.into();
                 let repaired_lambda = tcl_syntax::list::join_list(repaired_fields);
@@ -617,8 +616,7 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
                     tcl_syntax::list::list_element(&repaired_lambda),
                     "Split the grouped fields into separate parameters",
                 )]
-            })
-            .unwrap_or_default();
+            });
         analyser.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::E006,
@@ -751,7 +749,7 @@ pub(super) fn arity_verdict(
     excess: Option<ExcessArgs>,
     usage: Option<&str>,
 ) -> Option<crate::analyser::types::Diagnostic> {
-    let usage_suffix = usage.map(|u| format!(" — usage: {u}")).unwrap_or_default();
+    let usage_suffix = usage.map_or_default(|u| format!(" — usage: {u}"));
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
     // `also_exact` is valid regardless of `min`/`max`/`step` — checked
@@ -3628,7 +3626,7 @@ impl Analyser {
             fix_span.start() as usize,
             fix_span.end() as usize,
         )
-        .map(|fix_src| {
+        .map_or_default(|fix_src| {
             vec![super::types::CodeFix {
                 span: fix_span,
                 new_text: format!("-- {fix_src}"),
@@ -3638,8 +3636,7 @@ impl Analyser {
                 // as one changes.
                 safety: crate::irules_checks::FixSafety::BehaviourHardening,
             }]
-        })
-        .unwrap_or_default();
+        });
         let diag_span = tcl_lexer::Span::new(tok.span.start(), diag_end);
         // Suppress unused-warning on the rare path where `cmd_tok`
         // isn't needed (the diagnostic anchors at the positional
@@ -3729,7 +3726,7 @@ impl Analyser {
             first.span.start() as usize,
             first.span.end() as usize,
         )
-        .map(|slice| {
+        .map_or_default(|slice| {
             vec![super::types::CodeFix {
                 span: first.span,
                 new_text: format!("-- {slice}"),
@@ -3738,8 +3735,7 @@ impl Analyser {
                 // variable names rather than options.
                 safety: crate::irules_checks::FixSafety::BehaviourHardening,
             }]
-        })
-        .unwrap_or_default();
+        });
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::W217,
@@ -4123,21 +4119,19 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             Some([item, operator, cls]) => Some(format!("class match {item} {operator} {cls}")),
             _ => None,
         };
-        let fixes = new_text
-            .map(|new_text| {
-                let end = arg_tokens.last().map_or(cmd_tok.span.end(), word_end);
-                vec![super::types::CodeFix {
-                    span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
-                    new_text,
-                    description: "Replace with 'class match'".to_string(),
-                    // IRULE2001: the rewrite restructures the argument list (it supplies
-                    // the `equals` operator the two-word `matchclass` form defaults to) —
-                    // exactly the case the registry's `deprecated_replacement_drop_in`
-                    // contract excludes from mechanical swapping.
-                    safety: crate::irules_checks::FixSafety::RequiresReview,
-                }]
-            })
-            .unwrap_or_default();
+        let fixes = new_text.map_or_default(|new_text| {
+            let end = arg_tokens.last().map_or(cmd_tok.span.end(), word_end);
+            vec![super::types::CodeFix {
+                span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
+                new_text,
+                description: "Replace with 'class match'".to_string(),
+                // IRULE2001: the rewrite restructures the argument list (it supplies
+                // the `equals` operator the two-word `matchclass` form defaults to) —
+                // exactly the case the registry's `deprecated_replacement_drop_in`
+                // contract excludes from mechanical swapping.
+                safety: crate::irules_checks::FixSafety::RequiresReview,
+            }]
+        });
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule2001,

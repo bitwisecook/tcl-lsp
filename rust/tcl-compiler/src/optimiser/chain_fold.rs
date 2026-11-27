@@ -129,7 +129,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         }
         let protected = fu.map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
-        let lattice = fu.map(FunctionLattice::of).unwrap_or_default();
+        let lattice = fu.map_or_default(FunctionLattice::of);
         let chains = Chains {
             registry,
             trust,

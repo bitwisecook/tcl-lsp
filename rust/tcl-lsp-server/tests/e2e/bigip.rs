@@ -526,19 +526,16 @@ fn nameless_singleton_falls_back_to_kind_label() {
 
 /// The `(startLine, endLine)` pairs of a folding-range result.
 fn fold_spans(result: &Value) -> BTreeSet<(i64, i64)> {
-    result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .map(|r| {
-                    (
-                        r.get("startLine").and_then(Value::as_i64).unwrap_or(-1),
-                        r.get("endLine").and_then(Value::as_i64).unwrap_or(-1),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    result.as_array().map_or_default(|arr| {
+        arr.iter()
+            .map(|r| {
+                (
+                    r.get("startLine").and_then(Value::as_i64).unwrap_or(-1),
+                    r.get("endLine").and_then(Value::as_i64).unwrap_or(-1),
+                )
+            })
+            .collect()
+    })
 }
 
 #[test]

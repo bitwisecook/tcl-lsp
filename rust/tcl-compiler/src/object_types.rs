@@ -1600,8 +1600,7 @@ mod tests {
         let mut v: Vec<String> = facts
             .by_scope
             .get(&(owner.to_owned(), var.to_owned()))
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|s| s.iter().cloned().collect());
         v.sort();
         v
     }

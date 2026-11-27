@@ -1009,9 +1009,7 @@ fn lifecycle_line(key: &str, draft: &Value, indent: &str) -> LifecycleLine {
     };
     if *first == key {
         return LifecycleLine::Emit(
-            lifecycle_expr(draft)
-                .map(|expr| format!("{indent}lifecycle: {expr},\n"))
-                .unwrap_or_default(),
+            lifecycle_expr(draft).map_or_default(|expr| format!("{indent}lifecycle: {expr},\n")),
         );
     }
     if rest.contains(&key) {

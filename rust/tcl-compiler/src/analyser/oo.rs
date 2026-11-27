@@ -818,8 +818,7 @@ impl Analyser {
                     let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
                     let resolved = spec
                         .arg_role_resolver
-                        .map(|resolve| resolve(&args))
-                        .unwrap_or_default();
+                        .map_or_default(|resolve| resolve(&args));
                     spec.arg_roles
                         .iter()
                         .chain(resolved.iter())
@@ -2048,8 +2047,7 @@ impl Analyser {
             }
             rules
                 .split_list(text)
-                .map(|elements| elements.iter().map(ToString::to_string).collect())
-                .unwrap_or_default()
+                .map_or_default(|elements| elements.iter().map(ToString::to_string).collect())
         };
         // Only a computed base list leaves the inheritance unknown; a computed
         // variable dictionary names no variables and changes no ancestry.

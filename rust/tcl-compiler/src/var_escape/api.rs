@@ -175,8 +175,7 @@ pub fn analyse_var_escape_cu_with_registry(
             .ir_module
             .procedures
             .get(qname)
-            .map(|p| p.params.clone())
-            .unwrap_or_default();
+            .map_or_default(|p| p.params.clone());
         let proc = analyse_cfg_function_with_registry(&fu.cfg, &fu.ssa, params, registry);
         result.insert(qname.clone(), cfg_result_to_summary(&proc));
     }

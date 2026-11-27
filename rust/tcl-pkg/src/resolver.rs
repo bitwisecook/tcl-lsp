@@ -257,8 +257,7 @@ pub fn resolve(input: &ResolveInput) -> Result<Vec<ResolvedPackage>, TclPkgError
     for (name, version) in &minimums {
         let reqs = requires_map
             .get(name)
-            .map(|(_, deps)| deps.clone())
-            .unwrap_or_default();
+            .map_or_default(|(_, deps)| deps.clone());
         result.push(ResolvedPackage {
             reference: PackageRef::new(name.clone(), version.clone()),
             requires: reqs,

@@ -280,10 +280,10 @@ fn provenance(spec: &CommandSpec, args: &[&str], idx: usize) -> Provenance {
                     detail: format!(
                         "the value of `{}`{}{}",
                         option.name,
-                        option
-                            .value_role()
-                            .map(|role| format!(", declared {}", catalogue::variant_name(&role)))
-                            .unwrap_or_default(),
+                        option.value_role().map_or_default(|role| format!(
+                            ", declared {}",
+                            catalogue::variant_name(&role)
+                        )),
                         describe(option.value_hint()),
                     ),
                 };
@@ -448,9 +448,9 @@ impl<'a> Bench<'a> {
                 let position = lines.position_at_utf16(clamp_u32(word.start), sample);
                 let (origin, resolved) = self.resolve_head(&word.head);
                 let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
-                let roles = resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
-                    .unwrap_or_default();
+                let roles = resolved.map_or_default(|spec| {
+                    self.roles_at(spec, &word.head, &arg_refs, word.arg_index())
+                });
                 let prov = match (resolved, word.arg_index()) {
                     (Some(spec), Some(idx)) => provenance(spec, &arg_refs, idx),
                     (Some(_), None) => Provenance {
@@ -605,8 +605,7 @@ impl<'a> Bench<'a> {
             })),
             "role": {
                 "roles": resolved
-                    .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
-                    .unwrap_or_default(),
+                    .map_or_default(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index())),
                 "field": prov.field,
                 "detail": prov.detail,
             },
@@ -675,14 +674,12 @@ impl<'a> Bench<'a> {
             "required_package": spec.required_package,
             "return_type": spec
                 .return_type
-                .map(|t| catalogue::variant_name(&t))
-                .unwrap_or_default(),
+                .map_or_default(|t| catalogue::variant_name(&t)),
             "fields_set": self
                 .merged
                 .store()
                 .draft(name)
-                .map(crate::store::fields_set_of)
-                .unwrap_or_default(),
+                .map_or_default(crate::store::fields_set_of),
         })
     }
 

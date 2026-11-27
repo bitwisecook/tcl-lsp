@@ -1268,13 +1268,11 @@ impl OoState {
             let provided: Vec<String> = if step.is_object {
                 self.objects
                     .get(&step.provider)
-                    .map(|o| o.methods.keys().cloned().collect())
-                    .unwrap_or_default()
+                    .map_or_default(|o| o.methods.keys().cloned().collect())
             } else {
                 self.classes
                     .get(&step.provider)
-                    .map(|c| c.methods.keys().cloned().collect())
-                    .unwrap_or_default()
+                    .map_or_default(|c| c.methods.keys().cloned().collect())
             };
             for name in provided {
                 if internal || self.step_exported(&step, &name) {
@@ -1523,12 +1521,7 @@ fn run_step_inner(
         return res;
     }
 
-    let obj_ns = vm
-        .oo
-        .objects
-        .get(&obj_key)
-        .map(|o| o.ns.clone())
-        .unwrap_or_default();
+    let obj_ns = vm.oo.objects.get(&obj_key).map_or_default(|o| o.ns.clone());
     // Instance variables to auto-link belong to the method's declaring
     // provider. An object-defined method sees the object's declarations; a
     // class-defined method sees that class's declarations.
@@ -1743,12 +1736,7 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match sub.as_deref() {
         None | Some("object") => ok(self_name),
         Some("namespace") => {
-            let ns = vm
-                .oo
-                .objects
-                .get(&obj)
-                .map(|o| o.ns.clone())
-                .unwrap_or_default();
+            let ns = vm.oo.objects.get(&obj).map_or_default(|o| o.ns.clone());
             ok(Value::string(display(&ns)))
         }
         Some("class") => {

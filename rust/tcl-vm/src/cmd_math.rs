@@ -256,7 +256,7 @@ fn classic_mathfunc(vm: &mut Vm, name: &str, args: &[Value]) -> Completion<Value
         let bad = args.iter().find(|v| classic_argument(v).is_none());
         let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
             name,
-            &bad.map(|v| v.to_str().to_string()).unwrap_or_default(),
+            &bad.map_or_default(|v| v.to_str().to_string()),
             vm.runtime_version(),
         );
         return err_with_code(message, code);

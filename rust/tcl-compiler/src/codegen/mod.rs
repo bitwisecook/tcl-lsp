@@ -761,9 +761,8 @@ impl<'r> CodegenCtx<'r> {
             instr.source_span = span;
             instr.source_cmd_text = text;
             instr.source_line = line;
-            instr.source_command_namespace = site
-                .map(|site| site.binding.resolution_namespace.clone())
-                .unwrap_or_default();
+            instr.source_command_namespace =
+                site.map_or_default(|site| site.binding.resolution_namespace.clone());
             instr.source_command_boundary = site.is_some().into();
         }
     }

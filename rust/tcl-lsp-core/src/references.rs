@@ -998,9 +998,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         dialect,
         resolution.with_registry(crate::registry_for_dialect_profile(dialect)),
         byte_offset,
-        &find_word_span_at_position(source, line, character)
-            .map(|(w, _, _)| w)
-            .unwrap_or_default(),
+        &find_word_span_at_position(source, line, character).map_or_default(|(w, _, _)| w),
     ) {
         // The cursor is on the bare call-site word itself.
         let name = source

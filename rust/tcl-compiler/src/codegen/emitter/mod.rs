@@ -280,9 +280,8 @@ fn codegen_procedures(
         {
             continue;
         }
-        let params: Vec<&str> = ir_proc
-            .map(|p| p.params.iter().map(String::as_str).collect())
-            .unwrap_or_default();
+        let params: Vec<&str> =
+            ir_proc.map_or_default(|p| p.params.iter().map(String::as_str).collect());
         // The proc's definition line drives proc-relative `errorInfo` lines.
         let base_line = ir_proc.map_or(0, |p| {
             module

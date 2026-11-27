@@ -473,8 +473,7 @@ pub(crate) fn build_lambda_proc(
     // namespace-key owner before both lookup and procedure compilation.
     let namespace = parts
         .get(2)
-        .map(|v| canonical_ns_name(&v.to_str()).into_owned())
-        .unwrap_or_default();
+        .map_or_default(|v| canonical_ns_name(&v.to_str()).into_owned());
     if parts.len() == 3 && !vm.namespace_exists(&namespace) {
         // The message names the fully-qualified namespace: a relative third
         // element is resolved from the global namespace, so it is reported with a
@@ -886,10 +885,7 @@ fn interp_debug_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `interp hidden ?path?` — the hidden-command names of the current or named
 /// interp.
 fn interp_hidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let path = rest
-        .first()
-        .map(|v| v.to_str().to_string())
-        .unwrap_or_default();
+    let path = rest.first().map_or_default(|v| v.to_str().to_string());
     let names = if path.is_empty() {
         vm.own_hidden_names()
     } else {
@@ -1207,10 +1203,7 @@ const PARRAY_SRC: &str = r#"proc ::parray {a {pattern *}} {
 /// library procs are provided on demand (so e.g. `info body ::parray` works).
 /// Returns 1 if the command was made available, 0 otherwise.
 fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let name = args
-        .first()
-        .map(|v| v.to_str().to_string())
-        .unwrap_or_default();
+    let name = args.first().map_or_default(|v| v.to_str().to_string());
     // The shared `namespace tail` op (separator-run-aware, matching C).
     let simple = std::str::from_utf8(tcl_cmd_core::namespace::tail(name.as_bytes()))
         .expect("subslice of valid UTF-8");

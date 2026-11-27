@@ -825,9 +825,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let ir_method = cu.ir_module.methods.get(mqname);
         let enclosing_class = ir_method.map(|m| m.class_name.as_str());
         let execution_namespace = ir_method.map(|m| &m.execution_namespace);
-        ctx.cross_event_vars = ir_method
-            .map(|m| m.instance_vars.clone())
-            .unwrap_or_default();
+        ctx.cross_event_vars = ir_method.map_or_default(|m| m.instance_vars.clone());
         emit_unreachable(ctx, fu);
         let purity = PurityCtx {
             registry: ctx.registry,
@@ -1042,10 +1040,9 @@ fn emit_dead_stores_and_unused(
     // observes.  Shared with the analyser's W220.  Empty unless a registry is
     // bound (set by the `optimise*` entry points) and the function writes array
     // elements — so the bare test/`run_pass` path keeps its prior behaviour.
-    let place_suppressed = ctx
-        .registry
-        .map(|reg| crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg))
-        .unwrap_or_default();
+    let place_suppressed = ctx.registry.map_or_default(|reg| {
+        crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg)
+    });
 
     // Collect one DseEntry per dead chain then sort + emit.
     let mut entries: Vec<DseEntry> = Vec::new();

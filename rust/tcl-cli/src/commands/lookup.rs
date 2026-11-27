@@ -121,8 +121,7 @@ pub fn run_command_info(
     let synopsis: Vec<String> = spec
         .hover
         .as_ref()
-        .map(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect())
-        .unwrap_or_default();
+        .map_or_default(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect());
     // §5.2 option gating (intersects + version ceiling) — the same rule
     // hover/completion/the snapshot use.
     let mut switches: Vec<String> = context

@@ -1284,9 +1284,7 @@ impl<'a> LatticeDriver<'a> {
         let context = AnalysisContext {
             registry_generation: key.map_or(0, |k| k.registry_generation),
             overlay_generation: key.and_then(|k| k.overlay_generation),
-            bindings: key
-                .map(|k| k.bindings.binding_evidence())
-                .unwrap_or_default(),
+            bindings: key.map_or_default(|k| k.bindings.binding_evidence()),
             namespace: "::".to_owned(),
             profile,
             grammar: profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
@@ -6113,8 +6111,7 @@ impl Words {
             Self::Ordered(evaluated) => evaluated
                 .borrow()
                 .as_ref()
-                .map(|words| words.state.writes.clone())
-                .unwrap_or_default(),
+                .map_or_default(|words| words.state.writes.clone()),
             Self::Independent => Vec::new(),
         }
     }

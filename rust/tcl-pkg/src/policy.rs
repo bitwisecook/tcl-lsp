@@ -410,12 +410,11 @@ fn string_array(table: &Table, key: &str) -> Vec<String> {
     table
         .get(key)
         .and_then(Value::as_array)
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(|v| v.as_str().map(ToString::to_string))
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 enum LayerRead {
@@ -561,15 +560,15 @@ mod tests {
     fn merge(system: &str, user: &str) -> (PolicyConfig, Vec<String>) {
         let system: Table = system.parse().unwrap();
         let user: Table = user.parse().unwrap();
-        let explicit: Vec<String> = system
-            .get("lock")
-            .and_then(Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let explicit: Vec<String> =
+            system
+                .get("lock")
+                .and_then(Value::as_array)
+                .map_or_default(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                });
         let lock_all = system
             .get("lock-all")
             .and_then(Value::as_bool)

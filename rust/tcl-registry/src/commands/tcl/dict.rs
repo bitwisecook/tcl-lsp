@@ -104,9 +104,7 @@ fn dict_last_arg_body(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// Dynamic resolver: body only when filter type is "script".
 fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 3 && args[1] == "script" {
-        u8::try_from(args.len() - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
+        u8::try_from(args.len() - 1).map_or_default(|last| vec![(last, ArgRole::Body)])
     } else {
         Vec::new()
     }

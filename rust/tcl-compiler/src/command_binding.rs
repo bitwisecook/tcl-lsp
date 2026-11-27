@@ -4088,8 +4088,7 @@ pub fn analyse_command_binding<'a>(
             let entry = {
                 let mut pred_states: Vec<&State> = preds
                     .get(id)
-                    .map(|ps| ps.iter().map(|p| &block_exit[p]).collect())
-                    .unwrap_or_default();
+                    .map_or_default(|ps| ps.iter().map(|p| &block_exit[p]).collect());
                 if *id == cfg.entry {
                     pred_states.push(&seed);
                 }

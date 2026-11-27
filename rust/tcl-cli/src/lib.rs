@@ -52,7 +52,6 @@ use crate::cli::{Cli, Command};
 ///
 /// `clap` handles `--help`/`--version`/parse errors by printing and exiting
 /// directly, so this only returns for a successfully parsed command.
-#[must_use]
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,

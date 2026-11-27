@@ -219,8 +219,7 @@ fn workload(variant: &Variant, statements: usize, changed: Option<usize>) -> Str
 fn tally(unit: &CompilationUnit) -> RouteTally {
     unit.procedures
         .get("::p")
-        .map(|procedure| procedure.sccp.route_tally)
-        .unwrap_or_default()
+        .map_or_default(|procedure| procedure.sccp.route_tally)
 }
 
 /// Part 2: the four variants side by side.

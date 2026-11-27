@@ -823,13 +823,12 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                     registry.and_then(tcl_registry::CommandRegistry::profile),
                 )
                 .split_list(&args[0])
-                .map(|names| {
+                .map_or_default(|names| {
                     names
                         .into_iter()
                         .map(std::borrow::Cow::into_owned)
                         .collect()
-                })
-                .unwrap_or_default();
+                });
             }
             if let Some(reg) = registry {
                 let defs = registry_barrier_defs(reg, command, args, tokens.as_ref());
@@ -1001,15 +1000,12 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<BlockId, HashSet<Bloc
             if *id == func.entry {
                 continue;
             }
-            let bn_preds: Vec<BlockId> = preds
-                .get(id)
-                .map(|p| {
-                    p.iter()
-                        .copied()
-                        .filter(|p| reachable.contains(p))
-                        .collect()
-                })
-                .unwrap_or_default();
+            let bn_preds: Vec<BlockId> = preds.get(id).map_or_default(|p| {
+                p.iter()
+                    .copied()
+                    .filter(|p| reachable.contains(p))
+                    .collect()
+            });
 
             let new_dom = if bn_preds.is_empty() {
                 HashSet::from([*id])
@@ -1176,15 +1172,12 @@ pub(crate) fn compute_dominance_frontier(
     }
 
     for id in &reachable {
-        let bn_preds: Vec<BlockId> = preds
-            .get(id)
-            .map(|p| {
-                p.iter()
-                    .copied()
-                    .filter(|p| reachable.contains(p))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let bn_preds: Vec<BlockId> = preds.get(id).map_or_default(|p| {
+            p.iter()
+                .copied()
+                .filter(|p| reachable.contains(p))
+                .collect()
+        });
 
         if bn_preds.len() < 2 {
             continue;
@@ -2978,8 +2971,7 @@ fn assemble_ssa_blocks(
         let mut phis: Vec<Phi> = Vec::new();
         let mut phi_var_list: Vec<String> = phi_vars
             .get(bn)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|s| s.iter().cloned().collect());
         phi_var_list.sort();
 
         for var in &phi_var_list {
@@ -3215,8 +3207,7 @@ impl RenameWalk {
         // Process phi nodes — push new versions.
         let mut phi_var_list: Vec<String> = phi_vars
             .get(&bn)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|s| s.iter().cloned().collect());
         phi_var_list.sort();
 
         for var in &phi_var_list {
@@ -3285,8 +3276,7 @@ impl RenameWalk {
             }
             let mut succ_phis: Vec<String> = phi_vars
                 .get(&succ)
-                .map(|s| s.iter().cloned().collect())
-                .unwrap_or_default();
+                .map_or_default(|s| s.iter().cloned().collect());
             succ_phis.sort();
             for var in &succ_phis {
                 let v = self.top(var);

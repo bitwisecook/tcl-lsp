@@ -685,8 +685,7 @@ pub fn parse_snatpool(full_path: &str, body: &str, range: Range) -> BigipSnatPoo
     let members = props
         .get("members")
         .filter(|m| !m.is_empty())
-        .map(|m| parse_list_block(m))
-        .unwrap_or_default();
+        .map_or_default(|m| parse_list_block(m));
     obj.members = BigipList {
         items: members.into_iter().map(ListItem::new).collect(),
         syntax: ListSyntax::BracedSpaceSeparated,
@@ -798,26 +797,24 @@ pub fn parse_virtual(
     obj.profiles = props
         .get("profiles")
         .filter(|b| !b.is_empty())
-        .map(|block| {
+        .map_or_default(|block| {
             keyed_attachment_list(block, |path, b| {
                 ListItemValue::Profile(ProfileAttachment::from_raw(path, strip_outer_braces(b)))
             })
-        })
-        .unwrap_or_default();
+        });
 
     // persist: keyed-block of PersistenceAttachment.
     obj.persist = props
         .get("persist")
         .filter(|b| !b.is_empty())
-        .map(|block| {
+        .map_or_default(|block| {
             keyed_attachment_list(block, |path, b| {
                 ListItemValue::Persistence(PersistenceAttachment::from_raw(
                     path,
                     strip_outer_braces(b),
                 ))
             })
-        })
-        .unwrap_or_default();
+        });
 
     // source-address-translation: parse the inner block for type / pool.
     obj.source_address_translation = String::new();
@@ -859,8 +856,7 @@ pub fn parse_virtual(
 fn braced_space_list(block: Option<&String>) -> BigipList {
     let items = block
         .filter(|b| !b.is_empty())
-        .map(|b| parse_list_block(b))
-        .unwrap_or_default();
+        .map_or_default(|b| parse_list_block(b));
     BigipList {
         items: items.into_iter().map(ListItem::new).collect(),
         syntax: ListSyntax::BracedSpaceSeparated,
@@ -872,8 +868,7 @@ fn braced_space_list(block: Option<&String>) -> BigipList {
 fn list_from(block: Option<&String>) -> Vec<String> {
     block
         .filter(|b| !b.is_empty())
-        .map(|b| parse_list_block(b))
-        .unwrap_or_default()
+        .map_or_default(|b| parse_list_block(b))
 }
 
 // node / virtual-address
@@ -1009,8 +1004,7 @@ pub fn parse_data_group(
     obj.records = props
         .get("records")
         .filter(|r| !r.is_empty())
-        .map(|r| parse_list_block(r))
-        .unwrap_or_default();
+        .map_or_default(|r| parse_list_block(r));
     obj
 }
 
@@ -1606,8 +1600,7 @@ fn list_block_of(props: &HashMap<String, String>, key: &str) -> Vec<String> {
     props
         .get(key)
         .filter(|v| !v.is_empty())
-        .map(|v| parse_list_block(v))
-        .unwrap_or_default()
+        .map_or_default(|v| parse_list_block(v))
 }
 
 /// The ordered top-level keys of a braced sub-block value.

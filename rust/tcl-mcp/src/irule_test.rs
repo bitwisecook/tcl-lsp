@@ -390,15 +390,12 @@ fn walk_flow(
 
 /// Collect a JSON array of strings into a `Vec<String>` (empty when absent).
 fn string_array(value: Option<&Value>) -> Vec<String> {
-    value
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
+    value.and_then(Value::as_array).map_or_default(|a| {
+        a.iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect()
+    })
 }
 
 /// Build one path from an action terminal, computing its label, priority,
@@ -624,7 +621,7 @@ fn collect_taints(source: &str) -> Vec<Taint> {
     graph
         .get("taint_warnings")
         .and_then(Value::as_array)
-        .map(|warnings| {
+        .map_or_default(|warnings| {
             warnings
                 .iter()
                 .map(|w| Taint {
@@ -642,5 +639,4 @@ fn collect_taints(source: &str) -> Vec<Taint> {
                 })
                 .collect()
         })
-        .unwrap_or_default()
 }

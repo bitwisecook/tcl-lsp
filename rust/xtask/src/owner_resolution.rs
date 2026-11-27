@@ -54,9 +54,7 @@ pub fn run() -> Result<ExitCode> {
 
     let mut problems = validate_manifest(&root, &contract, &makefile, &xtask_main);
     if problems.is_empty() {
-        let owner_count = parse_manifest(&contract)
-            .map(|rows| rows.len())
-            .unwrap_or_default();
+        let owner_count = parse_manifest(&contract).map_or_default(|rows| rows.len());
         println!(
             "owner-resolution: OK ({owner_count} owner row(s) resolve to live source and gates)"
         );

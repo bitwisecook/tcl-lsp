@@ -821,7 +821,7 @@ impl Analyser {
         // argument names a subcommand.
         let sub_match = (!spec.subcommands.is_empty())
             .then(|| {
-                let first = args.first().map(String::as_str).unwrap_or_default();
+                let first = args.first().map_or_default(String::as_str);
                 spec.resolve_subcommand(first)
             })
             .flatten();

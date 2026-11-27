@@ -409,19 +409,16 @@ fn tn_renaming_a_namespace_word_does_not_rename_the_same_spelled_proc() {
     );
     let result = lsp.rename(&uri, 2, 20, "gadget");
     let edits = rename_edits(&result);
-    let lines: Vec<i64> = edits
-        .get(&uri)
-        .map(|es| {
-            es.iter()
-                .filter_map(|e| {
-                    e.get("range")
-                        .and_then(|r| r.get("start"))
-                        .and_then(|s| s.get("line"))
-                        .and_then(Value::as_i64)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let lines: Vec<i64> = edits.get(&uri).map_or_default(|es| {
+        es.iter()
+            .filter_map(|e| {
+                e.get("range")
+                    .and_then(|r| r.get("start"))
+                    .and_then(|s| s.get("line"))
+                    .and_then(Value::as_i64)
+            })
+            .collect()
+    });
     assert!(
         lines.contains(&1) && lines.contains(&2) && !lines.contains(&0),
         "the namespace's two words move and `proc widget` does not: {edits:?}",

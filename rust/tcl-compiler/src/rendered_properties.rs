@@ -771,15 +771,12 @@ pub fn propagate_rendered_props(
 
             // Phi joins at non-entry blocks.
             if bn != &cfg.entry {
-                let exec_preds: Vec<BlockId> = preds
-                    .get(bn)
-                    .map(|ps| {
-                        ps.iter()
-                            .copied()
-                            .filter(|p| sccp.executable_edges.contains(&(*p, *bn)))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let exec_preds: Vec<BlockId> = preds.get(bn).map_or_default(|ps| {
+                    ps.iter()
+                        .copied()
+                        .filter(|p| sccp.executable_edges.contains(&(*p, *bn)))
+                        .collect()
+                });
 
                 for phi in &ssa_block.phis {
                     if exec_preds.is_empty() {

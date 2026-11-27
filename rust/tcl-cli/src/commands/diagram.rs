@@ -86,14 +86,13 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
             let params = proc
                 .get("params")
                 .and_then(Value::as_array)
-                .map(|items| {
+                .map_or_default(|items| {
                     items
                         .iter()
                         .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned))
                         .collect::<Vec<_>>()
                         .join(", ")
-                })
-                .unwrap_or_default();
+                });
             let flow_count = proc
                 .get("flow")
                 .and_then(Value::as_array)

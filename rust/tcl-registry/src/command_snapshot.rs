@@ -332,8 +332,7 @@ fn info_json(spec: &CommandSpec) -> Json {
     let summary = spec.hover.map_or("", |h| h.summary);
     let synopsis: Vec<Json> = spec
         .hover
-        .map(|h| h.synopsis.iter().map(|s| Json::s(*s)).collect())
-        .unwrap_or_default();
+        .map_or_default(|h| h.synopsis.iter().map(|s| Json::s(*s)).collect());
     let switches: Vec<Json> = all_option_names(spec).into_iter().map(Json::s).collect();
     let mut m = BTreeMap::new();
     m.insert("summary".to_owned(), Json::s(summary));

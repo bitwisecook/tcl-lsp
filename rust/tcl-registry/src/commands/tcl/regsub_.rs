@@ -117,9 +117,7 @@ fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appende
     let has_command = names_a_callback(args);
     let sub_idx = i + 2;
     if has_command && sub_idx < args.len() {
-        u8::try_from(sub_idx)
-            .map(|s| vec![(s, AppendedArity::AtLeast(1))])
-            .unwrap_or_default()
+        u8::try_from(sub_idx).map_or_default(|s| vec![(s, AppendedArity::AtLeast(1))])
     } else {
         Vec::new()
     }

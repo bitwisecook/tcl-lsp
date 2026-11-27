@@ -2280,8 +2280,7 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
         };
         registry
             .data_collection_collect_command(operation.protocol.name)
-            .map(|spec| vec![(spec.name, setup_event)])
-            .unwrap_or_default()
+            .map_or_default(|spec| vec![(spec.name, setup_event)])
     };
 
     let mut unique: Vec<(&str, &str)> = Vec::new();

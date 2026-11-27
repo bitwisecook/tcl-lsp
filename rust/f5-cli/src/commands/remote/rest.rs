@@ -162,7 +162,7 @@ pub fn request_with_accept(
     if body.is_some() {
         req = req.header("Content-Type", "application/json");
     }
-    let owned = body.map(<[u8]>::to_vec).unwrap_or_default();
+    let owned = body.map_or_default(<[u8]>::to_vec);
     let request = req
         .body(owned)
         .map_err(|e| RestError::Other(format!("REST request to {}: {e}", credentials.host)))?;

@@ -4576,8 +4576,7 @@ impl WorkspaceIndex {
         state
             .by_target
             .get(target)
-            .map(|sites| sites.iter().copied().collect())
-            .unwrap_or_default()
+            .map_or_default(|sites| sites.iter().copied().collect())
     }
 
     /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
@@ -5155,8 +5154,7 @@ impl<'a> NamespaceImports<'a> {
         let mut idx: Vec<u32> = self
             .by_name
             .get(word)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+            .map_or_default(Vec::as_slice)
             .to_vec();
         idx.extend(self.glob_gated.iter().copied().filter(|&i| {
             let row = &self.rows[i as usize];
@@ -5429,8 +5427,7 @@ impl<'a> WildcardImportIndex<'a> {
         let forgets = self
             .forgets_by_ns
             .get(importing_ns)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+            .map_or_default(Vec::as_slice)
             .iter()
             .filter(move |f| {
                 f.source_ns.as_deref().is_none_or(|src| {
@@ -5451,8 +5448,7 @@ impl<'a> WildcardImportIndex<'a> {
         let redefinitions = self
             .declarations_by_qname
             .get(tcl_syntax::naming::qualify(importing_ns, name).as_str())
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+            .map_or_default(Vec::as_slice)
             .iter()
             .map(move |&(uri, at)| AliasEvent {
                 kind: AliasEventKind::Remove,
@@ -5466,8 +5462,7 @@ impl<'a> WildcardImportIndex<'a> {
         let deletions = self
             .deletions_by_name
             .get(qualified.as_str())
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+            .map_or_default(Vec::as_slice)
             .iter()
             .map(move |d| AliasEvent {
                 kind: AliasEventKind::Remove,
@@ -5595,15 +5590,13 @@ impl<'a> WildcardImportIndex<'a> {
         let mut earlier = self
             .imports_by_ns
             .get(ns)
-            .map(|imports| imports.admitting(name).collect::<Vec<_>>())
-            .unwrap_or_default()
+            .map_or_default(|imports| imports.admitting(name).collect::<Vec<_>>())
             .into_iter()
             .map(|other| (other.imp.source_ns.as_str(), other.site(), &other.exported))
             .chain(
                 self.exact_by_ns
                     .get(ns)
-                    .map(Vec::as_slice)
-                    .unwrap_or_default()
+                    .map_or_default(Vec::as_slice)
                     .iter()
                     .filter(|other| other.gate.name == name)
                     .map(|other| (other.gate.source_ns.as_str(), other.site(), &other.exported)),

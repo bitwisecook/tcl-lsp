@@ -1130,7 +1130,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
         existence,
         refined,
     } = state;
-    let refinements_at = refined.map(RefinementFlow::settled).unwrap_or_default();
+    let refinements_at = refined.map_or_default(RefinementFlow::settled);
     if matches!(round, Round::Published(_)) {
         let ends = contradicted_exits(&refinements, &refinements_at, &values);
         if !ends.is_empty() {
@@ -1389,16 +1389,12 @@ impl SweepContext<'_> {
             return false;
         };
         let mut changed = false;
-        let incoming_exec: Vec<BlockId> = self
-            .preds
-            .get(&bn)
-            .map(|set| {
-                set.iter()
-                    .copied()
-                    .filter(|p| state.executable_edges.contains(&(*p, bn)))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let incoming_exec: Vec<BlockId> = self.preds.get(&bn).map_or_default(|set| {
+            set.iter()
+                .copied()
+                .filter(|p| state.executable_edges.contains(&(*p, bn)))
+                .collect()
+        });
 
         // Phi nodes (not at entry, only when some predecessor is
         // executable).
@@ -3213,8 +3209,7 @@ fn handler_regions(
             let forward = reach(&starts, &|block| {
                 cfg.blocks
                     .get(&block)
-                    .map(crate::cfg::Block::successors)
-                    .unwrap_or_default()
+                    .map_or_default(crate::cfg::Block::successors)
             });
             let backward = reach(&starts, &|block| {
                 predecessors.get(&block).cloned().unwrap_or_default()

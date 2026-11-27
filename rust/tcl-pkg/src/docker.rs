@@ -272,7 +272,7 @@ fn normalise_cli_version(version: &str) -> String {
 /// landing an unverified binary in the image.
 #[must_use]
 pub fn tcl_cli_install_recipe(cli_version: Option<&str>) -> String {
-    let pinned = cli_version.map(normalise_cli_version).unwrap_or_default();
+    let pinned = cli_version.map_or_default(normalise_cli_version);
 
     let arch_cases = RELEASE_TRIPLES
         .iter()

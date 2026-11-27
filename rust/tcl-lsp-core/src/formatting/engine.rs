@@ -283,10 +283,7 @@ fn parse_commands(
             return;
         }
         let taken_args = std::mem::take(argv);
-        let name = taken_args
-            .first()
-            .map(|a| a.text.clone())
-            .unwrap_or_default();
+        let name = taken_args.first().map_or_default(|a| a.text.clone());
         let head_start = taken_args
             .first()
             .and_then(|arg| arg.tokens.first())
@@ -1578,16 +1575,12 @@ pub(crate) fn format_body(
             // consumers continue to require a valid `case_invocation`.
             commands[i].args[index].kind = ArgKind::Body;
         }
-        let arg_count = commands[i].args.len();
-        for a in 0..arg_count {
-            if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
-                let body_text = commands[i].args[a].text.clone();
-                let body_source_offset = commands[i].args[a]
-                    .tokens
-                    .first()
-                    .map_or(source_offset, |&token| {
-                        token_content_source_offset(source_offset, token)
-                    });
+        for (a, arg) in commands[i].args.iter_mut().enumerate() {
+            if arg.kind == ArgKind::Body && arg.is_braced {
+                let body_text = arg.text.clone();
+                let body_source_offset = arg.tokens.first().map_or(source_offset, |&token| {
+                    token_content_source_offset(source_offset, token)
+                });
                 let formatted =
                     if let Some((_, case_list)) = case_list_body.filter(|(index, _)| *index == a) {
                         format_case_list_body(
@@ -1609,10 +1602,10 @@ pub(crate) fn format_body(
                             inner_level,
                         )
                     };
-                commands[i].args[a].formatted_body = Some(formatted);
-            } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
-                && commands[i].args[a].is_braced
-                && let Some(&tok) = commands[i].args[a].tokens.first()
+                arg.formatted_body = Some(formatted);
+            } else if arg.kind == ArgKind::LambdaLiteral
+                && arg.is_braced
+                && let Some(&tok) = arg.tokens.first()
                 && let Some(elems) = split_lambda_literal_decoded(source, tok)
                 && let Some(body_text) = elems.body
             {
@@ -1633,7 +1626,7 @@ pub(crate) fn format_body(
                     identities,
                     inner_level,
                 );
-                commands[i].args[a].formatted_body = Some(formatted);
+                arg.formatted_body = Some(formatted);
             }
         }
 

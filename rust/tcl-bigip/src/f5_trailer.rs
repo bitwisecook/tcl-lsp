@@ -306,17 +306,14 @@ fn parse_legacy(data: &[u8], overlay: &SchemaOverlay) -> TrailerParse {
             break;
         }
         let schema = overlay.legacy(type_, version, total_length);
-        let ip_fields = schema
-            .as_ref()
-            .map(|s| {
-                s.iter()
-                    .map(|&(rel_off, kind)| IpFieldRef {
-                        offset: pos + rel_off,
-                        kind,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let ip_fields = schema.as_ref().map_or_default(|s| {
+            s.iter()
+                .map(|&(rel_off, kind)| IpFieldRef {
+                    offset: pos + rel_off,
+                    kind,
+                })
+                .collect()
+        });
         tlvs.push(ParsedTlv {
             type_: u16::from(type_),
             version: u16::from(version),
@@ -353,17 +350,14 @@ fn parse_dpt(data: &[u8], overlay: &SchemaOverlay) -> TrailerParse {
             break;
         }
         let schema = overlay.dpt(provider, type_, version);
-        let ip_fields = schema
-            .as_ref()
-            .map(|s| {
-                s.iter()
-                    .map(|&(rel_off, kind)| IpFieldRef {
-                        offset: pos + rel_off,
-                        kind,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let ip_fields = schema.as_ref().map_or_default(|s| {
+            s.iter()
+                .map(|&(rel_off, kind)| IpFieldRef {
+                    offset: pos + rel_off,
+                    kind,
+                })
+                .collect()
+        });
         tlvs.push(ParsedTlv {
             type_,
             version,

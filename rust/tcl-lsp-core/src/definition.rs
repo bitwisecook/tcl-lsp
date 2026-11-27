@@ -669,8 +669,9 @@ fn position_definition(
             inv.resolved_qualified_name
                 .as_deref()
                 .and_then(|resolved| analysis.all_procs.get(resolved))
-                .map(|proc_def| vec![span_to_range(source, line_index, proc_def.name_span)])
-                .unwrap_or_default(),
+                .map_or_default(|proc_def| {
+                    vec![span_to_range(source, line_index, proc_def.name_span)]
+                }),
         );
     }
     (param_position == ParamListPosition::LiteralData).then(Vec::new)
@@ -699,8 +700,7 @@ fn caller_frame_definition(
         name,
     );
     crate::caller_frame::primary_binding(&bindings)
-        .map(|binding| vec![span_to_range(source, line_index, binding.arg_span)])
-        .unwrap_or_default()
+        .map_or_default(|binding| vec![span_to_range(source, line_index, binding.arg_span)])
 }
 
 /// Go-to-definition for an instance-method call site (`$obj method` /
@@ -1114,8 +1114,7 @@ fn method_dispatch_definition(
     // lookup on the receiver's own class silently disagrees with this
     // function.
     crate::oo_dispatch::method_dispatch_provider(analysis, class_q, method, external, bucket)
-        .map(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
-        .unwrap_or_default()
+        .map_or_default(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
 }
 
 /// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.

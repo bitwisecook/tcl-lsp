@@ -2636,8 +2636,7 @@ impl AnalysisResult {
     ) -> impl DoubleEndedIterator<Item = &'a ProcDef> + 'a {
         self.superseded_procs
             .get(qualified)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+            .map_or_default(Vec::as_slice)
             .iter()
             .chain(self.all_procs.get(qualified))
     }

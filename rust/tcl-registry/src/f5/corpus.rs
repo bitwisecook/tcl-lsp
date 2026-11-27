@@ -2125,7 +2125,7 @@ mod tests {
                             panic!("{context}: no platform row");
                         };
                         assert_eq!(
-                            word_size.map(|w| w.to_string()).unwrap_or_default(),
+                            word_size.map_or_default(|w| w.to_string()),
                             cell,
                             "{context}"
                         );

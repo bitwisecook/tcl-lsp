@@ -2612,8 +2612,7 @@ fn insert_object_method_overrides(
     let mut candidates: Vec<String> = match head_tok.kind {
         TokenType::Var => object_handle_name(head_text)
             .and_then(|name| object_classes.get(name))
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default(),
+            .map_or_default(|s| s.iter().cloned().collect()),
         // `[Class new] method …`: a registry factory, else a *user* class named
         // by the constructor head (resolved against the class hierarchy, which
         // is workspace-merged, so a class defined in another file resolves),
@@ -2625,14 +2624,12 @@ fn insert_object_method_overrides(
                 vec![cls]
             } else {
                 collection_head_element_classes(head_text, registry, object_collections)
-                    .map(|s| s.iter().cloned().collect())
-                    .unwrap_or_default()
+                    .map_or_default(|s| s.iter().cloned().collect())
             }
         }
         TokenType::Esc => object_classes
             .get(head_text.as_str())
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default(),
+            .map_or_default(|s| s.iter().cloned().collect()),
         _ => Vec::new(),
     };
     if candidates.is_empty() {
@@ -10834,8 +10831,7 @@ mod tests {
             }
             let mapped: std::collections::BTreeSet<&str> = block["scopes"]
                 .as_object()
-                .map(|m| m.keys().map(String::as_str).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(String::as_str).collect());
 
             // `tcl-apl` owns the `apl*` types and nothing else needs them.
             if lang == "tcl-apl" {
@@ -10949,8 +10945,7 @@ mod tests {
             checked += 1;
             let mapped: std::collections::BTreeSet<&str> = block["scopes"]
                 .as_object()
-                .map(|m| m.keys().map(String::as_str).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(String::as_str).collect());
             require_mapped(lang, &shared_custom, &mapped, &mut failures);
         }
         assert!(

@@ -4405,8 +4405,7 @@ async fn widen_recovery_extra_commands(
                 // high byte should still contribute its command names.
                 ctx.store
                     .read_source(path)
-                    .map(|(text, _)| defined_command_tails(&text, dialect))
-                    .unwrap_or_default()
+                    .map_or_default(|(text, _)| defined_command_tails(&text, dialect))
             },
         );
         names.extend(commands);
@@ -17827,12 +17826,11 @@ impl Backend {
         let keep_paths: HashSet<String> = args
             .get(1)
             .and_then(serde_json::Value::as_array)
-            .map(|a| {
+            .map_or_default(|a| {
                 a.iter()
                     .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let mut sources: Vec<(String, String)> = Vec::new();
         for value in uris {
@@ -19479,7 +19477,7 @@ impl Backend {
             .and_then(serde_json::Value::as_object)
             .and_then(|d| d.get("exclude"))
             .and_then(serde_json::Value::as_array)
-            .map(|patterns| {
+            .map_or_default(|patterns| {
                 patterns
                     .iter()
                     .filter_map(serde_json::Value::as_str)
@@ -19487,8 +19485,7 @@ impl Backend {
                     .filter(|s| !s.is_empty())
                     .map(str::to_owned)
                     .collect()
-            })
-            .unwrap_or_default();
+            });
         *self.diagnostics_exclude.lock().await = exclude;
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_non_ascii_mode` helper expects it wrapped (it looks under
@@ -19741,7 +19738,7 @@ impl Backend {
         // registry describing the same dialect.
         let mut subs: Vec<serde_json::Value> = tcl_lsp_core::document_context_for_dialect(&dialect)
             .resolve_spec(&registry, &name)
-            .map(|spec| {
+            .map_or_default(|spec| {
                 spec.subcommands
                     .iter()
                     .map(|sub| {
@@ -19758,8 +19755,7 @@ impl Backend {
                         })
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -20539,8 +20535,7 @@ impl Backend {
         }
         let file_name = path
             .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .map_or_default(|n| n.to_string_lossy().into_owned());
         let rel = folder_root
             .as_deref()
             .and_then(|root| path.strip_prefix(root).ok())
@@ -28255,15 +28250,14 @@ fn parse_ilx_plugins(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<Il
                 extra_rule_dirs: rules
                     .and_then(|r| r.get(plugin))
                     .and_then(serde_json::Value::as_array)
-                    .map(|dirs| {
+                    .map_or_default(|dirs| {
                         dirs.iter()
                             .filter_map(serde_json::Value::as_str)
                             .map(str::trim)
                             .filter(|d| !d.is_empty())
                             .map(str::to_owned)
                             .collect()
-                    })
-                    .unwrap_or_default(),
+                    }),
             })
         })
         .collect();
@@ -29088,8 +29082,7 @@ fn refine_w123_diagnostics(
             // byte should still contribute its command names.
             store
                 .read_source(path)
-                .map(|(text, _)| defined_command_tails(&text, dialect))
-                .unwrap_or_default()
+                .map_or_default(|(text, _)| defined_command_tails(&text, dialect))
         })
     };
     diags
@@ -29483,9 +29476,8 @@ fn refine_workspace_index_w123(
     // define, keyed the way a diagnostic's own span is (the analyser raises the
     // W123 at exactly the invocation's range). Needs the name memo; tier 2 does
     // not, so an absent memo must not skip the whole refinement.
-    let mathfunc_spans: HashSet<(u32, u32)> = names
-        .filter(|n| !n.is_empty())
-        .map(|names| {
+    let mathfunc_spans: HashSet<(u32, u32)> =
+        names.filter(|n| !n.is_empty()).map_or_default(|names| {
             analysis
                 .command_invocations
                 .iter()
@@ -29498,8 +29490,7 @@ fn refine_workspace_index_w123(
                 })
                 .map(|inv| (inv.range.start(), inv.range.end()))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     diags
         .into_iter()
         .filter(|d| {
@@ -47001,8 +46992,7 @@ proc p {} {
         assert!(!blocked, "nothing blocks this rename");
         let a_edit_lines: std::collections::BTreeSet<u32> = changes
             .get(&a)
-            .map(|edits| edits.iter().map(|e| e.range.start.line).collect())
-            .unwrap_or_default();
+            .map_or_default(|edits| edits.iter().map(|e| e.range.start.line).collect());
         assert_eq!(
             a_edit_lines,
             [2, 3].into_iter().collect(),

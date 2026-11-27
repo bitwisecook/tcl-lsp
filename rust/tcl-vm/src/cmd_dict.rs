@@ -393,7 +393,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
                 return err("wrong # args: should be \"dict append dictVarName key ?value ...?\"");
             };
             dict_update(vm, varname, key, |old| {
-                let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
+                let mut s = old.map_or_default(|v| v.to_str().to_string());
                 for v in strs {
                     s.push_str(&v.to_str());
                 }

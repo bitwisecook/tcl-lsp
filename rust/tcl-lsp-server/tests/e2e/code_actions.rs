@@ -110,19 +110,16 @@ fn first_edit_range(action: &Value) -> Value {
 
 /// The `title` of every action (`_titles`).
 fn titles(actions: &Value) -> Vec<String> {
-    actions
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .map(|x| {
-                    x.get("title")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_owned()
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    actions.as_array().map_or_default(|a| {
+        a.iter()
+            .map(|x| {
+                x.get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned()
+            })
+            .collect()
+    })
 }
 
 /// The `title` of a single action.
@@ -132,20 +129,17 @@ fn action_title(action: &Value) -> &str {
 
 /// Actions whose `kind` starts with `kind_prefix` (`_kinds`).
 fn kinds(actions: &Value, kind_prefix: &str) -> Vec<Value> {
-    actions
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter(|x| {
-                    x.get("kind")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .starts_with(kind_prefix)
-                })
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
+    actions.as_array().map_or_default(|a| {
+        a.iter()
+            .filter(|x| {
+                x.get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .starts_with(kind_prefix)
+            })
+            .cloned()
+            .collect()
+    })
 }
 
 /// A synthetic diagnostic.
