@@ -79,7 +79,9 @@ bpf-tcl run   drop-ssh.bpftcl --packet 00...   # simulate over a hex packet
 
 ## Limits
 
-The default target is the userspace `rbpf` simulator. The explicit
+The default target is the userspace simulator (the `rbpf` fixed-mbuff ABI,
+executed by an in-tree interpreter with kernel cpu-v4 semantics, so signed
+`/` and `%` match a Linux 6.6+ kernel). The explicit
 `kernel-xdp`, `kernel-socket`, `kernel-tc`, and `kernel-cgroup-sockaddr`
 targets emit Linux-loadable objects with `struct xdp_md` / `struct __sk_buff`
 (shared by socket-filter and TC) / `struct bpf_sock_addr` (cgroup) context

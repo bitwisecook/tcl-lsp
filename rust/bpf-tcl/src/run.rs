@@ -16,12 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Userspace eBPF run harness, driving emitted programs through `rbpf`'s
-//! `EbpfVmFixedMbuff` over a synthetic packet (the real eBPF `data`/`data_end`
-//! model: the metadata buffer carries the packet start/end pointers at offsets
-//! 0 and 8, matching the codegen prologue).
+//! Userspace eBPF run harness, driving emitted programs through the in-tree
+//! [`crate::vm`] interpreter (kernel instruction semantics, cpu v4 included)
+//! over a synthetic packet (the real eBPF `data`/`data_end` model: the
+//! metadata buffer carries the packet start/end pointers at offsets 0 and 8,
+//! matching the codegen prologue).
 //!
-//! Maps are emulated in a thread-local store. rbpf helpers are bare `fn`s with
+//! Maps are emulated in a thread-local store. VM helpers are bare `fn`s with
 //! no captured state, so the store is shared through a `thread_local!` — each
 //! test thread gets its own, so parallel tests don't interfere. A real kernel
 //! uses map fds; this is test/run scaffolding. Map keys and values are passed
@@ -39,7 +40,8 @@ use std::collections::HashMap;
 
 use bpf_tcl_codegen::ebpf::EbpfObject;
 use bpf_tcl_ir::{MapDef, MapKind};
-use rbpf::EbpfVmFixedMbuff;
+
+use crate::vm::{Helper, Program};
 
 /// One emulated map: its declared schema plus its live contents.
 struct EmuMap {
@@ -122,7 +124,7 @@ fn map_has_helper(map: u64, key: u64, _: u64, _: u64, _: u64) -> u64 {
 /// verdict (`r0`: bytes to accept; `0` = drop).
 ///
 /// # Errors
-/// Returns rbpf's load/verify/run error rendered as a string.
+/// Returns the VM's load/check/run error rendered as a string.
 pub fn run_socket_filter(obj: &EbpfObject, packet: &mut [u8]) -> Result<u64, String> {
     run_with_maps(obj, packet, 1).map(|(verdict, _)| verdict)
 }
@@ -132,7 +134,7 @@ pub fn run_socket_filter(obj: &EbpfObject, packet: &mut [u8]) -> Result<u64, Str
 /// Useful for asserting stateful map behaviour (e.g. a counter).
 ///
 /// # Errors
-/// Returns rbpf's load/verify/run error rendered as a string.
+/// Returns the VM's load/check/run error rendered as a string.
 pub fn run_socket_filter_repeated(
     obj: &EbpfObject,
     packet: &mut [u8],
@@ -151,21 +153,16 @@ fn run_with_maps(
         m.extend(obj.maps.iter().map(EmuMap::new));
     });
 
-    // Copy the program so the VM's lifetime stays local and unifies with the
-    // `packet` borrow rbpf's API requires.
-    let prog = obj.raw.clone();
+    let prog = Program::new(&obj.raw)?;
+    let helpers: HashMap<i32, Helper> = [
+        (1, map_get_helper as Helper),
+        (2, map_set_helper),
+        (3, map_has_helper),
+    ]
+    .into();
     let mut last = 0u64;
-    // rbpf ties the packet borrow to the VM's lifetime, so build a fresh VM per
-    // run; the thread-local map store persists across runs.
     for _ in 0..times {
-        let mut vm = EbpfVmFixedMbuff::new(Some(&prog), 0, 8).map_err(|e| e.to_string())?;
-        vm.register_helper(1, map_get_helper)
-            .map_err(|e| e.to_string())?;
-        vm.register_helper(2, map_set_helper)
-            .map_err(|e| e.to_string())?;
-        vm.register_helper(3, map_has_helper)
-            .map_err(|e| e.to_string())?;
-        last = vm.execute_program(packet).map_err(|e| e.to_string())?;
+        last = prog.execute(packet, &helpers)?;
     }
 
     let maps = MAPS.with_borrow(|m| m.iter().map(|t| t.store.clone()).collect());

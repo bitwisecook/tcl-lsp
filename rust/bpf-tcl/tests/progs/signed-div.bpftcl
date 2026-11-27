@@ -1,0 +1,6 @@
+when SOCKET_FILTER {
+    setint x {0 - 7}
+    setint q {$x / 2}
+    setint r {$x % 2}
+    accept {$q * 10 + $r}
+}

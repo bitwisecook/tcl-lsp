@@ -19,11 +19,12 @@
 //! BPF-Tcl CLI: compile / run / check `.bpftcl` programs.
 //!
 //! `compile` emits eBPF directly (`--emit asm|hex|raw`); `run` executes a
-//! program under the userspace `rbpf` harness over a synthetic packet; `check`
+//! program under the userspace eBPF interpreter over a synthetic packet; `check`
 //! type-checks the DSL subset and renders diagnostics with file positions.
 #![forbid(unsafe_code)]
 
 pub mod run;
+pub mod vm;
 
 use std::fmt::Write as _;
 use std::process::ExitCode;

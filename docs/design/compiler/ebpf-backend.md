@@ -1,6 +1,7 @@
 # BPF-Tcl eBPF backend architecture
 
-> Experimental. The default target runs under the bundled `rbpf` harness. The
+> Experimental. The default `rbpf`-ABI target runs under the in-tree userspace
+> interpreter (`rust/bpf-tcl/src/vm.rs`, kernel cpu-v4 semantics). The
 > `kernel-xdp`, `kernel-socket`, `kernel-tc`, and `kernel-cgroup-sockaddr`
 > targets emit Linux-loadable objects, validated rootless with
 > `readelf`/`llvm-objdump` and an in-repo verifier model. Genuine `bpf()`
@@ -29,7 +30,7 @@ flowchart TB
     TclIR["Shared Tcl front-end<br/>lexer → command IR → CFG"]
     BpfIR["BPF-IR<br/>typed slots, blocks, loads, map ops,<br/>branches, typed verdict"]
     Codegen["eBPF codegen<br/>stack-machine lowering, jumps,<br/>raw bytes, disassembly, ELF wrapper"]
-    Rbpf["Simulator target<br/>rbpf FixedMbuff userspace VM"]
+    Rbpf["Simulator target<br/>rbpf FixedMbuff ABI, in-tree userspace VM"]
     Kernel["Kernel targets<br/>kernel-xdp (xdp_md) /<br/>kernel-socket (__sk_buff) /<br/>kernel-tc (__sk_buff) /<br/>kernel-cgroup-sockaddr (bpf_sock_addr):<br/>context lowering, verifier proofs,<br/>BTF maps + relocations"]
     Loader["Loader and links<br/>plan → load → test-run → attach →<br/>status → detach; handler composition"]
 
@@ -196,8 +197,9 @@ verifier-native contract is deliberate; the front-end does not pretend to be
 Tcl. `>>` is arithmetic (sign-preserving).
 
 Kernel targets emit the native signed instructions. The rbpf simulator target
-uses unsigned magnitudes and restores the result sign, because the bundled
-rbpf interpreter ignores the signed-mode instruction offset. This preserves
+uses unsigned magnitudes and restores the result sign, a workaround from when
+the simulator was the `rbpf` crate, which ignored the signed-mode instruction
+offset; the in-tree VM now executes the native forms too. This preserves
 truncation, wrapping `MIN / -1`, and eBPF's zero-divisor results (zero for
 division, the dividend for remainder).
 
@@ -261,7 +263,7 @@ return value with `Outcome::classify` — a dispatcher expressed in the loader
 rather than fused into one object. Because the rules are pure over the
 per-handler outcomes, composition is deterministic and unit-tested in userspace
 (`bpf-tcl/tests/composition.rs` runs a two-handler deny/audit chain under
-`rbpf`).
+the userspace VM).
 
 ### Userspace event channel
 
