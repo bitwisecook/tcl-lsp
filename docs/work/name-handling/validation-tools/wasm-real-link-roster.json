@@ -68,7 +68,7 @@
     "runtime/rust/src/interp/stock_ensembles.rs": "d68c84b7e28340faf0941f61bcf528cb9bd19674694013bf23abf87365a85255",
     "runtime/rust/src/native_source.rs": "8757f6c0ca74713ec6987520f1cefd5f34b3087bccf7269506db0c5055ccbe44",
     "runtime/rust/src/list.rs": "db914bb045d54d674a2ed91bdf9b3b57f70ec9144300ced85b39ab816ba93892",
-    "rust/tcl-registry/src/native_jim_lookup.rs": "d356b797d12d016aaa4582f7e24903dcdd1344f6108d548d479169e4cd114b6e",
+    "rust/tcl-native-model/src/native_jim_lookup.rs": "d356b797d12d016aaa4582f7e24903dcdd1344f6108d548d479169e4cd114b6e",
     "rust/tcl-registry/src/native_scripted_distribution.rs": "c133b365882176043c4407e1f8ad6184afd983d6ef4fde89585c663648417fe0",
     "rust/tcl-registry/src/special_vars.rs": "fa947073fd7be9a58edd48eb8242253150669a1ac423469531a6c15efc696c41",
     "runtime/rust/src/expr_error.rs": "86c1eeff660d490e560bf6cefa827a19fd62a558ff47ff8e2a0493128f76e535",

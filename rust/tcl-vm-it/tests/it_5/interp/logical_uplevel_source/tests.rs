@@ -20,8 +20,8 @@
 
 use crate::prelude::*;
 use std::{cell::RefCell, io::Write};
-use tcl_registry::invocation_words::LogicalSourceWordProvider;
-use tcl_registry::native_eval_object::LogicalEvalObjectProvider;
+use tcl_native_model::LogicalSourceWordProvider;
+use tcl_native_model::native_eval_object::LogicalEvalObjectProvider;
 
 struct Capture(Rc<RefCell<Vec<u8>>>);
 impl Write for Capture {
@@ -61,7 +61,7 @@ fn simulation(eval: bool, words: bool) -> (Vm, Rc<RefCell<Vec<u8>>>) {
             tcl_dialect::TclVersion::V8_4
         ))
     );
-    assert!(vm.set_logical_compiled_variable_provider(tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
+    assert!(vm.set_logical_compiled_variable_provider(tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
     assert!(vm.set_logical_numeric_provider(
         tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
     ));

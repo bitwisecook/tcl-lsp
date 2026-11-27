@@ -352,7 +352,7 @@ impl ScanCtx<'_> {
         use super::original_name::OriginalSourceNamePurpose;
         let profile = self.authoring_profile();
         let policy = profile.and_then(|profile| {
-            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy()
         });
         if let Some(bindings) = self.original_bindings {
             if let Some(input) = bindings.original_logical_source_name_advice_input() {
@@ -378,19 +378,19 @@ impl ScanCtx<'_> {
         match profile {
             None => Some(OriginalSourceNamePurpose::Symbolic),
             Some(profile)
-                if tcl_registry::InvocationDialect::of_profile(profile).family()
+                if tcl_native_model::InvocationDialect::of_profile(profile).family()
                     == Some(tcl_dialect::model::Family::Tcl)
-                    && tcl_registry::InvocationDialect::of_profile(profile)
+                    && tcl_native_model::InvocationDialect::of_profile(profile)
                         .tcl_version
                         .is_none()
-                    && tcl_registry::InvocationDialect::of_profile(profile)
+                    && tcl_native_model::InvocationDialect::of_profile(profile)
                         .core_point
                         .is_none() =>
             {
                 Some(OriginalSourceNamePurpose::Symbolic)
             }
             Some(profile)
-                if tcl_registry::InvocationDialect::of_profile(profile)
+                if tcl_native_model::InvocationDialect::of_profile(profile)
                     .authored_f5_tcl84_core()
                     .is_some() =>
             {

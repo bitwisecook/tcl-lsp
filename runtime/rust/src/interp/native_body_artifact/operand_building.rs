@@ -98,7 +98,7 @@ impl Builder<'_> {
         &mut self,
         message_bytes: &[u8],
     ) -> Result<(usize, usize), tcl_cmd_core::CmdError> {
-        use tcl_registry::native_return_options::{
+        use tcl_native_model::native_return_options::{
             NativeReturnOptionsApplication::Syntax, NativeSyntaxMessageAllocation,
         };
         let protocol = self

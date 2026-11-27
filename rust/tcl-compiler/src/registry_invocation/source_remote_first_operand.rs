@@ -893,7 +893,7 @@ impl RemoteBodyScan<'_> {
             // Vendor words deliberately carry no Native invocation dialect.
             // This source-only effect projection uses the same complete input
             // already retained by the current body and invocation owners.
-            let mut source_dialect = tcl_registry::InvocationDialect::of_profile(self.input.unit_profile());
+            let mut source_dialect = tcl_native_model::InvocationDialect::of_profile(self.input.unit_profile());
             source_dialect.lexer_grammar = self.config.grammar_over(source_dialect.lexer_grammar);
             source_dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&self.config);
             let (effects, transitions) = schema.authored_source_effects_and_state_transitions(source_dialect);

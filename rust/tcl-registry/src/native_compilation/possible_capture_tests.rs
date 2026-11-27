@@ -24,7 +24,7 @@ use crate::{VariableAliasFrame, script_body_flow::ScriptBodyFlow};
 fn possible_case_bodies_keep_unknown_subjects_without_accepting_bad_lists() {
     use crate::InvocationWord::{Dynamic, Literal};
     let registry = crate::model::ingress::static_context_for("f5-irules").commands();
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("f5-irules").unit_profile(),
     );
     for (cases, possible) in [

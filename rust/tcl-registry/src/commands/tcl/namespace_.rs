@@ -1056,12 +1056,12 @@ fn namespace_import_state_transitions(arguments: InvocationArguments<'_>) -> Sta
     let force = match arguments.argv_at(1) {
         InvocationArgument::Word(InvocationWord::Literal(word)) => arguments
             .dialect()
-            .and_then(crate::InvocationDialect::authored_name_policy)
+            .and_then(tcl_native_model::InvocationDialect::authored_name_policy)
             .and_then(|policy| policy.namespace_import_source_control(word).ok())
             .map(tcl_syntax::naming::AuthoredNamespaceImportControl::forces),
         InvocationArgument::Word(InvocationWord::KnownBytes(bytes)) => arguments
             .dialect()
-            .and_then(crate::InvocationDialect::native_name_protocol)
+            .and_then(tcl_native_model::InvocationDialect::native_name_protocol)
             .and_then(|protocol| protocol.namespace_import_forces(bytes).ok()),
         InvocationArgument::Missing => Some(false),
         InvocationArgument::Word(_) | InvocationArgument::Indeterminate => None,
@@ -1836,7 +1836,7 @@ pub fn jim_spec() -> CommandSpec {
                 .subcommands
                 .iter()
                 .filter(|sub| {
-                    crate::native_jim_lookup::namespace_subcommand_declarations()
+                    tcl_native_model::native_jim_lookup::namespace_subcommand_declarations()
                         .iter()
                         .any(|entry| entry.name() == sub.name)
                 })

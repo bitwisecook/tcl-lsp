@@ -822,10 +822,10 @@ impl Module {
         self.source_entry.invocation_dialect.map_or_else(
             || {
                 self.resolved_profile().and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).parameter_grammar()
+                    tcl_native_model::InvocationDialect::of_profile(profile).parameter_grammar()
                 })
             },
-            tcl_registry::InvocationDialect::parameter_grammar,
+            tcl_native_model::InvocationDialect::parameter_grammar,
         )
     }
 

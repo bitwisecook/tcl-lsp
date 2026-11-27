@@ -24,7 +24,7 @@ use super::{
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::native_operation_currency::NativeOperationScope;
 use tcl_cmd_core::CmdError;
-use tcl_registry::native_property_lookup::{
+use tcl_native_model::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
 use tcl_syntax::value::ValueError;
@@ -367,7 +367,7 @@ impl Interp {
     /// Mandatory original property-role cleanup, including reached refusal.
     /// A torn-down target receives no fresh live-target or invocation authority.
     pub(super) fn retire_native_properties(&mut self, target: OoId) -> Result<(), CmdError> {
-        use tcl_registry::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
+        use tcl_native_model::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
         let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self);
         if let Err(first) = &scope {
             self.refuse_native_execution(first.clone());
@@ -1014,7 +1014,7 @@ fn compare_original_members(
     let sa = property_stage(check, obj::native_object_snapshot(a))?;
     let sb = property_stage(check, obj::native_object_snapshot(b))?;
     if matches!(sa.cache, Cache::String { .. }) && matches!(sb.cache, Cache::String { .. }) {
-        let representation=tcl_registry::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
+        let representation=tcl_native_model::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
         let ca = property_stage(
             check,
             obj::native_character_count(a, protocol, representation),

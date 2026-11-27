@@ -254,7 +254,7 @@ fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations
     // This only checks a genuine written token carrier's compatibility
     // projections. It supplies no source provenance or evaluated argv.
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
         for source in [
             r#"list ONE "λ\u0041" {$value} pre[set v ONE]post"#,
@@ -339,11 +339,11 @@ fn module_value_rules_retain_actual_axes_before_assistance_names() {
         module.number_syntax(),
         tcl_dialect::NumberSyntax::of_profile(Some(assistance))
     );
-    let actual = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let actual = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     module.source_entry.invocation_dialect = Some(actual);
     assert_eq!(module.number_syntax(), actual.numbers);
     assert_eq!(module.word_values(), actual.word_values);
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     module.source_entry.invocation_dialect = Some(jim);

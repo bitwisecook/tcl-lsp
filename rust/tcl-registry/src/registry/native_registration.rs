@@ -37,7 +37,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn native_compiler_implementation_slots(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Vec<crate::native_compilation::NativeCompilerImplementationLookup> {
         let Some(query) = dialect.authoring_query() else {
             return Vec::new();
@@ -80,7 +80,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn stock_native_implementation_slots(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Vec<crate::native_compilation::NativeCompilerImplementationLookup> {
         let mut slots: BTreeMap<_, _> = self
             .native_compiler_implementation_slots(dialect)
@@ -120,7 +120,7 @@ impl CommandRegistry {
     pub fn native_compilation_for_registration(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let key = (dialect, identity.to_owned());
         if let Some(cached) = self
@@ -144,7 +144,7 @@ impl CommandRegistry {
     pub(super) fn native_compilation_for_registration_uncached(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
@@ -195,7 +195,7 @@ impl CommandRegistry {
     #[cfg(test)]
     pub(super) fn native_registration_full_scan(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Vec<(&'static str, PrerequisiteEntry)> {
         let Some(query) = dialect.authoring_query() else {
             return Vec::new();
@@ -249,7 +249,7 @@ impl CommandRegistry {
     pub(super) fn native_compilation_for_registration_full_scan(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         scan: &[(&'static str, PrerequisiteEntry)],
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
@@ -294,7 +294,7 @@ impl CommandRegistry {
     /// `dialect`, built once per registry and dialect.
     fn prerequisite_index(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         query: SurfaceQuery<'_>,
     ) -> Arc<PrerequisiteIndex> {
         if let Some(index) = self
@@ -362,7 +362,7 @@ impl CommandRegistry {
     pub(crate) fn native_registration_exact_descriptor(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<&'static CommandSpec> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
@@ -384,7 +384,7 @@ impl CommandRegistry {
     fn native_registration_compiler_descriptor(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let lookup = self.native_registration_lookup(identity, dialect)?;
         let query = dialect.authoring_query()?;
@@ -520,7 +520,7 @@ impl CommandRegistry {
     pub fn native_registration_operand_prefix(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<&'static [&'static str]> {
         Some(
             self.native_registration_lookup(identity, dialect)?
@@ -536,7 +536,7 @@ impl CommandRegistry {
     pub fn native_registration_source_descriptor(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Option<&'static CommandSpec> {
         let query = dialect.authoring_query()?.with_realm(realm);
@@ -554,7 +554,7 @@ impl CommandRegistry {
     pub fn native_registration_intrinsic_ids(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Vec<crate::IntrinsicId>> {
         let query = dialect.authoring_query()?;
         let lookup = self.native_registration_lookup(identity, dialect);
@@ -709,7 +709,7 @@ impl CommandRegistry {
     pub(super) fn native_registration_lookup(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
         let key = (dialect, identity.to_owned());
         if let Some(cached) = self
@@ -733,7 +733,7 @@ impl CommandRegistry {
     pub(super) fn native_registration_lookup_uncached(
         &self,
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
@@ -747,7 +747,7 @@ impl CommandRegistry {
     /// for `dialect`, built once per registry and dialect.
     pub(super) fn registration_slots(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         query: SurfaceQuery<'_>,
     ) -> Arc<RegistrationSlots> {
         if let Some(slots) = self
@@ -813,7 +813,7 @@ impl CommandRegistry {
     #[cfg(test)]
     pub(super) fn native_registration_lookup_scan(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Vec<(
         &'static str,
         crate::native_compilation::NativeCompilerImplementationLookup,
@@ -863,7 +863,7 @@ impl CommandRegistry {
     #[cfg(test)]
     pub(super) fn native_registration_lookup_full_scan(
         identity: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         scan: &[(
             &'static str,
             crate::native_compilation::NativeCompilerImplementationLookup,
@@ -887,7 +887,7 @@ impl CommandRegistry {
     pub fn native_command_admission(
         &self,
         name: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<bool> {
         self.get(name)?;
         Self::native_stock_registration_admission(dialect, name)
@@ -897,7 +897,7 @@ impl CommandRegistry {
     /// of catalogue ancestry. Unknown releases/builds remain unknown.
     #[must_use]
     pub fn native_stock_registration_admission(
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         name: &str,
     ) -> Option<bool> {
         // This is a stock implementation admission query. A live custom
@@ -928,7 +928,7 @@ pub struct NativeCompilerHooks {
 /// descriptor has its compiler hook absent rather than unknown. The descriptor
 /// is a registration fact only: it is not attached to any invocation's facts.
 fn jim_registration_without_compiler(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<crate::native_compilation::NativeCompilationSpec> {
     (dialect.family() == Some(tcl_dialect::model::Family::Jim)).then_some(
         crate::native_compilation::NativeCompilationSpec {

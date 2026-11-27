@@ -464,9 +464,10 @@ impl Analyser {
                             let global = if pair_start == 1 {
                                 self.original_variable_operand_input(arg_tokens[0].span)
                                     .and_then(|level| {
-                                        let dialect = tcl_registry::InvocationDialect::of_profile(
-                                            self.profile,
-                                        );
+                                        let dialect =
+                                            tcl_native_model::InvocationDialect::of_profile(
+                                                self.profile,
+                                            );
                                         FrameLevel::parse_native_bytes(level.bytes(), dialect)?
                                             .map(FrameLevel::is_global_frame)
                                     })

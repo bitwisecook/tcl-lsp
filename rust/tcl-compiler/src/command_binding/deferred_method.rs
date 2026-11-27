@@ -364,7 +364,7 @@ impl SourceCommandBindings {
         &mut self,
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,
         definition: &ExecutedScriptSource,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
         parameters: tcl_dialect::ParameterGrammar,
         context: SourceExecutionContext<'_>,
     ) {

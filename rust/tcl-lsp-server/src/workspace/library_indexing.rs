@@ -105,7 +105,7 @@ impl Backend {
             if let Some(original) = inheritance.original.as_ref() {
                 let available = original.available_at(offset, None);
                 let target = analysis.resolved_profile().and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+                    tcl_native_model::InvocationDialect::of_profile(profile).tcl_version
                 });
                 let resolver = self.package_resolver.read().await;
                 for requirement in &available {
@@ -276,7 +276,7 @@ impl Backend {
                 );
                 let requirement = tcl_lsp_core::package_resolver::PackageRequirementAdvice::from_source_requirement(req, prefer);
                 let target = analysis.resolved_profile().and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+                    tcl_native_model::InvocationDialect::of_profile(profile).tcl_version
                 });
                 for f in resolver.resolve_requirement_advice(&requirement, target) {
                     if !files.contains(&f) {

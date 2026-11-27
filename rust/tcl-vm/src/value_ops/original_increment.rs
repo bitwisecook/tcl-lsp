@@ -21,6 +21,7 @@
 use super::{Value, Vm, VmIncrementObjects};
 use crate::interp::native_numeric_ops::OriginalNumericOps;
 use tcl_cmd_core::{CmdError, native_increment::NativeIncrementObjects};
+use tcl_registry::native_rmw::LegacyIncrementDialect;
 use tcl_syntax::{
     number::Number,
     scalar_getter::{

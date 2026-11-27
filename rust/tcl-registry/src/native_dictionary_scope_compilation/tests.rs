@@ -209,7 +209,7 @@ fn dictionary_fallback_retains_original_declarations_in_shared_instruction_recei
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let source = b"dict update d [key] a(x) {set never VALUE}";
         let parsed = native_script_words_in(
             SourceImage::native(source.as_slice()),

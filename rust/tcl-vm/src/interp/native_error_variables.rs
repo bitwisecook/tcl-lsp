@@ -19,6 +19,7 @@
 //! C error globals observe separately retained private interpreter objects.
 
 use super::{InterpState, Local, Value, VarId, Vm};
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueOps;
 
@@ -93,10 +94,10 @@ impl Vm {
     /// An explicitly installed engine survives changes to authored grammar.
     fn c84_execution_environment_selected(&self) -> bool {
         let profile = self.actual_engine_profile.unwrap_or(self.pin.profile);
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .native_error_log_protocol()
             .is_some_and(
-                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+                tcl_native_model::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
             )
     }
 
@@ -400,9 +401,9 @@ impl Vm {
         if !self
             .actual_native_invocation_dialect()
             .native_return_options_application(
-                tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
             )
-            .is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message)
+            .is_some_and(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message)
         {
             return Err(Error::unavailable(
                 "original compiler Syntax publication issuer",
@@ -734,10 +735,12 @@ impl Vm {
         let Some(bytes) = self.native_errors.error_info.as_ref() else {
             return;
         };
-        let Some(append) = tcl_registry::native_error_log::NativeErrorInfoAppend::from_accumulated(
-            bytes,
-            self.native_errors.native_error_info_len,
-        ) else {
+        let Some(append) =
+            tcl_native_model::native_error_log::NativeErrorInfoAppend::from_accumulated(
+                bytes,
+                self.native_errors.native_error_info_len,
+            )
+        else {
             let _ = self.refuse_host_command("native errorInfo append extent".into());
             return;
         };
@@ -889,7 +892,7 @@ impl InterpState {
         self.actual_native_invocation_dialect()
             .native_error_log_protocol()
             .is_some_and(
-                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+                tcl_native_model::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
             )
     }
 

@@ -21,6 +21,7 @@
 use super::{new_string, Interp};
 use crate::obj;
 use crate::obj::TclObj;
+use tcl_registry::native_event::NativeEventDialect;
 
 mod error_info;
 mod error_state;

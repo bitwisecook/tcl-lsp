@@ -167,7 +167,7 @@ impl Interp {
             }
             if ordinary {
                 let reset = self.reset_native_ensemble_rewrite(
-                    tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+                    tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
                 );
                 if scope.currency().ensure_current_or_refuse().is_err() {
                     return Code::Error;
@@ -241,7 +241,7 @@ impl Interp {
                 CommandDispatchSelection::Bound(_, binding) => {
                     if ordinary {
                         if let Err(code) = self.reset_native_ensemble_rewrite(
-                            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                         ) { return code; }
                     }
                     self.invoke_bound_with_source(
@@ -289,7 +289,7 @@ impl Interp {
             Ok(Some((cmd, generation))) => {
                 if ordinary {
                     if let Err(code) = self.reset_native_ensemble_rewrite(
-                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                        tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                     ) { return code; }
                 }
                 return self.invoke_bound_with_source(cmd, generation, argv, None, source);
@@ -416,7 +416,7 @@ impl Interp {
             (owned, selected)
         };
         self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
         )?;
         let fqn = selected.1.and_then(|generation| {
             self.namespaces

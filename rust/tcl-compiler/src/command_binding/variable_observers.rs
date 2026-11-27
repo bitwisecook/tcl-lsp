@@ -22,6 +22,7 @@ use super::{
     Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
 };
 use crate::place::Place;
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::{
     TraceOperation, completion::CompletionCode,
     completion_route::InvocationCompletionRoute as Route,
@@ -1323,7 +1324,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -1388,7 +1389,7 @@ mod tests {
         let arguments = ["a", "1"];
         for name in ["set", "incr"] {
             let words = tcl_registry::InvocationWords::literals(name, &arguments)
-                .with_dialect(tcl_registry::InvocationDialect::of_profile(profile));
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
             let facts = registry
                 .resolve_structured_invocation(words, None)
                 .resolved()

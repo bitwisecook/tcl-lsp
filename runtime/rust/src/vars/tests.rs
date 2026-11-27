@@ -23,7 +23,7 @@ use crate::counters;
 #[test]
 fn compiled_alias_observation_does_not_reselect_duplicate_names() {
     let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
             .execution_point()
             .unwrap(),
     )
@@ -43,7 +43,7 @@ fn compiled_alias_observation_does_not_reselect_duplicate_names() {
 #[test]
 fn original_compiled_name_keeps_its_selected_frame_across_caller_restoration() {
     let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
             .execution_point()
             .unwrap(),
     )

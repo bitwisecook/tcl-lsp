@@ -33,6 +33,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-codegen = { path = "../tcl-codegen" }

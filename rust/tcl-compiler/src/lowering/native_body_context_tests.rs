@@ -34,7 +34,7 @@ fn native_module(source: &str) -> (tcl_vm::Vm, Module) {
     );
     lowerer.set_source_analysis_options(SourceAnalysisOptions {
         native_entry: Some(&entry),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     });
     (runtime, lower_to_ir_with(lowerer, source))
@@ -168,7 +168,7 @@ fn original_event_body_keeps_conditional_frame_without_claiming_entry() {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         },
     );

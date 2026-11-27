@@ -197,8 +197,8 @@ impl<'a> FileCandidateScanner<'a> {
         }
         let grammar = schema
             .dialect()
-            .and_then(tcl_registry::InvocationDialect::source_file_grammar)?;
-        let tcl_registry::source_file::SourceFileSelection::Selected(layout) = grammar
+            .and_then(tcl_native_model::InvocationDialect::source_file_grammar)?;
+        let tcl_native_model::source_file::SourceFileSelection::Selected(layout) = grammar
             .select_original(
                 schema.arguments().len(),
                 schema

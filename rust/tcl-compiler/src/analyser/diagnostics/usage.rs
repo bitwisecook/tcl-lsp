@@ -74,7 +74,7 @@ impl Analyser {
             self.file_lexer_config(),
             self.unit_profile,
         )?;
-        let mut parser = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let mut parser = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .expression_parse_context(Some(input.unit_profile()));
         parser.lexer_grammar = input.lexer_config().grammar_over(parser.lexer_grammar);
         Some(parser)

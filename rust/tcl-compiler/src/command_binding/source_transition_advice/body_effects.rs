@@ -168,7 +168,7 @@ fn body_class_obligation(
 #[inline(never)]
 pub(super) fn boxed_body_resolution<'r: 'w, 'w>(
     context: &'r tcl_registry::model::ContextRegistry,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     command: &'w str,
     words: &'w [tcl_registry::InvocationWord<'w>],
 ) -> Box<tcl_registry::StructuredInvocationResolution<'r, 'w>> {

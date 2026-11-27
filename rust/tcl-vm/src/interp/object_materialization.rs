@@ -19,7 +19,7 @@
 //! List and dictionary materialization purposes, independent of source grammar.
 
 use super::InterpState;
-use tcl_registry::native_string_materialization::{
+use tcl_native_model::native_string_materialization::{
     LogicalStringProvider, NativeStringMaterialization,
 };
 use tcl_syntax::native_string::NativeStringProtocol;
@@ -47,7 +47,7 @@ impl ObjectMaterialization {
 
     pub(crate) fn byte_array_string_recipe(
         self,
-    ) -> Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe> {
+    ) -> Option<tcl_native_model::native_string_materialization::ByteArrayStringRecipe> {
         self.recipe().byte_array_string_recipe()
     }
 
@@ -73,7 +73,8 @@ impl InterpState {
     /// operands under this one recipe whichever realm calls them.
     pub(crate) fn authored_logical_object_materialization(&self) -> Option<ObjectMaterialization> {
         let provider = self.logical_providers.names?;
-        let dialect = tcl_registry::InvocationDialect::of_profile(self.logical_execution_profile());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(self.logical_execution_profile());
         dialect.authored_logical_name_simulation(provider)?;
         let provider = LogicalStringProvider::Tcl84CoreSimulation;
         dialect
@@ -93,14 +94,14 @@ impl InterpState {
         // A reached, independently selected native host activation supplies its
         // own purpose. This is not fallback from a refused logical source call.
         if let Some(profile) = self.active_native_profile {
-            return tcl_registry::InvocationDialect::of_profile(profile)
+            return tcl_native_model::InvocationDialect::of_profile(profile)
                 .native_string_materialization(None)
                 .map(ObjectMaterialization::Native);
         }
         if self.logical_providers.names.is_some() {
             return self.authored_logical_object_materialization();
         }
-        tcl_registry::InvocationDialect::of_profile(self.actual_engine_profile?)
+        tcl_native_model::InvocationDialect::of_profile(self.actual_engine_profile?)
             .native_string_materialization(None)
             .map(ObjectMaterialization::Native)
     }

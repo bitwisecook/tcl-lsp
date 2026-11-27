@@ -12,7 +12,7 @@
     "unchanged_after_exact_mechanical_payload_constructor_adaptation": true
   },
   {
-    "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+    "path": "rust/tcl-native-model/src/native_tcloo_method_definition.rs",
     "old_test_suffix_sha256": "d4470fd24c9471d90ff5160620fd42d40e5ebda4988684123afb07f1b30bb7fe",
     "byte_exact": true,
     "unchanged_after_exact_mechanical_payload_constructor_adaptation": true

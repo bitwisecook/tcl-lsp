@@ -29,6 +29,7 @@ use super::{count_newlines, line_of, scan_list_offsets};
 use crate::obj::TclObj;
 use crate::parse::{WordBody, WordPart};
 use crate::{obj, parse};
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_runtime_api::jim_error_stack::JimScriptLocation;
 use tcl_runtime_api::CommandEvaluation;
 
@@ -129,7 +130,7 @@ impl Interp {
             return self.admit_native_compilation_error(&failure, None);
         }
         if let Err(code) = self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
         ) {
             self.leave_native_script();
             return code;
@@ -175,7 +176,7 @@ impl Interp {
             parse::parse_script_with_config(src, self.lexer_config())
         };
         let failure = (self.native_invocation_dialect().script_parse_timing()
-            == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript))
+            == Some(tcl_native_model::NativeScriptParseTiming::BeforeScript))
         .then(|| {
             commands
                 .iter()

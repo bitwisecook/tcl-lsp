@@ -32,7 +32,7 @@ fn analyse_with_compilation(
     version: tcl_dialect::TclVersion,
     compilation: tcl_registry::native_compilation::NativeCompilationContext,
 ) -> SourceCommandBindings {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let registry = tcl_registry::model::ingress::static_context_for(match version {
         tcl_dialect::TclVersion::V8_4 => "tcl8.4",
         tcl_dialect::TclVersion::V8_5 => "tcl8.5",
@@ -302,7 +302,7 @@ fn original_opaque_jim_callable_name_does_not_gate_ascii_static_capture() {
     // docs/design/analysis/name-resolution-proofs/procedure-original-jim-static-list-capture-inputs.md
     let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
     let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
-    let dialect = tcl_registry::InvocationDialect::of_point(point);
+    let dialect = tcl_native_model::InvocationDialect::of_point(point);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let analyse = |source: &str| {
         super::super::SourceCommandBindings::analyse_with_options(

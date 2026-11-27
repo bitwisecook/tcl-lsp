@@ -397,7 +397,7 @@ mod tests {
             super::super::SourceAnalysisOptions {
                 invocation_dialect: registry
                     .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile),
+                    .map(tcl_native_model::InvocationDialect::of_profile),
                 trusted_package_loaders: if retain_provider {
                     std::slice::from_ref(&loader)
                 } else {

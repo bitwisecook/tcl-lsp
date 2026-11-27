@@ -47,7 +47,9 @@ fn assert_effective_semantics_match_uncached_queries(registry: &CommandRegistry)
     if let Some(profile) = registry.profile() {
         expected_bindings.extend(
             registry
-                .stock_native_implementation_slots(crate::InvocationDialect::of_profile(profile))
+                .stock_native_implementation_slots(tcl_native_model::InvocationDialect::of_profile(
+                    profile,
+                ))
                 .into_iter()
                 .map(|lookup| lookup.slot.to_owned()),
         );
@@ -56,7 +58,7 @@ fn assert_effective_semantics_match_uncached_queries(registry: &CommandRegistry)
         && let Some(support) = registry
             .native_class_factory_recipe(
                 "oo::configurable",
-                crate::InvocationDialect::of_profile(profile),
+                tcl_native_model::InvocationDialect::of_profile(profile),
                 tcl_dialect::model::InvocationRealm::RuleLoader,
             )
             .and_then(crate::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
@@ -174,12 +176,11 @@ fn authored_source_model_roster_keeps_context_separate_from_native_release_evide
         tcl_dialect::model::InvocationRealm::RuleLoader,
     );
     assert!(required_model.binding_names().contains("::tcltest::test"));
-    let native =
-        driver
-            .commands()
-            .effective_semantics_for_dialect(crate::InvocationDialect::of_point(
-                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
-            ));
+    let native = driver.commands().effective_semantics_for_dialect(
+        tcl_native_model::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_79,
+        )),
+    );
     assert!(
         native.binding_names().is_empty(),
         "a source model cannot fill an unaudited Native roster"
@@ -211,7 +212,9 @@ fn binding_rosters_preserve_exact_custom_descriptor_components() {
     );
     let mut models = vec![union, source];
     models.extend(tcl_dialect::TclVersion::ALL.into_iter().map(|version| {
-        registry.effective_semantics_for_dialect(crate::InvocationDialect::for_version(version))
+        registry.effective_semantics_for_dialect(tcl_native_model::InvocationDialect::for_version(
+            version,
+        ))
     }));
     for model in models {
         for (label, rooted) in rows {
@@ -234,9 +237,9 @@ fn binding_rosters_preserve_exact_custom_descriptor_components() {
 
 #[test]
 fn jim_stock_admission_compares_exact_descriptor_components() {
-    let dialect = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let dialect = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     for name in ["namespace", "::namespace", "json::decode", "::json::decode"] {
         assert_eq!(
             CommandRegistry::native_stock_registration_admission(dialect, name),
@@ -271,7 +274,7 @@ fn jim_stock_admission_compares_exact_descriptor_components() {
     }
     assert!(model.command("namespace").is_some());
     assert!(model.binding_names().contains("::namespace"));
-    let unaudited = crate::InvocationDialect::of_point(
+    let unaudited = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
     );
     assert_eq!(
@@ -290,8 +293,9 @@ fn jim_stock_admission_compares_exact_descriptor_components() {
 fn fresh_dialect_bindings_follow_availability_and_package_provenance() {
     let registry = CommandRegistry::build_default();
     for release in tcl_dialect::TclVersion::ALL {
-        let semantics = registry
-            .effective_semantics_for_dialect(crate::InvocationDialect::for_version(release));
+        let semantics = registry.effective_semantics_for_dialect(
+            tcl_native_model::InvocationDialect::for_version(release),
+        );
         assert!(semantics.binding_names().contains("::set"));
         assert_eq!(
             semantics.binding_names().contains("::dict"),
@@ -299,14 +303,16 @@ fn fresh_dialect_bindings_follow_availability_and_package_provenance() {
         );
         assert!(!semantics.binding_names().contains("::tcltest::test"));
     }
-    let modern = registry.effective_semantics_for_dialect(crate::InvocationDialect::of_point(
-        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-    ));
+    let modern =
+        registry.effective_semantics_for_dialect(tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        ));
     assert!(modern.binding_names().contains("::alias"));
     assert!(!modern.binding_names().contains("::trace"));
-    let older = registry.effective_semantics_for_dialect(crate::InvocationDialect::of_point(
-        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
-    ));
+    let older =
+        registry.effective_semantics_for_dialect(tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        ));
     assert!(
         older.binding_names().is_empty(),
         "an unmeasured build cannot inherit current Jim presence"
@@ -325,7 +331,7 @@ fn platform_bindings_require_the_selected_native_ambient_profile() {
         let owner = crate::model::ingress::static_context_for(profile_name);
         let registry = owner.commands();
         let profile = registry.profile().expect("selected platform profile");
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let semantics = registry.effective_semantics_for_dialect(dialect);
         for command in commands {
             assert!(
@@ -335,7 +341,7 @@ fn platform_bindings_require_the_selected_native_ambient_profile() {
         }
         assert!(!semantics.binding_names().contains("::snit::type"));
         let other = registry.effective_semantics_for_dialect(
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         for command in commands {
             assert!(
@@ -350,7 +356,7 @@ fn platform_bindings_require_the_selected_native_ambient_profile() {
 fn receiver_vocabulary_does_not_allocate_global_dispatchers() {
     let owner = crate::model::ingress::static_context_for("tcl8.6");
     let registry = owner.commands();
-    let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     let semantics = registry.effective_semantics_for_dialect(dialect);
     assert!(!semantics.binding_names().contains("::my"));
     assert!(!semantics.binding_names().contains("::self"));

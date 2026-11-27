@@ -928,9 +928,9 @@ fn authored_logical_alias_prefix_inputs(
     input: &crate::analyser::ResolvedAnalysisInput,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>> {
-    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+    let policy = tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
         .authored_name_policy()?;
-    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+    (tcl_native_model::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
         == Some(policy))
     .then_some(())?;
     let purpose =

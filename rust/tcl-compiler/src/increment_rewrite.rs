@@ -183,7 +183,7 @@ fn prove_integer_read_store(
     preparation: &crate::command_binding::SourceExpressionPreparation,
     operand: &crate::expr_ast::ExprNode,
     amount: i64,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     registry: &CommandRegistry,
 ) -> Option<OperandNormalisation> {
     let binding = tokens.source_binding.as_ref()?;
@@ -236,7 +236,7 @@ fn prove_integer_read_store(
 fn prove_observed_integer_conversion(
     observation: &crate::command_binding::SourceReadStoreObservation,
     amount: i64,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     registry: &CommandRegistry,
 ) -> Option<OperandNormalisation> {
     let before = observation.read_context();

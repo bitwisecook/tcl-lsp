@@ -947,7 +947,8 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
 // upvar
 
 fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
-    use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord};
+    use tcl_native_model::InvocationDialect;
+    use tcl_registry::{InvocationArguments, InvocationWord};
 
     let rules = tcl_syntax::word_rules::WordValueRules::from_config(&cmd.lexer_config);
     let values: Vec<_> = cmd.tokens.as_ref().map_or_else(

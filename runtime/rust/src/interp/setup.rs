@@ -74,7 +74,7 @@ impl Interp {
 
     pub(crate) fn native_jim_object_context_in(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Rc<crate::native_source::NativeJimObjectContext>, tcl_syntax::value::ValueError>
     {
         if dialect.native_string_protocol()
@@ -151,7 +151,7 @@ impl Interp {
 
     pub(crate) fn selected_variable_table_protocol(
         &self,
-    ) -> Option<tcl_registry::native_variable_table::NativeVariableTableProtocol> {
+    ) -> Option<tcl_native_model::native_variable_table::NativeVariableTableProtocol> {
         let abi = tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(Some(0))?;
         let policy = self.name_policy_protocol()?;
         let dialect = self.native_invocation_dialect();
@@ -165,16 +165,16 @@ impl Interp {
         }
     }
 
-    pub(crate) fn native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn native_invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         if let Some(dialect) = self.0.invocation_dialect.get() {
             return dialect;
         }
-        let dialect = tcl_registry::InvocationDialect::of_profile(self.dialect_profile());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(self.dialect_profile());
         let dialect = if dialect.family() == Some(tcl_dialect::model::Family::Tcl)
             && dialect.tcl_version.is_none()
             && dialect.core_point.is_none()
         {
-            tcl_registry::InvocationDialect::for_version(self.runtime_version())
+            tcl_native_model::InvocationDialect::for_version(self.runtime_version())
         } else {
             dialect
         };

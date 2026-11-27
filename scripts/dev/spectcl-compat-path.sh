@@ -50,7 +50,7 @@ case "$PATH_TO_CLASSIFY" in
     rust/tcl-bytecode/* | rust/tcl-bytecode-tables/* | rust/tcl-cmd-core/* | rust/tcl-codegen/* | rust/tcl-compiler/* | \
     rust/tcl-core-types/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | \
     rust/tcl-engine-tclvm/* | rust/tcl-host-native/* | rust/tcl-lexer/* | \
-    rust/tcl-lsp-core/* | rust/tcl-platform/* | rust/tcl-regex/* | \
+    rust/tcl-lsp-core/* | rust/tcl-native-model/* | rust/tcl-platform/* | rust/tcl-regex/* | \
     rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | \
     rust/tcl-spectcl/* | rust/tcl-source/* | rust/tcl-bigip-schema/* | rust/tcl-syntax/* | rust/tcl-test-support/* | \
     rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | \

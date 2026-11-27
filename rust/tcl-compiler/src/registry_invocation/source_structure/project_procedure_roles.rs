@@ -576,7 +576,7 @@ mod tests {
                     tcl_registry::InvocationWord::Literal("interp"),
                     &arguments,
                 )
-                .with_dialect(tcl_registry::InvocationDialect::of_profile(
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(
                     input.unit_profile(),
                 )),
                 tcl_dialect::model::InvocationRealm::RuleLoader,

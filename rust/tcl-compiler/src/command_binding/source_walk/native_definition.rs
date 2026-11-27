@@ -36,7 +36,7 @@ pub(in super::super) fn native_procedure_parameters(
 ) -> Option<Vec<tcl_syntax::formal_params::FormalParameter>> {
     let grammar = arguments
         .dialect()
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)?;
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)?;
     let source = facts.arg_roles.iter().find_map(|(index, role)| {
         (*role == tcl_registry::ArgRole::ParamList)
             .then(|| arguments.literal_at(facts.argument_offset + usize::from(*index)))
@@ -544,7 +544,7 @@ mod absent_namespace_tests {
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
             registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },

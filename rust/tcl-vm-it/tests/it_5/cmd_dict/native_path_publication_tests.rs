@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 fn original_result(rows: &str) -> (i64, Vec<u8>) {
     let fields = rows
         .lines()
@@ -74,7 +75,7 @@ include_str!("../../../../tcl-registry/tests/data/native_dictionary_path_publica
                 assert_eq!(expected_code, 0, "{engine}/{case} native API boundary");
                 assert_eq!(expected_result, b"NOT_APPLICABLE");
                 assert!(
-                    tcl_registry::InvocationDialect::of_profile(profile)
+                    tcl_native_model::InvocationDialect::of_profile(profile)
                         .native_dictionary_path_publication()
                         .is_none()
                 );

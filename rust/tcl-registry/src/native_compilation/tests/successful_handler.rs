@@ -23,7 +23,8 @@ use super::*;
 #[test]
 fn possible_handler_bodies_share_grammar_without_native_compiler_licence() {
     let registry = crate::model::ingress::static_context_for("f5-irules").commands();
-    let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
     let words = ["$ready", "set flag 1", "else", "set flag 2"];
     let facts = registry
         .resolve_invocation("if", &words, registry.own_surface_query())
@@ -52,7 +53,8 @@ fn possible_handler_bodies_share_grammar_without_native_compiler_licence() {
 #[test]
 fn successful_handler_metadata_does_not_depend_on_vendor_compiler_selection() {
     let registry = crate::model::ingress::static_context_for("f5-irules").commands();
-    let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
     for (head, words) in [
         ("IP::client_addr", vec![]),
         ("append", vec!["::counter", "x"]),
@@ -97,7 +99,7 @@ fn catch_output_binding_phase_and_legacy_arity_stay_explicit() {
         .unwrap()
         .facts();
     let args = crate::InvocationArguments::literals(&words).with_dialect(
-        crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules()),
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules()),
     );
     assert!(
         facts

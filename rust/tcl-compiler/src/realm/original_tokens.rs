@@ -329,7 +329,7 @@ mod tests {
                 &registry,
                 crate::command_binding::SourceAnalysisOptions {
                     unknown_entry: true,
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                         tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
                     )),
                     ..Default::default()

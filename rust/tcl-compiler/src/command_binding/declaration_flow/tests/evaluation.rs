@@ -348,7 +348,7 @@ fn original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_g
 fn unentered_declaration_suffix_does_not_grant_original_dispatch() {
     let source = "proc f {p} {set b [set {$p}]; set a 1; set a 2; return $a}";
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some("tcl8.6")).unwrap(),
     );
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);

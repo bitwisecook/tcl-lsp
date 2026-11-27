@@ -24,8 +24,8 @@ use crate::obj::{self, Owned};
 use std::fmt::Write;
 use tcl_syntax::native_string::NativeStringProtocol;
 
-fn jim() -> tcl_registry::InvocationDialect {
-    tcl_registry::InvocationDialect::of_profile(crate::environment::profile_for_dialect("jim"))
+fn jim() -> tcl_native_model::InvocationDialect {
+    tcl_native_model::InvocationDialect::of_profile(crate::environment::profile_for_dialect("jim"))
 }
 fn references(value: &Owned) -> obj::TclSize {
     // SAFETY: Owned retains the live object throughout inspection.

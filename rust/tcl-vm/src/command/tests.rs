@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::parse_params;
+use tcl_registry::frame_effect::FrameLevelDialect;
 use tcl_syntax::value::ValueOps;
 
 /// `incr` creates a missing variable from 8.5; 8.4 reads it first and
@@ -288,7 +289,7 @@ fn physical_procedure_capture_and_header_remain_separate_from_authored_names() {
     );
     assert_eq!(
         tcl_registry::native_procedure::procedure_header_compilation_bytes(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
             Some(b"args"),
             Some(b"\0"),
             Some(false),
@@ -457,14 +458,14 @@ fn original_frame_selectors_match_native_cache_and_failure_order() {
         b"bad",
     ];
     let mut count = 0;
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let fixtures = fixtures
         .into_iter()
         .map(|(version, fixture)| {
             (
-                tcl_registry::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
                 fixture,
             )
         })
@@ -599,7 +600,7 @@ fn decode_native_frame_hex(value: &str) -> Vec<u8> {
 }
 
 fn assert_original_frame_selector(
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     inputs: &[&[u8]],
     case: usize,
     line: &str,

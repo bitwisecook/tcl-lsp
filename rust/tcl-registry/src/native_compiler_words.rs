@@ -733,7 +733,9 @@ mod tests {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListConstruct),
             body: NativeBodyCompilation::Inherit,
         };
-        let dialect = Some(crate::InvocationDialect::for_version(TclVersion::V9_0));
+        let dialect = Some(tcl_native_model::InvocationDialect::for_version(
+            TclVersion::V9_0,
+        ));
         assert!(matches!(
             spec.select_native_words(&captured, 1, dialect, context),
             NativeCompilationSelection::Inline { .. }
@@ -812,7 +814,7 @@ mod tests {
                     let selected = spec.select_native_words(
                         &view,
                         1,
-                        Some(crate::InvocationDialect::for_version(version)),
+                        Some(tcl_native_model::InvocationDialect::for_version(version)),
                         NativeCompilationContext {
                             mode: NativeCompilationMode::BytecodeObject,
                             frame,

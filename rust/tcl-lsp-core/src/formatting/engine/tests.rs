@@ -657,7 +657,7 @@ fn logical_default_formatting_retains_its_whole_context_over_mixed_specs() {
     let context = identities.input.context_registry();
     assert_eq!(context.context().environment.id.as_str(), "tcl");
     assert!(
-        tcl_registry::InvocationDialect::of_profile(identities.input.analyser_profile(),)
+        tcl_native_model::InvocationDialect::of_profile(identities.input.analyser_profile(),)
             .native_string_protocol()
             .is_none()
     );
@@ -1141,7 +1141,7 @@ fn original_list_arg(
     )
     .unwrap();
     let word = &plan.commands[0].words[0];
-    let policy = tcl_registry::InvocationDialect::of_profile(profile)
+    let policy = tcl_native_model::InvocationDialect::of_profile(profile)
         .authored_name_policy()
         .unwrap();
     let key =

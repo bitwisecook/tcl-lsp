@@ -45,6 +45,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
+use tcl_registry::native_package::NativePackageDialect;
 
 use tcl_bytecode::ModuleAsm;
 use tcl_runtime_api::{CompileService, Completion};

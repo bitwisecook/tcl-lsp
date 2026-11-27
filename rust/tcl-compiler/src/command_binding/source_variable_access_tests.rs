@@ -27,7 +27,7 @@ fn analyse(source: &str) -> (SourceCommandBindings, Arc<CommandRegistry>) {
         &registry,
         SourceAnalysisOptions {
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             )),
             ..SourceAnalysisOptions::default()
@@ -163,7 +163,7 @@ fn word_variable_sites_equal_the_native_read_inventory_on_every_c_release() {
             config,
             registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(release)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(release)),
                 ..SourceAnalysisOptions::default()
             },
         );

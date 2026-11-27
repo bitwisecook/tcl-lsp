@@ -29,5 +29,5 @@ This is a Rust implementation contract; no native or appliance observation for t
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/unset_.rs](../../../../rust/tcl-registry/src/commands/tcl/unset_.rs), `unset_layout_roles`: Project exact variable operand ordinals from selected shared option grammar and cardinality, independently of executable variable receiver authority.
-- [rust/tcl-registry/src/native_unset_options.rs](../../../../rust/tcl-registry/src/native_unset_options.rs), `UnsetOptionProtocol`: Keep native runtime and counted known-source option selection in their existing sole purpose owner.
+- [rust/tcl-native-model/src/native_unset_options.rs](../../../../rust/tcl-native-model/src/native_unset_options.rs), `UnsetOptionProtocol`: Keep native runtime and counted known-source option selection in their existing sole purpose owner.
 - [rust/tcl-registry/src/commands/tcl/unset_.rs](../../../../rust/tcl-registry/src/commands/tcl/unset_.rs), `commands::tcl::unset_::tests::unset_roles_keep_counted_names_and_selected_option_prefixes` (linked): Retains counted first name and later unknown name VarWrite ordinals, uses the selected raw-zero option prefix extent, and withdraws for an unknown first option candidate.

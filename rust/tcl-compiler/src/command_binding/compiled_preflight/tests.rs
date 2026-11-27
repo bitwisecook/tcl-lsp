@@ -32,7 +32,7 @@ fn analyse(
         &tcl_registry::CommandRegistry::build_default(),
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_4,
             )),
             native_compilation: NativeCompilationContext {
@@ -54,7 +54,7 @@ fn original_return_preparation_uses_selected_stack_options_before_result() {
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let entry: crate::environment_ingress::CapturedNativeEntry =
             crate::environment_ingress::captured_native_entry(profile);
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let mut sources = vec!["return [set result BODY]", "return"];
         if version >= tcl_dialect::TclVersion::V8_5 {
             sources.extend([
@@ -223,7 +223,7 @@ fn unsupported_expression_compile_success_retains_an_entry_obligation() {
         &tcl_registry::CommandRegistry::build_default(),
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_4,
             )),
             native_compilation: NativeCompilationContext {
@@ -392,7 +392,7 @@ fn assert_original_child_compilation(body: &str) {
         &registry,
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: compilation,
             ..Default::default()
         },
@@ -557,7 +557,7 @@ fn compilation_error_observers_mutate_before_catch_continuation() {
             tcl_lexer::LexerConfig::default(),
             &tcl_registry::CommandRegistry::build_default(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_4,
                 )),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),

@@ -153,23 +153,23 @@ pub struct SourceAnalysisOptions<'a> {
     pub host_extensible_command_table: bool,
     /// Logical handler, value and frame policies supplied by the entry owner.
     /// Physical compiler support is queried separately with `native_compiler_dialect`.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    pub invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     /// Explicit authored compiler-local provider, separate from physical engine evidence.
     pub compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
     /// Explicitly installed logical expression parser; never inferred from the dialect.
-    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    pub expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
 
 pub(super) fn native_compilation_dialect(
     entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
-    authored: Option<tcl_registry::InvocationDialect>,
-) -> Option<tcl_registry::InvocationDialect> {
+    authored: Option<tcl_native_model::InvocationDialect>,
+) -> Option<tcl_native_model::InvocationDialect> {
     match entry {
         Some(entry) => entry.execution_point.map(|point| {
-            let mut dialect = tcl_registry::InvocationDialect::of_point(point);
+            let mut dialect = tcl_native_model::InvocationDialect::of_point(point);
             if let Some(grammar) = entry.lexer_grammar {
                 dialect.lexer_grammar = grammar;
                 dialect.word_values =
@@ -183,8 +183,8 @@ pub(super) fn native_compilation_dialect(
 
 pub(crate) fn source_input_dialect(
     input: &crate::analyser::ResolvedAnalysisInput,
-) -> tcl_registry::InvocationDialect {
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+) -> tcl_native_model::InvocationDialect {
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
@@ -333,7 +333,7 @@ impl SourceAnalysisOptions<'_> {
     ) -> Option<crate::analyser::ResolvedAnalysisInput> {
         let input = self.logical_source_input?;
         let retained_config = input.lexer_config();
-        let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+        let mut dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
         dialect.lexer_grammar = retained_config.grammar_over(dialect.lexer_grammar);
         dialect.word_values =
             tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
@@ -403,10 +403,10 @@ impl SourceAnalysisOptions<'_> {
     /// authoritative, including an unknown policy; authoring policy applies
     /// only when no live entry was supplied.
     #[must_use]
-    pub fn logical_invocation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn logical_invocation_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         match self.native_entry {
             Some(entry) => entry.invocation_policy.as_ref().map(|policy| {
-                let mut dialect = tcl_registry::InvocationDialect::of_profile(policy.profile());
+                let mut dialect = tcl_native_model::InvocationDialect::of_profile(policy.profile());
                 if let Some(grammar) = entry.lexer_grammar {
                     dialect.lexer_grammar = grammar;
                     dialect.word_values =
@@ -421,7 +421,7 @@ impl SourceAnalysisOptions<'_> {
     pub(crate) fn source_invocation_dialect(
         &self,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<tcl_registry::InvocationDialect> {
+    ) -> Option<tcl_native_model::InvocationDialect> {
         self.logical_invocation_dialect().map(|mut dialect| {
             dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
             dialect.word_values =
@@ -444,7 +444,7 @@ impl SourceAnalysisOptions<'_> {
     /// Physical compiler policy only. A supplied incomplete native entry stays
     /// unknown; logical value/frame policies cannot substitute for its engine.
     #[must_use]
-    pub fn native_compiler_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn native_compiler_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         if self.source_point_entry.is_some() {
             return None;
         }
@@ -495,12 +495,12 @@ pub struct SourceAnalysisEntry {
     /// head: an undefined name is not bounded by the stock `unknown`.
     pub host_extensible_command_table: bool,
     /// Explicit runtime policies independent of catalogue metadata.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    pub invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     /// Explicit authored compiler-local provider, separate from physical engine evidence.
     pub compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
     /// Explicitly installed logical expression parser; never inferred from the dialect.
-    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    pub expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
@@ -564,8 +564,7 @@ impl SourceAnalysisEntry {
         if let Some(policy) = policy {
             // The loader runs the F5 Tcl 8.4 core simulation's expression
             // parser, installed here as the iRule harness installs it on its VM.
-            let parser =
-                tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation;
+            let parser = tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation;
             entry.expression_parser = entry
                 .invocation_dialect
                 .and_then(|dialect| dialect.logical_expression_syntax(parser, input.unit_profile()))
@@ -980,7 +979,7 @@ mod original_source_config_owner_tests {
             };
             for policy in [
                 None,
-                Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ] {
                 let options = SourceAnalysisOptions {
                     invocation_dialect: policy,
@@ -1032,7 +1031,7 @@ mod original_source_config_owner_tests {
         let measured = entry
             .lexer_grammar
             .expect("actual retained interpreter grammar");
-        let catalogue = tcl_registry::InvocationDialect::of_point(
+        let catalogue = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::TCL_9_1),
         );
         let config = tcl_lexer::LexerConfig {

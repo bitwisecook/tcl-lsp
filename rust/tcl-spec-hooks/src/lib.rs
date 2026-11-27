@@ -87,7 +87,7 @@ fn engine_for_hook_release(profile: &str) -> Result<TclVmEngine, tcl_engine_api:
     let native = tcl_registry::model::ingress::resolve_known_environment(profile)
         .and_then(|environment| environment.catalogue_profile())
         .is_some_and(|profile| {
-            tcl_registry::InvocationDialect::of_profile(profile)
+            tcl_native_model::InvocationDialect::of_profile(profile)
                 .execution_point()
                 .is_some()
         });

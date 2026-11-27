@@ -20,6 +20,7 @@
 
 use super::{Interp, OriginalLevel};
 use crate::obj::{self, Owned};
+use tcl_registry::frame_effect::FrameLevelDialect;
 use tcl_registry::frame_effect::NativeFrameLevelObject;
 
 fn actual(engine: &str) -> Interp {

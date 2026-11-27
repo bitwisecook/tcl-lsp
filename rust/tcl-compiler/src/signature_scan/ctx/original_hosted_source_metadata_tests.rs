@@ -63,7 +63,7 @@ fn original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purp
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
             ..LexerConfig::for_file_grammar(profile.grammar)
         };
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         assert!(dialect.authored_f5_tcl84_core().is_some());
         assert!(dialect.authored_name_policy().is_none());
         let scan = crate::signature_scan::extract_signatures_with_config(source, config, registry);

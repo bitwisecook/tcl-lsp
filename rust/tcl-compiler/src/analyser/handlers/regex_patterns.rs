@@ -34,7 +34,7 @@ impl Analyser {
             .source_analysis_entry
             .as_ref()
             .and_then(|entry| entry.invocation_dialect)
-            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile));
+            .unwrap_or_else(|| tcl_native_model::InvocationDialect::of_profile(self.profile));
         dialect.lexer_grammar = self.grammar();
         dialect.word_values = self.word_rules();
         let source_map = self.cached_source_map();

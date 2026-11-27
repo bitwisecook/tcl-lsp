@@ -40,7 +40,7 @@ No appliance observation for this question.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `native_property_lookup::tests::property_temporary_lookup_and_mutation_axes_are_independent` (linked): Keep instance/foundation invalidation and failed-definition chronology independent.
+- [rust/tcl-native-model/src/native_property_lookup.rs](../../../../rust/tcl-native-model/src/native_property_lookup.rs), `native_property_lookup::tests::property_temporary_lookup_and_mutation_axes_are_independent` (linked): Keep instance/foundation invalidation and failed-definition chronology independent.
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `property_epochs_follow_mutations_before_definition_failure` (linked): Check class mutation is retained before definition Error.
 - [rust/tcl-vm-it/tests/it_5/cmd_oo/native_properties/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_oo/native_properties/tests.rs), `property_epochs_follow_mutations_before_definition_failure` (linked): Check the same mutation-before-Error boundary.
 - [rust/tcl-vm-it/tests/it_5/cmd_oo/native_properties/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_oo/native_properties/tests.rs), `cmd_oo::native_properties::tests::property_epochs_follow_mutations_before_definition_failure` (linked): Property epochs follow mutations before definition failure. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
@@ -48,9 +48,9 @@ No appliance observation for this question.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/manifest.json)
-- [rust/tcl-registry/tests/data/native_property_owners/probe.c](../../../../rust/tcl-registry/tests/data/native_property_owners/probe.c)
-- [rust/tcl-registry/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/native.tsv)
+- [rust/tcl-native-model/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-native-model/tests/data/native_property_owners/manifest.json)
+- [rust/tcl-native-model/tests/data/native_property_owners/probe.c](../../../../rust/tcl-native-model/tests/data/native_property_owners/probe.c)
+- [rust/tcl-native-model/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-native-model/tests/data/native_property_owners/native.tsv)
 - [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c)
 - [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json)
 - [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv)

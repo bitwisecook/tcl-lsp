@@ -23,7 +23,8 @@ use super::scope::SignatureSourceNameKey;
 use super::types::ParamDef;
 use std::sync::Arc;
 use tcl_dialect::ParameterGrammar;
-use tcl_registry::{Arity, InvocationDialect};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::Arity;
 
 /// The source of a declaration's count contract. Original formal bytes retain
 /// their selected grammar; authored metadata supplies no original/native issuer.

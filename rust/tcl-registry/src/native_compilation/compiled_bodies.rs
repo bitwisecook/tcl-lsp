@@ -26,9 +26,10 @@ use super::{
     NativeCompilationFrame, NativeCompilationGrammar, NativeCompilationMode,
     NativeCompilationSelection, NativeCompilationSpec, NativeCompilationWordShape, literal_shape,
 };
-use crate::{InvocationDialect, InvocationWords, SemanticOperationId};
+use crate::{InvocationWords, SemanticOperationId};
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 /// Lexical compiler environment entered for one inline script operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

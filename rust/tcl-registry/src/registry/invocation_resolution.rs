@@ -98,7 +98,7 @@ impl CommandRegistry {
             words
                 .arguments()
                 .dialect()
-                .and_then(crate::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
         });
         let Some(name) = words.head_literal() else {
             return StructuredInvocationResolution::from_unresolved(

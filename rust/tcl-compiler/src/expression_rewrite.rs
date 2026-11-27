@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn original_object_conversions_survive_constant_and_strength_rewrites() {
         let policy = FoldPolicy::default().with_invocation_dialect(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         let environment = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
         for (original, proposed) in [("$x+0", "3"), ("$x*0", "0"), ("$x**2", "$x*$x")] {

@@ -355,11 +355,12 @@ mod tests {
             JimCommandNameObservation::Exact(_)
         ));
         let original = Value::new_native_string_bytes(b"OWNED".as_slice());
-        let foreign =
-            super::super::NativeJimObjectContext::new(tcl_registry::InvocationDialect::of_profile(
+        let foreign = super::super::NativeJimObjectContext::new(
+            tcl_native_model::InvocationDialect::of_profile(
                 crate::environment::profile_for_dialect("jim"),
-            ))
-            .unwrap();
+            ),
+        )
+        .unwrap();
         assert!(original.bind_native_jim_context(&foreign).is_err());
         assert!(original.0.jim_context.borrow().is_none());
         assert_eq!(original.native_object_reference_count(), 1);

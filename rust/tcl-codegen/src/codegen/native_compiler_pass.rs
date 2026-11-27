@@ -18,7 +18,7 @@
 
 //! Raw emitted opcode inspection and whole-unit compact compiler replay.
 
-use tcl_registry::native_compiler_pass::{
+use tcl_native_model::native_compiler_pass::{
     NativeCompilerPassHazard as Hazard, native_compiler_replays,
 };
 

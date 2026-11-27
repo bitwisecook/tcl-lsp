@@ -460,7 +460,7 @@ mod tests {
             context.commands(),
             super::super::SourceAnalysisOptions {
                 native_entry: Some(&first_entry),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 ..Default::default()
             },
         );

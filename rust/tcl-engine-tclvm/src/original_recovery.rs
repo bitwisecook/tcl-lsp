@@ -31,7 +31,7 @@ use tcl_vm::Completion;
 
 pub(super) fn recover_original_result(
     result: &tcl_engine_api::OriginalObjectResult,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
 ) -> Result<tcl_vm::Value, EngineError> {
     recover_original_result_in(
@@ -45,7 +45,7 @@ pub(super) fn recover_original_result(
 
 pub(super) fn recover_original_completion(
     completion: &tcl_engine_api::OriginalObjectCompletion,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     actual: &ActualScalarImport<'_>,
 ) -> Result<Completion<tcl_vm::Value>, EngineError> {
@@ -77,7 +77,7 @@ enum OriginalRecoveryWork<'a> {
 
 fn recover_original_leaf(
     result: &tcl_engine_api::OriginalObjectResult,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<Option<tcl_vm::Value>, EngineError> {
@@ -116,7 +116,7 @@ fn recover_original_resident(
     value: &tcl_engine_api::OriginalObjectResult,
     string: &Rc<[u8]>,
     storage: tcl_engine_api::NativeStringStorageIdentity,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<Option<tcl_vm::Value>, EngineError> {
@@ -153,7 +153,7 @@ fn recover_original_resident(
 
 pub(super) fn recover_original_result_in(
     result: &tcl_engine_api::OriginalObjectResult,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     memo: &mut std::collections::BTreeMap<usize, tcl_vm::Value>,
     actual: Option<&ActualScalarImport<'_>>,
@@ -262,7 +262,7 @@ fn recover_original_list_children(
     values: &mut Vec<tcl_vm::Value>,
     count: usize,
     canonical: bool,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), EngineError> {
     let start = values
         .len()
@@ -296,7 +296,7 @@ fn recover_original_resident_child(
 
 pub(super) fn checked_list_backing_receipt(
     carrier: &tcl_engine_api::NativeListBacking,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
 ) -> Result<&VmListBackingReceipt, EngineError> {
     let receipt = carrier
@@ -328,7 +328,7 @@ pub(super) fn checked_list_backing_receipt(
 
 pub(super) fn checked_list_backing(
     carrier: &tcl_engine_api::NativeListBacking,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
 ) -> Result<&VmListBackingReceipt, EngineError> {
     let receipt = checked_list_backing_receipt(carrier, dialect, interpreter)?;
@@ -342,7 +342,7 @@ pub(super) fn checked_list_backing(
 
 fn recover_original_handle(
     original: &Rc<dyn tcl_engine_api::OriginalObject>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
 ) -> Result<tcl_vm::Value, EngineError> {
     let Some(receipt) = original.engine_receipt().downcast_ref::<VmOriginalObject>() else {
@@ -390,7 +390,7 @@ pub(super) fn recover_dictionary_children(
 
 fn recover_native_namespace_name_cache(
     carrier: &tcl_engine_api::NativeNamespaceNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     resident: Option<(
         Rc<[u8]>,
@@ -422,7 +422,7 @@ fn recover_native_namespace_name_cache(
 
 fn recover_native_command_name_cache(
     carrier: &tcl_engine_api::NativeCommandNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
     resident: Rc<[u8]>,
     storage: tcl_syntax::native_string::NativeStringStorageIdentity,
@@ -462,7 +462,7 @@ fn recover_native_command_name_cache(
 
 fn recover_native_string_cache(
     cache: &tcl_engine_api::NativeStringCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     resident: Option<(
         Rc<[u8]>,
         tcl_syntax::native_string::NativeStringStorageIdentity,

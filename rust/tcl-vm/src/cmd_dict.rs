@@ -19,6 +19,7 @@
 //! The `dict` ensemble over the VM's typed dictionary representation.
 
 use std::rc::Rc;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
@@ -48,7 +49,7 @@ impl VmDictionaryObjects {
     pub(crate) fn selected(vm: &Vm) -> Result<Self, tcl_cmd_core::CmdError> {
         let dialect = vm.native_invocation_dialect();
         let string = dialect.native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("native dictionary object protocol"))?.protocol();
         // The selected name policy, including an installed authored logical
         // simulation, formats diagnostics; the physical point alone cannot.
@@ -168,7 +169,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.refresh_scripted_distribution_libraries();
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Dict)
     else {
         vm.register_stock_builtin("dict", cmd_dict);
         return;
@@ -200,7 +201,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Dict)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("dict");

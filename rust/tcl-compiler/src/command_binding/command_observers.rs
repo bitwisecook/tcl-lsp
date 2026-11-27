@@ -973,13 +973,13 @@ pub(super) fn original_trace_callback_words_for_target(
 
 pub(super) fn original_trace_callback_words_in_dialect(
     prefix: &crate::signature_scan::scope::SignatureSourceNameInput,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: OriginalTraceCallbackKind,
 ) -> Option<OriginalTraceCallbackWords> {
     const SUFFIX: &[u8] = b"__tcl_lsp_trace_suffix__";
     (dialect.native_string_protocol() == Some(prefix.policy().string_protocol())).then_some(())?;
     let protocol = dialect.native_variable_trace_protocol()?;
-    let actual = tcl_registry::InvocationDialect::for_version(protocol.version());
+    let actual = tcl_native_model::InvocationDialect::for_version(protocol.version());
     let config = tcl_lexer::LexerConfig::from_grammar(actual.lexer_grammar);
     let inputs = prefix.original_list_elements()?;
     if inputs.is_empty() {
@@ -1021,7 +1021,7 @@ pub(super) fn original_trace_callback_words_in_dialect(
     Some(OriginalTraceCallbackWords {
         inputs,
         words,
-        compilation: protocol.callback_compilation(),
+        compilation: tcl_registry::native_compilation::trace_callback_compilation(protocol),
         config,
     })
 }
@@ -1040,7 +1040,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::Direct,
                     ..Default::default()
@@ -1061,7 +1061,7 @@ mod tests {
     fn original_trace_prefix_projection_requires_actual_script_argv_equivalence() {
         // Implementation contract: naming.source.readonly-original-operand-projections (docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md).
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
             let registry = tcl_registry::CommandRegistry::build_default();
             for (prefix, accepted) in [
@@ -1151,7 +1151,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_entry: Some(&entry),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::Direct,

@@ -27,7 +27,7 @@ fn emit_original<'a>(
     profile: &'static tcl_dialect::DialectProfile,
     source: &[u8],
 ) -> CodegenCtx<'a> {
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(source),
         tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),

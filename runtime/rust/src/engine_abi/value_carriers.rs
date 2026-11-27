@@ -278,7 +278,7 @@ pub unsafe extern "C" fn tcl_engine_new_sequence_carrier(
         0 => Owned::fresh(interp.new_list_object(children)),
         1 if count % 2 == 0 => {
             let Some(recipe) = interp.native_invocation_dialect().native_string_materialization(Some(
-                tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)) else {
+                tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)) else {
                 interp.refuse_host_command("dictionary import updater issuer unavailable"); return core::ptr::null_mut();
             };
             let pairs = children

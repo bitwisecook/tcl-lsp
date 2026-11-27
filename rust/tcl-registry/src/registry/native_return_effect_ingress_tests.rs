@@ -18,7 +18,8 @@
 
 use super::native_return_state_effect;
 use crate::completion_route::ReturnStateEffect;
-use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+use crate::{InvocationArguments, InvocationWord};
+use tcl_native_model::InvocationDialect;
 
 #[test]
 fn authored_return_effect_uses_unanimous_unknown_grammar_only() {

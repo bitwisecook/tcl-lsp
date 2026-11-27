@@ -29,7 +29,7 @@ impl Vm {
         self.with_event_global_frame(|vm| {
             match vm.eval_original_script_value(
                 source,
-                tcl_registry::native_eval_object::EvalObjectPurpose::AfterCallback,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::AfterCallback,
                 source.source_location(),
             ) {
                 Ok(c) => c,

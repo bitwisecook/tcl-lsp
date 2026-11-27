@@ -264,7 +264,7 @@ impl RegistryInvocationShape {
         }
         let original = binding.original_conditional_operand_layout_advice(tokens, registry)?;
         let config = binding.original_lexer_config_for_tokens(tokens)?;
-        let dialect = tcl_registry::InvocationDialect {
+        let dialect = tcl_native_model::InvocationDialect {
             lexer_grammar: config.grammar_over(original.dialect().lexer_grammar),
             word_values: WordValueRules::from_config(&config),
             ..original.dialect()
@@ -493,14 +493,14 @@ pub(crate) fn advisory_value_assignments_with_metadata_context(
                 || {
                     registry
                         .profile()
-                        .map(tcl_registry::InvocationDialect::of_profile)
+                        .map(tcl_native_model::InvocationDialect::of_profile)
                 },
                 |context| {
                     context
                         .context()
                         .environment
                         .point()
-                        .map(tcl_registry::InvocationDialect::of_point)
+                        .map(tcl_native_model::InvocationDialect::of_point)
                 },
             )
         });
@@ -785,7 +785,7 @@ fn registry_invocation_assistance_with_metadata_context_using(
     let dialect = binding.variable_context.invocation_dialect.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     let mut assistance = RegistryInvocationAssistance {
         candidates: Vec::new(),

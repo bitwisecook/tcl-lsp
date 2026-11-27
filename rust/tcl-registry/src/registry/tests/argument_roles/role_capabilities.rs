@@ -109,7 +109,7 @@ fn assert_command_role_capabilities(registry: &CommandRegistry, name: &str, args
         );
         resolver(
             crate::InvocationArguments::literals(args)
-                .with_dialect(crate::InvocationDialect::of_profile(profile)),
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile)),
             options,
         )
         .expect("literal native layout")
@@ -151,7 +151,7 @@ fn assert_subcommand_role_capabilities(
         );
         resolver(
             crate::InvocationArguments::literals(args)
-                .with_dialect(crate::InvocationDialect::of_profile(profile)),
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile)),
             options,
         )
         .expect("literal native layout")

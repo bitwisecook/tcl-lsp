@@ -309,7 +309,7 @@ pub(crate) fn arith_in<'a>(
         let failed = if matches!(x, Num::Dbl(_)) { a } else { b };
         if let Some(error) = expression_operand_error(
             dialect,
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer,
+            tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Integer,
             failed,
         ) {
             return Err(error);
@@ -373,7 +373,7 @@ fn context_release(context: NumericContext<'_>) -> Option<tcl_dialect::TclVersio
 
 fn expression_operand_error(
     dialect: NumericContext<'_>,
-    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+    stage: tcl_native_model::native_numeric_error::NativeExpressionOperandStage,
     value: &Value,
 ) -> Option<TclError> {
     let presenter = dialect.expression_operand_error_presentation()?;
@@ -491,7 +491,7 @@ fn selected_operand_error_code(dialect: NumericContext<'_>, mut error: TclError)
         || dialect.expression_operand_error_code_policy(),
         |simulation| match simulation {
             tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core => {
-                Some(tcl_registry::native_numeric_error::NativeExpressionOperandErrorCodePolicy::None)
+                Some(tcl_native_model::native_numeric_error::NativeExpressionOperandErrorCodePolicy::None)
             }
         },
     );
@@ -592,9 +592,9 @@ fn native_operand(
             return error;
         }
         let stage = if is_int_only(op) {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer
+            tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Integer
         } else {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint
+            tcl_native_model::native_numeric_error::NativeExpressionOperandStage::FloatingPoint
         };
         let message = match error.message_bytes() {
             Ok(message) => message,
@@ -626,7 +626,7 @@ fn unary_integer_operand_error(
 ) -> TclError {
     expression_operand_error(
         dialect,
-        tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer,
+        tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Integer,
         value,
     )
     .unwrap_or_else(|| {
@@ -661,7 +661,7 @@ pub(crate) fn unary_in<'a>(
                 }
                 expression_operand_error(
                     dialect,
-                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
+                    tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Boolean,
                     value,
                 )
                 .unwrap_or_else(|| {
@@ -695,9 +695,9 @@ pub(crate) fn unary_in<'a>(
             return first;
         }
         let stage = if op == UnaryOp::BitNot {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer
+            tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Integer
         } else {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean
+            tcl_native_model::native_numeric_error::NativeExpressionOperandStage::Boolean
         };
         expression_operand_error(dialect, stage, value).unwrap_or_else(|| {
             selected_operand_error_code(

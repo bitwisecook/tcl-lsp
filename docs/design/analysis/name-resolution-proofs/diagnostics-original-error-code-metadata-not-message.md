@@ -2245,15 +2245,15 @@ No implementation binding is claimed by this observation record.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
-- [rust/tcl-registry/src/native_wrong_arguments.rs](../../../../rust/tcl-registry/src/native_wrong_arguments.rs), `InvocationDialect::native_wrong_arguments_protocol`: Select exact measured error-code policy by independent actual release: NONE for C8.4/C8.5/Jim and TCL WRONGARGS for C8.6/C9; software origin/String assertions do not attest public original headers.
-- [rust/tcl-registry/src/native_wrong_arguments.rs](../../../../rust/tcl-registry/src/native_wrong_arguments.rs), `native_wrong_arguments::tests::measured_native_codes_have_independent_origin` (linked): Selected software error-code protocol compared with exact six-provider public original catch {set} metadata. Existing origin/String producer assertions remain software controls; original public scripts do not observe physical headers. This links the software assertion definition only. Independent actual execution receipts retain their own failures and scope; no whole-provider or specialised compilation pass is inferred.
+- [rust/tcl-native-model/src/native_wrong_arguments.rs](../../../../rust/tcl-native-model/src/native_wrong_arguments.rs), `InvocationDialect::native_wrong_arguments_protocol`: Select exact measured error-code policy by independent actual release: NONE for C8.4/C8.5/Jim and TCL WRONGARGS for C8.6/C9; software origin/String assertions do not attest public original headers.
+- [rust/tcl-native-model/src/native_wrong_arguments.rs](../../../../rust/tcl-native-model/src/native_wrong_arguments.rs), `native_wrong_arguments::tests::measured_native_codes_have_independent_origin` (linked): Selected software error-code protocol compared with exact six-provider public original catch {set} metadata. Existing origin/String producer assertions remain software controls; original public scripts do not observe physical headers. This links the software assertion definition only. Independent actual execution receipts retain their own failures and scope; no whole-provider or specialised compilation pass is inferred.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Evidence
 
 - [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
-- [rust/tcl-registry/tests/data/native_error_code_metadata_original/providers](../../../../rust/tcl-registry/tests/data/native_error_code_metadata_original/providers)
+- [rust/tcl-native-model/tests/data/native_error_code_metadata_original/providers](../../../../rust/tcl-native-model/tests/data/native_error_code_metadata_original/providers)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources)
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request)
 - [rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs](../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/original-inputs)

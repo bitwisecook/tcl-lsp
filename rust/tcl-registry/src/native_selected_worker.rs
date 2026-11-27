@@ -18,13 +18,14 @@
 
 //! Actual installed worker selection from unchanged original compiler words.
 
+use crate::CommandRegistry;
 use crate::native_compilation::{
     NativeCompilationContext, NativeCompilationSelection, NativeCompilationSpec,
     NativeNamedInvocationProtocol,
 };
 use crate::native_compiler_words::NativeCompilerWords;
 use crate::native_instruction_plan::{NativeInstructionPlan, NativeNamedInvocationInstruction};
-use crate::{CommandRegistry, InvocationDialect};
+use tcl_native_model::InvocationDialect;
 use tcl_runtime_api::native_compilation::{NativeCompilationBinding, NativeCompilerHookPresence};
 
 /// Native result of the actual selected ensemble worker compiler.
@@ -90,9 +91,9 @@ pub fn compile_original_selected_worker_path(
         &tcl_runtime_api::native_compilation::NativeEnsembleCompiler,
         Option<&[u8]>,
         Option<crate::native_compilation::NativeCompilationWordShape>,
-    ) -> crate::native_ensemble::NativeEnsembleWorkerSelection,
+    ) -> tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection,
 ) -> OriginalSelectedWorkerPathCompilation {
-    use crate::native_ensemble::NativeEnsembleWorkerSelection;
+    use tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection;
     let mut worker = worker.clone();
     let mut operand_from = invocation.operand_from;
     let mut replacements = invocation.replacements.to_vec();

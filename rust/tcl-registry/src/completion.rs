@@ -87,10 +87,16 @@ impl CompletionCodePolicy {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait CompletionCodeDialect {
     /// Completion selector protocol of the actual native runtime.
     #[must_use]
-    pub fn completion_code_policy(self) -> CompletionCodePolicy {
+    fn completion_code_policy(self) -> CompletionCodePolicy;
+}
+
+impl CompletionCodeDialect for tcl_native_model::InvocationDialect {
+    fn completion_code_policy(self) -> CompletionCodePolicy {
         if self.family() == Some(tcl_dialect::model::Family::Jim) {
             return CompletionCodePolicy::Jim;
         }

@@ -172,7 +172,7 @@ fn explicit_logical_and_previous_native_source_routes_keep_their_text_domain() {
         tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
     ));
     assert!(logical.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation,
         crate::environment::profile_for_dialect("tcl8.6"),
     ));
     assert_eq!(

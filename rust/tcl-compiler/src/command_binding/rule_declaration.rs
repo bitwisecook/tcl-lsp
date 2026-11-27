@@ -470,7 +470,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                     frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -578,7 +578,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
@@ -615,7 +615,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },

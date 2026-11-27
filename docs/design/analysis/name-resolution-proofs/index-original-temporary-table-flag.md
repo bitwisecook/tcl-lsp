@@ -54,7 +54,7 @@ No observation of this exact question is retained for this provider.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `NativeIndexLookupProtocol::cached_index_with_flags`: Checks independently retained table/stride/cache/flag correspondence.
+- [rust/tcl-native-model/src/native_index_lookup.rs](../../../../rust/tcl-native-model/src/native_index_lookup.rs), `NativeIndexLookupProtocol::cached_index_with_flags`: Checks independently retained table/stride/cache/flag correspondence.
 - [rust/tcl-cshim/src/index_table.rs](../../../../rust/tcl-cshim/src/index_table.rs), `StaticIndexTable`: Retains the independently supplied table entry reader and native storage lifetime contract.
 - [runtime/rust/src/interp/native_index_lookup.rs](../../../../runtime/rust/src/interp/native_index_lookup.rs), `interp::native_index_lookup::tests::original_index_flags_and_offsets_match_all_native_31_windows` (linked): Independent shared flag/stride/cache controls exercise temporary-table no-install behavior; this test uses its own 31-window corpus rather than claiming to execute the shim probe.
 

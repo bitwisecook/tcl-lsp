@@ -80,7 +80,7 @@ pub(crate) fn cache(object: *mut TclObj) -> Option<(NativeIndexCache, TclVersion
 pub(crate) fn install(
     object: *mut TclObj,
     cache: NativeIndexCache,
-    protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+    protocol: tcl_native_model::native_index_lookup::NativeIndexLookupProtocol,
 ) -> Result<(), ValueError> {
     install_using(object, cache, protocol, None)
 }
@@ -88,7 +88,7 @@ pub(crate) fn install(
 pub(crate) fn install_with_stage_check(
     object: *mut TclObj,
     cache: NativeIndexCache,
-    protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+    protocol: tcl_native_model::native_index_lookup::NativeIndexLookupProtocol,
     check: &mut dyn FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
     install_using(object, cache, protocol, Some(check))
@@ -96,7 +96,7 @@ pub(crate) fn install_with_stage_check(
 fn install_using(
     object: *mut TclObj,
     cache: NativeIndexCache,
-    protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+    protocol: tcl_native_model::native_index_lookup::NativeIndexLookupProtocol,
     check: Option<&mut dyn FnMut() -> Result<(), ValueError>>,
 ) -> Result<(), ValueError> {
     if !super::has_string_rep(object) {

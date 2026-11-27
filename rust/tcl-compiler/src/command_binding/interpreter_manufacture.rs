@@ -72,7 +72,9 @@ mod tests {
                 tcl_lexer::LexerConfig::for_profile(registry.profile()),
                 registry,
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
+                        version,
+                    )),
                     native_compilation:
                         tcl_registry::native_compilation::NativeCompilationContext {
                             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,

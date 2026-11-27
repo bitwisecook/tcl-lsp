@@ -318,8 +318,8 @@ fn authored_c_pattern_config(
     if !metadata.permits_logical_source_names() {
         return None;
     }
-    let policy =
-        tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()?;
+    let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
+        .authored_name_policy()?;
     (policy.authority() == NamePolicyAuthority::AuthoredSimulation
         && matches!(policy.recipe(), NativeNameProtocol::C(_)))
     .then_some(input.lexer_config())
@@ -1499,7 +1499,7 @@ fn scan_frame_effect(
     arg_braced: Option<&[bool]>,
     barrier: &mut DynamicNameBarrier,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) {
     match frame.layout {
         // Every caller-frame variable `argparse` creates is named from its

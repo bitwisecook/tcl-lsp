@@ -230,11 +230,11 @@ impl Vm {
 
     pub(crate) fn reset_native_ensemble_rewrite(
         &mut self,
-        event: tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent,
+        event: tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent,
     ) -> Result<(), Completion<Value>> {
         let logical = self.logical_providers.names.and_then(|provider| {
             (provider.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation)
-                .then_some(tcl_registry::native_ensemble_rewrite::LogicalEnsembleRewriteProvider::Tcl84CoreSimulation)
+                .then_some(tcl_native_model::native_ensemble_rewrite::LogicalEnsembleRewriteProvider::Tcl84CoreSimulation)
         });
         let Some(protocol) = self
             .actual_native_invocation_dialect()

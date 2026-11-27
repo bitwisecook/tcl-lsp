@@ -63,7 +63,7 @@ pub(super) fn seed_deferred_inputs(
         } else if let Some(grammar) = branch
             .source_variables
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
             && let Ok(parameters) = tcl_syntax::formal_params::bind_formal_arguments(
                 &root.parameters,
                 root.parameters.len(),

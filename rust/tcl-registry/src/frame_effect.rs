@@ -152,11 +152,17 @@ impl NativeFrameLevelProtocol {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait FrameLevelDialect {
     /// Select the actual native frame-object conversion protocol.
     /// A compatible vendor or logical simulation does not issue native caches.
     #[must_use]
-    pub fn native_frame_level_protocol(self) -> Option<NativeFrameLevelProtocol> {
+    fn native_frame_level_protocol(self) -> Option<NativeFrameLevelProtocol>;
+}
+
+impl FrameLevelDialect for tcl_native_model::InvocationDialect {
+    fn native_frame_level_protocol(self) -> Option<NativeFrameLevelProtocol> {
         let getter = self.native_scalar_getter_protocol()?;
         Some(NativeFrameLevelProtocol {
             version: getter.tcl_version(),
@@ -250,7 +256,7 @@ impl FrameLevel {
     #[must_use]
     pub fn parse_for_dialect(
         word: &str,
-        dialect: crate::invocation_words::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         if word.contains('$') || word.contains('[') {
             Some(Self::Dynamic)
@@ -266,7 +272,7 @@ impl FrameLevel {
     #[must_use]
     pub fn parse_native_bytes(
         word: &[u8],
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Option<Self>> {
         if word.contains(&0) {
             return None;
@@ -292,7 +298,7 @@ impl FrameLevel {
             |profile| {
                 Self::parse_for_dialect(
                     word,
-                    crate::invocation_words::InvocationDialect::of_profile(profile),
+                    tcl_native_model::InvocationDialect::of_profile(profile),
                 )
             },
         )
@@ -609,7 +615,7 @@ impl FrameEffectSpec {
         let mut may_argument_error = false;
         for version in TclVersion::ALL {
             let branch = self.successful_layout(
-                arguments.with_dialect(crate::InvocationDialect::for_version(version)),
+                arguments.with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
             );
             if branch.layout != layout {
                 return None;
@@ -746,7 +752,7 @@ impl FrameEffectSpec {
         self,
         count: usize,
         first: Option<&[u8]>,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<usize> {
         if let Some(width) = self.level_word_len_for_argument_count(count) {
             return Some(width);
@@ -805,7 +811,7 @@ impl FrameEffectSpec {
             FrameLevelWord::Upvar => {
                 let arguments = crate::InvocationArguments::literals(args);
                 let contextual = version.map_or(arguments, |version| {
-                    let dialect = crate::invocation_words::InvocationDialect::for_version(version);
+                    let dialect = tcl_native_model::InvocationDialect::for_version(version);
                     arguments.with_dialect(dialect)
                 });
                 self.level_word_len_for_arguments(contextual).unwrap_or(0)
@@ -885,14 +891,14 @@ mod tests {
 
     #[test]
     fn impossible_frame_arity_is_invalid_before_selector_presence() {
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         for dialect in std::iter::once(None)
             .chain(
                 TclVersion::ALL
                     .into_iter()
-                    .map(|version| Some(crate::InvocationDialect::for_version(version))),
+                    .map(|version| Some(tcl_native_model::InvocationDialect::for_version(version))),
             )
             .chain(std::iter::once(Some(jim)))
         {
@@ -938,7 +944,8 @@ mod tests {
     /// ```
     #[test]
     fn computed_single_script_has_only_an_omitted_selector_normal_layout() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
+        use tcl_native_model::InvocationDialect;
         let mut dialects: Vec<_> = tcl_dialect::TclVersion::ALL
             .into_iter()
             .map(InvocationDialect::for_version)
@@ -1076,7 +1083,8 @@ mod tests {
     /// release; answering one release's value would be wrong on the others.
     #[test]
     fn successful_alias_layout_conditions_dynamic_presence_on_pair_arity() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
+        use tcl_native_model::InvocationDialect;
         let even = [InvocationWord::Dynamic, InvocationWord::Literal("linked")];
         let odd = [
             InvocationWord::Dynamic,
@@ -1242,7 +1250,8 @@ mod tests {
 
     #[test]
     fn structured_upvar_resolution_obeys_legacy_presence_and_modern_parity() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
+        use tcl_native_model::InvocationDialect;
         for release in TclVersion::ALL {
             let context = InvocationDialect::for_version(release);
             let numeric_name = InvocationArguments::Literals(&["1", "local"]).with_dialect(context);

@@ -172,11 +172,11 @@ void Jim_SetResultFormatted(Jim_Interp *interp, const char *format, ...)
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `NativeUsageProtocol::render_procedure_name`: Select procedure-called-name presentation: Jim preserves called bytes while C selected recipe can apply its independent list quoting. Does not reconstruct genuine call identity.
-- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `NativeUsageProtocol::render_procedure_message`: Present assembled procedure usage under its independently selected final formatter extent; byte rendering supplies no command/header/activation ownership.
+- [rust/tcl-native-model/src/native_usage.rs](../../../../rust/tcl-native-model/src/native_usage.rs), `NativeUsageProtocol::render_procedure_name`: Select procedure-called-name presentation: Jim preserves called bytes while C selected recipe can apply its independent list quoting. Does not reconstruct genuine call identity.
+- [rust/tcl-native-model/src/native_usage.rs](../../../../rust/tcl-native-model/src/native_usage.rs), `NativeUsageProtocol::render_procedure_message`: Present assembled procedure usage under its independently selected final formatter extent; byte rendering supplies no command/header/activation ownership.
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::proc_wrong_args`: Consume selected usage recipe with independently retained original call/formal/ensemble rewrite premises.
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `proc_usage`: Consume selected procedure usage presentation independently of actual ProcDef/call/header/admission ownership.
-- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary` (linked): Pure selected procedure presenter retains raw multiword Jim called-name bytes and applies its final CString boundary to already assembled p-NUL-tail usage. C counted presentation remains separately selected. This authored byte-renderer control does not execute a NUL procedure or prove original invocation/header/cache/activation identity; separately pinned source excerpts establish source facts only.
+- [rust/tcl-native-model/src/native_usage.rs](../../../../rust/tcl-native-model/src/native_usage.rs), `native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary` (linked): Pure selected procedure presenter retains raw multiword Jim called-name bytes and applies its final CString boundary to already assembled p-NUL-tail usage. C counted presentation remains separately selected. This authored byte-renderer control does not execute a NUL procedure or prove original invocation/header/cache/activation identity; separately pinned source excerpts establish source facts only.
 
 ## Evidence
 
@@ -184,5 +184,5 @@ void Jim_SetResultFormatted(Jim_Interp *interp, const char *format, ...)
 - [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt)
 - [rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt)
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs)
-- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs)
+- [rust/tcl-native-model/src/native_usage.rs](../../../../rust/tcl-native-model/src/native_usage.rs)
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs)

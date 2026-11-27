@@ -53,7 +53,7 @@ fn decode(hex: &str) -> Vec<u8> {
 
 #[test]
 fn c84_normalization_matches_six_original_float_error_windows() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let protocol = dialect.native_scalar_getter_protocol().unwrap();
     let abi = original_c_integer_abi();
     let values = [
@@ -142,7 +142,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
 
 #[test]
 fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let environment = RecordedNumericEnvironment::with_c_integer_abi(
         Err(NumericEnvironmentUnavailable::Target),
         original_c_integer_abi(),
@@ -176,7 +176,7 @@ fn c84_cached_resident_primary_refuses_missing_recorded_abi_without_fresh_conver
         environment.c_integer_abi(),
         Err(NumericEnvironmentUnavailable::Target)
     );
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let original = Owned::fresh(obj::new_double_obj(1.0));
     let resident = obj::bytes_of(original.as_ptr());
     let before = obj::native_object_snapshot(original.as_ptr()).unwrap();

@@ -417,12 +417,12 @@ impl NormalRepresentationInvocation {
             index_literal: invocation.argument_literal(offset + 1),
             index_syntax: invocation
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::index_syntax),
+                .and_then(tcl_native_model::InvocationDialect::index_syntax),
             container_word: invocation.effective.words.get(offset + 1)?.clone(),
             index_word: invocation.effective.words.get(offset + 2)?.clone(),
             list_set_bounds: invocation
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::list_set_bounds),
+                .and_then(tcl_native_model::InvocationDialect::list_set_bounds),
         })
     }
 
@@ -482,7 +482,7 @@ impl NormalRepresentationInvocation {
         let call = self.pattern_handler()?;
         let query = call
             .dialect
-            .and_then(tcl_registry::InvocationDialect::authoring_query);
+            .and_then(tcl_native_model::InvocationDialect::authoring_query);
         if registry
             .get_for_surface(&call.facts.canonical_command, query)?
             .pattern_type
@@ -898,7 +898,7 @@ fn has_regex_pattern_contract(
 ) -> bool {
     let query = invocation
         .dialect
-        .and_then(tcl_registry::InvocationDialect::authoring_query);
+        .and_then(tcl_native_model::InvocationDialect::authoring_query);
     registry
         .get_for_surface(&invocation.facts.canonical_command, query)
         .and_then(|spec| spec.pattern_type)

@@ -91,7 +91,7 @@ pub(super) static NATIVE_STRING_TYPE: TclObjType = TclObjType {
 pub(crate) fn native_character_count(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
-    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
 ) -> Result<usize, tcl_syntax::value::ValueError> {
     native_character_count_using(value, protocol, representation, &mut || Ok(()), &mut || {
         crate::dict::native_object_bytes(value, protocol).map(std::rc::Rc::from)
@@ -103,7 +103,7 @@ pub(crate) fn native_character_count(
 pub(crate) fn native_character_count_checked(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
-    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
     current: &mut impl FnMut() -> Result<(), tcl_cmd_core::CmdError>,
     original_string: &mut impl FnMut() -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
 ) -> Result<usize, tcl_cmd_core::CmdError> {
@@ -113,7 +113,7 @@ pub(crate) fn native_character_count_checked(
 fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
-    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
     current: &mut dyn FnMut() -> Result<(), E>,
     original_string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
 ) -> Result<usize, E> {
@@ -221,7 +221,7 @@ pub(crate) fn native_c_string_storage_checked<E: From<tcl_syntax::value::ValueEr
     let count = native_character_count_using(
         value,
         protocol,
-        tcl_registry::native_string_length::NativeStringLengthRepresentation::String,
+        tcl_native_model::native_string_length::NativeStringLengthRepresentation::String,
         current,
         original_string,
     )?;
@@ -272,7 +272,7 @@ pub(crate) fn retain_jim_string_representation(value: *mut TclObj) {
 /// Existing resident bytes remain owned by the same original object header.
 pub(crate) fn retain_native_string_representation(
     value: *mut TclObj,
-    protocol: tcl_registry::native_string_materialization::NativeStringMaterialization,
+    protocol: tcl_native_model::native_string_materialization::NativeStringMaterialization,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     if !has_string_rep(value) {
         return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -333,7 +333,7 @@ pub(crate) fn jim_character_count(value: *mut TclObj) -> usize {
 /// Reach native C Unicode-unit storage on the original object.
 pub(crate) fn new_native_unicode_obj(
     unicode: std::rc::Rc<[u32]>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
     let protocol =

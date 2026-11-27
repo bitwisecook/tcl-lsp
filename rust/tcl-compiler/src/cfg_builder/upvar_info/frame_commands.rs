@@ -63,7 +63,7 @@ fn resolve_frame_args<'a>(
     spec: FrameEffectSpec,
     args: &'a [String],
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     tokens: Option<&CommandTokens>,
 ) -> (FrameLevel, &'a [String]) {
     let Some(tokens) = tokens.filter(|tokens| {
@@ -162,7 +162,7 @@ pub(super) fn record_resolved_alias_pairs(
     spec: FrameEffectSpec,
     parameters: &[String],
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     info: &mut UpvarInfo,
 ) {
     use tcl_registry::frame_effect::FrameArgumentResolution;

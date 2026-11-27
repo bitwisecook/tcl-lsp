@@ -59,10 +59,10 @@ fn original_contents_currency_preserves_cache_changes_and_retires_unknown_effect
         context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
         context.invocation_dialect = Some(match policy.recipe() {
             tcl_syntax::naming::NativeNameProtocol::C(version) => {
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
             }
             tcl_syntax::naming::NativeNameProtocol::Jim084 => {
-                tcl_registry::InvocationDialect::of_point(
+                tcl_native_model::InvocationDialect::of_point(
                     tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
                 )
             }
@@ -85,7 +85,7 @@ fn original_content_joins_keep_every_origin_and_do_not_reuse_unknown_currency() 
     let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
     let mut context = ResolveContext::default();
     context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     let plain = value(b"same", &context);
@@ -113,7 +113,8 @@ fn namespace_prefix_result_preserves_counted_script_and_producer_origins() {
         let policy = NamePolicyProtocol::authored_tcl(version);
         let mut context = ResolveContext::default();
         context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+        context.invocation_dialect =
+            Some(tcl_native_model::InvocationDialect::for_version(version));
         let operation = value(b"namespace", &context);
         let script = value(b"{helper 3}", &context);
         let result = script
@@ -137,7 +138,7 @@ fn namespace_prefix_result_preserves_counted_script_and_producer_origins() {
 fn original_evaluated_index_keeps_its_exact_word_and_arena() {
     // Implementation contract: naming.source.original-content-currency (docs/design/analysis/name-resolution-proofs/original-content-currency.md).
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let registry = tcl_registry::CommandRegistry::build_default();
         for (source, expected) in [
@@ -236,7 +237,7 @@ fn original_child_lineage_is_bounded_across_repeated_capture() {
     context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(
         NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6),
     ));
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     let mut held = value(b"7", &context);

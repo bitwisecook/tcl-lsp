@@ -419,7 +419,7 @@ pub(in super::super) fn qualify_execution_name(
 pub(super) fn procedure_publication_key(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     name: &str,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     let constructed = qualify_execution_name(namespace, name)?;
     tcl_registry::native_procedure::published_procedure_key(constructed, dialect)
@@ -477,8 +477,10 @@ pub(in super::super) fn constructed_script_words_with_optional_metadata(
         Some(metadata) => match metadata.source_analysis_input() {
             Some(input) => input.lexer_config(),
             None => tcl_lexer::LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::of_point(metadata.context().environment.point()?)
-                    .lexer_grammar,
+                tcl_native_model::InvocationDialect::of_point(
+                    metadata.context().environment.point()?,
+                )
+                .lexer_grammar,
             ),
         },
         None => bindings.invocation_dialect().map_or_else(

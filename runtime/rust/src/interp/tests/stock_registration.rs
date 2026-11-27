@@ -139,7 +139,7 @@ fn stock_root_installation_keeps_the_actual_publication_receipt_after_retirement
                 )
                 .unwrap();
             interpreter.register_stock_ensemble(
-                tcl_registry::invocation_words::EnsembleImplementationFamily::String,
+                tcl_native_model::EnsembleImplementationFamily::String,
                 b"retiring",
                 registration_host_worker,
                 &[(b"length", registration_host_worker)],
@@ -234,7 +234,7 @@ fn stock_nested_installation_stops_before_attesting_a_refused_or_recreated_slot(
                 Code::Ok
             );
             interpreter.register_stock_nested_ensemble(
-                tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+                tcl_native_model::EnsembleImplementationFamily::Binary,
                 name,
                 registration_host_worker,
                 &[(b"hex", registration_host_worker)],

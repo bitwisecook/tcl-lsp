@@ -132,7 +132,7 @@ struct HostCommandShim {
 /// native-command seam already hands over, plus the engine's name list.
 struct VmOriginalObject {
     value: VmOriginalValue,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     interpreter: (u64, u64),
 }
 
@@ -519,7 +519,7 @@ impl TclVmEngine {
         let native = tcl_registry::model::ingress::resolve_known_environment(profile)
             .and_then(|environment| environment.catalogue_profile())
             .filter(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile)
+                tcl_native_model::InvocationDialect::of_profile(profile)
                     .execution_point()
                     .is_some()
             })

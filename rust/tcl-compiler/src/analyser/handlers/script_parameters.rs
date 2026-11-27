@@ -192,7 +192,7 @@ impl Analyser {
             .as_deref()
             .and_then(tcl_registry::CommandRegistry::profile)
             .and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).parameter_grammar()
+                tcl_native_model::InvocationDialect::of_profile(profile).parameter_grammar()
             })
         else {
             return;

@@ -23,6 +23,7 @@ use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 use tcl_cmd_core::CmdError;
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_runtime_api::{Code, Completion};
 
 /// Build an options dict value `-code N -level L [-errorcode ..] [-errorinfo ..]`.
@@ -95,7 +96,7 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
     );
     let update = match details.error_code.resolve(|| {
         vm.native_invocation_dialect()
-            .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
+            .wrong_arguments_protocol(Some(tcl_native_model::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
             .map(|protocol| protocol.error_code().as_bytes().to_vec())
             .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("wrong arguments"))
     }) {
@@ -112,7 +113,7 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
             })
             .flatten()
             .and_then(
-                tcl_registry::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result,
+                tcl_native_model::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result,
             )
     });
     let string_result = match string_protocol {
@@ -181,7 +182,7 @@ pub(super) fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return native_wrong_args(vm, protocol.synopsis());
     }
     let msg = &args[0];
-    if protocol == tcl_registry::invocation_words::NativeErrorArguments::JimStackTrace {
+    if protocol == tcl_native_model::NativeErrorArguments::JimStackTrace {
         let trace = args.get(1).cloned().unwrap_or_else(Value::empty);
         if args.len() == 2 {
             vm.jim_errors.stack.adopt_explicit(trace.clone());

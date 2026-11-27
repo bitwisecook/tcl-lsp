@@ -126,7 +126,7 @@ fn captured_c85_namespace_root_retains_accepted_and_partial_upvar_preparation() 
                 plan.selection,
                 &captured,
                 plan.operand_from,
-                tcl_registry::InvocationDialect::of_profile(profile),
+                tcl_native_model::InvocationDialect::of_profile(profile),
                 plan.context,
             )
             .unwrap()
@@ -196,7 +196,7 @@ fn captured_namespace_no_hook_workers_retain_original_named_rewrites() {
             registry
                 .native_compilation_for_registration(
                     "tcl::namespace::unregistered",
-                    tcl_registry::InvocationDialect::of_profile(profile)
+                    tcl_native_model::InvocationDialect::of_profile(profile)
                 )
                 .is_none()
         );

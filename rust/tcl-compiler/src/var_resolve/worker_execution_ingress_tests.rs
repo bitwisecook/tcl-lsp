@@ -33,7 +33,7 @@ fn retain_worker_namespace_geometry(context: &mut ResolveContext) {
         })
     };
     let root = key(1, &[]);
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     context.hosted_execution_context = Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule);

@@ -41,19 +41,19 @@ pub(crate) struct OriginalJimNamespaceHelperSource {
     body: obj::NativeObjectLifetime,
     context: Weak<crate::native_source::NativeJimObjectContext>,
     origin: Rc<crate::native_source::NativeJimSourceOrigin>,
-    kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+    kind: tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind,
 }
 
 impl OriginalJimNamespaceHelperSource {
     pub(super) fn capture(
         body: &Owned,
         context: &Rc<crate::native_source::NativeJimObjectContext>,
-        kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+        kind: tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         if !matches!(
             kind,
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
-                | tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                | tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info
         ) {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original naming helper Source purpose",
@@ -563,7 +563,7 @@ impl ProcDef {
         Ok(self
             .original_jim_namespace_helper_origin(actual)?
             .and_then(|(kind, origin)| {
-                (kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import)
+                (kind == tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import)
                     .then_some(origin)
             }))
     }
@@ -573,7 +573,7 @@ impl ProcDef {
         actual: &Interp,
     ) -> Result<
         Option<(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind,
             Rc<crate::native_source::NativeJimSourceOrigin>,
         )>,
         tcl_syntax::value::ValueError,

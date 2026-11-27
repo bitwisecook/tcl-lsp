@@ -370,7 +370,7 @@ impl Interp {
             return Code::Error;
         }
         if let Err(code) = self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
         ) {
             self.codegen_activation_leave(code);
             return code;

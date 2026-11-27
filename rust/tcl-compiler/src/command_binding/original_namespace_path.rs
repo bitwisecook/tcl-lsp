@@ -72,7 +72,7 @@ mod tests {
     fn analyse(source: &str, version: TclVersion) -> SourceCommandBindings {
         let context =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name());
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
@@ -197,7 +197,7 @@ mod tests {
         )
         .unwrap();
         let word = &plan.commands.last().unwrap().words[2];
-        let policy = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+        let policy = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6)
             .authored_name_policy()
             .unwrap();
         let input = SignatureSourceNameInput::OriginalWord(
@@ -226,7 +226,7 @@ mod tests {
         std::sync::Arc::make_mut(&mut unknown.unknown_lookup_namespaces)
             .insert(selected[0].clone());
         assert!(super::select(&unknown, &root, &input).is_none());
-        let other_policy = tcl_registry::InvocationDialect::for_version(TclVersion::V9_1)
+        let other_policy = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_1)
             .authored_name_policy()
             .unwrap();
         let foreign = SignatureSourceNameInput::OriginalWord(
@@ -244,7 +244,7 @@ mod tests {
         ] {
             let mut unsupported = (**state).clone();
             std::sync::Arc::make_mut(&mut unsupported.baseline).execution_name_policy =
-                tcl_registry::InvocationDialect::of_profile(profile)
+                tcl_native_model::InvocationDialect::of_profile(profile)
                     .authored_name_policy()
                     .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe);
             assert!(super::select(&unsupported, &root, &input).is_none());

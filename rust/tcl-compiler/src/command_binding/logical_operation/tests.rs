@@ -284,7 +284,7 @@ fn logical_source_prefix_words_keep_actual_alias_lineage_without_name_key_policy
     profile.name = "original-logical-source-prefix-without-name-policy";
     let profile = profile.intern();
     assert!(
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .is_none()
     );

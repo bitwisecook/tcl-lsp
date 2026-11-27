@@ -41,16 +41,16 @@ pub fn authoring_invocation_dialect(
     registry: &tcl_registry::CommandRegistry,
     profile: Option<&tcl_dialect::DialectProfile>,
     config: tcl_lexer::LexerConfig,
-) -> tcl_registry::InvocationDialect {
+) -> tcl_native_model::InvocationDialect {
     let mut dialect = profile.or_else(|| registry.profile()).map_or_else(
-        || tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        || tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
         |profile| {
-            let selected = tcl_registry::InvocationDialect::of_profile(profile);
+            let selected = tcl_native_model::InvocationDialect::of_profile(profile);
             if selected.core_point.is_some() || selected.tcl_version.is_some() {
                 return selected;
             }
             tcl_registry::model::ingress::default_execution_point_for_profile(profile)
-                .map_or(selected, tcl_registry::InvocationDialect::of_point)
+                .map_or(selected, tcl_native_model::InvocationDialect::of_point)
         },
     );
     dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
@@ -368,7 +368,7 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let profile = resolve_environment("tcl").unit_profile();
         assert!(
-            tcl_registry::InvocationDialect::of_profile(profile)
+            tcl_native_model::InvocationDialect::of_profile(profile)
                 .tcl_version
                 .is_none()
         );

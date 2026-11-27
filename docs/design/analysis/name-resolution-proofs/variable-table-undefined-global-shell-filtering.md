@@ -79,7 +79,7 @@ No original observation for this exact question is attached for this provider.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_variable_table.rs](../../../../rust/tcl-registry/src/native_variable_table.rs), `native_variable_table_protocol`: Selects table/name semantics only with an independently supplied actual ABI.
+- [rust/tcl-native-model/src/native_variable_table.rs](../../../../rust/tcl-native-model/src/native_variable_table.rs), `native_variable_table_protocol`: Selects table/name semantics only with an independently supplied actual ABI.
 - [rust/tcl-core-types/src/native_hash_order.rs](../../../../rust/tcl-core-types/src/native_hash_order.rs), `NativeEntryLedger`: Keeps original entry chronology and optional selected hash order separately from defined inventory.
 
 ## Evidence

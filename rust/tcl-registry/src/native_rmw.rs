@@ -18,8 +18,6 @@
 
 //! Native captured read/modify/write behaviour, including missing contents.
 
-use crate::InvocationDialect;
-
 /// Native operation whose captured read protocol has been measured.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeRmwOperation {
@@ -57,10 +55,16 @@ impl NativeLegacyIncrementProtocol {
         self.recipe
     }
 }
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait LegacyIncrementDialect {
     /// Select the actual C8.4 or pinned Jim handler, independently of source grammar.
     #[must_use]
-    pub fn native_legacy_increment_protocol(self) -> Option<NativeLegacyIncrementProtocol> {
+    fn native_legacy_increment_protocol(self) -> Option<NativeLegacyIncrementProtocol>;
+}
+
+impl LegacyIncrementDialect for tcl_native_model::InvocationDialect {
+    fn native_legacy_increment_protocol(self) -> Option<NativeLegacyIncrementProtocol> {
         use tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe as Recipe;
         let getter = self.native_scalar_getter_protocol()?;
         let recipe = if getter.tcl_version() == Some(tcl_dialect::TclVersion::V8_4) {
@@ -231,10 +235,41 @@ pub enum NativeRmwReadFailure {
     MissingNamespace,
 }
 
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait NativeRmwDialect {
     /// Selected amount grammar, independent of current variable contents.
     #[must_use]
-    pub fn native_rmw_amount_grammar(
+    fn native_rmw_amount_grammar(
+        self,
+        operation: NativeRmwOperation,
+    ) -> Option<NativeRmwAmountGrammar>;
+
+    /// Amount-validation timing measured independently of missing contents.
+    #[must_use]
+    fn native_rmw_amount_validation(
+        self,
+        operation: NativeRmwOperation,
+    ) -> Option<NativeRmwAmountValidation>;
+
+    /// Exact failure code, retaining the original name and already parsed root
+    /// separately. Unmeasured failure presentations remain absent.
+    #[must_use]
+    fn native_rmw_failure_error_code(
+        self,
+        name: &[u8],
+        root: &[u8],
+        failure: NativeRmwReadFailure,
+    ) -> Option<NativeRmwFailureErrorCode>;
+
+    /// Selected native read protocol, independent of command availability.
+    /// Jim 0.84 uses zero for missing contents but has no variable-trace callback protocol.
+    #[must_use]
+    fn native_rmw_read_policy(self, operation: NativeRmwOperation) -> Option<NativeRmwReadPolicy>;
+}
+
+impl NativeRmwDialect for tcl_native_model::InvocationDialect {
+    fn native_rmw_amount_grammar(
         self,
         operation: NativeRmwOperation,
     ) -> Option<NativeRmwAmountGrammar> {
@@ -252,9 +287,7 @@ impl InvocationDialect {
         }
     }
 
-    /// Amount-validation timing measured independently of missing contents.
-    #[must_use]
-    pub fn native_rmw_amount_validation(
+    fn native_rmw_amount_validation(
         self,
         operation: NativeRmwOperation,
     ) -> Option<NativeRmwAmountValidation> {
@@ -278,10 +311,7 @@ impl InvocationDialect {
         }
     }
 
-    /// Exact failure code, retaining the original name and already parsed root
-    /// separately. Unmeasured failure presentations remain absent.
-    #[must_use]
-    pub fn native_rmw_failure_error_code(
+    fn native_rmw_failure_error_code(
         self,
         name: &[u8],
         root: &[u8],
@@ -303,13 +333,7 @@ impl InvocationDialect {
         }
     }
 
-    /// Selected native read protocol, independent of command availability.
-    /// Jim 0.84 uses zero for missing contents but has no variable-trace callback protocol.
-    #[must_use]
-    pub fn native_rmw_read_policy(
-        self,
-        operation: NativeRmwOperation,
-    ) -> Option<NativeRmwReadPolicy> {
+    fn native_rmw_read_policy(self, operation: NativeRmwOperation) -> Option<NativeRmwReadPolicy> {
         match operation {
             NativeRmwOperation::Increment => self
                 .tcl_version
@@ -375,6 +399,7 @@ impl NativeRmwReadPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_native_model::InvocationDialect;
 
     #[test]
     fn increment_object_hooks_retain_actual_conversion_schedule() {

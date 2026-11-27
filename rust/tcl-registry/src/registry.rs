@@ -195,26 +195,26 @@ pub struct CommandRegistry {
 #[derive(Default)]
 struct NativeRegistrationCache {
     compilers: FxHashMap<
-        (crate::InvocationDialect, String),
+        (tcl_native_model::InvocationDialect, String),
         Option<crate::native_compilation::NativeCompilationSpec>,
     >,
     lookups: FxHashMap<
-        (crate::InvocationDialect, String),
+        (tcl_native_model::InvocationDialect, String),
         Option<crate::native_compilation::NativeCompilerImplementationLookup>,
     >,
     /// Each dialect's implementation-path entries by unrooted slot, in the
     /// registry's own iteration order, so a registration reads its slot's
     /// entries instead of every visible spec.
-    prerequisites: FxHashMap<crate::InvocationDialect, Arc<PrerequisiteIndex>>,
+    prerequisites: FxHashMap<tcl_native_model::InvocationDialect, Arc<PrerequisiteIndex>>,
     /// Each dialect's registration slots by unrooted slot, so selecting one
     /// registration reads its slot instead of every visible spec.
-    registration_slots: FxHashMap<crate::InvocationDialect, Arc<RegistrationSlots>>,
+    registration_slots: FxHashMap<tcl_native_model::InvocationDialect, Arc<RegistrationSlots>>,
     /// The few specs each registry-wide query can select, so those queries
     /// read a handful of specs instead of every registered command.
     query_surfaces: Option<Arc<RegistryQuerySurfaces>>,
     dialect_semantics: FxHashMap<
         (
-            crate::InvocationDialect,
+            tcl_native_model::InvocationDialect,
             tcl_dialect::model::InvocationRealm,
         ),
         Arc<EffectiveRegistrySemantics>,
@@ -685,7 +685,7 @@ impl CommandRegistry {
                 self.control_release(Some(query)),
             ),
             None => self.profile().map_or(Grammar::Unknown, |profile| {
-                Grammar::for_dialect(crate::InvocationDialect::of_profile(profile))
+                Grammar::for_dialect(tcl_native_model::InvocationDialect::of_profile(profile))
             }),
         }
     }

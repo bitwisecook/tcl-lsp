@@ -530,7 +530,7 @@ impl CompilerTraversal<'_> {
             .state
             .baseline
             .compilation_dialect()
-            .and_then(tcl_registry::InvocationDialect::native_bytecode_storage_protocol)
+            .and_then(tcl_native_model::InvocationDialect::native_bytecode_storage_protocol)
         else {
             self.require_provider();
             return None;
@@ -1312,7 +1312,7 @@ impl CompilerTraversal<'_> {
         &self,
         text: &str,
         expression: tcl_registry::native_compilation::NativeCompiledExpressionOperand,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         context: SourceExecutionContext<'_>,
     ) -> (
         Vec<NativeExpressionCompilerStep>,
@@ -1878,7 +1878,7 @@ fn compilation_selection(
 /// Eligibility of the original head syntax, before any runtime name lookup.
 fn head_compilation_capability(
     words: &[WordExpr],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<bool> {
     words
         .first()

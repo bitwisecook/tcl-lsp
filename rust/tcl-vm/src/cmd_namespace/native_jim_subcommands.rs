@@ -21,7 +21,7 @@
 use super::{Code, Completion, Value, Vm, err};
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use tcl_cmd_core::CmdError;
-use tcl_registry::native_jim_lookup::{
+use tcl_native_model::native_jim_lookup::{
     NativeJimNamespaceSubcommand, NativeJimNamespaceSubcommandTable,
 };
 use tcl_syntax::value::ValueError;

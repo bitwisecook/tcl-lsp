@@ -152,8 +152,8 @@ fn authored_case_presentation_keeps_incomplete_list_separate_from_invocation() {
                     crate::InvocationWord::Literal("switch"),
                     &words,
                 )
-                .with_dialect(crate::InvocationDialect::for_version(version)),
-                crate::InvocationDialect::for_version(version).authoring_query(),
+                .with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
+                tcl_native_model::InvocationDialect::for_version(version).authoring_query(),
             )
             .resolved()
             .unwrap();
@@ -176,8 +176,8 @@ fn authored_case_presentation_keeps_incomplete_list_separate_from_invocation() {
                         crate::InvocationWord::Literal("switch"),
                         &words,
                     )
-                    .with_dialect(crate::InvocationDialect::for_version(version)),
-                    crate::InvocationDialect::for_version(version).authoring_query(),
+                    .with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
+                    tcl_native_model::InvocationDialect::for_version(version).authoring_query(),
                 )
                 .resolved()
                 .unwrap();
@@ -195,8 +195,8 @@ fn authored_case_presentation_keeps_incomplete_list_separate_from_invocation() {
                     crate::InvocationWord::Literal("switch"),
                     &words,
                 )
-                .with_dialect(crate::InvocationDialect::for_version(version)),
-                crate::InvocationDialect::for_version(version).authoring_query(),
+                .with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
+                tcl_native_model::InvocationDialect::for_version(version).authoring_query(),
             )
             .resolved()
             .unwrap();
@@ -210,7 +210,7 @@ fn authored_case_layout_retains_dynamic_subject_and_exact_control_words() {
     // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
     let registry = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let arguments = [
             crate::InvocationWord::KnownBytes(b"--"),
             crate::InvocationWord::Dynamic,
@@ -253,7 +253,8 @@ fn source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selectio
     for environment in ["tcl8.4", "tcl8.6", "tcl9.1", "jim", "f5-irules"] {
         let context =
             crate::model::ingress::resolve_environment(environment).default_context_registry();
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
         let words = [
             KnownBytes(b"-exact"),
             Dynamic,
@@ -336,7 +337,8 @@ fn authored_source_shape_advice_keeps_unknown_payloads_and_selected_dialect() {
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let context =
             crate::model::ingress::resolve_environment(environment).default_context_registry();
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
         for arguments in [
             vec![Dynamic, Dynamic, Dynamic],
             vec![Literal("-regexp"), Dynamic, Dynamic, Dynamic],

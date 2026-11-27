@@ -31,7 +31,7 @@ fn native_bindings(source: &str) -> (tcl_vm::Vm, SourceCommandBindings) {
         registry,
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

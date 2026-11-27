@@ -27,7 +27,7 @@ fn authored_list_membership(
     vm: &mut Vm,
     needle: &Value,
     list: &Value,
-    selected: tcl_registry::InvocationDialect,
+    selected: tcl_native_model::InvocationDialect,
     context: super::OriginalNumericCommandContext<'_>,
 ) -> Result<bool, TclError> {
     // An inherited operation is currency only. The authored grammar

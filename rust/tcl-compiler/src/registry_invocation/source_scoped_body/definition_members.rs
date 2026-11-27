@@ -702,7 +702,7 @@ impl OriginalSourceDefinitionMemberRegion {
             .parent
             .source
             .dialect()
-            .and_then(tcl_registry::InvocationDialect::authored_name_policy)
+            .and_then(tcl_native_model::InvocationDialect::authored_name_policy)
             .map(tcl_syntax::naming::NamePolicyProtocol::string_protocol);
         let references = indices
             .into_iter()
@@ -927,7 +927,7 @@ impl OriginalSourceDefinitionMemberRegion {
             .parent
             .source
             .dialect()
-            .and_then(tcl_registry::InvocationDialect::authored_name_policy)
+            .and_then(tcl_native_model::InvocationDialect::authored_name_policy)
             .map(|policy| {
                 tcl_registry::native_compiler_words::NativeCompilerWords::capture(
                     original,

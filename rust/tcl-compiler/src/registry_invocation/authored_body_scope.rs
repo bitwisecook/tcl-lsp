@@ -35,7 +35,7 @@ pub(crate) struct OriginalAuthoredSourceBodyScope {
     entry: SourceAnalysisEntry,
     profile: Option<&'static tcl_dialect::DialectProfile>,
     realm: tcl_dialect::model::InvocationRealm,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     commands: Arc<[NativeScriptCommandWords]>,
     parent: Option<Arc<Self>>,
     conditional_source_geometry:
@@ -208,7 +208,7 @@ impl OriginalAuthoredSourceBodyScope {
             })
     }
 
-    pub(crate) fn original_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(crate) fn original_word_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.dialect
     }
     pub(crate) fn source_realm(&self) -> tcl_dialect::model::InvocationRealm {
@@ -432,7 +432,7 @@ pub(crate) struct OriginalAuthoredParameterSourceCommand {
     words: Vec<AuthoredParameterSourceWord>,
     aliases: Vec<tcl_registry::VariableCellAliasTransition>,
     roles: Vec<(usize, tcl_registry::ArgRole)>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     continues: bool,
     obligations: [super::original_procedure_call::OriginalAuthoredBodyCallObligation; 3],
 }
@@ -570,7 +570,7 @@ struct AuthoredParameterSourceEffects {
 fn authored_parameter_source_effects(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     selected: &super::ResolvedStatementInvocation,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<AuthoredParameterSourceEffects> {
     let facts = schema.facts();
     let (roles, complete) = schema.authored_source_argument_roles();

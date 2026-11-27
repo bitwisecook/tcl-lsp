@@ -205,7 +205,7 @@ fn original_literal_parameter_arguments(
     effective: &crate::registry_invocation::EffectiveCommandWords,
     selectors: usize,
     parameters: &[tcl_syntax::formal_params::FormalParameter],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<Vec<Option<(usize, String)>>> {
     use tcl_syntax::formal_params::FormalArgumentBinding;
     let count = effective.words.len().checked_sub(1 + selectors)?;

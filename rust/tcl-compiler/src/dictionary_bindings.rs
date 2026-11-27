@@ -25,6 +25,7 @@ use crate::var_resolve::{
 use tcl_registry::dictionary_scope::{
     DictionaryMissingKey, DictionaryScopeBindings, DictionaryScopePlan,
 };
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
 /// One wrapper source instruction in its actual variable activation.
@@ -145,7 +146,7 @@ pub enum DictionaryScopeFinish {
 
 type Pairs = Vec<(String, String)>;
 
-fn parse_dictionary(value: &str, dialect: tcl_registry::InvocationDialect) -> Option<Pairs> {
+fn parse_dictionary(value: &str, dialect: tcl_native_model::InvocationDialect) -> Option<Pairs> {
     let items: Vec<String> =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar)
             .split_list(value)
@@ -168,7 +169,7 @@ fn parse_dictionary(value: &str, dialect: tcl_registry::InvocationDialect) -> Op
 fn selected_dictionary(
     value: &str,
     path: &[String],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<Pairs> {
     let mut dictionary = parse_dictionary(value, dialect)?;
     for key in path {
@@ -456,7 +457,7 @@ fn write_path(
     value: &str,
     path: &[String],
     updates: &[(String, Option<String>)],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<String> {
     let layout = dialect.native_dictionary_layout()?;
     let mut dictionary = parse_dictionary(value, dialect)?;
@@ -778,7 +779,7 @@ mod tests {
         words: &[&str],
         registry: &CommandRegistry,
     ) -> DictionaryScopeActivation {
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         state.invocation_dialect = Some(dialect);
         let arguments = InvocationArguments::literals(words).with_dialect(dialect);
         let DictionaryScopeSelection::Selected(plan) = spec.select(arguments, 0) else {
@@ -796,7 +797,8 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for name in ["", "$missing"] {
             let mut state = ResolveContext::for_function("::p");
-            let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
             state.invocation_dialect = Some(dialect);
             let words = ["with", name, ""];
             let selected = registry.resolve_structured_invocation(
@@ -988,7 +990,7 @@ mod tests {
     fn entry_array_conflict_preserves_only_preceding_mapping_stores() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let mut state = ResolveContext::for_function("::p");
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         state.define_literal("d", "first NEW second OTHER", registry);

@@ -45,10 +45,10 @@ fn proc_usage(vm: &mut Vm, proc: &ProcDef, invoked: &Value) -> Result<Vec<u8>, C
 
 fn procedure_usage_protocol(
     vm: &mut Vm,
-) -> Result<tcl_registry::native_usage::NativeUsageProtocol, Completion<Value>> {
+) -> Result<tcl_native_model::native_usage::NativeUsageProtocol, Completion<Value>> {
     vm.native_invocation_dialect()
         .usage_protocol(Some(
-            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
         ))
         .ok_or_else(|| {
             vm.refuse_host_command("native procedure usage protocol is unavailable".into())

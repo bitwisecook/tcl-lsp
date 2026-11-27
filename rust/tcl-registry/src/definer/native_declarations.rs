@@ -21,6 +21,7 @@
 use super::member_effect::DeclaredMemberVisibility;
 use super::{DefinitionBodyGrammar, DefinitionSpecialMemberKind, MemberKind, MemberSpec};
 use crate::arg_role::ArgRole;
+use crate::special_vars::BootstrapDialect;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
@@ -406,8 +407,8 @@ impl DefinitionBodyGrammar {
         }
         let version = TclVersion::from_version_string(version?)?;
         let layout =
-            crate::native_tcloo_method_definition::NativeTclooMethodDefinitionProtocol::select(
-                crate::InvocationDialect::for_version(version),
+            tcl_native_model::native_tcloo_method_definition::NativeTclooMethodDefinitionProtocol::select(
+                tcl_native_model::InvocationDialect::for_version(version),
             )?
             .layout(3)?;
         if self.construction_member_effect(member)
@@ -441,7 +442,7 @@ impl DefinitionBodyGrammar {
     pub fn native_deferred_forward_setter(
         &self,
         member: &MemberSpec,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         argument_count: usize,
     ) -> Option<tcl_syntax::naming::NativeNameProtocol> {
         // naming.tcloo.original-forward-registration-prefix
@@ -472,7 +473,7 @@ impl DefinitionBodyGrammar {
         &self,
         member: &MemberSpec,
         arguments: &[&'a str],
-        dialect: Option<crate::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<&'a str> {
         let (kind, name) = self.single_native_inherited_class(member, arguments, dialect)?;
         (kind == NativeInheritedClassKind::Superclass).then_some(name)
@@ -485,7 +486,7 @@ impl DefinitionBodyGrammar {
         &self,
         member: &MemberSpec,
         arguments: &[&'a str],
-        dialect: Option<crate::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<(NativeInheritedClassKind, &'a str)> {
         let dialect = dialect?;
         let kind = match member.keyword {
@@ -605,7 +606,7 @@ impl DefinitionBodyGrammar {
     #[must_use]
     pub fn native_constructor_boundary(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<NativeConstructorBoundary> {
         (self.profile.has_native_definition_workers()
             && dialect.native_bootstrap_protocol()?.initializes_tcl_oo())

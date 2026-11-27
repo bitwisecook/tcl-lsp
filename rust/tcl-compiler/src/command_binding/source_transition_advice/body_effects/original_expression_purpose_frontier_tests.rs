@@ -27,7 +27,7 @@ fn assert_native_expression_requires_its_parser(
     input: &crate::analyser::ResolvedAnalysisInput,
 ) {
     let native_policy = AdviceNamingPolicy::Native(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
             .authored_name_policy()
             .unwrap(),
     );

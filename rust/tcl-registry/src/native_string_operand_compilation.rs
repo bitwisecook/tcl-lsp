@@ -322,7 +322,7 @@ mod tests {
     use NativeStringOperandOperation as Operation;
 
     fn words(source: &str, version: TclVersion) -> Vec<Shape> {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -342,7 +342,7 @@ mod tests {
         operation: Operation,
         version: TclVersion,
     ) -> NativeCompilationSelection {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -428,7 +428,7 @@ mod tests {
             select("string cat a {*}$b", Operation::Cat, TclVersion::V9_0),
             NativeCompilationSelection::Generic
         );
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
         let source = "string cat a - $b {c} d";
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),

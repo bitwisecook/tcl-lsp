@@ -19,6 +19,7 @@
 //! List builtins, reusing `tcl_syntax::list` for split/merge semantics.
 
 use tcl_cmd_core::list as list_core;
+use tcl_registry::native_list_assignment::ListAssignmentDialect;
 use tcl_runtime_api::Completion;
 
 use crate::command::err_with_code;
@@ -371,17 +372,18 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
     ) -> Result<usize, tcl_syntax::value::ValueError> {
         value.native_character_count_with_protocol(
             tcl_syntax::native_string::NativeStringProtocol::Jim084,
-            tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString,
+            tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString,
         )
     }
     fn jim_search_option(&mut self, original: &Value) -> Result<usize, tcl_cmd_core::CmdError> {
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            &tcl_cmd_core::native_jim_lsearch::OPTIONS,
-        );
+        let table =
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                &tcl_cmd_core::native_jim_lsearch::OPTIONS,
+            );
         match self.native_jim_enum_from_original_checked(
             original,
             &table,
-            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(true),
             None,
         )? {
             Ok(index) => Ok(index),
@@ -546,7 +548,7 @@ fn vm_compare_original(
     let mut completion = if vm.index_jim_sort_selected() {
         vm.eval_original_script_value(
             command,
-            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
             None,
         )
         .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?
@@ -655,7 +657,7 @@ fn original_comparison_result(
 ) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
     use crate::expr::{OriginalNumericCommandContext, original_numeric_command_ops};
     use tcl_cmd_core::CmdError;
-    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose;
     use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
     let context = OriginalNumericCommandContext {
         original: Some(original.original_scope()),

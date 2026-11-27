@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use tcl_registry::special_vars::BootstrapDialect;
 
 fn core(engine: &str) -> Vm {
     Vm::with_native_core(

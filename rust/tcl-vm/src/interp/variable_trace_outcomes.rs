@@ -137,7 +137,7 @@ impl Vm {
             &physical_owner.currency,
             physical_owner.interpreter,
         )?;
-        if recipe == tcl_registry::native_variable_trace::NativeTraceStateRecipe::MoveResult {
+        if recipe == tcl_native_model::native_variable_trace::NativeTraceStateRecipe::MoveResult {
             let reuse = self
                 .original_trace_state_mut(&physical_owner)?
                 .native_c_result

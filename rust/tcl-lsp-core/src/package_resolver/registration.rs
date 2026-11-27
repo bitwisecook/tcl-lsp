@@ -21,9 +21,11 @@
 #[cfg(test)]
 use tcl_lexer::Span;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Token};
+#[cfg(test)]
+use tcl_native_model::InvocationDialect;
 use tcl_registry::CommandRegistry;
 #[cfg(test)]
-use tcl_registry::{InvocationDialect, InvocationWord, InvocationWords};
+use tcl_registry::{InvocationWord, InvocationWords};
 
 pub(super) struct Registration {
     name: Option<String>,

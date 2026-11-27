@@ -213,7 +213,7 @@ fn original_jim_namespace_code_keeps_reached_helper_getters_and_original_argumen
                 None,
                 false,
                 Some((
-                    tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                     body.as_ptr(),
                 )),
                 None,
@@ -328,11 +328,11 @@ fn jim_namespace_code_keeps_actual_helper_publication_through_refresh_and_replac
     );
     assert!(interp.resolve_cmd_token(b"namespace code").is_none());
     assert!(interp.native_execution_refusal().is_none());
-    let descriptor = tcl_registry::InvocationDialect::of_profile(
+    let descriptor = tcl_native_model::InvocationDialect::of_profile(
         crate::environment::profile_for_dialect("jimtcl"),
     )
     .native_jim_namespace_helper(
-        tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Code,
+        tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Code,
     )
     .unwrap();
     let mut foreign = Interp::new();

@@ -217,7 +217,7 @@ impl Analyser {
                     words.arguments(),
                     invocation
                         .dialect
-                        .and_then(tcl_registry::InvocationDialect::authoring_query),
+                        .and_then(tcl_native_model::InvocationDialect::authoring_query),
                 )
             });
             (invocation, completion)

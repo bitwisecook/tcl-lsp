@@ -154,7 +154,7 @@ fn native_existence_unit(
     let (owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(captured)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             ..Default::default()
@@ -282,7 +282,7 @@ fn existence_folding_requires_actual_entry_and_selected_query() {
         },
         &crate::command_binding::SourceAnalysisEntry {
             unknown_entry: true,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         },
     );
@@ -317,7 +317,7 @@ fn assert_missing_entry_retains_only_declared_query(
         registry,
         crate::command_binding::SourceAnalysisOptions {
             unknown_entry: true,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         },

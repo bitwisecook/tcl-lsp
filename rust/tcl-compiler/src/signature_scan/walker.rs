@@ -397,7 +397,7 @@ fn resolve_scan_dispatch(
             procedure_words,
             transitions: schema.state_transitions(),
             source_path: match tcl_registry::source_file::path_candidate(schema.words.arguments()) {
-                tcl_registry::source_file::SourceFileSelection::Selected(path) => Some((
+                tcl_native_model::source_file::SourceFileSelection::Selected(path) => Some((
                     path.path_at + 1,
                     schema.words.arguments().literal_at(path.path_at).is_some(),
                 )),
@@ -1083,7 +1083,7 @@ mod tests {
             registry,
             crate::command_binding::SourceAnalysisOptions {
                 metadata_context: metadata,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()

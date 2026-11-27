@@ -705,7 +705,7 @@ fn command_reads(
     let dialect = ctx.invocation_dialect.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     for command in commands {
         command_role_reads(&command.words, dialect, ctx, out, registry);
@@ -758,7 +758,7 @@ fn nested_script_commands(
 #[inline(never)]
 fn command_role_reads(
     words: &[tcl_lexer::NativeWord],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     ctx: &ResolveContext,
     out: &mut Vec<Place>,
     registry: &CommandRegistry,

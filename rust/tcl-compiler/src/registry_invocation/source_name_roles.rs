@@ -147,7 +147,7 @@ impl SourceNameRoleInventory {
 pub(crate) fn standalone_written_source_name_roles(
     registry: &CommandRegistry,
     words: &[tcl_lexer::NativeWord],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<SourceNameRoleInventory> {
     let first = words.first()?;
     let config = first.config();
@@ -199,7 +199,7 @@ pub(crate) fn standalone_written_source_name_roles(
                 tcl_registry::InvocationWord::Literal(head),
                 &arguments,
             ),
-            dialect.and_then(tcl_registry::InvocationDialect::authoring_query),
+            dialect.and_then(tcl_native_model::InvocationDialect::authoring_query),
         )
         .resolved()?;
     let facts = Box::new(invocation.facts());
@@ -395,7 +395,8 @@ fn source_name_roles_from_point_words(
             }
         })
         .collect::<Vec<_>>();
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(retained_input.unit_profile());
+    let mut dialect =
+        tcl_native_model::InvocationDialect::of_profile(retained_input.unit_profile());
     dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
     dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
     let context = retained_input.borrowed_context_registry();

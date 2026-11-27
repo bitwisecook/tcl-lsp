@@ -31,6 +31,7 @@ authors.workspace = true
 tcl-source = { path = "../tcl-source" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }

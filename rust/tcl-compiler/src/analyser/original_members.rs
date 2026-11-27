@@ -380,7 +380,7 @@ impl Analyser {
         .with_body_role_words(Some(parameters), Some(body), Some(advice.dialect()))
     }
 
-    fn original_member_source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    fn original_member_source_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.original_source_invocation_dialect()
     }
 
@@ -869,7 +869,7 @@ struct Producer<'a> {
     policy: tcl_syntax::naming::NamePolicyProtocol,
     name_purpose: OriginalSourceNamePurpose,
     resolved_input: crate::analyser::ResolvedAnalysisInput,
-    source_dialect: Option<tcl_registry::InvocationDialect>,
+    source_dialect: Option<tcl_native_model::InvocationDialect>,
     caller_scope: Option<SignatureNamespaceScope>,
     bindings: &'a crate::command_binding::SourceCommandBindings,
     readonly_names: Vec<(tcl_lexer::Span, SignatureSourceNameInput)>,

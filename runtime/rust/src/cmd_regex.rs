@@ -227,11 +227,11 @@ impl core_re::NativeRegexSource for Interp {
         words: &'static [&'static str],
     ) -> Result<usize, tcl_cmd_core::CmdError> {
         let table =
-            tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
         match self.native_jim_enum_from_original(
             *original,
             &table,
-            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false),
+            tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(false),
             Some(b"option"),
         )? {
             Ok(index) => Ok(index),

@@ -637,7 +637,7 @@ mod tests {
         unknown_entry: bool,
     ) -> (SourceCommandBindings, crate::ir::CommandTokens) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
         let bindings = SourceCommandBindings::analyse_with_options(
             source,

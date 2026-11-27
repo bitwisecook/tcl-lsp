@@ -44,7 +44,7 @@ pub(crate) fn register(vm: &mut Vm) {
 }
 
 fn register_file(vm: &mut Vm) {
-    use tcl_registry::invocation_words::EnsembleImplementationFamily;
+    use tcl_native_model::EnsembleImplementationFamily;
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
         .ensemble_implementation_namespace(EnsembleImplementationFamily::File)
@@ -77,9 +77,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register_file(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(
-            tcl_registry::invocation_words::EnsembleImplementationFamily::File,
-        )
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::File)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("file");

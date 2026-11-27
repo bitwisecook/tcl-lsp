@@ -193,7 +193,7 @@ impl InterpState {
             return true;
         };
         if let Some(admitted) = tcl_registry::CommandRegistry::native_stock_registration_admission(
-            tcl_registry::InvocationDialect::of_profile(self.command_surface_profile),
+            tcl_native_model::InvocationDialect::of_profile(self.command_surface_profile),
             name,
         ) {
             return admitted;

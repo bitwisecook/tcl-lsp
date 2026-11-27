@@ -436,7 +436,7 @@ impl CommandRegistry {
         let dialect = dialect.or_else(|| {
             arguments
                 .dialect()
-                .and_then(crate::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
         });
         let method_spelling = arguments.literal_at(0)?;
         self.get_for_surface(class_spec.name, dialect)
@@ -456,7 +456,7 @@ impl CommandRegistry {
                 words
                     .arguments()
                     .dialect()
-                    .and_then(crate::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
             }),
             package_version: self.package_floor_for_spec_at(class_spec, package_version),
         };

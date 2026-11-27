@@ -65,7 +65,7 @@ fn namespace_frame_fetch_observes_withdrawn_ensemble_rewrite_at_publication() {
         namespace_frame_arguments(&mut vm, NativeNamespaceFramePurpose::Eval, &scope).unwrap();
     assert!(before[0].is_same_object(&original));
     vm.reset_native_ensemble_rewrite(
-        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+        tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
     )
     .unwrap();
     let after =

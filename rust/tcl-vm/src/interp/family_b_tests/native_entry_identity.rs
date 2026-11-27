@@ -212,7 +212,9 @@ fn native_array_bootstrap_retains_actual_ensemble_and_private_hook_identity() {
         let vm = crate::native_fixture::core(release_profile(name));
         let ensemble = vm
             .native_invocation_dialect()
-            .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Array)
+            .ensemble_implementation_namespace(
+                tcl_native_model::EnsembleImplementationFamily::Array,
+            )
             .is_some();
         assert_eq!(
             matches!(vm.commands.get("array"), Some(Command::Ensemble(_))),
@@ -265,12 +267,12 @@ fn native_string_and_dict_bootstrap_export_the_actual_private_maps() {
             .unwrap();
         for (family, root, member) in [
             (
-                tcl_registry::EnsembleImplementationFamily::String,
+                tcl_native_model::EnsembleImplementationFamily::String,
                 "string",
                 "length",
             ),
             (
-                tcl_registry::EnsembleImplementationFamily::Dict,
+                tcl_native_model::EnsembleImplementationFamily::Dict,
                 "dict",
                 "get",
             ),
@@ -324,7 +326,7 @@ fn native_namespace_bootstrap_retains_actual_worker_and_profile_ownership() {
         let ensemble = vm
             .native_invocation_dialect()
             .ensemble_implementation_namespace(
-                tcl_registry::EnsembleImplementationFamily::Namespace,
+                tcl_native_model::EnsembleImplementationFamily::Namespace,
             )
             .is_some();
         assert_eq!(

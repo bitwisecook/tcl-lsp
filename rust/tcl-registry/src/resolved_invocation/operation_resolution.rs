@@ -148,7 +148,7 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
     sub: Option<&'r SubCommand>,
     form: Option<&'r CommandForm>,
     inherit_command: bool,
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     query: Option<&SurfaceQuery<'_>>,
 ) -> InvocationSemantics<'r, 'w> {
     let (arg_roles, arg_role_resolver, arg_role_resolver_roles) = match form {

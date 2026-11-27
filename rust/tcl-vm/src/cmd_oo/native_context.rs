@@ -82,7 +82,7 @@ pub(crate) struct OriginalOoCleanupFrame {
     steps: std::rc::Weak<Vec<super::Step>>,
     index: usize,
     method: String,
-    role: tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole,
+    role: tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole,
 }
 impl OriginalOoCleanupFrame {
     pub(crate) fn capture(position: usize, frame: &OoFrame) -> Self {
@@ -129,7 +129,7 @@ pub(super) struct OriginalMethodFrame {
     steps: std::rc::Weak<Vec<super::Step>>,
     index: usize,
     method: String,
-    role: tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole,
+    role: tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole,
 }
 impl OriginalMethodFrame {
     pub(super) fn capture(vm: &Vm) -> Option<Self> {

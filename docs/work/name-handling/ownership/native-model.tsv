@@ -1,0 +1,139 @@
+# module	item	destination	note
+logical_core_simulation	*	tcl-native-model	moved
+native_alias_registration	*	tcl-native-model	moved
+native_array	*	tcl-native-model	moved
+native_binary_usage	*	tcl-native-model	moved
+native_binary_value	*	tcl-native-model	moved
+native_boolean_truth	*	tcl-native-model	moved
+native_bytecode	*	tcl-native-model	moved
+native_command_creation	*	tcl-native-model	moved
+native_compiled_variables	*	tcl-native-model	moved
+native_compiler_pass	*	tcl-native-model	moved
+native_each_loop	*	tcl-native-model	moved
+native_encoding	*	tcl-native-model	moved
+native_ensemble_rewrite	*	tcl-native-model	moved
+native_error_log	*	tcl-native-model	moved
+native_error_objects	*	tcl-native-model	moved
+native_eval_object	*	tcl-native-model	moved
+native_expression_error	*	tcl-native-model	moved
+native_index_lookup	*	tcl-native-model	moved
+native_info_version	*	tcl-native-model	moved
+native_interpreter_options	*	tcl-native-model	moved
+native_jim_enum	*	tcl-native-model	moved
+native_jim_local	*	tcl-native-model	moved
+native_jim_lookup	*	tcl-native-model	moved
+native_jim_switch	*	tcl-native-model	moved
+native_lambda	*	tcl-native-model	moved
+native_list_index	*	tcl-native-model	moved
+native_namespace_code	*	tcl-native-model	moved
+native_namespace_name	*	tcl-native-model	moved
+native_namespace_upvar	*	tcl-native-model	moved
+native_numeric_error	*	tcl-native-model	moved
+native_object_append	*	tcl-native-model	moved
+native_object_vector	*	tcl-native-model	moved
+native_procedure_body	*	tcl-native-model	moved
+native_property_lookup	*	tcl-native-model	moved
+native_regex	*	tcl-native-model	moved
+native_return_options	*	tcl-native-model	moved
+native_string_length	*	tcl-native-model	moved
+native_string_materialization	*	tcl-native-model	moved
+native_tcloo_method_cache	*	tcl-native-model	moved
+native_tcloo_method_definition	*	tcl-native-model	moved
+native_unset_options	*	tcl-native-model	moved
+native_usage	*	tcl-native-model	moved
+native_variable_declaration	*	tcl-native-model	moved
+native_variable_destruction	*	tcl-native-model	moved
+native_variable_name	*	tcl-native-model	moved
+native_variable_table	*	tcl-native-model	moved
+native_variable_trace	*	tcl-native-model	moved
+native_wrong_arguments	*	tcl-native-model	moved
+invocation_words	InvocationDialect and its policy enums	tcl-native-model::invocation_dialect	moved
+invocation_words	InvocationWords, InvocationArguments, InvocationWord	tcl-registry	stays: the core's word view
+substitution	TemplateParseErrors	tcl-native-model::invocation_dialect	moved
+source_file	SourceFileGrammar, LogicalSourceFile*, SourceFileOperands, SourceFileSelection, InvocationDialect::source_file_grammar	tcl-native-model::source_file	moved
+source_file	select, path_candidate, AuthoredSourceFileLayoutAbstention	tcl-registry	stays: reads InvocationArguments and ResolvedInvocation
+commands::tcl::clock_	InvocationDialect clock bootstrap selectors	tcl-native-model::native_clock	moved
+native_ensemble	configuration, attachment and table protocols, member and worker selections	tcl-native-model::native_ensemble	moved
+native_ensemble	selectors over NativeCompilerWords	tcl-registry	stays until native_compiler_words moves
+native_command_literal	NativeCommandNameProtocol, NativeCompiledCommandLiteral, NativeCommandLiteralUnavailable	tcl-native-model::native_command_literal	moved
+native_command_literal	literal selection over NativeCompilerWords	tcl-registry	stays until native_compiler_words moves
+native_variable_trace	NativeVariableTraceProtocol::callback_compilation	tcl-registry::native_compilation::trace_callback_compilation	inverted: returns the compile vocabulary
+invocation_words	InvocationDialect::catch_positional_arity	tcl-registry::catch_invocation::catch_positional_arity	inverted: returns Arity
+native_argument_role_hook	*	pending	runtime model
+native_array_compilation	*	pending	compile recipe
+native_compilation	*	pending	compile recipe
+native_compiler_word_projection	*	pending	compile recipe
+native_compiler_words	*	pending	compile recipe
+native_control_compilation	*	pending	compile recipe
+native_control_instructions	*	pending	compile recipe
+native_coroutine_compilation	*	pending	compile recipe
+native_dictionary	*	pending	runtime model
+native_dictionary_compilation	*	pending	compile recipe
+native_dictionary_each_compilation	*	pending	compile recipe
+native_dictionary_scope_compilation	*	pending	compile recipe
+native_each_compilation	*	pending	compile recipe
+native_each_try_compilation_tests	*	pending	compile recipe
+native_error_compilation	*	pending	compile recipe
+native_event	*	pending	runtime model
+native_expression_program	*	pending	runtime model
+native_format_compilation	*	pending	compile recipe
+native_handler_path	*	pending	runtime model
+native_info_exists_compilation	*	pending	compile recipe
+native_instruction_plan	*	pending	compile recipe
+native_introspection_compilation	*	pending	compile recipe
+native_list_assignment	*	pending	runtime model
+native_list_index_compilation	*	pending	compile recipe
+native_list_operations_compilation	*	pending	compile recipe
+native_list_replace_compilation	*	pending	compile recipe
+native_lowering	*	pending	compile recipe
+native_mathop_compilation	*	pending	compile recipe
+native_namespace_binding_compilation	*	pending	compile recipe
+native_namespace_string_compilation	*	pending	compile recipe
+native_namespace_upvar_compilation	*	pending	compile recipe
+native_numeric_conversion	*	pending	runtime model
+native_package	*	pending	runtime model
+native_procedure	*	pending	runtime model
+native_regexp_compilation	*	pending	compile recipe
+native_result	*	pending	runtime model
+native_return_compilation	*	pending	compile recipe
+native_rmw	*	pending	runtime model
+native_scalar_compilation	*	pending	compile recipe
+native_scripted_distribution	*	pending	runtime model
+native_scripts	*	pending	runtime model
+native_selected_worker	*	pending	runtime model
+native_stock_list	*	pending	runtime model
+native_string_compilation	*	pending	compile recipe
+native_string_insert_compilation	*	pending	compile recipe
+native_string_is_compilation	*	pending	compile recipe
+native_string_map_compilation	*	pending	compile recipe
+native_string_operand_compilation	*	pending	compile recipe
+native_string_range_compilation	*	pending	compile recipe
+native_string_replace_compilation	*	pending	compile recipe
+native_string_trim_compilation	*	pending	compile recipe
+native_switch_compilation	*	pending	compile recipe
+native_tcloo_bootstrap	*	pending	runtime model
+native_tcloo_compilation	*	pending	compile recipe
+native_tcloo_info	*	pending	runtime model
+native_tcloo_registration	*	pending	runtime model
+native_test_provider	*	pending	runtime model
+native_try	*	pending	runtime model
+native_try_compilation	*	pending	compile recipe
+native_unset_compilation	*	pending	compile recipe
+native_upvar_compilation	*	pending	compile recipe
+native_vwait	*	pending	runtime model
+command_lookup	InvocationDialect selectors as EnsembleDispatchDialect	tcl-registry	extension trait: its types stay in the core
+commands::tcl::exists_	InvocationDialect selectors as JimExistsDialect	tcl-registry	extension trait: its types stay in the core
+commands::tcl::info_jim	InvocationDialect selectors as JimInfoDialect	tcl-registry	extension trait: its types stay in the core
+completion	InvocationDialect selectors as CompletionCodeDialect	tcl-registry	extension trait: its types stay in the core
+completion_route	InvocationDialect selectors as ProcedureCompletionDialect	tcl-registry	extension trait: its types stay in the core
+frame_effect	InvocationDialect selectors as FrameLevelDialect	tcl-registry	extension trait: its types stay in the core
+native_dictionary	InvocationDialect selectors as NativeDictionaryDialect	tcl-registry	extension trait: its types stay in the core
+native_event	InvocationDialect selectors as NativeEventDialect	tcl-registry	extension trait: its types stay in the core
+native_list_assignment	InvocationDialect selectors as ListAssignmentDialect	tcl-registry	extension trait: its types stay in the core
+native_package	InvocationDialect selectors as NativePackageDialect	tcl-registry	extension trait: its types stay in the core
+native_rmw	InvocationDialect selectors as LegacyIncrementDialect, NativeRmwDialect	tcl-registry	extension trait: its types stay in the core
+native_scripted_distribution	InvocationDialect selectors as ScriptedHelperDialect	tcl-registry	extension trait: its types stay in the core
+native_stock_list	InvocationDialect selectors as ObjectLengthDialect	tcl-registry	extension trait: its types stay in the core
+native_try	InvocationDialect selectors as JimTryDialect	tcl-registry	extension trait: its types stay in the core
+native_vwait	InvocationDialect selectors as NativeVwaitDialect	tcl-registry	extension trait: its types stay in the core
+special_vars	InvocationDialect selectors as ErrorVariableDialect, BootstrapDialect	tcl-registry	extension trait: its types stay in the core

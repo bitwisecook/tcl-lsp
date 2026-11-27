@@ -75,7 +75,7 @@ fn declaration_aliases_use_selected_native_name_owner() {
         let mut analyser = Analyser::new();
         analyser.source_analysis_entry = Some(std::sync::Arc::new(
             crate::command_binding::SourceAnalysisEntry {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(version)),
                 ..Default::default()
             },
         ));
@@ -92,7 +92,7 @@ fn declaration_aliases_use_selected_native_name_owner() {
     let mut analyser = Analyser::new();
     analyser.source_analysis_entry = Some(std::sync::Arc::new(
         crate::command_binding::SourceAnalysisEntry {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
             )),
             ..Default::default()

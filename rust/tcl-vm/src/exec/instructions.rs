@@ -392,7 +392,7 @@ impl Vm {
     fn tick_bytecode_prologue(&mut self, f: &mut Frame) -> ControlFlow<Tick, Rc<FunctionAsm>> {
         if f.native_bytecode_entry == BytecodeEntry::Pending {
             if let Err(refusal) = self.reset_native_ensemble_rewrite(
-                tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+                tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
             ) {
                 return ControlFlow::Break(Tick::Return(refusal));
             }

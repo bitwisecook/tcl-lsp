@@ -67,13 +67,21 @@ fn violations(packages: &[Package], policy: &BTreeMap<&str, &BTreeSet<String>>) 
     for package in packages {
         let allowed: Option<&[&str]> = match package.name.as_str() {
             "tcl-bigip-schema" => Some(&["tcl-dialect"]),
+            "tcl-native-model" => Some(&[
+                "tcl-cmd-core",
+                "tcl-core-types",
+                "tcl-dialect",
+                "tcl-lexer",
+                "tcl-runtime-api",
+                "tcl-syntax",
+            ]),
             "tcl-source" => Some(&["tcl-core-types", "tcl-dialect", "tcl-lexer", "tcl-syntax"]),
             _ => None,
         };
         for dependency in &package.dependencies {
             if allowed.is_some_and(|owners| {
                 !(owners.contains(&dependency.name.as_str())
-                    || (package.name == "tcl-source"
+                    || (matches!(package.name.as_str(), "tcl-source" | "tcl-native-model")
                         && dependency.kind.as_deref() == Some("dev")
                         && dependency.name == "tcl-test-support"))
                     && packages
@@ -176,10 +184,11 @@ mod tests {
         );
     }
     #[test]
-    fn source_and_schema_keep_their_foundation_boundary() {
+    fn source_schema_and_native_model_keep_their_foundation_boundary() {
         let graph = r#"{"packages":[
             {"name":"tcl-source","dependencies":[{"name":"tcl-registry"}]},
             {"name":"tcl-bigip-schema","dependencies":[{"name":"tcl-registry"}]},
+            {"name":"tcl-native-model","dependencies":[{"name":"tcl-registry"}]},
             {"name":"tcl-registry","dependencies":[]}
         ]}"#;
         let metadata: Metadata = serde_json::from_str(graph).unwrap();
@@ -187,6 +196,7 @@ mod tests {
             violations(&metadata.packages, &BTreeMap::new()),
             [
                 "tcl-bigip-schema -> tcl-registry is outside its foundation owners",
+                "tcl-native-model -> tcl-registry is outside its foundation owners",
                 "tcl-source -> tcl-registry is outside its foundation owners",
             ]
         );

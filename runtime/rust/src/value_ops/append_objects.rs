@@ -49,9 +49,9 @@ impl RuntimeAppendObjects {
 
 /// Physical append adapter with independently retained issuer and binary updater capability.
 pub(crate) struct RuntimeAppendObjects {
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) binary_recipe:
-        Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe>,
+        Option<tcl_native_model::native_string_materialization::ByteArrayStringRecipe>,
 }
 
 impl tcl_cmd_core::native_append::NativeAppendObjects for RuntimeAppendObjects {
@@ -190,7 +190,7 @@ impl tcl_cmd_core::native_cat::NativeCatObjects for RuntimeAppendObjects {
             ))?;
         crate::bytearray::native_binary_bytes(
             value.as_ptr(),
-            tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+            tcl_native_model::native_binary_value::NativeBinaryByteConversion::Narrow(
                 version.string_character_model(),
             ),
             true,

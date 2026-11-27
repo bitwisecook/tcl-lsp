@@ -427,7 +427,7 @@ mod tests {
                     config,
                     registry,
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             registry.profile().unwrap(),
                         )),
                         native_compilation:
@@ -530,7 +530,7 @@ mod tests {
                 SourceAnalysisOptions {
                     invocation_dialect: registry
                         .profile()
-                        .map(tcl_registry::InvocationDialect::of_profile),
+                        .map(tcl_native_model::InvocationDialect::of_profile),
                     native_compilation:
                         tcl_registry::native_compilation::NativeCompilationContext {
                             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,

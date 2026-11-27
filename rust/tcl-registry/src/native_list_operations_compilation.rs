@@ -376,7 +376,7 @@ mod tests {
     use tcl_syntax::native_string::NativeStringProtocol;
     include!("../tests/data/native_list_operations/cases.rs");
     fn original(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         native_script_words_in(
             SourceImage::native(source),
             Span::new(0, u32::try_from(source.len()).unwrap()),

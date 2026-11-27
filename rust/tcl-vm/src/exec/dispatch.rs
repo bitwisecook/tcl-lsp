@@ -378,7 +378,7 @@ impl Vm {
         ordinary: bool,
         original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
-        use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
+        use tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
         let (f, words) = invocation;
         if let Some(deleted) = self.deleted_interpreter_refusal() {
             return Err(deleted);

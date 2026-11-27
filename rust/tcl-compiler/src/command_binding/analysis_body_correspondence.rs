@@ -31,7 +31,7 @@ use tcl_registry::{
 struct OriginalRegistryDependency {
     offset: u32,
     namespace: super::SourceNamespaceKey,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     realm: tcl_dialect::model::InvocationRealm,
     targets: Vec<super::SourceCommandTarget>,
     shapes: Vec<RegistryInvocationShape>,
@@ -59,7 +59,7 @@ impl AnalyticalCommandDependency {
 struct NativeSourceSchemaDependency {
     offset: u32,
     command: String,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     arguments: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     origins: Vec<crate::registry_invocation::InvocationWordOrigin>,
     roles: Vec<(usize, tcl_registry::ArgRole)>,
@@ -75,7 +75,7 @@ struct NativeSourceSchemaDependency {
 struct AuthoredSourceSchemaDependency {
     offset: u32,
     namespace: super::SourceNamespaceKey,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     realm: tcl_dialect::model::InvocationRealm,
     targets: Vec<super::SourceCommandTarget>,
     command: String,
@@ -1167,7 +1167,7 @@ fn original_authored_source_schema_dependency(
 
 fn authored_source_dependency_roles(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     proof: &SourceInvocationBinding,
 ) -> Option<Vec<(usize, tcl_registry::ArgRole)>> {
     use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};

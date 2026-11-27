@@ -313,7 +313,7 @@ impl Lowerer<'_> {
             &args[1],
             WordValueRules::from_config(&self.config),
             self.invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar),
         ) else {
             return Statement::Barrier {
                 span: seg.span,

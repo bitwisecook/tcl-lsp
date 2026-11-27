@@ -147,7 +147,8 @@ mod tests {
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let older = crate::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(current.commands()));
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (command, arguments, expected) in original_channel_configuration_cases() {
             let selected =
                 crate::model::assembly::resolve_structured_invocation_in_resolved_context(

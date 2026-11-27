@@ -571,7 +571,7 @@ impl SourceOutcomes {
 
     pub(in super::super) fn through_procedure_boundary(
         &self,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Self {
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
         let mut outcomes = Self::default();

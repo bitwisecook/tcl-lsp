@@ -154,7 +154,7 @@ fn the_precision_variable_is_the_registered_tcl_precision() {
 fn native_precision_hook_is_selected_by_engine_policy() {
     for version in tcl_dialect::TclVersion::ALL {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let expected = match version {
             tcl_dialect::TclVersion::V8_4
             | tcl_dialect::TclVersion::V8_5
@@ -168,7 +168,8 @@ fn native_precision_hook_is_selected_by_engine_policy() {
     }
     let jim = crate::model::ingress::resolve_environment("jim").analyser_profile();
     assert_eq!(
-        SpecialVariableHook::DoublePrecision.name_in(crate::InvocationDialect::of_profile(jim)),
+        SpecialVariableHook::DoublePrecision
+            .name_in(tcl_native_model::InvocationDialect::of_profile(jim)),
         None
     );
     assert!(SpecialVariableHook::DoublePrecision.changes_read_value());

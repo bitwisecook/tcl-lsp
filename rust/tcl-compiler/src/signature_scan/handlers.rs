@@ -626,7 +626,7 @@ fn handle_source(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     result: &mut SignatureScanResult,
 ) {
     let arguments = texts[1..]
@@ -641,7 +641,7 @@ fn handle_source(
         .collect::<Vec<_>>();
     let arguments = tcl_registry::InvocationArguments::structured(&arguments);
     let arguments = dialect.map_or(arguments, |dialect| arguments.with_dialect(dialect));
-    let tcl_registry::source_file::SourceFileSelection::Selected(operands) =
+    let tcl_native_model::source_file::SourceFileSelection::Selected(operands) =
         tcl_registry::source_file::path_candidate(arguments)
     else {
         return;
@@ -1382,7 +1382,7 @@ mod tests {
         let argv = vec![token(0, 6), token(7, 16), token(17, 22), token(23, 36)];
         let mut result = SignatureScanResult::default();
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
-        let dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        let dialect = Some(tcl_native_model::InvocationDialect::of_profile(profile));
         handle_source(&texts, &argv, "", dialect, &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
@@ -1403,7 +1403,7 @@ mod tests {
                 &texts,
                 &argv,
                 "",
-                Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 &mut result,
             );
             assert!(result.source_targets.is_empty(), "{environment}");

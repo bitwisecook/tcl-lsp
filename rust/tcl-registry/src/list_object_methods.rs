@@ -129,7 +129,7 @@ impl InvocationFacts {
     }
 }
 
-fn abstract_list_dispatch(dialect: Option<crate::InvocationDialect>) -> Option<bool> {
+fn abstract_list_dispatch(dialect: Option<tcl_native_model::InvocationDialect>) -> Option<bool> {
     use tcl_dialect::{
         TclVersion,
         model::{Family, Release},
@@ -254,7 +254,8 @@ fn selected_requirements(
 mod tests {
     use super::*;
     use crate::native_compilation::NativeCompilationGuard;
-    use crate::{InvocationDialect, InvocationWord, InvocationWords};
+    use crate::{InvocationWord, InvocationWords};
+    use tcl_native_model::InvocationDialect;
 
     fn selected(
         head: &'static str,

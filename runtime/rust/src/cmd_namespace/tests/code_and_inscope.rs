@@ -185,7 +185,7 @@ fn code_retains_non_unicode_bytes_and_refuses_unknown_native_policy() {
                 interp
                     .native_invocation_dialect()
                     .namespace_code_handler_policy(Some(
-                        tcl_registry::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
+                        tcl_native_model::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
                     ))
                     .is_none()
             );

@@ -30,7 +30,7 @@ fn emit_original<'a>(
     source: &[u8],
 ) -> CodegenCtx<'a> {
     let point = entry.execution_point.unwrap();
-    let dialect = tcl_registry::InvocationDialect::of_point(point);
+    let dialect = tcl_native_model::InvocationDialect::of_point(point);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(source),
@@ -64,7 +64,7 @@ fn original_concat_emits_shared_recipe_with_captured_compiler_guards() {
         ] {
             if name == "tcl8.4" && source == b"concat {*}{A B} $c" {
                 let dialect =
-                    tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+                    tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
                 let parsed = tcl_lexer::native_script_words_in(
                     tcl_lexer::SourceImage::native(source),
                     tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),

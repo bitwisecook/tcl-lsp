@@ -39,7 +39,8 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::rc::Rc;
 use tcl_core_types::NameBytes;
-use tcl_registry::native_alias_registration::NativeAliasRegistrationTable;
+use tcl_native_model::native_alias_registration::NativeAliasRegistrationTable;
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::guard::{GuardDomain, GuardManager};
 use tcl_runtime_api::{Completion, ROOT_NS, VarId};
 
@@ -110,7 +111,7 @@ impl Vm {
         inputs: tcl_registry::special_vars::NativeBootstrapInputs,
     ) -> Option<Self> {
         let protocol =
-            tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
+            tcl_native_model::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
         if protocol.names().tcl_version().is_some() {
             tcl_syntax::list::split_native_list_bytes(
                 &inputs.package_path,
@@ -903,7 +904,7 @@ impl Vm {
         name: &str,
         parameter_source: &str,
         source: &str,
-        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        helper: Option<tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper>,
         source_filename: &mut Option<Value>,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
         // Library declarations belong to the retained native root namespace.
@@ -924,7 +925,7 @@ impl Vm {
         name: &str,
         parameter_source: &str,
         source: &str,
-        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        helper: Option<tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper>,
         source_filename: &mut Option<Value>,
     ) -> Option<(String, NativeRegisteredCommandToken)> {
         let _scope = native_operation_currency::NativeOperationScope::enter(self).ok()?;

@@ -105,7 +105,7 @@ fn resolved_decomposition(
     command: &str,
     effective: &crate::registry_invocation::EffectiveCommandWords,
     (dialect, realm): (
-        Option<tcl_registry::InvocationDialect>,
+        Option<tcl_native_model::InvocationDialect>,
         tcl_dialect::model::InvocationRealm,
     ),
     ctx: TraceCtx<'_>,

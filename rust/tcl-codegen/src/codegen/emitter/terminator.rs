@@ -775,7 +775,7 @@ mod tests {
             ] {
                 let mut context = CodegenCtx::new(false, &[], &registry);
                 context.invocation_dialect =
-                    Some(tcl_registry::InvocationDialect::for_version(version));
+                    Some(tcl_native_model::InvocationDialect::for_version(version));
                 let condition = ExprNode::Command {
                     text: source.into(),
                     start: 0,

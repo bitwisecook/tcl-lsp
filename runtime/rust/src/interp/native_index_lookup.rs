@@ -20,7 +20,7 @@
 
 use super::Interp;
 use crate::obj::{self, TclObj};
-use tcl_registry::native_index_lookup::NativeStaticIndexTable;
+use tcl_native_model::native_index_lookup::NativeStaticIndexTable;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
@@ -64,7 +64,7 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
         table: &NativeStaticIndexTable,
-        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        flags: tcl_native_model::native_jim_enum::NativeJimEnumFlags,
         noun: Option<&[u8]>,
     ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
         let dialect = self.native_invocation_dialect();
@@ -98,7 +98,7 @@ impl Interp {
     pub(crate) fn native_jim_compare_immediate(
         &mut self,
         original: *mut TclObj,
-        table: &impl tcl_registry::native_index_lookup::NativeImmediateLiteralTable,
+        table: &impl tcl_native_model::native_index_lookup::NativeImmediateLiteralTable,
         index: usize,
     ) -> Result<bool, ValueError> {
         self.native_jim_compare_immediate_checked(original, table, index, &|| Ok(()))
@@ -107,7 +107,7 @@ impl Interp {
     pub(crate) fn native_jim_compare_immediate_checked<E: From<ValueError>>(
         &mut self,
         original: *mut TclObj,
-        table: &impl tcl_registry::native_index_lookup::NativeImmediateLiteralTable,
+        table: &impl tcl_native_model::native_index_lookup::NativeImmediateLiteralTable,
         index: usize,
         check: &impl Fn() -> Result<(), E>,
     ) -> Result<bool, E> {
@@ -205,7 +205,7 @@ impl Interp {
                 .native_jim_enum_from_original(
                     original,
                     table,
-                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(exact),
                     Some(noun.as_bytes()),
                 )?
                 .map_err(|message| {

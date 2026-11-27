@@ -18,7 +18,7 @@
 
 //! Original native scripted libraries, separate from core registration and lookup.
 
-use crate::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 
 /// Independently selected library roster at a source-distribution boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,13 +53,13 @@ pub struct NativeScriptedProcedure {
     /// Original body bytes with unchanged indentation and boundary newlines.
     pub body: &'static str,
     /// Selected original namespace declaration; this grants no installed execution authority.
-    pub namespace_helper: Option<crate::native_jim_lookup::NativeJimNamespaceHelper>,
+    pub namespace_helper: Option<tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper>,
 }
 
 const JIM_NAMESPACE_INFO: &[NativeScriptedProcedure] = &[NativeScriptedProcedure {
     command: "namespace info",
     parameters: "cmd {pattern *}",
-    body: include_str!("native_scripts/jim_namespace_info.tcl"),
+    body: tcl_native_model::native_jim_lookup::JIM_NAMESPACE_INFO_BODY,
     namespace_helper: None,
 }];
 
@@ -73,7 +73,7 @@ const JIM_NAMESPACE_ENSEMBLE: &[NativeScriptedProcedure] = &[
     NativeScriptedProcedure {
         command: "namespace ensemble",
         parameters: "subcommand args",
-        body: include_str!("native_scripts/jim_namespace_ensemble.tcl"),
+        body: tcl_native_model::native_jim_lookup::JIM_NAMESPACE_ENSEMBLE_BODY,
         namespace_helper: None,
     },
 ];
@@ -120,7 +120,7 @@ pub fn procedures(
         .chain(namespace_info.iter().copied())
         .chain(namespace.iter().copied())
         .chain(
-            crate::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
                 .into_iter()
                 .filter(move |_| library == NativeScriptedLibrary::NamespaceHelpers)
                 .filter_map(move |kind| dialect.native_jim_namespace_helper(kind))
@@ -133,12 +133,18 @@ pub fn procedures(
         )
 }
 
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait ScriptedHelperDialect {
     /// Jim's namespace extension forms a literal helper name from the original
     /// selector's native C-string extent. It does not substitute the canonical
     /// table entry or grant a C ensemble-configuration protocol.
     #[must_use]
-    pub fn native_namespace_scripted_helper(self, selector: &[u8]) -> Option<Vec<u8>> {
+    fn native_namespace_scripted_helper(self, selector: &[u8]) -> Option<Vec<u8>>;
+}
+
+impl ScriptedHelperDialect for tcl_native_model::InvocationDialect {
+    fn native_namespace_scripted_helper(self, selector: &[u8]) -> Option<Vec<u8>> {
         let protocol = self.native_name_protocol()?;
         if !protocol.is_jim084() {
             return None;
@@ -162,10 +168,11 @@ mod tests {
     fn namespace_helper_library_uses_the_original_descriptor_roster() {
         let dialect = InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84));
         let roster: Vec<_> = procedures(dialect, NativeScriptedLibrary::NamespaceHelpers).collect();
-        let originals: Vec<_> = crate::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
-            .into_iter()
-            .map(|kind| dialect.native_jim_namespace_helper(kind).unwrap())
-            .collect();
+        let originals: Vec<_> =
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::ALL
+                .into_iter()
+                .map(|kind| dialect.native_jim_namespace_helper(kind).unwrap())
+                .collect();
         assert_eq!(roster.len(), 9);
         for (actual, original) in roster.iter().zip(originals) {
             assert_eq!(actual.command, original.name());

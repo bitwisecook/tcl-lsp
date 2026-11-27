@@ -482,7 +482,7 @@ impl Lowerer<'_> {
         word: &tcl_source::words::WordExpr,
         written: usize,
         operand: BodyOperand,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<crate::execution_region::ConditionalBodySource> {
         use crate::registry_invocation::{EffectiveInvocationWord, effective_invocation_word};
         let binding = tokens.source_binding.as_ref()?;
@@ -901,7 +901,7 @@ impl Lowerer<'_> {
 }
 
 fn possible_body_conditions(
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     registry: &tcl_registry::CommandRegistry,
     selected: &crate::registry_invocation::PossibleBodyInvocation,
 ) -> Vec<crate::execution_region::PossibleBodyCondition> {
@@ -1100,7 +1100,7 @@ mod tests {
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
             trusted_package_loaders: &providers,
             unknown_entry: false,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..SourceAnalysisOptions::default()
         });
@@ -1135,7 +1135,7 @@ mod tests {
         let profile = registry.profile().expect("F5 context");
         let mut lowerer = Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: NativeCompilationContext {
                 mode: NativeCompilationMode::BytecodeObject,
                 frame: NativeCompilationFrame::ScriptCode,
@@ -1277,7 +1277,7 @@ mod tests {
             config,
             registry,
             crate::command_binding::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                     registry.profile().unwrap(),
                 )),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
@@ -1366,7 +1366,7 @@ mod tests {
         let profile = registry.profile().unwrap();
         let mut lowerer = Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: NativeCompilationContext {
                 mode: NativeCompilationMode::BytecodeObject,
                 frame: NativeCompilationFrame::ScriptCode,
@@ -1445,7 +1445,7 @@ mod tests {
         .with_context_registry(std::sync::Arc::clone(&context));
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
             trusted_package_loaders: &loaders,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..SourceAnalysisOptions::default()
         });
@@ -1681,7 +1681,7 @@ mod tests {
         let mut lowerer = Lowerer::new(&registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
             trusted_package_loaders: &providers,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..SourceAnalysisOptions::default()
         });
         let module = lower_to_ir_with(

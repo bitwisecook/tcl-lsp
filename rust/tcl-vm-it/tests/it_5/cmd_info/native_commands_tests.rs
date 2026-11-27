@@ -43,7 +43,7 @@ fn original_info_commands_matches_all_110_native_pattern_results() {
             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
         );
         define_names(&mut vm);
-        let dialect = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile());
+        let dialect = tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile());
         let protocol = dialect.native_string_protocol().unwrap();
         for row in rows.lines().skip(1) {
             let fields: Vec<_> = row.split('|').collect();

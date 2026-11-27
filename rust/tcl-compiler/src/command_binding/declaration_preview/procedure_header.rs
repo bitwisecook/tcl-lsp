@@ -458,7 +458,7 @@ fn original_procedure_parameter_topology(
     observation: &DeclarationLayoutObservation,
     facts: &tcl_registry::InvocationFacts,
     effective: &crate::registry_invocation::EffectiveCommandWords,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<super::super::formal_topology::OriginalFormalTopology> {
     facts
         .arg_roles

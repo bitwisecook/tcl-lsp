@@ -146,7 +146,7 @@ mod tests {
         let options = SourceAnalysisOptions {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()

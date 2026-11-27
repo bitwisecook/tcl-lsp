@@ -40,15 +40,15 @@ No appliance observation or source implementation claim.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::select`: Independently selected exact engine diagnostic recipe.
-- [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::conversion_error`: Counted C85 versus later C/Jim CString guest wording and error-code action.
-- [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::parameter_error_frame`: Separate C-only CString formal parse frame.
+- [rust/tcl-native-model/src/native_lambda.rs](../../../../rust/tcl-native-model/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::select`: Independently selected exact engine diagnostic recipe.
+- [rust/tcl-native-model/src/native_lambda.rs](../../../../rust/tcl-native-model/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::conversion_error`: Counted C85 versus later C/Jim CString guest wording and error-code action.
+- [rust/tcl-native-model/src/native_lambda.rs](../../../../rust/tcl-native-model/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::parameter_error_frame`: Separate C-only CString formal parse frame.
 - [rust/tcl-syntax/src/formal_params/bytes.rs](../../../../rust/tcl-syntax/src/formal_params/bytes.rs), `ByteFormalParameterError::error_code_for_definition`: Selects the structural formal-format error code separately from diagnostic text; C8.6+ sets FORMALARGUMENTFORMAT and C8.4/C8.5/Jim leave the default code.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `parse_params_value`: Reports the selected structural formal error through completed invocation error-code publication.
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `parse_params_object`: Reports the selected structural formal error through completed invocation error-code publication.
 - [rust/tcl-vm-it/tests/it_5/command/native_lambda_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_lambda_tests.rs), `command::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames` (linked): 60 direct original bad-lambda code/result comparisons,48 C errorcodes and4 CString C parameter frames; successful activation, whole options/cache/header and arbitrary getter hooks remain independent.
 - [runtime/rust/src/cmd_proc/native_lambda_tests.rs](../../../../runtime/rust/src/cmd_proc/native_lambda_tests.rs), `cmd_proc::native_lambda_tests::lambda_conversion_errors_match_original_counted_values_and_parameter_frames` (linked): 60 direct original bad-lambda code/result comparisons,48 C errorcodes and4 CString C parameter frames; successful activation, whole options/cache/header and arbitrary getter hooks remain independent.
-- [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `native_lambda::tests::lambda_diagnostics_keep_conversion_and_parameter_frame_purposes_separate` (linked): Pure selected extents/error code/frame recipe and unknown/mismatched engine/operational-refusal negatives; actual original-object/activation remains independent.
+- [rust/tcl-native-model/src/native_lambda.rs](../../../../rust/tcl-native-model/src/native_lambda.rs), `native_lambda::tests::lambda_diagnostics_keep_conversion_and_parameter_frame_purposes_separate` (linked): Pure selected extents/error code/frame recipe and unknown/mismatched engine/operational-refusal negatives; actual original-object/activation remains independent.
 
 ## Evidence
 

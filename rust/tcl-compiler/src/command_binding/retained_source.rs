@@ -411,7 +411,7 @@ impl RetainedSourceModuleBindings {
             || positioned.original_analysis_owner.is_none()
             || input.has_logical_source_name_context()
             || input.has_hosted_source_name_context()
-            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            || tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .is_none()
             || self.entry.native_entry.is_some()

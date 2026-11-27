@@ -25,7 +25,7 @@ fn selected_subcommand_options_preserve_reserved_positional_values() {
     // naming.minifier.complete-logical-metadata
     // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (arguments, expected) in [
         (vec!["equal", "-nocase", "-nocase", "other"], 1),
         (vec!["compare", "-nocase", "-nocase", "other"], 1),

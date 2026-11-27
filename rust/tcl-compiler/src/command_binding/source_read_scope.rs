@@ -525,7 +525,7 @@ pub(crate) fn source_targets_match_advice(
                                 [source.analyser_profile(), source.unit_profile()]
                                     .into_iter()
                                     .any(|profile| {
-                                        tcl_registry::InvocationDialect::of_profile(profile)
+                                        tcl_native_model::InvocationDialect::of_profile(profile)
                                             .authored_name_policy()
                                             != Some(input.policy())
                                     })
@@ -616,7 +616,7 @@ mod read_body_ancestry_tests {
         let input = analysis.resolved_input.as_ref().unwrap();
         assert!(input.has_logical_source_name_context());
         assert!(
-            tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
                 .tcl_version
                 .is_none()
         );

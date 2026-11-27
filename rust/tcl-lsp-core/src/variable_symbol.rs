@@ -908,7 +908,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(registry.profile()),
             registry,
             tcl_compiler::command_binding::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_6,
                 )),
                 ..tcl_compiler::command_binding::SourceAnalysisOptions::default()

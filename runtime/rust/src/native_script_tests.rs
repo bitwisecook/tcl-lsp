@@ -52,7 +52,7 @@ fn decode(hex: &str) -> Vec<u8> {
 
 #[test]
 fn actual_source_birth_reaches_original_tokens_without_copy_donation() {
-    let dialect = tcl_registry::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::environment::profile_for_dialect("jimtcl"),
     );
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.execution_point().unwrap().grammar());
@@ -157,7 +157,7 @@ fn actual_expression_command_source_retains_its_birth_and_interpreter() {
 fn original_script_storage_matches_156_native_windows() {
     crate::counters::reset();
     {
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("jim"),
         );
         let config = tcl_lexer::LexerConfig::from_grammar(

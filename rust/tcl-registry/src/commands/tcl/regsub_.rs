@@ -114,7 +114,7 @@ fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appende
         availability: crate::resolved_invocation::InvocationAvailability {
             query: words
                 .dialect()
-                .and_then(crate::InvocationDialect::authoring_query),
+                .and_then(tcl_native_model::InvocationDialect::authoring_query),
             package_version: None,
         },
         parent_surface: Some(SpecSurface::ALL_TCL),
@@ -342,7 +342,8 @@ mod tests {
     fn frozen_arity_counts_positionals_and_retains_raw_argument_cardinality() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = crate::model::ingress::static_context_for(profile).commands();
-            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
             for (arguments, positional_count, accepted) in [
                 (&["-all", "x", "xxx", "y"][..], 3, true),
                 (&["-all", "-nocase", "x", "xxx", "y", "out"][..], 4, true),

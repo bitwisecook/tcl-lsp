@@ -339,7 +339,7 @@ mod tests {
         let registry = crate::CommandRegistry::build_default();
         let mut windows = 0;
         for (version, table) in original_scalar_windows() {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for row in table.lines() {
                 let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();
@@ -428,7 +428,7 @@ mod tests {
         // shared coordinate projection from selected metadata onto original words.
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let public = registry.resolve_structured_invocation(
                 crate::InvocationWords::literals("string", &["equal", "a", "a"])
                     .with_dialect(dialect),
@@ -492,7 +492,7 @@ mod tests {
     fn scalar_registration_scope_is_not_inferred_from_the_original_head() {
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let source = b"renamed equal $left $right";
             let parsed = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::native(source.as_slice()),

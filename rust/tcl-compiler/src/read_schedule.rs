@@ -20,7 +20,8 @@
 
 use crate::ir::CommandTokens;
 use crate::var_resolve::{ContentsOrigin, resolve_substitution_access};
-use tcl_registry::{CommandRegistry, InvocationDialect, TraceOperation};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::{CommandRegistry, TraceOperation};
 use tcl_source::words::SourceSite;
 
 /// Two original reads select the same live, unobserved stored value.

@@ -437,7 +437,7 @@ impl Interp {
         self.create_obj_command_for_purpose(
             name,
             command,
-            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+            tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
         )
     }
 
@@ -451,7 +451,7 @@ impl Interp {
         self.create_obj_command_for_purpose(
             name,
             command,
-            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+            tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
         )
     }
 
@@ -459,9 +459,9 @@ impl Interp {
         &mut self,
         name: &[u8],
         mut command: ObjCommand,
-        purpose: tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose,
+        purpose: tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose,
     ) -> Option<u64> {
-        use tcl_registry::native_command_creation::NativePublicCommandRegistrationRecipe;
+        use tcl_native_model::native_command_creation::NativePublicCommandRegistrationRecipe;
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {

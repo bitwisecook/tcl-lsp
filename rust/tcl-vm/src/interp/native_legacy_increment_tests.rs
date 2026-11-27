@@ -21,7 +21,7 @@
 use super::{Local, Vm};
 use crate::Value;
 use std::rc::Rc;
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::{
     native_object::NativeObjectCacheSnapshot, number::Number, scalar_getter::NativeScalarCache,
     value::ValueOps,

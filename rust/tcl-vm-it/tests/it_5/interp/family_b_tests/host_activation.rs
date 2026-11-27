@@ -30,7 +30,7 @@ fn irules_over_tcl90() -> Vm {
     assert!(vm.set_command_surface_profile(host));
     assert!(vm.set_native_engine_profile(host));
     assert!(vm.set_logical_quote_provider(
-        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
     ));
     assert!(
         vm.set_logical_name_provider(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(

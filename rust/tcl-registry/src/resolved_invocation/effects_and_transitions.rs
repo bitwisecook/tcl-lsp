@@ -227,7 +227,7 @@ impl<'r> ResolvedInvocation<'r, '_> {
     #[must_use]
     pub fn authored_source_effects_and_state_transitions(
         &self,
-        source_dialect: crate::InvocationDialect,
+        source_dialect: tcl_native_model::InvocationDialect,
     ) -> (EffectFootprint, StateTransitions) {
         let arguments = self.words.arguments().with_dialect(source_dialect);
         let transitions = self
@@ -255,7 +255,7 @@ impl<'r> ResolvedInvocation<'r, '_> {
     #[must_use]
     pub fn authored_source_delegated_script_effects(
         &self,
-        source_dialect: crate::InvocationDialect,
+        source_dialect: tcl_native_model::InvocationDialect,
     ) -> Option<(EffectFootprint, StateTransitions)> {
         use crate::world_effect::SourceWorldEffectResolver;
         let arguments = self.words.arguments().with_dialect(source_dialect);
@@ -312,7 +312,7 @@ impl<'r> ResolvedInvocation<'r, '_> {
     #[must_use]
     pub fn authored_source_operation_continuation(
         &self,
-        source_dialect: crate::InvocationDialect,
+        source_dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::source_operation::AuthoredSourceOperationContinuation> {
         use crate::world_effect::{EffectAccessMode, SourceWorldEffectResolver};
         let selectors = self.authored_source_option_selector_path()?;
@@ -474,8 +474,10 @@ impl<'r> ResolvedInvocation<'r, '_> {
         }
         let mut agreed = None;
         for version in tcl_dialect::TclVersion::ALL {
-            let active = destination
-                .is_active_in_frame(frame, crate::InvocationDialect::for_version(version))?;
+            let active = destination.is_active_in_frame(
+                frame,
+                tcl_native_model::InvocationDialect::for_version(version),
+            )?;
             if agreed.is_some_and(|previous| previous != active) {
                 return None;
             }

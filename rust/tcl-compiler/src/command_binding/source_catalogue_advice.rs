@@ -119,7 +119,7 @@ impl OriginalCatalogueSourceCandidate {
     /// Unanimous original source grammar from the same retained observations.
     /// This does not substitute for a physical compiler or handler policy.
     #[must_use]
-    pub fn original_source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn original_source_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         let first = self.observations.first()?.snapshot.state.baseline.dialect?;
         self.observations
             .iter()

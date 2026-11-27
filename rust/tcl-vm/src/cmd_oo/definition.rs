@@ -49,7 +49,7 @@ pub(super) fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let result = if rest.is_empty() {
         match vm.eval_original_script_value(
             verb,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             None,
         ) {
             Ok(c) => c,
@@ -271,7 +271,7 @@ pub(super) fn def_method(
     args: &[Value],
 ) -> Completion<Value> {
     original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
-        use tcl_registry::native_tcloo_method_definition::{
+        use tcl_native_model::native_tcloo_method_definition::{
             NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
         };
         let Some(protocol) =
@@ -677,7 +677,7 @@ fn def_filter(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Comp
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
-        use tcl_registry::native_tcloo_method_definition::{
+        use tcl_native_model::native_tcloo_method_definition::{
             NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
         };
         let Some((name, prefix)) = args.split_first().filter(|(_, prefix)| !prefix.is_empty())

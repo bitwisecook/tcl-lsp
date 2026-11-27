@@ -138,7 +138,7 @@ impl Interp {
                 self.report_cmd_error(unavailable("native substitution source extent").into())
             })?;
             let region = Span::new(0, end);
-            let policy = tcl_registry::substitution::TemplateParseErrors::for_dialect(
+            let policy = tcl_native_model::TemplateParseErrors::for_dialect(
                 self.native_invocation_dialect(),
             )
             .ok_or_else(|| {
@@ -251,7 +251,7 @@ impl Interp {
                 .map_or(Code::Error, |error| self.report_cmd_error(error));
         }
         let reached = match self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
         ) {
             Ok(()) => self.execute_original_c_substitution(&artifact, &entered),
             Err(code) => Err(code),

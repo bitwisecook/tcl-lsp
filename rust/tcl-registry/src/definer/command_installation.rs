@@ -110,7 +110,10 @@ impl DefinitionDispatcher {
     /// attested installation and unchanged dependencies are still required;
     /// this query grants neither an installed token nor a compiler hook alone.
     #[must_use]
-    pub fn native_installation_is_audited(self, dialect: crate::InvocationDialect) -> bool {
+    pub fn native_installation_is_audited(
+        self,
+        dialect: tcl_native_model::InvocationDialect,
+    ) -> bool {
         use tcl_dialect::TclVersion;
         if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
             return false;
@@ -173,7 +176,7 @@ impl DefinitionBodyGrammar {
     #[must_use]
     pub fn source_two_word_factory_initialisers(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Vec<SourceTwoWordFactoryInitialiser>> {
         use tcl_dialect::model::Family;
         let query = dialect.authoring_query()?;

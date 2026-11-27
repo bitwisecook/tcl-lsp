@@ -49,7 +49,7 @@ fn native_module(
     .with_resolved_analysis_input(input.clone());
     lowerer.set_source_analysis_options(SourceAnalysisOptions {
         native_entry: Some(held.as_entry()),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

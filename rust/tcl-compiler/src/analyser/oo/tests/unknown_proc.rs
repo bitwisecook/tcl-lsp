@@ -473,7 +473,7 @@ fn original_unknown_native_case_advice_requires_typed_switch_and_original_input(
     let options = crate::command_binding::SourceAnalysisOptions {
         metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
         native_entry: Some(&captured),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

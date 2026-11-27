@@ -266,7 +266,7 @@ fn extend_loop_list_candidates(
         let Some(policy) = receipt
             .words
             .dialect()
-            .and_then(tcl_registry::InvocationDialect::authored_name_policy)
+            .and_then(tcl_native_model::InvocationDialect::authored_name_policy)
         else {
             continue;
         };
@@ -1281,7 +1281,7 @@ mod tests {
     #[test]
     fn original_array_reference_spelling_uses_executable_index_lineage() {
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::for_tcl_version(version),
             );
             let policy = dialect.authored_name_policy().unwrap();
@@ -1321,7 +1321,7 @@ mod tests {
     #[test]
     fn literal_variable_completion_refuses_numeric_escape_donation_and_roundtrips_unicode() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let dialect = tcl_registry::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
             );
             let policy = dialect.authored_name_policy().unwrap();

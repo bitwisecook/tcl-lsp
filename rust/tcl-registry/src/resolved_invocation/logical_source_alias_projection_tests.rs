@@ -168,7 +168,7 @@ fn conditional_no_level_alias_card_keeps_generic_layout_and_target_debt() {
 fn logical_alias_destination_applicability_retains_source_purpose_and_unknown_frames() {
     let profile = tcl_dialect::DialectProfile::plain_tcl();
     let context = crate::model::ingress::context_for_profile(profile);
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     assert_eq!(dialect.variable_lookup_policy, None);
     let arguments = [crate::InvocationWord::Dynamic];
     let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
@@ -219,7 +219,7 @@ fn logical_alias_destination_applicability_retains_source_purpose_and_unknown_fr
     assert_eq!(schema.state_transitions(), original);
     assert_eq!(dialect.variable_lookup_policy, None);
 
-    let native = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let native = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let selected_native = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
         context.commands(),
         Some(context.context()),
@@ -410,7 +410,7 @@ fn conditional_list_ordinals_do_not_borrow_ascii_or_runtime_authority() {
         context.commands(),
         Some(context.context()),
         crate::InvocationWords::structured(InvocationWord::Literal("list"), &arguments)
-            .with_dialect(crate::InvocationDialect::of_profile(
+            .with_dialect(tcl_native_model::InvocationDialect::of_profile(
                 environment.unit_profile(),
             )),
         tcl_dialect::model::InvocationRealm::RuleLoader,

@@ -18,6 +18,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-source` | Configured lossless CST, command segmentation, word geometry, source provenance, spelling suggestions and structural recursion limits. Depends only on foundation owners, with no registry or compiler edge. |
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, compiler-internal analyses (taint, var-escape, interprocedural), and the stateless helpers the emitter and constant folding share (`codegen_helpers`). The `test-support` feature exposes test fixtures to `tcl-codegen`'s tests only. |
 | `tcl-codegen` | The back end over `tcl-compiler`: bytecode emitter (`codegen`), WASM emitter, reference-body inlining (`inlining`) and the bytecode compile service (`compile_service`). It depends on `tcl-compiler` and nothing in `tcl-compiler` depends on it, so analysis-only consumers build without it. Its `tests` drive `tcl-compiler` internals through the emitters. The `#[doc(hidden)] pub` items `tcl-compiler` exposes exist for this crate's emitters only; every other consumer asks the shared naming and semantic owners ([name-handling.md](name-handling.md) § *Choose the semantic owner*, [shared-utility-contracts-rust.md](shared-utility-contracts-rust.md)), never those internals. |
+| `tcl-native-model` | The interpreter model the engines and the registry's compile recipes share: `InvocationDialect`, the execution policies an invocation is selected under, and the `native_*` protocols, tables and recipes that model C Tcl and Jim internals. Depends only on foundation owners, with no registry or compiler edge. |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
 | `tcl-bytecode-tables` | Literal and local variable tables, native literal allocation recipes and source error regions. Shared by the compiler, bytecode artefacts and the standalone WASM runtime, with no opcode or encoding dependency. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
@@ -84,10 +85,16 @@ dependency graph (a crate can only use what it declares in
    ([design](../compiler/crate-split-design.md), plan item 90). As each crate
    is extracted, this table and this rule name it, and the `cargo-deny`
    wrappers list in `deny.toml` gives its allowed dependents.
-4. **The registry is data.**  Dialect spec packs live in `tcl-registry`;
-   they describe commands (arity, subcommands, arg-roles) and are
-   reload-safe — they do not reach into compiler internals such as
-   codegen or the optimiser.
+4. **The registry is data, over the interpreter model.**  Dialect spec
+   packs live in `tcl-registry`; they describe commands (arity,
+   subcommands, arg-roles) and are reload-safe. The registry core holds the
+   command vocabulary and its resolution. `tcl-native-model` holds the
+   interpreter model below it: it depends only on `tcl-dialect`,
+   `tcl-syntax`, `tcl-lexer`, `tcl-core-types`, `tcl-cmd-core` and
+   `tcl-runtime-api`, never on `tcl-registry`, and `cargo xtask crate-layer`
+   checks that. A selector that reads specs or the registry's word view
+   stays in the registry, under the same module name. Neither reaches into a
+   compiler or analysis crate.
 5. **LSP feature logic lives in `tcl-lsp-core`; transport lives in
    `tcl-lsp-server`.**  Feature providers are pure and reusable; the
    server crate owns the `tower-lsp-server` wiring and the `ServerCapabilities`

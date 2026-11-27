@@ -7327,5 +7327,5 @@ JIM_EXPORT int Jim_EvalObjList(Jim_Interp *interp, Jim_Obj *listObj);
 - [rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim](../../../../rust/tcl-registry/tests/data/native_ensemble_map_prefix312/map-source/jim)
 - [rust/tcl-test-support/tests/data/native_resolution_reference_builds](../../../../rust/tcl-test-support/tests/data/native_resolution_reference_builds)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources)
-- [rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs](../../../../rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs)
+- [rust/tcl-native-model/tests/data/native_error_code_metadata_original/original-inputs](../../../../rust/tcl-native-model/tests/data/native_error_code_metadata_original/original-inputs)
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request)

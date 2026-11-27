@@ -1302,7 +1302,7 @@ mod tests {
     ) -> (SignatureSourceNameKey, SourceInvocationBinding) {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap();
-        let dialect = tcl_registry::InvocationDialect::of_point(point);
+        let dialect = tcl_native_model::InvocationDialect::of_point(point);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
         let image = SourceImage::document(source);
         let plan = tcl_lexer::native_script_words_in(
@@ -1394,7 +1394,7 @@ mod tests {
             ),
         ];
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
             let registry =
                 tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
@@ -1491,7 +1491,7 @@ mod tests {
         let name = SignatureSourceNameKey::from_original_native_word(
             &native[1],
             WordValueRules::from_config(&config),
-            tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap())
+            tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap())
                 .authored_name_policy()
                 .unwrap(),
         )
@@ -1559,7 +1559,7 @@ mod tests {
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(version).commands();
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(version)).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let dialect = tcl_native_model::InvocationDialect::of_point(point);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
             for (source, word, nth, expected, local) in &cases {
                 let start = u32::try_from(source.match_indices(word).nth(*nth).unwrap().0).unwrap();

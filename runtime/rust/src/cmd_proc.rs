@@ -558,7 +558,7 @@ pub(crate) fn parse_params_object(
 fn lambda_list_error(
     interp: &mut Interp,
     original: &Owned,
-    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+    diagnostics: tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol,
     failure: tcl_syntax::value::ValueError,
 ) -> CmdError {
     if !diagnostics.wraps_list_failure(&failure) {
@@ -582,7 +582,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("lambda list").into(),
         );
     };
-    let Some(diagnostics) = tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+    let Some(diagnostics) = tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol::select(
         interp.native_invocation_dialect(),
     ) else {
         return interp.report_cmd_error(
@@ -750,7 +750,7 @@ fn apply_native_c(
     argv: &[*mut TclObj],
     original: &Owned,
     protocol: tcl_syntax::naming::NativeNameProtocol,
-    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+    diagnostics: tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol,
 ) -> Code {
     let interpreter = interp.native_callable_interpreter();
     let (owner, namespace, lambda) =
@@ -1586,7 +1586,7 @@ mod original_apply_frame_tests {
             ORIGINALS.with(|words| words.borrow_mut().clear());
         });
         assert!(
-            tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+            tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol::select(
                 interp.native_invocation_dialect()
             )
             .is_none()

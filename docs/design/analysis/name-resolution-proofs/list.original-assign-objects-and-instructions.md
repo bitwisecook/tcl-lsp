@@ -118,7 +118,7 @@ int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_C
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_list_operations_compilation.rs](../../../../rust/tcl-registry/src/native_list_operations_compilation.rs), `compile_native_list_operation`: Selected original compiler-word recipe; source/static geometry does not grant ordinary handler dispatch.
-- [rust/tcl-registry/src/native_wrong_arguments.rs](../../../../rust/tcl-registry/src/native_wrong_arguments.rs), `NativeWrongArgumentsProtocol::string_result`: Select the C String producer only from structured actual WrongArguments purpose, without message-based recovery.
+- [rust/tcl-native-model/src/native_wrong_arguments.rs](../../../../rust/tcl-native-model/src/native_wrong_arguments.rs), `NativeWrongArgumentsProtocol::string_result`: Select the C String producer only from structured actual WrongArguments purpose, without message-based recovery.
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::command_error_string_result`: Consume the selected structured shared String-result producer in Runtime error presentation.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `completion_from_cmd_error`: Consume the same structured error presentation receipt in VM; source implementation only.
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `NativeVariableNameProtocol::diagnostic_resets_interpreter_result`: Select only the C8.4 reached variable-diagnostic reset purpose; later object error presenters remain independent.

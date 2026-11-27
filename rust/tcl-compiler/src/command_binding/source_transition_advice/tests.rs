@@ -51,7 +51,7 @@ fn logical_original_advice_words_keep_lossless_values_and_native_units_independe
         Some("café�".as_bytes())
     );
 
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let native_plan = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::document(source),
         tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -80,7 +80,7 @@ fn original_move_qualifier_retains_the_complete_operand_and_rejects_other_projec
     };
     let source = "rename s ::N::held";
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let policy = dialect.authored_name_policy().unwrap();
         let plan = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::document(source),

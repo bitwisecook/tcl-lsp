@@ -449,7 +449,7 @@ impl Interp {
             CommandDispatchSelection::Bound(fqn, binding) => {
                 if ordinary {
                     if let Err(code) = self.reset_native_ensemble_rewrite(
-                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                        tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                     ) { return code; }
                 }
                 (Some(fqn), Some(binding.generation), Some(binding.command))
@@ -467,7 +467,7 @@ impl Interp {
                 }
                 if ordinary && selected.is_some() {
                     if let Err(code) = self.reset_native_ensemble_rewrite(
-                        tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+                        tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
                     ) { return code; }
                 }
                 let token = selected.and_then(|(_, generation)| generation);

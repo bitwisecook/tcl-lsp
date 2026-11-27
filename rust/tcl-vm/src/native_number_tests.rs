@@ -40,7 +40,7 @@ fn bytes(hex: &str) -> Vec<u8> {
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
-fn shape(index: usize, dialect: tcl_registry::InvocationDialect) -> Value {
+fn shape(index: usize, dialect: tcl_native_model::InvocationDialect) -> Value {
     let texts: [&[u8]; 10] = [
         b"1",
         b"1.5",
@@ -162,7 +162,7 @@ fn original_number_bignum_and_increment_match_all_192_native_windows() {
     ];
     let mut count = 0;
     for (version, fixture) in fixtures {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let protocol = NativeStringProtocol::C(version);
         let ops = VmIncrementObjects::selected(dialect).unwrap();
         for row in fixture.lines() {

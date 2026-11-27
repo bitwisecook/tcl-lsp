@@ -23,9 +23,10 @@ use super::{
     SourceNativeInvocation, SourceOutcomes, opaque_source_invocation, retained_script_operand,
 };
 use tcl_lexer::word_parts::{SubstFlags, WordPart};
+use tcl_native_model::TemplateParseErrors;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
-use tcl_registry::substitution::{SubstitutionTemplateSelection, TemplateParseErrors};
+use tcl_registry::substitution::SubstitutionTemplateSelection;
 
 impl SourceCommandBindings {
     #[inline(never)]
@@ -38,7 +39,7 @@ impl SourceCommandBindings {
         let arguments = native.invocation.arguments();
         let query = arguments
             .dialect()
-            .and_then(tcl_registry::InvocationDialect::authoring_query)
+            .and_then(tcl_native_model::InvocationDialect::authoring_query)
             .map(|query| query.with_realm(context.realm()));
         let Some(invocation) = context
             .registry

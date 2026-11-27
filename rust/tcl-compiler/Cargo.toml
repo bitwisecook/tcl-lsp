@@ -37,6 +37,7 @@ tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 tcl-bytecode-tables = { path = "../tcl-bytecode-tables" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 bitflags = "2"

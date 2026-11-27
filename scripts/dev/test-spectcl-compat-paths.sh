@@ -36,6 +36,7 @@ expect_relevant docs/design/spec-dsl-examples/external/tcllib.tclspec
 expect_relevant rust/tcl-compiler/src/lib.rs
 expect_relevant rust/tcl-source/src/lib.rs
 expect_relevant rust/tcl-bigip-schema/src/lib.rs
+expect_relevant rust/tcl-native-model/src/lib.rs
 expect_relevant rust/tcl-codegen/src/lib.rs
 expect_relevant runtime/rust/src/lib.rs
 expect_relevant rust/tcl-spectcl/data/shipped-pack-dirs.txt

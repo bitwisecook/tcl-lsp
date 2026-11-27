@@ -53,7 +53,7 @@ fn logical_class_family_uses_observed_definer_without_borrowing_native_formals()
     assert_eq!(class.metaclass_provenance, MetaclassProvenance::Observed);
     assert!(class.source_name.is_none());
     assert!(family_is_tcloo(&analyser));
-    let dialect = tcl_registry::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         analyser
             .result
             .resolved_input

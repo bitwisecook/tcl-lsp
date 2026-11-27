@@ -190,7 +190,7 @@ mod tests {
         };
         let spec = super::spec();
         for profile in ["jim", "tcl8.6"] {
-            let dialect = crate::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
             );
             let registry = crate::model::ingress::static_context_for(profile).commands();

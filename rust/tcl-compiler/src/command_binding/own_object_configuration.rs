@@ -294,7 +294,7 @@ fn own_object_method_transfers(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     body: &super::ExecutedScriptSource,
     receiver: &SourceObjectInstanceProof,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parameters: super::deferred_method::MethodParameterSource,
     state: &ModuleCommandBindings,
     context: &SourceExecutionContext<'_>,
@@ -430,7 +430,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -688,7 +688,7 @@ mod original_configuration_body_purpose_tests {
                     config,
                     registry,
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_compilation:

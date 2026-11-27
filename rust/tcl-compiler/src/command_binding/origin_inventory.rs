@@ -992,7 +992,7 @@ impl SourceCommandBindings {
                         .state
                         .baseline
                         .dialect
-                        .and_then(tcl_registry::InvocationDialect::native_string_protocol),
+                        .and_then(tcl_native_model::InvocationDialect::native_string_protocol),
                     Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
                 )
             });
@@ -1311,7 +1311,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 ..super::super::SourceAnalysisOptions::default()
             },
         );
@@ -1733,7 +1733,7 @@ mod original_math_body_purpose_tests {
                     config,
                     registry,
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         ..Default::default()
@@ -1796,7 +1796,7 @@ mod original_math_body_purpose_tests {
                     &input,
                 )),
             execution_name_policy: Some(policy),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         };
         let source = "llength {a b}";

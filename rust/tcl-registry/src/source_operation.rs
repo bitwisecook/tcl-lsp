@@ -20,9 +20,9 @@
 
 use crate::side_effects::SideEffect;
 use crate::{
-    EffectFootprint, InvocationDialect, StateTransitions, TransitionEffectCoverage,
-    TransitionEffectCoverages,
+    EffectFootprint, StateTransitions, TransitionEffectCoverage, TransitionEffectCoverages,
 };
+use tcl_native_model::InvocationDialect;
 
 /// Registry-authored coverage of a primitive's conditional result transitions.
 /// Only the registered source resolver can construct this metadata.
@@ -142,7 +142,8 @@ mod tests {
     use crate::{InvocationWord, InvocationWords};
     fn select(arguments: &[InvocationWord<'_>]) -> Option<AuthoredSourceOperationContinuation> {
         let context = crate::model::ingress::static_context_for("tcl8.6");
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile()?);
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile()?);
         crate::model::assembly::resolve_structured_invocation_in_resolved_context(
             context.commands(),
             Some(context.context()),
@@ -233,7 +234,8 @@ mod tests {
     fn source_coverage_never_drops_extra_effects_or_borrows_a_missing_hook() {
         use InvocationWord::Literal;
         let context = crate::model::ingress::static_context_for("tcl8.6");
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
         let arguments = [
             Literal("add"),
             Literal("variable"),

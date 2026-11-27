@@ -135,7 +135,7 @@ pub fn prepare_closed_source(
     if source.len() > MAX_CLOSED_SOURCE_BYTES {
         return Err(ClosedSourceRefusal::Budget);
     }
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     if dialect.execution_point().is_none()
         || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
     {
@@ -232,7 +232,7 @@ fn source_preparation_domain(
     use tcl_registry::IntrinsicId;
     use tcl_registry::hooks::LoweringHookId;
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let policy = FoldPolicy::for_profile(
         crate::tcl_expr_eval::leading_zero_is_octal(profile),
         Some(profile),
@@ -316,7 +316,7 @@ fn source_preparation_domain(
 fn preparation_operation(
     registry: &CommandRegistry,
     words: &[WordExpr],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<SemanticOperationId, ClosedSourceRefusal> {
     if !matches!(words.first(), Some(WordExpr::Literal { .. })) {
         return Err(ClosedSourceRefusal::Source);
@@ -588,7 +588,7 @@ pub fn optimise_closed_source<'owner, B: ClosedNativeBackend>(
     if plan.source != scope.source()
         || &plan.profile != scope.profile()
         || !plan.matches_registry(registry)
-        || tcl_registry::InvocationDialect::of_profile(plan.profile.profile()).execution_point()
+        || tcl_native_model::InvocationDialect::of_profile(plan.profile.profile()).execution_point()
             != Some(scope.execution_point())
     {
         return Err(ClosedSourceRefusal::Currency);

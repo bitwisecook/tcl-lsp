@@ -48,7 +48,7 @@ pub(crate) fn install_ensemble(interp: &mut Interp) {
         STRING_SUBCOMMANDS,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::String,
+        tcl_native_model::EnsembleImplementationFamily::String,
         b"string",
         string_cmd,
         STOCK_MEMBERS,
@@ -68,7 +68,7 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(issued) = interp
         .native_invocation_dialect()
         .native_object_append_protocol(Some(
-            tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
         ))
     else {
         return interp.refuse_native_access(

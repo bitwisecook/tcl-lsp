@@ -140,7 +140,7 @@ impl Vm {
         };
         let words: Vec<_> = bytes
             .iter()
-            .map(|word| tcl_registry::native_usage::NativeUsageWord::Original(word))
+            .map(|word| tcl_native_model::native_usage::NativeUsageWord::Original(word))
             .collect();
         let Some(mut usage) = protocol.render_header(&words) else {
             return self.refuse_host_command(

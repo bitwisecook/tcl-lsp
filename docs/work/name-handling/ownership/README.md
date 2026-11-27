@@ -36,6 +36,13 @@ fails until a target is chosen. The same gate fails in both modes on
 [test bodies behind `test-support`](test-support-bodies.tsv) beyond their
 known lists, which may only shrink.
 
+[Native model](native-model.tsv) assigns each registry `native_*` module, and
+the runtime-protocol items split out of other core modules, to its destination
+for item 117a ([design](../../../design/registry/registry-split/117-native-model.md)):
+`tcl-native-model`, or `tcl-registry` where the item reads specs or the core's
+word view. `pending` rows have not moved yet; an extension-trait row is a
+selector over a core type that the orphan rule keeps out of an inherent impl.
+
 [Host primitives](grammar-bypasses.tsv) records existing uses of host string
 operations in Tcl grammar consumers. The scanner works on Rust source tokens
 and uses the operation to identify the relevant grammar. Some recorded uses

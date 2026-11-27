@@ -80,7 +80,7 @@ fn element_observers_follow_original_renamed_and_aliased_array_reads() {
             crate::environment_ingress::captured_native_entry_with_owner(profile);
         let entry = crate::command_binding::SourceAnalysisEntry {
             native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };
@@ -186,7 +186,7 @@ fn body_output_selects_its_retargeted_normal_binding() {
     let mut before = ResolveContext::for_function("::p");
     before.invocation_dialect = registry
         .profile()
-        .map(tcl_registry::InvocationDialect::of_profile);
+        .map(tcl_native_model::InvocationDialect::of_profile);
     let mut after = before.clone();
     after.known_namespaces.insert("::static".to_owned());
     after.define_literal("::static::captured", "BOOM", registry);

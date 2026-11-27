@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider;
+use tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider;
 use tcl_syntax::naming::{NativeCompiledVariableAuthority, NativeCompiledVariableRecipe};
 
 #[test]

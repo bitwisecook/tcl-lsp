@@ -20,7 +20,7 @@
 
 use super::Interp;
 use crate::obj::{self, Owned, TclObj};
-use tcl_registry::native_procedure_body::NativeProcedureBodyAction;
+use tcl_native_model::native_procedure_body::NativeProcedureBodyAction;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
@@ -313,7 +313,7 @@ mod tests {
         assert!(crate::typed_value::native_boolean_for_interp(
             interp,
             pointer,
-            tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+            tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
         )
         .is_err());
         assert!(ValueOps::discard_native_internal_representation(interp, &pointer).is_err());

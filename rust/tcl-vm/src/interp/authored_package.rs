@@ -24,6 +24,7 @@ use crate::Value;
 use std::rc::Rc;
 use tcl_cmd_core::CmdError;
 use tcl_core_types::{Completion, NameBytes};
+use tcl_registry::native_package::NativePackageDialect;
 use tcl_registry::native_package::{AuthoredPackageProvider, NativePackageProtocol};
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 

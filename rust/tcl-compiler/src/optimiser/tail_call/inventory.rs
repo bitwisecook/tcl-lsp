@@ -59,7 +59,7 @@ struct CheckedExpressionCommands<'a> {
 struct OriginalExpressionOperand<'a> {
     word: &'a NativeWord,
     written: usize,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 }
 
 pub(super) struct Inventory {
@@ -572,7 +572,7 @@ impl Inventory {
 
 fn expression_parse_context(
     ctx: &PassContext<'_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
     let profile = ctx.dialect.or_else(|| {
         ctx.registry

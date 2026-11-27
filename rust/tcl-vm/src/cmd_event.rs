@@ -24,6 +24,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tcl_cmd_core::event::EventKind;
+use tcl_registry::native_event::NativeEventDialect;
 use tcl_registry::native_event::{NativeEventProtocol, NativeEventWait};
 use tcl_runtime_api::Completion;
 use tcl_runtime_api::native_variable_trace::{
@@ -84,14 +85,14 @@ fn numeric(vm: &mut Vm, p: NativeEventProtocol, original: &Value) -> Result<Dura
 }
 
 fn option(vm: &mut Vm, p: NativeEventProtocol, first: &Value) -> Result<Option<usize>, ValueError> {
-    let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+    let table = tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
         p.after_options(),
     );
     if p.after_options_exact() {
         vm.native_jim_enum_from_original_checked(
             first,
             &table,
-            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(true),
             Some(b"argument"),
         )
         .map(Result::ok)
@@ -451,14 +452,14 @@ fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [] => false,
         [option] if p.after_options_exact() => {
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(&[
-                    "idletasks",
-                ]);
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    &["idletasks"],
+                );
             match vm.native_jim_enum_from_original_checked(
                 option,
                 &table,
-                tcl_registry::native_jim_enum::NativeJimEnumFlags(
-                    tcl_registry::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags(
+                    tcl_native_model::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
                 ),
                 None,
             ) {

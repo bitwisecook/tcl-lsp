@@ -207,7 +207,7 @@ mod tests {
                 include_str!("../tests/data/native_introspection_compilation/9.1.0.tsv"),
             ),
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for row in table.lines().take(15) {
                 let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();
@@ -263,7 +263,7 @@ mod tests {
             }
             let profile = tcl_dialect::DialectProfile::find(fields[0]).unwrap();
             let version = profile.effective_tcl_version(None).unwrap();
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let case = ORIGINAL_INFO_COMMANDS_CASES[fields[1].parse::<usize>().unwrap()];
             let parsed = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::native(case.2),

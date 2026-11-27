@@ -294,7 +294,7 @@ impl CommandBindingRealm {
         // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
-            || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            || tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
                 .authored_name_policy()
                 .is_some()
         {
@@ -329,7 +329,7 @@ impl CommandBindingRealm {
         // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
         if !self.matches_resolved_analysis_input(input)
             || input.has_hosted_source_name_context()
-            || tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            || tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
                 .authored_name_policy()
                 .is_some()
         {
@@ -1142,7 +1142,7 @@ pub(crate) fn document_package_index_survey_realm_with_resolved_input(
 fn logical_source_options(
     input: &crate::analyser::ResolvedAnalysisInput,
 ) -> crate::command_binding::SourceAnalysisOptions<'_> {
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
@@ -1175,7 +1175,7 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     // naming.vendor.original-source-context-input
     // docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md
     let context = input.context_registry();
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);

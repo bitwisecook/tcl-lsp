@@ -44,7 +44,8 @@ fn source_namespace_eval_covers_only_its_declared_legacy_bridge() {
         EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
         StaticSubjectScope,
     };
-    let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     let registry = crate::CommandRegistry::build_default();
     let arguments = ["eval", "n", "proc format {args} {return NS}"];
     let selected = registry.resolve_structured_invocation(
@@ -238,7 +239,7 @@ fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_bindi
             expected
         );
     }
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").unit_profile(),
     );
     let operands = [
@@ -271,7 +272,7 @@ fn namespace_basic_members_use_versioned_private_invocation_protocol() {
         NativeCompilationSelection, NativeCompilationWordShape,
     };
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         for member in ["import", "export", "path"] {
@@ -354,7 +355,7 @@ fn original_namespace_delete_roles_require_cardinality_without_requiring_text_va
     // docs/design/analysis/name-resolution-proofs/namespace-original-fresh-deletion.md
     use crate::{ArgRole, InvocationWord, InvocationWords};
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let exact = [
@@ -391,7 +392,7 @@ fn original_namespace_delete_effects_hand_only_legacy_state_to_the_recursive_tra
     // naming.namespace.original-fresh-namespace-deletion
     // docs/design/analysis/name-resolution-proofs/namespace-original-fresh-deletion.md
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let arguments = ["delete", "N"];
@@ -460,7 +461,7 @@ fn original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks
         ..spec()
     });
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let arguments = ["delete", "N"];
         let selected = registry.resolve_structured_invocation(
             crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),
@@ -485,8 +486,10 @@ fn only_a_literal_valid_ensemble_create_names_its_command() {
     let created = |version: Option<TclVersion>, words: &[&str]| {
         let arguments = InvocationArguments::literals(words);
         let arguments = match version {
-            Some(version) => arguments.with_dialect(crate::InvocationDialect::for_version(version)),
-            None => arguments.with_dialect(crate::InvocationDialect::of_profile(
+            Some(version) => {
+                arguments.with_dialect(tcl_native_model::InvocationDialect::for_version(version))
+            }
+            None => arguments.with_dialect(tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::plain_tcl(),
             )),
         };
@@ -560,7 +563,7 @@ fn literal_ensemble_create_freezes_its_dispatch_table() {
     let dispatch = |version: TclVersion, words: &[&str]| {
         super::literal_ensemble_dispatch(
             InvocationArguments::literals(words)
-                .with_dialect(crate::InvocationDialect::for_version(version)),
+                .with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
         )
     };
     let owned = |words: &[&str]| words.iter().map(|word| (*word).to_owned()).collect();

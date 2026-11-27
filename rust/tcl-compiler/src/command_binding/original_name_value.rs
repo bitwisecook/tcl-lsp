@@ -535,7 +535,7 @@ pub(super) struct OriginalWrittenSourceWords {
     site: super::CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
     words: Arc<[tcl_source::words::WordExpr]>,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 }
 
 impl OriginalWrittenSourceWords {
@@ -559,7 +559,7 @@ impl OriginalWrittenSourceWords {
         words: &[tcl_source::words::WordExpr],
         offset: u32,
         config: tcl_lexer::LexerConfig,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<Self> {
         origin.original_lexical_command(words, offset, config)?;
         Some(Self {

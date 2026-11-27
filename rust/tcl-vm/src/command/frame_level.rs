@@ -22,12 +22,13 @@ use super::error_completion::{completion_from_cmd_error, completion_from_tcl_err
 use super::{native_frame_numeric, native_wrong_args, original_script_list};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+use tcl_registry::frame_effect::FrameLevelDialect;
 use tcl_runtime_api::Completion;
 
 #[cfg(test)]
 pub(super) struct OriginalFrameLevel<'a> {
     pub(super) value: &'a Value,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     host: std::rc::Rc<dyn tcl_platform::Host>,
 }
 
@@ -377,7 +378,7 @@ fn eval_original_uplevel(
     let direct = match original_script_list(
         vm,
         &script,
-        tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::UpLevel,
     ) {
         Ok(direct) => direct,
         Err(error) => {
@@ -396,7 +397,7 @@ fn eval_original_uplevel(
     // level uses the same yieldable execution protocol.
     match vm.prepare_script_commands_value_for(
         &script,
-        tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::UpLevel,
     ) {
         Ok(prepared) => {
             if let Some(unit) = prepared.prefix {

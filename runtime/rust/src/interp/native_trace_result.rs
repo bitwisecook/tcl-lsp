@@ -42,7 +42,7 @@ impl Interp {
         &self,
         script: bool,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::NativeTraceStatePurpose;
+        use tcl_native_model::native_variable_trace::NativeTraceStatePurpose;
         self.save_native_trace_state(if script {
             NativeTraceStatePurpose::VariableScript
         } else {
@@ -54,7 +54,7 @@ impl Interp {
         &self,
         script: bool,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::NativeTraceStatePurpose;
+        use tcl_native_model::native_variable_trace::NativeTraceStatePurpose;
         self.save_native_trace_state(if script {
             NativeTraceStatePurpose::CommandScript
         } else {
@@ -64,9 +64,9 @@ impl Interp {
 
     fn save_native_trace_state(
         &self,
-        purpose: tcl_registry::native_variable_trace::NativeTraceStatePurpose,
+        purpose: tcl_native_model::native_variable_trace::NativeTraceStatePurpose,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::NativeTraceStateRecipe;
+        use tcl_native_model::native_variable_trace::NativeTraceStateRecipe;
         let currency =
             super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
         currency.check(self)?;

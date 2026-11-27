@@ -28,7 +28,7 @@ pub(in super::super) fn standalone_list_wrapper_head(
     argument: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     let original = argument.trim();
     if original.as_bytes().first() != Some(&b'[') {
@@ -193,7 +193,7 @@ pub(in super::super) fn list_wrapped_arg_command_is_literal(
             config,
             call.source
                 .dialect()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
         )
         .is_none()
         {

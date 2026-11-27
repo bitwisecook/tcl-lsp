@@ -30,7 +30,7 @@ fn jim_alias_targets_use_each_actual_callers_namespace() {
         SourceAnalysisOptions {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             ..SourceAnalysisOptions::default()
         },
     );

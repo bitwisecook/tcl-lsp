@@ -122,18 +122,15 @@ pub(crate) struct NativeCompilerPolicy {
     pub(crate) expression_evaluation:
         Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
     pub(crate) eval_object_provider:
-        Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
-    pub(crate) source_word_provider:
-        Option<tcl_registry::invocation_words::LogicalSourceWordProvider>,
-    pub(crate) expression_provider:
-        Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+        Option<tcl_native_model::native_eval_object::LogicalEvalObjectProvider>,
+    pub(crate) source_word_provider: Option<tcl_native_model::LogicalSourceWordProvider>,
+    pub(crate) expression_provider: Option<tcl_native_model::LogicalExpressionParseProvider>,
     pub(crate) name_provider: Option<tcl_syntax::naming::NamePolicyProtocol>,
     pub(crate) compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
     pub(crate) engine: NativeProfileReceipt,
     pub(crate) invocation: NativeProfileReceipt,
-    pub(crate) quote_provider:
-        Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
+    pub(crate) quote_provider: Option<tcl_native_model::LogicalExpressionQuoteProvider>,
     pub(crate) numeric_provider:
         Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
 }

@@ -188,12 +188,12 @@ impl OriginalAuthoredOperandScope {
     }
     pub(crate) fn binary_grammar(
         &self,
-    ) -> Result<tcl_registry::native_binary_value::NativeBinaryFormatGrammar, CmdError> {
+    ) -> Result<tcl_native_model::native_binary_value::NativeBinaryFormatGrammar, CmdError> {
         let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(
             "original binary format grammar",
         ))?;
         Ok(
-            tcl_registry::native_binary_value::NativeBinaryFormatGrammar::from_string_protocol(
+            tcl_native_model::native_binary_value::NativeBinaryFormatGrammar::from_string_protocol(
                 purpose.protocol(),
             ),
         )
@@ -202,8 +202,8 @@ impl OriginalAuthoredOperandScope {
         &self,
         vm: &mut Vm,
         value: &Value,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
-        format_narrowing: Option<tcl_registry::native_binary_value::NativeBinaryByteConversion>,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
+        format_narrowing: Option<tcl_native_model::native_binary_value::NativeBinaryByteConversion>,
     ) -> Result<Rc<[u8]>, CmdError> {
         self.current_for_value(vm, value)?;
         let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(

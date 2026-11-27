@@ -680,7 +680,7 @@ fn cooked_script_comment_markers_have_no_original_physical_line() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-    let protocol = tcl_registry::InvocationDialect::of_profile(profile)
+    let protocol = tcl_native_model::InvocationDialect::of_profile(profile)
         .authored_name_policy()
         .unwrap()
         .string_protocol();

@@ -24,6 +24,8 @@
 //! completion.
 
 use std::rc::Rc;
+use tcl_registry::commands::tcl::JimExistsDialect;
+use tcl_registry::special_vars::BootstrapDialect;
 
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::{Code, Completion, NsId, OoId};
@@ -609,7 +611,7 @@ fn jim_exists_kind(
     match vm.native_jim_enum_from_original_checked(
         option,
         &protocol.table(),
-        tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false),
+        tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(false),
         None,
     ) {
         Ok(Ok(ordinal)) => Ok(protocol
@@ -685,7 +687,7 @@ pub(crate) fn refresh_jim_exists(vm: &mut Vm) {
 pub(crate) fn original_script_list(
     vm: &mut Vm,
     script: &Value,
-    purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+    purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
 ) -> Result<Option<crate::NativeListItems>, Completion<Value>> {
     let Some(protocol) = vm.eval_object_protocol() else {
         return Err(
@@ -698,7 +700,7 @@ pub(crate) fn original_script_list(
         #[cfg(debug_assertions)]
         if matches!(
             purpose,
-            tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel
+            tcl_native_model::native_eval_object::EvalObjectPurpose::UpLevel
         ) && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
             == Ok("first-decline-v1")
         {
@@ -722,7 +724,7 @@ pub(crate) fn original_script_list(
     #[cfg(debug_assertions)]
     if matches!(
         purpose,
-        tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel
+        tcl_native_model::native_eval_object::EvalObjectPurpose::UpLevel
     ) {
         observe_original_uplevel_caller(vm, words.as_ref());
     }
@@ -793,7 +795,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let direct = match original_script_list(
         vm,
         &script,
-        tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
     ) {
         Ok(direct) => direct,
         Err(error) => return error,
@@ -815,7 +817,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // run.  `catch`/`try` already prepare their bodies this way.
     match vm.prepare_script_commands_value_for(
         &script,
-        tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
     ) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
@@ -946,7 +948,9 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         {
             const FLAG: &[&str] = &["-nonewline"];
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(FLAG);
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    FLAG,
+                );
             match vm.native_jim_compare_immediate_checked(first, &table, 0) {
                 Ok(matched) => matched,
                 Err(error) => return completion_from_cmd_error(vm, error.into()),
@@ -1094,7 +1098,7 @@ fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.is_empty() && !protocol.schedules_empty() {
         return ok(Value::empty());
     }
-    if protocol == tcl_registry::invocation_words::NativeTailcallProtocol::Tcl {
+    if protocol == tcl_native_model::NativeTailcallProtocol::Tcl {
         if let Err(completion) = vm.cancel_original_tailcall() {
             return completion;
         }
@@ -1158,7 +1162,7 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i > 0 {
         match vm.eval_original_script_value(
             &args[0],
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             args[0].source_location(),
         ) {
             Ok(c) if c.code.is_ok() => {}

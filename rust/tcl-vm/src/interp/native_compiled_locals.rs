@@ -22,6 +22,7 @@ use super::{
     CapturedVariableUpdate, Local, ResolvedVar, Value, VarBinding, VarId, VarTableOwner, Vm,
 };
 use tcl_core_types::NameBytes;
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_runtime_api::Completion;
 
 impl Vm {
@@ -977,7 +978,7 @@ mod tests {
     fn check_unavailable_dictionary_searches() {
         for engine in ["tcl8.4", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let protocol = tcl_registry::InvocationDialect::of_profile(profile)
+            let protocol = tcl_native_model::InvocationDialect::of_profile(profile)
                 .native_string_protocol()
                 .unwrap();
             assert!(
@@ -1014,7 +1015,7 @@ mod tests {
         let mut compared = 0;
         for (engine, expected) in engines {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let protocol = tcl_registry::InvocationDialect::of_profile(profile)
+            let protocol = tcl_native_model::InvocationDialect::of_profile(profile)
                 .native_string_protocol()
                 .unwrap();
             let expected = expected.lines().collect::<Vec<_>>();

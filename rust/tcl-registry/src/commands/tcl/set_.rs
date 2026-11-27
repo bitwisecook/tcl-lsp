@@ -197,7 +197,7 @@ mod tests {
     fn selected_set_forms_replace_the_broad_effect_union_and_preserve_trace_callbacks() {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let registry = crate::model::ingress::static_context_for(environment).commands();
-            let dialect = crate::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 crate::model::ingress::resolve_environment(environment).unit_profile(),
             );
             for (arguments, mode) in [

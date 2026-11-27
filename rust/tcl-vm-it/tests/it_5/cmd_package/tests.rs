@@ -667,7 +667,7 @@ fn provided_version_headers_match_all_native_30_windows() {
         assert_eq!(held.native_object_reference_count().to_string(), rows[0][3]);
         compared += 1;
         held.native_scalar_probe(
-            tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+            tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()),
             NativeScalarGetterKind::Int,
         )
         .unwrap()
@@ -741,7 +741,7 @@ fn package_error_publication_matches_all_21_original_native_controls() {
             fields[0],
             fields[1]
         );
-        let strings = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        let strings = tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
             .native_string_protocol()
             .unwrap();
         assert_eq!(
@@ -846,9 +846,10 @@ fn package_completion_matches_all_six_native_84_controls() {
                 fields[2],
                 "{engine} {name}"
             );
-            let strings = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
-                .native_string_protocol()
-                .unwrap();
+            let strings =
+                tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
+                    .native_string_protocol()
+                    .unwrap();
             assert_eq!(
                 completion
                     .result

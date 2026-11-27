@@ -100,7 +100,7 @@ impl AuthoredSourceStructuredInvocation {
         let written = self.invocation.effective.written_argument(argument)?;
         self.original_words.get(written.checked_add(1)?)
     }
-    pub(crate) fn dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(crate) fn dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.invocation.dialect
     }
     pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {

@@ -207,7 +207,7 @@ impl<'a> CommentLineWalker<'a> {
         registry: &'a CommandRegistry,
     ) -> Self {
         let source_context = registry.profile().filter(|profile| {
-            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy().is_some()
+            tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy().is_some()
         }).map(|profile| {
             let generation = crate::environment_ingress::context_for_profile(profile);
             let context = std::sync::Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));

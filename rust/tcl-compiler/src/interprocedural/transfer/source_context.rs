@@ -472,7 +472,7 @@ impl<'a> SourceSummaryContext<'a> {
         let frame = self.authored_frame(tokens)?;
         let word = self.original_argument_word(tokens, written)?;
         let input = self.module.source_metadata_input.as_ref()?;
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()?;
         let purpose =
             crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(

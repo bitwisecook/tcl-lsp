@@ -24,6 +24,7 @@ use super::super::{
 };
 use crate::obj;
 use crate::obj::TclObj;
+use tcl_registry::special_vars::ErrorVariableDialect;
 
 impl Interp {
     /// The current accumulated `errorInfo` (for `catch`'s `-errorinfo`): the
@@ -352,7 +353,7 @@ impl Interp {
     #[cfg_attr(not(have_tommath), allow(dead_code))]
     pub(crate) fn retain_expression_error_stage(
         &self,
-        stage: Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>,
+        stage: Box<tcl_native_model::native_expression_error::NativeExpressionErrorStage>,
     ) {
         self.exc.borrow_mut().expression_error_stage = Some(stage);
     }
@@ -365,8 +366,9 @@ impl Interp {
         let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         let stage = self.exc.borrow_mut().expression_error_stage.take();
         if let Some(stage) = stage {
-            if let tcl_registry::native_numeric_error::NativeExpressionErrorCodeUpdate::Set(code) =
-                stage.eval_update()
+            if let tcl_native_model::native_numeric_error::NativeExpressionErrorCodeUpdate::Set(
+                code,
+            ) = stage.eval_update()
             {
                 self.replace_native_error_code_checked(scope.currency(), code)?;
                 let mut exc = self.exc.borrow_mut();

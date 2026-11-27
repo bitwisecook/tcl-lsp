@@ -1450,7 +1450,7 @@ mod tests {
     #[test]
     fn parent_command_projection_requires_one_actual_native_child_component() {
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for (path, command) in [
                 ("sandbox", Some("sandbox")),
                 ("{space name}", Some("space name")),
@@ -1475,7 +1475,7 @@ mod tests {
         };
         for name in ["jim", "f5-irules"] {
             let owner = crate::model::ingress::static_context_for(name);
-            let dialect = crate::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 owner
                     .commands()
                     .profile()
@@ -1601,14 +1601,14 @@ mod tests {
     fn alias_normal_binding_contract_does_not_license_interp_script_execution() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let irules = tcl_dialect::DialectProfile::irules();
         let irules_registry = CommandRegistry::build_default().project_for_profile(irules);
         assert!(
             irules_registry
                 .resolve_structured_invocation(
                     InvocationWords::literals("interp", &["alias", "", "parts", "", "split"])
-                        .with_dialect(crate::InvocationDialect::of_profile(irules)),
+                        .with_dialect(tcl_native_model::InvocationDialect::of_profile(irules)),
                     irules_registry.own_surface_query(),
                 )
                 .resolved()
@@ -1675,7 +1675,7 @@ mod tests {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let registry = CommandRegistry::build_default().project_for_profile(profile);
-            let dialect = crate::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             for (arguments, mutation) in [
                 (vec!["alias", "", "forward", "", "future", "HELD"], true),
                 (vec!["alias", "", "forward", ""], true),

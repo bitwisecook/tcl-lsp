@@ -226,7 +226,7 @@ fn command_cache_priming_matches_every_native_original_object_row() {
     ];
     let mut rows = 0;
     for (version, fixture) in VERSIONS.into_iter().zip(FIXTURES) {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let first = command_cache(version, b"A");
         let mut second = command_cache(version, b"B");
         second.token = 9;
@@ -318,7 +318,7 @@ fn command_cache_priming_matches_every_native_original_object_row() {
 #[test]
 fn command_cache_duplicate_origin_and_retirement_preserve_original_storage() {
     let version = TclVersion::V9_0;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let value = obj::Owned::fresh(obj::new_string_bytes(b"::opaque\0\xff"));
     let alias = value.clone();
     let original_bytes = unsafe { (*value.as_ptr()).bytes };
@@ -337,7 +337,7 @@ fn command_cache_duplicate_origin_and_retirement_preserve_original_storage() {
     assert!(obj::install_native_command_name_cache(
         value.as_ptr(),
         cache.clone(),
-        tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+        tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6)
     )
     .is_err());
     assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
@@ -401,7 +401,7 @@ fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
                 let value = obj::Owned::fresh(obj::new_string_bytes(input));
                 let result = native_scalar_getter(
                     value.as_ptr(),
-                    tcl_registry::InvocationDialect::for_version(VERSIONS[index]),
+                    tcl_native_model::InvocationDialect::for_version(VERSIONS[index]),
                     kind,
                 );
                 let native_type = field(line, "type");
@@ -490,11 +490,11 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
     for (index, fixture) in FIXTURES.iter().enumerate() {
         let dialect = VERSIONS.get(index).map_or_else(
             || {
-                tcl_registry::InvocationDialect::of_profile(
+                tcl_native_model::InvocationDialect::of_profile(
                     crate::environment::profile_for_dialect("jim"),
                 )
             },
-            |&version| tcl_registry::InvocationDialect::for_version(version),
+            |&version| tcl_native_model::InvocationDialect::for_version(version),
         );
         let host = crate::interp::default_host();
         let jim_context = dialect
@@ -613,7 +613,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
     let mut count = 0;
     for (index, fixture) in FIXTURES.iter().enumerate() {
         let version = VERSIONS[index];
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         obj::install_double_string_policy(tcl_dialect::DoubleStringPolicy::for_tcl_version(
             version,
         ));
@@ -703,7 +703,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
 #[test]
 fn bytearray_materialization_keeps_modified_nul_distinct_from_raw_string() {
     for version in VERSIONS {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let raw = obj::Owned::fresh(obj::new_string_bytes(b"1\0X"));
         let bytes = obj::Owned::fresh(crate::bytearray::new_byte_array(
             b"1\0X",
@@ -732,7 +732,7 @@ fn reached_boolean_cache_changes_shared_container_on_the_original_object() {
         assert_eq!(
             native_boolean(
                 value.as_ptr(),
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
             ),
             Ok(true)
         );
@@ -747,7 +747,7 @@ fn native_word_boolean_descriptor_retains_release_specific_string_contract() {
         assert_eq!(
             native_boolean(
                 value.as_ptr(),
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
             ),
             Ok(true)
         );
@@ -783,7 +783,7 @@ fn failed_double_getter_keeps_nan_cache_and_payload() {
     assert!(matches!(
         native_double(
             value.as_ptr(),
-            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6)
         ),
         Err(ValueError::NativeScalarGetter(_))
     ));
@@ -805,7 +805,7 @@ fn cached_numeric_boolean_uses_its_own_string_materialization_obligation() {
         assert_eq!(
             native_boolean(
                 value.as_ptr(),
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
             ),
             Ok(true)
         );
@@ -826,8 +826,9 @@ fn cached_numeric_boolean_uses_its_own_string_materialization_obligation() {
 }
 #[test]
 fn jim_double_cache_retains_exact_integer_and_wide_restores_it() {
-    let dialect =
-        tcl_registry::InvocationDialect::of_profile(crate::environment::profile_for_dialect("jim"));
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
+        crate::environment::profile_for_dialect("jim"),
+    );
     let context = crate::native_source::NativeJimObjectContext::new(dialect).unwrap();
     context.select_numeric_host(std::rc::Rc::new(tcl_host_native::NativeHost::new()));
     for integer in [17, 9_007_199_254_740_993_i64] {
@@ -843,8 +844,9 @@ fn jim_double_cache_retains_exact_integer_and_wide_restores_it() {
 }
 #[test]
 fn jim_missing_range_state_and_vendor_engine_are_host_refusals() {
-    let jim =
-        tcl_registry::InvocationDialect::of_profile(crate::environment::profile_for_dialect("jim"));
+    let jim = tcl_native_model::InvocationDialect::of_profile(
+        crate::environment::profile_for_dialect("jim"),
+    );
     for input in [b"9223372036854775807".as_slice(), b"-9223372036854775808"] {
         let value = obj::Owned::fresh(obj::new_string_bytes(input));
         assert_eq!(
@@ -853,7 +855,7 @@ fn jim_missing_range_state_and_vendor_engine_are_host_refusals() {
         );
         assert_eq!(cache_kind(value.as_ptr()), "string");
     }
-    let vendor = tcl_registry::InvocationDialect::of_profile(
+    let vendor = tcl_native_model::InvocationDialect::of_profile(
         crate::environment::profile_for_dialect("f5-irules"),
     );
     let value = obj::Owned::fresh(obj::new_wide_int_obj(3));
@@ -866,7 +868,7 @@ fn jim_missing_range_state_and_vendor_engine_are_host_refusals() {
 
 #[test]
 fn neutral_probe_preserves_absent_string_and_original_nan_bits() {
-    let dialect = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
     let bits = 0xfff8_0000_0000_0042;
     let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
     assert!(!obj::has_string_rep(value.as_ptr()));
@@ -891,7 +893,7 @@ fn primitive_nan_constant_failure_preserves_original_absent_string() {
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
     // C85+ original case24/getter4 needs no original-string diagnostic.
     for version in VERSIONS.into_iter().skip(1) {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let value = obj::Owned::fresh(obj::new_double_obj(f64::NAN));
         let Err(ValueError::NativeScalarGetter(record)) =
             native_scalar_getter(value.as_ptr(), dialect, Kind::Boolean)
@@ -950,7 +952,7 @@ fn native_string_count_keeps_exact_units_origin_and_duplicate_cache() {
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
     use tcl_syntax::native_string::NativeStringProtocol;
     for version in VERSIONS {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let value = obj::Owned::fresh(obj::new_string_bytes(b"a\xc0\x80\xff"));
         let protocol = NativeStringProtocol::C(version);
         let representation = dialect.string_length_representation().unwrap();

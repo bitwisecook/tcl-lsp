@@ -501,7 +501,7 @@ mod tests {
         let mut state = ResolveContext::for_namespace(current.display().unwrap());
         state.namespace_cells.closed = true;
         state.namespace_inventory = crate::var_resolve::NamespaceInventoryClosure::Closed;
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(version));
         state.retain_namespace_world(
             current,
             [key(1, &[]), key(10, &["a:", "b"]), key(20, &["a", ":b"])],
@@ -802,7 +802,7 @@ mod tests {
         let current = key(41, &["a:", "b"]);
         let root = key(1, &[]);
         let mut state = world(TclVersion::V8_6, current.clone());
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::static_context_for("jim")
                 .commands()
                 .profile()

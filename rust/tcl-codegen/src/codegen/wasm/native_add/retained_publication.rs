@@ -160,7 +160,7 @@ fn publication_guard(
     }
     let entry = module.source_entry.native_entry.as_deref()?;
     let profile = module.dialect_profile?;
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point?);
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point?);
     if entry.frame != tcl_runtime_api::native_compilation::NativeCompilationFrame::Global
         || !entry.execution_name_policy.is_some_and(|policy| {
             policy.native_recipe().is_some_and(|recipe| {
@@ -168,7 +168,8 @@ fn publication_guard(
             })
         })
         || entry.invocation_policy != Some(profile.cache_key())
-        || !dialect.has_same_execution_policy(tcl_registry::InvocationDialect::of_profile(profile))
+        || !dialect
+            .has_same_execution_policy(tcl_native_model::InvocationDialect::of_profile(profile))
         || module.native_lexer_config() != tcl_lexer::LexerConfig::for_profile(Some(profile))
         || !entry
             .namespace_context(entry.current_namespace)

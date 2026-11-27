@@ -21,8 +21,8 @@
 use super::{native_operation_currency::NativeOperationCurrency, Interp, InterpState};
 use crate::obj::{self, TclObj};
 use std::rc::{Rc, Weak};
+use tcl_native_model::InvocationDialect;
 use tcl_platform::{Host, NativeCIntegerAbi};
-use tcl_registry::InvocationDialect;
 use tcl_runtime_api::{NativeExecutionError, RuntimeContext};
 use tcl_syntax::value::ValueError;
 

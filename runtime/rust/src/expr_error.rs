@@ -95,8 +95,8 @@ impl ExprError {
 
     pub(crate) fn with_invalid_type_stage(
         mut self,
-        dialect: tcl_registry::InvocationDialect,
-        stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+        dialect: tcl_native_model::InvocationDialect,
+        stage: tcl_native_model::native_numeric_error::NativeExpressionOperandStage,
     ) -> Self {
         let stage = self.code.as_deref().and_then(|code| {
             dialect
@@ -112,10 +112,12 @@ impl ExprError {
         code: Option<Vec<u8>>,
         syntax: tcl_syntax::expr::parser::NativeExprSyntax,
     ) -> Self {
-        let Some(stage) = tcl_registry::native_expression_error::NativeExpressionErrorStage::syntax(
-            syntax,
-            code.as_deref(),
-        ) else {
+        let Some(stage) =
+            tcl_native_model::native_expression_error::NativeExpressionErrorStage::syntax(
+                syntax,
+                code.as_deref(),
+            )
+        else {
             return Self::host_refusal(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "native expression syntax error state",
@@ -195,7 +197,7 @@ impl crate::interp::Interp {
         }
         if let Some(stage) = state.error_stage {
             let error_code = stage.code_update(
-                tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+                tcl_native_model::native_expression_error::ExpressionErrorPublication::Direct,
             );
             let code = self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
                 tcl_cmd_core::CmdErrorDetails {

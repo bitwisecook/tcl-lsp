@@ -46,7 +46,7 @@ fn original_index_filename_candidates_preserve_oracle_literal_data_and_join_comp
     }
     for version in tcl_dialect::TclVersion::ALL {
         let config = LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+            tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
         );
         for (loader, filename) in [
             (
@@ -97,7 +97,7 @@ fn original_index_filename_candidates_preserve_oracle_literal_data_and_join_comp
 fn original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames() {
     for version in tcl_dialect::TclVersion::ALL {
         let config = LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+            tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
         );
         for (option, accepted) in [
             ("-encoding utf-8", version != tcl_dialect::TclVersion::V8_4),

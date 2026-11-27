@@ -27,6 +27,7 @@ use tcl_dialect::{
     validate_version_bytes_for, version_matches_exact_bytes_for, version_satisfies_bytes_for,
     PackagePrefer, TclVersion,
 };
+use tcl_registry::native_package::NativePackageDialect;
 use tcl_registry::native_package::{NativePackageProtocol, PackageDispatch};
 use tcl_syntax::value::ValueOps;
 
@@ -188,7 +189,7 @@ fn package_original(
     }
     let options = protocol.c_members().expect("selected C package table");
     let table =
-        tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
+        tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
     let selected = interp.native_index_from_original(argv[1], &table, false, "option");
     if let Err(error) = arguments.check() {
         return interp.report_cmd_error(error);
@@ -1038,9 +1039,10 @@ fn prefer(
         return interp.wrong_args_for_prefix(argv, 2, b"?latest|stable?");
     }
     if argv.len() == 3 {
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            protocol.preference_members().expect("C preference table"),
-        );
+        let table =
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                protocol.preference_members().expect("C preference table"),
+            );
         let selected = interp.native_index_from_original(argv[2], &table, false, "preference");
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);

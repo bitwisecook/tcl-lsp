@@ -44,8 +44,8 @@ fn original_procedure_replay_validity_requires_the_selected_formal_grammar() {
     // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
     // Registry replay syntax only, without installed procedure or body entry.
     let namespace = crate::ir::ExecutionNamespace::exact("::");
-    let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let c = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     for parameters in ["a::b", "a(1)"] {

@@ -413,7 +413,7 @@ fn signature_command_name(
     profile: &'static tcl_dialect::DialectProfile,
     local_config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    let policy = tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy();
+    let policy = tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy();
     let name_key = policy.and_then(|policy| {
         tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
             head,

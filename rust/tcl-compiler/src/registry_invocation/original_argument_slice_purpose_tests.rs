@@ -31,7 +31,7 @@ fn original_argument_slices_keep_bom_values_and_selected_variable_geometry() {
             braced_var: tcl_lexer::BracedVarStyle::FirstClose,
             ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
         };
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         for (source, expected) in [
             ("cmd \u{feff}one two", [Some("\u{feff}one"), Some("two")]),
             ("cmd \u{feff}one ${a{b}", [Some("\u{feff}one"), None]),

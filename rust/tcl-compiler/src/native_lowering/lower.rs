@@ -30,11 +30,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
-use tcl_registry::model::semantic::SemanticContext;
-use tcl_registry::native_boolean_truth::{
+use tcl_native_model::native_boolean_truth::{
     NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
 };
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::semantic::SemanticContext;
 use tcl_syntax::expr::ast::render_expr;
 use tcl_syntax::number::Numbers;
 
@@ -195,7 +195,9 @@ fn unlowered_instruction(function: &ExecutableFunction) -> Option<&'static str> 
 /// Native truth stages require a current complete source input and its
 /// independently retained interpreter entry. Availability does not select a
 /// physical point, and stale entry metadata cannot donate its point.
-fn native_boolean_dialect(input: &LoweringInput<'_>) -> Option<tcl_registry::InvocationDialect> {
+fn native_boolean_dialect(
+    input: &LoweringInput<'_>,
+) -> Option<tcl_native_model::InvocationDialect> {
     let metadata = InvocationMetadataContext::for_module(input.registry, input.module)?;
     if input
         .module
@@ -209,7 +211,7 @@ fn native_boolean_dialect(input: &LoweringInput<'_>) -> Option<tcl_registry::Inv
     let entry = input.module.source_entry.native_entry.as_deref()?;
     entry
         .execution_point
-        .map(tcl_registry::InvocationDialect::of_point)
+        .map(tcl_native_model::InvocationDialect::of_point)
 }
 
 struct Lowerer<'a> {
@@ -226,7 +228,7 @@ struct Lowerer<'a> {
     dialect: Option<&'static DialectProfile>,
     /// A current source owner and independently retained physical entry select
     /// the truth recipe; an authored profile alone supplies no opcode protocol.
-    boolean_dialect: Option<tcl_registry::InvocationDialect>,
+    boolean_dialect: Option<tcl_native_model::InvocationDialect>,
     boolean_admission_missing: bool,
     /// The document's lexer grammar, resolved once with `dialect` and
     /// threaded into every re-read of source text this pass makes

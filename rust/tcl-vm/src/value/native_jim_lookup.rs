@@ -63,7 +63,7 @@ impl Value {
 
     fn require_jim_lookup_origin(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         dialect
             .native_jim_lookup_protocol()
@@ -80,7 +80,7 @@ impl Value {
 
     pub(crate) fn install_jim_command_cache_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         build: impl FnOnce() -> Result<JimCommandCache, E>,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
@@ -90,7 +90,7 @@ impl Value {
 
     pub(crate) fn install_jim_variable_cache_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         build: impl FnOnce() -> Result<JimVariableCache, E>,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {

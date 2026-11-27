@@ -370,8 +370,8 @@ struct SourceConditionalContinuationPayload {
     child_outcomes: Arc<SourceOutcomes>,
     conditional_outcome: Option<OriginalSourceConditionalOutcome>,
     child_graph: Arc<super::source_transition_advice::OriginalSourcePointAdviceGraph>,
-    dialect: tcl_registry::InvocationDialect,
-    grammar: tcl_registry::source_file::SourceFileGrammar,
+    dialect: tcl_native_model::InvocationDialect,
+    grammar: tcl_native_model::source_file::SourceFileGrammar,
 }
 impl std::fmt::Debug for OriginalSourceConditionalContinuation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

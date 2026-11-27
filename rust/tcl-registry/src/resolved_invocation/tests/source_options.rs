@@ -400,7 +400,7 @@ fn original_invokehidden_options_keep_the_path_prefix_and_actual_availability() 
     let current = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
     let older = crate::model::ingress::static_context_for("tcl8.4")
         .with_command_store(std::sync::Arc::clone(current.commands()));
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let arguments = [
         Literal("invokehidden"),
         Dynamic,
@@ -434,7 +434,7 @@ fn source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries() {
     // naming.diagnostic.registry-source-ownership
     // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (words, expected) in [
         (vec!["ensemble", "create", "-command", "::E"], 2),
         (vec!["ensemble", "configure", "-map", "-prefixes", "0"], 3),
@@ -491,7 +491,7 @@ fn source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries() {
 #[test]
 fn a_dynamic_word_with_a_literal_prefix_ends_the_option_run_as_a_positional() {
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let args = [
         crate::InvocationWord::Literal("-nocase"),
         crate::InvocationWord::DynamicNonOption,

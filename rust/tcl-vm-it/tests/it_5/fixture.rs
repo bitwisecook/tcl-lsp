@@ -252,7 +252,7 @@ pub fn eval(vm: &mut Vm, script: &str) -> tcl_runtime_api::Completion<tcl_vm::Va
 
 /// The string protocol `vm`'s release selects.
 pub fn strings(vm: &Vm) -> tcl_syntax::native_string::NativeStringProtocol {
-    tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+    tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
         .native_string_protocol()
         .expect("a native string protocol")
 }

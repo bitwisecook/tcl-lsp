@@ -321,13 +321,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
     ),
 ];
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait JimInfoDialect {
     /// The stock Jim info table selected by its independently retained string
     /// recipe. This readonly table grants no installed command, native lookup
     /// cache, successful handler, helper execution or compiler preparation.
     /// C and unavailable/foreign Jim issuers keep their existing table owner.
     #[must_use]
-    pub fn native_jim_info_member_names(self) -> Option<&'static [&'static str]> {
+    fn native_jim_info_member_names(self) -> Option<&'static [&'static str]>;
+
+    /// Select Jim's original subcommand parser and reporting recipe. This does
+    /// not issue its physical lookup cache or select any current helper command.
+    #[must_use]
+    fn native_jim_info_protocol(self) -> Option<NativeJimInfoProtocol>;
+}
+
+impl JimInfoDialect for tcl_native_model::InvocationDialect {
+    fn native_jim_info_member_names(self) -> Option<&'static [&'static str]> {
         use tcl_syntax::native_string::NativeStringProtocol;
         static NAMES: std::sync::OnceLock<Box<[&'static str]>> = std::sync::OnceLock::new();
         if self.native_string_protocol() != Some(NativeStringProtocol::Jim084) {
@@ -336,10 +347,7 @@ impl crate::InvocationDialect {
         Some(NAMES.get_or_init(|| SUBCOMMANDS.iter().map(|member| member.name).collect()))
     }
 
-    /// Select Jim's original subcommand parser and reporting recipe. This does
-    /// not issue its physical lookup cache or select any current helper command.
-    #[must_use]
-    pub fn native_jim_info_protocol(self) -> Option<NativeJimInfoProtocol> {
+    fn native_jim_info_protocol(self) -> Option<NativeJimInfoProtocol> {
         Some(NativeJimInfoProtocol(
             self.native_jim_info_member_names()?,
             self.native_usage_protocol()?,
@@ -351,7 +359,7 @@ impl crate::InvocationDialect {
 #[derive(Clone, Copy, Debug)]
 pub struct NativeJimInfoProtocol(
     &'static [&'static str],
-    crate::native_usage::NativeUsageProtocol,
+    tcl_native_model::native_usage::NativeUsageProtocol,
 );
 
 /// Whether the original Jim invocation allows current namespace forwarding.
@@ -513,7 +521,7 @@ pub struct NativeJimInfoReport {
 #[derive(Clone, Copy, Debug)]
 enum JimInfoReportKind {
     /// Registered `Jim_InfoCoreCommand` arity, checked before `Jim_ParseSubCmd`.
-    CoreWrongArity(crate::native_usage::NativeUsageProtocol),
+    CoreWrongArity(tcl_native_model::native_usage::NativeUsageProtocol),
     Missing,
     Commands,
     Usage,
@@ -865,7 +873,7 @@ mod tests {
     }
 
     fn parse(words: &[&[u8]]) -> NativeJimInfoDispatch {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         );
         dialect
@@ -1012,7 +1020,7 @@ mod tests {
             .map(|member| member.name)
             .collect();
         assert_eq!(names.join(" ").as_bytes(), bytes);
-        let actual = crate::InvocationDialect::of_profile(
+        let actual = tcl_native_model::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         );
         assert_eq!(actual.native_jim_info_member_names().unwrap(), names);
@@ -1072,7 +1080,7 @@ mod tests {
         for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let c_context = crate::model::static_context_for(version);
             let c_info = c_context.resolve_command("info").unwrap();
-            let actual = crate::InvocationDialect::of_profile(
+            let actual = tcl_native_model::InvocationDialect::of_profile(
                 crate::model::resolve_environment(version).unit_profile(),
             );
             assert_eq!(actual.native_jim_info_member_names(), None);

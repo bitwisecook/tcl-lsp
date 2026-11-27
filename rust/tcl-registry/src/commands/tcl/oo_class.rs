@@ -371,9 +371,10 @@ mod tests {
         // Implementation contract: naming.tcloo.class-installation-effect-coverage-contract
         // docs/design/analysis/name-resolution-proofs/tcloo-class-installation-effect-coverage-contract.md
         use crate::{
-            EffectAccessMode, InvocationDialect, InvocationWord, InvocationWords,
-            StateTransitionDomain, WorldEffectWriteSource,
+            EffectAccessMode, InvocationWord, InvocationWords, StateTransitionDomain,
+            WorldEffectWriteSource,
         };
+        use tcl_native_model::InvocationDialect;
         let registry = CommandRegistry::build_default();
         for release in [
             tcl_dialect::TclVersion::V8_6,
@@ -454,7 +455,7 @@ mod tests {
         };
         let registry = CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for (name, since) in [
                 ("oo::class", tcl_dialect::TclVersion::V8_6),
                 ("oo::configurable", tcl_dialect::TclVersion::V9_0),

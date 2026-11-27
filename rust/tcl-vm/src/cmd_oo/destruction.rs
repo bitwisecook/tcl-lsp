@@ -24,7 +24,7 @@ use crate::interp::{CommandSidecarKey, Vm, ok};
 use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 use tcl_runtime_api::{Code, Completion, OoId};
 
 // destroy / destructor

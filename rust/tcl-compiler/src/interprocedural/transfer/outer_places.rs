@@ -437,7 +437,7 @@ pub(super) fn alias_facts(
     source: &SourceSummaryContext<'_>,
 ) -> Option<(
     Vec<tcl_registry::VariableCellAliasTransition>,
-    Option<tcl_registry::InvocationDialect>,
+    Option<tcl_native_model::InvocationDialect>,
 )> {
     if source.procedure_call(tokens).is_some() {
         return Some((Vec::new(), None));

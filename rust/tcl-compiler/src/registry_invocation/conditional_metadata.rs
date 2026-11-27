@@ -54,7 +54,7 @@ impl OriginalConditionalRegistryMetadata {
     }
     /// Independently retained original source grammar, without compiler admission.
     #[must_use]
-    pub fn original_source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn original_source_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.catalogue.original_source_dialect()
     }
 

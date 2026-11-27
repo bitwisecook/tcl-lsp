@@ -307,7 +307,7 @@ struct ReturnTarget {
 
 impl ReturnTarget {
     fn for_profile(profile: Option<&DialectProfile>) -> Self {
-        let dialect = profile.map(crate::InvocationDialect::of_profile);
+        let dialect = profile.map(tcl_native_model::InvocationDialect::of_profile);
         Self {
             grammar: dialect.map_or(
                 crate::completion_route::ReturnInvocationGrammar::Unknown,

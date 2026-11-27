@@ -195,13 +195,14 @@ impl LogicalCapturedCommandPrefix {
         {
             return false;
         }
-        let Some(policy) = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
-            .authored_name_policy()
+        let Some(policy) =
+            tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
+                .authored_name_policy()
         else {
             return false;
         };
         input.has_logical_source_name_context()
-            && tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy() == Some(policy)
+            && tcl_native_model::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy() == Some(policy)
             && inputs.iter().all(|input| {
                 let Some(key) = input.original_word_key() else { return false; };
                 let word = key.original_word();

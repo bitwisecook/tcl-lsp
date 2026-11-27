@@ -29,7 +29,7 @@ fn authored_f5_vm() -> Vm {
         tcl_registry::model::resolve_environment("tcl9.0").unit_profile()
     ));
     assert!(vm.set_logical_expression_parse_provider(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
     ));
     vm
 }

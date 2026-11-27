@@ -112,7 +112,7 @@ pub struct SourceIndexBoundsInvocation {
     /// Original post-head operands after any selected member selector.
     pub arguments: std::ops::Range<usize>,
     /// Independently retained grammar and character rules, if supplied.
-    pub dialect: Option<crate::InvocationDialect>,
+    pub dialect: Option<tcl_native_model::InvocationDialect>,
 }
 
 #[cfg(test)]

@@ -67,7 +67,7 @@ pub(in super::super) struct OriginalDeclarationSourceOperandLayout {
     pub(in super::super) site: CommandAllocationSite,
     pub(in super::super) config: tcl_lexer::LexerConfig,
     pub(in super::super) words: Arc<[tcl_source::words::WordExpr]>,
-    pub(super) dialect: tcl_registry::InvocationDialect,
+    pub(super) dialect: tcl_native_model::InvocationDialect,
     pub(super) read: OriginalProcedureReadDeclaration,
     pub(super) header: DeclaredProcedureHeader,
     pub(super) snapshot: Arc<super::super::SourceLookupSnapshot>,
@@ -89,7 +89,7 @@ pub(in super::super) struct OriginalDeclarationSourceOperation {
 
 impl OriginalDeclarationSourceOperandLayout {
     #[cfg(test)]
-    pub(in super::super) const fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(in super::super) const fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
 
@@ -476,7 +476,7 @@ struct OriginalOperandCommandContext<'a> {
     row: &'a DeclarationLayoutObservation,
     pub(super) parents: &'a Arc<[DeclarationLayoutObservation]>,
     pub(super) registry: &'a tcl_registry::CommandRegistry,
-    pub(super) dialect: tcl_registry::InvocationDialect,
+    pub(super) dialect: tcl_native_model::InvocationDialect,
     pub(super) read: &'a OriginalProcedureReadDeclaration,
     pub(super) header: &'a DeclaredProcedureHeader,
     pub(super) snapshot: &'a Arc<SourceLookupSnapshot>,

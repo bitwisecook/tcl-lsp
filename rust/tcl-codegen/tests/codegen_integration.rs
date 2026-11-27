@@ -1051,7 +1051,7 @@ fn native_c86_ir(source: &str) -> IrModule {
         Some(profile),
         false,
         Some(tcl_compiler::command_binding::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_entry: Some(&entry),
             ..Default::default()
         }),

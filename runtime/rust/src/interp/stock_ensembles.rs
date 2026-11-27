@@ -24,7 +24,8 @@ use super::{
 };
 use crate::ensemble::EnsembleConfig;
 use std::collections::HashMap;
-use tcl_registry::invocation_words::EnsembleImplementationFamily;
+use tcl_native_model::EnsembleImplementationFamily;
+use tcl_registry::native_scripted_distribution::ScriptedHelperDialect;
 
 #[derive(Default)]
 pub(super) struct StockEnsembles {
@@ -288,7 +289,7 @@ impl Interp {
     /// procedure and allocate its exact compound helper commands separately.
     pub(crate) fn install_stock_scripted_binary(
         &mut self,
-        ingress: tcl_registry::native_binary_value::NativeBinaryScriptedIngress,
+        ingress: tcl_native_model::native_binary_value::NativeBinaryScriptedIngress,
         callbacks: &[BuiltinFn],
     ) {
         let scope = match NativeOperationScope::enter(self) {
@@ -373,14 +374,14 @@ impl Interp {
     /// Publish the actual selected distribution helper, preserving an existing slot.
     pub(crate) fn install_stock_jim_namespace_helpers(&mut self) {
         let mut source_filename = None;
-        for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
+        for kind in tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
             self.install_stock_jim_namespace_helper(kind, &mut source_filename);
         }
     }
 
     fn install_stock_jim_namespace_helper(
         &mut self,
-        kind: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+        kind: tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind,
         source_filename: &mut Option<crate::obj::Owned>,
     ) {
         let Some(helper) = self
@@ -490,8 +491,8 @@ impl Interp {
                 }
                 let import_source = if matches!(
                     kind,
-                    tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
-                        | tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+                    tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                        | tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info
                 ) {
                     match super::native_procedure_resources::OriginalJimNamespaceHelperSource::capture(
                         &body, &context, kind,
@@ -549,7 +550,7 @@ impl Interp {
     pub(crate) fn dispatch_stock_jim_namespace_helper(
         &mut self,
         argv: &[*mut TclObj],
-        helper: tcl_registry::native_jim_lookup::NativeJimNamespaceHelper,
+        helper: tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper,
     ) -> Code {
         if self
             .native_invocation_dialect()
@@ -1483,7 +1484,7 @@ mod tests {
         assert!(interpreter.native_execution_refusal().is_none());
         let context = interpreter.native_jim_object_context().unwrap();
         let mut filename = None;
-        for kind in tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
+        for kind in tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::ALL {
             let helper = interpreter
                 .native_invocation_dialect()
                 .native_jim_namespace_helper(kind)

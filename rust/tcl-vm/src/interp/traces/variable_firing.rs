@@ -375,7 +375,7 @@ impl Vm {
                 scope.check_native(self)?;
                 let evaluated = self.eval_original_script_value(
                     &source,
-                    tcl_registry::native_eval_object::EvalObjectPurpose::TraceCallback,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::TraceCallback,
                     None,
                 );
                 let mut completion = match evaluated {

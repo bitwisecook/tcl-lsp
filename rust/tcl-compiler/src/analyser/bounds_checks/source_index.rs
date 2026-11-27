@@ -86,7 +86,7 @@ fn report(
 fn list_indices(
     original: &OriginalDiagnosticInvocation,
     selected: &SourceIndexBoundsInvocation,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<Diagnostic> {
     let start = selected.arguments.start;
     let Some(mut list) = original.literal(start).map(str::to_owned) else {
@@ -136,7 +136,7 @@ fn list_indices(
 fn list_pair(
     original: &OriginalDiagnosticInvocation,
     selected: &SourceIndexBoundsInvocation,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<Diagnostic> {
     let start = selected.arguments.start;
     let (Some(list), Some(lo_text), Some(hi_text)) = (
@@ -190,7 +190,7 @@ fn list_pair(
 fn string_length(
     original: &OriginalDiagnosticInvocation,
     argument: usize,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<i64> {
     let count = tcl_dialect::StringCharacterModel::count_for(
         dialect.characters,
@@ -202,7 +202,7 @@ fn string_length(
 fn string_single(
     original: &OriginalDiagnosticInvocation,
     selected: &SourceIndexBoundsInvocation,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<Diagnostic> {
     let start = selected.arguments.start;
     let Some(text) = original.literal(start + 1) else {
@@ -241,7 +241,7 @@ fn string_single(
 fn string_pair(
     original: &OriginalDiagnosticInvocation,
     selected: &SourceIndexBoundsInvocation,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<Diagnostic> {
     let start = selected.arguments.start;
     let (Some(first), Some(last)) = (original.literal(start + 1), original.literal(start + 2))

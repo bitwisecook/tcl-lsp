@@ -1099,9 +1099,9 @@ mod tests {
             let entry = NativeOperationScope::enter(&interpreter).unwrap();
             let before = interpreter.native_operation_context_epoch();
             let selected = match provider {
-                0 => interpreter.set_logical_eval_object_provider(tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation, host),
-                1 => interpreter.set_logical_source_word_provider(tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation, host),
-                2 => interpreter.set_logical_expression_parse_provider(tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation, host),
+                0 => interpreter.set_logical_eval_object_provider(tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation, host),
+                1 => interpreter.set_logical_source_word_provider(tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation, host),
+                2 => interpreter.set_logical_expression_parse_provider(tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation, host),
                 _ => interpreter.set_logical_name_provider(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)),
             };
             assert!(selected);

@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+use crate::{InvocationArguments, InvocationWord};
+use tcl_native_model::InvocationDialect;
 
 #[test]
 fn created_handle_eval_body_owns_only_the_canonical_single_script_ordinal() {

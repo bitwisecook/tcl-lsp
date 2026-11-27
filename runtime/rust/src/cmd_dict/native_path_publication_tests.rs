@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 fn original_result(rows: &str) -> (i64, Vec<u8>) {
     let fields = rows
         .lines()
@@ -71,7 +72,7 @@ include_str!("../../../../rust/tcl-registry/tests/data/native_dictionary_path_pu
             if *engine == "tcl8.4" {
                 assert_eq!(expected_code, 0, "{engine}/{case} native API boundary");
                 assert_eq!(expected_result, b"NOT_APPLICABLE");
-                assert!(tcl_registry::InvocationDialect::of_profile(profile)
+                assert!(tcl_native_model::InvocationDialect::of_profile(profile)
                     .native_dictionary_path_publication()
                     .is_none());
                 unsupported += 1;

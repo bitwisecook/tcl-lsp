@@ -64,7 +64,7 @@ impl Builder<'_> {
             .interp
             .native_ensemble_compiler_configuration(generation)
         {
-            use tcl_registry::native_ensemble::NativeEnsembleWorkerSelection;
+            use tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection;
             use tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite;
             let Some(public) = self
                 .interp

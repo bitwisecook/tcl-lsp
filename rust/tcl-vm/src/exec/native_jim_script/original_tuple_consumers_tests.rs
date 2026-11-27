@@ -78,7 +78,7 @@ fn no_scalar_query(host: &ObservedHost) {
 fn source(vm: &mut Vm, bytes: &[u8]) -> crate::Completion<Value> {
     vm.eval_original_script_value(
         &Value::new_native_string_bytes(bytes),
-        tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
         None,
     )
     .unwrap()

@@ -19,7 +19,7 @@
 use super::*;
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
-use tcl_registry::source_file::LogicalSourceFileProvider;
+use tcl_native_model::source_file::LogicalSourceFileProvider;
 use tcl_test_support::encoding_names::{EncodingHost, EncodingStages};
 
 fn supplied() -> (Vm, Rc<EncodingStages>) {
@@ -29,17 +29,17 @@ fn supplied() -> (Vm, Rc<EncodingStages>) {
     assert!(vm.set_command_surface_profile(host));
     assert!(vm.set_native_engine_profile(host));
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation
     ));
     assert!(
         vm.set_logical_name_provider(tcl_syntax::naming::NamePolicyProtocol::authored_tcl(
             tcl_dialect::TclVersion::V8_4
         ))
     );
-    assert!(vm.set_logical_compiled_variable_provider(tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
+    assert!(vm.set_logical_compiled_variable_provider(tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
     let stages = Rc::new(EncodingStages::default());
     let host = EncodingHost::new(
         vm.host_rc(),
@@ -83,7 +83,7 @@ fn logical_file_provider_is_explicit_and_does_not_select_native_grammar() {
         .unwrap();
     assert_eq!(
         entry.grammar(),
-        tcl_registry::source_file::SourceFileGrammar::Filename
+        tcl_native_model::source_file::SourceFileGrammar::Filename
     );
     assert_eq!(
         entry.protocol(),
@@ -91,7 +91,7 @@ fn logical_file_provider_is_explicit_and_does_not_select_native_grammar() {
     );
     assert!(matches!(
         entry.grammar().select_original(3, Some(b"-encoding")),
-        tcl_registry::source_file::SourceFileSelection::Invalid
+        tcl_native_model::source_file::SourceFileSelection::Invalid
     ));
     names.finish(&mut vm).unwrap();
 }

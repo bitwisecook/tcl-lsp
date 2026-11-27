@@ -678,7 +678,7 @@ proc empty {} {}
         let source =
             include_str!("../../../../samples/wasm/t3-procs/35_native_dispatch_matrix.tcl");
         let config = tcl_lexer::LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                 .lexer_grammar,
         );
         let commands =

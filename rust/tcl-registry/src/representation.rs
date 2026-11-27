@@ -637,7 +637,8 @@ mod tests {
 
     #[test]
     fn conditional_source_list_index_keeps_shape_and_native_premises_separate() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
+        use tcl_native_model::InvocationDialect;
         let effect = RepresentationEffect::CoerceOrdinaryListIndices {
             operand: 0,
             indices_from: 1,
@@ -713,7 +714,8 @@ mod tests {
 
     #[test]
     fn numeric_conversion_effects_require_the_authored_original_layout() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord, InvocationWords};
+        use crate::{InvocationArguments, InvocationWord, InvocationWords};
+        use tcl_native_model::InvocationDialect;
         let operands = [InvocationWord::Dynamic];
         for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let context = crate::model::ingress::static_context_for(environment);
@@ -770,8 +772,9 @@ mod tests {
 
     #[test]
     fn ordinary_list_length_completion_requires_its_native_operand_contract() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
         use tcl_dialect::TclVersion;
+        use tcl_native_model::InvocationDialect;
         let effect = RepresentationEffect::CoerceOrdinaryList { operand: 0 };
         let words = [InvocationWord::Dynamic];
         for version in TclVersion::ALL {
@@ -834,8 +837,9 @@ mod tests {
 
     #[test]
     fn c_indexed_list_footprints_keep_grouped_empty_and_numeric_index_axes_separate() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
         use tcl_dialect::TclVersion;
+        use tcl_native_model::InvocationDialect;
         let effect = RepresentationEffect::CoerceOrdinaryListIndices {
             operand: 0,
             indices_from: 1,
@@ -881,8 +885,9 @@ mod tests {
 
     #[test]
     fn jim_indexed_list_footprints_keep_native_index_and_range_axes_separate() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
         use tcl_dialect::model::{DialectPoint, Release};
+        use tcl_native_model::InvocationDialect;
         let effect = RepresentationEffect::CoerceOrdinaryListIndices {
             operand: 0,
             indices_from: 1,
@@ -929,8 +934,9 @@ mod tests {
 
     #[test]
     fn ordinary_coercion_keeps_native_empty_and_unknown_policies() {
-        use crate::{InvocationArguments, InvocationDialect};
+        use crate::InvocationArguments;
         use tcl_dialect::TclVersion;
+        use tcl_native_model::InvocationDialect;
         for version in TclVersion::ALL {
             let args = InvocationArguments::literals(&["prefix", "value"])
                 .with_dialect(InvocationDialect::for_version(version));
@@ -975,7 +981,8 @@ mod tests {
 
     #[test]
     fn ordinary_foreach_coercion_selects_only_exact_list_values() {
-        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        use crate::{InvocationArguments, InvocationWord};
+        use tcl_native_model::InvocationDialect;
         let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         let effect = RepresentationEffect::CoerceOrdinaryListPairs { variables_from: 0 };
         let values = [

@@ -30,14 +30,14 @@ impl Value {
     pub(crate) fn install_native_jim_option_cache(
         &self,
         cache: NativeJimOptionCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.install_native_jim_option_cache_using::<ValueError>(cache, dialect, &mut None)
     }
     pub(crate) fn install_native_jim_option_cache_checked<E: From<ValueError>>(
         &self,
         cache: NativeJimOptionCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.install_native_jim_option_cache_using(cache, dialect, &mut Some(check))
@@ -45,7 +45,7 @@ impl Value {
     fn install_native_jim_option_cache_using<E: From<ValueError>>(
         &self,
         cache: NativeJimOptionCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;

@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(
             vm.eval_original_script_value(
                 &setup,
-                tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
                 None,
             )
             .unwrap()

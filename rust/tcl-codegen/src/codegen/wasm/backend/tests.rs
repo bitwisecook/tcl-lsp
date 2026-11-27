@@ -154,7 +154,7 @@ fn native_source_unit_borrowed(
     let (owner, captured) = crate::test_support::captured_native_entry_with_owner(profile);
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(captured)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_compiler::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

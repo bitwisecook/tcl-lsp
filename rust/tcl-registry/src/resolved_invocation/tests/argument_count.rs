@@ -207,7 +207,7 @@ fn leading_flags_are_not_positionals_and_the_final_word_never_is_one() {
 fn positional_count_preserves_native_reserved_tail_and_case_layout() {
     use crate::InvocationWord::{Dynamic, Literal};
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry = crate::CommandRegistry::build_default();
         let cases: &[(&str, &[crate::InvocationWord<'_>], u16)] = &[
             ("lsort", &[Literal("-integer"), Dynamic], 1),

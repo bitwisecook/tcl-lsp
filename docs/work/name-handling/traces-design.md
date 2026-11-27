@@ -35,7 +35,7 @@ The LSP's default optimiser profile (Readability) does not propagate, so `tr23` 
 
 - VM: `cmd_trace.rs` (384 lines), `interp/traces.rs` (448), `interp/traces/command_traces.rs` (707), `interp/traces/variable_firing.rs` (788), `interp/traces/env_and_precision.rs` (364), `interp/variable_trace_outcomes.rs` (197), `interp/variables/traced_reads.rs` (731), `exec/dispatch/execution_traces.rs` (499).
 - Runtime: `cmd_trace.rs` (1,055), `interp/variables/traces.rs` (905), `interp/dispatch/traces.rs` (703), `interp/native_trace_result.rs` (680), `env_trace.rs` (782), `vars/trace_homes.rs`, `vars/trace_shell.rs`, `frame/trace_shell.rs`, `interp/native_command_traces.rs`, `cmd_var/member_trace_horizon.rs`.
-- Shared contracts: `tcl-runtime-api/src/native_variable_trace.rs` and `tcl-registry/src/native_variable_trace.rs` (native C callbacks such as `env` and `tcl_precision`); no engine trait for registering, firing or listing script traces.
+- Shared contracts: `tcl-runtime-api/src/native_variable_trace.rs` and `tcl-native-model/src/native_variable_trace.rs` (native C callbacks such as `env` and `tcl_precision`); no engine trait for registering, firing or listing script traces.
 
 About 5,500 VM lines and 5,000 runtime lines implement the same `tclTrace.c` and `tclVar.c` firing rules. They agree with tclsh everywhere measured except the VM 8.4 read-error path.
 

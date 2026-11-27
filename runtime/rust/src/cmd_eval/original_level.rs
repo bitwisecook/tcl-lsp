@@ -34,7 +34,9 @@ use std::{
     rc::{Rc, Weak},
 };
 use tcl_cmd_core::CmdError;
-use tcl_registry::{frame_effect::NativeFrameLevelObject, InvocationDialect};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::frame_effect::FrameLevelDialect;
+use tcl_registry::frame_effect::NativeFrameLevelObject;
 use tcl_syntax::{
     scalar_getter::{
         NativeScalarGetterConversion, NativeScalarGetterFailure, NativeScalarGetterKind,

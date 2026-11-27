@@ -254,7 +254,7 @@ pub(super) fn lexical_source_schema<'r: 'w, 'w, T>(
     {
         return None;
     }
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(env.dialect);
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(env.dialect);
     dialect.lexer_grammar = env.config.grammar_over(dialect.lexer_grammar);
     let words = tcl_registry::InvocationWords::structured(
         tcl_registry::InvocationWord::Literal(name),

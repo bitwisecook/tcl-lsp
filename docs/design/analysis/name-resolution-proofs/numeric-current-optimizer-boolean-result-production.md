@@ -385,7 +385,7 @@ tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c`, TclSetByte
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/native_boolean_truth.rs](../../../../rust/tcl-syntax/src/native_boolean_truth.rs), `NativeExpressionResultProducer`: Keep an explicitly reached NumericInstruction result producer separate from a Boolean inline or public-API producer; a descriptor supplies no original instruction or completed physical conversion.
-- [rust/tcl-registry/src/native_boolean_truth.rs](../../../../rust/tcl-registry/src/native_boolean_truth.rs), `InvocationDialect::native_numeric_instruction_result_protocol`: Select the actual retained C scalar engine for an independently reached numeric instruction, separately from a Boolean condition rewrite or public expression API copy.
+- [rust/tcl-native-model/src/native_boolean_truth.rs](../../../../rust/tcl-native-model/src/native_boolean_truth.rs), `InvocationDialect::native_numeric_instruction_result_protocol`: Select the actual retained C scalar engine for an independently reached numeric instruction, separately from a Boolean condition rewrite or public expression API copy.
 - [rust/tcl-cmd-core/src/native_boolean_truth.rs](../../../../rust/tcl-cmd-core/src/native_boolean_truth.rs), `original_boolean_expression_result`: Perform only the selected reached original result stages through supplied original object/getter/publication operations, preserving first Host and independent original ownership; source interpretation supplies no execution authority.
 
 No Rust assertion is attached to this source interpretation record. Current source definitions and any independently pinned implementation executions remain separate.

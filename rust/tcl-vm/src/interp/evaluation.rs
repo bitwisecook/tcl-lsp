@@ -540,7 +540,7 @@ impl Vm {
             ));
         }
         if self.native_invocation_dialect().script_parse_timing()
-            == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
+            == Some(tcl_native_model::NativeScriptParseTiming::BeforeScript)
             && let Some(tail) = plan.fatal_tail.clone()
         {
             let level = self
@@ -657,7 +657,7 @@ impl Vm {
             }
         };
         if self.native_invocation_dialect().script_parse_timing()
-            == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
+            == Some(tcl_native_model::NativeScriptParseTiming::BeforeScript)
             && let Some(tail) = fatal_tail.clone()
         {
             let level = self
@@ -789,7 +789,7 @@ impl Vm {
         }
         self.eval_original_script_value(
             &original,
-            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
             location,
         )
     }
@@ -839,7 +839,7 @@ impl Vm {
     pub(crate) fn eval_original_script_value(
         &mut self,
         value: &Value,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Result<Completion<Value>, TclError> {
         // Prepared out of line, so preparation's locals are off the native
@@ -863,7 +863,7 @@ impl Vm {
     fn prepare_original_script_run(
         &mut self,
         value: &Value,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Result<OriginalScriptRun, TclError> {
         if let Some(refusal) = self.execution_refusal.clone() {
@@ -897,7 +897,7 @@ impl Vm {
     ) -> Result<PreparedScript, TclError> {
         self.prepare_script_commands_value_for(
             value,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
         )
     }
 
@@ -949,8 +949,8 @@ impl Vm {
         admitted_source: &tcl_runtime_api::SourceImage,
         namespace: &NamespacePath,
         strings: tcl_syntax::native_string::NativeStringProtocol,
-        evaluation: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        evaluation: tcl_native_model::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Result<CompiledUnit, TclError> {
         let module = self.compile_module_bytes_as(admitted_source, namespace, true, true)?;
         self.merge_procs(&module);
@@ -989,7 +989,7 @@ impl Vm {
     pub(crate) fn prepare_script_commands_value_for(
         &mut self,
         value: &Value,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Result<PreparedScript, TclError> {
         if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)

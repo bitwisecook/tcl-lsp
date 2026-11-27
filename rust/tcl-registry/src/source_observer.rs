@@ -22,9 +22,10 @@ use crate::intrinsic::IntrinsicId;
 use crate::resolved_invocation::SourceExecutableValueCapability;
 use crate::world_effect::EffectFootprint;
 use crate::{
-    BodyInterpreter, BodyKind, InvocationDialect, ResolvedInvocation, SemanticOperationId,
-    StateTransitionKnowledge, StateTransitions,
+    BodyInterpreter, BodyKind, ResolvedInvocation, SemanticOperationId, StateTransitionKnowledge,
+    StateTransitions,
 };
+use tcl_native_model::InvocationDialect;
 
 /// Conditions on source assistance; none is an observed execution fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

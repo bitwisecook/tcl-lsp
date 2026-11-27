@@ -183,7 +183,7 @@ fn package_query_release_arity(
     let decided = tcl_dialect::TclVersion::ALL
         .into_iter()
         .filter_map(|release| {
-            tcl_registry::InvocationDialect::for_version(release)
+            tcl_native_model::InvocationDialect::for_version(release)
                 .authoring_query()
                 .and_then(|query| schema.arity_accepts_under(&query))
                 .map(|accepted| (release, accepted))
@@ -742,7 +742,7 @@ mod tests {
         assert!(!words.operands_preserve_source_lookup());
         assert_eq!(survey.editing_input().lexer_config(), config);
         assert!(
-            tcl_registry::InvocationDialect::of_profile(survey.editing_input().unit_profile())
+            tcl_native_model::InvocationDialect::of_profile(survey.editing_input().unit_profile())
                 .native_source_string_protocol()
                 .is_none()
         );

@@ -342,9 +342,9 @@ impl Interp {
                     let objects = body_original
                         .objects(self)
                         .map_err(|error| self.report_cmd_error(error))?;
-                    let code=self.process_original_c_return_options_with_objects(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,1,0,options,&objects).map_err(|error|self.report_cmd_error(error))?;
+                    let code=self.process_original_c_return_options_with_objects(tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,1,0,options,&objects).map_err(|error|self.report_cmd_error(error))?;
                     self.set_result(message);
-                    self.capture_original_return_instruction_context(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,message,options).map_err(|first| self.refuse_native_execution(first))?;
+                    self.capture_original_return_instruction_context(tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,message,options).map_err(|first| self.refuse_native_execution(first))?;
                     return Ok(code);
                 }
                 if obj::is_shared(values.as_ptr()) {
@@ -430,9 +430,9 @@ impl Interp {
 impl ArrayOperation {
     pub(super) fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
         self.alias
-            .map(|_| tcl_registry::native_compiler_pass::NativeCompilerPassHazard::Upvar)
+            .map(|_| tcl_native_model::native_compiler_pass::NativeCompilerPassHazard::Upvar)
             .into_iter()
             .collect()
     }

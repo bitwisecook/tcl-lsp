@@ -21,7 +21,7 @@ use tcl_runtime_api::jim_interpreter::JimInterpreterObjectRole as Role;
 
 #[test]
 fn externally_retained_original_survives_without_retired_interpreter_authority() {
-    let dialect = tcl_registry::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     );
     let context = NativeJimObjectContext::new(dialect).unwrap();

@@ -123,7 +123,7 @@ mod tests {
             Some(SourceAnalysisOptions {
                 native_entry: native_entry.map(std::sync::Arc::as_ref),
                 unknown_entry,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
                     frame: NativeCompilationFrame::ProcedureCode,

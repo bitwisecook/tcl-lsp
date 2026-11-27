@@ -35,7 +35,7 @@ use tcl_cmd_core::{
     },
     CmdError,
 };
-use tcl_registry::{
+use tcl_native_model::{
     native_boolean_truth::{
         NativeBooleanExpressionResultProduction as Production,
         NativeBooleanExpressionResultProtocol as ResultProtocol,

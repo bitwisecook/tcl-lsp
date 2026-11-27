@@ -352,7 +352,7 @@ fn decoded(
     facet: ReturnInvocationFacet,
 ) -> ReturnDecoding {
     let profile = crate::native_test_provider::profile(provider.profile);
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let numbers = if provider.profile == "jim" {
         Numbers::Target(NumberSyntax::Jim)
     } else {
@@ -536,7 +536,7 @@ fn return_decoder_preserves_unknown_values_count_and_original_ordinals() {
     // Software contract: constructed source carriers test uncertainty and
     // provenance. They are not independently observed Native entry/header facts.
     let profile = crate::native_test_provider::profile("tcl8.6");
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let read = |words: &[InvocationWord<'_>]| {
         decode_return_words_in(
             Grammar::OptionsTcl,
@@ -659,7 +659,7 @@ fn return_decoder_release_and_invocation_facet_are_independent_premises() {
         L("-options {-code error} -code ok"),
         L("RESULT"),
     ];
-    let dialect = crate::InvocationDialect::for_version(TclVersion::V8_5);
+    let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_5);
     let args = InvocationArguments::structured(&nested).with_dialect(dialect);
     assert_eq!(
         decode_return_words_in(
@@ -690,8 +690,8 @@ fn return_conversion_width_keeps_release_independent_of_numeral_overlay() {
     // These mixed carriers separately test the software axis contract;
     // they do not claim a newly observed mixed Native engine or entry.
     let numbers = Numbers::Target(NumberSyntax::Tcl85);
-    let c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
-    let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
+    let c90 = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
+    let c86 = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
     for option in ["-code", "-level"] {
         let values = [L(option), L("-4294967295"), L("RESULT")];
         let arguments = InvocationArguments::structured(&values);
@@ -759,7 +759,7 @@ fn registry_return_routes_keep_release_grammar_and_numerals_independent() {
         ),
     ] {
         let registry = crate::model::ingress::static_context_for(name).commands();
-        let mut dialect = crate::InvocationDialect::for_version(version);
+        let mut dialect = tcl_native_model::InvocationDialect::for_version(version);
         dialect.numbers = numbers;
         let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
         assert_eq!(
@@ -793,7 +793,7 @@ fn registry_return_routes_keep_release_grammar_and_numerals_independent() {
         ),
     ] {
         let registry = crate::model::ingress::static_context_for(name).commands();
-        let mut dialect = crate::InvocationDialect::for_version(version);
+        let mut dialect = tcl_native_model::InvocationDialect::for_version(version);
         dialect.numbers = numbers;
         let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
         assert_eq!(
@@ -836,8 +836,9 @@ fn return_decoder_keeps_unknown_grammar_and_numbers_as_separate_premises() {
         decode_return_words_in(
             Grammar::OptionsTcl,
             Numbers::Unknown,
-            InvocationArguments::structured(&values)
-                .with_dialect(crate::InvocationDialect::for_version(TclVersion::V8_6)),
+            InvocationArguments::structured(&values).with_dialect(
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6)
+            ),
             ReturnInvocationFacet::OriginalSource,
         ),
         ReturnDecoding::Unknown(ReturnUnknown::Release),

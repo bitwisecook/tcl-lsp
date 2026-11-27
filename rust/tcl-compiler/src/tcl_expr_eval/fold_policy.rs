@@ -33,7 +33,7 @@ use tcl_dialect::{NumberSpelling, NumberSyntax, StringCharacterModel};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FoldPolicy {
     /// Exact invocation snapshot for engine-owned native function tables.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    pub invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     /// Integer representation and overflow policy of the selected engine.
     /// Legacy callers without an engine retain the modern Tcl tower.
     pub arithmetic: Option<tcl_dialect::NativeArithmetic>,
@@ -51,7 +51,7 @@ pub struct FoldPolicy {
     /// Explicitly installed logical expression parser, matching the one the
     /// source walk prepared its expression witnesses under. Never inferred
     /// from the dialect.
-    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    pub expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// What the active dialect counts as a string character: `Some(model)`
     /// folds character counts under that model, `None` declines a fold whose
     /// answer the Tcl 8 and Tcl 9 models disagree on — the same
@@ -96,7 +96,7 @@ impl FoldPolicy {
     #[must_use]
     pub fn double_format(self) -> Option<tcl_dialect::DoubleFormat> {
         self.invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format)
     }
 
@@ -151,14 +151,15 @@ impl FoldPolicy {
         profile: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
         Self {
-            invocation_dialect: profile.map(tcl_registry::InvocationDialect::of_profile),
+            invocation_dialect: profile.map(tcl_native_model::InvocationDialect::of_profile),
             arithmetic: profile.and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).arithmetic()
+                tcl_native_model::InvocationDialect::of_profile(profile).arithmetic()
             }),
             octal,
             dialect: profile,
-            native_family: profile
-                .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
+            native_family: profile.and_then(|profile| {
+                tcl_native_model::InvocationDialect::of_profile(profile).family()
+            }),
             f5_predicates: profile
                 .is_some_and(tcl_dialect::DialectProfile::is_irules)
                 .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
@@ -189,7 +190,7 @@ impl FoldPolicy {
     #[must_use]
     pub const fn with_expression_parser(
         mut self,
-        provider: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+        provider: Option<tcl_native_model::LogicalExpressionParseProvider>,
     ) -> Self {
         self.expression_parser = provider;
         self
@@ -200,7 +201,7 @@ impl FoldPolicy {
     #[must_use]
     pub fn for_retained_entry(
         registry: &tcl_registry::CommandRegistry,
-        invocation: Option<tcl_registry::InvocationDialect>,
+        invocation: Option<tcl_native_model::InvocationDialect>,
         config: &tcl_lexer::LexerConfig,
     ) -> Self {
         let policy = Self::from_registry(registry);
@@ -216,7 +217,7 @@ impl FoldPolicy {
     /// Retain the exact invocation's engine and grammar instead of inferring
     /// them from a catalogue profile which may be absent or unrelated.
     #[must_use]
-    pub fn with_invocation_dialect(mut self, dialect: tcl_registry::InvocationDialect) -> Self {
+    pub fn with_invocation_dialect(mut self, dialect: tcl_native_model::InvocationDialect) -> Self {
         self.invocation_dialect = Some(dialect);
         self.arithmetic = dialect.arithmetic();
         self.numbers = Some(dialect.numbers);
@@ -239,15 +240,15 @@ impl FoldPolicy {
         Self {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             arithmetic: registry.profile().and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).arithmetic()
+                tcl_native_model::InvocationDialect::of_profile(profile).arithmetic()
             }),
             octal: registry.octal_fold_policy(),
             dialect: registry.profile(),
-            native_family: registry
-                .profile()
-                .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).family()),
+            native_family: registry.profile().and_then(|profile| {
+                tcl_native_model::InvocationDialect::of_profile(profile).family()
+            }),
             f5_predicates: registry
                 .profile()
                 .is_some_and(tcl_dialect::DialectProfile::is_irules)

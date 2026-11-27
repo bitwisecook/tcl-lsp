@@ -68,7 +68,7 @@ fn decode(hex: &str) -> Vec<u8> {
 
 #[test]
 fn c84_normalization_matches_six_original_float_error_windows() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let values = [
         f64::INFINITY,
         f64::INFINITY,
@@ -157,7 +157,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
 
 #[test]
 fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
     let actual = vm.host_rc();
     // Cached conversion still needs the actual ABI receipt. This provider

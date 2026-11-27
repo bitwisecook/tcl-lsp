@@ -612,7 +612,8 @@ mod tests {
         NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
         NativeCompilationSelection, NativeCompilationWordShape,
     };
-    use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+    use crate::{InvocationArguments, InvocationWord};
+    use tcl_native_model::InvocationDialect;
 
     #[test]
     fn nested_codec_compilers_preserve_exact_registration_and_selector() {

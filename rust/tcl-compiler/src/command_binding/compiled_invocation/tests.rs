@@ -26,7 +26,7 @@ fn analyse(
     version: tcl_dialect::TclVersion,
     mode: NativeCompilationMode,
 ) -> SourceCommandBindings {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     SourceCommandBindings::analyse_with_options(
         source,
         tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
@@ -52,7 +52,7 @@ fn original_literal_compiler_name_effects_remain_separate_from_unknown_admission
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let options = SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: NativeCompilationContext {
                 mode: NativeCompilationMode::Unknown,
                 frame: NativeCompilationFrame::Unknown,
@@ -148,7 +148,7 @@ fn original_nested_compiler_effects_preserve_names_without_executing_children() 
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let options = SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: NativeCompilationContext::default(),
             ..Default::default()
         };
@@ -200,7 +200,7 @@ fn assert_native_fixed_lookup_resolver_scope(
     use tcl_runtime_api::native_compilation::{
         NativeCommandResolverInventory, NativeCommandResolverPresence,
     };
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let native_policy = entry.command_name_policy().unwrap();
     let native = ModuleCommandBindings::initial_with_options(
@@ -276,7 +276,7 @@ fn original_fixed_compiler_lookup_requires_current_authored_helper_and_resolver_
         tcl_dialect::TclVersion::V9_1,
     ] {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let options = SourceAnalysisOptions {
             invocation_dialect: Some(dialect),
@@ -351,7 +351,7 @@ fn original_null_namespace_compiler_does_not_borrow_worker_admission() {
             config,
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::Unknown,
                     ..Default::default()
@@ -678,7 +678,7 @@ fn ensemble_compiler_selection_requires_its_original_private_implementation() {
         ),
         body: tcl_registry::native_compilation::NativeBodyCompilation::Inherit,
     }
-    .implementation_lookup(tcl_registry::InvocationDialect::for_version(
+    .implementation_lookup(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ))
     .unwrap();
@@ -698,7 +698,7 @@ fn unknown_compiler_protocol_can_retain_handler_identity_without_an_opcode() {
         tcl_lexer::LexerConfig::for_dialect("f5-irules"),
         registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 registry.profile().expect("selected F5 profile"),
             )),
             native_compilation: NativeCompilationContext {
@@ -743,7 +743,7 @@ fn unknown_compiler_keeps_possible_body_inventory_and_may_stores() {
         tcl_lexer::LexerConfig::for_dialect("f5-irules"),
         registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 registry.profile().unwrap(),
             )),
             native_compilation: NativeCompilationContext {
@@ -973,7 +973,7 @@ fn nested_normal_handler_path_requires_each_live_worker() {
         tcl_registry::InvocationWord::Literal("binary"),
         &arguments,
     )
-    .with_dialect(tcl_registry::InvocationDialect::of_profile(profile));
+    .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
     let facts = super::super::resolve_source_invocation_facts(
         &registry,
         None,

@@ -436,7 +436,7 @@ pub(crate) fn with_source_argument_words<T>(
     source: &str,
     arg_tokens: &[tcl_lexer::Token],
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     apply: impl FnOnce(tcl_registry::InvocationArguments<'_>) -> T,
 ) -> Option<T> {
     let first = tcl_lexer::word_span_at(source, arg_tokens.first()?.span);
@@ -501,7 +501,7 @@ pub enum AuthoredSourceCaseBodySelection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedStatementInvocation {
     /// Interpreter policies retained independently of catalogue availability.
-    pub dialect: Option<tcl_registry::InvocationDialect>,
+    pub dialect: Option<tcl_native_model::InvocationDialect>,
     /// Live implementation's registry facts.
     pub facts: Box<InvocationFacts>,
     /// Effective post-head presentation slots. Written words retain their
@@ -698,12 +698,12 @@ pub fn resolved_tokens_invocation_with_metadata_context(
         .or_else(|| {
             context
                 .and_then(|context| context.context().environment.point())
-                .map(tcl_registry::InvocationDialect::of_point)
+                .map(tcl_native_model::InvocationDialect::of_point)
         })
         .or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         });
     Some(ResolvedStatementInvocation {
         dialect,
@@ -720,7 +720,7 @@ pub fn resolved_tokens_invocation_with_metadata_context(
 #[derive(Debug)]
 pub struct AdmittedNativeCompilerInvocation {
     invocation: ResolvedStatementInvocation,
-    compiler_dialect: tcl_registry::InvocationDialect,
+    compiler_dialect: tcl_native_model::InvocationDialect,
     hooks: tcl_registry::registry::NativeCompilerHooks,
     target: crate::command_binding::SourceCommandTarget,
     selection: tcl_registry::native_compilation::NativeCompilationSelection,
@@ -914,7 +914,7 @@ impl ResolvedStatementInvocation {
                 &self.facts.canonical_command,
                 arguments,
                 self.dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
                     .or_else(|| {
                         registry
                             .profile()

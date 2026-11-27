@@ -36,7 +36,9 @@ pub(crate) use tcl_cmd_core::literal_value::{
     split_list,
 };
 
-fn context(dialect: crate::InvocationDialect) -> tcl_cmd_core::literal_value::LiteralContext {
+fn context(
+    dialect: tcl_native_model::InvocationDialect,
+) -> tcl_cmd_core::literal_value::LiteralContext {
     tcl_cmd_core::literal_value::LiteralContext {
         numbers: dialect.numbers,
         lists: dialect.word_values.list,
@@ -47,25 +49,28 @@ fn context(dialect: crate::InvocationDialect) -> tcl_cmd_core::literal_value::Li
 
 pub(crate) fn fold_lreverse_in(
     args: &[&str],
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     tcl_cmd_core::literal_value::fold_lreverse_in(args, dialect.map(context))
 }
 
 pub(crate) fn fold_lsort_in(
     args: &[&str],
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     tcl_cmd_core::literal_value::fold_lsort_in(args, dialect.map(context))
 }
 
-pub(crate) fn fold_lrepeat_in(args: &[&str], dialect: crate::InvocationDialect) -> Option<String> {
+pub(crate) fn fold_lrepeat_in(
+    args: &[&str],
+    dialect: tcl_native_model::InvocationDialect,
+) -> Option<String> {
     tcl_cmd_core::literal_value::fold_lrepeat_in(args, context(dialect))
 }
 
 pub(crate) fn fold_dict_members(
     args: &[&str],
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     command: crate::native_dictionary::NativeDictionaryCommand,
 ) -> Option<String> {
     use crate::native_dictionary::NativeDictionaryCommand;
@@ -109,8 +114,8 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
     };
     let dialects = tcl_dialect::TclVersion::ALL
         .into_iter()
-        .map(crate::InvocationDialect::for_version)
-        .chain([crate::InvocationDialect::of_point(
+        .map(tcl_native_model::InvocationDialect::for_version)
+        .chain([tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         )]);
     let mut result = None;
@@ -385,9 +390,11 @@ mod tests {
     fn short_list_results_keep_receiver_spelling_and_dictionary_members_use_its_writer() {
         use crate::native_dictionary::NativeDictionaryCommand::{Keys, Values};
         use tcl_dialect::model::{DialectPoint, Release};
-        let jim = crate::InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84));
-        let c86 = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        let c91 = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        let jim = tcl_native_model::InvocationDialect::of_point(DialectPoint::canonical(
+            Release::JIM_0_84,
+        ));
+        let c86 = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let c91 = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         for (dialect, reversed, sorted, members) in [
             (jim, "abc", " {abc} ", r"a\]\ b"),
             (c86, "abc", "abc", "{a] b}"),
@@ -496,7 +503,8 @@ puts [catch {dict get {a 1 b}}]
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let supplied = crate::model::ingress::static_context_for(profile);
             let registry = supplied.commands();
-            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
             let resolved = registry
                 .resolve_call("lrange", &args, dialect.authoring_query())
                 .unwrap();

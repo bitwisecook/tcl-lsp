@@ -37,7 +37,7 @@ fn representation_hint_requires_only_the_live_option_prefix() {
         ),
     ] {
         let words = crate::InvocationWords::structured(Literal("string"), &arguments).with_dialect(
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         assert_eq!(
             registry
@@ -49,7 +49,7 @@ fn representation_hint_requires_only_the_live_option_prefix() {
     }
     let arguments = [Literal("map"), Dynamic, Dynamic];
     let words = crate::InvocationWords::structured(Literal("string"), &arguments).with_dialect(
-        crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(registry.arg_type_hint_words(words, 2).is_none());
 }
@@ -649,10 +649,10 @@ fn source_role_queries_retain_explicit_optional_frame_grammar() {
         InvocationWord::Literal("local"),
     ];
     let legacy = InvocationArguments::structured(&args).with_dialect(
-        crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
     );
     let modern = InvocationArguments::structured(&args).with_dialect(
-        crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert_eq!(
         registry.arg_indices_for_role_words("upvar", legacy, ArgRole::VarWrite),

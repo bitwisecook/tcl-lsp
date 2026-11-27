@@ -146,7 +146,7 @@ impl super::super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         offset: u32,
     ) -> Option<Vec<tcl_lexer::NativeWord>> {
-        if tcl_registry::InvocationDialect::of_profile(input.unit_profile()).family()
+        if tcl_native_model::InvocationDialect::of_profile(input.unit_profile()).family()
             != Some(tcl_dialect::model::Family::Jim)
         {
             return None;

@@ -361,7 +361,9 @@ mod tests {
             .with_source_analysis_entry(std::sync::Arc::new(
                 crate::command_binding::SourceAnalysisEntry {
                     native_entry: Some(std::sync::Arc::new(entry)),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },

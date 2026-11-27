@@ -56,10 +56,10 @@ fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::a_resolved_switch_surviv
 8bf1d0203ee5	4	0	2	tcl-lsp-core	lib	file_ops::tests::script_dir_match_still_rewrites_relative_to_script	rust/tcl-lsp-core/src/file_ops.rs	348	
 8bf1d0203ee5	4	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_resolves_relative_literal_via_workspace_root	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	230	
 8bf1d0203ee5	4	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_drops_non_file_workspace_roots	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	257	
-b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::which_helper_descriptor_keeps_the_original_pinned_declaration	rust/tcl-registry/src/native_jim_lookup.rs	375	
-b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch	rust/tcl-registry/src/native_jim_lookup.rs	485	
-b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	513	
-b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::upvar_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	542	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::which_helper_descriptor_keeps_the_original_pinned_declaration	rust/tcl-native-model/src/native_jim_lookup.rs	375	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch	rust/tcl-native-model/src/native_jim_lookup.rs	485	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	513	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::upvar_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	542	
 bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_message_cites_the_relevant_tip	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	185	
 bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_correctly_gates_eda_vendor_dialects_by_documented_base_version	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	421	
 bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	483	
@@ -115,9 +115,9 @@ bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr
 7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_test_constraint_setter_is_a_constant_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	529	
 7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::fp_guard_test_constraint_getter_is_not_a_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	547	
 7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_multiple_tests_each_listed	rust/tcl-lsp-core/src/document_symbols/tests.rs	613	
-85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::code_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	399	
-85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::origin_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	427	
-85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::inscope_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	455	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::code_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	399	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::origin_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	427	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::inscope_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	455	
 8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_exact_match_first	rust/tcl-compiler/tests/it_4/text_utils.rs	97	
 8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_close_match	rust/tcl-compiler/tests/it_4/text_utils.rs	104	
 8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_no_match_beyond_max_distance	rust/tcl-compiler/tests/it_4/text_utils.rs	113	

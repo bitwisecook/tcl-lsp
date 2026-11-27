@@ -141,12 +141,12 @@ impl NativeProcedureCommand {
 
     pub(crate) fn new_with_namespace_helper(
         mut declaration: ProcDef,
-        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        helper: Option<tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper>,
     ) -> Self {
         declaration.native_resources = Rc::new(NativeProcedureResources {
             original_jim_import: helper.is_some_and(|helper| {
                 helper.kind()
-                    == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import
+                    == tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import
             }),
             ..NativeProcedureResources::default()
         });

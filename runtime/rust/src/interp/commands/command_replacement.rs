@@ -180,7 +180,7 @@ impl Interp {
             .native_invocation_dialect()
             .native_command_creation_protocol();
         let creates_object_command = matches!(&command, Command::ObjCmd(command)
-            if command.creation_purpose == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand));
+            if command.creation_purpose == Some(tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand));
         let displaced = self.namespaces.borrow().command_in(ns, tail);
         let original_object_retirement =
             native_command_recreation::OriginalIdleObjectRetirement::capture(displaced.as_ref());

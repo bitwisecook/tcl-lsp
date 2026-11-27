@@ -47,7 +47,7 @@ impl NativeCommand for PureFunction {
                 Ok(Output::Int(value)) => Value::int(value),
                 Ok(Output::Bytes(bytes)) => match vm.byte_array_result(
                     Rc::from(bytes),
-                    Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+                    Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
                 ) {
                     Ok(value) => value,
                     Err(error) => return Ok(refuse_value_access(vm, &error)),
@@ -813,7 +813,7 @@ mod stub_transport_tests {
 #[cfg(test)]
 mod binary_boundary_tests {
     use super::*;
-    use tcl_registry::native_string_materialization::LogicalStringProvider;
+    use tcl_native_model::native_string_materialization::LogicalStringProvider;
 
     #[test]
     fn reference_binary_output_retains_counted_payload_and_authored_constructor_origin() {

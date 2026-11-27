@@ -41,11 +41,17 @@ pub struct NativeEnsembleDispatchProtocol {
     pub always_copy_prefix: bool,
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait EnsembleDispatchDialect {
     /// Select the authentic ensemble dispatch protocol independently of the
     /// assistance catalogue. Unknown and non-C issuers supply no native recipe.
     #[must_use]
-    pub fn native_ensemble_dispatch_protocol(self) -> Option<NativeEnsembleDispatchProtocol> {
+    fn native_ensemble_dispatch_protocol(self) -> Option<NativeEnsembleDispatchProtocol>;
+}
+
+impl EnsembleDispatchDialect for tcl_native_model::InvocationDialect {
+    fn native_ensemble_dispatch_protocol(self) -> Option<NativeEnsembleDispatchProtocol> {
         let version = self.native_command_name_protocol()?.version();
         if version < tcl_dialect::TclVersion::V8_5 {
             return None;
@@ -84,7 +90,7 @@ pub struct NativeLookupFallbackPolicy {
 /// catalogue name or a platform's unmeasured compiler/runtime snapshot.
 #[must_use]
 pub fn native_lookup_fallback_policy(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     origin: CommandLookupOrigin,
 ) -> Option<NativeLookupFallbackPolicy> {
     use tcl_dialect::{TclVersion, model::Family};
@@ -137,7 +143,7 @@ mod tests {
     #[test]
     fn ensemble_forwarding_preserves_actual_version_context_and_allocation() {
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let protocol = dialect.native_ensemble_dispatch_protocol();
             if version == tcl_dialect::TclVersion::V8_4 {
                 assert!(protocol.is_none());
@@ -170,14 +176,14 @@ mod tests {
             "Jim",
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         );
-        let jim = crate::InvocationDialect::of_profile(&profile);
+        let jim = tcl_native_model::InvocationDialect::of_profile(&profile);
         assert!(jim.native_ensemble_dispatch_protocol().is_none());
     }
 
     #[test]
     fn alias_entry_selection_is_independent_of_handler_head_resolution() {
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let ordinary =
                 native_lookup_fallback_policy(dialect, CommandLookupOrigin::Ordinary).unwrap();
             let alias =
@@ -198,7 +204,8 @@ mod tests {
                 }
             );
         }
-        let f5 = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        let f5 =
+            tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
         assert_eq!(
             native_lookup_fallback_policy(f5, CommandLookupOrigin::AliasInvocation),
             Some(NativeLookupFallbackPolicy {

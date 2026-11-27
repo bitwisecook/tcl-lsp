@@ -24,7 +24,7 @@ use tcl_syntax::expr::parser::{
 #[test]
 fn common_source_booleans_leave_native_syntax_unknown() {
     let profile = tcl_dialect::DialectProfile::plain_tcl();
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
     for source in ["0", "1", " 1 ", "\t0\n"] {
         assert!(matches!(
@@ -45,7 +45,7 @@ fn common_source_booleans_leave_native_syntax_unknown() {
 #[test]
 fn source_literal_branch_rejects_other_effects_and_selected_native_contexts() {
     let profile = tcl_dialect::DialectProfile::plain_tcl();
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
     for source in [
         "$x",
@@ -69,7 +69,7 @@ fn source_literal_branch_rejects_other_effects_and_selected_native_contexts() {
         assert!(
             logical_boolean_literal_condition(
                 "1",
-                tcl_registry::InvocationDialect::of_profile(profile),
+                tcl_native_model::InvocationDialect::of_profile(profile),
                 tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
             )
             .is_none()

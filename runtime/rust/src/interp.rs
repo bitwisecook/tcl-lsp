@@ -377,7 +377,7 @@ pub(crate) struct ExceptionState {
     /// Primitive result retained until an actual script propagation boundary.
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
-        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+        Option<Box<tcl_native_model::native_expression_error::NativeExpressionErrorStage>>,
 }
 
 /// The Guest part of one actual variable trace outcome. Host refusals travel
@@ -428,7 +428,7 @@ pub(crate) struct ErrorSnapshot {
     already_logged: bool,
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
-        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+        Option<Box<tcl_native_model::native_expression_error::NativeExpressionErrorStage>>,
 }
 
 /// Full saved error state for mandatory failed-constructor cleanup. Its real
@@ -575,7 +575,7 @@ pub struct ObjCommand {
     original_deleted: Cell<bool>,
     host_backing_retired: Cell<bool>,
     creation_purpose:
-        Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose>,
+        Option<tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose>,
 }
 
 impl ObjCommand {
@@ -609,7 +609,7 @@ impl ObjCommand {
     pub(super) fn retire_original_delete_procedure(&self) {
         if let Some(delete_proc) = self.delete_proc.take() {
             if self.creation_purpose == Some(
-                tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+                tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
             ) {
                 // Withdraw this actual private backing role before its Drop
                 // can reenter. The C token's final objProc-null stage is separate.
@@ -629,7 +629,7 @@ impl ObjCommand {
     /// native name/address and object ownership permissions.
     pub(crate) fn creation_purpose(
         &self,
-    ) -> Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose> {
+    ) -> Option<tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose> {
         self.creation_purpose
     }
 
@@ -642,7 +642,7 @@ impl ObjCommand {
     ) -> Self {
         let mut command = Self::new(proc_, client_data, delete_proc);
         command.creation_purpose = Some(
-            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+            tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
         );
         command
     }
@@ -946,7 +946,7 @@ pub struct InterpState {
     /// `resolve(currentNs, name)` resolver.
     namespaces: RefCell<Namespaces>,
     native_alias_registrations:
-        RefCell<tcl_registry::native_alias_registration::NativeAliasRegistrationTable<u64>>,
+        RefCell<tcl_native_model::native_alias_registration::NativeAliasRegistrationTable<u64>>,
     /// Exact array bindings retained by nested `array` operations. The public
     /// runtime contract carries only the opaque `VarId`; this stack keeps the
     /// standalone table owner and slot private while callbacks re-enter Tcl.
@@ -1253,7 +1253,7 @@ pub struct InterpState {
     runtime_version: Cell<tcl_dialect::TclVersion>,
     /// `native_invocation_dialect` projected from `dialect_profile` and
     /// `runtime_version`; cleared whenever either is replaced.
-    invocation_dialect: Cell<Option<tcl_registry::InvocationDialect>>,
+    invocation_dialect: Cell<Option<tcl_native_model::InvocationDialect>>,
     /// Native protocols of `invocation_dialect`, cleared with it.
     invocation_protocols: Cell<Option<InvocationProtocols>>,
     jim_object_context: RefCell<Option<Rc<crate::native_source::NativeJimObjectContext>>>,
@@ -1269,19 +1269,19 @@ pub struct InterpState {
     logical_name_provider: Cell<Option<tcl_syntax::naming::NamePolicyProtocol>>,
     logical_eval_object_provider: Cell<
         Option<(
-            tcl_registry::native_eval_object::LogicalEvalObjectProvider,
+            tcl_native_model::native_eval_object::LogicalEvalObjectProvider,
             &'static tcl_dialect::DialectProfile,
         )>,
     >,
     logical_source_word_provider: Cell<
         Option<(
-            tcl_registry::invocation_words::LogicalSourceWordProvider,
+            tcl_native_model::LogicalSourceWordProvider,
             tcl_dialect::DialectProfileKey,
         )>,
     >,
     logical_expression_parse_provider: Cell<
         Option<(
-            tcl_registry::invocation_words::LogicalExpressionParseProvider,
+            tcl_native_model::LogicalExpressionParseProvider,
             tcl_dialect::DialectProfileKey,
         )>,
     >,

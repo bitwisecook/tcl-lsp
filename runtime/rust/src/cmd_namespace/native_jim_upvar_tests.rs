@@ -243,7 +243,7 @@ fn run_phase(interp: &mut Interp, case: Case<'_>, reuse: bool, originals: [&Owne
         None,
         false,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             vector.as_ptr(),
         )),
         None,

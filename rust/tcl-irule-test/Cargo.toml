@@ -48,6 +48,7 @@ tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-codegen = { path = "../tcl-codegen" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-irules = { path = "../tcl-irules" }

@@ -699,7 +699,7 @@ mod original_package_name_tests {
     fn package_key_uses_native_units_and_its_own_cstring_purpose() {
         let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                 .lexer_grammar,
         );
         let mut captured = Vec::new();

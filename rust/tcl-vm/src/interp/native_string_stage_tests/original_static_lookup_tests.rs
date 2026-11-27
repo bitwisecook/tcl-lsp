@@ -19,7 +19,7 @@
 //! Software original static-table and cat stages, independent of Native observations.
 
 use super::*;
-use tcl_registry::native_index_lookup::NativeStaticIndexTable;
+use tcl_native_model::native_index_lookup::NativeStaticIndexTable;
 use tcl_syntax::value::ValueOps;
 
 fn provided_jim() -> (Vm, Rc<Formatter>, Rc<Cell<usize>>) {
@@ -207,7 +207,7 @@ fn original_jim_enum_keeps_cache_hit_without_getter_and_foreign_index_refusal() 
     let (mut vm, formatter, acquisitions) = provided_jim();
     let original = Value::new_native_string_bytes(b"provide".as_slice());
     let table = NativeStaticIndexTable::supported_backend(&["provide", "present"]);
-    let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false);
+    let flags = tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(false);
     assert_eq!(
         vm.native_jim_enum_from_original_checked(&original, &table, flags, Some(b"option"))
             .unwrap(),

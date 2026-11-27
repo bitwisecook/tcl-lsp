@@ -45,6 +45,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
 
 [lints]

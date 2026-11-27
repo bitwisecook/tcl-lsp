@@ -44,7 +44,7 @@ impl NativeStockIntegerContentsProtocol {
     /// Authenticate the C bignum parser/getter recipe independently of lexer
     /// overrides. C8.4 and Jim require their own contents/range proofs.
     #[must_use]
-    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+    pub fn select(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         let version = dialect.native_scalar_getter_protocol()?.tcl_version()?;
         (version != TclVersion::V8_4 && dialect.numbers == version.number_syntax())
             .then_some(Self { version })

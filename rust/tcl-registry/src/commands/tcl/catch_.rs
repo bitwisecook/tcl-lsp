@@ -166,9 +166,9 @@ pub fn legacy_spec() -> CommandSpec {
 }
 
 fn jim_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
-    let dialect = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let dialect = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     let crate::catch_invocation::CatchInvocationSelection::Valid(selected) =
         crate::catch_invocation::select_catch_invocation(
             crate::InvocationArguments::literals(arguments),

@@ -29,7 +29,7 @@ fn answer(completion: &tcl_runtime_api::Completion<Value>, script: &str) -> Stri
 
 /// The iRules simulation over a Tcl 9 engine, every authored provider set.
 fn simulation() -> Vm {
-    use tcl_registry::invocation_words::{
+    use tcl_native_model::{
         LogicalExpressionParseProvider, LogicalExpressionQuoteProvider, LogicalSourceWordProvider,
     };
     let host = tcl_vm::test_support::profile("tcl9.0");
@@ -48,7 +48,7 @@ fn simulation() -> Vm {
         tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
     ));
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_word_provider(LogicalSourceWordProvider::Tcl84CoreSimulation));
     assert!(vm.set_logical_expression_parse_provider(
@@ -64,7 +64,7 @@ fn simulation() -> Vm {
         ))
     );
     assert!(vm.set_logical_compiled_variable_provider(
-        tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation
+        tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation
     ));
     vm
 }

@@ -295,7 +295,7 @@ impl Interp {
                 .map_err(|error| self.report_cmd_error(error))?;
             let code = self
                 .process_original_c_return_options_with_objects(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                     merged.code,
                     i64::from(merged.level),
                     merged.options.as_ptr(),
@@ -702,7 +702,7 @@ impl Interp {
 impl TryOperation {
     pub(super) fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
         let dynamic = self.recipe.body.script.is_none()
             || self
                 .recipe
@@ -716,7 +716,7 @@ impl TryOperation {
                 .as_ref()
                 .is_some_and(|body| body.script.is_none());
         if dynamic {
-            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ScriptEvaluation]
+            vec![tcl_native_model::native_compiler_pass::NativeCompilerPassHazard::ScriptEvaluation]
         } else {
             Vec::new()
         }

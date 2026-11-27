@@ -182,7 +182,7 @@ mod original_callback_scan_tests {
     fn inventory(
         source: &str,
         config: tcl_lexer::LexerConfig,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         registry: &CommandRegistry,
     ) -> SourceCommandBindings {
         SourceCommandBindings::analyse_with_options(
@@ -212,7 +212,7 @@ mod original_callback_scan_tests {
     fn original_callback_scan_borrows_only_matching_inventory_scope() {
         // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let dialect = tcl_registry::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap(),
             );
             let registry = tcl_registry::model::ingress::static_context_for(name).commands();
@@ -273,7 +273,7 @@ mod original_callback_scan_tests {
         // docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::context_for_profile(profile);
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for (source, expected) in [
             (

@@ -22,6 +22,7 @@ use super::native_error_stack::NativeErrorStack;
 use super::{NativeCReturnState, NativeErrorState, Vm, err};
 use crate::command::err_with_code;
 use crate::value::Value;
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_runtime_api::error_stack::{ErrorStackFrame, ShiftedErrorStackFrame, validate_error_stack};
 use tcl_runtime_api::{Code, Completion, FatalTail};
 
@@ -230,7 +231,7 @@ impl Vm {
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Completion<Value> {
         if self.native_invocation_dialect().script_parse_timing()
-            == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
+            == Some(tcl_native_model::NativeScriptParseTiming::BeforeScript)
         {
             let level = self
                 .jim_errors
@@ -316,7 +317,7 @@ impl Vm {
         self.actual_native_invocation_dialect()
             .native_error_objects_protocol()
             .is_some_and(
-                tcl_registry::native_error_objects::NativeErrorObjectsProtocol::has_error_stack,
+                tcl_native_model::native_error_objects::NativeErrorObjectsProtocol::has_error_stack,
             )
     }
 
@@ -378,17 +379,17 @@ impl Vm {
     /// Retain original return-instruction operands in the interpreter's inner context.
     pub(crate) fn capture_original_return_instruction_context(
         &mut self,
-        purpose: tcl_registry::native_return_options::NativeReturnOptionsApplication,
+        purpose: tcl_native_model::native_return_options::NativeReturnOptionsApplication,
         name: tcl_syntax::native_instruction_name::NativeInstructionName,
         operands: &[Value],
     ) {
         let recipe = self
             .actual_native_invocation_dialect()
             .native_return_options_application(purpose);
-        if recipe.and_then(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name) != Some(name) {
+        if recipe.and_then(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name) != Some(name) {
             return;
         }
-        if recipe.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result) {
+        if recipe.is_some_and(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result) {
             self.native_errors.error_logged = ErrorLogged::No;
         }
         if !self.native_errors.error_logged.is_logged()

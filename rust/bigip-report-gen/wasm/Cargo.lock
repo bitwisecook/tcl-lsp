@@ -1480,6 +1480,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
@@ -1560,6 +1561,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-native-model"
+version = "0.1.0"
+dependencies = [
+ "tcl-cmd-core",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-numeric"
 version = "0.1.0"
 dependencies = [
@@ -1600,6 +1613,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-regex",
  "tcl-runtime-api",
  "tcl-syntax",

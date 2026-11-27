@@ -137,7 +137,7 @@ impl Interp {
                             .objects(self)
                             .map_err(|error| self.report_cmd_error(error))?;
                         let code = self.process_original_c_return_options_with_objects(
-                            tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                            tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                             1, 0, options.as_ptr(), &objects,
                         ).map_err(|error| self.report_cmd_error(error))?;
                         original
@@ -146,7 +146,7 @@ impl Interp {
                         self.set_result(value.as_ptr());
                         if code == Code::Error {
                             self.capture_original_return_instruction_context(
-                            tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                            tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             options.as_ptr(),
                         ).map_err(|first| self.refuse_native_execution(first))?;

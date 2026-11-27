@@ -27,7 +27,7 @@ use tcl_syntax::naming::NamePolicyProtocol;
 fn state(
     version: tcl_dialect::TclVersion,
 ) -> (ModuleCommandBindings, LexerConfig, NamePolicyProtocol) {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let registry =
         tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let config = LexerConfig::from_grammar(dialect.lexer_grammar);
@@ -78,7 +78,7 @@ fn advice_slot_index_preserves_original_collisions_and_map_birth() {
     // docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-        let policy = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap())
+        let policy = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap())
             .authored_name_policy()
             .unwrap();
         let mut rows = Arc::new(AdviceRows::from([
@@ -242,13 +242,13 @@ fn warmed_advice_index_preserves_original_namespace_path_barriers() {
             nested
         );
         let foreign_policy =
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
                 .authored_name_policy()
                 .unwrap();
         let foreign = input(
             "class",
             LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
                     .lexer_grammar,
             ),
             foreign_policy,
@@ -525,7 +525,7 @@ fn declared_descriptor_indexes_preserve_components_and_decline_coordinate_collis
 #[test]
 fn selected_baseline_roster_keeps_its_owner_and_all_other_baseline_fields() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let selected = registry.effective_semantics_for_dialect_in_realm(
         dialect,
         tcl_dialect::model::InvocationRealm::InterpreterRuntime,
@@ -545,7 +545,7 @@ fn selected_baseline_roster_keeps_its_owner_and_all_other_baseline_fields() {
 #[test]
 fn source_entry_roster_obeys_requested_release_instead_of_registry_profile() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let config = LexerConfig::from_grammar(dialect.lexer_grammar);
     let state = ModuleCommandBindings::initial_with_options(
         registry,

@@ -39,6 +39,7 @@ use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{drop_fresh, Code, CommandVisibilityOp, Interp};
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
+use tcl_registry::special_vars::BootstrapDialect;
 #[cfg(test)]
 use tcl_syntax::value::ValueOps;
 

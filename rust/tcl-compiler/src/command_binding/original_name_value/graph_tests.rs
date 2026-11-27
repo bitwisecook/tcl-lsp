@@ -21,7 +21,7 @@ use tcl_registry::native_compilation::{NativeCompilationContext, NativeCompilati
 
 fn analyse(
     source: &str,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> (SourceCommandBindings, tcl_lexer::LexerConfig) {
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let registry = tcl_registry::CommandRegistry::build_default();
@@ -50,11 +50,11 @@ fn tokens(source: &str, config: tcl_lexer::LexerConfig, offset: u32) -> crate::i
     crate::ir::CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, segment)
 }
 
-fn dialects() -> impl Iterator<Item = tcl_registry::InvocationDialect> {
+fn dialects() -> impl Iterator<Item = tcl_native_model::InvocationDialect> {
     tcl_dialect::TclVersion::ALL
         .into_iter()
-        .map(tcl_registry::InvocationDialect::for_version)
-        .chain([tcl_registry::InvocationDialect::of_point(
+        .map(tcl_native_model::InvocationDialect::for_version)
+        .chain([tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
         )])
 }

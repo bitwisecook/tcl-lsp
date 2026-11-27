@@ -10,10 +10,10 @@ overlap	0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_
 overlap	0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_legacy_nocommands_disables	rust/tcl-registry/src/commands/tcl/subst_.rs	398
 overlap	0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_legacy_other_negatives_leave_commands_on	rust/tcl-registry/src/commands/tcl/subst_.rs	409
 overlap	0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_positive_form_requires_explicit_commands	rust/tcl-registry/src/commands/tcl/subst_.rs	415
-overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::which_helper_descriptor_keeps_the_original_pinned_declaration	rust/tcl-registry/src/native_jim_lookup.rs	375
-overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch	rust/tcl-registry/src/native_jim_lookup.rs	485
-overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	513
-overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::upvar_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	542
+overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::which_helper_descriptor_keeps_the_original_pinned_declaration	rust/tcl-native-model/src/native_jim_lookup.rs	375
+overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch	rust/tcl-native-model/src/native_jim_lookup.rs	485
+overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	513
+overlap	b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::upvar_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	542
 overlap	1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_parameter_hints_only_produce_labels_no_type_hints	rust/tcl-lsp-server/tests/e2e/editor_features.rs	734
 overlap	1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_type_hints_only_emit_no_parameter_labels	rust/tcl-lsp-server/tests/e2e/editor_features.rs	761
 overlap	1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_legacy_inlay_hints_alias_enables_type_only	rust/tcl-lsp-server/tests/e2e/editor_features.rs	791
@@ -26,9 +26,9 @@ overlap	4150220babbb	3	0	1	tcl-registry	lib	registry::tests::argument_roles::arg
 overlap	4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::every_tree_descriptor_has_a_shared_builder	rust/tcl-explorer/src/view_tree/tests.rs	160
 overlap	4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::unknown_view_is_empty	rust/tcl-explorer/src/view_tree/tests.rs	263
 overlap	4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::empty_analysis_views_have_a_dim_note	rust/tcl-explorer/src/view_tree/tests.rs	268
-overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::code_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	399
-overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::origin_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	427
-overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::inscope_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	455
+overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::code_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	399
+overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::origin_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	427
+overlap	85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::inscope_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-native-model/src/native_jim_lookup.rs	455
 overlap	b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_no_switches_runs_every_substitution	rust/tcl-registry/src/substitution.rs	708
 overlap	b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_a_negated_switch_turns_off_only_its_own_kind	rust/tcl-registry/src/substitution.rs	716
 overlap	b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_a_positive_switch_turns_on_only_its_own_kind	rust/tcl-registry/src/substitution.rs	735

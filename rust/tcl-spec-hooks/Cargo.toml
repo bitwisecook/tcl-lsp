@@ -39,6 +39,7 @@ name = "tcl_spec_hooks"
 tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-dialect = { path = "../tcl-dialect" }
 # `pack_eval` — the SpecTcl 2.0 pack-evaluation host — is deliberately
 # engine-specific: re-entrant body evaluation from inside a registered

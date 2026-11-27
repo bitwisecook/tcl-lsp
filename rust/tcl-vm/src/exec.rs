@@ -571,7 +571,7 @@ struct NativeWordDispatch<'a> {
 }
 
 pub(crate) struct EachLoopReq {
-    pub(crate) protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    pub(crate) protocol: tcl_native_model::native_each_loop::NativeEachLoopProtocol,
     pub(crate) groups: Vec<EachLoopGroup>,
     pub(crate) cursor: tcl_cmd_core::native_each_loop::EachLoopState,
     pub(crate) body: crate::value::NativeObjectLifetimeLease,

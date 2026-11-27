@@ -207,7 +207,7 @@ mod tests {
         scope: NativeScalarScope,
         version: TclVersion,
     ) -> Option<NativeStringRangeInstruction> {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -350,7 +350,7 @@ mod tests {
     }
     #[test]
     fn foreign_operation_body_grammar_and_entry_mode_cannot_select_range() {
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
         let source = "string range $s 2 end";
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),

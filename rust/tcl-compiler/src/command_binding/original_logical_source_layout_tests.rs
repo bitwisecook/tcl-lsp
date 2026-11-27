@@ -263,7 +263,7 @@ fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
         context.commands(),
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
                 Some(&input),
             ),

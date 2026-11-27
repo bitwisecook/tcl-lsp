@@ -21,7 +21,9 @@
 
 use super::{ContentsOrigin, ContentsPresence, ResolveContext, RootContentsKind};
 use crate::place::{CellOwner, IndexKind, Place, PlaceKind};
-use tcl_registry::{CommandRegistry, InvocationDialect, TraceOperation};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
+use tcl_registry::{CommandRegistry, TraceOperation};
 
 /// Independently closed before-store address, container and callback obligations.
 /// The handler's argument completion and original worker remain separate.

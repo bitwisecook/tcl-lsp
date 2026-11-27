@@ -44,7 +44,7 @@ impl NativeBodyArtifact {
         candidate: &FutureNativeI64AddPlan,
     ) -> Option<&'a NativeCompiledLocalLayout> {
         if !matches!(&self.owner, BodyContext::Procedure(owner) if Weak::ptr_eq(owner, &Rc::downgrade(procedure)))
-            || tcl_registry::InvocationDialect::for_version(self.stamp.physical).arithmetic()
+            || tcl_native_model::InvocationDialect::for_version(self.stamp.physical).arithmetic()
                 != Some(tcl_dialect::NativeArithmetic::TclBignum)
             || self.image.bytes() != candidate.body()
             || procedure.params.len() != 2
@@ -156,7 +156,7 @@ impl NativeBodyArtifact {
         if tcl_registry::native_expression_program::expression_program_emission_for_policy(
             operands.program,
             self.stamp.expression_policy.as_ref(),
-            tcl_registry::InvocationDialect::for_version(self.stamp.physical),
+            tcl_native_model::InvocationDialect::for_version(self.stamp.physical),
         ) != tcl_registry::native_expression_program::ExpressionProgramEmission::Native
         {
             crate::interp::native_i64_body::observe("expression-policy", None);

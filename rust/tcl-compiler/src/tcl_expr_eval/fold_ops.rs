@@ -807,7 +807,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         let right = self.operand_for(right, NativeCoercionKind::String);
         let format = self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         let result = (|| {
             let model = self.characters?;
@@ -841,7 +841,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         let right = self.operand_for(right, NativeCoercionKind::String);
         let format = self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         let left = self.text_of(left, format).ok_or(())?;
         let right = self.text_of(right, format).ok_or(())?;
@@ -860,7 +860,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         let list = self.operand_for(list, NativeCoercionKind::List);
         let format = self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         let n = self.text_of(needle, format).ok_or(())?;
         let list = self.text_of(list, format).ok_or(())?;
@@ -931,7 +931,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         let right = self.operand_for(&right, NativeCoercionKind::String);
         let format = self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         apply_irules_string_op(
             provider,

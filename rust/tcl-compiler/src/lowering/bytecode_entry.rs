@@ -97,7 +97,7 @@ pub fn lower_procedure_target_module_for_bytecode_with_options(
     }
     if lowerer
         .invocation_dialect
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
         == Some(tcl_dialect::ParameterGrammar::Tcl)
     {
         lowerer.incoming_formals = target.parameters.to_vec();
@@ -292,7 +292,7 @@ fn lower_native_target(
     if kind == crate::ir::TopLevelKind::ProcedureBody
         && lowerer
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
             == Some(tcl_dialect::ParameterGrammar::Tcl)
         && let Some(parameters) = ordinary_parameters
         && let Ok(names) = parameters
@@ -384,7 +384,7 @@ fn lower_native_byte_calls(
     module.top_level.executed_source = Some(std::sync::Arc::new(executed.clone()));
     let compiler_dialect = options.and_then(|options| options.native_compiler_dialect());
     let native_inline_disabled = compiler_dialect
-        .and_then(tcl_registry::InvocationDialect::native_string_protocol)
+        .and_then(tcl_native_model::InvocationDialect::native_string_protocol)
         .is_some_and(|protocol| protocol.tcl_version().is_some())
         && options
             .and_then(|options| options.native_entry)

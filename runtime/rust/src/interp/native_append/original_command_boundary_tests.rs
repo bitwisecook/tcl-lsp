@@ -243,7 +243,7 @@ fn original_command_append_keeps_explicit_logical_simulation_and_read_only_purpo
     let issued = actual
         .native_invocation_dialect()
         .native_object_append_protocol(Some(
-            tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
         ))
         .unwrap();
     assert!(issued.logical_provider().is_some());
@@ -275,7 +275,7 @@ fn original_command_append_native_issuer_cannot_use_the_explicit_logical_byte_po
     let issued = actual
         .native_invocation_dialect()
         .native_object_append_protocol(Some(
-            tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
         ))
         .unwrap();
     assert!(issued.logical_provider().is_none());

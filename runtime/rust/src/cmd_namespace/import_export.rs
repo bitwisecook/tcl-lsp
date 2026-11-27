@@ -115,7 +115,7 @@ pub(super) fn ns_import(
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);

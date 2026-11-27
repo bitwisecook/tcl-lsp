@@ -100,7 +100,7 @@ impl Interp {
     }
 
     pub(super) fn publish_original_jim_registration_keys(&mut self) -> Result<(), ValueError> {
-        use tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose;
+        use tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose;
         use tcl_syntax::naming::NativeNamePurpose;
         if !self
             .name_policy_protocol()

@@ -39,7 +39,7 @@ mod tests {
     }
 
     fn assert_row(vm: &mut Vm, result: &Completion<Value>, rows: &str, label: &str) {
-        let protocol = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        let protocol = tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
             .native_string_protocol()
             .unwrap();
         let fields: Vec<_> = rows

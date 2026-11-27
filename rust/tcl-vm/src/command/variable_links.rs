@@ -156,7 +156,7 @@ pub(super) fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `upvar ?level? otherVar localVar ?otherVar localVar ...?`.
 pub(crate) fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let usage = vm.actual_native_invocation_dialect().native_namespace_upvar_protocol()
-        .and_then(tcl_registry::native_namespace_upvar::NativeNamespaceUpvarProtocol::forwarded_wrong_arguments_usage)
+        .and_then(tcl_native_model::native_namespace_upvar::NativeNamespaceUpvarProtocol::forwarded_wrong_arguments_usage)
         .unwrap_or(b"upvar ?level? otherVar localVar ?otherVar localVar ...?");
     if args.len() < 2 {
         return native_wrong_args_bytes(vm, usage);

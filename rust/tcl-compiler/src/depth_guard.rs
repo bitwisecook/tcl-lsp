@@ -162,7 +162,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
                     registry,
                     crate::command_binding::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                             tcl_dialect::TclVersion::V9_0,
                         )),
                         ..crate::command_binding::SourceAnalysisOptions::default()
@@ -351,7 +351,7 @@ mod tests {
                     tcl_lexer::LexerConfig::default(),
                     &binding_registry,
                     crate::command_binding::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                             tcl_dialect::TclVersion::V9_0,
                         )),
                         ..crate::command_binding::SourceAnalysisOptions::default()

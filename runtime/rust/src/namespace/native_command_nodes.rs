@@ -112,7 +112,7 @@ impl Namespaces {
             return;
         };
         let invalidated = tcl_registry::native_procedure::native_compiler_cache_invalidated(
-            tcl_registry::InvocationDialect::for_version(version),
+            tcl_native_model::InvocationDialect::for_version(version),
             mutation,
         );
         let epoch = match namespace {
@@ -731,7 +731,7 @@ impl Namespaces {
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
         current: NsId,
         original: &[u8],
-        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+        protocol: tcl_native_model::native_command_literal::NativeCommandNameProtocol,
     ) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameCache> {
         let (ns, simple) = self.home_of(current, original)?;
         let generation = self.arena[ns].commands.generation(&simple)?;
@@ -762,7 +762,7 @@ impl Namespaces {
         &self,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
         binding: &tcl_runtime_api::native_compilation::NativeCompilationBinding,
-        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+        protocol: tcl_native_model::native_command_literal::NativeCommandNameProtocol,
     ) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameCache> {
         let node = self.native_command_nodes.get(&binding.token)?;
         let (namespace, simple) = node.placement.as_ref()?;

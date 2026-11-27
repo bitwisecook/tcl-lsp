@@ -638,7 +638,7 @@ impl SourceCommandBindings {
             state
                 .source_variables
                 .invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar),
         ) {
             let call = super::super::command_identity::CommandAllocationSite {
                 source: Arc::clone(source),

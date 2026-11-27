@@ -246,7 +246,7 @@ impl Vm {
         let invalidates_path_before_create = self
             .native_scalar_carrier_dialect()
             .native_command_name_protocol()
-            .is_some_and(tcl_registry::native_command_literal::NativeCommandNameProtocol::invalidates_path_before_object_create);
+            .is_some_and(tcl_native_model::native_command_literal::NativeCommandNameProtocol::invalidates_path_before_object_create);
         if invalidates_path_before_create {
             self.note_native_command_path_dependents(slot.namespace);
         }
@@ -641,7 +641,7 @@ impl Vm {
         &mut self,
         mut proc: ProcDef,
         table_key: Option<jim_table_keys::OriginalJimCommandKey>,
-        helper: Option<tcl_registry::native_jim_lookup::NativeJimNamespaceHelper>,
+        helper: Option<tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper>,
     ) -> (crate::command::NativeProcedureCommand, String) {
         if self.uses_native_jim_lookup()
             && proc.native_jim_namespace.is_none()

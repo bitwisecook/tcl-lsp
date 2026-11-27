@@ -23,6 +23,7 @@
 //! answers are correct rather than faked — this metadata must be retained or
 //! the introspection answers cannot be computed.
 
+use tcl_registry::commands::tcl::JimInfoDialect;
 use tcl_runtime_api::Completion;
 
 use crate::command::completion_from_cmd_error;
@@ -755,7 +756,7 @@ fn info_functions_impl(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let script = Value::new_native_string_bytes(bytes);
             return match vm.eval_original_script_value(
                 &script,
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                 None,
             ) {
                 Ok(completion) => completion,
@@ -794,12 +795,12 @@ fn info_version_report(vm: &mut Vm, rest: &[Value], member: &str) -> Completion<
         .actual_native_invocation_dialect()
         .native_info_version_source(member)
     {
-        Some(tcl_registry::native_info_version::NativeInfoVersionSource::Global(name)) => {
+        Some(tcl_native_model::native_info_version::NativeInfoVersionSource::Global(name)) => {
             info_global(vm, rest, &usage, name)
         }
-        Some(tcl_registry::native_info_version::NativeInfoVersionSource::CoreRelease(version)) => {
-            ok(Value::new_native_string_bytes(version.as_bytes()))
-        }
+        Some(tcl_native_model::native_info_version::NativeInfoVersionSource::CoreRelease(
+            version,
+        )) => ok(Value::new_native_string_bytes(version.as_bytes())),
         None => {
             vm.refuse_host_command("native info version reporting source is unavailable".into())
         }

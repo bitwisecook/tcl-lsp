@@ -88,7 +88,8 @@ fn unset_layout_roles(
         dialect
             .unset_option_protocol()
             .or_else(|| {
-                unversioned_c.then_some(crate::native_unset_options::UnsetOptionProtocol::C)
+                unversioned_c
+                    .then_some(tcl_native_model::native_unset_options::UnsetOptionProtocol::C)
             })?
             .parse(count, |index| {
                 arguments
@@ -102,7 +103,7 @@ fn unset_layout_roles(
         // The bare authored Tcl descriptor retains its counted source grammar.
         // It supplies no selected native option or variable lookup authority.
         let literals = arguments.literal_values()?;
-        crate::native_unset_options::UnsetOptionProtocol::C
+        tcl_native_model::native_unset_options::UnsetOptionProtocol::C
             .parse_known_source(count, |index| {
                 literals
                     .get(index)
@@ -243,7 +244,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/unset-original-role-layout.md
         let registry = crate::CommandRegistry::build_default();
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let dialect = crate::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
             );
             let names = [

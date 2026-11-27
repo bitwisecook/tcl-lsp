@@ -111,7 +111,7 @@ impl CodegenCtx<'_> {
 
     pub(super) fn intern_native_command_recipe(
         &mut self,
-        selected: tcl_registry::native_command_literal::NativeCompiledCommandLiteral,
+        selected: tcl_native_model::native_command_literal::NativeCompiledCommandLiteral,
     ) -> usize {
         let index = self.literals.intern_native_command_bytes(
             &selected.bytes,
@@ -180,7 +180,7 @@ impl CodegenCtx<'_> {
                         namespace_path: namespace.path.clone(),
                     }, named.captured_name().as_bytes(), required.as_ref().clone(),
                 ),
-                _ => Err(tcl_registry::native_command_literal::NativeCommandLiteralUnavailable::Context),
+                _ => Err(tcl_native_model::native_command_literal::NativeCommandLiteralUnavailable::Context),
             }
         } else {
             tcl_registry::native_command_literal::native_compiled_command_name_literal(
@@ -1232,8 +1232,9 @@ impl CodegenCtx<'_> {
     /// The registry's `native_compiler_names_scalars_on_stack` for the target
     /// release.
     pub(crate) fn names_scalars_on_stack(&self) -> bool {
-        self.target_version()
-            .is_some_and(tcl_registry::native_compiler_pass::native_compiler_names_scalars_on_stack)
+        self.target_version().is_some_and(
+            tcl_native_model::native_compiler_pass::native_compiler_names_scalars_on_stack,
+        )
     }
 
     fn finish_increment(

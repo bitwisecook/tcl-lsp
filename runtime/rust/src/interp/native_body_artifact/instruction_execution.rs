@@ -763,14 +763,14 @@ impl Interp {
                         let objects = original_operation
                             .objects(self)
                             .map_err(|error| self.report_cmd_error(error))?;
-                        let code=self.process_original_c_return_options_with_objects(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original,&objects).map_err(|error|self.report_cmd_error(error))?;
+                        let code=self.process_original_c_return_options_with_objects(tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original,&objects).map_err(|error|self.report_cmd_error(error))?;
                         self.set_result(value.as_ptr());
                         original_operation
                             .check(self)
                             .map_err(|error| self.report_cmd_error(error))?;
                         if code == Code::Error && recipe.exit == Exit::Immediate {
                             self.capture_original_return_instruction_context(
-                            tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                            tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             original,
                         ).map_err(|first| self.refuse_native_execution(first))?;

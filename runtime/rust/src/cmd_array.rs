@@ -23,6 +23,7 @@
 //! Implemented: `set`/`get`/`names`/`exists`/`size`/`unset` and native searches. (`statistics`,
 //! `-exact`/`-regexp` name modes follow.)
 
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 
 use crate::interp::native_arguments::OriginalArguments;
@@ -52,7 +53,7 @@ pub fn install(interp: &mut Interp) {
         NAMES,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Array,
+        tcl_native_model::EnsembleImplementationFamily::Array,
         b"array",
         array_cmd,
         STOCK_MEMBERS,
@@ -261,7 +262,7 @@ fn array_cmd_original(
         && interp
             .native_invocation_dialect()
             .native_array_set_protocol()
-            == Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+            == Some(tcl_native_model::native_array::NativeArraySetProtocol::JimOriginalVariable)
     {
         return array_set(interp, argv, arguments);
     }
@@ -655,7 +656,7 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
     if interp
         .native_invocation_dialect()
         .native_array_set_protocol()
-        == Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+        == Some(tcl_native_model::native_array::NativeArraySetProtocol::JimOriginalVariable)
     {
         let reached = interp.set_original_jim_array(argv[2], argv[3]);
         if let Err(error) = arguments.check() {

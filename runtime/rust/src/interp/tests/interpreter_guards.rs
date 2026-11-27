@@ -258,7 +258,7 @@ fn execution_policy_and_runtime_version_mutations_stale_interpreter_guards() {
 
 #[test]
 fn expression_policy_keeps_native_dispatch_separate_from_authored_parser() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
     leak_free(|interp| {
         interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
@@ -290,7 +290,7 @@ fn expression_policy_keeps_native_dispatch_separate_from_authored_parser() {
         assert_eq!(
             tcl_registry::native_expression_program::expression_function_dispatch(
                 Some(&authored),
-                tcl_registry::InvocationDialect::of_profile(host)
+                tcl_native_model::InvocationDialect::of_profile(host)
             ),
             None
         );

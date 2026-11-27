@@ -187,7 +187,7 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let completion = match vm.eval_original_script_value(
         &pairs[b].1,
-        tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
         None,
     ) {
         Ok(c) => c,

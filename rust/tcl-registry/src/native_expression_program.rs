@@ -20,10 +20,10 @@
 //!
 //! This is a syntax/preparation receipt, not command or math-function authority.
 
-use crate::InvocationDialect;
 use crate::native_compiler_word_projection::NativeCompilerWordOperand;
 use crate::native_compiler_words::NativeCompilerWords;
 use tcl_lexer::Span;
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::expr::NativeExprNode;
 use tcl_syntax::expr::parser::{CheckedExprParse, ExprParseContext};
 
@@ -78,7 +78,7 @@ pub fn native_expression_evaluation_policy(
 #[must_use]
 pub fn authored_expression_evaluation_policy(
     profile: &tcl_dialect::DialectProfile,
-    parser: crate::invocation_words::LogicalExpressionParseProvider,
+    parser: tcl_native_model::LogicalExpressionParseProvider,
     numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
 ) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
     let dialect = InvocationDialect::of_profile(profile);
@@ -179,7 +179,7 @@ fn authored_source_policy(
     };
     let mut expected = authored_expression_evaluation_policy(
         policy.profile.profile(),
-        crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
         Some(numeric),
     );
     if let Some(expected) = &mut expected {
@@ -876,7 +876,7 @@ pub fn prepare_native_expression_program(
 mod tests {
     #[test]
     fn authored_f5_predicates_require_installed_policy_and_reject_native_c_and_jim() {
-        use crate::invocation_words::LogicalExpressionParseProvider;
+        use tcl_native_model::LogicalExpressionParseProvider;
         use tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider;
         let mut policy = authored_expression_evaluation_policy(
             tcl_dialect::DialectProfile::irules(),
@@ -965,7 +965,7 @@ mod tests {
 
     #[test]
     fn authored_expression_source_requires_installed_scalar_policy_and_no_implicit_calls() {
-        use crate::invocation_words::LogicalExpressionParseProvider;
+        use tcl_native_model::LogicalExpressionParseProvider;
         use tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation;
         let physical = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let profile = tcl_dialect::DialectProfile::irules();
@@ -1058,7 +1058,7 @@ mod tests {
         let physical = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let policy = authored_expression_evaluation_policy(
             tcl_dialect::DialectProfile::irules(),
-            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             Some(
                 tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
             ),
@@ -1121,7 +1121,7 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::irules();
         let policy = authored_expression_evaluation_policy(
             profile,
-            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             Some(
                 tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
             ),
@@ -1163,7 +1163,7 @@ mod tests {
         ));
         let parser_only = authored_expression_evaluation_policy(
             profile,
-            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             None,
         )
         .unwrap();
@@ -1335,7 +1335,7 @@ mod tests {
     ) -> Option<NativeExpressionProgram> {
         let source = format!("expr {{{expression}}}");
         let image = tcl_lexer::SourceImage::native(source.as_bytes());
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let command = tcl_lexer::native_script_words_in(
             image.clone(),
             Span::new(0, image.len().try_into().unwrap()),

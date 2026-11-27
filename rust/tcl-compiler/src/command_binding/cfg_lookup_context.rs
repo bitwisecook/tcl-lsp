@@ -348,7 +348,7 @@ mod tests {
             crate::environment_ingress::captured_native_entry_with_owner(profile);
         let entry = SourceAnalysisEntry {
             native_entry: Some(Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };

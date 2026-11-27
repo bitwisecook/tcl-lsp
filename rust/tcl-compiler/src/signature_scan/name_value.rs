@@ -79,7 +79,7 @@ enum SourceNameValueOrigin {
     },
     StoredVariableTracePrefix {
         parents: Vec<SignatureSourceNameInput>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     },
 }
 
@@ -1203,8 +1203,8 @@ mod tests {
         // Implementation contract: naming.source.readonly-original-operand-projections (docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md).
         let dialects = tcl_dialect::TclVersion::ALL
             .into_iter()
-            .map(tcl_registry::InvocationDialect::for_version)
-            .chain([tcl_registry::InvocationDialect::of_point(
+            .map(tcl_native_model::InvocationDialect::for_version)
+            .chain([tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
             )]);
         for dialect in dialects {
@@ -1271,7 +1271,7 @@ mod tests {
     fn original_index_fragment_and_list_child_preserve_native_units() {
         for version in tcl_dialect::TclVersion::ALL {
             let config = LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+                tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
             );
             let policy = NamePolicyProtocol::authored_tcl(version);
             let source = r"set auto_index(p\u0000tail) value";
@@ -1304,7 +1304,7 @@ mod tests {
     fn original_executable_fragment_requires_full_owner_and_single_text_region() {
         for version in tcl_dialect::TclVersion::ALL {
             let config = LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+                tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
             );
             let policy = NamePolicyProtocol::authored_tcl(version);
             let image = SourceImage::native(b"$a(k\\x2d$b tail)".as_slice());
@@ -1386,7 +1386,7 @@ mod original_list_source_extent_tests {
     fn parent(source: &str) -> SignatureSourceNameInput {
         let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                 .lexer_grammar,
         );
         let image = SourceImage::document(source);
@@ -1509,7 +1509,7 @@ mod logical_list_name_tests {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
         let input = analysis.resolved_input.as_ref().unwrap();
         assert!(input.has_logical_source_name_context());
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()
             .unwrap();
         let config = input.lexer_config();
@@ -1696,7 +1696,7 @@ mod logical_formal_field_tests {
             );
             assert!(crate::signature_scan::formal_parameters::SignatureSourceFormalParameterValue::from_original_input(
                 &name,
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
             ).is_none());
             let mut foreign_allocation = field.clone();
             foreign_allocation.source =

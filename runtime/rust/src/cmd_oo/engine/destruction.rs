@@ -22,7 +22,7 @@ use super::super::slots::build_list;
 use super::super::{native_method_cache, CallStep, MethodInvocation};
 use crate::interp::{Code, Interp};
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 impl Interp {
     /// Destroy an object during implicit teardown, routing a destructor error to

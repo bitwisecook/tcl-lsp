@@ -24,9 +24,10 @@ use super::{
     NativeCompilationContext, NativeCompilationGrammar, NativeCompilationSelection,
     NativeCompilationSpec, NativeNamedInvocationProtocol, literal_shape,
 };
-use crate::{InvocationDialect, SemanticOperationId};
+use crate::SemanticOperationId;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 /// Effects of a selected original compiler before its arguments execute.
 /// This supplies no opcode admission, native cache or normal handler result.

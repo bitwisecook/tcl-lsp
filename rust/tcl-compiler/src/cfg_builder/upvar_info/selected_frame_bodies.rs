@@ -387,7 +387,7 @@ enum SelectedAliasTarget {
 fn selected_alias_target(
     target: &tcl_registry::VariableAliasTarget,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> SelectedAliasTarget {
     use crate::cfg_builder::frame_effects::{CallerAliasSelection, caller_alias_selection};
     let selected = caller_alias_selection(target, |_, level| {
@@ -424,7 +424,7 @@ fn compose_selected_alias_facts(
     projected_names: &BTreeSet<String>,
     any_write: bool,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     info: &mut UpvarInfo,
 ) {
     let Some(transitions) = facts.state_transitions.declared() else {
@@ -443,7 +443,7 @@ fn compose_selected_alias(
     projected_names: &BTreeSet<String>,
     any_write: bool,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     info: &mut UpvarInfo,
 ) {
     let local_written = alias.writes_value

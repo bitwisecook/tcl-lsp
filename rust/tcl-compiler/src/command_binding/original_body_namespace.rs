@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(native.execution_point, environment.point());
         let entry = SourceAnalysisEntry {
             metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             native_entry: Some(Arc::new(native)),
             ..SourceAnalysisEntry::default()

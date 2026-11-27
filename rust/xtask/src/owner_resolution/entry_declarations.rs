@@ -73,6 +73,9 @@ fn items_declare(items: &[syn::Item], owner: Option<&str>, ident: &str) -> bool 
                     })
                 } else {
                     item.ident == ident
+                        || item.items.iter().any(|member| {
+                            matches!(member, syn::TraitItem::Fn(method) if method.sig.ident == ident)
+                        })
                 }
         }
         syn::Item::Impl(item) => {
@@ -97,7 +100,9 @@ fn items_declare(items: &[syn::Item], owner: Option<&str>, ident: &str) -> bool 
             matches_owner
                 && !locally_private
                 && item.items.iter().any(|member| match member {
-                    syn::ImplItem::Fn(method) => exported(&method.vis) && method.sig.ident == ident,
+                    syn::ImplItem::Fn(method) => {
+                        (item.trait_.is_some() || exported(&method.vis)) && method.sig.ident == ident
+                    }
                     syn::ImplItem::Const(value) => exported(&value.vis) && value.ident == ident,
                     syn::ImplItem::Type(value) => exported(&value.vis) && value.ident == ident,
                     _ => false,

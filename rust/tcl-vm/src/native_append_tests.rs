@@ -306,7 +306,7 @@ const CAT_BYTE_INPUT_KINDS: &[[i32; 3]] = &[
     [0, 11, 0],
 ];
 
-fn make_cat(kind: i32, dialect: tcl_registry::InvocationDialect) -> Value {
+fn make_cat(kind: i32, dialect: tcl_native_model::InvocationDialect) -> Value {
     let protocol = dialect.native_string_protocol().unwrap();
     match kind {
         0 | 7 => Value::native_list_constructor(Vec::new(), protocol),

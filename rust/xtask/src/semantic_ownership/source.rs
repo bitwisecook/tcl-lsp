@@ -84,6 +84,7 @@ const GRAMMAR_CONSUMERS: &[&str] = &[
     "tcl-lsp-db",
     "tcl-lsp-server",
     "tcl-mcp",
+    "tcl-native-model",
     "tcl-numeric",
     "tcl-pkg",
     "tcl-pkg-model",

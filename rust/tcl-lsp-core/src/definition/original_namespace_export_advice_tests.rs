@@ -81,7 +81,7 @@ fn original_document_export_observability_keeps_opaque_namespace_and_policy() {
         ),
         ExportVerdict::NotExported
     );
-    let foreign = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+    let foreign = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
         .authored_name_policy()
         .unwrap();
     assert!(!super::namespace_exports_observable(

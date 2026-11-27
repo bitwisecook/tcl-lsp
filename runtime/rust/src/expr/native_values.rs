@@ -71,7 +71,7 @@ pub(super) fn in_list(
         let recipe = operation
             .dialect()
             .native_string_materialization(Some(
-                tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
             ))
             .ok_or_else(|| {
                 ExprError::from_cmd_error(
@@ -194,7 +194,7 @@ mod tests {
         fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
             Some(self.0.host())
         }
-        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
             self.0.native_invocation_dialect()
         }
         fn f5_string_predicate_provider(
@@ -356,7 +356,7 @@ mod tests {
             .0
             .set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(context.0.set_logical_expression_parse_provider(
-            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap()
         ));
         let left = Owned::fresh(obj::new_string_bytes("é\0prefix suffix".as_bytes()));
@@ -388,7 +388,7 @@ mod tests {
             .0
             .set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(context.0.set_logical_expression_parse_provider(
-            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap()
         ));
         context.0.set_result_bytes(b"PRIOR\0\xff");

@@ -140,7 +140,7 @@ fn invalid_filename_layout_matches_full_registration_vectors() {
 #[test]
 fn filename_layout_activation_preserves_mixed_row_order_and_fallback() {
     let version = tcl_dialect::TclVersion::V8_4;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     let directory = Path::new("/library");
@@ -203,7 +203,7 @@ fn filename_layout_activation_preserves_mixed_row_order_and_fallback() {
 #[test]
 fn filename_layout_activation_accepts_conditional_mixed_rows() {
     let version = tcl_dialect::TclVersion::V8_4;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     let directory = Path::new("/library");
@@ -263,7 +263,7 @@ fn filename_layout_activation_accepts_conditional_mixed_rows() {
 #[test]
 fn filename_layout_activation_retains_unavailable_fallbacks() {
     let version = tcl_dialect::TclVersion::V8_5;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     let directory = Path::new("/library");
@@ -320,7 +320,7 @@ fn filename_layout_activation_separates_positive_filenames_and_negative_proofs()
             .collect::<Vec<_>>()
     };
     let version = tcl_dialect::TclVersion::V8_5;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     for source in [
@@ -349,7 +349,7 @@ fn filename_layout_activation_separates_positive_filenames_and_negative_proofs()
         );
     }
     let version = tcl_dialect::TclVersion::V8_4;
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     let source = "unavailable; set auto_index(a) [list source -encoding utf-8 a.tcl]";
@@ -382,7 +382,7 @@ fn autoload_multirow_source_abstention_matches_full_registration_consumer() {
     let encoded = with_tail.replace("list source [", "list source -encoding utf-8 [");
     let blt = "set auto_index(a) [list source $dir/graph.tcl]\nset auto_index(b) [list source $dir/graph.tcl]\nset auto_index(c) [list source $dir/graph.tcl]\n";
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
         let policy = NamePolicyProtocol::authored_tcl(version);
         let directory = Path::new("/library");
@@ -446,7 +446,7 @@ fn autoload_multirow_source_abstention_matches_full_registration_consumer() {
 #[test]
 fn autoload_source_context_matches_full_registration_consumer() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
         let policy = NamePolicyProtocol::authored_tcl(version);
         let directory = Path::new("/library");
@@ -522,7 +522,7 @@ fn autoload_source_context_matches_full_registration_consumer() {
 #[test]
 fn autoload_registration_structure_matches_full_source_records() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
         let policy = NamePolicyProtocol::authored_tcl(version);
         let directory = Path::new("/library");
@@ -872,7 +872,7 @@ fn batched_index_surveys_match_each_release_and_recheck_existence() {
     let requests = tcl_dialect::TclVersion::ALL.map(|version| {
         (
             LexerConfig::from_grammar(
-                tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+                tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
             ),
             NamePolicyProtocol::authored_tcl(version),
         )
@@ -927,7 +927,7 @@ fn batched_index_surveys_match_each_release_and_recheck_existence() {
 fn index_survey_memo_rechecks_existence_and_misses_changed_bytes() {
     let version = tcl_dialect::TclVersion::V8_6;
     let config = LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
     );
     let policy = NamePolicyProtocol::authored_tcl(version);
     let source = "set auto_index(memo_probe) [list source [file join $dir m.tcl]]\n";
@@ -953,7 +953,7 @@ fn index_survey_memo_rechecks_existence_and_misses_changed_bytes() {
 fn original_index_grammar_requires_the_current_registry_implementation() {
     let version = tcl_dialect::TclVersion::V9_1;
     let config = LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
     );
     let policy = NamePolicyProtocol::authored_tcl(version);
     let source =
@@ -979,7 +979,7 @@ fn original_index_grammar_requires_the_current_registry_implementation() {
 fn original_old_index_uses_list_grammar_and_translated_line_boundaries() {
     for version in tcl_dialect::TclVersion::ALL {
         let config = LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+            tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
         );
         for newline in ["\n", "\r\n", "\r"] {
             let source = format!(
@@ -1002,7 +1002,8 @@ fn original_old_index_uses_list_grammar_and_translated_line_boundaries() {
 #[test]
 fn original_index_keeps_counted_literal_names_and_does_not_trim_indices() {
     let config = LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1)
+            .lexer_grammar,
     );
     let source = "set {auto_index(p\0tail)} [list source [file join $dir p.tcl]]\nset {auto_index( spaced )} [list source [file join $dir q.tcl]]";
     let entries = original_index_entries(

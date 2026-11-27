@@ -1410,7 +1410,7 @@ mod tests {
         let mut graph = AdviceGraph::new(
             input.borrowed_context_registry(),
             &AdviceNamingPolicy::Logical(input.clone()),
-            tcl_registry::InvocationDialect::of_profile(input.unit_profile()),
+            tcl_native_model::InvocationDialect::of_profile(input.unit_profile()),
         )
         .unwrap();
         graph.logical_namespace = Some(wrong.namespace_recipe().clone());
@@ -1545,7 +1545,7 @@ mod tests {
         let mut graph = AdviceGraph::new(
             candidate.input.borrowed_context_registry(),
             &AdviceNamingPolicy::Logical(candidate.input.clone()),
-            tcl_registry::InvocationDialect::of_profile(candidate.input.unit_profile()),
+            tcl_native_model::InvocationDialect::of_profile(candidate.input.unit_profile()),
         )
         .unwrap();
         graph.logical_namespace = Some(scope.namespace_recipe().clone());

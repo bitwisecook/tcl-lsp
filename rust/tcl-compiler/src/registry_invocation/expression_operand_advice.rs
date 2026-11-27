@@ -28,7 +28,7 @@ use tcl_source::words::WordExpr;
 /// Neither a normal handler nor successful operand evaluation is asserted.
 pub(crate) struct OriginalExpressionOperandAdvice {
     pub(crate) expression: crate::expr_ast::ExprNode,
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) evaluation: tcl_registry::conditional_expression::ConditionalExpressionEvaluation,
     pub(crate) pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,
     pub(crate) expression_base: u32,
@@ -63,7 +63,7 @@ pub(crate) fn original_expression_operand_advice_for_word(
 /// original written operand. This is a parser purpose, never Normal or edits.
 pub(crate) struct OriginalExpressionContextAdvice {
     pub(crate) parser: tcl_syntax::expr::parser::ExprParseContext,
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) written: usize,
     pub(crate) lookup_closed: bool,
     pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,

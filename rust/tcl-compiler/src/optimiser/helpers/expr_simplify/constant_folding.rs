@@ -315,7 +315,7 @@ pub fn substitute_expr_constants_for_execution<S: std::hash::BuildHasher>(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     operands: &crate::tcl_expr_eval::NativeOperandProofs,
 ) -> SubstitutionResult {
-    let selected = dialect.map(tcl_registry::InvocationDialect::of_profile);
+    let selected = dialect.map(tcl_native_model::InvocationDialect::of_profile);
     let proved = constants
         .iter()
         .filter(|(name, _)| {

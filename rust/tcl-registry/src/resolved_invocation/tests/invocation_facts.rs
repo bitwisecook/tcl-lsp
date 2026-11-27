@@ -26,7 +26,7 @@ fn selected_operand_coercions_preserve_shared_object_hazards() {
     use crate::representation::RepresentationCoercionSelection as Coercions;
     let context = crate::model::ingress::static_context_for("tcl9.0");
     let registry = context.commands();
-    let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     let cases: &[(&str, &[crate::InvocationWord<'_>], Coercions)] = &[
         (
             "llength",
@@ -79,7 +79,7 @@ fn selected_regexp_result_uses_available_flags_before_unknown_values() {
         // The raw catalogue's latest row is Jim; actual operand ingress
         // must select the C row independently of that insertion order.
         let registry = crate::CommandRegistry::build_default();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         for (words, expected) in [
             (
                 vec![Literal("-about"), Dynamic],
@@ -119,7 +119,7 @@ fn selected_argument_hints_retain_member_options_and_transparency() {
     use crate::InvocationWord::{Dynamic, Literal};
     let context = crate::model::ingress::static_context_for("tcl9.0");
     let registry = context.commands().clone();
-    let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     let arguments = [Literal("map"), Literal("-nocase"), Literal("a b"), Dynamic];
     let facts = registry
         .resolve_structured_invocation(
@@ -170,7 +170,7 @@ fn selected_argument_hints_decline_unresolved_argv_and_rejected_arity() {
     use crate::InvocationWord::{Dynamic, Expanded, Literal};
     let context = crate::model::ingress::static_context_for("tcl9.0");
     let registry = context.commands();
-    let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     let cases: &[&[crate::InvocationWord<'_>]] = &[
         &[Dynamic, Literal("x")],
         &[Literal("map"), Dynamic, Literal("x")],
@@ -237,7 +237,7 @@ fn retained_result_types_respect_option_forms_and_unknown_slots() {
 #[test]
 fn literal_leaf_normal_world_is_separate_from_error_and_dynamic_operands() {
     let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let arguments = [
         crate::InvocationWord::Literal("format"),
         crate::InvocationWord::Literal("a*"),
@@ -287,7 +287,8 @@ fn literal_leaf_normal_world_is_separate_from_error_and_dynamic_operands() {
 #[test]
 fn selected_getter_normal_contract_does_not_leak_to_mutator_or_channel_forms() {
     let registry = crate::model::ingress::static_context_for("f5-irules").commands();
-    let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
     for values in [&[][..], &["100"][..]] {
         let invocation = registry
             .resolve_structured_invocation(
@@ -333,7 +334,7 @@ fn selected_getter_normal_contract_does_not_leak_to_mutator_or_channel_forms() {
 #[test]
 fn dictionary_constructor_coerces_keys_and_retains_unknown_value_objects() {
     let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (key, value, closed) in [
         (
             crate::InvocationWord::Literal("key"),
@@ -381,7 +382,7 @@ fn scalar_math_shape_requires_the_selected_native_protocol() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let words = crate::InvocationWords::structured(
             crate::InvocationWord::Literal("::tcl::mathfunc::sqrt"),
             &values,
@@ -439,7 +440,7 @@ fn scalar_math_shape_requires_the_selected_native_protocol() {
         );
     }
     let expanded = [crate::InvocationWord::Expanded];
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
     let words = crate::InvocationWords::structured(
         crate::InvocationWord::Literal("::tcl::mathfunc::sqrt"),
         &expanded,
@@ -470,9 +471,9 @@ fn native_list_length_numeric_result_requires_selected_contract_and_normal_ident
     let values = [crate::InvocationWord::Dynamic];
     let mut dialects = tcl_dialect::TclVersion::ALL
         .into_iter()
-        .map(crate::InvocationDialect::for_version)
+        .map(tcl_native_model::InvocationDialect::for_version)
         .collect::<Vec<_>>();
-    dialects.push(crate::InvocationDialect::of_point(
+    dialects.push(tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     ));
     for dialect in dialects {
@@ -507,7 +508,7 @@ fn native_list_length_numeric_result_requires_selected_contract_and_normal_ident
         crate::InvocationWord::Literal("llength"),
         &[crate::InvocationWord::Expanded],
     )
-    .with_dialect(crate::InvocationDialect::for_version(
+    .with_dialect(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V9_1,
     ));
     let resolution = registry.resolve_structured_invocation(words, None);
@@ -527,7 +528,7 @@ fn ordinary_list_length_completion_requires_the_selected_operation_and_handler()
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = crate::model::ingress::static_context_for(environment).commands();
         let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let operands = [crate::InvocationWord::Dynamic];
         let words =
             InvocationWords::structured(crate::InvocationWord::Literal("llength"), &operands)
@@ -574,7 +575,7 @@ fn ordinary_list_length_completion_requires_the_selected_operation_and_handler()
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         ..CommandSpec::DEFAULT
     });
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let words = InvocationWords::literals("coercion-only", &["a b"]).with_dialect(dialect);
     let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());
     assert!(
@@ -597,7 +598,7 @@ fn list_length_abstract_method_obligation_retains_native_axes() {
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = crate::model::ingress::static_context_for(environment).commands();
         let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let operands = [crate::InvocationWord::Dynamic];
         let words =
             InvocationWords::structured(crate::InvocationWord::Literal("llength"), &operands)
@@ -849,7 +850,7 @@ fn successful_frame_facts_are_separate_from_possible_argument_error_facts() {
     ];
     let words =
         crate::InvocationWords::structured(crate::InvocationWord::Literal("upvar"), &arguments)
-            .with_dialect(crate::InvocationDialect::for_version(
+            .with_dialect(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_4,
             ));
     let invocation = registry

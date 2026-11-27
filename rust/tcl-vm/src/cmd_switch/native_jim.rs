@@ -61,9 +61,10 @@ impl NativeJimSwitchObjects for Vm {
             })
     }
     fn switch_immediate(&mut self, value: &Value, immediate: Immediate) -> Result<bool, CmdError> {
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            IMMEDIATES,
-        );
+        let table =
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                IMMEDIATES,
+            );
         self.native_jim_compare_immediate_checked(
             value,
             &table,
@@ -119,7 +120,7 @@ impl NativeJimSwitchObjects for Vm {
 pub(super) fn invoke(
     vm: &mut Vm,
     args: &[Value],
-    protocol: tcl_registry::native_jim_switch::NativeJimSwitchProtocol,
+    protocol: tcl_native_model::native_jim_switch::NativeJimSwitchProtocol,
 ) -> Completion<Value> {
     let selection = match native_jim_switch::select(vm, protocol, args) {
         Ok(selection) => selection,
@@ -140,7 +141,7 @@ pub(super) fn invoke(
         }
         Selection::Body(body) => match vm.eval_original_script_value(
             &body,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             None,
         ) {
             Ok(completion) => completion,
@@ -200,7 +201,7 @@ mod tests {
             ));
             *observer.borrow_mut() = Some(body);
             drop(items);
-            original.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
+            original.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
             let old = observer.borrow();
             let body = old.as_ref().unwrap();
             captured.borrow_mut().push(format!(

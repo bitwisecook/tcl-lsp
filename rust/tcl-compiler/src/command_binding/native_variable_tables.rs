@@ -123,7 +123,7 @@ mod tests {
         let mut variables = ResolveContext::for_frame(
             VariableFrameKind::Global,
             crate::var_resolve::BindingIdentity::Legacy,
-            Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         );
         variables.widen();
         let mut root = place::scalar("fresh_array", "::", false);

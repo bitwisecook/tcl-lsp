@@ -27,7 +27,7 @@ use super::{
 };
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
 };
 use tcl_runtime_api::Completion;

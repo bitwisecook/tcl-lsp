@@ -180,7 +180,7 @@ fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Opti
         .zip(result.alias_offsets.get(key))
         .and_then(|(alias, &at)| {
             let policy = result.resolved_profile().and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy()
             });
             Some(Binding {
                 kind: LastHop::Alias,

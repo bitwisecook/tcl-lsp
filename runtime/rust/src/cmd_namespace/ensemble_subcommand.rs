@@ -34,7 +34,7 @@ pub(super) fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Ensemble,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Ensemble,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);

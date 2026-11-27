@@ -86,7 +86,7 @@ pub(super) fn prepare_body_candidates<'a>(
     let possible = actual.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     let mut prepared = Box::new(PreparedBodyCandidates {
         candidates: Vec::new(),
@@ -355,12 +355,12 @@ pub(super) fn prepared_body_invocation<'a>(
                 .context()
                 .environment
                 .point()
-                .map(tcl_registry::InvocationDialect::of_point)
+                .map(tcl_native_model::InvocationDialect::of_point)
         })
         .or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         });
     Some(ResolvedStatementInvocation {
         dialect,
@@ -437,7 +437,7 @@ pub(super) fn body_assistance_context(
         .source_binding
         .as_ref()
         .and_then(|binding| binding.variable_context.invocation_dialect)
-        .and_then(tcl_registry::InvocationDialect::execution_point)
+        .and_then(tcl_native_model::InvocationDialect::execution_point)
         .and_then(|point| {
             point
                 .tcl_version()

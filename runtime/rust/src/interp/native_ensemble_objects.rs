@@ -26,6 +26,7 @@ use crate::{
     obj::{self, Owned, TclObj},
 };
 use tcl_cmd_core::ensemble::EnsembleObjectRole;
+use tcl_registry::command_lookup::EnsembleDispatchDialect;
 use tcl_syntax::value::ValueError;
 
 impl Interp {

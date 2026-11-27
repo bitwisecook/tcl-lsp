@@ -20,8 +20,8 @@ use super::{NativeJimObjectContext, NativeJimSourceInfo, Value};
 use std::fmt::Write;
 use tcl_syntax::native_string::NativeStringProtocol;
 
-fn jim() -> tcl_registry::InvocationDialect {
-    tcl_registry::InvocationDialect::of_profile(
+fn jim() -> tcl_native_model::InvocationDialect {
+    tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     )
 }

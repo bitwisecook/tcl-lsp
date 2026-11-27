@@ -20,7 +20,7 @@
 
 use crate::interp::{Command, Interp};
 use crate::namespace::GLOBAL;
-use tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind;
+use tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind;
 use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
 use tcl_syntax::value::ValueOps;
 

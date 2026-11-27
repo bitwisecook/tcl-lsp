@@ -412,7 +412,7 @@ pub(super) mod tests {
         let declared = crate::analyser::utils::document_declared_surface(source, None, dialect);
         let entry = crate::command_binding::SourceAnalysisEntry {
             logical_source_input: Some(input.clone()),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         };
         let unit = CompilationUnit::build_with_source_entry(
@@ -1000,7 +1000,7 @@ mod original_source_purpose_tests {
                         metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(
                             &input,
                         )),
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_compilation:

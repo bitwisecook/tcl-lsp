@@ -715,7 +715,7 @@ fn native_each_loop_members(
 fn prepare_each_loop_group(
     interp: &mut Interp,
     pair: &[*mut TclObj],
-    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    protocol: tcl_native_model::native_each_loop::NativeEachLoopProtocol,
     strings: tcl_syntax::native_string::NativeStringProtocol,
     arguments: &OriginalArguments,
     pair_index: usize,
@@ -814,7 +814,7 @@ fn prepare_each_loop_group(
 fn prepare_each_loop_groups(
     interp: &mut Interp,
     argv: &[*mut TclObj],
-    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    protocol: tcl_native_model::native_each_loop::NativeEachLoopProtocol,
     strings: tcl_syntax::native_string::NativeStringProtocol,
     arguments: &OriginalArguments,
 ) -> Result<PreparedEachLoopGroups, Code> {
@@ -946,7 +946,7 @@ fn assign_each_loop_variable(
     interp: &mut Interp,
     group: &EachLoopGroup,
     EachLoopAssignment { variable, value }: EachLoopAssignment,
-    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    protocol: tcl_native_model::native_each_loop::NativeEachLoopProtocol,
     padding: Option<*mut TclObj>,
     EachLoopOriginalInputs {
         arguments,
@@ -1068,7 +1068,7 @@ struct EachLoopExecution {
     import: Option<crate::interp::OriginalJimImportEachLoop>,
     groups: Vec<EachLoopGroup>,
     compiled: bool,
-    protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
+    protocol: tcl_native_model::native_each_loop::NativeEachLoopProtocol,
     recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
     strings: tcl_syntax::native_string::NativeStringProtocol,
     kind: tcl_runtime_api::native_each_loop::NativeEachLoopKind,

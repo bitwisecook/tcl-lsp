@@ -113,7 +113,7 @@ struct OriginalMathFunctionLookup {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OriginalFixedMathFunctionLookup {
     function: tcl_core_types::NameBytes,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     observations: Vec<Arc<super::SourceLookupSnapshot>>,
 }
 
@@ -550,7 +550,7 @@ impl SourceCommandBindings {
 
 fn selected_function_name_policy(
     rows: &[&DeclarationLayoutObservation],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
     let policy = rows
         .first()?
@@ -577,7 +577,7 @@ fn selected_function_name_policy(
 fn selected_function_dialect(
     expression: &super::SourceConditionalExpressionEvaluation,
     rows: &[&DeclarationLayoutObservation],
-) -> Option<tcl_registry::InvocationDialect> {
+) -> Option<tcl_native_model::InvocationDialect> {
     let first = rows.first()?;
     let dialect = first.snapshot.state.baseline.dialect?;
     for row in rows {
@@ -605,7 +605,7 @@ fn fixed_metadata(
     bindings: &SourceCommandBindings,
     site: &CommandAllocationSite,
     function: &str,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     rows: &[&DeclarationLayoutObservation],
 ) -> Option<String> {
     use tcl_runtime_api::native_compilation::NativeMathFunctionResolution;
@@ -708,7 +708,7 @@ fn original_fixed_function_lookup(
     ordinal: usize,
     expression: &super::SourceConditionalExpressionEvaluation,
     rows: &[&DeclarationLayoutObservation],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<OriginalFixedMathFunctionLookup> {
     // naming.expression.original-fixed-function-source-presence
     // docs/design/analysis/name-resolution-proofs/original-fixed-function-source-presence.md
@@ -771,7 +771,7 @@ fn original_function_lookup(
     ordinal: usize,
     expression: &super::SourceConditionalExpressionEvaluation,
     rows: &[&DeclarationLayoutObservation],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<OriginalMathFunctionLookup> {
     let policy = selected_function_name_policy(rows, dialect)?;
     let source = expression.source().try_text().ok()?;
@@ -964,7 +964,7 @@ mod tests {
         Vec<OriginalMathFunctionOccurrence>,
     ) {
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap();
-        let dialect = tcl_registry::InvocationDialect::of_point(point);
+        let dialect = tcl_native_model::InvocationDialect::of_point(point);
         let profile = tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
@@ -1121,7 +1121,7 @@ mod tests {
             .values()
             .flat_map(|retained| original_declaration_layouts(retained).into_iter().flatten())
             .collect();
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("tcl8.6")).unwrap(),
         );
         assert_eq!(
@@ -1129,7 +1129,7 @@ mod tests {
             Some(calls[0].name_policy())
         );
         for foreign in ["tcl8.4", "tcl9.1", "jim"] {
-            let dialect = tcl_registry::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(foreign)).unwrap(),
             );
             assert!(selected_function_name_policy(&rows, dialect).is_none());

@@ -26,7 +26,7 @@ fn w214_uses_original_tight_name_spans_and_quoted_markers() {
         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
     );
     assert!(
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .is_some()
     );

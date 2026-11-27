@@ -107,7 +107,7 @@ pub(crate) fn with_variable_cache<R>(
 }
 fn require_original(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), ValueError> {
     dialect
         .native_jim_lookup_protocol()
@@ -124,7 +124,7 @@ fn require_original(
 pub(crate) fn install_command_cache_with_stage_check(
     value: *mut TclObj,
     cache: impl FnOnce() -> Result<JimCommandCache, ValueError>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     stage_check: &dyn Fn() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
     super::check_native_liveness(value)?;
@@ -149,7 +149,7 @@ pub(crate) fn install_command_cache_with_stage_check(
 pub(crate) fn install_variable_cache_with_stage_check(
     value: *mut TclObj,
     cache: JimVariableCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
 ) -> Result<(), ValueError> {
     super::check_native_liveness(value)?;

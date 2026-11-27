@@ -55,7 +55,7 @@ fn entry(version: tcl_dialect::TclVersion) -> NativeCompilationEntry {
         compiled_local_layout: None,
         oo_classes: None,
         ensemble_target_objects: None,
-        source_string_protocol: tcl_registry::InvocationDialect::of_point(point)
+        source_string_protocol: tcl_native_model::InvocationDialect::of_point(point)
             .native_source_string_protocol(),
         lexer_grammar: Some(profile.grammar),
         inline_compilation_disabled: false,

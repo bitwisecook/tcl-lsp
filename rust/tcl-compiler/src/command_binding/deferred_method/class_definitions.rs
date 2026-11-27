@@ -309,7 +309,7 @@ impl ModuleCommandBindings {
                 let query = self
                     .baseline
                     .dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
                     .map(|query| query.with_realm(context.realm()));
                 let spec = context.registry.get_for_surface(&selected.command, query)?;
                 if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
@@ -571,7 +571,7 @@ impl ModuleCommandBindings {
                     let query = self
                         .baseline
                         .dialect
-                        .and_then(tcl_registry::InvocationDialect::authoring_query)
+                        .and_then(tcl_native_model::InvocationDialect::authoring_query)
                         .map(|query| query.with_realm(context.realm()));
                     let member = grammar.native_classmethod_member(query)?;
                     let worker = original_definition_member_target(

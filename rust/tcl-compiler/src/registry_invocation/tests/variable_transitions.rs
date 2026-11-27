@@ -133,7 +133,7 @@ fn possible_method_name_operands_do_not_create_normal_store_proof() {
         config,
         &registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_1,
             )),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {

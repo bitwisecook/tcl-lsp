@@ -30,7 +30,7 @@ fn analyse(source: &str, engine: &str) -> SourceCommandBindings {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()
@@ -85,7 +85,7 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
             append.proved_execution_target().unwrap().kind,
             crate::command_binding::BindingKind::Builtin
         );
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find(engine).unwrap(),
         );
         let resolved = registry
@@ -273,7 +273,7 @@ fn captured_native_effect_owner_refuses_foreign_source_and_expires_without_fallb
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let options = SourceAnalysisOptions {
         native_entry: Some(&entry),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         )),
         ..Default::default()

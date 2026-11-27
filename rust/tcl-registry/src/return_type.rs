@@ -292,7 +292,7 @@ mod tests {
             .get_for_surface(
                 command,
                 registry.profile().and_then(|profile| {
-                    crate::InvocationDialect::of_profile(profile).authoring_query()
+                    tcl_native_model::InvocationDialect::of_profile(profile).authoring_query()
                 }),
             )
             .expect("command is registered")

@@ -51,7 +51,7 @@ impl Value {
     }
     pub(crate) fn install_native_parsed_variable_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         build: impl FnOnce() -> Result<ParsedVariableName, E>,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
@@ -88,7 +88,7 @@ impl Value {
 
     pub(crate) fn install_native_local_variable_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         build: impl FnOnce() -> Result<LocalVariableName, E>,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {

@@ -57,7 +57,7 @@ pub(crate) use tcl_compiler::registry_invocation::source_structure::OriginalRegi
 
 pub(crate) struct OriginalRegistryWords {
     pub(crate) command: String,
-    pub(crate) dialect: Option<tcl_registry::InvocationDialect>,
+    pub(crate) dialect: Option<tcl_native_model::InvocationDialect>,
     pub(crate) arguments: Vec<tcl_compiler::registry_invocation::EffectiveInvocationWord>,
     pub(crate) operands: Vec<Option<OriginalOperandSource>>,
     pub(crate) origins: Vec<tcl_compiler::registry_invocation::InvocationWordOrigin>,

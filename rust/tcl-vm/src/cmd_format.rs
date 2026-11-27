@@ -98,7 +98,7 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Build the VM value for a scanned conversion (`%d`/`%x`/`%c`→int,
 /// `%e`/`%f`/`%g`→double, `%s`/`%[`→string).
-fn scanned_value(v: &Scanned, dialect: tcl_registry::InvocationDialect) -> Value {
+fn scanned_value(v: &Scanned, dialect: tcl_native_model::InvocationDialect) -> Value {
     match v {
         Scanned::Int(n) => Value::int(*n),
         Scanned::Unsigned(_) | Scanned::Big { .. } => Value::string(

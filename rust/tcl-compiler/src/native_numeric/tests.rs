@@ -56,7 +56,7 @@ fn inspect_read<T>(
         SourceAnalysisOptions {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -480,7 +480,7 @@ fn accepted_integer_contents_require_original_source_value_and_selected_recipe()
         let receipt = source_read_integer_contents(read, registry).unwrap();
         assert!(!receipt.accepts_number(None, "21"));
         assert!(!receipt.accepts_number(
-            Some(tcl_registry::InvocationDialect::for_version(
+            Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_0
             )),
             "21"

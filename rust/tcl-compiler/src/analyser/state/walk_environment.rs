@@ -36,7 +36,7 @@ impl Analyser {
     /// authoring environment. This supplies no entered handler or name lookup.
     pub(in super::super) fn original_source_invocation_dialect(
         &self,
-    ) -> Option<tcl_registry::InvocationDialect> {
+    ) -> Option<tcl_native_model::InvocationDialect> {
         match self.source_analysis_entry.as_deref() {
             Some(entry) => entry
                 .options()

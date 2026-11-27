@@ -86,7 +86,7 @@ fn resolve_source_instance_facts(
     let query = invocation
         .arguments()
         .dialect()
-        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .and_then(tcl_native_model::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(realm));
     registry
         .resolve_structured_instance_invocation(factory, invocation, query)
@@ -114,7 +114,7 @@ fn resolve_source_success_facts(
 
 pub(in super::super) struct PreparedSourceNativeInvocation<'a> {
     pub(in super::super) arguments: Vec<tcl_registry::InvocationWord<'a>>,
-    pub(in super::super) dialect: Option<tcl_registry::InvocationDialect>,
+    pub(in super::super) dialect: Option<tcl_native_model::InvocationDialect>,
     pub(in super::super) route: tcl_registry::completion_route::InvocationCompletionRoute,
     pub(in super::super) facts: Box<InvocationFacts>,
     pub(in super::super) original_variable_operands:
@@ -236,7 +236,7 @@ pub(in super::super) fn prepare_source_native_invocation<'a>(
             invocation
                 .arguments()
                 .dialect()
-                .and_then(tcl_registry::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
                 .map(|query| query.with_realm(realm)),
             state.source_variables.alias_frame(),
         )
@@ -405,7 +405,7 @@ fn source_target_arguments_invalid(
         .zip(
             arguments
                 .dialect()
-                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar),
         )
         .is_some_and(|(parameters, grammar)| {
             tcl_syntax::formal_params::parse_formal_parameters_in(parameters, grammar).is_err()

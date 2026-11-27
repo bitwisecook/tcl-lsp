@@ -248,10 +248,10 @@ pub(crate) fn with_original_numeric_command<T, E>(
 pub(crate) fn original_numeric_command_ops<T>(
     vm: &mut Vm,
     context: OriginalNumericCommandContext<'_>,
-    purpose: tcl_registry::native_numeric_error::NativeNumericCommandPurpose,
+    purpose: tcl_native_model::native_numeric_error::NativeNumericCommandPurpose,
     operation: impl FnOnce(
         &OriginalNumericOps<'_>,
-        tcl_registry::native_numeric_error::NativeNumericCommandProtocol,
+        tcl_native_model::native_numeric_error::NativeNumericCommandProtocol,
     ) -> Result<T, tcl_cmd_core::CmdError>,
 ) -> Result<T, tcl_cmd_core::CmdError> {
     use tcl_syntax::value::ValueError;

@@ -2856,7 +2856,7 @@ int utf8_tounicode(const char *str, int *uc)
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_string_length.rs](../../../../rust/tcl-registry/src/native_string_length.rs), `actual_length_conversion_retains_release_specific_bytearray_rules` (linked): Software source definition checks actual length conversion retains release specific bytearray rules.
+- [rust/tcl-native-model/src/native_string_length.rs](../../../../rust/tcl-native-model/src/native_string_length.rs), `actual_length_conversion_retains_release_specific_bytearray_rules` (linked): Software source definition checks actual length conversion retains release specific bytearray rules.
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_index_and_range_project_exact_measured_public_predicates` (linked): Software source definition checks index and range project exact measured public predicates.
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_c_count_retains_source_backed_eager_and_lazy_unicode_caches` (linked): Software source definition checks c count retains source backed eager and lazy unicode caches.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_index_and_range_project_exact_measured_public_predicates` (linked): Software source definition checks index and range project exact measured public predicates.

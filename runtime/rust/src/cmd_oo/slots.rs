@@ -28,7 +28,7 @@ use crate::interp::{Code, Interp};
 use crate::obj;
 use crate::obj::TclObj;
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodPayloadType;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodPayloadType;
 use tcl_syntax::value::ValueOps;
 
 /// Define `::oo::Slot` (TIP 380): the overridable `Get`/`Set`/`Resolve` and the

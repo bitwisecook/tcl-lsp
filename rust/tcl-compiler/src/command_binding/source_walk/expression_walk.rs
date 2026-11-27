@@ -451,7 +451,7 @@ impl SourceCommandBindings {
                 context
                     .registry
                     .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile)
+                    .map(tcl_native_model::InvocationDialect::of_profile)
             })
             .and_then(tcl_registry::mathfunc::native_function_dispatch);
         let Some(dispatch) = dispatch else {
@@ -625,7 +625,7 @@ impl SourceCommandBindings {
                 invocation
                     .arguments()
                     .dialect()
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
                     .map(|query| query.with_realm(context.realm())),
                 state.source_variables.alias_frame(),
             )
@@ -786,7 +786,7 @@ fn source_expression_truth(
 
 pub(in super::super) fn source_effective_words(
     words: &[tcl_source::words::WordExpr],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     context: Option<(&crate::var_resolve::ResolveContext, &CommandRegistry)>,
 ) -> Vec<crate::registry_invocation::EffectiveInvocationWord> {
     use crate::registry_invocation::EffectiveInvocationWord;

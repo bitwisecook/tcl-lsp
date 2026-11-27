@@ -387,15 +387,15 @@ pub struct Lowerer<'r> {
     /// Availability phase supplied by the source entry owner.
     invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Invocation policy snapshot supplied by the driver.
-    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
-    expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
+    expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// Evaluation protocol, independent of the runtime variable frame.
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,

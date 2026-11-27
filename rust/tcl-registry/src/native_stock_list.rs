@@ -115,11 +115,11 @@ impl NativeObjectLengthProtocol {
     /// projection selects no engine, original header, entry or normal execution.
     #[must_use]
     pub const fn from_materialization(
-        recipe: crate::native_string_materialization::NativeStringMaterialization,
+        recipe: tcl_native_model::native_string_materialization::NativeStringMaterialization,
     ) -> Self {
         let logical = match recipe.logical_provider() {
             Some(
-                crate::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
             ) => Some(LogicalListLengthProvider::Tcl84CoreSimulation),
             None => None,
         };
@@ -180,19 +180,30 @@ impl NativeObjectLengthProtocol {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait ObjectLengthDialect {
     /// Authenticate actual native object-length behavior independently of scalar parsing.
     #[must_use]
-    pub fn native_object_length_protocol(self) -> Option<NativeObjectLengthProtocol> {
+    fn native_object_length_protocol(self) -> Option<NativeObjectLengthProtocol>;
+
+    /// Request a separately authored logical recipe when no actual native issuer exists.
+    #[must_use]
+    fn object_length_protocol(
+        self,
+        provider: Option<LogicalListLengthProvider>,
+    ) -> Option<NativeObjectLengthProtocol>;
+}
+
+impl ObjectLengthDialect for tcl_native_model::InvocationDialect {
+    fn native_object_length_protocol(self) -> Option<NativeObjectLengthProtocol> {
         Some(NativeObjectLengthProtocol {
             engine: self.native_string_protocol()?,
             logical: None,
         })
     }
 
-    /// Request a separately authored logical recipe when no actual native issuer exists.
-    #[must_use]
-    pub fn object_length_protocol(
+    fn object_length_protocol(
         self,
         provider: Option<LogicalListLengthProvider>,
     ) -> Option<NativeObjectLengthProtocol> {

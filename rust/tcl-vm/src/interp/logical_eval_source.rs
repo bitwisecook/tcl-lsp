@@ -20,7 +20,7 @@
 use super::Value;
 use crate::compiled::NativeCompilerPolicy;
 use std::rc::Rc;
-use tcl_registry::native_eval_object::{EvalObjectPurpose, NativeEvalObjectProtocol};
+use tcl_native_model::native_eval_object::{EvalObjectPurpose, NativeEvalObjectProtocol};
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
 
 #[derive(Clone, Copy)]

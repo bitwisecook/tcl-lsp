@@ -5366,7 +5366,7 @@ option arity is checked after ARRAY callbacks. Dynamic calls retain a real
 public ensemble rewrite until evaluation withdraws it. Broad outer arity
 failures remain generic public invocations. The native fixtures in
 `runtime/rust/tests/data/native_array_default/usage.tsv` and
-`rust/tcl-registry/tests/data/native_ensemble_rewrite` test these independent
+`rust/tcl-native-model/tests/data/native_ensemble_rewrite` test these independent
 lookup, execution and usage contracts.
 
 ### Original array searches

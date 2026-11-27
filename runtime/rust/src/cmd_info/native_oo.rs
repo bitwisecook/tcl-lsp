@@ -20,8 +20,8 @@
 
 use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
+use tcl_native_model::EnsembleImplementationFamily;
 use tcl_registry::commands::tcl::{info_oo_subcommands, InfoOoEnsembleKind};
-use tcl_registry::invocation_words::EnsembleImplementationFamily;
 
 pub(super) fn install(interp: &mut Interp) {
     let dialect = interp.native_invocation_dialect();

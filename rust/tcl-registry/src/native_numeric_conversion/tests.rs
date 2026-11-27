@@ -18,10 +18,11 @@
 
 use super::*;
 use crate::{
-    CommandRegistry, InvocationDialect, InvocationWord, InvocationWords,
+    CommandRegistry, InvocationWord, InvocationWords,
     native_compilation::NativeCompilationGuard,
     runtime_expr_validation::{ExpressionPreparationProof, prepare_expression_witness},
 };
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::expr::parser::ExprParseContext;
 
 const PROFILES: [&str; 5] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];

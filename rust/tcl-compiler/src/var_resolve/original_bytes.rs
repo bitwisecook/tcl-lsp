@@ -675,7 +675,8 @@ mod tests {
         context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(
             NamePolicyProtocol::authored_tcl(version),
         ));
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+        context.invocation_dialect =
+            Some(tcl_native_model::InvocationDialect::for_version(version));
         context.retain_namespace_world(
             SourceNamespaceKey::authored("::"),
             [SourceNamespaceKey::authored("::")],
@@ -736,7 +737,8 @@ mod tests {
             let namespace = SourceNamespaceKey::authored("::N");
             let mut state = ResolveContext::for_namespace("::N");
             state.execution_name_policy = context(version).execution_name_policy;
-            state.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+            state.invocation_dialect =
+                Some(tcl_native_model::InvocationDialect::for_version(version));
             state.retain_namespace_world(
                 namespace.clone(),
                 [root.clone(), namespace.clone()],

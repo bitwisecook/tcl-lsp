@@ -20,11 +20,11 @@
 
 use super::Vm;
 use crate::Value;
-use tcl_registry::native_index_lookup::{NativeImmediateLiteralTable, NativeStaticIndexTable};
+use tcl_native_model::native_index_lookup::{NativeImmediateLiteralTable, NativeStaticIndexTable};
 use tcl_syntax::value::ValueError;
 
 struct NativeStaticLookup<'a, 'vm> {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     original: Option<&'a super::native_numeric_ops::OriginalNumericOps<'vm>>,
 }
 
@@ -68,7 +68,7 @@ impl NativeStaticLookup<'_, '_> {
         &self,
         original: &Value,
         cache: tcl_core_types::NativeJimOptionCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         let reached = match self.original {
             Some(ops) => {
@@ -85,7 +85,7 @@ impl NativeStaticLookup<'_, '_> {
         &self,
         original: &Value,
         donor: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         let reached = match self.original {
             Some(ops) => original.adopt_native_object_representation_with_string_mutation_checked(
@@ -122,7 +122,7 @@ impl NativeStaticLookup<'_, '_> {
                 match self.native_jim_enum_from_original(
                     original,
                     &table,
-                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(exact),
                     Some(noun.as_bytes()),
                 )? {
                     Ok(index) => OriginalOptionLookup::Index(index),
@@ -214,7 +214,7 @@ impl Vm {
         &mut self,
         original: &Value,
         table: &NativeStaticIndexTable,
-        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        flags: tcl_native_model::native_jim_enum::NativeJimEnumFlags,
         noun: Option<&[u8]>,
     ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
         self.with_original_static_lookup(original, |lookup| {
@@ -339,7 +339,7 @@ impl NativeStaticLookup<'_, '_> {
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
-        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        flags: tcl_native_model::native_jim_enum::NativeJimEnumFlags,
         noun: Option<&[u8]>,
     ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
         self.current(original)?;
@@ -419,7 +419,7 @@ impl NativeStaticLookup<'_, '_> {
         if let Some((cache, origin)) = original.native_index_cache() {
             if dialect
                 .native_index_lookup_protocol()
-                .map(tcl_registry::native_index_lookup::NativeIndexLookupProtocol::version)
+                .map(tcl_native_model::native_index_lookup::NativeIndexLookupProtocol::version)
                 != Some(origin)
             {
                 return Err(ValueError::CommandProtocolUnavailable(
@@ -458,7 +458,7 @@ impl NativeStaticLookup<'_, '_> {
                 .native_jim_enum_from_original(
                     original,
                     &NativeStaticIndexTable::supported_backend(words),
-                    tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact),
+                    tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(exact),
                     Some(noun.as_bytes()),
                 )?
                 .map_err(|message| {
@@ -596,7 +596,7 @@ impl Vm {
         &self,
         original: &Value,
         table: &NativeStaticIndexTable,
-        flags: tcl_registry::native_jim_enum::NativeJimEnumFlags,
+        flags: tcl_native_model::native_jim_enum::NativeJimEnumFlags,
         noun: Option<&[u8]>,
     ) -> Result<Result<usize, Option<Vec<u8>>>, ValueError> {
         NativeStaticLookup {

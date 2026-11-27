@@ -33,7 +33,7 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use std::rc::Rc;
 use tcl_core_types::NameBytes;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 use tcl_runtime_api::{Completion, OoId};
 
 /// Invoke `method` on object `obj_key`. `external` is a public `$obj m` call
@@ -797,7 +797,7 @@ pub(super) fn builtin_method(
                 }
                 let res = match vm.eval_original_script_value(
                     &script,
-                    tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                     args.first()
                         .filter(|_| args.len() == 1)
                         .and_then(Value::source_location),

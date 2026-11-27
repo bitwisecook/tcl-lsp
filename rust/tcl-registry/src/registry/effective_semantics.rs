@@ -193,9 +193,9 @@ impl CommandRegistry {
 
             if let Some(profile) = self.profile {
                 binding_names.extend(
-                    self.stock_native_implementation_slots(crate::InvocationDialect::of_profile(
-                        profile,
-                    ))
+                    self.stock_native_implementation_slots(
+                        tcl_native_model::InvocationDialect::of_profile(profile),
+                    )
                     .into_iter()
                     .map(|lookup| lookup.slot.to_owned()),
                 );
@@ -203,7 +203,7 @@ impl CommandRegistry {
 
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             if let Some(profile) = self.profile {
-                let dialect = crate::InvocationDialect::of_profile(profile);
+                let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
                 if let Some(support) = self
                     .native_class_factory_recipe(
                         "oo::configurable",
@@ -287,7 +287,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn effective_semantics_for_dialect(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Arc<EffectiveRegistrySemantics> {
         self.effective_semantics_for_dialect_in_realm(
             dialect,
@@ -300,7 +300,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn effective_semantics_for_dialect_in_realm(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Arc<EffectiveRegistrySemantics> {
         if let Some(cached) = self
@@ -323,14 +323,13 @@ impl CommandRegistry {
 
     fn effective_semantics_for_dialect_in_realm_uncached(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Arc<EffectiveRegistrySemantics> {
         let query = dialect.authoring_query().map(|mut query| {
-            if let Some(profile) = self
-                .profile
-                .filter(|profile| crate::InvocationDialect::of_profile(profile) == dialect)
-            {
+            if let Some(profile) = self.profile.filter(|profile| {
+                tcl_native_model::InvocationDialect::of_profile(profile) == dialect
+            }) {
                 query.packages =
                     tcl_dialect::model::PackageFloors::Borrowed(profile.surface_packages);
             }
@@ -435,7 +434,7 @@ impl CommandRegistry {
     fn extend_native_factory_binding_names(
         &self,
         names: &mut BTreeSet<String>,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) {
         if let Some(support) = self
@@ -451,13 +450,13 @@ impl CommandRegistry {
     fn selected_entry_descriptor(
         &self,
         specs: &[&'static CommandSpec],
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         query: SurfaceQuery<'_>,
     ) -> Option<&'static CommandSpec> {
         let spec = self.best_visible(specs, Some(query))?;
         if spec.owning_package().is_some_and(|package| {
             !self.profile.is_some_and(|profile| {
-                crate::InvocationDialect::of_profile(profile) == dialect
+                tcl_native_model::InvocationDialect::of_profile(profile) == dialect
                     && profile.is_ambient_package(package)
             })
         }) {

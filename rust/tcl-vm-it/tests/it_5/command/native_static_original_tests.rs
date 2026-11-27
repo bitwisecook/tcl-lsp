@@ -31,7 +31,7 @@ fn string(bytes: &[u8]) -> Value {
 fn list(vm: &Vm, members: &[&Value]) -> Value {
     Value::native_list_constructor(
         members.iter().map(|value| (*value).clone()).collect(),
-        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
             .native_string_protocol()
             .unwrap(),
     )

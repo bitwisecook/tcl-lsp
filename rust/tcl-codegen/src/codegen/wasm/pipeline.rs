@@ -851,7 +851,7 @@ mod tests {
         let source = "set flag 0; set before 1; if {$flag} {set}; proc uncalled {} {set}";
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -1108,7 +1108,7 @@ mod tests {
         let (owner, captured) = crate::test_support::captured_native_entry_with_owner(profile);
         let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
             native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_compiler::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };

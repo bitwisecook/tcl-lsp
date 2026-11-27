@@ -20,13 +20,14 @@
 
 use tcl_lexer::word_parts::{ExecutablePart, NativeWord};
 use tcl_lexer::{SourceImage, Span, native_script_words_in};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::CommandRegistry;
 use tcl_registry::native_compilation::{
     NativeCompilationContext, NativeCompilationGrammar, NativeCompilationMode,
     NativeCompilationSelection, NativeCompilationSpec, NativeCompilationWordShape,
 };
 use tcl_registry::native_compiler_words::{NativeCompilerWords, NativeCompilerWordsUnavailable};
 use tcl_registry::native_instruction_plan::NativeInstructionPlan;
-use tcl_registry::{CommandRegistry, InvocationDialect};
 use tcl_runtime_api::NativeCompilationEntry;
 use tcl_runtime_api::native_compilation::{NativeCompilationBinding, NativeCompilerHookPresence};
 
@@ -214,7 +215,7 @@ fn ensemble_command_plan(
     dialect: InvocationDialect,
     context: NativeCompilationContext,
 ) -> Result<NativeByteCommandPlan, NativeByteCommandUnavailable> {
-    use tcl_registry::native_ensemble::NativeEnsembleWorkerSelection;
+    use tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection;
     use tcl_registry::native_selected_worker::OriginalSelectedWorkerInvocation;
     // `CompileCommandTokens` skips a compileProc without
     // `CMD_COMPILES_EXPANDED` whenever a word expands at run time, and no

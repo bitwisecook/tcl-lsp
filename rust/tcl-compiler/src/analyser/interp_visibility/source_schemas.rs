@@ -221,7 +221,7 @@ impl SourceInterpreterVisibilitySnapshot {
                     tcl_registry::InvocationWord::Literal(canonical),
                     &arguments,
                 )
-                .with_dialect(tcl_registry::InvocationDialect::of_profile(
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(
                     self.input.unit_profile(),
                 )),
                 tcl_dialect::model::InvocationRealm::RuleLoader,

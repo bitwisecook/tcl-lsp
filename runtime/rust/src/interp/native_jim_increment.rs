@@ -31,6 +31,7 @@ use crate::{
 };
 use std::rc::{Rc, Weak};
 use tcl_cmd_core::CmdError;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
 
 pub(crate) enum JimDictionaryPathFailure {

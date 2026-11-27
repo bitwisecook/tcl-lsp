@@ -718,7 +718,7 @@ mod ordered_primary_tests {
             config,
             registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
                     frame: NativeCompilationFrame::ScriptCode,
@@ -863,7 +863,7 @@ mod logical_substitution_tests {
         let config = input.lexer_config();
         let options = super::super::SourceAnalysisOptions {
             logical_source_input: Some(input),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 input.unit_profile(),
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),

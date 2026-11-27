@@ -32,7 +32,7 @@ use tcl_syntax::number::Number;
 pub(super) struct NumericOperation {
     scope: Option<NativeOperationScope>,
     interpreter: Option<crate::interp::Interp>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     host: Option<Rc<dyn tcl_platform::Host>>,
     abi: Cell<Option<tcl_platform::NativeCIntegerAbi>>,
 }
@@ -67,7 +67,7 @@ impl NumericOperation {
     pub(super) fn interpreter(&self) -> Option<&crate::interp::Interp> {
         self.interpreter.as_ref()
     }
-    pub(super) fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(super) fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
     pub(super) fn currency(&self) -> Option<&NativeOperationCurrency> {
@@ -175,7 +175,7 @@ fn illegal_binary<T>(
     value: *mut TclObj,
     side: tcl_syntax::expr::errors::OperandSide,
     op: BinOp,
-    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+    stage: tcl_native_model::native_numeric_error::NativeExpressionOperandStage,
     floating_operand: bool,
 ) -> Result<T, ExprError> {
     let bytes = operation.string(value)?;
@@ -212,7 +212,7 @@ fn binary_operand(
     } else {
         None
     };
-    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
+    use tcl_native_model::native_numeric_error::NativeExpressionOperandStage as Stage;
     let integer_required = matches!(
         op,
         BinOp::Mod | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::LShift | BinOp::RShift
@@ -472,7 +472,7 @@ mod tests {
         fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
             Some(self.0.host())
         }
-        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
             self.0.native_invocation_dialect()
         }
         fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {

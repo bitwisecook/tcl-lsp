@@ -32,7 +32,7 @@ impl Interp {
         self.with_event_global_frame(|interp| {
             let frame = interp.unlocated_frame();
             interp.eval_original_body_framed(
-                tcl_registry::native_eval_object::EvalObjectPurpose::AfterCallback,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::AfterCallback,
                 original,
                 frame,
             )

@@ -805,7 +805,7 @@ impl DocumentRecords {
                 .get(&alias.qualified_name)
                 .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
             let policy = analysis.resolved_profile().and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy()
             });
             let Some(target) = alias.target.reported_global_key(policy) else {
                 continue;

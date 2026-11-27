@@ -1059,7 +1059,7 @@ mod tests {
         for dialect_name in ["jim", "tcl8.6"] {
             let analysis = Analyser::new().analyse("", dialect_name);
             let input = analysis.resolved_input.as_ref().unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 tcl_registry::model::ingress::resolve_environment(dialect_name).unit_profile(),
             );
             let policy =

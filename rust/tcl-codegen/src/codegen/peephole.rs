@@ -88,14 +88,14 @@ impl CodegenCtx<'_> {
             .native_entry
             .and_then(|entry| entry.execution_point?.tcl_version())
             .is_some_and(
-                tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
+                tcl_native_model::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
             );
         // A declaration's discarded result is blanked by the release's
         // optimiser, which 8.5 lacks: tclsh 8.5.19 keeps `push1; pop` after
         // `global x`, 8.6.18 has three `nop`s. A release not named keeps it
         // blanked.
         let declarations_blanked = self.target_version().is_none_or(
-            tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
+            tcl_native_model::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
         );
         // The blanked push is as wide as the release compiles it.
         let widened = if self.emits_wide_instructions_only() {

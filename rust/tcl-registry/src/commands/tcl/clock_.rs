@@ -42,67 +42,6 @@ const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
     ..SubCommand::DEFAULT
 };
 
-impl crate::InvocationDialect {
-    /// Measured C8.6 transition-table worker, independent of its effects.
-    #[must_use]
-    pub fn clock_get_date_fields_registration(self) -> Option<&'static str> {
-        (self.family() == Some(tcl_dialect::model::Family::Tcl)
-            && self.tcl_version == Some(TclVersion::V8_6))
-        .then_some("::tcl::clock::GetDateFields")
-    }
-
-    /// Measured C8.6 process-environment worker constructor.
-    #[must_use]
-    pub fn clock_getenv_registration(self) -> Option<&'static str> {
-        (self.family() == Some(tcl_dialect::model::Family::Tcl)
-            && self.tcl_version == Some(TclVersion::V8_6))
-        .then_some("::tcl::clock::getenv")
-    }
-
-    /// Measured C8.6 private worker constructor, separate from handler effects.
-    #[must_use]
-    pub fn clock_parse_format_args_registration(self) -> Option<&'static str> {
-        (self.family() == Some(tcl_dialect::model::Family::Tcl)
-            && self.tcl_version == Some(TclVersion::V8_6))
-        .then_some("::tcl::clock::ParseFormatArgs")
-    }
-
-    /// Measured clock constructor geometry, independent of handler effects.
-    #[must_use]
-    pub fn clock_bootstrap_ensemble(
-        self,
-    ) -> Option<crate::invocation_words::NativeEnsembleBootstrap> {
-        if self.family() != Some(tcl_dialect::model::Family::Tcl) {
-            return None;
-        }
-        let deferred_members: &'static [&'static [u8]] = match self.tcl_version? {
-            TclVersion::V8_6 => &[b"add", b"format", b"scan"],
-            TclVersion::V9_0 | TclVersion::V9_1 => &[],
-            _ => return None,
-        };
-        Some(crate::invocation_words::NativeEnsembleBootstrap {
-            namespace: "::tcl::clock",
-            deferred_members,
-        })
-    }
-
-    /// Complete initial public clock map measured on C Tcl 9.0.4.
-    #[must_use]
-    pub fn clock_complete_stock_ensemble_members(self) -> Option<&'static [&'static str]> {
-        (self.family() == Some(tcl_dialect::model::Family::Tcl)
-            && self.tcl_version == Some(TclVersion::V9_0))
-        .then_some(&[
-            "add",
-            "clicks",
-            "format",
-            "microseconds",
-            "milliseconds",
-            "scan",
-            "seconds",
-        ])
-    }
-}
-
 // C8.6's TclClockInit/TclMakeEnsemble installs these reading hooks; the
 // C9.0/C9.1 clock maps retain the same four targets and present hooks.
 // This records registration, not opcode acceptance or handler effects.
@@ -779,7 +718,7 @@ mod tests {
     fn private_date_worker_is_c86_only_shipped_dict_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let selected = version == TclVersion::V8_6;
             assert_eq!(
                 dialect.clock_get_date_fields_registration().is_some(),
@@ -810,7 +749,7 @@ mod tests {
     fn private_environment_worker_has_only_the_measured_c86_surface_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let compiler =
                 registry.native_compilation_for_registration("tcl::clock::getenv", dialect);
             assert_eq!(
@@ -832,7 +771,7 @@ mod tests {
     fn private_format_worker_has_only_the_measured_c86_surface_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let registration = dialect.clock_parse_format_args_registration();
             let compiler = registry
                 .native_compilation_for_registration("tcl::clock::ParseFormatArgs", dialect);
@@ -852,8 +791,8 @@ mod tests {
 
     #[test]
     fn clock_bootstrap_and_compiler_registration_keep_independent_evidence() {
-        use crate::InvocationDialect;
         use tcl_dialect::TclVersion;
+        use tcl_native_model::InvocationDialect;
 
         let registry = crate::CommandRegistry::build_default();
         let dialect = InvocationDialect::for_version(TclVersion::V8_6);

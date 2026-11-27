@@ -169,7 +169,7 @@ impl DslDisplayContext {
                     }
                 })
                 .collect::<Vec<_>>();
-            let dialect = tcl_registry::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 crate::environment::profile_for_dialect("spectcl"),
             );
             let args =

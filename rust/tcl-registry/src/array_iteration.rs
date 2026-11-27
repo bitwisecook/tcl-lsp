@@ -104,7 +104,8 @@ mod tests {
 
     #[test]
     fn array_iteration_requires_two_frozen_names_before_body_entry() {
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         for (bindings, valid) in [
             ("k v", true),
             ("k", false),

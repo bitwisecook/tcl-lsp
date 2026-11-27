@@ -568,7 +568,8 @@ impl NativeCompilationSpec {
             let Some(var_list) = words.arguments().literal_at(index) else {
                 return Selection::Generic;
             };
-            let Ok(names) = crate::InvocationDialect::for_version(version).read_list(var_list)
+            let Ok(names) =
+                tcl_native_model::InvocationDialect::for_version(version).read_list(var_list)
             else {
                 return Selection::Unknown;
             };

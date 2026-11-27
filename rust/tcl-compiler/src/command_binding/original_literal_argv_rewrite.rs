@@ -50,7 +50,7 @@ pub struct OriginalLiteralExpressionBracing {
     parser: ExprParseContext,
     tree: ExprNode<Vec<u8>>,
     registry: RegistrySemanticKey,
-    normal_dialect: tcl_registry::InvocationDialect,
+    normal_dialect: tcl_native_model::InvocationDialect,
 }
 
 impl OriginalLiteralExpressionBracing {
@@ -579,7 +579,7 @@ struct FiniteEditorOperatorTrees {
 fn finite_editor_operator_trees(
     original: &[u8],
     candidate: &[u8],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     config: LexerConfig,
     registry: &CommandRegistry,
 ) -> Option<FiniteEditorOperatorTrees> {
@@ -1172,7 +1172,7 @@ fn checked_finite_literal_expression(
 ) -> Option<(
     ExprParseContext,
     ExprNode<Vec<u8>>,
-    tcl_registry::InvocationDialect,
+    tcl_native_model::InvocationDialect,
 )> {
     let ExpressionRewriteEnvelope { config, state, .. } = envelope;
     let advice = brace_required(

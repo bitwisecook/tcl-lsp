@@ -603,7 +603,7 @@ struct UpvarBindings<'a> {
     metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
 }
 impl UpvarBindings<'_> {
-    fn invocation_dialect(self) -> Option<tcl_registry::InvocationDialect> {
+    fn invocation_dialect(self) -> Option<tcl_native_model::InvocationDialect> {
         self.source.invocation_dialect()
     }
     fn resolve_statement(
@@ -671,7 +671,7 @@ struct LogicalFrameScan<'a> {
 struct FrameCommandContext<'a> {
     bindings: Option<UpvarBindings<'a>>,
     tokens: Option<&'a CommandTokens>,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 }
 
 /// The defaults of the parameters whose value names a caller-frame variable

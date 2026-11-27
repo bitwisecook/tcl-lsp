@@ -23,7 +23,7 @@ use super::*;
 #[test]
 fn conditional_list_argument_layout_keeps_values_expansion_and_other_descriptors_distinct() {
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let arguments = [
         crate::InvocationWord::Literal("source"),
         crate::InvocationWord::Dynamic,
@@ -66,7 +66,7 @@ fn conditional_list_argument_layout_keeps_values_expansion_and_other_descriptors
 #[test]
 fn source_list_operand_templates_keep_splices_separate_from_argv_and_results() {
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (command, arguments, expected) in [
         (
             "list",
@@ -167,7 +167,8 @@ fn authored_source_patterns_keep_selected_context_and_option_languages() {
     let driver = crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
     let older = crate::model::ingress::resolve_environment("tcl8.4").default_context_registry();
     let older = older.with_command_store(driver.commands().snapshot().shared_registry());
-    let dialect = crate::InvocationDialect::of_profile(driver.commands().profile().unwrap());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(driver.commands().profile().unwrap());
     let arguments = [
         Literal("-regexp"),
         Literal("-stride"),
@@ -237,7 +238,8 @@ fn authored_source_patterns_keep_payload_unknown_and_refuse_uncertain_layout() {
     use crate::InvocationWord::{Dynamic, Expanded, Literal};
     use crate::patterns::PatternType::{Glob, Regex};
     let context = crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
-    let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
     for (head, arguments, expected) in [
         (
             "regexp",
@@ -314,7 +316,8 @@ fn authored_source_formats_keep_selected_context_and_effective_ordinals() {
     let driver = crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
     let older = crate::model::ingress::resolve_environment("tcl8.4").default_context_registry();
     let older = older.with_command_store(driver.commands().snapshot().shared_registry());
-    let dialect = crate::InvocationDialect::of_profile(driver.commands().profile().unwrap());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(driver.commands().profile().unwrap());
     let arguments = [
         Literal("scan"),
         Literal("2020"),

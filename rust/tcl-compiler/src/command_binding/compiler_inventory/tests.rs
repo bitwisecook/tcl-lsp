@@ -42,7 +42,7 @@ fn analyse(
             native_entry: entry
                 .as_ref()
                 .map(crate::environment_ingress::CapturedNativeEntry::as_entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
@@ -95,7 +95,7 @@ fn command_enumeration_condition_retains_closed_full_chunk_admission() {
             config,
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                     frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -178,7 +178,7 @@ fn literal_colon_procedure_inventory_uses_the_published_slot_without_relookup() 
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

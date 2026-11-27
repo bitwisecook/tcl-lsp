@@ -198,7 +198,7 @@ fn scalar_constant_source_substitution_keeps_exact_literal_names_and_array_refus
         ("arr", "96"),
     ]);
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-        let invocation = tcl_registry::InvocationDialect::of_point(
+        let invocation = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(dialect)).unwrap(),
         );
         let context = invocation.expression_parse_context(None);
@@ -238,11 +238,11 @@ fn scalar_constant_context_uses_jim_variable_grammar_without_catalogue_profile()
     // naming.expression.scalar-reference-constant-source-projection
     // docs/design/analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md
     assert!(tcl_dialect::DialectProfile::find("jimtcl").is_none());
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap(),
     )
     .expression_parse_context(None);
-    let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+    let c = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
         .expression_parse_context(None);
     let constants = consts(&[("é", "14"), ("x", "15")]);
     let jim_out = substitute_expr_constants_in_context("$é + $x", &constants, &jim);

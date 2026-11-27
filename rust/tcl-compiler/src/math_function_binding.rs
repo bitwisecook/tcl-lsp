@@ -835,7 +835,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     registry,
                     crate::command_binding::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             selected_profile,
                         )),
                         native_entry: hosted.then_some(&entry),

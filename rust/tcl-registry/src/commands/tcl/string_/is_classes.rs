@@ -54,7 +54,7 @@ fn fold_is_c(args: &[&str], version: TclVersion) -> Option<bool> {
     let class = resolve_class(class, version).ok()?;
     match class {
         "list" | "dict" => {
-            let words = crate::InvocationDialect::for_version(version).read_list(value);
+            let words = tcl_native_model::InvocationDialect::for_version(version).read_list(value);
             Some(words.is_ok_and(|words| class == "list" || words.len().is_multiple_of(2)))
         }
         "ascii" => Some(value.is_ascii() && (!value.is_empty() || !strict)),
@@ -121,7 +121,7 @@ pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
 #[must_use]
 pub fn string_is_member_type_for_dialect(
     args: &[&str],
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<TclType> {
     let point = dialect.execution_point()?;
     if point.family() != tcl_dialect::model::Family::Tcl {

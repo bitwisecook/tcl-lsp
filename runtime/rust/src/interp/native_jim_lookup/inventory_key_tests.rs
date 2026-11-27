@@ -263,11 +263,13 @@ mod variable_helper_head_tests {
         static PATTERN_GETTERS: Cell<usize> = const { Cell::new(0) };
         static FIRST: RefCell<Option<tcl_runtime_api::NativeExecutionError>> = const { RefCell::new(None) };
     }
-    fn descriptor(actual: &Interp) -> tcl_registry::native_jim_lookup::NativeJimNamespaceHelper {
+    fn descriptor(
+        actual: &Interp,
+    ) -> tcl_native_model::native_jim_lookup::NativeJimNamespaceHelper {
         actual
             .native_invocation_dialect()
             .native_jim_namespace_helper(
-                tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
+                tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
             )
             .unwrap()
     }
@@ -367,7 +369,7 @@ mod variable_helper_head_tests {
             None,
             false,
             Some((
-                tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                 body.as_ptr(),
             )),
             None,

@@ -70,7 +70,7 @@ impl Eq for BindingBaseline {}
 
 impl BindingBaseline {
     /// Original compiler engine only; handler policies remain in `dialect`.
-    pub(super) fn compilation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(super) fn compilation_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         if self.source_point_entry.is_some() {
             return None;
         }
@@ -127,7 +127,7 @@ impl BindingBaseline {
             execution_name_policy: registry
                 .profile()
                 .and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                    tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy()
                 })
                 .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe),
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
@@ -150,7 +150,7 @@ impl BindingBaseline {
                     || registry.effective_semantics(),
                     |profile| {
                         registry.effective_semantics_for_dialect_in_realm(
-                            tcl_registry::InvocationDialect::of_profile(profile),
+                            tcl_native_model::InvocationDialect::of_profile(profile),
                             tcl_dialect::model::InvocationRealm::InterpreterRuntime,
                         )
                     },
@@ -166,7 +166,7 @@ impl BindingBaseline {
             release: registry.runtime_version(),
             dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
         };
         baseline.refresh_fingerprint();
         baseline
@@ -209,7 +209,7 @@ impl BindingBaseline {
 }
 
 fn procedure_compilation(
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> tcl_registry::native_compilation::NativeCompilationContext {
     use tcl_registry::native_compilation::{
         NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,

@@ -24,7 +24,7 @@
 //! objects independently of C namespace-tree components.
 
 #[cfg(test)]
-use tcl_registry::native_eval_object::NativeNamespaceFramePurpose;
+use tcl_native_model::native_eval_object::NativeNamespaceFramePurpose;
 use tcl_runtime_api::{Code, Completion};
 
 use crate::interp::{Vm, err, ok};
@@ -39,7 +39,9 @@ mod native_jim_subcommands;
 pub(crate) fn register(vm: &mut Vm) {
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Namespace)
+        .ensemble_implementation_namespace(
+            tcl_native_model::EnsembleImplementationFamily::Namespace,
+        )
     else {
         vm.register_stock_builtin("namespace", cmd_namespace);
         return;
@@ -69,7 +71,9 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Namespace)
+        .ensemble_implementation_namespace(
+            tcl_native_model::EnsembleImplementationFamily::Namespace,
+        )
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("namespace");
@@ -178,7 +182,7 @@ fn namespace_code_invocation(
         let Some(policy) = vm
             .native_invocation_dialect()
             .namespace_code_handler_policy(Some(
-            tcl_registry::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
         )) else {
             return vm.refuse_host_command(
                 "namespace code native handler policy is not selected".into(),
@@ -191,7 +195,7 @@ fn namespace_code_invocation(
         if policy.preserves_argument(&bytes) {
             return ok(script.clone());
         }
-        let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
+        let tcl_native_model::native_namespace_code::NamespaceCodeConstruction::FreshList {
             fresh_string_literals: [head, selector],
         } = policy.construction()
         else {

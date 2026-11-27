@@ -297,7 +297,7 @@ fn package_recovery_names(
     let providers = std::cell::RefCell::new(Vec::new());
     let mut incomplete = analysis.has_dynamic_providers;
     let mut names = HashSet::new();
-    let target = tcl_registry::InvocationDialect::of_profile(input.unit_profile()).tcl_version;
+    let target = tcl_native_model::InvocationDialect::of_profile(input.unit_profile()).tcl_version;
     for root in roots {
         let version = root
             .key()

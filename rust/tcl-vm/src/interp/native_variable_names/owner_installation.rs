@@ -204,7 +204,7 @@ impl Vm {
         coordinates: (usize, usize),
         selected: (
             tcl_syntax::native_variable_name::NativeVariableNameProtocol,
-            tcl_registry::InvocationDialect,
+            tcl_native_model::InvocationDialect,
         ),
         original_names: &super::super::native_name_consumers::OriginalNameConsumerScope,
         check_binding: &impl Fn(&mut Vm) -> Result<(), tcl_cmd_core::CmdError>,
@@ -247,7 +247,7 @@ impl Vm {
         coordinates: (usize, usize),
         selected: (
             tcl_syntax::native_variable_name::NativeVariableNameProtocol,
-            tcl_registry::InvocationDialect,
+            tcl_native_model::InvocationDialect,
         ),
         original_names: &super::super::native_name_consumers::OriginalNameConsumerScope,
         check_binding: &impl Fn(&mut Vm) -> Result<(), tcl_cmd_core::CmdError>,

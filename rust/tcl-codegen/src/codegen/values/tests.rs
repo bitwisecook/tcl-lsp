@@ -538,7 +538,7 @@ fn generic_original_operands_share_native_source_channel_and_escape_rules() {
     // comparison separately observes escaped-NUL versus counted raw NUL.
     // docs/design/analysis/name-resolution-proofs/compiler-original-info-commands-literal-resolution.md
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let registry = CommandRegistry::build_default();
         for (source, expected) in [
@@ -705,7 +705,7 @@ fn original_lexical_cache_keeps_the_retained_invocation_source_owner() {
         config,
         &registry,
         tcl_compiler::command_binding::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         },
     );
@@ -747,7 +747,7 @@ fn increment_entry(version: tcl_dialect::TclVersion) -> tcl_runtime_api::NativeC
     };
     let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
     let point = tcl_dialect::model::DialectPoint::for_tcl_version(version);
-    let dialect = tcl_registry::InvocationDialect::of_point(point);
+    let dialect = tcl_native_model::InvocationDialect::of_point(point);
     tcl_runtime_api::NativeCompilationEntry {
         interpreter: NativeInterpreterIdentity {
             owner: 1,

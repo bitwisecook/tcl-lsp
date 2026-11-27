@@ -217,7 +217,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::Direct,
                     ..Default::default()
@@ -373,8 +373,8 @@ mod tests {
         // Implementation contract: naming.source.readonly-original-operand-projections (docs/design/analysis/name-resolution-proofs/readonly-original-operand-projections.md).
         let dialects = tcl_dialect::TclVersion::ALL
             .into_iter()
-            .map(tcl_registry::InvocationDialect::for_version)
-            .chain([tcl_registry::InvocationDialect::of_point(
+            .map(tcl_native_model::InvocationDialect::for_version)
+            .chain([tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
             )]);
         for dialect in dialects {

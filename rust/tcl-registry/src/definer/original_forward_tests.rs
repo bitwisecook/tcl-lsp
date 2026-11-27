@@ -29,7 +29,7 @@ fn original_forward_layout_requires_selected_oo_and_nonempty_prefix() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let forward = TCLOO_GRAMMAR.member("forward").unwrap();
         for count in [0, 1, 2, 8] {
             assert_eq!(
@@ -45,7 +45,9 @@ fn original_forward_layout_requires_selected_oo_and_nonempty_prefix() {
                 .is_none()
         );
     }
-    let jim = crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jim"));
+    let jim = tcl_native_model::InvocationDialect::of_profile(
+        crate::native_test_provider::profile("jim"),
+    );
     assert!(
         TCLOO_GRAMMAR
             .native_deferred_forward_setter(TCLOO_GRAMMAR.member("forward").unwrap(), jim, 2)
@@ -84,7 +86,7 @@ fn original_forward_layout_matches_captured_registration_boundaries() {
     ];
     for (name, rows) in captures {
         let profile = crate::native_test_provider::profile(name);
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let available = !captured_forward_row(rows, "AVAILABILITY").1.is_empty();
         let member = TCLOO_GRAMMAR.member("forward").unwrap();
         assert_eq!(

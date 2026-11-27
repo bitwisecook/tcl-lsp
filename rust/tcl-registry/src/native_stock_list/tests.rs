@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::{InvocationDialect, InvocationWord, InvocationWords};
+use crate::{InvocationWord, InvocationWords};
+use tcl_native_model::InvocationDialect;
 
 fn selected(
     head: &'static str,
@@ -349,7 +350,7 @@ fn original_jim_source_length_requires_its_own_dialect_and_physical_class() {
 fn legacy_descriptor_length_route_does_not_issue_stock_cache_evidence() {
     use NativeStockListInputClass as Class;
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment(profile).unit_profile(),
         );
         let engine = dialect.native_object_length_protocol().unwrap();

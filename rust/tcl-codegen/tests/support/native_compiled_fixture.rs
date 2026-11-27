@@ -240,7 +240,7 @@ impl CompileService for ObserveCompilation {
                     .is_ok();
             let active_grammar = BytecodeCompileService::native_entry_options(entry, Some(profile))
                 .invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::parameter_grammar);
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar);
             bindings.borrow_mut().push(BindingObservation {
                 captured: *request.binding_context(),
                 ordinary: request.ordinary_formals().map(<[_]>::to_vec),

@@ -49,7 +49,7 @@ fn original_string_trim_matches_all_216_native_completions() {
             } else {
                 Value::from_native_byte_array(
                     std::rc::Rc::from(TRIM_INPUTS[case]),
-                    tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+                    tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()),
                 )
                 .unwrap()
             };

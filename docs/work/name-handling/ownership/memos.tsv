@@ -182,7 +182,7 @@ rust/tcl-registry/src/dialects.rs	analysis-memo	PACK_EXTENSION_DIALECTS:RwLock	-
 rust/tcl-registry/src/extension_host.rs	analysis-memo	evaluate:thread_local	-	1
 rust/tcl-registry/src/f5/evidence.rs	analysis-memo	EMBEDDED_RUNTIME_EVIDENCE:LazyLock	-	1
 rust/tcl-registry/src/intrinsic.rs	analysis-memo	HASH:OnceLock	-	1
-rust/tcl-registry/src/invocation_words.rs	analysis-memo	of_static_profile:thread_local	-	1
+rust/tcl-native-model/src/invocation_dialect.rs	analysis-memo	of_static_profile:thread_local	-	1
 rust/tcl-registry/src/lib.rs	analysis-memo	ENABLED:OnceLock	-	1
 rust/tcl-registry/src/model/assembly.rs	analysis-memo	CACHE:Mutex	-	1
 rust/tcl-registry/src/model/assembly.rs	analysis-memo	CACHE:OnceLock	-	1
@@ -207,7 +207,7 @@ rust/tcl-registry/src/model/runtime_context.rs	analysis-memo	MEMO:OnceLock	-	1
 rust/tcl-registry/src/model/runtime_context.rs	analysis-memo	Memo:Mutex	-	1
 rust/tcl-registry/src/model/surface.rs	analysis-memo	CELL:OnceLock	-	3
 rust/tcl-registry/src/native_argument_role_hook.rs	analysis-memo	SHIPPED:OnceLock	-	1
-rust/tcl-registry/src/native_jim_lookup/namespace_subcommands.rs	analysis-memo	OWNER:OnceLock	-	1
+rust/tcl-native-model/src/native_jim_lookup/namespace_subcommands.rs	analysis-memo	OWNER:OnceLock	-	1
 rust/tcl-registry/src/native_procedure.rs	analysis-memo	ATTACHED:Box	-	1
 rust/tcl-registry/src/native_procedure.rs	analysis-memo	ATTACHED:OnceLock	-	1
 rust/tcl-registry/src/pack_hooks.rs	analysis-memo	BY_IDENTITY:LazyLock	-	1

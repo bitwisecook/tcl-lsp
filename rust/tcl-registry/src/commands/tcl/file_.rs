@@ -1156,7 +1156,7 @@ mod tests {
         ];
         let mut checked = 0;
         for (version, fixture) in fixtures {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let slots = registry.stock_native_implementation_slots(dialect);
             for row in fixture.lines().skip(1) {
                 let (identity, raw_hook) = tcl_test_support::fixture::tsv_split_once(row).unwrap();
@@ -1192,7 +1192,7 @@ mod tests {
             }
         }
         assert_eq!(checked, 190);
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         );
         assert!(

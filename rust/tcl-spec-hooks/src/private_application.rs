@@ -69,7 +69,7 @@ impl PrivateApplicationHost {
             let version = tcl_registry::model::ingress::resolve_known_environment(profile)
                 .and_then(|environment| environment.catalogue_profile())
                 .and_then(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+                    tcl_native_model::InvocationDialect::of_profile(profile).tcl_version
                 })
                 .filter(|version| *version == PINNED_RELEASE)
                 .ok_or(EngineError::Unsupported(

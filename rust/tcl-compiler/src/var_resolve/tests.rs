@@ -441,7 +441,7 @@ fn receiver_method_locals_do_not_imply_a_receiver_namespace() {
     let mut root = ResolveContext::for_function("::top");
     root.invocation_dialect = registry
         .profile()
-        .map(tcl_registry::InvocationDialect::of_profile);
+        .map(tcl_native_model::InvocationDialect::of_profile);
     let frame = VariableExecutionFrame::ReceiverMethod {
         identity: "receiver-method:17".to_owned(),
     };
@@ -481,7 +481,7 @@ fn receiver_method_locals_do_not_imply_a_receiver_namespace() {
 fn restored_namespace_alias_uses_the_latest_slot_binding() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut parent = ResolveContext::for_function("::top");
-    parent.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    parent.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     parent.define_literal("a", "OLD", registry);
@@ -532,7 +532,8 @@ fn frame_restoration_preserves_outward_trace_and_invalidates_deleted_aliases() {
 fn jim_namespace_activations_have_separate_cells_from_caller_and_siblings() {
     let registry = registry();
     let mut driver = ResolveContext::default();
-    let mut dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let mut dialect =
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     dialect.variable_lookup_policy = Some(tcl_dialect::VariableLookupPolicy::Jim);
     dialect.namespace_var_global_fallback = Some(false);
     driver.invocation_dialect = Some(dialect);

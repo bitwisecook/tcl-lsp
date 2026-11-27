@@ -66,7 +66,7 @@ fn variable_receiver_fact_projection_preserves_form_precedence_and_member_offset
         subcommands: MEMBERS,
         ..CommandSpec::DEFAULT
     });
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (args, position, expected) in [
         (vec!["x"], 0, Some(Combined)),
         (vec!["x", "V"], 0, None),
@@ -107,7 +107,7 @@ fn selected_variable_receiver_form_keeps_array_argv_combined_and_aliases_separat
     // docs/design/analysis/name-resolution-proofs/array-source-combined-unset.md
     let registry = crate::CommandRegistry::build_default();
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_known_environment(profile)
                 .unwrap()
                 .unit_profile(),
@@ -242,7 +242,7 @@ fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
 #[cfg(test)]
 fn assert_original_trace_computed_receivers(
     registry: &crate::CommandRegistry,
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) {
     use VariableReceiverOperandForm::TraceSubject;
     for (subject, expected) in [
@@ -298,7 +298,7 @@ fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() 
     use VariableReceiverOperandForm::TraceSubject;
     let registry = crate::CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for arguments in [
             vec!["add", "variable", "::v(k)", "read", "callback"],
             vec!["remove", "var", "::v(k)", "read", "callback"],

@@ -211,7 +211,7 @@ fn compound_updater_matches_all_six_native_original_object_fixtures() {
     for (protocol, fixture) in protocols.into_iter().zip(FIXTURES) {
         let source_context = protocol.is_jim084().then(|| {
             crate::native_source::NativeJimObjectContext::new(
-                tcl_registry::InvocationDialect::of_profile(
+                tcl_native_model::InvocationDialect::of_profile(
                     crate::environment::profile_for_dialect("jim"),
                 ),
             )
@@ -370,7 +370,7 @@ fn native_dictionary_list_conversion_keeps_members_and_resident_spelling() {
             unsafe { obj::set_string_rep(resident.as_ptr(), b"k FIRST k LAST") };
             let source_context = protocol.is_jim084().then(|| {
                 crate::native_source::NativeJimObjectContext::new(
-                    tcl_registry::InvocationDialect::of_profile(
+                    tcl_native_model::InvocationDialect::of_profile(
                         crate::environment::profile_for_dialect("jim"),
                     ),
                 )

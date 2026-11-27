@@ -153,7 +153,7 @@ fn original_trace_subject_inputs(
     label: &[u8],
 ) -> (ResolveContext, OriginalVariableInvocation) {
     use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
     );
     let policy = dialect.authored_name_policy().unwrap();
@@ -204,7 +204,7 @@ fn original_trace_subject_inputs(
 
 fn selected_variable_trace(profile: &str, remove: bool) -> TraceTransition {
     let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
     );
     let facts = registry
@@ -505,7 +505,7 @@ fn original_variable_trace_copy_cannot_reset_the_complete_lineage_bound() {
 #[test]
 fn valid_trace_registration_closes_only_the_selected_native_address_protocol() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let mut state = ResolveContext::for_frame(
         crate::var_resolve::VariableFrameKind::Global,
         crate::var_resolve::BindingIdentity::Bound,
@@ -572,7 +572,7 @@ fn original_alias_operands_ignore_display_and_preserve_runtime_units() {
     use tcl_syntax::word_rules::WordValueRules;
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
         );
         let policy: NamePolicyProtocol = dialect.authored_name_policy().unwrap();
@@ -695,7 +695,7 @@ fn original_absolute_zero_alias_uses_retained_root_without_a_caller_frame() {
     use tcl_syntax::naming::ExecutionNamePolicy;
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
         );
         let policy = dialect.authored_name_policy().unwrap();
@@ -777,7 +777,7 @@ fn original_absolute_zero_alias_uses_retained_root_without_a_caller_frame() {
 #[test]
 fn normal_alias_completion_requires_the_actual_destination_and_selected_frame() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let mut state = ResolveContext::for_frame(
         crate::var_resolve::VariableFrameKind::Global,
         crate::var_resolve::BindingIdentity::Bound,
@@ -820,7 +820,7 @@ fn normal_alias_completion_requires_the_actual_destination_and_selected_frame() 
 #[test]
 fn reached_iteration_assignments_replace_missing_incoming_provenance() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let mut state = ResolveContext::for_function("::p");
     state.invocation_dialect = Some(dialect);
     state.define_literal("unrelated", "KEEP", registry);
@@ -858,14 +858,14 @@ fn iteration_kind_error_preserves_prior_stores_and_selected_container_policy() {
     for (profile, dialect, expected) in [
         (
             "tcl8.6",
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
             SourceIterationBindingOutcome::StoreError,
         ),
         (
             "jim",
-            tcl_registry::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                tcl_dialect::model::Release::JIM_0_84,
-            )),
+            tcl_native_model::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            ),
             SourceIterationBindingOutcome::Entered,
         ),
     ] {
@@ -1059,7 +1059,7 @@ fn bounded_array_store_preserves_unrelated_namespace_and_value_facts() {
 fn caller_reference_distinguishes_defined_unknown_contents_from_absence() {
     let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
     let mut parent = ResolveContext::for_function("::parent");
-    parent.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    parent.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     ));
     parent.define_unknown_contents("parameter", registry);
@@ -1109,7 +1109,7 @@ fn link(state: &mut ResolveContext, target: &str, local: &str) {
 fn actual_caller_increment_preserves_the_shared_namespace_contents() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut root = ResolveContext::for_function("::top");
-    root.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    root.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     root.namespace_cells = fresh_namespace_cells(registry);
@@ -1180,7 +1180,7 @@ fn alias_chain_retargeting_follows_the_runtime_link_policy() {
     ] {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let mut state = ResolveContext::for_function("::p");
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
         ));
         state.define_literal("x", "OLD", registry);
@@ -1446,7 +1446,7 @@ fn repeated_root_store_allocates_current_lifetime_without_reviving_dangling_elem
 fn jim_aliases_follow_names_after_array_and_namespace_destruction() {
     let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
     let mut state = ResolveContext::for_function("::f");
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     ));
     link(&mut state, "a(k)", "element");
@@ -1698,7 +1698,7 @@ fn global_declarations_do_not_override_c_namespace_lookup() {
         tcl_dialect::TclVersion::V9_1,
     ] {
         let mut state = ResolveContext::for_namespace("::N");
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(version));
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(version));
         state.namespace_cells.closed = true;
         state
             .namespace_cells
@@ -1727,7 +1727,7 @@ fn global_declarations_do_not_override_c_namespace_lookup() {
 fn namespace_alias_destination_does_not_retarget_a_same_named_global() {
     let registry = CommandRegistry::build_default();
     let mut state = ResolveContext::for_namespace("::N");
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::for_version(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::for_version(
         tcl_dialect::TclVersion::V8_6,
     ));
     state.namespace_cells.closed = true;
@@ -1763,7 +1763,7 @@ fn namespace_alias_destination_does_not_retarget_a_same_named_global() {
 fn no_value_list_append_preserves_existing_cells_and_initialises_missing_cells() {
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment(environment).unit_profile(),
         );
         let mut state = ResolveContext::for_function("::p");

@@ -36,6 +36,7 @@ use super::variable_traces::apply_trace_with_original;
 use crate::place;
 use crate::place::{CellGeneration, Place, PlaceKind};
 use crate::var_resolve::{ResolveContext, cell_key, project_access};
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::{
     CommandRegistry, NamespaceTransition, NamespaceTransitionTarget, StateTransition,
     StateTransitionKnowledge, Traits,

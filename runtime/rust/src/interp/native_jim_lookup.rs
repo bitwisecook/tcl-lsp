@@ -18,6 +18,7 @@
 
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
+use tcl_registry::commands::tcl::JimInfoDialect;
 type OriginalJimLookupCheck<'a> = &'a dyn Fn(&Interp) -> Result<(), ValueError>;
 
 use super::{
@@ -537,7 +538,7 @@ impl Interp {
                     let helper = self
                         .native_invocation_dialect()
                         .native_jim_namespace_helper(
-                            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
+                            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
                         )
                         .ok_or_else(|| {
                             refuse(ValueError::CommandProtocolUnavailable(

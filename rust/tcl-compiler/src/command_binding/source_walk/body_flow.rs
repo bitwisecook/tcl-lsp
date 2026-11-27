@@ -524,10 +524,10 @@ impl SourceCommandBindings {
                 .invocation
                 .arguments()
                 .dialect()
-                .and_then(tcl_registry::InvocationDialect::native_eval_object_protocol)
+                .and_then(tcl_native_model::InvocationDialect::native_eval_object_protocol)
                 .is_some_and(|protocol| {
                     !protocol.compiles_source(
-                        tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
+                        tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceConcat,
                     )
                 })
         {

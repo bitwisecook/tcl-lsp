@@ -233,7 +233,7 @@ fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_ab
                             .adopt_error_stack_bytes_checked(&[b"INNER".to_vec(), b"NEW".to_vec()])
                     } else {
                         interpreter.capture_original_return_instruction_context(
-                                tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                                tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                                 operand.as_ptr(), operand.as_ptr())
                     };
                     assert_eq!(
@@ -271,7 +271,7 @@ fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_ab
                         let first = interpreter.native_execution_refusal().unwrap();
                         assert_eq!(reached.unwrap_err(), first);
                         assert_eq!(interpreter.capture_original_return_instruction_context(
-                                tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                                tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                                 operand.as_ptr(), operand.as_ptr()).unwrap_err(), first);
                         assert_eq!(events.borrow().as_slice(), &[(0, 0)]);
                     }
@@ -369,7 +369,7 @@ fn original_stack_frame_append_keeps_existing_members_and_actual_frame_roles() {
                     .unwrap();
             interpreter
                 .capture_original_return_instruction_context(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                     inner.as_ptr(),
                     inner.as_ptr(),
                 )

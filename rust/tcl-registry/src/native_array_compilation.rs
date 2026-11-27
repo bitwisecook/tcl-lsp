@@ -43,7 +43,7 @@ pub enum NativeArrayExistenceResult {
 /// an object, interpreter environment, source body or entered frame.
 #[must_use]
 pub fn native_array_existence_result(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<NativeArrayExistenceResult> {
     use tcl_syntax::native_string::NativeStringProtocol;
     match dialect.native_string_protocol()? {
@@ -267,7 +267,9 @@ mod tests {
         ] {
             let profile = crate::model::ingress::resolve_environment(engine).unit_profile();
             assert_eq!(
-                native_array_existence_result(crate::InvocationDialect::of_profile(profile)),
+                native_array_existence_result(tcl_native_model::InvocationDialect::of_profile(
+                    profile
+                )),
                 Some(expected),
                 "{engine}"
             );
@@ -275,7 +277,9 @@ mod tests {
         for engine in ["f5-irules", "f5-iapps", "tcl"] {
             let profile = crate::model::ingress::resolve_environment(engine).unit_profile();
             assert_eq!(
-                native_array_existence_result(crate::InvocationDialect::of_profile(profile)),
+                native_array_existence_result(tcl_native_model::InvocationDialect::of_profile(
+                    profile
+                )),
                 None,
                 "{engine}"
             );
@@ -310,7 +314,7 @@ mod tests {
                 include_str!("../tests/data/native_introspection_compilation/9.1.0.tsv"),
             ),
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for row in table.lines().skip(15).take(12) {
                 let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();

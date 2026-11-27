@@ -66,7 +66,7 @@ impl Value {
     #[must_use]
     pub fn byte_array_origin(
         &self,
-    ) -> Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe> {
+    ) -> Option<tcl_native_model::native_string_materialization::ByteArrayStringRecipe> {
         match &*self.0.intrep.borrow() {
             IntRep::ByteArray(bytes) => bytes.origin,
             _ => None,
@@ -92,9 +92,9 @@ impl Value {
     /// bytes before replacing the internal representation. Failure retains it.
     pub fn as_byte_array(
         &self,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
     ) -> Result<Rc<[u8]>, ByteArrayAccessError> {
-        use tcl_registry::native_binary_value::NativeBinaryByteConversion;
+        use tcl_native_model::native_binary_value::NativeBinaryByteConversion;
         if conversion == NativeBinaryByteConversion::Utf8 {
             // Jim's binary commands read the string bytes; they do not install
             // a C Tcl byte-array representation or withdraw a cached count.
@@ -131,7 +131,7 @@ impl Value {
     /// Returns a guest byte-conversion error or unavailable native storage.
     pub fn as_native_byte_array(
         &self,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Rc<[u8]>, ByteArrayAccessError> {
         self.as_native_byte_array_using::<ValueError>(conversion, protocol, &mut None, &mut || {
@@ -144,7 +144,7 @@ impl Value {
 
     pub(crate) fn as_native_byte_array_checked(
         &self,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
         protocol: NativeStringProtocol,
         current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
         original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
@@ -157,7 +157,7 @@ impl Value {
     /// existing copy-narrowing fallback, independently of checked stage errors.
     pub(crate) fn as_native_byte_array_checked_result(
         &self,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
         protocol: NativeStringProtocol,
         current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
         original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
@@ -169,12 +169,12 @@ impl Value {
 
     fn as_native_byte_array_using<E: From<ValueError>>(
         &self,
-        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
         protocol: NativeStringProtocol,
         current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         original_string: &mut dyn FnMut() -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E>,
     ) -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E> {
-        use tcl_registry::native_binary_value::NativeBinaryByteConversion;
+        use tcl_native_model::native_binary_value::NativeBinaryByteConversion;
         Self::native_stage_check(current)?;
         if conversion == NativeBinaryByteConversion::Utf8 {
             return original_string();
@@ -233,10 +233,10 @@ impl Value {
     /// fallback retains its source interpretation for Unicode diagnostics.
     pub fn binary_decode_input(
         &self,
-        policy: tcl_registry::native_binary_value::NativeBinaryDecodeSource,
-    ) -> Result<tcl_registry::native_binary_value::NativeBinaryDecodeInput, UnicodeAccessError>
+        policy: tcl_native_model::native_binary_value::NativeBinaryDecodeSource,
+    ) -> Result<tcl_native_model::native_binary_value::NativeBinaryDecodeInput, UnicodeAccessError>
     {
-        use tcl_registry::native_binary_value::{
+        use tcl_native_model::native_binary_value::{
             NativeBinaryByteConversion, NativeBinaryDecodeInput, NativeBinaryDecodeSource,
         };
         if policy == NativeBinaryDecodeSource::PureByteArrayOrString && self.is_pure_byte_array() {
@@ -265,7 +265,7 @@ impl Value {
     /// before allocation. Imported untyped bytes are a separate carrier.
     pub fn from_native_byte_array(
         bytes: Rc<[u8]>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         let recipe = dialect.byte_array_string_recipe(None).ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -281,7 +281,7 @@ impl Value {
     #[must_use]
     pub fn from_byte_array_recipe(
         bytes: Rc<[u8]>,
-        recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+        recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
     ) -> Self {
         Self::from_raw_parts(
             None,

@@ -33,7 +33,7 @@ const VERSIONS: [TclVersion; 5] = [
 
 #[test]
 fn neutral_probe_retains_absent_string_and_exact_nan_payload() {
-    let dialect = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
     let bits = 0xfff8_0000_0000_0042;
     let value = Value::native_double(f64::from_bits(bits), dialect);
     let alias = value.clone();
@@ -91,7 +91,7 @@ fn completion_cache_preserves_original_resident_storage() {
 
 #[test]
 fn native_binary_conversion_preserves_nul_units_and_original_cache_on_error() {
-    use tcl_registry::native_binary_value::NativeBinaryByteConversion as Conversion;
+    use tcl_native_model::native_binary_value::NativeBinaryByteConversion as Conversion;
     use tcl_syntax::native_string::NativeStringProtocol;
     for version in VERSIONS {
         let protocol = NativeStringProtocol::C(version);
@@ -133,7 +133,7 @@ fn native_binary_conversion_preserves_nul_units_and_original_cache_on_error() {
 #[test]
 fn frame_cache_keeps_signed_relative_failures_and_actual_release() {
     use tcl_registry::NativeFrameLevelCache as Cache;
-    let c85 = tcl_registry::InvocationDialect::for_version(TclVersion::V8_5);
+    let c85 = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_5);
     for (spelling, distance) in [
         (b"2147483648".as_slice(), i32::MIN),
         (b"4294967295".as_slice(), -1),
@@ -150,7 +150,7 @@ fn frame_cache_keeps_signed_relative_failures_and_actual_release() {
         assert!(value.native_scalar_cache().is_none());
         assert!(
             value
-                .native_frame_level_cache_in(tcl_registry::InvocationDialect::for_version(
+                .native_frame_level_cache_in(tcl_native_model::InvocationDialect::for_version(
                     TclVersion::V8_6
                 ))
                 .is_err()
@@ -176,7 +176,7 @@ fn frame_reference_duplication_preserves_payload_without_native_owner_hooks() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let original = Value::new_native_string_bytes(b"#1".as_slice());
         original
             .install_native_frame_level_cache(Cache::Absolute(1), dialect)
@@ -258,7 +258,7 @@ fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
                 let value = Value::from_string_bytes(input);
                 let alias = value.clone();
                 let result = value.native_scalar_getter(
-                    tcl_registry::InvocationDialect::for_version(VERSIONS[index]),
+                    tcl_native_model::InvocationDialect::for_version(VERSIONS[index]),
                     kind,
                 );
                 let native_type = field(line, "type");
@@ -328,11 +328,11 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
     for (index, fixture) in BOOLEAN_NATIVE_FIXTURES.iter().enumerate() {
         let dialect = VERSIONS.get(index).map_or_else(
             || {
-                tcl_registry::InvocationDialect::of_profile(
+                tcl_native_model::InvocationDialect::of_profile(
                     tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
                 )
             },
-            |&version| tcl_registry::InvocationDialect::for_version(version),
+            |&version| tcl_native_model::InvocationDialect::for_version(version),
         );
         let jim_native = dialect
             .native_scalar_getter_protocol()
@@ -449,7 +449,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
     let mut count = 0;
     for (index, fixture) in FIXTURES.iter().enumerate() {
         let version = VERSIONS[index];
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
 
         for line in fixture.lines() {
             let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
@@ -519,7 +519,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
 
 #[test]
 fn physical_big_nan_and_word_caches_retain_full_payloads() {
-    let dialect = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
     let big = Value::from_string_bytes(b"18446744073709551615".as_slice());
     let alias = big.clone();
     assert_eq!(
@@ -542,7 +542,7 @@ fn physical_big_nan_and_word_caches_retain_full_payloads() {
         0xfff8_0000_0000_0123
     );
     for version in VERSIONS {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let word = Value::from_string_bytes(b"true".as_slice());
         assert_eq!(
             word.native_scalar_getter(dialect, Kind::Boolean),
@@ -562,7 +562,7 @@ fn physical_big_nan_and_word_caches_retain_full_payloads() {
 #[test]
 fn native_storage_and_missing_engine_refusals_preserve_original_objects() {
     for version in VERSIONS {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let raw = Value::from_string_bytes(b"1\0X".as_slice());
         let binary = Value::byte_array(b"1\0X".as_slice());
         assert_eq!(
@@ -580,7 +580,7 @@ fn native_storage_and_missing_engine_refusals_preserve_original_objects() {
             b"1\0X"
         );
     }
-    let jim = tcl_registry::InvocationDialect::of_profile(
+    let jim = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     );
     for input in [b"9223372036854775807".as_slice(), b"-9223372036854775808"] {
@@ -592,7 +592,7 @@ fn native_storage_and_missing_engine_refusals_preserve_original_objects() {
         assert_eq!(value.native_scalar_cache(), None);
         assert_eq!(value.string_bytes().as_ref(), input);
     }
-    let vendor = tcl_registry::InvocationDialect::of_profile(
+    let vendor = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("f5-irules").unit_profile(),
     );
     let value = Value::int(3);
@@ -606,7 +606,7 @@ fn native_storage_and_missing_engine_refusals_preserve_original_objects() {
 #[test]
 fn transport_reconstruction_keeps_resident_identity_and_descriptor_origin() {
     use tcl_syntax::native_string::NativeStringStorageIdentity as Storage;
-    let dialect = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
     assert!(
         Value::from_native_scalar_cache(
             NativeScalarCache::WordBoolean(true),
@@ -669,7 +669,7 @@ fn snapshot_retains_string_units_and_actual_list_canonical_state() {
     assert_eq!(
         value.native_character_count_with_protocol(
             protocol,
-            tcl_registry::native_string_length::NativeStringLengthRepresentation::AnyByteArray
+            tcl_native_model::native_string_length::NativeStringLengthRepresentation::AnyByteArray
         ),
         Ok(3)
     );

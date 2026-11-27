@@ -589,7 +589,7 @@ pub(crate) fn insert_source_write(
 
 pub(crate) fn logical_alias_targets_global(
     alias: &tcl_registry::VariableCellAliasTransition,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<bool> {
     if let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, .. } = &alias.target {
         let level = match frame {
@@ -1377,12 +1377,12 @@ fn selected_outer_alias_target(
             };
             let Some(dialect) = semantics
                 .input
-                .map(|input| tcl_registry::InvocationDialect::of_profile(input.unit_profile()))
+                .map(|input| tcl_native_model::InvocationDialect::of_profile(input.unit_profile()))
                 .or_else(|| {
                     semantics
                         .metadata
                         .and_then(|metadata| metadata.context().environment.point())
-                        .map(tcl_registry::InvocationDialect::of_point)
+                        .map(tcl_native_model::InvocationDialect::of_point)
                 })
             else {
                 return Some(OuterAliasTarget::Opaque);

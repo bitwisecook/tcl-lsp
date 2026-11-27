@@ -121,7 +121,7 @@ impl Vm {
         original: &Value,
         scope: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<Value, tcl_cmd_core::CmdError> {
-        use tcl_registry::native_procedure_body::NativeProcedureBodyAction;
+        use tcl_native_model::native_procedure_body::NativeProcedureBodyAction;
         let ops = native_numeric_ops::OriginalNumericOps::in_original_scope(
             self,
             scope.operation_scope(),

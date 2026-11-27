@@ -314,9 +314,7 @@ impl Interp {
         quoted: bool,
     ) -> Result<Vec<u8>, Code> {
         use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
-        use tcl_registry::invocation_words::{
-            ExpressionQuoteControl, LogicalExpressionQuoteProvider,
-        };
+        use tcl_native_model::{ExpressionQuoteControl, LogicalExpressionQuoteProvider};
         let dialect = self.native_invocation_dialect();
         let policy = if quoted {
             Some(dialect.expression_quote_control().or_else(|| dialect.logical_expression_quote_control(LogicalExpressionQuoteProvider::Tcl84CoreSimulation)).ok_or_else(|| self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("native expression quote settlement")))?)

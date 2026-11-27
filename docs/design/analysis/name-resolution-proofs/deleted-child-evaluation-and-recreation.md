@@ -120,7 +120,7 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasi
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::deleted_interpreter_error`: Select only the C ready-check error message/code for a independently deleted actual interpreter.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `NativeEvalObjectProtocol::deleted_interpreter_error`: Select only the C ready-check error message/code for a independently deleted actual interpreter.
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `Interp::evaluation_is_live`: Keep actual activation lifetime independent from permission for further evaluation.
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::child_source_controls_match_native_creation_and_retirement_windows` (linked): Compare exact deleted active child code/result plus85+ errorcode options, and distinct recreated child liveness/variable absence.
 

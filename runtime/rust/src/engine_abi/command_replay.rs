@@ -224,7 +224,7 @@ pub unsafe extern "C" fn tcl_engine_replay_create_command_counted(
         .native_invocation_dialect()
         .native_command_creation_protocol()
         .and_then(|protocol| protocol.public_registration_recipe(
-            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+            tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
         ));
     if creation.is_none() {
         // SAFETY: the original facade owns the unsupported purpose's refusal.

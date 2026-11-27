@@ -203,7 +203,7 @@ fn native_existence_result(
     let (owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(captured)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             ..Default::default()
@@ -286,7 +286,7 @@ fn info_exists_actual_folds_do_not_borrow_declaration_or_missing_entry() {
     // incoming interpreter is an explicit, distinct entry in this control.
     let unknown = crate::command_binding::SourceAnalysisEntry {
         unknown_entry: true,
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     };
     let result = Analyser::new()

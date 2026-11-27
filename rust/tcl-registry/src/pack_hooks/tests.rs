@@ -331,8 +331,8 @@ fn pack_aliases_preserve_original_known_bytes_and_selected_name_policy() {
     let fact = [PackTransition::NamespaceVariable { name: 0 }];
     let arguments = InvocationArguments::structured(&words);
     for dialect in [
-        crate::InvocationDialect::for_version(TclVersion::V8_6),
-        crate::InvocationDialect::of_profile(
+        tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         ),
     ] {

@@ -67,8 +67,10 @@ impl ValueOps for Interp {
         let dialect = self.native_invocation_dialect();
         if dialect.native_jim_enum_protocol().is_some() {
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
-            let flags = tcl_registry::native_jim_enum::NativeJimEnumFlags::options(exact);
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    words,
+                );
+            let flags = tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(exact);
             return Ok(Some(
                 match self.native_jim_enum_from_original(
                     *original,
@@ -89,7 +91,7 @@ impl ValueOps for Interp {
             ValueError::CommandProtocolUnavailable("original static option lookup"),
         )?;
         let table =
-            tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(words);
         Ok(Some(
             match self.native_index_from_original(*original, &table, exact, noun)? {
                 Ok(index) => OriginalOptionLookup::Index(index),
@@ -166,7 +168,7 @@ impl ValueOps for Interp {
         &mut self,
         args: &[*mut TclObj],
     ) -> Result<Option<*mut TclObj>, ValueError> {
-        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        use tcl_native_model::native_string_materialization::LogicalStringProvider;
         let dialect = self.native_invocation_dialect();
         let policy = self
             .name_policy_protocol()
@@ -468,7 +470,7 @@ impl ValueOps for Interp {
 
     fn native_char_len(&mut self, value: &Self::Value) -> Result<usize, ValueError> {
         obj::check_native_liveness(*value)?;
-        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        use tcl_native_model::native_string_materialization::LogicalStringProvider;
         let dialect = self.native_invocation_dialect();
         let provider = Some(LogicalStringProvider::Tcl84CoreSimulation);
         let protocol = dialect
@@ -725,7 +727,7 @@ impl ValueOps for Interp {
     fn list_elements(&mut self, v: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
         obj::check_native_liveness(*v)?;
         let protocol = self.native_invocation_dialect().native_string_materialization(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or(ValueError::CommandProtocolUnavailable("native object list conversion"))?.protocol();
         if protocol.is_jim084() {
             crate::native_source::bind_context(*v, &self.native_jim_object_context()?)?;
@@ -739,7 +741,7 @@ impl ValueOps for Interp {
     ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, ValueError> {
         obj::check_native_liveness(*v)?;
         let protocol = self.native_invocation_dialect().native_string_materialization(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or(ValueError::CommandProtocolUnavailable("native object dictionary conversion"))?.protocol();
         if protocol.is_jim084() {
             crate::native_source::bind_context(*v, &self.native_jim_object_context()?)?;
@@ -766,7 +768,7 @@ impl ValueOps for Interp {
         pairs: Vec<(*mut TclObj, *mut TclObj)>,
         bucket_count: usize,
     ) -> Result<*mut TclObj, ValueError> {
-        let recipe = self.native_invocation_dialect().native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native dictionary construction"))?;
+        let recipe = self.native_invocation_dialect().native_string_materialization(Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native dictionary construction"))?;
         let buckets = Some(bucket_count);
         crate::dict::new_dict_obj_native(&pairs, buckets, recipe.protocol())
     }
@@ -776,7 +778,7 @@ impl ValueOps for Interp {
         if let Some(recipe) = self
             .native_invocation_dialect()
             .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )) {
             crate::dict::seal_string_protocol(value, recipe.protocol())
                 .expect("fresh native Dictionary recipe");
@@ -793,7 +795,7 @@ impl ValueOps for Interp {
         if let Some(recipe) = self
             .native_invocation_dialect()
             .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )) {
             crate::dict::seal_string_protocol(value, recipe.protocol())
                 .expect("fresh native Dictionary recipe");
@@ -907,7 +909,7 @@ impl ValueOps for Interp {
             return Ok(false);
         }
         let protocol = self.native_invocation_dialect().native_string_materialization(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or(ValueError::CommandProtocolUnavailable("native object list append"))?.protocol();
         if protocol.is_jim084() {
             crate::native_source::bind_context(*list, &self.native_jim_object_context()?)?;

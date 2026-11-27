@@ -419,7 +419,9 @@ impl TargetSemantics {
         };
         let layout = self
             .profile
-            .and_then(|p| crate::InvocationDialect::of_profile(p).list_result_serialization())
+            .and_then(|p| {
+                tcl_native_model::InvocationDialect::of_profile(p).list_result_serialization()
+            })
             .or_else(|| {
                 self.quotes_leading_hash.map(|quotes| {
                     if quotes {

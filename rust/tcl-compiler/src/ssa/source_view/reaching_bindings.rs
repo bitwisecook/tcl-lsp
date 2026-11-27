@@ -124,7 +124,7 @@ impl<'a> SsaSourceView<'a> {
         let key = self.ssa.cell_key(symbol)?;
         if opaque_native_accesses
             || dynamic_trace
-            || key.is_native_error_storage(tcl_registry::InvocationDialect::of_profile(
+            || key.is_native_error_storage(tcl_native_model::InvocationDialect::of_profile(
                 registry
                     .profile()
                     .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),

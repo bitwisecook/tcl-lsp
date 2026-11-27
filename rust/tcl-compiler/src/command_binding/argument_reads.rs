@@ -162,7 +162,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     registry,
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             registry.profile().unwrap(),
                         )),
                         native_compilation:

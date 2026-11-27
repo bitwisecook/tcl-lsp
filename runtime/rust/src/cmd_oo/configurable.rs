@@ -28,11 +28,11 @@ use crate::obj;
 use crate::obj::TclObj;
 use std::rc::Rc;
 use tcl_core_types::OoId;
+use tcl_native_model::native_tcloo_method_definition::{
+    NativeTclooCoreMethod, NativeTclooMethodPayloadType,
+};
 use tcl_registry::commands::tcl::{
     resolve_info_oo_properties_option_original, InfoOoPropertiesOption, TclOoPropertyOption,
-};
-use tcl_registry::native_tcloo_method_definition::{
-    NativeTclooCoreMethod, NativeTclooMethodPayloadType,
 };
 
 /// TIP 558 `oo::configurable` metaclass + the `property` definition command and

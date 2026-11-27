@@ -28,7 +28,7 @@ struct Fixture {
     binding: crate::command_binding::SourceInvocationBinding,
     frame: DeclarationFlowFrame,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     tokens: CommandTokens,
     site: CommandAllocationSite,
 }

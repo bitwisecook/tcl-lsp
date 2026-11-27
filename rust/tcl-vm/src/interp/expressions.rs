@@ -444,7 +444,7 @@ impl Vm {
         self.claim_number_grammar();
         let dialect = self.native_invocation_dialect();
         let profile = self.expression_source_profile().cache_key();
-        let protocol = self.actual_native_invocation_dialect().native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
+        let protocol = self.actual_native_invocation_dialect().native_string_materialization(Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("native expression source materialization"))?.protocol();
         let source_info = if protocol.is_jim084() {
             let reached = (|| {
@@ -517,14 +517,14 @@ impl Vm {
             self.prepare_fixed_function_expression_bytes_on(
                 &bytes,
                 &self.expression_parse_context(),
-                tcl_registry::native_expression_error::ExpressionErrorPublication::Eval,
+                tcl_native_model::native_expression_error::ExpressionErrorPublication::Eval,
                 Some(source),
                 source_info.as_ref(),
             )
         } else {
             self.prepare_expression_bytes_in(
                 &bytes,
-                tcl_registry::native_expression_error::ExpressionErrorPublication::Eval,
+                tcl_native_model::native_expression_error::ExpressionErrorPublication::Eval,
             )
         };
         self.original_expression_source_current(source, scope)?;
@@ -548,14 +548,14 @@ impl Vm {
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
         self.prepare_expression_bytes_in(
             source,
-            tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+            tcl_native_model::native_expression_error::ExpressionErrorPublication::Direct,
         )
     }
 
     fn prepare_expression_bytes_in(
         &mut self,
         source: &[u8],
-        publication: tcl_registry::native_expression_error::ExpressionErrorPublication,
+        publication: tcl_native_model::native_expression_error::ExpressionErrorPublication,
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
         use tcl_syntax::expr::parser::CheckedExprParse;
         self.claim_number_grammar();
@@ -644,7 +644,7 @@ impl Vm {
         &mut self,
         source: &[u8],
         context: &tcl_syntax::expr::parser::ExprParseContext,
-        publication: tcl_registry::native_expression_error::ExpressionErrorPublication,
+        publication: tcl_native_model::native_expression_error::ExpressionErrorPublication,
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
         self.prepare_fixed_function_expression_bytes_on(source, context, publication, None, None)
     }
@@ -653,7 +653,7 @@ impl Vm {
         &mut self,
         source: &[u8],
         context: &tcl_syntax::expr::parser::ExprParseContext,
-        publication: tcl_registry::native_expression_error::ExpressionErrorPublication,
+        publication: tcl_native_model::native_expression_error::ExpressionErrorPublication,
         original: Option<&Value>,
         source_info: Option<&crate::value::NativeJimSourceInfo>,
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
@@ -740,10 +740,12 @@ impl Vm {
         message: impl AsRef<[u8]>,
         code: Option<&[u8]>,
         syntax: tcl_syntax::expr::parser::NativeExprSyntax,
-        publication: tcl_registry::native_expression_error::ExpressionErrorPublication,
+        publication: tcl_native_model::native_expression_error::ExpressionErrorPublication,
     ) -> TclError {
         let Some(stage) =
-            tcl_registry::native_expression_error::NativeExpressionErrorStage::syntax(syntax, code)
+            tcl_native_model::native_expression_error::NativeExpressionErrorStage::syntax(
+                syntax, code,
+            )
         else {
             return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native expression syntax error state",
@@ -815,7 +817,7 @@ impl Vm {
                 match crate::expr::expression_boolean_for_vm(
                     self,
                     &completion.result,
-                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
+                    tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
                 ) {
                     Ok(truth) => (completion, Some(truth)),
                     Err(error) => (crate::command::completion_from_tcl_error(self, error), None),
@@ -903,7 +905,7 @@ impl Vm {
                     diagnostic.message,
                     diagnostic.error_code.as_deref().map(str::as_bytes),
                     context.native_syntax,
-                    tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+                    tcl_native_model::native_expression_error::ExpressionErrorPublication::Direct,
                 ));
             }
         };
@@ -930,7 +932,7 @@ impl Vm {
                 .logical_providers
                 .expression_parse
                 .and_then(|provider| {
-                    tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+                    tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
                         .logical_expression_parse_context(
                             provider,
                             self.expression_source_profile(),
@@ -963,7 +965,7 @@ impl Vm {
                 diagnostic.message,
                 diagnostic.error_code.as_deref(),
                 context.native_syntax,
-                tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+                tcl_native_model::native_expression_error::ExpressionErrorPublication::Direct,
             ));
         }
         let table = self.native_math_function_table();
@@ -984,7 +986,7 @@ impl Vm {
                     diagnostic.message,
                     diagnostic.error_code.as_deref().map(str::as_bytes),
                     context.native_syntax,
-                    tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+                    tcl_native_model::native_expression_error::ExpressionErrorPublication::Direct,
                 ))
             }
             RuntimeExpressionPreparation::Unknown => Err(self.refuse_expression(

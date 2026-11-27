@@ -22,6 +22,7 @@ use super::super::state::Analyser;
 use crate::alias::{command_table_transitions, is_current_interpreter};
 use crate::signature_scan::types::SignatureCommandAlias;
 use tcl_lexer::Token;
+use tcl_native_model::InvocationDialect;
 
 impl Analyser {
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
@@ -126,7 +127,7 @@ impl Analyser {
                     .as_deref()
                     .and_then(tcl_registry::CommandRegistry::profile)
                     .and_then(|profile| {
-                        tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                        InvocationDialect::of_profile(profile).authored_name_policy()
                     })
                     .and_then(|policy| {
                         crate::signature_scan::scope::SignatureSourceCommand::alias_at_root(
@@ -199,9 +200,7 @@ impl Analyser {
             .registry
             .as_deref()
             .and_then(tcl_registry::CommandRegistry::profile)
-            .and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
-            });
+            .and_then(|profile| InvocationDialect::of_profile(profile).authored_name_policy());
         self.command_aliases.remove(&qualified);
         if let Some(target_key) = target_cmd
             .checked_global_key(policy)

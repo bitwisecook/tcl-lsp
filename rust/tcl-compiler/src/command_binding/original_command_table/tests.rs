@@ -22,7 +22,7 @@ use crate::signature_scan::scope::SignatureSourceNameKey;
 #[test]
 fn original_initial_table_selects_the_registered_handler() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();
@@ -66,7 +66,7 @@ fn original_initial_table_selects_the_registered_handler() {
 
 #[test]
 fn original_jim_baseline_uses_the_selected_flat_registry_name_purpose() {
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let registry = tcl_registry::model::ingress::static_context_for("jimtcl").commands();
@@ -139,7 +139,7 @@ fn original_jim_baseline_uses_the_selected_flat_registry_name_purpose() {
             )
             .is_none()
     );
-    let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let c = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     assert!(
         state
             .original_targets_for_input(
@@ -280,7 +280,7 @@ fn original_conditional_catalogue_keeps_unknowns_but_blocks_known_cells() {
 fn original_metadata_index_keeps_collisions_and_complete_baseline_keys() {
     for profile in ["tcl8.4", "tcl8.6", "tcl9.1", "jimtcl"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         let policy = dialect.authored_name_policy().unwrap();
         let names = BTreeSet::from(["p".to_owned(), "::p".to_owned()]);
         let slots = metadata_slots(policy, &names);
@@ -334,7 +334,7 @@ fn original_metadata_index_keeps_collisions_and_complete_baseline_keys() {
             state.original_initial_bindings_for_key(&added),
             Some(BTreeSet::from([MayBinding::Missing]))
         );
-        let other = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_5)
+        let other = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_5)
             .authored_name_policy()
             .unwrap();
         if other != policy {
@@ -350,7 +350,7 @@ fn catalogue_state(
     tcl_lexer::LexerConfig,
     tcl_syntax::naming::NamePolicyProtocol,
 ) {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let registry =
         tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
@@ -643,7 +643,7 @@ fn original_default_factory_dependencies_use_the_current_exact_registry_cells() 
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();
@@ -684,7 +684,7 @@ fn original_default_factory_dependencies_use_the_current_exact_registry_cells() 
 #[test]
 fn original_registry_metadata_target_requires_the_current_exact_cell() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();

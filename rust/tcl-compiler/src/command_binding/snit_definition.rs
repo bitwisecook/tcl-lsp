@@ -229,7 +229,7 @@ fn deferred_definition_methods(
     let parameters = state
         .baseline
         .dialect
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)?;
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)?;
     let mut methods = super::BTreeSet::new();
     let mut declarations = super::BTreeSet::new();
     let map = tcl_lexer::SourceMap::new(source);

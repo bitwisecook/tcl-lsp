@@ -31,7 +31,7 @@ use tcl_syntax::{
 pub(super) struct OriginalSourceInvocation {
     frame: super::native_arguments::OriginalArgumentFrame,
     procedure: std::rc::Weak<super::ProcDef>,
-    purpose: tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind,
+    purpose: tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind,
     pub(super) root: std::rc::Rc<crate::native_source::NativeJimSourceOrigin>,
     argv: Vec<crate::obj::NativeObjectLifetime>,
     pub(super) operands: Vec<Option<OriginalSourceOperand>>,

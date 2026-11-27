@@ -1107,7 +1107,7 @@ mod call_site_param_constants {
         fn library_entry() -> crate::command_binding::SourceAnalysisEntry {
             let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
             crate::command_binding::SourceAnalysisEntry {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 trusted_source_modules: vec![
                     crate::command_binding::TrustedSourceModuleLoader::new(

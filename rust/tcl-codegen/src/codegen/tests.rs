@@ -90,7 +90,7 @@ fn fixed_preparation(
         .commands()
         .profile()
         .unwrap();
-    let context = tcl_registry::InvocationDialect::of_profile(profile)
+    let context = tcl_native_model::InvocationDialect::of_profile(profile)
         .expression_parse_context(Some(profile));
     let tcl_registry::runtime_expr_validation::ExpressionPreparationProof::Prepared(witness) =
         tcl_registry::runtime_expr_validation::prepare_expression_witness(
@@ -160,7 +160,7 @@ fn script_preparation_retains_chunk_entry_guards_atomically() {
         tcl_compiler::command_binding::SourceAnalysisOptions {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

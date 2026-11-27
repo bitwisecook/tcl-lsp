@@ -261,8 +261,9 @@ mod tests {
     fn subst_literal_effects_preserve_enabled_substitutions() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = crate::model::ingress::static_context_for(profile);
-            let dialect =
-                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
+                context.commands().profile().unwrap(),
+            );
             for (word, closed) in [
                 (crate::InvocationWord::Literal("hello"), true),
                 (crate::InvocationWord::Literal("a\\nb"), true),

@@ -136,7 +136,7 @@ fn invoke(interp: &mut Interp, caller: *mut TclObj, argv: &[*mut TclObj]) -> Cod
         None,
         false,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             vector.as_ptr(),
         )),
         None,

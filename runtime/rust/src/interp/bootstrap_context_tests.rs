@@ -27,6 +27,7 @@ use std::{
     rc::Rc,
 };
 use tcl_platform::{Env, Host, HostError};
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_registry::special_vars::{NativeBootstrapInputs, NativeBootstrapProtocol};
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::NativeValueAccessRefusal;

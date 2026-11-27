@@ -100,7 +100,7 @@ impl OriginalNamespaceInfoFrame {
         let Some((kind, root)) = procedure.original_jim_namespace_helper_origin(actual)? else {
             return Err(unavailable("original NamespaceInfo installed Source"));
         };
-        if kind != tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+        if kind != tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info
             || !actual
                 .frames
                 .borrow()
@@ -138,7 +138,7 @@ impl OriginalNamespaceInfoFrame {
             || !owner
                 .original_jim_namespace_helper_origin(actual)?
                 .is_some_and(|(kind, root)| {
-                    kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info
+                    kind == tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info
                         && Rc::ptr_eq(&root, &self.root)
                 })
         {

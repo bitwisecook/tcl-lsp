@@ -211,7 +211,7 @@ impl DeclarationFlowFrame {
 struct DeclarationFlowKey {
     entry: Arc<DeclarationFlowFrame>,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     registry: tcl_registry::RegistrySemanticKey,
     purpose: DeclarationFlowPurpose,
     retained_module_realm: bool,
@@ -963,7 +963,7 @@ struct Builder<'a> {
     inventory: &'a DeclarationFlowInventory,
     registry: &'a tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     entry: &'a DeclarationFlowFrame,
     purpose: DeclarationFlowPurpose,
     representation_realm: Option<&'a crate::realm::CommandBindingRealm>,

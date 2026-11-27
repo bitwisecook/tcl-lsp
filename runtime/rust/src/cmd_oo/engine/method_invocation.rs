@@ -29,7 +29,7 @@ use crate::obj::TclObj;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 impl Interp {
     /// `unknown method "X": must be <public methods + built-ins>` — the C TclOO

@@ -29,7 +29,7 @@ fn a_missing_lmap_reports_an_invalid_command_name() {
     for engine in ["tcl8.4", "tcl8.5"] {
         let profile = tcl_vm::test_support::profile(engine);
         let mut vm = crate::fixture::interpreter(profile);
-        let strings = tcl_registry::InvocationDialect::of_static_profile(profile)
+        let strings = tcl_native_model::InvocationDialect::of_static_profile(profile)
             .native_string_protocol()
             .unwrap();
         let arguments = [

@@ -201,7 +201,7 @@ impl ModuleCommandBindings {
                         .all(|word| word.as_registry_word().literal().is_some());
                 }
                 let query = self.baseline.dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
                     .map(|query| query.with_realm(context.realm()));
                 let delegate_preserves_manufacturers = member.arg_roles.iter()
                     .find_map(|(index, role)| (*role == tcl_registry::ArgRole::Name)
@@ -252,7 +252,7 @@ impl ModuleCommandBindings {
                             .and_then(|word| word.as_registry_word().literal())
                             .is_some_and(|parameters| {
                                 self.baseline.dialect
-                                    .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+                                    .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
                                     .is_some_and(|grammar| {
                                         tcl_syntax::formal_params::parse_formal_parameters_in(
                                             parameters, grammar,

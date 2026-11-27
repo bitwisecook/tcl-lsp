@@ -30,7 +30,7 @@ impl Value {
     #[cfg(test)]
     pub(crate) fn native_property_accessor(
         &self,
-        recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+        recipe: tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
         writable: bool,
     ) -> Result<NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
         self.native_property_accessor_using(
@@ -47,7 +47,7 @@ impl Value {
     }
     pub(crate) fn native_property_accessor_checked<C>(
         &self,
-        recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+        recipe: tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
         writable: bool,
         context: &mut C,
         string: &mut impl FnMut(&mut C) -> Result<super::Rc<[u8]>, tcl_cmd_core::CmdError>,
@@ -57,7 +57,7 @@ impl Value {
     }
     fn native_property_accessor_using<C, E: From<tcl_syntax::value::ValueError>>(
         &self,
-        recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+        recipe: tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
         writable: bool,
         context: &mut C,
         string: &mut impl FnMut(&mut C) -> Result<super::Rc<[u8]>, E>,
@@ -109,7 +109,7 @@ mod tests {
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
         // Native proof: naming.property.original-accessor-name-cache-children
         // docs/design/analysis/name-resolution-proofs/property-original-accessor-name-cache-children.md
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );
         let recipe = dialect.native_property_lookup_protocol().unwrap();

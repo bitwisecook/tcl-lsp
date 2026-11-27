@@ -37,7 +37,7 @@ impl Value {
     /// Returns a typed missing-capability refusal outside the native outcome.
     pub fn native_scalar_probe(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
     ) -> Result<
         Result<NativeScalarGetterValue, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
@@ -48,7 +48,7 @@ impl Value {
 
     pub(crate) fn native_scalar_probe_with_environment(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<
@@ -61,7 +61,7 @@ impl Value {
     #[cfg(test)]
     pub(crate) fn native_scalar_probe_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
@@ -74,7 +74,7 @@ impl Value {
 
     pub(crate) fn native_scalar_probe_checked_with_string<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
@@ -94,7 +94,7 @@ impl Value {
 
     fn native_scalar_probe_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
@@ -197,7 +197,7 @@ impl Value {
 
     fn native_scalar_probe_protocols(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(NativeScalarGetterProtocol, NativeStringProtocol), ValueError> {
         let protocol = dialect
             .native_scalar_getter_protocol()
@@ -301,7 +301,7 @@ impl Value {
 
     pub(crate) fn prepare_native_expression_integer84_with_environment(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<bool, ValueError> {
         self.prepare_native_expression_integer84_using::<ValueError>(
@@ -314,7 +314,7 @@ impl Value {
 
     pub(crate) fn prepare_native_expression_integer84_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
         string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
@@ -346,7 +346,7 @@ impl Value {
 
     fn prepare_native_expression_integer84_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         string: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
@@ -435,7 +435,7 @@ impl Value {
     pub(crate) fn store_native_expression_long84(
         &self,
         integer: i64,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.store_native_expression_long84_using::<ValueError>(integer, dialect, &mut None)
     }
@@ -443,7 +443,7 @@ impl Value {
     pub(crate) fn store_native_expression_long84_checked<E: From<ValueError>>(
         &self,
         integer: i64,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.store_native_expression_long84_using(integer, dialect, &mut Some(check))
@@ -452,7 +452,7 @@ impl Value {
     fn store_native_expression_long84_using<E: From<ValueError>>(
         &self,
         integer: i64,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;
@@ -481,7 +481,7 @@ impl Value {
     pub(crate) fn store_native_increment_number(
         &self,
         number: Number,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.store_native_increment_number_using(number, dialect, &mut None)
     }
@@ -489,7 +489,7 @@ impl Value {
     pub(crate) fn store_native_increment_number_checked<E: From<ValueError>>(
         &self,
         number: Number,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.store_native_increment_number_using(number, dialect, &mut Some(check))
@@ -498,7 +498,7 @@ impl Value {
     fn store_native_increment_number_using<E: From<ValueError>>(
         &self,
         number: Number,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;
@@ -528,7 +528,7 @@ impl Value {
     /// Refuses engines without the selected primitive or unavailable original storage.
     pub fn native_number_probe(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, ValueError>
     {
@@ -538,7 +538,7 @@ impl Value {
     #[cfg(test)]
     pub(crate) fn native_number_probe_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>, E> {
@@ -547,7 +547,7 @@ impl Value {
 
     pub(crate) fn native_number_probe_checked_with_string<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
         check: &mut dyn FnMut() -> Result<(), E>,
         string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
@@ -557,7 +557,7 @@ impl Value {
 
     fn native_number_probe_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
@@ -619,7 +619,7 @@ impl Value {
     /// Returns the exact primitive guest receipt or a typed capability refusal.
     pub fn native_scalar_getter(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
     ) -> Result<NativeScalarGetterValue, tcl_syntax::value::ValueError> {
         self.native_scalar_getter_with_environment(dialect, kind, None)
@@ -627,7 +627,7 @@ impl Value {
 
     pub(crate) fn native_scalar_getter_with_environment(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<NativeScalarGetterValue, ValueError> {
@@ -636,7 +636,7 @@ impl Value {
 
     pub(crate) fn native_scalar_getter_checked_with_string<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut dyn FnMut() -> Result<(), E>,
@@ -653,7 +653,7 @@ impl Value {
 
     fn native_scalar_getter_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
@@ -679,7 +679,7 @@ impl Value {
     #[cfg(test)]
     pub(crate) fn native_scalar_failure_presentation(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, ValueError> {
@@ -688,7 +688,7 @@ impl Value {
 
     pub(crate) fn native_scalar_failure_presentation_checked_with_string<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
         check: &mut dyn FnMut() -> Result<(), E>,
@@ -705,7 +705,7 @@ impl Value {
 
     fn native_scalar_failure_presentation_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: NativeScalarGetterKind,
         failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,

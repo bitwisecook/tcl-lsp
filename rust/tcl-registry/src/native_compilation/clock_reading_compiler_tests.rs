@@ -73,7 +73,7 @@ fn registered_clock_worker_emits_the_pinned_c90_selectors() {
         NativeInstructionPlan, native_registered_worker_instruction_plan,
     };
     let version = TclVersion::V9_0;
-    let dialect = crate::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let registry = crate::CommandRegistry::build_default();
     let context = super::NativeCompilationContext {
         mode: super::NativeCompilationMode::BytecodeObject,

@@ -30,6 +30,7 @@
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{new_string, Code, Interp};
 use crate::obj::TclObj;
+use tcl_registry::commands::tcl::JimInfoDialect;
 use tcl_syntax::value::ValueOps;
 
 #[cfg(test)]
@@ -81,7 +82,7 @@ pub fn install(interp: &mut Interp) {
         NAMES,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Info,
+        tcl_native_model::EnsembleImplementationFamily::Info,
         b"info",
         info_cmd,
         STOCK_MEMBERS,
@@ -434,7 +435,7 @@ fn info_cmd_original(
             .is_some()
         {
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
                     subs,
                 );
             let selected = interp.native_index_operand(argv[1], &table, false, "option");
@@ -1086,10 +1087,12 @@ fn info_version_report(interp: &mut Interp, argv: &[*mut TclObj], member: &[u8])
         .native_invocation_dialect()
         .native_info_version_source(member)
     {
-        Some(tcl_registry::native_info_version::NativeInfoVersionSource::Global(name)) => {
+        Some(tcl_native_model::native_info_version::NativeInfoVersionSource::Global(name)) => {
             info_global(interp, argv, usage.as_bytes(), name.as_bytes())
         }
-        Some(tcl_registry::native_info_version::NativeInfoVersionSource::CoreRelease(version)) => {
+        Some(tcl_native_model::native_info_version::NativeInfoVersionSource::CoreRelease(
+            version,
+        )) => {
             interp.set_result_bytes(version.as_bytes());
             Code::Ok
         }

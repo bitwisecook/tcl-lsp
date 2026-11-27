@@ -102,7 +102,7 @@ impl Namespaces {
         let binding = self.arena.get(entry.namespace)?.commands.binding(name)?;
         if binding.generation != generation
             || !matches!(&binding.command, Command::ObjCmd(command)
-                if command.creation_purpose() == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand))
+                if command.creation_purpose() == Some(tcl_native_model::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand))
         {
             return None;
         }

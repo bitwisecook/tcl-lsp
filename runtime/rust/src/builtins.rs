@@ -26,6 +26,8 @@
 //! Each handler matches the [`BuiltinFn`](crate::interp::BuiltinFn) shape:
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
+use tcl_registry::native_rmw::LegacyIncrementDialect;
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 
 use crate::frame::VarError;
@@ -1059,7 +1061,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
         Some(self.interp.host())
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.interp.native_invocation_dialect()
     }
     fn f5_string_predicate_provider(
@@ -1376,7 +1378,7 @@ fn eval_expr_obj_at_original(
         Ok(value) => crate::typed_value::normalize_boolean_result_for_interp(
             interp,
             value.as_ptr(),
-            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
+            tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
         ).map_err(|e| interp.report_cmd_error(e)),
         Err(_) if propagated => Err(propagated_code),
         Err(e) => Err(raise_expr_error(interp, &node, e)),
@@ -1580,7 +1582,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         // `set x o; if {$x} {}` is `TCL VALUE NUMBER`, a NaN condition is
         // `TCL VALUE DOUBLE NAN`), exactly as the eval failure below does.
         Ok(r) => crate::typed_value::expression_boolean_for_interp(interp, r.as_ptr(),
-            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
+            tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
             .map_err(|e| interp.report_cmd_error(e)),
         // A propagated sub-eval code unwinds the condition: an error keeps its
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
@@ -1906,10 +1908,10 @@ fn parse_runtime_expr_cached(
             crate::obj::bytes_of(original)
         } else {
             let protocol = match interp.logical_expression_parse_policy() {
-                Some((_, host)) => tcl_registry::InvocationDialect::of_profile(host.profile())
+                Some((_, host)) => tcl_native_model::InvocationDialect::of_profile(host.profile())
                     .native_string_protocol(),
                 None => dialect.native_string_materialization(Some(
-                    tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+                    tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
                 )).map(|recipe| recipe.protocol()),
             }.ok_or_else(|| crate::expr_error::ExprError::host_refusal(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(

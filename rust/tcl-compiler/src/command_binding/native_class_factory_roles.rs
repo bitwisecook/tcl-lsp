@@ -486,7 +486,7 @@ mod tests {
         version: TclVersion,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> ModuleCommandBindings {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();
@@ -507,7 +507,7 @@ mod tests {
     ) -> SignatureSourceNameInput {
         let source = tcl_lexer::SourceImage::document("create");
         let config = tcl_lexer::LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+            tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
         );
         let words =
             tcl_lexer::native_script_words_in(source, tcl_lexer::Span::new(0, 6), config).unwrap();
@@ -542,7 +542,7 @@ mod tests {
                 .commands();
         let recipe = registry.native_class_factory_recipe(
             target.registry_identity()?,
-            tcl_registry::InvocationDialect::for_version(version),
+            tcl_native_model::InvocationDialect::for_version(version),
             tcl_dialect::model::InvocationRealm::default(),
         )?;
         NativeClassFactoryState::capture(&target, &selector(version, entry), recipe, &state)

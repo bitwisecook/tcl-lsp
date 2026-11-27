@@ -331,6 +331,6 @@ int Jim_EvalObjBackground(Jim_Interp *interp, Jim_Obj *scriptObjPtr)
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::compiles_source`: Selected callback evaluation entry, independently of native artifact admission.
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Actual matching C84/trace direct-source entry only; foreign axes refuse.
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `native_eval_object::after_source_tests::original_after_callback_keeps_counted_c84_entry_separate_from_object_dispatch` (linked): Version-selected C84 counted source versus modern object entry, foreign string recipe negatives and Jim direct-source refusal; pure recipe admission does not mint compiler preparation. No execution claim.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `NativeEvalObjectProtocol::compiles_source`: Selected callback evaluation entry, independently of native artifact admission.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Actual matching C84/trace direct-source entry only; foreign axes refuse.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `native_eval_object::after_source_tests::original_after_callback_keeps_counted_c84_entry_separate_from_object_dispatch` (linked): Version-selected C84 counted source versus modern object entry, foreign string recipe negatives and Jim direct-source refusal; pure recipe admission does not mint compiler preparation. No execution claim.

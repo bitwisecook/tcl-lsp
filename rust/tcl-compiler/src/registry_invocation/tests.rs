@@ -151,7 +151,7 @@ fn f5_source_tokens_in_realm(
         registry,
         crate::command_binding::SourceAnalysisOptions {
             invocation_realm: realm,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("f5-irules").expect("selected fixture entry"),
             )),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {

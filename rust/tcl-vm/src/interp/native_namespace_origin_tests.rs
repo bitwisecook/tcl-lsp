@@ -29,7 +29,7 @@ fn origin_retired_world_refuses_instead_of_reporting_a_missing_command() {
 
 #[test]
 fn origin_canonical_root_relative_retains_the_actual_original_header() {
-    use tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend;
+    use tcl_native_model::native_jim_lookup::NativeJimNamespaceOriginBackend;
     let profile = crate::environment::profile_for_dialect("jim");
     let mut vm = crate::native_fixture::core(profile);
     let original = super::Value::from_native_string_bytes(b"puts".as_slice());

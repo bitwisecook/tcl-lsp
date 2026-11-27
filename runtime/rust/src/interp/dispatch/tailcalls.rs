@@ -31,7 +31,7 @@ impl Interp {
         let Some(protocol) = self.native_invocation_dialect().tailcall_protocol() else {
             return self.error(b"native tailcall protocol is not selected");
         };
-        if protocol == tcl_registry::invocation_words::NativeTailcallProtocol::Tcl {
+        if protocol == tcl_native_model::NativeTailcallProtocol::Tcl {
             // The generic handler retires the previous request before producing
             // a namespace operand; an empty invocation creates no replacement.
             if !self.replace_pending_tailcall(None) {
@@ -173,7 +173,7 @@ impl Interp {
             return Code::Ok;
         };
         if let Err(code) = self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,
         ) {
             return code;
         }

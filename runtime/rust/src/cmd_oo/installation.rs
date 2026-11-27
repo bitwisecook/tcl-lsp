@@ -33,7 +33,7 @@ use super::{
 };
 use crate::interp::{Command, Interp};
 use crate::obj;
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooCoreMethod, NativeTclooMethodPayloadType, NativeTclooMethodReportProtocol,
 };
 

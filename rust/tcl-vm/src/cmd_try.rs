@@ -36,6 +36,7 @@
 //! inline between two `eval_source` calls.
 
 use std::rc::Rc;
+use tcl_registry::JimTryDialect;
 
 use tcl_runtime_api::{Code, Completion, FatalTail};
 use tcl_syntax::value::ValueOps;
@@ -460,7 +461,7 @@ fn original_handler_type(
             .native_jim_enum_from_original_checked(
                 original,
                 &table,
-                tcl_registry::native_jim_enum::NativeJimEnumFlags(1),
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags(1),
                 Some(b"handler"),
             )
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?

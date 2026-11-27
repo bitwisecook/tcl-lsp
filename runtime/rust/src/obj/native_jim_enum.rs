@@ -59,7 +59,7 @@ pub(crate) fn cache(value: *mut TclObj) -> Option<NativeJimOptionCache> {
 pub(crate) fn install(
     value: *mut TclObj,
     cache: NativeJimOptionCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), ValueError> {
     install_checked(value, cache, dialect, &mut || Ok(()))
 }
@@ -67,7 +67,7 @@ pub(crate) fn install(
 pub(crate) fn install_checked<E: From<ValueError>>(
     value: *mut TclObj,
     cache: NativeJimOptionCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: &mut dyn FnMut() -> Result<(), E>,
 ) -> Result<(), E> {
     check()?;

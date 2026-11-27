@@ -47,7 +47,7 @@ fn compare_index_with_full_scan(
     default_registry: &super::CommandRegistry,
 ) -> usize {
     let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let mut compared = 0;
     for registry in [
         crate::model::ingress::static_context_for_profile(profile).commands(),

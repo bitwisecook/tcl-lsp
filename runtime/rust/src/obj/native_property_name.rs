@@ -54,7 +54,7 @@ pub(crate) fn is_cached(value: *mut TclObj) -> bool {
 }
 pub(crate) fn accessor(
     value: *mut TclObj,
-    recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+    recipe: tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
     writable: bool,
 ) -> Result<*mut TclObj, ValueError> {
     check_native_liveness(value)?;
@@ -91,7 +91,7 @@ mod tests {
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
         // Native proof: naming.property.original-accessor-name-cache-children
         // docs/design/analysis/name-resolution-proofs/property-original-accessor-name-cache-children.md
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );
         let recipe = dialect.native_property_lookup_protocol().unwrap();

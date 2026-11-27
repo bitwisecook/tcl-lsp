@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use tcl_registry::native_string_materialization::LogicalStringProvider;
+use tcl_native_model::native_string_materialization::LogicalStringProvider;
 
 #[test]
 fn binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate() {

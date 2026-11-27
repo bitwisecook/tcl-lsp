@@ -33,6 +33,7 @@ use crate::frame::VarError;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 use crate::parse;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 
 /// Register the `dict` ensemble.
 pub fn install(interp: &mut Interp) {
@@ -42,7 +43,7 @@ pub fn install(interp: &mut Interp) {
         DICT_SUBS,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Dict,
+        tcl_native_model::EnsembleImplementationFamily::Dict,
         b"dict",
         dict_cmd,
         STOCK_MEMBERS,
@@ -555,7 +556,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// message and `-errorcode` (tclsh: `TCL VALUE NUMBER` for a non-boolean).
 fn dict_filter_bool(
     o: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<bool, tcl_syntax::value::ValueError> {
     crate::typed_value::native_boolean(o, dialect)
 }

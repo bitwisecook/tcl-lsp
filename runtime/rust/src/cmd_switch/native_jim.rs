@@ -56,9 +56,10 @@ impl NativeJimSwitchObjects for Interp {
         value: &*mut TclObj,
         immediate: Immediate,
     ) -> Result<bool, CmdError> {
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            IMMEDIATES,
-        );
+        let table =
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                IMMEDIATES,
+            );
         self.native_jim_compare_immediate(
             *value,
             &table,
@@ -119,7 +120,7 @@ impl NativeJimSwitchObjects for Interp {
 pub(super) fn invoke(
     interp: &mut Interp,
     args: &[*mut TclObj],
-    protocol: tcl_registry::native_jim_switch::NativeJimSwitchProtocol,
+    protocol: tcl_native_model::native_jim_switch::NativeJimSwitchProtocol,
 ) -> Code {
     let selection = match native_jim_switch::select(interp, protocol, args) {
         Ok(selection) => selection,
@@ -136,7 +137,7 @@ pub(super) fn invoke(
         Selection::Body(body) => {
             let frame = interp.unlocated_frame();
             interp.eval_original_body_framed(
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                 body,
                 frame,
             )
@@ -168,7 +169,7 @@ mod tests {
             *state
         });
         if index == 30 {
-            if let Err(error) = obj::native_character_count(root,NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString) {return interp.report_cmd_error(error.into());}
+            if let Err(error) = obj::native_character_count(root,NativeStringProtocol::Jim084,tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString) {return interp.report_cmd_error(error.into());}
         }
         if index == 31 && calls == 1 {
             interp.register_builtin(b"matcher", alternate);
@@ -349,7 +350,7 @@ mod tests {
             let body=obj::Owned::retain(members[1]);let pattern=argv[argv.len()-2];
             state.3.push(format!("BEFORE\t{outcome}\t{}\t{}\t{}\t{}\t{}\t{}",refs(root),kind(body.as_ptr()),refs(body.as_ptr()),kind(pattern),refs(pattern),usize::from(pattern==members[0])));
             state.2=Some(body);
-            obj::native_character_count(root,NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
+            obj::native_character_count(root,NativeStringProtocol::Jim084,tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
             let body=state.2.as_ref().unwrap().as_ptr();
             state.3.push(format!("AFTER_SHIMMER\t{outcome}\t{}\t{}\t{}\t{}\t{}",kind(root),kind(body),refs(body),kind(pattern),refs(pattern)));
             if outcome==1 {interp.set_result_bytes(b"FAILED");return Code::Error;}

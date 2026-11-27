@@ -27,6 +27,7 @@ use super::{
     NativeArraySearchRep, NativeCommandNameRep, NativeFrameLevelRep, TclObj, TclObjType,
 };
 use std::rc::Rc;
+use tcl_registry::frame_effect::FrameLevelDialect;
 
 /// The exact completion-keyword table's index representation.
 /// Its original keyword spelling remains resident after the native conversion.
@@ -189,7 +190,7 @@ pub(crate) fn native_command_name_unresolved_version(
 pub(crate) fn install_native_command_name_cache(
     value: *mut TclObj,
     cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     install_native_command_name_cache_with_stage_check(value, cache, dialect, None)
 }
@@ -198,7 +199,7 @@ pub(crate) fn install_native_command_name_cache(
 pub(crate) fn install_native_command_name_cache_with_stage_check(
     value: *mut TclObj,
     cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     command_name_stage_current(value, stage_check)?;
@@ -236,7 +237,7 @@ pub(crate) fn install_native_command_name_cache_with_stage_check(
 pub(crate) fn prime_native_command_name_cache(
     value: *mut TclObj,
     incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     prime_native_command_name_cache_with_stage_check(value, incoming, dialect, None)
 }
@@ -245,7 +246,7 @@ pub(crate) fn prime_native_command_name_cache(
 pub(crate) fn prime_native_command_name_cache_with_stage_check(
     value: *mut TclObj,
     incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     command_name_stage_current(value, stage_check)?;
@@ -278,7 +279,7 @@ pub(crate) fn prime_native_command_name_cache_with_stage_check(
 #[cfg(test)]
 pub(crate) fn install_unresolved_native_command_name_cache(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     install_unresolved_native_command_name_cache_with_stage_check(value, dialect, None)
 }
@@ -286,7 +287,7 @@ pub(crate) fn install_unresolved_native_command_name_cache(
 /// The same selected cache worker with original-operation stage checks.
 pub(crate) fn install_unresolved_native_command_name_cache_with_stage_check(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     command_name_stage_current(value, stage_check)?;
@@ -331,7 +332,7 @@ pub(crate) fn retire_native_command_name_cache(
 /// Inspect the original frame cache under its authentic actual-engine issuer.
 pub(crate) fn native_frame_level_cache_in(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
     check_native_liveness(value)?;
@@ -356,7 +357,7 @@ pub(crate) fn native_frame_level_cache_in(
 pub(crate) fn install_native_frame_level_cache(
     value: *mut TclObj,
     cache: tcl_registry::NativeFrameLevelCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
     check_native_liveness(value)?;

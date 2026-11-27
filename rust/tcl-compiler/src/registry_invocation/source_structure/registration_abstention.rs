@@ -82,7 +82,7 @@ impl OriginalSourceRegistryContext {
         {
             return None;
         }
-        let dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
         let policy = dialect.authored_name_policy()?;
         if !matches!(
             policy.recipe(),

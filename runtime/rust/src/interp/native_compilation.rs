@@ -81,7 +81,7 @@ const MAX_SELECTION_CORES: usize = 4096;
 /// decided live by each dispatch; `generic` records their verdict.
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct SelectionKey {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     registry: usize,
     spec: NativeCompilationSpec,
     identity: Box<str>,
@@ -413,7 +413,7 @@ impl Interp {
             .borrow_mut()
             .advance_ensemble_export_epoch(token.config().ns);
         use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
-        let Some(count) = tcl_registry::native_ensemble::configuration_compiler_mutations(
+        let Some(count) = tcl_native_model::native_ensemble::configuration_compiler_mutations(
             self.native_invocation_dialect(),
         ) else {
             return;

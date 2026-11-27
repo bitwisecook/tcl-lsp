@@ -205,7 +205,7 @@ mod tests {
         version: TclVersion,
         scope: NativeScalarScope,
     ) -> NativeCompilationSelection {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -251,7 +251,7 @@ mod tests {
         use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         let source = "string map [side mapping] [side string]";
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -288,7 +288,7 @@ mod tests {
     }
 
     fn words(source: &str, version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -305,7 +305,7 @@ mod tests {
         version: TclVersion,
         scope: NativeScalarScope,
     ) -> Option<NativeStringMapInstruction> {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let words = words(source, version);
         let words = NativeCompilerWords::capture(&words, dialect.native_string_protocol().unwrap())
             .unwrap();
@@ -437,7 +437,7 @@ mod tests {
     fn inline_map_visits_only_the_subject() {
         use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
         let words = words("string map {a b} [side]", TclVersion::V9_0);
         let words = NativeCompilerWords::capture(&words, dialect.native_string_protocol().unwrap())
             .unwrap();
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn named_lookup_precedes_the_existing_original_word_effect_visits() {
         let source = "string map {a b c d} [rename x y]";
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),

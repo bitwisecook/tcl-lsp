@@ -418,7 +418,7 @@ impl Vm {
         token: &tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, NameBytes>,
     ) {
         self.advance_native_ensemble_export_epoch(token.config().namespace);
-        if let Some(count) = tcl_registry::native_ensemble::configuration_compiler_mutations(
+        if let Some(count) = tcl_native_model::native_ensemble::configuration_compiler_mutations(
             self.actual_native_invocation_dialect(),
         ) {
             for _ in 0..count {

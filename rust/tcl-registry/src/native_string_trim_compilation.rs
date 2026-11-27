@@ -253,7 +253,8 @@ mod tests {
 
     #[test]
     fn actual_trim_registration_keeps_jim_and_missing_engine_hooks_separate() {
-        use crate::{InvocationDialect, model::ingress::resolve_environment};
+        use crate::model::ingress::resolve_environment;
+        use tcl_native_model::InvocationDialect;
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let environment = resolve_environment(engine);
             let profile = environment.unit_profile();

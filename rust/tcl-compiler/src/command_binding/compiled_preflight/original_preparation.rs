@@ -698,7 +698,7 @@ impl CompilerTraversal<'_> {
             steps,
             &captured,
             policy,
-            tcl_registry::InvocationDialect::of_point(point),
+            tcl_native_model::InvocationDialect::of_point(point),
         )
     }
 
@@ -901,14 +901,14 @@ impl CompilerTraversal<'_> {
             // whose expression policy is that release's own.
             None if !baseline.unknown_entry => baseline
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::execution_point)
+                .and_then(tcl_native_model::InvocationDialect::execution_point)
                 .and_then(|point| {
                     let profile = registry.profile()?;
                     let policy = native_expression_evaluation_policy(profile, point)?;
                     Some(expression_program_emission_for_policy(
                         program,
                         Some(&policy),
-                        tcl_registry::InvocationDialect::of_point(point),
+                        tcl_native_model::InvocationDialect::of_point(point),
                     ))
                 })
                 .unwrap_or(ExpressionProgramEmission::Unavailable),

@@ -151,7 +151,7 @@ fn original_result_requires_its_actual_interpreter_and_native_issuer() {
     assert!(matches!(
         super::recover_original_result(
             &result,
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
             scope,
         ),
         Err(EngineError::ExecutionRefusal(_))
@@ -160,7 +160,7 @@ fn original_result_requires_its_actual_interpreter_and_native_issuer() {
 
 #[test]
 fn native_callback_view_does_not_materialize_original_scalar_storage() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     let original = tcl_vm::Value::from_native_scalar_cache(
         tcl_syntax::scalar_getter::NativeScalarCache::Number(tcl_syntax::number::Number::Double(
             1.5,
@@ -344,7 +344,7 @@ fn variable_consumers_report_trace_host_refusal_without_guest_projection() {
 
 #[test]
 fn checked_dictionary_import_materializes_original_keys_with_the_actual_issuer() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     let protocol = dialect.native_string_protocol().unwrap();
     let key = tcl_vm::Value::from_native_byte_array(Rc::from(&b"\0\xff"[..]), dialect).unwrap();
     let identity = key.native_object_identity();
@@ -367,7 +367,7 @@ fn checked_dictionary_import_materializes_original_keys_with_the_actual_issuer()
 #[test]
 fn native_dictionary_search_fatal_refusal_crosses_the_engine_boundary_outside_guest_handlers() {
     use tcl_syntax::raw_string::NativeFatalCondition;
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     for add in [false, true] {
         for body in [
             "record BEFORE;catch {advance} result;record AFTER;return $result",
@@ -855,7 +855,7 @@ fn a_fresh_native_release_selects_its_issuer_before_compilation() {
         assert_eq!(engine.release(), Some(expected.name));
         assert_eq!(
             engine.vm.native_scalar_carrier_dialect().execution_point(),
-            tcl_registry::InvocationDialect::of_profile(expected).execution_point()
+            tcl_native_model::InvocationDialect::of_profile(expected).execution_point()
         );
     }
     for name in ["no-such-dialect", "", "tcl", "tk", "jim", "f5-irules"] {
@@ -1064,16 +1064,16 @@ fn authored_random_engine() -> TclVmEngine {
     engine.set_release("f5-irules").expect("logical F5 release");
     let vm = engine.vm_mut();
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_expression_parse_provider(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_quote_provider(
-        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_numeric_provider(
         tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
@@ -1084,7 +1084,7 @@ fn authored_random_engine() -> TclVmEngine {
         ),)
     );
     assert!(vm.set_logical_compiled_variable_provider(
-            tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
         ));
     assert!(vm.set_logical_math_function_provider(Some(
         tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
@@ -1383,7 +1383,7 @@ fn each_invocation_gets_its_own_locals() {
 }
 #[test]
 fn byte_bridge_keeps_resident_spelling_and_binary_purity() {
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     for bytes in [b"a\0z".as_slice(), b"a\xC0\x80z", b"a\xFFz"] {
         let value = super::to_vm_value(&Value::string_bytes(bytes), dialect).unwrap();
         assert_eq!(value.string_bytes().as_ref(), bytes);
@@ -1417,7 +1417,7 @@ fn c84_long_carrier_retains_original_descriptor_and_refuses_foreign_release() {
     use tcl_engine_api::{NativeScalarCache, NativeStringStorageIdentity};
     let original = Value::NativeScalar(NativeScalarCache::Tcl84Long(17))
         .with_resident_string_storage(&b"17\0suffix"[..], NativeStringStorageIdentity::Allocated);
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let native = super::to_vm_value(&original, dialect).unwrap();
     assert_eq!(
         native.native_scalar_cache(),
@@ -1433,7 +1433,7 @@ fn c84_long_carrier_retains_original_descriptor_and_refuses_foreign_release() {
         value.as_ref(),
         Value::NativeScalar(NativeScalarCache::Tcl84Long(17))
     ));
-    let foreign = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let foreign = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     assert!(super::to_vm_value(&original, foreign).is_err());
 }
 
@@ -1442,7 +1442,7 @@ fn binary_bridge_seals_actual_constructor_and_validates_recorded_resident_storag
     // Software contract: naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     use tcl_engine_api::NativeStringStorageIdentity;
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let binary = Value::byte_array(b"\xff\0A".as_slice());
     let original = super::to_vm_value(&binary, dialect).unwrap();
     let recipe = original.byte_array_origin().unwrap();
@@ -1490,12 +1490,12 @@ fn binary_bridge_seals_actual_constructor_and_validates_recorded_resident_storag
             Err(EngineError::ExecutionRefusal(_))
         ));
     }
-    let jim = tcl_registry::InvocationDialect::of_profile(
+    let jim = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
     );
     assert!(super::to_vm_value(&binary, jim).is_err());
     let authored =
-        tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
     assert!(super::to_vm_value(&binary, authored).is_err());
 }
 
@@ -1504,7 +1504,7 @@ fn scalar_bridge_retains_full_cache_storage_and_descriptor_origin() {
     use tcl_engine_api::{
         NativeCVersion, NativeIntegerRadix, NativeScalarCache, NativeStringStorageIdentity,
     };
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     let original = Value::NativeScalar(NativeScalarCache::BigInteger {
         negative: false,
         radix: NativeIntegerRadix::Decimal,
@@ -1540,7 +1540,7 @@ fn scalar_bridge_retains_full_cache_storage_and_descriptor_origin() {
     assert!(
         super::to_vm_value(
             &resident,
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
         )
         .is_err()
     );
@@ -1678,7 +1678,7 @@ fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let native =
             tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
                 .unit_profile();
@@ -1736,7 +1736,7 @@ fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
 fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     let options = tcl_vm::Value::native_dictionary_constructor(
         vec![(
             tcl_vm::Value::string("-errorcode"),

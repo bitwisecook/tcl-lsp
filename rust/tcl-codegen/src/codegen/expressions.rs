@@ -83,7 +83,9 @@ impl CodegenCtx<'_> {
             || FoldPolicy::from_registry(self.registry),
             |profile| {
                 FoldPolicy::for_profile(Some(self.numbers.leading_zero_is_octal()), Some(profile))
-                    .with_invocation_dialect(tcl_registry::InvocationDialect::of_profile(profile))
+                    .with_invocation_dialect(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    ))
             },
         );
         let selected = self

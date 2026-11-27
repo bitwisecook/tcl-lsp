@@ -1481,7 +1481,7 @@ mod tests {
                     .find(|line| line.trim_start().starts_with(&format!("{{\"{name}\",")));
                 let descriptor = registry.native_compilation_for_registration(
                     &format!("::tcl::info::{name}"),
-                    crate::InvocationDialect::for_version(version),
+                    tcl_native_model::InvocationDialect::for_version(version),
                 );
                 if version < TclVersion::V9_0 {
                     assert!(row.is_none(), "{version:?}/{name}");
@@ -1539,7 +1539,7 @@ mod tests {
             let spec = registry
                 .native_compilation_for_registration(
                     "::tcl::info::errorstack",
-                    crate::InvocationDialect::for_version(version),
+                    tcl_native_model::InvocationDialect::for_version(version),
                 )
                 .unwrap();
             let crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {

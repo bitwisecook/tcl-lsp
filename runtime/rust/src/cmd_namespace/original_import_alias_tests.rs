@@ -149,7 +149,7 @@ fn import_arguments(interp: &mut Interp, destination: NsId, argv: &[*mut TclObj]
         None,
         false,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             body.as_ptr(),
         )),
         None,

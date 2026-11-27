@@ -69,7 +69,7 @@ pub(crate) fn original_authored_body_name_candidates(
 fn collect(
     body: &NativeWord,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
     depth: u32,
     result: &mut OriginalBodyNameCandidates,

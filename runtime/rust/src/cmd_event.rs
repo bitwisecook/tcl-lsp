@@ -24,6 +24,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tcl_cmd_core::event::EventKind;
+use tcl_registry::native_event::NativeEventDialect;
 use tcl_registry::native_event::{NativeEventProtocol, NativeEventWait};
 use tcl_runtime_api::native_variable_trace::{
     NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
@@ -107,7 +108,7 @@ fn option(
     p: NativeEventProtocol,
     first: *mut TclObj,
 ) -> Result<Option<usize>, ValueError> {
-    let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+    let table = tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
         p.after_options(),
     );
     if p.after_options_exact() {
@@ -115,7 +116,7 @@ fn option(
             .native_jim_enum_from_original(
                 first,
                 &table,
-                tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(true),
                 Some(b"argument"),
             )
             .map(|r| r.ok())
@@ -469,14 +470,14 @@ fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         [] => false,
         [option] if p.after_options_exact() => {
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(&[
-                    "idletasks",
-                ]);
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    &["idletasks"],
+                );
             match interp.native_jim_enum_from_original(
                 *option,
                 &table,
-                tcl_registry::native_jim_enum::NativeJimEnumFlags(
-                    tcl_registry::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags(
+                    tcl_native_model::native_jim_enum::NativeJimEnumFlags::ABBREVIATE,
                 ),
                 None,
             ) {

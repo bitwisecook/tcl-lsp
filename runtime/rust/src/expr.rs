@@ -55,11 +55,11 @@ use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 /// including unvisited lazy branches and original command Source descriptors.
 struct CachedExpr {
     parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
     node: Option<Rc<tcl_syntax::expr::NativeExprNode>>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>>,
     source_origin: Option<Rc<crate::native_source::NativeJimSourceOrigin>>,
 }
@@ -103,7 +103,7 @@ pub(crate) static JIM_EXPR_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
-fn expression_type(dialect: tcl_registry::InvocationDialect) -> &'static TclObjType {
+fn expression_type(dialect: tcl_native_model::InvocationDialect) -> &'static TclObjType {
     if dialect.native_string_protocol()
         == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
     {
@@ -153,9 +153,9 @@ extern "C" fn jim_expr_dup(_original: *mut TclObj, _duplicate: *mut TclObj) {
 /// Original matching expression tree, without treating a rejected tree as absent.
 pub(crate) fn cached_expr(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
 ) -> Option<Rc<tcl_syntax::expr::NativeExprNode>> {
@@ -167,9 +167,9 @@ pub(crate) fn cached_expr(
 
 pub(crate) fn expression_rejected(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
 ) -> bool {
@@ -187,9 +187,9 @@ pub(crate) fn native_jim_expression_objects(
 /// Preserve the reached rejected primary after the original string is resident.
 pub(crate) fn prepare_expr_cache(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
 ) {
@@ -210,9 +210,9 @@ pub(crate) fn prepare_expr_cache(
 /// Cache the C tree; a genuine Jim backing retains its existing original terms.
 pub(crate) fn cache_expr(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
     node: &Rc<tcl_syntax::expr::NativeExprNode>,
@@ -236,9 +236,9 @@ pub(crate) fn cache_expr(
 }
 
 pub(crate) struct JimExpressionInstall<'a> {
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) parser_policy: Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )>,
     pub(crate) node: &'a tcl_syntax::expr::NativeExprNode,
@@ -388,15 +388,15 @@ fn operand_type_err(
     value: &[u8],
     side: OperandSide,
     op: &[u8],
-    dialect: tcl_registry::InvocationDialect,
-    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+    dialect: tcl_native_model::InvocationDialect,
+    stage: tcl_native_model::native_numeric_error::NativeExpressionOperandStage,
 ) -> ExprError {
     let release = dialect
         .native_string_protocol()
         .and_then(|protocol| protocol.tcl_version())
         .or_else(|| {
             dialect.byte_array_string_recipe(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).and_then(|recipe| recipe.protocol().tcl_version())
         });
     let Some(release) = release else {
@@ -429,7 +429,7 @@ fn operand_desc(
     o: *mut TclObj,
     float_operand: bool,
     bytes: &[u8],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> OperandDesc {
     if float_operand {
         return OperandDesc::FloatingPointValue;
@@ -452,7 +452,7 @@ fn operand_desc(
     }
     if dialect
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ))
         .is_some_and(|recipe| {
             tcl_syntax::list::split_native_list_elements(bytes, recipe.protocol())
@@ -484,7 +484,7 @@ fn binop_sym(op: BinOp) -> &'static [u8] {
 
 fn original_operand_bytes(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<Vec<u8>, ExprError> {
     let current = || {
@@ -497,7 +497,7 @@ fn original_operand_bytes(
     current()?;
     let recipe = dialect
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ))
         .ok_or_else(|| {
             ExprError::host_refusal(
@@ -513,11 +513,11 @@ fn selected_unary_error(
     error: ArithError,
     op: UnaryOp,
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> ExprError {
-    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
+    use tcl_native_model::native_numeric_error::NativeExpressionOperandStage as Stage;
     if !matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
         return arith_err(error);
     }
@@ -603,7 +603,7 @@ pub trait ExprCtx {
     fn original_boolean(
         &mut self,
         value: *mut TclObj,
-        purpose: tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose,
+        purpose: tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose,
     ) -> Result<bool, ExprError> {
         let dialect = self.invocation_dialect();
         let host = self.numeric_host();
@@ -644,7 +644,7 @@ pub trait ExprCtx {
                     tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
                 )
             })?;
-        let legacy = matches!(purpose, tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalAndInstruction | tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalOrInstruction);
+        let legacy = matches!(purpose, tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::LogicalAndInstruction | tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::LogicalOrInstruction);
         let left = if legacy {
             Some(self.original_boolean(left, purpose)?)
         } else {
@@ -664,7 +664,7 @@ pub trait ExprCtx {
     fn original_expression_result(
         &mut self,
         value: *mut TclObj,
-        production: tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction,
+        production: tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction,
     ) -> Result<Owned, ExprError> {
         let dialect = self.invocation_dialect();
         let host = self.numeric_host();
@@ -681,7 +681,7 @@ pub trait ExprCtx {
         result.map_err(ExprError::from_cmd_error)
     }
     /// Exact native grammar and arithmetic policy for this evaluation.
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect;
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect;
     /// Independently installed authored F5 operator provider. Native dialects
     /// and contexts without the explicit parser retain no such capability.
     fn f5_string_predicate_provider(
@@ -810,18 +810,18 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
     dispatch_shared_in(
         name,
         args,
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
     )
 }
 
 pub(crate) fn dispatch_shared_in(
     name: &str,
     args: &[Owned],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    struct StandaloneMath(tcl_registry::InvocationDialect);
+    struct StandaloneMath(tcl_native_model::InvocationDialect);
     impl ExprCtx for StandaloneMath {
-        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
             self.0
         }
         fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
@@ -841,7 +841,7 @@ pub(crate) fn dispatch_shared_in(
 
 /// Select math integer conversion independently of the host runtime release.
 pub(crate) fn int_width_for_dialect(
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> tcl_syntax::expr::mathfunc::IntWidth {
     use tcl_syntax::expr::mathfunc::IntWidth;
     dialect
@@ -855,7 +855,7 @@ pub(crate) fn int_width_for_dialect(
 /// result just because the adapter links a bignum backend.
 pub(crate) fn native_math_result(
     value: tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<*mut TclObj, ExprError> {
     use tcl_syntax::expr::mathfunc::NumValue;
     if let NumValue::Big(integer) = &value {
@@ -1089,7 +1089,7 @@ impl ExprOps for TowerOps<'_> {
                 let dialect = self.ctx.invocation_dialect();
                 let truth = self.ctx.original_boolean(
                     value.ptr(),
-                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot,
+                    tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot,
                 )?;
                 native_integer_result(dialect, i64::from(!truth), &[])
             }
@@ -1216,7 +1216,7 @@ impl ExprOps for TowerOps<'_> {
     fn to_bool_for_purpose(
         &mut self,
         value: &Owned,
-        purpose: tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose,
+        purpose: tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose,
     ) -> Result<bool, ExprError> {
         self.ctx.original_boolean(value.ptr(), purpose)
     }
@@ -1253,7 +1253,7 @@ pub fn eval_expr<Text: tcl_syntax::expr::ExprText>(
         safe: false,
     };
     let value = float_result(eval(node, &mut ops)?)?;
-    ops.ctx.original_expression_result(value.as_ptr(), tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
+    ops.ctx.original_expression_result(value.as_ptr(), tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
 }
 
 /// `value`, or the error the release raises for a double it holds that is
@@ -1320,7 +1320,7 @@ pub(crate) fn normalize_compiled_primary84(
 #[cfg(test)]
 fn normalize_compiled_primary84_with_recorded_environment(
     value: Owned,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<Owned, ExprError> {
     let result = if dialect
@@ -1405,10 +1405,10 @@ pub(crate) fn eval_index_expression<Text: tcl_syntax::expr::ExprText>(
 ) -> Result<Owned, ExprError> {
     struct SafeIndex {
         surface: tcl_registry::expr_surface::RuntimeExprSurface,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     }
     impl ExprCtx for SafeIndex {
-        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
             self.dialect
         }
         fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
@@ -1431,7 +1431,7 @@ pub(crate) fn eval_index_expression<Text: tcl_syntax::expr::ExprText>(
         node,
         &mut SafeIndex {
             surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile),
-            dialect: tcl_registry::InvocationDialect::of_profile(profile),
+            dialect: tcl_native_model::InvocationDialect::of_profile(profile),
         },
     )
 }
@@ -1460,13 +1460,13 @@ pub fn eval_mathop(
 /// unchanged instead of replacing it with a word-Boolean primary.
 pub(crate) fn native_jump_boolean84(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<bool, ExprError> {
     crate::typed_value::native_boolean_in(
         value,
         dialect,
-        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+        tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
         environment,
     )
     .map_err(ExprError::from_cmd_error)
@@ -1476,7 +1476,7 @@ pub(crate) fn native_jump_boolean84(
 /// reached right value. Numeric-looking strings follow GET_WIDE_OR_INT;
 /// the result reuses only an actually unshared left header.
 pub(crate) fn native_logical84(
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     left: Owned,
     right: Owned,
     conjunction: bool,
@@ -1521,7 +1521,10 @@ pub(crate) fn native_logical84(
 /// Build an object from a literal token: a number through the shared grammar,
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
-fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
+fn make_literal(
+    text: &str,
+    dialect: tcl_native_model::InvocationDialect,
+) -> Result<Owned, ExprError> {
     use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
     if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
         if let Some(policy) = dialect
@@ -1559,7 +1562,7 @@ fn operand_overflow(mut error: ExprError, operator: &[u8]) -> ExprError {
 }
 
 fn native_integer_result(
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     integer: i64,
     operands: &[*mut TclObj],
 ) -> Result<Owned, ExprError> {
@@ -1590,7 +1593,7 @@ fn native_integer_result(
 
 fn fixed_integer_with_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<Option<i64>, ExprError> {

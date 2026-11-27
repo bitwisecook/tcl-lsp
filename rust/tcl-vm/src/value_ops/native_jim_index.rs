@@ -257,7 +257,7 @@ impl NativeIndexOps for Vm {
         command: tcl_cmd_core::native_option_index::OptionCommand,
     ) -> Result<Option<i64>, CmdError> {
         use crate::expr::{original_numeric_command_ops, with_original_numeric_command};
-        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose as Purpose;
         use tcl_syntax::scalar_getter::NativeScalarGetterValue;
         let purpose = match command {
             tcl_cmd_core::native_option_index::OptionCommand::Search => Purpose::ListSearchStride,
@@ -292,7 +292,7 @@ impl NativeIndexOps for Vm {
         use crate::expr::{original_numeric_command_ops, with_original_numeric_command};
         use tcl_cmd_core::index::{ListNumber, ListNumericKind};
         use tcl_cmd_core::native_option_index::OptionCommand;
-        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose as Purpose;
         use tcl_syntax::scalar_getter::NativeScalarGetterValue;
         let purpose = match (command, kind) {
             (OptionCommand::Search, ListNumericKind::Integer) => Purpose::ListSearchInteger,
@@ -726,7 +726,7 @@ impl NativeIndexOps for Vm {
         let operation = NativeOperationScope::enter(self)?;
         let dialect = self.native_invocation_dialect();
         let provider = Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         );
         let protocol = dialect
             .native_string_materialization(provider)

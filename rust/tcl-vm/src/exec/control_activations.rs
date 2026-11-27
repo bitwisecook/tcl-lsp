@@ -472,7 +472,7 @@ impl Vm {
         match crate::command::original_script_list(
             self,
             body,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
         ) {
             Ok(Some(words)) => {
                 return Err(Box::new(Tick::PushControl {
@@ -712,7 +712,7 @@ impl Vm {
             .expect("expression state present")
             .normalize
         {
-            match crate::expr::normalize_result_for_vm(self, &value, tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
+            match crate::expr::normalize_result_for_vm(self, &value, tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
                 Ok(value) => value.with_native_double_format(self.native_invocation_dialect()),
                 Err(error) => {
                     return Tick::Return(crate::command::completion_from_tcl_error(self, error));

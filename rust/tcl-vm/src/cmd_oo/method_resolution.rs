@@ -26,7 +26,7 @@ use crate::interp::{Vm, err};
 use crate::value::Value;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 use tcl_runtime_api::{Completion, OoId};
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 

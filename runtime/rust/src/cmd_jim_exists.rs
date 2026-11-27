@@ -20,6 +20,7 @@
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::{Code, Command, Interp};
 use crate::obj::TclObj;
+use tcl_registry::commands::tcl::JimExistsDialect;
 use tcl_registry::commands::tcl::NativeJimExistsKind;
 
 pub(crate) fn install(interpreter: &mut Interp) {
@@ -63,7 +64,7 @@ fn exists_original(
             let selected = interpreter.native_jim_enum_from_original(
                 *option,
                 &protocol.table(),
-                tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false),
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(false),
                 None,
             );
             if let Err(error) = arguments.check() {

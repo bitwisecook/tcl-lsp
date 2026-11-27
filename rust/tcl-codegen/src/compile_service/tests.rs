@@ -60,7 +60,7 @@ fn policy_entry(
         compiled_local_layout: None,
         oo_classes: None,
         ensemble_target_objects: None,
-        source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
+        source_string_protocol: tcl_native_model::InvocationDialect::of_profile(profile)
             .native_source_string_protocol(),
         lexer_grammar: None,
         inline_compilation_disabled: false,

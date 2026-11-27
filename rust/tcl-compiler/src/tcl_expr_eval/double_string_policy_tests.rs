@@ -20,7 +20,7 @@ use super::*;
 
 fn selected(version: tcl_dialect::TclVersion) -> FoldPolicy {
     FoldPolicy::default()
-        .with_invocation_dialect(tcl_registry::InvocationDialect::for_version(version))
+        .with_invocation_dialect(tcl_native_model::InvocationDialect::for_version(version))
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn floating_string_folds_require_proved_native_precision() {
         format_tcl_value_with_policy(&value, selected(tcl_dialect::TclVersion::V9_1)),
         Some("0.3333333333333333".to_owned())
     );
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     assert_eq!(

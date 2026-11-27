@@ -23,7 +23,7 @@ use super::{
     NativeLiteralAction, NativeLiteralAllocation, NativeRuntimeLiteral, NativeRuntimeLiteralAction,
     NativeRuntimeLiteralArray, NsId, Operation, ProcDef, Rc, Span, TclObj, ValueError, Weak,
 };
-use tcl_registry::native_compiler_pass::{
+use tcl_native_model::native_compiler_pass::{
     native_compiler_replays, NativeCompilerPassHazard as Hazard,
 };
 use tcl_runtime_api::native_compiler_pass::{
@@ -284,7 +284,7 @@ fn materialize_expression_number(
         return Err(unavailable("native folded-number literal issuer"));
     }
     let original = obj::Owned::fresh(obj::new_string_bytes(b""));
-    let protocol = tcl_registry::InvocationDialect::for_version(version)
+    let protocol = tcl_native_model::InvocationDialect::for_version(version)
         .native_scalar_getter_protocol()
         .ok_or_else(|| unavailable("native folded-number literal producer"))?;
     obj::adopt_native_scalar_cache(

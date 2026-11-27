@@ -221,7 +221,7 @@ fn scripted_stock_root_consumes_actual_publication_before_metadata_after_delete_
                 Code::Ok
             );
             interpreter.install_stock_scripted_binary(
-                tcl_registry::native_binary_value::NativeBinaryScriptedIngress {
+                tcl_native_model::native_binary_value::NativeBinaryScriptedIngress {
                     name: "binary",
                     parameters: "args",
                     body: "return SOFTWARE",

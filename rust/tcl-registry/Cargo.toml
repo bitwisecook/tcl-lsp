@@ -34,6 +34,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 bitflags = "2"
 sha2 = "0.11"

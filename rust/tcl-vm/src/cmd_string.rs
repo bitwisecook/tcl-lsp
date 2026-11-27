@@ -32,7 +32,7 @@ pub(crate) fn register(vm: &mut Vm) {
 fn register_string(vm: &mut Vm) {
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::String)
     else {
         vm.register_stock_builtin("string", cmd_string);
         return;
@@ -63,7 +63,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register_string(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::String)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("string");

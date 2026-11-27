@@ -24,7 +24,7 @@ use super::*;
 fn native_registration_descriptor_queries_remove_one_root_marker() {
     let registry = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for label in [
             "::::set",
             ":::::set",
@@ -65,7 +65,7 @@ fn native_registration_descriptor_queries_remove_one_root_marker() {
 fn native_registration_cache_preserves_every_dialect_and_frozen_generation() {
     let mut registry = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for key in [
             "set",
             "tcl::info::exists",
@@ -87,7 +87,7 @@ fn native_registration_cache_preserves_every_dialect_and_frozen_generation() {
             );
         }
     }
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     let snapshot = registry.snapshot();
     let previous = registry.native_compilation_for_registration("set", dialect);
     assert!(previous.is_some());
@@ -117,7 +117,7 @@ fn private_registration_facts_keep_actual_operand_indices() {
     // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md
 
     let registry = CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
     for (head, args, canonical) in [
         ("::tcl::info::exists", vec!["x"], "info"),
         ("::tcl::string::equal", vec!["a", "b"], "string"),
@@ -154,7 +154,7 @@ fn private_registration_facts_keep_actual_operand_indices() {
         registry
             .native_registration_invocation_facts(
                 crate::InvocationWords::literals("::tcl::info::exists", &["x"]).with_dialect(
-                    crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                    tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
                 )
             )
             .is_none()
@@ -211,7 +211,7 @@ fn private_registration_facts_keep_actual_operand_indices() {
 #[test]
 fn native_registration_intrinsics_are_member_metadata_without_placeholder_arguments() {
     let registry = CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
     assert_eq!(
         registry.native_registration_intrinsic_ids("tcl::string::length", dialect),
         Some(vec![crate::IntrinsicId::StringLength])
@@ -239,7 +239,7 @@ fn original_registration_source_descriptor_retains_parent_and_override_provenanc
     let mut registry = CommandRegistry::build_default();
     let realm = tcl_dialect::model::InvocationRealm::RuleLoader;
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let root = registry
             .native_registration_source_descriptor("::namespace", dialect, realm)
             .unwrap();
@@ -265,7 +265,7 @@ fn original_registration_source_descriptor_retains_parent_and_override_provenanc
                 .is_none()
         );
     }
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let surface = registry
         .get_for_surface("namespace", dialect.authoring_query())
         .unwrap()
@@ -284,7 +284,7 @@ fn original_registration_source_descriptor_retains_parent_and_override_provenanc
         None,
         "an explicit authored helper descriptor cannot borrow its stock parent's pack"
     );
-    let unknown = crate::InvocationDialect {
+    let unknown = tcl_native_model::InvocationDialect {
         native_family: None,
         core_point: None,
         tcl_version: None,
@@ -308,7 +308,7 @@ fn string_repeat_registration_has_its_actual_basic_worker_compiler() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let worker = registry.native_compilation_for_registration("tcl::string::repeat", dialect);
         if version == TclVersion::V8_4 {
             assert!(worker.is_none());
@@ -319,7 +319,7 @@ fn string_repeat_registration_has_its_actual_basic_worker_compiler() {
             );
         }
     }
-    let mut unknown = crate::InvocationDialect::for_version(TclVersion::V9_0);
+    let mut unknown = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
     unknown.native_family = None;
     unknown.core_point = None;
     unknown.tcl_version = None;
@@ -340,7 +340,7 @@ fn native_registration_compilation_keeps_private_member_and_version() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
         );
         let private = registry.native_compilation_for_registration("tcl::info::exists", dialect);
@@ -373,7 +373,7 @@ fn normal_worker_registration_retains_its_independent_compiler_descriptor() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let descriptor = registry
             .native_compilation_for_registration("tcl::namespace::origin", dialect)
             .expect("the original registered worker authors its own compiler hook");
@@ -390,8 +390,8 @@ fn normal_worker_registration_retains_its_independent_compiler_descriptor() {
                 .is_none()
         );
     }
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-    let unknown = crate::InvocationDialect {
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let unknown = tcl_native_model::InvocationDialect {
         native_family: None,
         core_point: None,
         tcl_version: None,
@@ -427,7 +427,7 @@ fn normal_worker_registration_retains_its_independent_compiler_descriptor() {
 fn nested_compiler_registration_retains_each_independent_path_row() {
     let registry = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for (identity, hook) in [
             ("tcl::binary::encode", true),
             ("tcl::binary::decode", true),
@@ -455,7 +455,7 @@ fn nested_compiler_registration_retains_each_independent_path_row() {
         }
     }
     let owner = crate::model::ingress::static_context_for("jim");
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         owner.commands().profile().expect("selected Jim fixture"),
     );
     assert!(
@@ -504,8 +504,9 @@ fn conflicting_private_registration_mappings_retain_uncertainty() {
             ..crate::CommandSpec::DEFAULT
         })));
     }
-    let dialect =
-        crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
+        tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+    );
     assert!(
         registry
             .native_compilation_for_registration("shared_worker", dialect)
@@ -525,9 +526,9 @@ fn a_jim_registration_without_a_compiler_declares_its_hook_absent() {
     // Jim compiles no commands, so the vm's captured entry row must read Absent
     // for `namespace` rather than Unknown, which preflight refuses.
     let registry = CommandRegistry::build_default();
-    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let jim = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     let namespace = registry
         .native_compilation_for_registration("namespace", jim)
         .expect("a Jim registration carries a hook-presence descriptor");

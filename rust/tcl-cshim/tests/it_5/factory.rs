@@ -418,7 +418,7 @@ fn original_string_cache_keeps_unicode_and_allocation_until_reached_conversion()
     };
     let pure = tcl_vm::Value::from_native_string_cache(
         cache,
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
         None,
     )
     .unwrap();

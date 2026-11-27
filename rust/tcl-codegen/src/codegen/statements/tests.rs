@@ -69,7 +69,7 @@ fn sp() -> Span {
 #[test]
 fn native_word_emission_keeps_document_and_counted_value_units_distinct() {
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry = CommandRegistry::build_default();
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let suffix: &[u8] = match version {
@@ -223,7 +223,8 @@ fn native_registered_return_keeps_original_result_and_exception_range_exit() {
             }
             let mut context = CodegenCtx::new(procedure, &[], &registry);
             context.native_entry = Some(&entry);
-            context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+            context.invocation_dialect =
+                Some(tcl_native_model::InvocationDialect::of_profile(profile));
             context.source_string_protocol = entry.source_string_protocol;
             context.native_compilation.frame = if procedure {
                 NativeCompilationFrame::ProcedureCode
@@ -309,7 +310,8 @@ fn native_registered_return_options_keep_private_literals_and_ordered_stack_oper
             .unwrap();
             let mut context = CodegenCtx::new(true, &[], &registry);
             context.native_entry = Some(&entry);
-            context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+            context.invocation_dialect =
+                Some(tcl_native_model::InvocationDialect::of_profile(profile));
             context.source_string_protocol = entry.source_string_protocol;
             context.native_compilation.frame =
                 tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode;
@@ -467,7 +469,7 @@ fn compare_native_namespace_case(
     }
     let mut context = CodegenCtx::new(true, &["ns", "val"], registry);
     context.native_entry = Some(entry);
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(profile));
     context.source_string_protocol = entry.source_string_protocol;
     context.compiled_variable_protocol = entry.compiled_variable_protocol;
     context.emit_native_words(&script.commands[0].words);
@@ -1216,7 +1218,7 @@ fn original_expanded_calls_keep_complete_words_and_lexical_nul_values() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let registry = CommandRegistry::build_default();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let source = r#"opaque {*}"A\u0000B" "TAIL\u0000END""#;
     let image = tcl_lexer::SourceImage::native(source.as_bytes());

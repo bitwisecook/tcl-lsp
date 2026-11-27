@@ -26,7 +26,7 @@ use super::{
 use std::sync::Arc;
 use tcl_core_types::ByteNamespacePath;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_registry::model::{ContextRegistry, ResolvedContext};
 
 #[cfg(debug_assertions)]

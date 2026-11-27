@@ -111,7 +111,7 @@ impl CodegenCtx<'_> {
         let Ok(recipe) = native_expression_instruction(
             &words,
             1,
-            tcl_registry::InvocationDialect::of_point(point),
+            tcl_native_model::InvocationDialect::of_point(point),
         ) else {
             return false;
         };
@@ -746,11 +746,11 @@ impl CodegenCtx<'_> {
                 }
                 let syntax = self.invocation_dialect.and_then(|dialect| {
                     dialect.native_return_options_application(
-                        tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                        tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                     )
                 });
                 let message_index =
-                    if syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message) {
+                    if syntax.is_some_and(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message) {
                         // TclAddLiteralObj keeps the original error message out
                         // of C9.1's global literal registration table.
                         self.literals.register_unshared(&message)
@@ -760,7 +760,7 @@ impl CodegenCtx<'_> {
                 self.push_native_pool_literal(message_index);
                 let protocol = self
                     .invocation_dialect
-                    .and_then(tcl_registry::InvocationDialect::native_string_protocol);
+                    .and_then(tcl_native_model::InvocationDialect::native_string_protocol);
                 if let Some(protocol) = protocol {
                     use tcl_runtime_api::native_return_literal::NativeKnownWordLiteral;
                     let word = |bytes: Vec<u8>| NativeKnownWordLiteral {
@@ -771,7 +771,7 @@ impl CodegenCtx<'_> {
                     // expression the release evaluates directly is compiled
                     // without folding and raises the error as it runs.
                     let direct = self.direct_statement.is_some() || self.in_direct_statement();
-                    let shares_message = syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message);
+                    let shares_message = syntax.is_some_and(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message);
                     // `TclCompileSyntaxError` stores `Tcl_GetReturnOptions(interp,
                     // TCL_ERROR)`: `-code 1 -level 0 -errorcode .. -errorinfo ..
                     // -errorline 1` in 8.5-9.1. 9.1 shares the message object as

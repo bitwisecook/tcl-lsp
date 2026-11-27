@@ -40,6 +40,7 @@ tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 rustc-hash = { workspace = true }

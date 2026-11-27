@@ -175,7 +175,7 @@ fn original_frame_temporary_int_refuses_foreign_protocol_without_host_query_or_c
     let before = original.native_object_snapshot();
     let scope = NativeOperationScope::enter(&mut vm).unwrap();
     let mut checked = CheckedFrameLevel::selected(&mut vm, &original, &scope).unwrap();
-    let foreign = tcl_registry::InvocationDialect::of_profile(
+    let foreign = tcl_native_model::InvocationDialect::of_profile(
         crate::environment::profile_for_dialect("tcl8.4"),
     )
     .native_scalar_getter_protocol()

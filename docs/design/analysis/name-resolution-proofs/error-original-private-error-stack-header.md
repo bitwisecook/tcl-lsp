@@ -54,15 +54,15 @@ No observation of this exact question is retained for this provider.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_error_objects.rs](../../../../rust/tcl-registry/src/native_error_objects.rs), `NativeErrorObjectsProtocol`: Selects independently available C private header storage, separate from public return-options projections.
-- [rust/tcl-registry/src/native_error_objects.rs](../../../../rust/tcl-registry/src/native_error_objects.rs), `native_error_objects::tests::original_private_header_fields_match_five_native_constructor_and_save_windows` (linked): Compares all 38 original availability/primary/count/identity projection rows against the release-selected private header recipe; no native launch is implied.
+- [rust/tcl-native-model/src/native_error_objects.rs](../../../../rust/tcl-native-model/src/native_error_objects.rs), `NativeErrorObjectsProtocol`: Selects independently available C private header storage, separate from public return-options projections.
+- [rust/tcl-native-model/src/native_error_objects.rs](../../../../rust/tcl-native-model/src/native_error_objects.rs), `native_error_objects::tests::original_private_header_fields_match_five_native_constructor_and_save_windows` (linked): Compares all 38 original availability/primary/count/identity projection rows against the release-selected private header recipe; no native launch is implied.
 - [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs), `interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_stack_string_refuses_before_list_backing_and_private_stack_adoption` (linked): Actual private-stack header/episode and original frame survive selected String and checked duplicate/List adoption, with first refusal retained before unused owner cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 - [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs), `interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers` (linked): Actual C84/C85 unsupported stack recipes issue no prepared private owner and perform no Native private-header retirement. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c)
-- [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json)
-- [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv)
+- [rust/tcl-native-model/tests/data/native_error_headers/probe.c](../../../../rust/tcl-native-model/tests/data/native_error_headers/probe.c)
+- [rust/tcl-native-model/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-native-model/tests/data/native_error_headers/manifest.json)
+- [rust/tcl-native-model/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-native-model/tests/data/native_error_headers/observations.tsv)
 - [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs)
 - [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs)

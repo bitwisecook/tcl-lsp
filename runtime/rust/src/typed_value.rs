@@ -75,7 +75,7 @@ pub(crate) fn completion_code_string_bytes(
 /// rendering a failure or forcing a cached object's string representation.
 pub(crate) fn native_scalar_probe(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
 ) -> Result<
     Result<
@@ -88,7 +88,7 @@ pub(crate) fn native_scalar_probe(
 }
 pub(crate) fn native_scalar_probe_with_environment(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<
@@ -105,7 +105,7 @@ pub(crate) fn native_scalar_probe_with_environment(
 /// and cache publication. Neutral utilities explicitly supply no currency.
 pub(crate) fn native_scalar_probe_with_environment_and_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -123,7 +123,7 @@ pub(crate) fn native_scalar_probe_with_environment_and_currency(
 /// frame/storage check at reached callbacks and primary cache adoption.
 pub(crate) fn native_scalar_probe_with_stage_check(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -192,7 +192,7 @@ fn scalar_numeric_environment_using<T>(
 
 fn scalar_probe_using(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -502,7 +502,7 @@ fn scalar_jim_stage_current(
 /// Cache changes apply before completion; unsupported engines refuse before string access.
 pub(crate) fn native_number_probe(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
 ) -> Result<
     Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
@@ -515,7 +515,7 @@ pub(crate) fn native_number_probe(
 /// String effects before refusing later conversion or cache publication.
 pub(crate) fn native_number_probe_with_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<
@@ -529,7 +529,7 @@ pub(crate) fn native_number_probe_with_currency(
 /// before reached String, numeric conversion and primary cache adoption.
 pub(crate) fn native_number_probe_with_stage_check(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
@@ -544,7 +544,7 @@ pub(crate) fn native_number_probe_with_stage_check(
 
 fn native_number_probe_using(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
@@ -608,7 +608,7 @@ fn native_number_probe_using(
 /// Guest publication belongs to the consuming command adapter.
 pub(crate) fn native_scalar_getter(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
     native_scalar_getter_with_environment(value, dialect, kind, None)
@@ -616,7 +616,7 @@ pub(crate) fn native_scalar_getter(
 
 pub(crate) fn native_scalar_getter_with_environment(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
@@ -625,7 +625,7 @@ pub(crate) fn native_scalar_getter_with_environment(
 
 pub(crate) fn native_scalar_getter_with_environment_and_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -637,7 +637,7 @@ pub(crate) fn native_scalar_getter_with_environment_and_currency(
 /// consumer's independent physical frame/storage guard at every stage.
 pub(crate) fn native_scalar_getter_with_stage_check(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -674,7 +674,7 @@ pub(crate) fn native_scalar_getter_with_stage_check(
 /// use the selected checked original getter. Publication is caller-owned.
 pub(crate) fn native_scalar_failure_presentation(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
 ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
@@ -683,7 +683,7 @@ pub(crate) fn native_scalar_failure_presentation(
 
 pub(crate) fn native_scalar_failure_presentation_with_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -697,7 +697,7 @@ pub(crate) fn native_scalar_failure_presentation_with_currency(
 /// physical frame/storage guard through dependent String materialisation.
 pub(crate) fn native_scalar_failure_presentation_with_stage_check(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -710,7 +710,7 @@ pub(crate) fn native_scalar_failure_presentation_with_stage_check(
 
 fn scalar_failure_presentation_using(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
@@ -749,7 +749,7 @@ fn scalar_failure_presentation_using(
 #[cfg(test)]
 pub(crate) fn native_wide_int(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<i64, tcl_syntax::value::ValueError> {
     use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
     match native_scalar_getter(value, dialect, NativeScalarGetterKind::Wide)? {
@@ -761,7 +761,7 @@ pub(crate) fn native_wide_int(
 #[cfg(test)]
 pub(crate) fn native_double(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<f64, tcl_syntax::value::ValueError> {
     use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
     match native_scalar_getter(value, dialect, NativeScalarGetterKind::Double)? {
@@ -772,7 +772,7 @@ pub(crate) fn native_double(
 
 pub(crate) fn native_boolean(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<bool, tcl_syntax::value::ValueError> {
     use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
     match native_scalar_getter(value, dialect, NativeScalarGetterKind::Boolean)? {
@@ -785,11 +785,11 @@ pub(crate) fn native_boolean(
 /// This physical String producer has no Guest parser or completion publisher.
 fn scalar_input_bytes(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Vec<u8>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
     let recipe = dialect
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ))
         .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)?;
     crate::dict::native_object_bytes(value, recipe.protocol()).map_err(|error| {
@@ -803,7 +803,7 @@ fn scalar_input_bytes(
 /// byte boundary. This never changes the retained spelling or parses source.
 pub(crate) fn scalar_number(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     integer_only: bool,
 ) -> Result<Option<tcl_syntax::number::Number>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
     scalar_number_impl(value, dialect, integer_only, || Ok(()))
@@ -814,7 +814,7 @@ pub(crate) fn scalar_number(
 /// Neutral mathematical callers explicitly supply no entered interpreter.
 pub(crate) fn scalar_number_with_currency(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     integer_only: bool,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<Option<tcl_syntax::number::Number>, tcl_runtime_api::NativeExecutionError> {
@@ -828,7 +828,7 @@ pub(crate) fn scalar_number_with_currency(
 // projection and cannot panic when a reached updater refuses execution.
 fn scalar_number_impl<E: From<tcl_syntax::raw_string::NativeValueAccessRefusal>>(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     integer_only: bool,
     current: impl Fn() -> Result<(), E>,
 ) -> Result<Option<tcl_syntax::number::Number>, E> {

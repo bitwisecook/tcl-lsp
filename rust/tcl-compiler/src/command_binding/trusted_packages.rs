@@ -157,7 +157,7 @@ impl TrustedSourceModuleLoader {
         &self,
         path: &str,
         encoding: Option<&str>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> bool {
         dialect.family() == Some(self.required_core_family)
             && self.path == path
@@ -448,7 +448,7 @@ impl ModuleCommandBindings {
         if loader.required_core_family.is_some_and(|family| {
             self.baseline
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::family)
+                .and_then(tcl_native_model::InvocationDialect::family)
                 != Some(family)
         }) {
             return None;
@@ -496,7 +496,7 @@ fn declared_surface_loader(
     let baseline = &state.baseline;
     let family = baseline
         .dialect
-        .and_then(tcl_registry::InvocationDialect::family)
+        .and_then(tcl_native_model::InvocationDialect::family)
         .filter(|family| *family == tcl_dialect::model::Family::Tcl)?;
     if baseline.native_entry.is_some()
         || baseline.unknown_entry
@@ -701,7 +701,7 @@ pub(super) fn trusted_loader_is_selected(
         state
             .baseline
             .dialect
-            .and_then(tcl_registry::InvocationDialect::family)
+            .and_then(tcl_native_model::InvocationDialect::family)
             != Some(family)
     }) {
         return false;

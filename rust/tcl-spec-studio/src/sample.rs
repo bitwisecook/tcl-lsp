@@ -61,10 +61,11 @@ use tcl_compiler::registry_invocation::{
     EffectiveInvocationWord, effective_invocation_word, invocation_word_with_source,
 };
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, SourceSegmentationPurpose};
+use tcl_native_model::InvocationDialect;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::spec::{CommandSpec, SubCommand};
-use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord, InvocationWords};
+use tcl_registry::{InvocationArguments, InvocationWord, InvocationWords};
 use tcl_spectcl::catalogue;
 
 use crate::store::{Origin, Resolution};
@@ -1573,7 +1574,7 @@ impl Resolution<'_> {
         let registry = self.registry();
         let profile = crate::environment::profile_for_dialect(self.builtins().dialect());
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let selected = registry
             .resolve_structured_invocation(
                 tcl_registry::InvocationWords::literals(name, &[]).with_dialect(dialect),

@@ -137,11 +137,11 @@ fn role_texts(
 }
 
 impl Analyser {
-    fn declaration_name_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn declaration_name_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.source_analysis_entry
             .as_ref()
             .and_then(|entry| entry.invocation_dialect)
-            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile))
+            .unwrap_or_else(|| tcl_native_model::InvocationDialect::of_profile(self.profile))
     }
 
     /// Independently selected Logical source advice. The authored declaration

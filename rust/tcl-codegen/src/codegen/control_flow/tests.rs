@@ -110,7 +110,7 @@ fn original_try_handler_argument_emission_keeps_the_child_source_scope() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let registry = CommandRegistry::build_default();
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let source = "try {set parent READY} on error {message options} {\nset result \"A\\u0000B\"\n}";
     let body = r#"set result "A\u0000B""#;

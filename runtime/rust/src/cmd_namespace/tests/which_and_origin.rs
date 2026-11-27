@@ -123,7 +123,7 @@ fn original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_ord
                     None,
                     false,
                     Some((
-                        tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                        tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                         body.as_ptr()
                     )),
                     None

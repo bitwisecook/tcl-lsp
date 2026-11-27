@@ -188,7 +188,7 @@ fn registry_mathop_registration_retains_operator_identity_and_hook_floor() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for spelling in [
             "~", "!", "+", "*", "&", "|", "^", "**", "<<", ">>", "%", "!=", "ne", "in", "ni", "-",
             "/", "<", "<=", ">", ">=", "==", "eq", "lt", "le", "gt", "ge",
@@ -209,7 +209,7 @@ fn registry_mathop_registration_retains_operator_identity_and_hook_floor() {
             );
             assert_eq!(spec.compiler_hook_presence(dialect), Some(true));
             assert_eq!(
-                spec.compiler_hook_presence(crate::InvocationDialect::for_version(
+                spec.compiler_hook_presence(tcl_native_model::InvocationDialect::for_version(
                     TclVersion::V8_4
                 )),
                 Some(false)
@@ -234,7 +234,7 @@ fn shared_mathop_factory_keeps_original_operator_after_command_rename() {
     .remove(0)
     .words;
     let words = NativeCompilerWords::capture(&native, NativeStringProtocol::C(version)).unwrap();
-    let dialect = crate::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let spec = crate::CommandRegistry::build_default()
         .native_compilation_for_registration("::tcl::mathop::+", dialect)
         .unwrap();

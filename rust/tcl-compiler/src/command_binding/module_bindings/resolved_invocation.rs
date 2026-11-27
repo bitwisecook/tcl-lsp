@@ -34,7 +34,7 @@ impl ModuleCommandBindings {
 
     /// Runtime policies supplied by the source execution entry contract.
     #[must_use]
-    pub(crate) fn invocation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(crate) fn invocation_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.baseline.dialect
     }
 }
@@ -70,7 +70,7 @@ impl ResolvedBindingInvocation {
         &self,
         spec: tcl_registry::frame_effect::FrameEffectSpec,
         registry: &CommandRegistry,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> tcl_registry::frame_effect::FrameArgumentResolution {
         if self.exact_argument_count != Some(self.arguments.len()) {
             return tcl_registry::frame_effect::FrameArgumentResolution::Unknown;

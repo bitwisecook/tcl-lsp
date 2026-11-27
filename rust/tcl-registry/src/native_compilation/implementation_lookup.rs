@@ -25,9 +25,9 @@ use super::introspection_grammars::{
 };
 use super::string_grammars::{STRING_EQUAL_IMPLEMENTATION, STRING_LENGTH_IMPLEMENTATION};
 use super::{NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec};
-use crate::InvocationDialect;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 /// Original private command used by an ensemble compiler.
 /// Admission of this slot is an entry-table fact; the descriptor cannot prove

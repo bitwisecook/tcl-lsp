@@ -72,7 +72,7 @@ fn native(source: &str, environment: &str) -> Fixture {
     let (owner, held) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = SourceAnalysisEntry {
         metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         native_entry: Some(Arc::new(held)),
         ..Default::default()
@@ -296,7 +296,7 @@ fn original_source_advice_retains_explicit_authored_simulation_separately() {
     let entry = SourceAnalysisEntry {
         metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
         execution_name_policy: Some(policy),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

@@ -24,6 +24,7 @@ use super::{
 };
 use std::cell::RefCell;
 use std::rc::Rc;
+use tcl_registry::frame_effect::FrameLevelDialect;
 use tcl_syntax::native_string::NativeStringStorageIdentity;
 use tcl_syntax::raw_string::RawString;
 use tcl_syntax::value::ValueError;
@@ -39,7 +40,7 @@ impl Value {
     /// old representation or preserves it until a complete tree is prepared.
     pub(crate) fn expression_source(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         policy: &crate::compiled::NativeCompilerPolicy,
@@ -103,7 +104,7 @@ impl Value {
     }
 
     fn expression_primary(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: Option<tcl_syntax::expr::NativeExprNode>,
@@ -119,7 +120,7 @@ impl Value {
 
     pub(crate) fn reject_expression(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
     ) {
@@ -128,7 +129,7 @@ impl Value {
 
     pub(crate) fn cached_expression(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
     ) -> Option<tcl_syntax::expr::NativeExprNode> {
@@ -159,7 +160,7 @@ impl Value {
 
     pub(crate) fn expression_rejected(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
     ) -> bool {
@@ -218,7 +219,7 @@ impl Value {
 
     fn expression_cache_replacement(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
@@ -238,7 +239,7 @@ impl Value {
 
     pub(crate) fn cache_expression(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
@@ -251,7 +252,7 @@ impl Value {
 
     pub(crate) fn cache_expression_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
@@ -298,7 +299,7 @@ impl Value {
     pub fn install_native_command_name_cache(
         &self,
         cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.install_native_command_name_cache_using(cache, dialect, &mut None)
     }
@@ -306,7 +307,7 @@ impl Value {
     pub(crate) fn install_native_command_name_cache_checked<E: From<ValueError>>(
         &self,
         cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.install_native_command_name_cache_using(cache, dialect, &mut Some(check))
@@ -315,7 +316,7 @@ impl Value {
     fn install_native_command_name_cache_using<E: From<ValueError>>(
         &self,
         cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         if !dialect
@@ -338,7 +339,7 @@ impl Value {
     pub fn prime_native_command_name_cache(
         &self,
         cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         let protocol = dialect.native_command_name_protocol().ok_or(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -364,14 +365,14 @@ impl Value {
     /// Refuses unsupported engines or absent original resident spelling.
     pub fn install_unresolved_native_command_name_cache(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.install_unresolved_native_command_name_cache_using(dialect, &mut None)
     }
 
     pub(crate) fn install_unresolved_native_command_name_cache_checked<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.install_unresolved_native_command_name_cache_using(dialect, &mut Some(check))
@@ -379,7 +380,7 @@ impl Value {
 
     fn install_unresolved_native_command_name_cache_using<E: From<ValueError>>(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         let protocol = dialect.native_command_name_protocol().ok_or(
@@ -424,7 +425,7 @@ impl Value {
     pub(crate) fn install_native_index_cache(
         &self,
         cache: tcl_core_types::NativeIndexCache,
-        protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+        protocol: tcl_native_model::native_index_lookup::NativeIndexLookupProtocol,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.check_native_header()?;
         if self.resident_string_bytes().is_none() {
@@ -485,7 +486,7 @@ impl Value {
     pub fn from_native_index_cache(
         cache: tcl_core_types::NativeIndexCache,
         origin: tcl_dialect::TclVersion,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         if dialect.native_string_protocol()
@@ -897,7 +898,7 @@ impl Value {
     /// Refuses a cache donated by a different native engine release.
     pub fn native_frame_level_cache_in(
         &self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
         let protocol = dialect
@@ -923,7 +924,7 @@ impl Value {
     pub fn install_native_frame_level_cache(
         &self,
         cache: tcl_registry::NativeFrameLevelCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.check_native_header()?;
         let protocol = dialect

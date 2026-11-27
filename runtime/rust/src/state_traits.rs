@@ -27,6 +27,7 @@
 //! `CommandId` that `Commands::dispatch_id` invokes (the resolve-then-invoke
 //! pairing).
 
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_runtime_api::{
     ArrayElementRead, ArrayTarget, CommandId, Commands, Completion, FrameId, Frames, Introspect,
     Namespaces, NsId, ProcInfo, Procs, Traces, VarStore, VarUnsetError,

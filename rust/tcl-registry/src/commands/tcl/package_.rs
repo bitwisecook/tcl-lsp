@@ -853,13 +853,15 @@ mod tests {
             .expect("authored registration");
         for version in tcl_dialect::TclVersion::ALL {
             assert_eq!(
-                native.compiler_hook_presence(crate::InvocationDialect::for_version(version)),
+                native.compiler_hook_presence(tcl_native_model::InvocationDialect::for_version(
+                    version
+                )),
                 Some(false)
             );
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         assert_eq!(
             super::jim_spec()
                 .native_compilation
@@ -874,7 +876,8 @@ mod tests {
     /// 9.1.0 answer it.
     #[test]
     fn vsatisfies_requirement_count_follows_each_release_form() {
-        use crate::{InvocationDialect, InvocationWords};
+        use crate::InvocationWords;
+        use tcl_native_model::InvocationDialect;
         let registry = CommandRegistry::build_default();
         let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (arguments, accepted_on_84) in [
@@ -903,7 +906,8 @@ mod tests {
     fn package_ifneeded_stores_future_script_without_current_callback_effect() {
         // Implementation contract: naming.package.ifneeded-current-effect-contract
         // docs/design/analysis/name-resolution-proofs/package-ifneeded-current-effect-contract.md
-        use crate::{CallbackKinds, InvocationDialect, InvocationWords, WorldStateDomain};
+        use crate::{CallbackKinds, InvocationWords, WorldStateDomain};
+        use tcl_native_model::InvocationDialect;
         let registry = CommandRegistry::build_default();
         for release in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(release);
@@ -951,7 +955,8 @@ mod tests {
     #[test]
     fn package_transition_grammar_is_contextual_and_queries_do_not_mutate() {
         use crate::model::binding::PackageTransition;
-        use crate::{InvocationDialect, InvocationWords, StateTransition, TransitionSubject};
+        use crate::{InvocationWords, StateTransition, TransitionSubject};
+        use tcl_native_model::InvocationDialect;
         let registry = CommandRegistry::build_default();
         for release in tcl_dialect::TclVersion::ALL {
             let require = registry
@@ -1035,9 +1040,8 @@ mod tests {
     fn provide_query_and_vsatisfies_are_closed_read_only_selections() {
         use crate::source_navigation::SourcePackageQuery;
         use crate::world_effect::EffectAccessMode;
-        use crate::{
-            CallbackKinds, InvocationDialect, InvocationWord, InvocationWords, WorldStateDomain,
-        };
+        use crate::{CallbackKinds, InvocationWord, InvocationWords, WorldStateDomain};
+        use tcl_native_model::InvocationDialect;
         let registry = CommandRegistry::build_default();
         for release in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(release);
@@ -1134,7 +1138,7 @@ mod tests {
         // naming.package.ifneeded-native-entry-frame
         // docs/design/analysis/name-resolution-proofs/package-ifneeded-native-entry-frame.md
         // Authored catalogue coverage; this does not execute the native provider.
-        let dialect = crate::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         );
         let registry = CommandRegistry::build_default();
@@ -1230,7 +1234,7 @@ mod single_package_option_layout_tests {
         for release in tcl_dialect::TclVersion::ALL {
             let transitions = require_transitions(
                 InvocationArguments::structured(&words)
-                    .with_dialect(crate::InvocationDialect::for_version(release)),
+                    .with_dialect(tcl_native_model::InvocationDialect::for_version(release)),
             );
             let loads = transitions.facts().iter().any(|fact| {
                 matches!(

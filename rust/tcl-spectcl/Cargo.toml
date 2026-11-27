@@ -32,6 +32,7 @@ tcl-source = { path = "../tcl-source" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-spec-hooks = { path = "../tcl-spec-hooks", optional = true }
 # `tcl_lsp_core::vfs::SourceStore` only: pack discovery and pack reading run
 # over the same closed-file seam the LSP server's workspace scan and package

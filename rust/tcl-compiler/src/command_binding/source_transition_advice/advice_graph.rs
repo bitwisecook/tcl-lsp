@@ -30,11 +30,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 use tcl_lexer::NativeWord;
+use tcl_native_model::InvocationDialect;
 #[cfg(test)]
 use tcl_registry::model::ContextRegistry;
 use tcl_registry::{
-    AliasTargetLookup, CommandBindingTransition, InvocationDialect, StateTransition,
-    TransitionSubject,
+    AliasTargetLookup, CommandBindingTransition, StateTransition, TransitionSubject,
 };
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext, NativeNameProtocol};
 

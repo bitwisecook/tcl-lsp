@@ -97,7 +97,7 @@ fn run_tclsh(
 fn reference_tcl_path_word(sh: &tcl_test_support::Tclsh, path: &Path) -> Option<String> {
     path.is_absolute().then_some(())?;
     let path = path.to_str()?;
-    let dialect = tcl_registry::InvocationDialect::for_version(sh.version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(sh.version);
     let protocol = tcl_syntax::native_string::NativeStringProtocol::for_tcl_version(sh.version);
     (dialect.lexer_grammar.escapes == protocol.escape_syntax()).then_some(())?;
     tcl_syntax::backslash::native_literal_source_word(

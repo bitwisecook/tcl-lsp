@@ -39,7 +39,7 @@ pub fn provider(policy: &ExpressionEvaluationPolicy) -> Option<AuthoredMathFunct
     let selected = policy.authored_functions?;
     let mut expected = crate::native_expression_program::authored_expression_evaluation_policy(
         policy.profile.profile(),
-        crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
         policy.numeric_simulation,
     )?;
     expected.authored_functions = Some(selected);
@@ -132,7 +132,7 @@ mod tests {
     fn installed() -> ExpressionEvaluationPolicy {
         let mut policy = crate::native_expression_program::authored_expression_evaluation_policy(
             tcl_dialect::DialectProfile::irules(),
-            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
             Some(
                 tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
             ),
@@ -143,7 +143,8 @@ mod tests {
     }
 
     fn physical_program() -> crate::native_expression_program::NativeExpressionProgram {
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let image = tcl_lexer::SourceImage::native(b"expr {abs(077)}".as_slice());
         let command = tcl_lexer::native_script_words_in(
             image.clone(),
@@ -179,13 +180,14 @@ mod tests {
         assert_eq!(
             crate::native_expression_program::expression_function_dispatch(
                 Some(&policy),
-                crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
             ),
             None
         );
         assert!(prepare(b"abs(077)", &policy).is_ok());
         let program = physical_program();
-        let physical = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let physical =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         assert_eq!(
             crate::native_expression_program::expression_program_emission_for_policy(
                 &program,

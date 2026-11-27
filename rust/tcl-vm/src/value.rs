@@ -99,7 +99,7 @@ impl DoubleFormatContext {
         }
     }
 
-    pub(crate) fn for_dialect(dialect: tcl_registry::InvocationDialect) -> Option<Self> {
+    pub(crate) fn for_dialect(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         let policy = dialect.double_string_policy()?;
         let key = DoubleEngineKey {
             point: dialect.core_point,
@@ -346,13 +346,13 @@ struct ObjectRepresentations {
 struct ExpressionCache {
     policy: crate::compiled::NativeCompilerPolicy,
     profile: tcl_dialect::DialectProfileKey,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     node: Option<tcl_syntax::expr::NativeExprNode>,
     jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Value>>>,
 }
 
 pub(crate) struct ExpressionSourceInput<'a> {
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) profile: &'a tcl_dialect::DialectProfileKey,
     pub(crate) protocol: tcl_syntax::native_string::NativeStringProtocol,
     pub(crate) policy: &'a crate::compiled::NativeCompilerPolicy,
@@ -360,7 +360,7 @@ pub(crate) struct ExpressionSourceInput<'a> {
 }
 
 pub(crate) struct JimExpressionInstall<'a> {
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) profile: tcl_dialect::DialectProfileKey,
     pub(crate) policy: crate::compiled::NativeCompilerPolicy,
     pub(crate) node: &'a tcl_syntax::expr::NativeExprNode,
@@ -520,10 +520,10 @@ struct ByteArrayRep {
     string_protocol: Cell<Option<tcl_syntax::native_string::NativeStringProtocol>>,
     /// Constructor provenance is independent of the selected getter protocol.
     /// Imported backing and string-to-byte conversions have no constructor receipt.
-    origin: Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe>,
+    origin: Option<tcl_native_model::native_string_materialization::ByteArrayStringRecipe>,
     /// A string conversion cache belongs to the selected conversion protocol.
     /// A real byte-array producer instead carries no conversion dependency.
-    conversion: Option<tcl_registry::native_binary_value::NativeBinaryByteConversion>,
+    conversion: Option<tcl_native_model::native_binary_value::NativeBinaryByteConversion>,
     /// Legacy narrowing can retain a wider original string; that cache is not
     /// a proper Tcl9 byte-array receipt after an explicit profile change.
     proper: bool,
@@ -623,7 +623,7 @@ impl NativeBinaryStorageReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteArrayAccessError {
     /// The selected native proper-byte conversion rejected a Unicode unit.
-    Conversion(tcl_registry::native_binary_value::NativeBinaryByteError),
+    Conversion(tcl_native_model::native_binary_value::NativeBinaryByteError),
     /// A Unicode-only conversion cannot represent the original native bytes.
     Unicode(UnicodeAccessError),
     /// Original storage has no checked native string materialisation recipe.
@@ -824,7 +824,7 @@ impl Value {
     /// Retain native lazy double conversion before any caller requests its string.
     pub(crate) fn with_native_double_format(
         self,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Self {
         if self.0.string.borrow().is_none()
             && matches!(*self.0.intrep.borrow(), IntRep::Double(_))
@@ -835,7 +835,7 @@ impl Value {
         self
     }
 
-    pub(crate) fn native_double(f: f64, dialect: tcl_registry::InvocationDialect) -> Self {
+    pub(crate) fn native_double(f: f64, dialect: tcl_native_model::InvocationDialect) -> Self {
         Self::double(f).with_native_double_format(dialect)
     }
 
@@ -901,7 +901,7 @@ impl Value {
     /// Refuses unavailable native authority or units outside the selected build width.
     pub fn from_native_unicode_units(
         unicode: Rc<[u32]>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         let protocol =
             dialect

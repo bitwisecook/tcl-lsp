@@ -93,7 +93,7 @@ struct ModuleEmit<'a> {
     word_rules: tcl_syntax::word_rules::WordValueRules,
     expr_grammar: Option<tcl_dialect::LexerGrammar>,
     lexer_config: tcl_lexer::LexerConfig,
-    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     compiled_variable_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
     compiled_local_layout: Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
     source_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
@@ -575,7 +575,7 @@ fn module_emission_context<'a>(
             None => ir_module
                 .source_entry
                 .invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::native_source_string_protocol),
+                .and_then(tcl_native_model::InvocationDialect::native_source_string_protocol),
         },
         native_entry: ir_module.source_entry.native_entry.as_deref(),
         command_bindings: command_mutations,

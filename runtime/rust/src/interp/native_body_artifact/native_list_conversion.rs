@@ -94,7 +94,7 @@ impl BodyListArguments {
             &mut |actual, _original| self.check(actual),
             |actual, original| {
                 let protocol = actual.native_invocation_dialect().native_string_materialization(
-                    Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+                    Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
                 ).ok_or_else(|| self.refuse(unavailable("native object list conversion")))?.protocol();
                 if protocol.is_jim084() {
                     let context = actual

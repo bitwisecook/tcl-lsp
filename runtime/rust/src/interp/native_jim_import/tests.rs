@@ -55,7 +55,7 @@ fn entered_import(
     let helper = interpreter
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
         )
         .unwrap();
     let generation = interpreter
@@ -147,7 +147,7 @@ fn empty_rest_needs_the_actual_outer_iterator_completion() {
         assert!(traversal.normal_completion(actual).is_err());
         assert_eq!(
             actual.eval_original_body_framed(
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                 body,
                 frame,
             ),
@@ -163,7 +163,7 @@ fn empty_rest_needs_the_actual_outer_iterator_completion() {
     entered_import(&mut interpreter, &[], |actual, traversal, body, frame| {
         assert_eq!(
             actual.eval_original_body_framed(
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                 body,
                 frame,
             ),
@@ -184,7 +184,7 @@ fn an_unknown_empty_command_result_cannot_admit_an_inventory() {
         |actual, traversal, body, frame| {
             assert_eq!(
                 actual.eval_original_body_framed(
-                    tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                     body,
                     frame,
                 ),
@@ -238,7 +238,7 @@ fn import_case(label: &str) {
     );
     entered_import(&mut actual, &arguments, |actual, traversal, body, frame| {
         let code = actual.eval_original_body_framed(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             body,
             frame,
         );
@@ -363,7 +363,7 @@ fn genuine_import_source_declines_a_repeated_original_alias_prefix() {
         |actual, traversal, body, frame| {
             assert_eq!(
                 actual.eval_original_body_framed(
-                    tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                     body,
                     frame
                 ),
@@ -385,8 +385,8 @@ fn genuine_import_source_declines_a_repeated_original_alias_prefix() {
 #[test]
 fn installed_helper_source_selection_requires_the_actual_body_and_live_definition() {
     for kind in [
-        tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
-        tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
+        tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info,
+        tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Import,
     ] {
         let mut actual = jim();
         let _operation = NativeOperationScope::enter(&actual).unwrap();

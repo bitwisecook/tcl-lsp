@@ -41,7 +41,7 @@ mod measured {
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
-    fn shape(index: usize, dialect: tcl_registry::InvocationDialect) -> obj::Owned {
+    fn shape(index: usize, dialect: tcl_native_model::InvocationDialect) -> obj::Owned {
         let texts: [&[u8]; 10] = [
             b"1",
             b"1.5",
@@ -177,7 +177,7 @@ mod measured {
         ];
         let mut count = 0;
         for (version, fixture) in fixtures {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let protocol = NativeStringProtocol::C(version);
             let mut interpreter = crate::interp::Interp::new();
             interpreter.set_runtime_version(version);
@@ -296,7 +296,7 @@ fn missing_bignum_backend_refuses_before_lossy_numeric_mutation() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let original = obj::Owned::fresh(obj::new_string_bytes(b"184467440737095516160000"));
         for kind in [Kind::Number, Kind::Bignum] {
             assert_eq!(

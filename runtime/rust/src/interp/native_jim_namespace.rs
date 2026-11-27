@@ -538,7 +538,7 @@ impl Interp {
         self.ns_eval_objects_with_purpose(
             name,
             body,
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
         )
     }
 
@@ -547,7 +547,7 @@ impl Interp {
         &mut self,
         name: *mut TclObj,
         body: *mut TclObj,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Code {
         self.ns_eval_objects_with_arguments(name, body, purpose, None)
     }
@@ -558,7 +558,7 @@ impl Interp {
         &mut self,
         name: *mut TclObj,
         body: *mut TclObj,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         original_arguments: Option<&[*mut TclObj]>,
     ) -> Code {
         let body = Owned::retain(body);
@@ -809,7 +809,7 @@ mod tests {
                 None,
                 true,
                 Some((
-                    tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                     body.as_ptr(),
                 )),
                 None,

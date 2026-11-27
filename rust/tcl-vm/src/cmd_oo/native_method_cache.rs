@@ -22,7 +22,7 @@ use super::{
     method_report_bytes, native_method_key_for_target, ok, original_name_operands,
 };
 use std::ops::Deref;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 pub(super) type MethodOwner = Rc<RefCell<Method>>;
 #[derive(Default)]
@@ -151,7 +151,7 @@ pub(super) fn retain_owners(
 }
 
 use std::rc::Weak;
-use tcl_registry::native_tcloo_method_cache::{
+use tcl_native_model::native_tcloo_method_cache::{
     NativeTclOoMethodCacheProtocol, NativeTclOoMethodCacheStamp,
 };
 

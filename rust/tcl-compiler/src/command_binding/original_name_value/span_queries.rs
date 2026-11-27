@@ -245,9 +245,9 @@ impl super::super::SourceCommandBindings {
                     )?
                 } else {
                     let owner = self.original_logical_source_name_advice_input()?;
-                    let policy = tcl_registry::InvocationDialect::of_profile(owner.analyser_profile())
+                    let policy = tcl_native_model::InvocationDialect::of_profile(owner.analyser_profile())
                         .authored_name_policy()?;
-                    if tcl_registry::InvocationDialect::of_profile(owner.unit_profile())
+                    if tcl_native_model::InvocationDialect::of_profile(owner.unit_profile())
                         .authored_name_policy() != Some(policy) { return None; }
                     let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
                         owner, None, policy,

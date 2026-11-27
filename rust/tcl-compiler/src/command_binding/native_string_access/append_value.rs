@@ -83,7 +83,7 @@ impl CapturedAppendValue {
             && state
                 .baseline
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::native_string_protocol)
+                .and_then(tcl_native_model::InvocationDialect::native_string_protocol)
                 == Some(self.protocol)
     }
 
@@ -103,7 +103,7 @@ impl CapturedAppendValue {
             || normal
                 .baseline
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::native_string_protocol)
+                .and_then(tcl_native_model::InvocationDialect::native_string_protocol)
                 != Some(self.protocol)
             || !self.value.is_current(&normal.source_variables)
         {

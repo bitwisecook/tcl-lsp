@@ -993,7 +993,7 @@ fn to_obj(interp: &mut Interp, value: &Value) -> Result<obj::Owned, EngineError>
                 .map(|(key, value)| (key.as_ptr(), value.as_ptr()))
                 .collect();
             let recipe = interp.native_invocation_dialect().native_string_materialization(Some(
-                tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
+                tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
                 .ok_or_else(|| EngineError::ExecutionRefusal("dictionary import updater issuer unavailable".into()))?;
             obj::Owned::fresh(
                 crate::dict::new_dict_obj_native(&pairs, None, recipe.protocol())

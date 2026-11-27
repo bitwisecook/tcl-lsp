@@ -84,7 +84,7 @@ impl Interp {
         if let Some((message, code)) = self
             .native_invocation_dialect()
             .native_eval_object_protocol()
-            .and_then(tcl_registry::native_eval_object::NativeEvalObjectProtocol::deleted_interpreter_error)
+            .and_then(tcl_native_model::native_eval_object::NativeEvalObjectProtocol::deleted_interpreter_error)
         {
             self.error_with_code(message, code);
         } else {
@@ -407,6 +407,7 @@ mod tests {
     use crate::interp::default_host;
     use crate::interp::Command;
     use crate::namespace::GLOBAL;
+    use tcl_registry::special_vars::BootstrapDialect;
 
     fn parent(engine: &str) -> Interp {
         Interp::with_native_core(
@@ -586,9 +587,11 @@ mod tests {
         // presence. The logical-child control checks only embedding behavior.
         let mut logical = Interp::new();
         let logical_profile = logical.dialect_profile();
-        assert!(tcl_registry::InvocationDialect::of_profile(logical_profile)
-            .native_bootstrap_protocol()
-            .is_none());
+        assert!(
+            tcl_native_model::InvocationDialect::of_profile(logical_profile)
+                .native_bootstrap_protocol()
+                .is_none()
+        );
         logical.create_child(Some(b"logical".to_vec()));
         logical
             .with_child(b"logical", |child| {
@@ -604,7 +607,7 @@ mod tests {
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let mut parent = parent(engine);
             let profile = parent.dialect_profile();
-            assert!(tcl_registry::InvocationDialect::of_profile(profile)
+            assert!(tcl_native_model::InvocationDialect::of_profile(profile)
                 .native_bootstrap_protocol()
                 .is_some());
             parent.create_child(Some(b"native".to_vec()));

@@ -508,7 +508,8 @@ mod tests {
     fn structured_roles_keep_unknown_subjects_and_names_after_known_options() {
         use crate::InvocationWord::{Dynamic, Literal};
         let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (arguments, captures) in [
             (vec![Literal("(a)"), Dynamic], vec![]),
             (vec![Literal("(a)"), Dynamic, Dynamic], vec![2]),

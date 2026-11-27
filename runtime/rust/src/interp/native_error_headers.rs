@@ -134,7 +134,7 @@ impl NativeReturnOptions {
     #[cfg(test)]
     pub(super) fn new(
         options: Vec<ReturnOptionPair<obj::Owned>>,
-        recipe: Option<tcl_registry::native_error_objects::NativeErrorObjectsProtocol>,
+        recipe: Option<tcl_native_model::native_error_objects::NativeErrorObjectsProtocol>,
     ) -> Result<Self, ValueError> {
         let Some(recipe) = recipe.filter(|recipe| recipe.has_return_options()) else {
             return Ok(Self {
@@ -182,7 +182,7 @@ impl NativeReturnOptions {
 
     pub(super) fn new_checked(
         options: Vec<ReturnOptionPair<obj::Owned>>,
-        recipe: Option<tcl_registry::native_error_objects::NativeErrorObjectsProtocol>,
+        recipe: Option<tcl_native_model::native_error_objects::NativeErrorObjectsProtocol>,
         check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
         check()?;
@@ -400,7 +400,7 @@ impl NativeErrorStack {
     #[cfg(test)]
     pub(super) fn configure(
         &mut self,
-        recipe: Option<tcl_registry::native_error_objects::NativeErrorObjectsProtocol>,
+        recipe: Option<tcl_native_model::native_error_objects::NativeErrorObjectsProtocol>,
     ) {
         let protocol = recipe
             .filter(|recipe| recipe.has_error_stack())

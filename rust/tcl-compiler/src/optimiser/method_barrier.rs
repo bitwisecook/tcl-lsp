@@ -840,7 +840,7 @@ mod tests {
         let entry = crate::command_binding::SourceAnalysisEntry {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             native_entry: Some(std::sync::Arc::new(native)),
             ..crate::command_binding::SourceAnalysisEntry::default()
@@ -915,7 +915,7 @@ mod tests {
         assert!(captured.command_name_policy().is_none());
         let entry = crate::command_binding::SourceAnalysisEntry {
             native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };

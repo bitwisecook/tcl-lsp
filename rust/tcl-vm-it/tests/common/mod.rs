@@ -50,7 +50,7 @@ pub fn vm_output(source: &str, environment: &str) -> String {
     .expect("matching actual native core before registrations");
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     // Jimsh initializes its compiled extensions before evaluating stdin.
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     if dialect
         .native_name_protocol()
         .is_some_and(tcl_compiler::naming::NativeNameProtocol::is_jim084)

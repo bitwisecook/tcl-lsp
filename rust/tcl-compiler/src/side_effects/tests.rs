@@ -677,7 +677,7 @@ fn namespace_place_storage_scope_requires_the_selected_domain_before_static_repo
             tcl_dialect::TclVersion::V8_4,
         )),
     );
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     let ordinary = crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
@@ -765,7 +765,7 @@ fn native_variable_scope_uses_geometry_and_actual_storage_domain() {
                 tcl_dialect::TclVersion::V8_6,
             )),
         );
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").expect("actual lookup protocol"),
         ));
         if namespace != root {

@@ -530,7 +530,7 @@ fn original_literal_bracing_normality_and_source_reflection_are_independent() {
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
         let generation = tcl_registry::model::ingress::static_context_for(profile);
         let registry = generation.commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         let config = LexerConfig::for_profile(registry.profile());
         let policy =
             crate::tcl_expr_eval::FoldPolicy::for_retained_entry(registry, Some(dialect), &config);

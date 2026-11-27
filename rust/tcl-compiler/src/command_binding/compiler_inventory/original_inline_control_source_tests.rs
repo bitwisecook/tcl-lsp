@@ -40,7 +40,7 @@ fn fixture_with_bindings(source: &str, environment: &str) -> (Fixture, SourceCom
     let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = super::super::SourceAnalysisEntry {
         metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

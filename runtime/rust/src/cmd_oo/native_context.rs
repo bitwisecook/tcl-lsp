@@ -67,7 +67,7 @@ pub(super) fn original_list_members(
     let protocol = interpreter
         .native_invocation_dialect()
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ))
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "native object list conversion",

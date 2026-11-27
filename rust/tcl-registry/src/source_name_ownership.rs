@@ -450,7 +450,7 @@ mod tests {
         use crate::InvocationWord::{Dynamic, KnownBytes, Literal};
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let context = crate::model::ingress::context_for_profile(profile);
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         for (target, expected, opaque) in [
             (Literal("local"), vec!["local"], false),
             (Literal("other"), vec!["other"], false),

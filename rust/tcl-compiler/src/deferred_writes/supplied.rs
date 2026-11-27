@@ -597,7 +597,7 @@ fn selected_values(
             literals.and_then(|literals| {
                 match arguments
                     .dialect()
-                    .and_then(tcl_registry::InvocationDialect::family)
+                    .and_then(tcl_native_model::InvocationDialect::family)
                 {
                     Some(tcl_dialect::model::Family::Jim) => {
                         Some(tcl_syntax::list::concat_values_jim(literals))

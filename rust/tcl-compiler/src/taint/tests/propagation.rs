@@ -125,7 +125,7 @@ fn actual_taint_lattice_keeps_availability_and_refuses_missing_source_owners() {
     let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(native)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

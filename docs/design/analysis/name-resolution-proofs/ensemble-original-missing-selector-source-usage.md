@@ -231,7 +231,7 @@ NsEnsembleImplementationCmdNR(
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs), `NativeEnsembleConfigurationProtocol::missing_selector_usage`: Select the inspected fixed generic C ensemble suffix under the actual release/family; no original invocation, parameter/header or execution identity.
-- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `InvocationDialect::native_info_original_missing_selector_usage`: Select C8.4 option usage separately and delegate C8.5+ fixed suffix to its genuine generic ensemble purpose; Jim keeps its independent presenter.
+- [rust/tcl-native-model/src/native_index_lookup.rs](../../../../rust/tcl-native-model/src/native_index_lookup.rs), `InvocationDialect::native_info_original_missing_selector_usage`: Select C8.4 option usage separately and delegate C8.5+ fixed suffix to its genuine generic ensemble purpose; Jim keeps its independent presenter.
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::ensemble_wrong_args_for_invocation`: Append the selected fixed suffix while retaining original invocation/parameter and rendering owners separately; missing protocol refuses.
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::ensemble_wrong_args`: Consume the same selected suffix with independently retained invocation words, parameter spelling and usage/header protocol; no observed native private object is recreated by this byte recipe.
 - [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs), `native_ensemble::configuration_surface_tests::actual_ensemble_missing_selector_usage_is_selected_independently_of_info` (linked): Pure selected protocol keeps C8.5 argument and C8.6/C9.0/C9.1 arg suffixes equal to their inspected dispatcher recipes; info delegates for those releases. C8.4, Jim, hosted and missing release/family cannot borrow the generic C recipe. This definition is no executed Rust or generic native ensemble result.
@@ -241,5 +241,5 @@ NsEnsembleImplementationCmdNR(
 - [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297)
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs)
 - [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs)
-- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs)
+- [rust/tcl-native-model/src/native_index_lookup.rs](../../../../rust/tcl-native-model/src/native_index_lookup.rs)
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs)

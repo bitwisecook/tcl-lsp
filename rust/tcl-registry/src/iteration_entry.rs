@@ -417,7 +417,7 @@ mod tests {
             let registry = crate::CommandRegistry::build_default();
             let words = [L("x y"), L("a b c"), L("z"), L("1 2 3"), L("")];
             let arguments = InvocationArguments::structured(&words)
-                .with_dialect(crate::InvocationDialect::of_profile(profile));
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
             let selection = registry.resolve_structured_invocation(
                 InvocationWords::from_arguments(L("foreach"), arguments),
                 None,
@@ -453,7 +453,7 @@ mod tests {
             assert!(finite.bindings(3).is_none());
             let words = [L("x"), Dynamic, L("")];
             let unknown = InvocationArguments::structured(&words)
-                .with_dialect(crate::InvocationDialect::of_profile(profile));
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
             assert!(facts.finite_iteration(unknown).is_none());
         }
     }
@@ -463,7 +463,7 @@ mod tests {
         use InvocationWord::{Dynamic, Expanded, Literal as L};
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-            let dialect = crate::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let registry = crate::CommandRegistry::build_default();
             let seed = [L("i"), L("1 2 3"), L("")];
             let arguments = InvocationArguments::structured(&seed).with_dialect(dialect);
@@ -546,7 +546,7 @@ mod tests {
         use InvocationWord::Literal as L;
         let registry = crate::CommandRegistry::build_default();
         let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let words = [L("i"), L("1 2 3"), L("")];
         let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
         let lmap = registry.resolve_structured_invocation(
@@ -627,7 +627,7 @@ mod tests {
         );
         let f5 = crate::model::ingress::resolve_environment("f5-irules").unit_profile();
         let arguments = InvocationArguments::structured(&words)
-            .with_dialect(crate::InvocationDialect::of_profile(f5));
+            .with_dialect(tcl_native_model::InvocationDialect::of_profile(f5));
         let f5 = registry.resolve_structured_invocation(
             InvocationWords::from_arguments(L("foreach"), arguments),
             None,
@@ -671,7 +671,7 @@ mod tests {
         let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
         let words = [L("i"), L("1 2 3"), L("")];
         let arguments = InvocationArguments::structured(&words)
-            .with_dialect(crate::InvocationDialect::of_profile(profile));
+            .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
         let resolution = registry.resolve_structured_invocation(
             InvocationWords::from_arguments(L("test-paired-loop"), arguments),
             None,
@@ -688,7 +688,7 @@ mod tests {
 
     fn entry(environment: &str, command: &str, values: &[InvocationWord<'_>]) -> IterationEntry {
         let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let registry = crate::CommandRegistry::build_default();
         let arguments = InvocationArguments::structured(values).with_dialect(dialect);
         let Some(invocation) = registry

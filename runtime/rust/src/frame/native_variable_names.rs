@@ -562,7 +562,7 @@ mod indexed_receiver_tests {
     fn name_lookup_observes_only_the_selected_existing_compiled_cell() {
         for version in TclVersion::ALL {
             let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
                     .execution_point()
                     .unwrap(),
             )
@@ -643,7 +643,7 @@ mod indexed_receiver_tests {
     #[test]
     fn duplicate_formal_indices_keep_distinct_read_write_unset_and_alias_receivers() {
         let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
-            tcl_registry::InvocationDialect::for_version(TclVersion::V9_0)
+            tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0)
                 .execution_point()
                 .unwrap(),
         )

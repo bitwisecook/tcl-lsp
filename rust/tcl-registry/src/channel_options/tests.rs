@@ -18,7 +18,8 @@
 
 use super::*;
 use crate::literal_validation::{LiteralArgumentValidation, LiteralValidationDecline};
-use crate::{CommandRegistry, InvocationArguments, InvocationDialect, InvocationWord};
+use crate::{CommandRegistry, InvocationArguments, InvocationWord};
+use tcl_native_model::InvocationDialect;
 
 #[test]
 fn channel_configuration_spellings_share_one_option_projection() {

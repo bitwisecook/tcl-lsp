@@ -91,7 +91,7 @@ pub fn compile_native_coroutine(
     words: &NativeCompilerWords<'_>,
     operand_from: usize,
     grammar: NativeCompilationGrammar,
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     context: NativeCompilationContext,
 ) -> Result<NativeCoroutineInstruction, NativeCoroutineCompilationUnavailable> {
     use NativeCoroutineCompilationUnavailable as Unavailable;
@@ -214,7 +214,7 @@ fn append_operands(
 fn append_list(
     steps: &mut Vec<NativeCoroutineStep>,
     operands: &[crate::native_compiler_word_projection::NativeProjectedCompilerWord],
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     command: bool,
 ) {
     use crate::native_instruction_plan::NativeArgumentListStep;
@@ -265,7 +265,7 @@ mod tests {
             &words,
             1,
             grammar,
-            crate::InvocationDialect::for_version(version),
+            tcl_native_model::InvocationDialect::for_version(version),
             NativeCompilationContext {
                 mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame,
@@ -415,7 +415,7 @@ pub struct NativeCoroutineInjectionProtocol(());
 impl NativeCoroutineInjectionProtocol {
     /// Select the measured native callback protocol independently of CPP.
     #[must_use]
-    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+    pub fn select(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         // naming.coroutine.original-injection-public-completions
         // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
         matches!(
@@ -459,8 +459,9 @@ mod injection_tests {
     fn original_injection_chronology_replaces_errors_and_retains_suspend_kind() {
         // Native proof: naming.coroutine.original-injection-order-and-completion
         // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-order-and-completion.md
-        let dialect =
-            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("tcl9.1"));
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
+            crate::native_test_provider::profile("tcl9.1"),
+        );
         let selected = NativeCoroutineInjectionProtocol::select(dialect).unwrap();
         let mut callbacks = vec![("A", 0), ("B", 1)];
         let outcome = selected.run_pending(
@@ -483,9 +484,11 @@ mod injection_tests {
         );
         // naming.coroutine.original-injection-public-completions
         // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
-        let c90 = NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
-            crate::native_test_provider::profile("tcl9.0"),
-        ))
+        let c90 = NativeCoroutineInjectionProtocol::select(
+            tcl_native_model::InvocationDialect::of_profile(crate::native_test_provider::profile(
+                "tcl9.0",
+            )),
+        )
         .unwrap();
         let mut earlier_pending = vec!["A", "B"];
         assert_eq!(
@@ -500,13 +503,15 @@ mod injection_tests {
         assert_eq!(c90.kind(NativeCoroutineResumeArity::Arbitrary), b"yieldto");
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl"] {
             assert!(
-                NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
-                    crate::native_test_provider::profile(profile),
-                ))
+                NativeCoroutineInjectionProtocol::select(
+                    tcl_native_model::InvocationDialect::of_profile(
+                        crate::native_test_provider::profile(profile),
+                    )
+                )
                 .is_none()
             );
         }
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         );
         assert_eq!(
@@ -537,7 +542,7 @@ mod coroutine_name_tests {
             ..NativeCompilationContext::default()
         };
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::for_tcl_version(version),
             );
             let profile = crate::native_test_provider::profile(version.dialect_profile_name());

@@ -231,7 +231,7 @@ impl OriginalCompilationLookupAdvice {
         &self.targets
     }
 
-    pub(crate) const fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) const fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
 
@@ -761,7 +761,7 @@ pub(super) fn original_static_layout_projection(
     namespace: &SourceNamespaceKey,
     head: &tcl_lexer::NativeWord,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     logical_source: bool,
 ) -> Option<SourceInvocationBinding> {
     if let Some(policy) = snapshot

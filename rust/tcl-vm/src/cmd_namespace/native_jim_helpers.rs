@@ -21,6 +21,7 @@
 use super::{Completion, Value, Vm};
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use tcl_cmd_core::CmdError;
+use tcl_registry::native_scripted_distribution::ScriptedHelperDialect;
 use tcl_syntax::value::ValueError;
 
 pub(super) fn dispatch(

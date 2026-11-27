@@ -591,7 +591,7 @@ fn semantic_value_projection_uses_actual_jim_entry_over_c_catalogue() {
                 &input,
             )),
         native_entry: Some(Arc::new(captured)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             ..Default::default()

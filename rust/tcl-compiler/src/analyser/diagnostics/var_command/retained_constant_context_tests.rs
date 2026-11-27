@@ -32,7 +32,7 @@ fn array_constant_harvest_uses_retained_operand_grammar_over_catalogue_profile()
             tcl_registry::model::ingress::static_context_for(environment)
                 .with_command_store(Arc::clone(catalogue.commands())),
         );
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         // The source-authoring entry supplies its explicit dialect below.
         // A Driver entry would require independent Native operand/handler
         // premises and would test a different admission boundary.

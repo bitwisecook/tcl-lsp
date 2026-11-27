@@ -20,7 +20,7 @@ use super::*;
 
 #[test]
 fn selected_literal_list_values_do_not_repeat_source_substitution_checks() {
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let values = [
         "body",
         "trap",
@@ -62,7 +62,8 @@ fn selected_literal_list_values_do_not_repeat_source_substitution_checks() {
 
 #[test]
 fn selected_try_lists_obey_the_supplied_strict_or_lenient_grammar() {
-    let mut dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let mut dialect =
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let words = [
         crate::InvocationWord::Literal("body"),
         crate::InvocationWord::Literal("trap"),

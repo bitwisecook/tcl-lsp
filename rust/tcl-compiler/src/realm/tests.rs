@@ -188,7 +188,7 @@ fn resolved_input_preserves_math_policy_without_catalogue_default() {
         );
         assert_eq!(
             occurrence.name_policy().recipe(),
-            tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .unwrap()
         );
@@ -216,7 +216,7 @@ fn explicit_profile_retains_native_policy_independently_of_lexical_rules() {
                 .invocation_at_source("set", 0)
                 .variable_context
                 .invocation_dialect,
-            Some(tcl_registry::InvocationDialect::of_profile(profile))
+            Some(tcl_native_model::InvocationDialect::of_profile(profile))
         );
     }
     let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
@@ -698,7 +698,7 @@ fn ordinary_native_unknown_local_call_does_not_donate_global_lookup() {
         context.commands(),
         crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_point(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_point(
                 entry
                     .execution_point
                     .expect("captured actual execution point"),

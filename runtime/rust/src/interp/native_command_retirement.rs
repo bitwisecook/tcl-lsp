@@ -36,7 +36,7 @@ use tcl_syntax::{native_namespace_name::NativeNamespaceLifecycle, value::ValueEr
 #[derive(Clone, Copy)]
 pub(super) struct OriginalCommandDeletionRecipe {
     order: tcl_cmd_core::native_command_retirement::NativeCommandRetirementOrder,
-    names: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+    names: tcl_native_model::native_command_literal::NativeCommandNameProtocol,
     namespace_frontier: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
 }
 

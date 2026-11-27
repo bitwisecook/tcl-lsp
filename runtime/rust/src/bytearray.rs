@@ -35,9 +35,9 @@ use crate::obj::{self, TclObj, TclObjType};
 /// The backing allocation for a byte-array internal representation.
 struct TclByteArray {
     bytes: Vec<u8>,
-    conversion: Option<tcl_registry::native_binary_value::NativeBinaryByteConversion>,
+    conversion: Option<tcl_native_model::native_binary_value::NativeBinaryByteConversion>,
     proper: bool,
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
 }
 
 /// C Tcl's built-in `bytearray` object type.
@@ -102,7 +102,7 @@ extern "C" fn byte_array_update_string(value: *mut TclObj) {
 /// Create a fresh byte-array object with an exact raw payload.
 pub(crate) fn new_byte_array(
     bytes: &[u8],
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
 ) -> *mut TclObj {
     let backing = Box::new(TclByteArray {
         bytes: bytes.to_vec(),
@@ -125,7 +125,7 @@ pub(crate) fn native_string_protocol(
 pub(crate) fn set_native_append_bytes(
     value: *mut TclObj,
     bytes: &[u8],
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
 ) {
     set_native_append_bytes_using::<tcl_syntax::value::ValueError>(value, bytes, recipe, None)
         .expect("neutral native append binary backing has no checked stages");
@@ -136,7 +136,7 @@ pub(crate) fn set_native_append_bytes(
 pub(crate) fn set_native_append_bytes_checked<E: From<tcl_syntax::value::ValueError>>(
     value: *mut TclObj,
     bytes: &[u8],
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
     current: &mut dyn FnMut() -> Result<(), E>,
 ) -> Result<(), E> {
     set_native_append_bytes_using(value, bytes, recipe, Some(current))
@@ -145,7 +145,7 @@ pub(crate) fn set_native_append_bytes_checked<E: From<tcl_syntax::value::ValueEr
 fn set_native_append_bytes_using<E: From<tcl_syntax::value::ValueError>>(
     value: *mut TclObj,
     bytes: &[u8],
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
     mut current: Option<&mut dyn FnMut() -> Result<(), E>>,
 ) -> Result<(), E> {
     if let Some(current) = current.as_mut() {
@@ -222,7 +222,7 @@ pub(crate) fn scalar_getter_string(
 /// string representation, which would change the object's purity.
 pub(crate) fn native_string_length(
     value: *mut TclObj,
-    policy: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    policy: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
 ) -> Option<usize> {
     if obj::obj_type_ptr(value) != &TCL_BYTE_ARRAY_TYPE {
         return None;
@@ -248,10 +248,10 @@ pub(crate) fn native_cache_snapshot(value: *mut TclObj) -> Option<(std::rc::Rc<[
 /// A checked failure leaves the original object and its bytes intact.
 pub(crate) fn native_binary_bytes(
     value: *mut TclObj,
-    policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    policy: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
     cache: bool,
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
-) -> Result<Vec<u8>, tcl_registry::native_binary_value::NativeBinaryByteError> {
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
+) -> Result<Vec<u8>, tcl_native_model::native_binary_value::NativeBinaryByteError> {
     native_binary_bytes_using::<tcl_syntax::value::ValueError>(
         value,
         policy,
@@ -268,8 +268,8 @@ pub(crate) fn native_binary_bytes(
 /// once; a guest byte error leaves it unchanged and preserves full Host causes.
 pub(crate) fn native_binary_bytes_checked(
     value: *mut TclObj,
-    policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    policy: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
     current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
     original_string: &mut dyn FnMut() -> Result<Vec<u8>, tcl_cmd_core::CmdError>,
 ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
@@ -286,17 +286,17 @@ pub(crate) fn native_binary_bytes_checked(
 
 fn native_binary_bytes_using<E: From<tcl_syntax::value::ValueError>>(
     value: *mut TclObj,
-    policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    policy: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
     cache: bool,
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
     current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     original_string: &mut dyn FnMut() -> Result<Vec<u8>, E>,
-) -> Result<Result<Vec<u8>, tcl_registry::native_binary_value::NativeBinaryByteError>, E> {
+) -> Result<Result<Vec<u8>, tcl_native_model::native_binary_value::NativeBinaryByteError>, E> {
     if let Some(check) = current.as_deref_mut() {
         check()?;
         obj::check_native_liveness(value)?;
     }
-    use tcl_registry::native_binary_value::NativeBinaryByteConversion;
+    use tcl_native_model::native_binary_value::NativeBinaryByteConversion;
     if policy == NativeBinaryByteConversion::Utf8 {
         return Ok(Ok(original_string()?));
     }
@@ -333,9 +333,10 @@ fn native_binary_bytes_using<E: From<tcl_syntax::value::ValueError>>(
         let backing = Box::new(TclByteArray {
             bytes: bytes.clone(),
             conversion: Some(policy),
-            proper: tcl_registry::native_binary_value::NativeBinaryByteConversion::CheckedLatin1
-                .convert_native(&original, units)
-                .is_ok(),
+            proper:
+                tcl_native_model::native_binary_value::NativeBinaryByteConversion::CheckedLatin1
+                    .convert_native(&original, units)
+                    .is_ok(),
             recipe,
         });
         // SAFETY: native conversion replaces the live representation while
@@ -361,10 +362,10 @@ fn native_binary_bytes_using<E: From<tcl_syntax::value::ValueError>>(
 /// string access can materialise a pure byte array's string representation.
 pub(crate) fn native_decode_input(
     value: *mut TclObj,
-    policy: tcl_registry::native_binary_value::NativeBinaryDecodeSource,
-    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
-) -> tcl_registry::native_binary_value::NativeBinaryDecodeInput {
-    use tcl_registry::native_binary_value::{
+    policy: tcl_native_model::native_binary_value::NativeBinaryDecodeSource,
+    recipe: tcl_native_model::native_string_materialization::ByteArrayStringRecipe,
+) -> tcl_native_model::native_binary_value::NativeBinaryDecodeInput {
+    use tcl_native_model::native_binary_value::{
         NativeBinaryByteConversion, NativeBinaryDecodeInput, NativeBinaryDecodeSource,
     };
     if obj::obj_type_ptr(value) == &TCL_BYTE_ARRAY_TYPE
@@ -429,9 +430,10 @@ mod tests {
     #[test]
     fn byte_array_keeps_raw_payload_while_generating_a_unicode_string_rep() {
         counters::reset();
-        let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
-            .byte_array_string_recipe(None)
-            .unwrap();
+        let recipe =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .byte_array_string_recipe(None)
+                .unwrap();
         let obj = new_byte_array(&[b'A', 0xFF, b'B'], recipe);
         assert_eq!(
             binary_bytes(obj, ByteStringEncoding::CheckedLatin1),
@@ -457,7 +459,7 @@ mod tests {
     fn byte_array_updater_retains_engine_recipe_and_actual_empty_storage_identity() {
         use tcl_syntax::value::ValueOps;
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let recipe = dialect.byte_array_string_recipe(None).unwrap();
             let value = obj::Owned::fresh(new_byte_array(&[0, 0x80, 0xff], recipe));
             assert!(!obj::has_string_rep(value.as_ptr()));
@@ -501,9 +503,10 @@ mod tests {
 
     #[test]
     fn resident_byte_array_string_bytes_are_never_regenerated() {
-        let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
-            .byte_array_string_recipe(None)
-            .unwrap();
+        let recipe =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .byte_array_string_recipe(None)
+                .unwrap();
         let value = obj::Owned::fresh(new_byte_array(b"different", recipe));
         let resident = b"A\0\xc0\x80\xff";
         unsafe {
@@ -613,7 +616,8 @@ mod native_append_route_controls {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Genuine software free callback distinguishes neutral and checked
         // adoption. This grants no native C/Jim callback chronology.
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let recipe = dialect.byte_array_string_recipe(None).unwrap();
         FREES.with(|count| count.set(0));
         let neutral = obj::Owned::fresh(obj::alloc_typed(&ORIGINAL, 6));

@@ -476,7 +476,7 @@ fn append_expression_visits(
 
 fn expression_compiler_names_preserved(
     program: &tcl_registry::native_expression_program::NativeExpressionProgram,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     state: &ModuleCommandBindings,
 ) -> bool {
     // naming.expression.compiler-function-name-literals
@@ -505,7 +505,7 @@ mod tests {
         NativeExpressionProgram, prepare_native_expression_program,
     };
 
-    fn words(source: &str, dialect: tcl_registry::InvocationDialect) -> Vec<NativeWord> {
+    fn words(source: &str, dialect: tcl_native_model::InvocationDialect) -> Vec<NativeWord> {
         let image = SourceImage::native(source.as_bytes());
         tcl_lexer::native_script_words_in(
             image.clone(),
@@ -518,7 +518,7 @@ mod tests {
         .words
     }
 
-    fn state(source: &str, dialect: tcl_registry::InvocationDialect) -> ModuleCommandBindings {
+    fn state(source: &str, dialect: tcl_native_model::InvocationDialect) -> ModuleCommandBindings {
         SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
@@ -536,7 +536,7 @@ mod tests {
 
     fn program(
         words: &[NativeWord],
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> NativeExpressionProgram {
         let captured =
             NativeCompilerWords::capture(words, dialect.native_source_string_protocol().unwrap())
@@ -553,7 +553,8 @@ mod tests {
     fn function_name_registration_requires_original_pool_and_quiet_lookup() {
         // naming.expression.compiler-function-name-literals
         // docs/design/analysis/name-resolution-proofs/expression-compiler-function-name-literals.md
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let source = words("expr {Pi()}", dialect);
         let program = program(&source, dialect);
         let ordinary = state("set checkpoint READY", dialect);
@@ -586,7 +587,8 @@ mod tests {
     fn function_argument_compilation_keeps_original_nested_script_visits() {
         // naming.expression.compiler-function-name-literals
         // docs/design/analysis/name-resolution-proofs/expression-compiler-function-name-literals.md
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
         let original = words("expr {missing([set checkpoint READY])}", dialect);
         let captured = NativeCompilerWords::capture(
             &original,
@@ -662,7 +664,8 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/source-original-compiler-descendant-proof-reuse.md
         // Source-contract control: exact visits can be reused; they do not issue
         // a native execution, source-frame or compiler-admission receipt.
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let depth = 128;
         let source = format!(
@@ -739,7 +742,8 @@ mod tests {
         // naming.source.original-compiler-descendant-proof-reuse
         // docs/design/analysis/name-resolution-proofs/source-original-compiler-descendant-proof-reuse.md
         // Source-contract controls; memo population supplies no execution facts.
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let original = words("if 1 {$unknown}", dialect);
         let origin = Arc::new(super::super::SourceOriginId::authored_image(
@@ -843,7 +847,8 @@ mod tests {
         // naming.source.original-compiler-descendant-proof-reuse
         // docs/design/analysis/name-resolution-proofs/source-original-compiler-descendant-proof-reuse.md
         // A preservation memo is derived source planning, not an entry receipt.
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let original = words("if 1 {expr {Pi()}}", dialect);
         let origin = Arc::new(super::super::SourceOriginId::authored_image(

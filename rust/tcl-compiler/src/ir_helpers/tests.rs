@@ -774,7 +774,7 @@ fn native_original_scalar_effects_keep_complete_names_and_refuse_changed_words()
     let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(native)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

@@ -22,9 +22,9 @@ use super::{
     Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
     SourceNativeInvocation, SourceOutcomes, opaque_source_invocation,
 };
+use tcl_native_model::source_file::SourceFileSelection;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
-use tcl_registry::source_file::SourceFileSelection;
 
 impl SourceCommandBindings {
     /// Evaluate a trusted module's whole script at the global level under its
@@ -223,7 +223,7 @@ mod tests {
             &registry,
             SourceAnalysisOptions {
                 trusted_source_modules: files,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()

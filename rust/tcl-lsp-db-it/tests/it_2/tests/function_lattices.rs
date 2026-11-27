@@ -262,7 +262,7 @@ fn function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign
             tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
                 Some(input),
             ),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

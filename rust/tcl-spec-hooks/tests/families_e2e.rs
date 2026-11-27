@@ -726,7 +726,7 @@ on_both_engines! {
         ];
         // A namespace variable's local name is the tail under the dialect's
         // naming policy, so the call names its dialect.
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let transitions = resolver(InvocationArguments::structured(&words).with_dialect(dialect));
         let facts: Vec<&StateTransition> = transitions
             .facts()

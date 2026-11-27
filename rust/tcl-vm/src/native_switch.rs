@@ -39,7 +39,7 @@ impl NativeCompiledSwitchObjects for Vm {
         value.check_native_header()?;
         value
             .as_native_byte_array(
-                tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+                tcl_native_model::native_binary_value::NativeBinaryByteConversion::Narrow(
                     version.string_character_model(),
                 ),
                 protocol,

@@ -806,7 +806,7 @@ impl Lowerer<'_> {
 
         let arity = self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::catch_positional_arity);
+            .and_then(tcl_registry::catch_invocation::catch_positional_arity);
         if arity
             .is_none_or(|arity| !u16::try_from(args.len()).is_ok_and(|count| arity.accepts(count)))
         {

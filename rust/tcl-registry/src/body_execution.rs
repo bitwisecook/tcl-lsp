@@ -888,7 +888,7 @@ impl BodyExecutionSpec {
     #[must_use]
     pub fn deferred_entry_frame(
         self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<DeferredBodyFrame> {
         use tcl_dialect::model::{Family, Release};
         let family = match self {
@@ -952,18 +952,21 @@ mod tests {
             BodyExecutionSpec::DeferredGlobalScriptForFamily(tcl_dialect::model::Family::Tcl);
         for version in tcl_dialect::TclVersion::ALL {
             assert_eq!(
-                descriptor.deferred_entry_frame(crate::InvocationDialect::for_version(version)),
+                descriptor.deferred_entry_frame(tcl_native_model::InvocationDialect::for_version(
+                    version
+                )),
                 Some(DeferredBodyFrame::Global)
             );
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         assert_eq!(descriptor.deferred_entry_frame(jim), None);
         for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
             assert_eq!(
-                descriptor.deferred_entry_frame(crate::InvocationDialect::of_profile(profile)),
+                descriptor
+                    .deferred_entry_frame(tcl_native_model::InvocationDialect::of_profile(profile)),
                 None,
                 "{dialect}"
             );
@@ -1000,24 +1003,26 @@ mod tests {
                 Release::TCL_9_1,
                 Release::JIM_0_84,
             ] {
-                let dialect = crate::InvocationDialect::of_point(DialectPoint::canonical(release));
+                let dialect =
+                    tcl_native_model::InvocationDialect::of_point(DialectPoint::canonical(release));
                 assert_eq!(
                     descriptor.deferred_entry_frame(dialect),
                     Some(DeferredBodyFrame::Global)
                 );
             }
-            let host = crate::InvocationDialect::of_profile(
+            let host = tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("f5-irules").expect("host profile"),
             );
             assert_eq!(descriptor.deferred_entry_frame(host), None);
-            let unknown = crate::InvocationDialect {
+            let unknown = tcl_native_model::InvocationDialect {
                 native_family: None,
                 core_point: None,
                 tcl_version: None,
                 ..host
             };
             assert_eq!(descriptor.deferred_entry_frame(unknown), None);
-            let mut conflict = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+            let mut conflict =
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
             conflict.core_point = Some(DialectPoint::canonical(Release::TCL_9_1));
             assert_eq!(descriptor.deferred_entry_frame(conflict), None);
         }

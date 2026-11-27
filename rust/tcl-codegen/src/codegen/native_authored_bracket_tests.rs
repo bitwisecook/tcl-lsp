@@ -43,7 +43,7 @@ fn emit_bracket_word<'a>(
     registry: &'a tcl_registry::CommandRegistry,
     entry: &'a tcl_runtime_api::NativeCompilationEntry,
 ) -> CodegenCtx<'a> {
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(SOURCE),
         tcl_lexer::Span::new(0, u32::try_from(SOURCE.len()).unwrap()),
@@ -129,16 +129,16 @@ fn authored_vm() -> tcl_vm::Vm {
     ));
     assert!(vm.set_native_engine_profile(host));
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_expression_parse_provider(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_quote_provider(
-        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
     ));
     assert!(vm.set_logical_numeric_provider(
         tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
@@ -149,10 +149,10 @@ fn authored_vm() -> tcl_vm::Vm {
         ))
     );
     assert!(vm.set_logical_compiled_variable_provider(
-        tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation
+        tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_file_provider(Some(
-        tcl_registry::source_file::LogicalSourceFileProvider::Tcl84CoreSimulation,
+        tcl_native_model::source_file::LogicalSourceFileProvider::Tcl84CoreSimulation,
     )));
     assert!(vm.set_logical_math_function_provider(Some(
         tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,

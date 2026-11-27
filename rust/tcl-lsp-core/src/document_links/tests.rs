@@ -197,7 +197,7 @@ fn original_namespace_source_links_use_typed_jim_local_scope_without_export() {
     let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
     let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
     assert_eq!(
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .unwrap()
             .recipe(),

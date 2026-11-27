@@ -24,8 +24,9 @@ use super::{
     NativeCompilationGuard, NativeCompilationSelection, NativeCompilationWordShape,
     NativeNamedInvocationProtocol, literal_shape, static_value_shape,
 };
-use crate::{InvocationDialect, InvocationWords, SemanticOperationId};
+use crate::{InvocationWords, SemanticOperationId};
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 pub(super) fn literal_unset_grammar(
     shapes: &[NativeCompilationWordShape],
@@ -101,7 +102,7 @@ pub(super) fn array_compilation_grammar_for(
     let arguments = words.arguments().slice_from(from);
     if command == NativeArrayCommand::Set {
         let values = arguments.literal_at(1).and_then(|value| {
-            crate::InvocationDialect::for_version(version)
+            tcl_native_model::InvocationDialect::for_version(version)
                 .read_list(value)
                 .ok()
         });

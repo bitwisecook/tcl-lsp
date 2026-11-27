@@ -665,16 +665,16 @@ fn walk_clause_scripts(
 
 fn source_substitution_dialect(
     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
-) -> Option<tcl_registry::InvocationDialect> {
+) -> Option<tcl_native_model::InvocationDialect> {
     metadata
         .source_analysis_input()
-        .map(|input| tcl_registry::InvocationDialect::of_profile(input.unit_profile()))
+        .map(|input| tcl_native_model::InvocationDialect::of_profile(input.unit_profile()))
         .or_else(|| {
             metadata
                 .context()
                 .environment
                 .point()
-                .map(tcl_registry::InvocationDialect::of_point)
+                .map(tcl_native_model::InvocationDialect::of_point)
         })
 }
 

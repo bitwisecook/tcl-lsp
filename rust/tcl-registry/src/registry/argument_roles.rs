@@ -352,7 +352,7 @@ impl CommandRegistry {
         let arguments = words.arguments();
         let query = arguments
             .dialect()
-            .and_then(crate::InvocationDialect::authoring_query);
+            .and_then(tcl_native_model::InvocationDialect::authoring_query);
         let spec = self.get_for_surface(words.head_literal()?, query)?;
         let find = |types: &'static [(u8, crate::hooks::ArgTypeHint)], index| {
             let index = u8::try_from(index).ok()?;
@@ -476,7 +476,7 @@ impl CommandRegistry {
         // package's own statements (`iapp::conf`, a `SpecTcl` block).
         let query = args
             .dialect()
-            .and_then(crate::InvocationDialect::authoring_query)
+            .and_then(tcl_native_model::InvocationDialect::authoring_query)
             .or(dialect);
         let args = args.with_profile(self.profile());
         let words = InvocationWords::from_arguments(InvocationWord::Literal(name), args);
@@ -970,7 +970,7 @@ impl CommandRegistry {
         }
         let query = args
             .dialect()
-            .and_then(crate::InvocationDialect::authoring_query)
+            .and_then(tcl_native_model::InvocationDialect::authoring_query)
             .or_else(|| self.own_surface_query());
         let resolution = self.resolve_structured_invocation(
             InvocationWords::from_arguments(InvocationWord::Literal(name), args),

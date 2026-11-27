@@ -21,6 +21,7 @@
 use super::super::Vm;
 use crate::value::Value;
 use crate::vars::{VarState as Local, VarTable};
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, FrameId,
     VarStore, VarUnsetError,

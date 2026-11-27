@@ -29,6 +29,8 @@ use crate::dict;
 use crate::frame::VarError;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
+use tcl_registry::special_vars::ErrorVariableDialect;
+use tcl_registry::JimTryDialect;
 use tcl_runtime_api::completion_options::{self, ErrorOptions, OptionValue};
 
 /// Register `catch`, `error`, `try`, and `throw`.
@@ -107,7 +109,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let synopsis: &[u8] = if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
             b"catch ?-?no?code ... --? script ?resultVarName? ?optionVarName?".as_slice()
         } else if dialect.completion_options_policy()
-            == Some(tcl_registry::CompletionOptionsPolicy::Legacy)
+            == Some(tcl_native_model::CompletionOptionsPolicy::Legacy)
         {
             b"catch command ?varName?"
         } else {
@@ -609,7 +611,7 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let suffix = protocol.synopsis().split_once(' ').unwrap().1;
         return interp.wrong_args_for_invocation(argv, suffix.as_bytes());
     }
-    if protocol == tcl_registry::invocation_words::NativeErrorArguments::JimStackTrace {
+    if protocol == tcl_native_model::NativeErrorArguments::JimStackTrace {
         interp.set_result(argv[1]);
         if let Err(first) = interp.check_entered_native_operation() {
             return interp.refuse_native_execution(first);

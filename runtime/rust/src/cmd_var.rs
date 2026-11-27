@@ -422,7 +422,7 @@ fn variable_entered(
 /// links to that namespace var regardless of level.
 fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = interp.native_invocation_dialect().native_namespace_upvar_protocol()
-        .and_then(tcl_registry::native_namespace_upvar::NativeNamespaceUpvarProtocol::forwarded_wrong_arguments_usage)
+        .and_then(tcl_native_model::native_namespace_upvar::NativeNamespaceUpvarProtocol::forwarded_wrong_arguments_usage)
         .unwrap_or(b"upvar ?level? otherVar localVar ?otherVar localVar ...?");
     if argv.len() < 3 {
         return interp.wrong_args(usage);

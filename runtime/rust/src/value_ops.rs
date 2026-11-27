@@ -358,7 +358,7 @@ impl IncrementContext {
     fn scalar(
         &self,
         value: *mut TclObj,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
     ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_cmd_core::CmdError> {
         self.check()?;
@@ -423,7 +423,7 @@ impl IncrementContext {
         &self,
         value: *mut TclObj,
         cache: tcl_syntax::scalar_getter::NativeScalarCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.check()?;
         let protocol = dialect
@@ -447,7 +447,7 @@ impl IncrementContext {
 /// Selected modern C integer update operations on original physical objects.
 pub(crate) struct RuntimeIncrementObjects {
     cached_sum: Option<(i64, i64)>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     context: IncrementContext,
 }
 
@@ -604,7 +604,7 @@ impl Interp {
             return Ok(Rc::from(bytes));
         }
         let recipe = self.native_invocation_dialect().native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(ValueError::CommandProtocolUnavailable("native string materialization"))?;
         let host = self.host();
         // Only C8.4's integer updater reaches the host formatter.
@@ -652,7 +652,7 @@ fn value_error(v: *mut TclObj, error: &crate::typed_value::TypedError) -> ValueE
 /// Parse an integer at the native value boundary with the selected grammar.
 fn integer_operand(
     value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Number, ValueError> {
     match crate::typed_value::scalar_number(value, dialect, true)? {
         Some(integer @ (Number::Int(_) | Number::Big { .. })) => Ok(integer),

@@ -103,7 +103,7 @@ fn inline_sanitiser_mitigation_requires_its_retained_implementation() {
             crate::environment_ingress::captured_native_entry_with_owner(profile);
         let entry = crate::command_binding::SourceAnalysisEntry {
             native_entry: Some(std::sync::Arc::new(native)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };
@@ -247,7 +247,7 @@ fn standalone_list_wrapper_uses_original_grouped_head_values_and_exact_extent() 
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let dialect = registry
         .profile()
-        .map(tcl_registry::InvocationDialect::of_profile);
+        .map(tcl_native_model::InvocationDialect::of_profile);
     for original in [
         "[list puts $value]",
         "[list {puts} $value]",

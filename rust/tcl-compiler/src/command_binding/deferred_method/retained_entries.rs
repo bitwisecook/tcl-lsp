@@ -78,7 +78,7 @@ pub(super) fn select_bounded_method_definition(
             state
                 .baseline
                 .dialect
-                .and_then(tcl_registry::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
                 .map(|query| query.with_realm(context.realm())),
         )
         .and_then(|spec| spec.definition_body)?;
@@ -110,7 +110,7 @@ pub(super) fn select_bounded_method_definition(
     let parameters = state
         .baseline
         .dialect
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)?;
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)?;
     Some(BoundedMethodDefinition {
         grammar,
         original_factory,
@@ -124,7 +124,7 @@ pub(super) fn retained_class_entries(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> RetainedClassEntries {
@@ -168,7 +168,7 @@ fn retained_instance_variables(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
 ) -> Option<Arc<super::super::receiver_variable_inventory::OriginalReceiverVariableInventory>> {
@@ -214,7 +214,7 @@ fn retained_method_entries(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> Arc<SourceReceiverMethodEntries> {
@@ -262,7 +262,7 @@ pub(super) fn apply_declared_visibility(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &tcl_source::segment::SegmentedCommand,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     context: SourceExecutionContext<'_>,
     entries: &mut SourceReceiverMethodEntries,
 ) {
@@ -317,7 +317,7 @@ pub(in super::super) fn retained_method_entry(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &tcl_source::segment::SegmentedCommand,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     source: MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> Option<SourceReceiverMethodEntry> {
@@ -331,7 +331,7 @@ pub(in super::super) fn retained_method_entry(
         .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
         .collect::<Option<Vec<_>>>()?;
     let query = dialect
-        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .and_then(tcl_native_model::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm()));
     let layout = grammar.receiver_method_layout_bytes(head.as_bytes(), &arguments, query)?;
     let receiver = match layout.receiver {
@@ -402,7 +402,7 @@ fn retained_lifecycle_entries(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     parameters: tcl_dialect::ParameterGrammar,
     context: SourceExecutionContext<'_>,
 ) -> Option<RetainedLifecycleEntries> {
@@ -485,7 +485,7 @@ fn closed_instance_methods(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
 ) -> Option<Arc<super::super::BTreeSet<NameBytes>>> {
@@ -523,7 +523,7 @@ fn closed_instance_methods(
             || grammar.native_classmethod_declaration(
                 member,
                 dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .and_then(tcl_native_model::InvocationDialect::authoring_query)
                     .map(|query| query.with_realm(context.realm())),
             )
         {
@@ -568,7 +568,7 @@ pub(super) fn deferred_method_body(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &tcl_source::segment::SegmentedCommand,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     parameters: tcl_dialect::ParameterGrammar,
     context: SourceExecutionContext<'_>,
 ) -> Option<DeferredSourceBody> {
@@ -582,7 +582,7 @@ pub(super) fn deferred_method_body(
         .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
         .collect::<Option<Vec<_>>>();
     let query = dialect
-        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .and_then(tcl_native_model::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm()));
     let layout = arguments.as_ref().and_then(|arguments| {
         grammar.receiver_method_layout_bytes(head.as_bytes(), arguments, query)

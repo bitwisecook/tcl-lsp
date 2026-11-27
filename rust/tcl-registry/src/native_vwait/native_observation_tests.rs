@@ -21,6 +21,7 @@
 use super::{
     ArgRole, InvocationArguments, InvocationDialect, NativeVwaitForm, NativeVwaitProtocol,
 };
+use crate::native_vwait::NativeVwaitDialect;
 use tcl_dialect::TclVersion;
 
 fn providers() -> Vec<(&'static str, &'static str, InvocationDialect)> {

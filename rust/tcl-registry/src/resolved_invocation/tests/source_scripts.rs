@@ -265,7 +265,7 @@ fn selected_source_control_arms_require_actual_roles_and_complete_grammar() {
     use crate::InvocationWord::{Dynamic, Expanded, Literal};
     use crate::registry::ControlArmSemantics as Arm;
     let registry = crate::CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (command, arguments, ordinal, expected) in [
         (
             "if",
@@ -467,7 +467,7 @@ fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
     // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     use crate::InvocationWord::{Dynamic, Expanded, Literal};
     let registry = CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for (arguments, expected) in [
         (
             vec![Literal("1"), Dynamic],

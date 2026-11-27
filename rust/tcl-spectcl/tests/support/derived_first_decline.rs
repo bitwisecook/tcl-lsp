@@ -354,7 +354,7 @@ fn report_held_barriers(
         module.deferred_writes.any,
         module.source_metadata_input.is_some(),
         module.source_metadata_input.as_ref().map(|input| {
-            tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .is_some()
         }),

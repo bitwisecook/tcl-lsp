@@ -82,7 +82,7 @@ pub(crate) struct OriginalCompilerArgumentSyntax<'a> {
     original: &'a super::compiled_invocation::SourceOriginalCompilerWords,
     snapshot: &'a Arc<super::SourceLookupSnapshot>,
     namespace: &'a super::SourceNamespaceKey,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     analysis_owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
 }
 
@@ -111,7 +111,7 @@ impl<'a> OriginalCompilerArgumentSyntax<'a> {
         self.snapshot.realm
     }
 
-    pub(crate) fn source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(crate) fn source_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         let mut dialect = self.dialect?;
         dialect.lexer_grammar = self.config().grammar_over(dialect.lexer_grammar);
         dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&self.config());
@@ -697,9 +697,9 @@ pub(super) type SourceCompilerVisits =
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[doc(hidden)]
 pub struct SourceNativeCompilerPolicy {
-    words: Option<tcl_registry::InvocationDialect>,
+    words: Option<tcl_native_model::InvocationDialect>,
     source_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
-    compiler: Option<tcl_registry::InvocationDialect>,
+    compiler: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 }
 
@@ -897,7 +897,7 @@ impl SourceInvocationBinding {
     /// source decoding evidence, not a compiler engine or normal-handler proof.
     #[doc(hidden)]
     #[must_use]
-    pub fn compiler_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn compiler_word_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.compiler_policy.as_ref()?.words
     }
 
@@ -912,7 +912,7 @@ impl SourceInvocationBinding {
 
     /// Native dialect retained at compiler visitation, without runtime facts.
     #[must_use]
-    pub fn native_compiler_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub fn native_compiler_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.compiler_policy.as_ref()?.compiler
     }
 

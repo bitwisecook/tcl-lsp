@@ -162,7 +162,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(Some(selected)),
             registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(selected)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(selected)),
                 ..Default::default()
             },
         );
@@ -243,7 +243,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_profile(Some(profile)),
                     registry,
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_entry: Some(&native),

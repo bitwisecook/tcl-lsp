@@ -1149,7 +1149,7 @@ mod tests {
             crate::environment_ingress::captured_native_entry_with_owner(dialect);
         let entry = crate::command_binding::SourceAnalysisEntry {
             native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(dialect)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(dialect)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()

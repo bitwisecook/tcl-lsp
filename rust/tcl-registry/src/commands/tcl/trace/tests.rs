@@ -29,7 +29,7 @@ fn original_trace_type_roles_use_selected_native_index_extent_without_cache_auth
     // Implementation contract: naming.variable.trace-source-receiver-purpose
     // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for (bytes, kind) in [
             (b"var\0\xff".as_slice(), Some(TraceKind::Variable)),
             (b"comm\0\xff".as_slice(), Some(TraceKind::Command)),
@@ -71,9 +71,9 @@ fn original_trace_type_roles_use_selected_native_index_extent_without_cache_auth
             .is_none()
         );
     }
-    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let jim = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     let words = [
         InvocationWord::KnownBytes(b"variable"),
         InvocationWord::Literal("v"),

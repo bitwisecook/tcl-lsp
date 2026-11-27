@@ -26,6 +26,7 @@ use tcl_cmd_core::{
     return_options::{self, ReturnOptionsOps},
     CmdError,
 };
+use tcl_registry::JimTryDialect;
 use tcl_syntax::value::ValueError;
 
 const USAGE: &[u8] = b"try ?options? script ?on|trap code varlist script ...? ?finally script?";
@@ -150,7 +151,7 @@ fn clauses(
             .native_jim_enum_from_original(
                 rest[at].as_ptr(),
                 &table,
-                tcl_registry::native_jim_enum::NativeJimEnumFlags(1),
+                tcl_native_model::native_jim_enum::NativeJimEnumFlags(1),
                 Some(b"handler"),
             )?
             .map_err(|message| {

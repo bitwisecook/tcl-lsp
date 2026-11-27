@@ -29,8 +29,9 @@
 use crate::native_compilation::{
     NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
 };
-use crate::{InvocationDialect, ObjectDispatchLayer, SemanticOperationId};
+use crate::{ObjectDispatchLayer, SemanticOperationId};
 use tcl_dialect::{TclVersion, model::Family};
+use tcl_native_model::InvocationDialect;
 
 struct DefinitionRegistration {
     member: &'static str,

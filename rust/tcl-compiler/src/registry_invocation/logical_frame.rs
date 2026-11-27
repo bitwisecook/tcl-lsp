@@ -189,9 +189,9 @@ impl OriginalLogicalFrameInvocation {
                         tcl_registry::InvocationWord::Literal(head),
                         &arguments,
                     )
-                    .with_dialect(tcl_registry::InvocationDialect::of_profile(
-                        input.unit_profile(),
-                    )),
+                    .with_dialect(
+                        tcl_native_model::InvocationDialect::of_profile(input.unit_profile()),
+                    ),
                     tcl_dialect::model::InvocationRealm::RuleLoader,
                 );
             if let Some(schema) = resolution.resolved() {

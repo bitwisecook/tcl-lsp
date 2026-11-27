@@ -20,7 +20,7 @@
 use super::{Value, Vm, native_name_consumers::OriginalNameConsumerScope};
 use crate::compiled::NativeCompilerPolicy;
 use tcl_cmd_core::{CmdError, encoding::NativeSourceFileProtocol};
-use tcl_registry::source_file::{
+use tcl_native_model::source_file::{
     LogicalSourceFileProvider, LogicalSourceFileRecipe, SourceFileGrammar,
 };
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};

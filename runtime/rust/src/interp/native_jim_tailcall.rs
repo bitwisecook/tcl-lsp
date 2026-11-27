@@ -264,9 +264,7 @@ impl Interp {
             if !self.replace_pending_tailcall(Some(crate::frame::PendingTailcall::Jim(request))) {
                 return self.error(b"tailcall can only be called from a proc, lambda or method");
             }
-            Code::from_int(
-                tcl_registry::invocation_words::NativeTailcallProtocol::Jim084.pending_code(),
-            )
+            Code::from_int(tcl_native_model::NativeTailcallProtocol::Jim084.pending_code())
         })();
         arguments.finish(code)
     }

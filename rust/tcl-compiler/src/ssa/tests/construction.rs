@@ -349,7 +349,7 @@ fn aliased_set_preserves_aliased_nested_expr_read_in_call_ir_for_ssa() {
         let mut lowerer = crate::lowering::Lowerer::new(&reg);
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()
@@ -411,7 +411,7 @@ fn setter_source_reads_use_selected_child_expression_owners() {
             let mut lowerer = crate::lowering::Lowerer::new(&registry);
             lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
                 native_entry: Some(&entry),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             });

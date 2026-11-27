@@ -443,7 +443,7 @@ impl Vm {
             carried.push((bytes.to_vec(), value));
         }
         let jim_quote = self.native_invocation_dialect().expression_quote_control()
-            == Some(tcl_registry::invocation_words::ExpressionQuoteControl::Jim084);
+            == Some(tcl_native_model::ExpressionQuoteControl::Jim084);
         if jim_quote && comp.code == Code::Ok {
             carried.retain(|(key, _)| !is_error_metadata_key(key));
         }

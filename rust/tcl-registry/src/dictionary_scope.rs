@@ -18,10 +18,11 @@
 
 //! Dictionary body scopes: mapping, completion and writeback belong together.
 
+use crate::InvocationArguments;
 use crate::catch_invocation::{CatchInvocation, CatchInvocationSelection, select_catch_invocation};
 use crate::completion_route::InvocationCompletionRoute;
-use crate::{InvocationArguments, InvocationDialect};
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 /// Authored body scope grammar, independent of the native compiler hook.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

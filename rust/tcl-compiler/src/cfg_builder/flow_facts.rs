@@ -104,7 +104,7 @@ pub(super) fn exact_statement_completion(
         .or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         });
     let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |dialect| {
         tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar)

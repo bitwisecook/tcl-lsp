@@ -49,8 +49,8 @@ pub(crate) fn compile(
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         Some(snapshot),
     );
-    let policy = tcl_registry::substitution::TemplateParseErrors::for_dialect(
-        tcl_registry::InvocationDialect::of_point(
+    let policy = tcl_native_model::TemplateParseErrors::for_dialect(
+        tcl_native_model::InvocationDialect::of_point(
             snapshot
                 .execution_point
                 .ok_or_else(|| CompileError::Unsupported("substitution engine point".into()))?,
@@ -193,7 +193,9 @@ impl CodegenCtx<'_> {
         }
         let done = self.fresh_label("subst_done");
         let table_version = self.target_version().filter(|version| {
-            tcl_registry::native_compiler_pass::native_subst_dispatches_through_jump_table(*version)
+            tcl_native_model::native_compiler_pass::native_subst_dispatches_through_jump_table(
+                *version,
+            )
         });
         let mut break_target = None;
         for (position, part) in parts.iter().enumerate() {

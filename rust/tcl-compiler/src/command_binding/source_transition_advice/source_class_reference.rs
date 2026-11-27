@@ -409,7 +409,7 @@ mod tests {
         )
         .unwrap();
         let word = &plan.commands[0].words[ordinal];
-        let policy = tcl_registry::InvocationDialect::of_profile(profile)
+        let policy = tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .unwrap();
         SignatureSourceNameInput::OriginalWord(
@@ -663,7 +663,7 @@ mod tests {
             (Release::JIM_0_84, true),
         ] {
             let dialect =
-                tcl_registry::InvocationDialect::of_point(DialectPoint::canonical(release));
+                tcl_native_model::InvocationDialect::of_point(DialectPoint::canonical(release));
             let descriptors = grammar
                 .source_two_word_factory_initialisers(dialect)
                 .unwrap();
@@ -707,7 +707,7 @@ mod tests {
             assert!(
                 grammar
                     .source_two_word_factory_initialisers(
-                        tcl_registry::InvocationDialect::for_version(version)
+                        tcl_native_model::InvocationDialect::for_version(version)
                     )
                     .is_none()
             );

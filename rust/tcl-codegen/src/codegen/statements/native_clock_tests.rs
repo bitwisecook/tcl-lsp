@@ -26,7 +26,7 @@ fn c90_clock_read_matches_native_disassembly() {
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let entry: crate::test_support::CapturedNativeEntry =
         crate::test_support::captured_native_entry(profile);
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     for (source, expected) in [
         (b"clock clicks -mic".as_slice(), 1),
         (b"clock clicks -mil".as_slice(), 2),

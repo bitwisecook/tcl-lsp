@@ -219,7 +219,7 @@ impl ResolveContext {
             let dialect = self.invocation_dialect.or_else(|| {
                 registry
                     .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile)
+                    .map(tcl_native_model::InvocationDialect::of_profile)
             });
             projection.unknown_residual |=
                 dialect.and_then(|dialect| dialect.tcl_version).is_none();

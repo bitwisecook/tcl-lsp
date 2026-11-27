@@ -24,7 +24,7 @@ use std::sync::Arc;
 fn conditional_leaf_census_does_not_treat_selected_lambda_roles_as_empty_scripts() {
     let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
     let context = environment.default_context_registry();
-    let dialect = tcl_registry::InvocationDialect::of_profile(environment.analyser_profile());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(environment.analyser_profile());
     let arguments = [
         tcl_registry::InvocationWord::Literal("value"),
         tcl_registry::InvocationWord::Literal("literal"),

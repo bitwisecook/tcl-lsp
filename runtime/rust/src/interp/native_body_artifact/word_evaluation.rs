@@ -115,7 +115,7 @@ impl Interp {
                 Err(error) => return self.report_cmd_error(error),
             };
             let code = match self.process_original_c_return_options_with_objects(
-                tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                 1,
                 0,
                 options,
@@ -137,7 +137,7 @@ impl Interp {
                 self.clear_error_logged();
                 if code == Code::Error {
                     if let Err(first) = self.capture_original_return_instruction_context(
-                        tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                        tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                         self.result.get(),
                         options,
                     ) {
@@ -422,7 +422,7 @@ impl Interp {
             .original(options)
             .expect("original syntax options");
         let code = match self.process_original_c_return_options_with_objects(
-            tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+            tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
             1,
             0,
             options,

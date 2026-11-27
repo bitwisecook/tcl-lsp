@@ -22,6 +22,7 @@ use super::namespace_command_lookup_error;
 use crate::command::err_with_code;
 use crate::interp::{Vm, ok};
 use crate::value::Value;
+use tcl_registry::native_scripted_distribution::ScriptedHelperDialect;
 use tcl_runtime_api::Completion;
 use tcl_syntax::native_namespace_name::NativeEnsembleNamespaceResultStage;
 
@@ -517,7 +518,7 @@ fn report_namespace_ensemble_configuration(
     token: &NamespaceEnsembleToken,
     def: &crate::command::EnsembleDef,
     rest: &[Value],
-    options: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
+    options: tcl_native_model::native_ensemble::NativeEnsembleConfigurationProtocol,
     original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
 ) -> Option<Completion<Value>> {
     if rest.is_empty() {
@@ -692,7 +693,7 @@ pub(super) fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<V
 fn ensemble_configuration_snapshot(
     vm: &mut Vm,
     def: &crate::command::EnsembleDef,
-    options: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
+    options: tcl_native_model::native_ensemble::NativeEnsembleConfigurationProtocol,
 ) -> Completion<Value> {
     let Some(recipe) = vm
         .native_invocation_dialect()

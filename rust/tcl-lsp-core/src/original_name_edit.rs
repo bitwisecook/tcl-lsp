@@ -657,7 +657,8 @@ mod tests {
     fn static_expanded_container_preserves_marker_and_baked_cardinality() {
         let source = "list {*}{first second third}";
         let image = SourceImage::document(source);
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let registry = tcl_registry::CommandRegistry::build_default();
         let bindings = tcl_compiler::command_binding::SourceCommandBindings::analyse_with_options(
@@ -725,7 +726,8 @@ mod tests {
     fn computed_source_text_requires_an_original_value_producer() {
         let source = "set target first; list $target";
         let image = SourceImage::document(source);
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let registry = tcl_registry::CommandRegistry::build_default();
         let bindings = tcl_compiler::command_binding::SourceCommandBindings::analyse_with_options(
@@ -874,7 +876,7 @@ mod original_variable_root_edit_tests {
     fn root(source: &SourceImage) -> SignatureSourceVariableRoot {
         let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                 .lexer_grammar,
         );
         let arena = tcl_lexer::ExecutablePartArena::decompose(

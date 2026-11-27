@@ -911,7 +911,7 @@ mod tests {
             super::super::SourceAnalysisOptions {
                 metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
                 native_entry: Some(&captured),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 ..Default::default()
             },
         );

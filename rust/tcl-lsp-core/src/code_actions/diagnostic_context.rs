@@ -499,7 +499,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
         );
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         assert!(dialect.native_name_protocol().is_none());
         let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
             logical_source_input: Some(input.clone()),

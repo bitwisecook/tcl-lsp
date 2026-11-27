@@ -24,8 +24,8 @@ use std::{
     rc::Rc,
 };
 use tcl_core_types::NativeScalarCache as Carrier;
+use tcl_native_model::InvocationDialect;
 use tcl_platform::{NativeCIntegerAbi, NumericEnvironment};
-use tcl_registry::InvocationDialect;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::{
     native_string::NativeStringStorageIdentity,

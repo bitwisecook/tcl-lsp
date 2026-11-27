@@ -322,11 +322,11 @@ fn selected_double_updaters_match_all_native_nonfinite_payloads() {
             let value = f64::from_bits(bits[case]);
             let dialect = protocol.tcl_version().map_or_else(
                 || {
-                    tcl_registry::InvocationDialect::of_profile(
+                    tcl_native_model::InvocationDialect::of_profile(
                         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
                     )
                 },
-                tcl_registry::InvocationDialect::for_version,
+                tcl_native_model::InvocationDialect::for_version,
             );
             let object = Value::from_native_scalar_cache(
                 NativeScalarCache::Number(Number::Double(value)),
@@ -618,7 +618,7 @@ fn compound_updater_matches_all_six_native_original_object_fixtures() {
     let mut unavailable = 0;
     for (protocol, fixture) in protocols.into_iter().zip(FIXTURES) {
         let source_context = protocol.is_jim084().then(|| {
-            NativeJimObjectContext::new(tcl_registry::InvocationDialect::of_profile(
+            NativeJimObjectContext::new(tcl_native_model::InvocationDialect::of_profile(
                 tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
             ))
             .unwrap()
@@ -711,7 +711,7 @@ fn native_dictionary_list_conversion_preserves_original_members_without_string()
         let resident = Value::from_native_dictionary_cache(vec![(key.clone(), child.clone())])
             .with_resident_string_bytes(Rc::from(&b"k FIRST k LAST"[..]));
         let source_context = protocol.is_jim084().then(|| {
-            NativeJimObjectContext::new(tcl_registry::InvocationDialect::of_profile(
+            NativeJimObjectContext::new(tcl_native_model::InvocationDialect::of_profile(
                 tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
             ))
             .unwrap()
@@ -781,7 +781,7 @@ fn native_name_materialisation_retains_binary_backing_and_resident_recipe() {
 
 #[test]
 fn jim_double_getter_retains_exact_integer_roundtrip_and_native_string_cache() {
-    let jim = tcl_registry::InvocationDialect::of_profile(
+    let jim = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     );
     let context = NativeJimObjectContext::new(jim).unwrap();
@@ -806,7 +806,7 @@ fn jim_double_getter_retains_exact_integer_roundtrip_and_native_string_cache() {
         assert_eq!(alias.integer_representation(), Some(integer));
     }
     let c = Value::int(2);
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     assert_eq!(
         c.native_scalar_getter(dialect, NativeScalarGetterKind::Double),
         Ok(NativeScalarGetterValue::Double(2.0))
@@ -819,7 +819,7 @@ fn jim_double_getter_retains_exact_integer_roundtrip_and_native_string_cache() {
 fn native_numeric_prefix_conversion_preserves_the_original_object_and_bytes() {
     use number::NativeScalarNumericInputPolicy;
     let syntax = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-    let syntax = tcl_registry::InvocationDialect::of_profile(syntax).numbers;
+    let syntax = tcl_native_model::InvocationDialect::of_profile(syntax).numbers;
     let value = Value::native_jim_string(&[b'1', 0, 0xff][..], 3);
     let alias = value.clone();
     assert_eq!(
@@ -921,7 +921,9 @@ fn raw_string_projection_and_list_rendering_preserve_original_bytes() {
 
 #[test]
 fn byte_array_payload_survives_string_generation_and_shared_decoder_selection() {
-    use tcl_registry::native_binary_value::{NativeBinaryDecodeInput, NativeBinaryDecodeSource};
+    use tcl_native_model::native_binary_value::{
+        NativeBinaryDecodeInput, NativeBinaryDecodeSource,
+    };
     let value = Value::byte_array(&[0xe9, 0][..]);
     let alias = value.clone();
     assert_eq!(
@@ -949,7 +951,7 @@ fn byte_array_payload_survives_string_generation_and_shared_decoder_selection() 
 #[test]
 fn character_length_obeys_actual_bytearray_conversion_and_purity() {
     use tcl_dialect::TclVersion;
-    use tcl_registry::InvocationDialect;
+    use tcl_native_model::InvocationDialect;
     for version in TclVersion::ALL {
         let dialect = InvocationDialect::for_version(version);
         let value = Value::byte_array(&[0xe9, b'a'][..]);
@@ -996,7 +998,7 @@ fn character_length_obeys_actual_bytearray_conversion_and_purity() {
 
 #[test]
 fn byte_conversion_caches_are_selected_and_failed_conversion_preserves_source() {
-    use tcl_registry::native_binary_value::NativeBinaryByteConversion;
+    use tcl_native_model::native_binary_value::NativeBinaryByteConversion;
     let cached = Value::native_jim_string(&[0xc3, b'A', 0xc3, 0xa9], 2);
     assert_eq!(
         cached
@@ -1030,7 +1032,7 @@ fn byte_conversion_caches_are_selected_and_failed_conversion_preserves_source() 
         wide.as_byte_array(NativeBinaryByteConversion::CheckedLatin1)
             .unwrap_err(),
         ByteArrayAccessError::Conversion(
-            tcl_registry::native_binary_value::NativeBinaryByteError {
+            tcl_native_model::native_binary_value::NativeBinaryByteError {
                 offset: 0,
                 codepoint: 0x20ac
             }

@@ -19,7 +19,7 @@
 //! Original Jim `GetEnum` windows from the pinned native producer.
 use super::*;
 use tcl_core_types::NativeJimOptionCache;
-use tcl_registry::native_jim_enum::NativeJimEnumFlags;
+use tcl_native_model::native_jim_enum::NativeJimEnumFlags;
 const WORDS: &[&str] = &["provide", "present", "--"];
 const OTHER: &[&str] = &["present", "provide"];
 const BOGUS: &[&str] = &["bogus"];
@@ -121,7 +121,7 @@ fn original_jim_enum_matches_all_native_14_windows() {
     let mut result = Vec::new();
     let mut compared = 0;
     for row in
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/Jim.tsv").lines()
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/Jim.tsv").lines()
     {
         let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(fields.len(), 9);
@@ -207,11 +207,11 @@ fn original_jim_enum_matches_all_native_14_windows() {
 #[test]
 fn original_interpreter_two_table_errors_match_all_native_15_windows() {
     const FIXTURES: [&str; 5] = [
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/8.4.20.tsv"),
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/8.5.19.tsv"),
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/8.6.18.tsv"),
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/9.0.4.tsv"),
-        include_str!("../../../tcl-registry/tests/data/native_interpreter_enum/9.1.0.tsv"),
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/8.4.20.tsv"),
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/8.5.19.tsv"),
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/8.6.18.tsv"),
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/9.0.4.tsv"),
+        include_str!("../../../tcl-native-model/tests/data/native_interpreter_enum/9.1.0.tsv"),
     ];
     let mut compared = 0;
     for (version, fixture) in tcl_dialect::TclVersion::ALL.into_iter().zip(FIXTURES) {

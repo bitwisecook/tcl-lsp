@@ -409,7 +409,7 @@ impl Vm {
             let invalidate_namespace = vm
                 .actual_native_invocation_dialect()
                 .native_command_name_protocol()
-                .is_some_and(tcl_registry::native_command_literal::NativeCommandNameProtocol::deletion_invalidates_namespace_after_trace);
+                .is_some_and(tcl_native_model::native_command_literal::NativeCommandNameProtocol::deletion_invalidates_namespace_after_trace);
             (
                 hook,
                 dying,

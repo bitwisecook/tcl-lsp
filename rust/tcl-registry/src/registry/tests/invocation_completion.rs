@@ -514,7 +514,7 @@ fn exact_process_exit_obeys_explicit_snapshot_without_catalogue_profile() {
     let registry = CommandRegistry::build_default();
     for release in tcl_dialect::TclVersion::ALL {
         let arguments = crate::InvocationArguments::literals(&["4294967296"])
-            .with_dialect(crate::InvocationDialect::for_version(release));
+            .with_dialect(tcl_native_model::InvocationDialect::for_version(release));
         assert_eq!(
             registry.exact_invocation_completion_words("exit", arguments, None),
             Some(if release >= tcl_dialect::TclVersion::V9_0 {
@@ -525,7 +525,7 @@ fn exact_process_exit_obeys_explicit_snapshot_without_catalogue_profile() {
         );
     }
     let arguments = crate::InvocationArguments::literals(&["18446744073709551616"]).with_dialect(
-        crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+        tcl_native_model::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
             tcl_dialect::model::Release::JIM_0_84,
         )),
     );

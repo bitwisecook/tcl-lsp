@@ -47,10 +47,10 @@ impl Interp {
     pub(crate) fn native_binary_bytes_with(
         &mut self,
         value: *mut TclObj,
-        policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        policy: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
         cache: bool,
     ) -> Result<Vec<u8>, Code> {
-        if policy == tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8 {
+        if policy == tcl_native_model::native_binary_value::NativeBinaryByteConversion::Utf8 {
             return Ok(obj::bytes_of(value));
         }
         let recipe = self.byte_array_string_recipe()?;
@@ -67,7 +67,7 @@ impl Interp {
         let recipe = self
             .native_invocation_dialect()
             .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ));
         match recipe {
             Some(recipe) => crate::list::new_list_obj_native(elements, recipe.protocol()),
@@ -83,7 +83,7 @@ impl Interp {
         if let Some(recipe) = self
             .native_invocation_dialect()
             .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )) {
             // A fresh compound producer retains the selected updater without
             // materialising members or changing their native references.
@@ -147,9 +147,9 @@ impl Interp {
     /// string consumer requests it.
     pub(crate) fn byte_array_string_recipe(
         &mut self,
-    ) -> Result<tcl_registry::native_string_materialization::ByteArrayStringRecipe, Code> {
+    ) -> Result<tcl_native_model::native_string_materialization::ByteArrayStringRecipe, Code> {
         self.native_invocation_dialect().byte_array_string_recipe(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or_else(|| self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("byte-array string materialization")))
     }
 

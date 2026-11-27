@@ -18,13 +18,14 @@
 
 //! Original native `TclOO` helper compiler geometry, independent of method entry.
 
+use crate::SemanticOperationId;
 use crate::native_compilation::{
     NativeCompilationGuard, NativeCompilationSelection, NativeCompilationWordShape,
 };
 use crate::native_compiler_words::NativeCompilerWords;
 use crate::native_instruction_plan::NativeArgumentListStep;
-use crate::{InvocationDialect, SemanticOperationId};
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 /// Original C `TclOO` `self` helper table used by its native Index getter.
 pub const SELF_SUBCOMMANDS: &[&str] = &[

@@ -80,7 +80,7 @@ fn original_jim_dictionary_library_bodies_and_formals_are_real_procedures() {
     ];
     assert_eq!(
         tcl_registry::dictionary_scope::stock_scripted_wrappers(
-            tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+            tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
         )
         .len(),
         bodies.len()

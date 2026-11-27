@@ -137,7 +137,7 @@ impl LogicalProcedureFormalTopology {
 impl LogicalSourceFormalParameters {
     pub(crate) fn from_lambda_fields(
         fields: &[super::name_value::LogicalSourceListNameInput],
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         super::name_value::LogicalSourceListNameInput::complete_unchanged_roster(fields)?;
         if !matches!(fields.len(), 2 | 3) {
@@ -298,7 +298,7 @@ impl SignatureSourceFormalParameters {
     #[must_use]
     pub fn from_original_input(
         input: &SignatureSourceNameKey,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         let topology =
             crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
@@ -543,7 +543,7 @@ impl SignatureSourceFormalParameterValue {
     #[must_use]
     pub fn from_original_input(
         input: &SignatureSourceNameInput,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
@@ -624,7 +624,8 @@ mod tests {
     // Implementation contract: naming.variable.original-readonly-formal-topology
     // docs/design/analysis/name-resolution-proofs/original-readonly-formal-topology.md
     fn original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields() {
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for source in [
             r"apply {{n\uD800 {optional DEFAULT}} {return}}",
@@ -674,7 +675,7 @@ mod tests {
     fn original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let dialect = tcl_native_model::InvocationDialect::of_point(point);
             let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
             for source in [
                 r"method pick {n\uD800 {optional DEFAULT}} {}",
@@ -719,7 +720,7 @@ mod tests {
                     assert!(default.source_span().is_none());
                 }
                 let counterfactual =
-                    tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+                    tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
                 if dialect != counterfactual {
                     assert!(
                         SignatureSourceFormalParameters::from_original_input(
@@ -740,7 +741,7 @@ mod tests {
     fn original_readonly_formals_keep_opaque_default_rest_and_source_currency() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let dialect = tcl_native_model::InvocationDialect::of_point(point);
             let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
             let source = r"proc p {n\uD800 {optional DEFAULT} args} {return}";
             let image = tcl_lexer::SourceImage::document(source);

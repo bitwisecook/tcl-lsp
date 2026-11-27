@@ -105,7 +105,7 @@ pub(super) fn native_whole_program_fixture(program: &str) -> NativeWholeProgramF
     // This AOT driver purpose is independent of the callback's bytecode request.
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(native)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

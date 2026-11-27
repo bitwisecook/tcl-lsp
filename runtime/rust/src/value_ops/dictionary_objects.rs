@@ -36,7 +36,7 @@ pub(crate) struct RuntimeDictionaryObjects {
 impl RuntimeDictionaryObjects {
     pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
         let protocol = interp.native_invocation_dialect().native_string_materialization(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or(ValueError::CommandProtocolUnavailable("native dictionary object protocol"))?.protocol();
         let names = interp
             .name_policy_protocol()

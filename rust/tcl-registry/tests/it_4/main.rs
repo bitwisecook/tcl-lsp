@@ -25,6 +25,7 @@ mod command_evidence;
 mod differential_fold;
 mod keyword_abbreviations;
 mod library_axis;
+mod native_model_selection;
 mod registry;
 mod spec_pack_provenance;
 mod spectcl_pack;

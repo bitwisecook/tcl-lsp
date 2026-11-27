@@ -239,9 +239,8 @@ impl ResolvedInvocation<'_, '_> {
 mod tests {
     use super::*;
     use crate::value_transfer::LiteralInputs;
-    use crate::{
-        CommandRegistry, InvocationArguments, InvocationDialect, InvocationWord, InvocationWords,
-    };
+    use crate::{CommandRegistry, InvocationArguments, InvocationWord, InvocationWords};
+    use tcl_native_model::InvocationDialect;
 
     fn relation(
         environment: &str,

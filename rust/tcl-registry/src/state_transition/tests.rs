@@ -53,7 +53,7 @@ fn original_namespace_patterns_close_only_their_represented_byte_ordinals() {
         let registry =
             crate::model::ingress::static_context_for(version.dialect_profile_name()).commands();
         let namespace = registry.get("namespace").unwrap();
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for operation in ["export", "import", "forget"] {
             let descriptor = namespace
                 .subcommands
@@ -155,7 +155,7 @@ fn original_byte_rename_transitions_select_destination_extent_and_keep_ordinals(
     use crate::InvocationWord;
     let from = b"P\xed\xa0\x80";
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for destination in [b"Q\xed\xa0\x81".as_slice(), b"Q\xc0\x80tail"] {
             let words = [
                 InvocationWord::KnownBytes(from),
@@ -223,7 +223,7 @@ fn original_byte_rename_transitions_select_destination_extent_and_keep_ordinals(
     ];
     for dialect in [
         None,
-        Some(crate::InvocationDialect::of_point(
+        Some(tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
         )),
     ] {
@@ -305,14 +305,14 @@ fn native_byte_alias_names_use_the_selected_name_purpose() {
             &input,
             3,
             VariableAliasNamePurpose::Global,
-            Some(crate::InvocationDialect::for_version(version)),
+            Some(tcl_native_model::InvocationDialect::for_version(version)),
         )
         .unwrap();
         assert_eq!(local.native_bytes(), Some(b"n\xed\xa0\x80".as_slice()));
         assert_eq!(local.literal(), None);
         assert_eq!(local.argument_index(), Some(3));
     }
-    let jim = crate::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
     );
     assert!(local_alias_name(&input, 3, VariableAliasNamePurpose::Global, Some(jim)).is_none());
@@ -865,7 +865,7 @@ fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
     use StateTransitionDomain::VariableCells;
     let context = crate::model::ingress::static_context_for("tcl9.0");
     let registry = context.commands();
-    let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     let cases = dynamic_alias_cases();
     for &(command, words, computed, domain) in cases {
         let invocation = registry
@@ -1126,7 +1126,7 @@ fn qualified_aliases_use_the_current_frame_tail_name() {
             &TransitionSubject::Literal("::pkg::counter".to_owned()),
             0,
             VariableAliasNamePurpose::Global,
-            Some(crate::InvocationDialect::for_version(
+            Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6
             )),
         ),
@@ -1136,7 +1136,8 @@ fn qualified_aliases_use_the_current_frame_tail_name() {
 
 #[test]
 fn unversioned_c_alias_assistance_keeps_native_release_unknown() {
-    let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     assert!(dialect.native_name_protocol().is_none());
     let subject = TransitionSubject::Literal("ns:::v".to_owned());
     assert_eq!(
@@ -1161,7 +1162,7 @@ fn unversioned_c_alias_assistance_keeps_native_release_unknown() {
 #[test]
 fn alias_name_projection_keeps_operation_and_engine_separate() {
     let rooted = TransitionSubject::Literal("::pkg:::counter".to_owned());
-    let jim = crate::InvocationDialect::of_profile(
+    let jim = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").unit_profile(),
     );
     assert_eq!(
@@ -1187,7 +1188,7 @@ fn alias_name_projection_keeps_operation_and_engine_separate() {
                     &rooted,
                     2,
                     purpose,
-                    Some(crate::InvocationDialect::for_version(version))
+                    Some(tcl_native_model::InvocationDialect::for_version(version))
                 ),
                 Some(TransitionSubject::Literal("counter".to_owned()))
             );
@@ -1195,7 +1196,7 @@ fn alias_name_projection_keeps_operation_and_engine_separate() {
     }
     for dialect in [
         None,
-        Some(crate::InvocationDialect::of_profile(
+        Some(tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::irules(),
         )),
     ] {

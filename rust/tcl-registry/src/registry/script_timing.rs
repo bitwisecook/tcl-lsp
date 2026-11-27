@@ -620,7 +620,7 @@ impl CommandRegistry {
             words
                 .arguments()
                 .dialect()
-                .and_then(crate::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
         });
         let Some(spec) = self.get_for_surface(class_name, query) else {
             return &[];

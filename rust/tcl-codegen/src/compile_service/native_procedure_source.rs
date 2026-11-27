@@ -60,7 +60,7 @@ impl NativeCompiledProcedure {
         })?;
         if BytecodeCompileService::native_entry_options(entry, Some(profile))
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+            .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
             != Some(tcl_dialect::ParameterGrammar::Tcl)
         {
             return Err(CompileError::Unsupported(

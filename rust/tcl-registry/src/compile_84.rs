@@ -484,8 +484,9 @@ impl Compile<'_> {
             let Some(text) = &variables.simple else {
                 return Ok(Outcome::OutLine);
             };
-            let Ok(names) = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
-                .read_list(text)
+            let Ok(names) =
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                    .read_list(text)
             else {
                 return Ok(Outcome::OutLine);
             };

@@ -76,7 +76,8 @@ fn a_string_is_test_proves_the_type_its_members_share() {
 fn string_is_value_form_preserves_optional_write_effects() {
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let context = crate::model::ingress::static_context_for(profile);
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
         let plain = [
             crate::InvocationWord::Literal("is"),
             crate::InvocationWord::Literal("integer"),
@@ -203,8 +204,9 @@ fn literal_string_options_and_classes_follow_the_receivers() {
         ("tcl9.1", Some("0"), "1", "1"),
         ("jimtcl", None, "1", "0"),
     ] {
-        let dialect =
-            crate::InvocationDialect::of_profile(crate::native_test_provider::profile(profile));
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
+            crate::native_test_provider::profile(profile),
+        );
         assert_eq!(compare.run_const_fold_in(&["--", "a", "b"], dialect), None);
         assert_eq!(equal.run_const_fold_in(&["--", "a", "a"], dialect), None);
         assert_eq!(
@@ -393,9 +395,9 @@ fn original_class_type_projection_requires_its_own_family_and_release() {
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Software class-policy selection only; no Native cache/frame/store
     // observation or successful command evaluation is asserted.
-    let c84 = crate::InvocationDialect::for_version(TclVersion::V8_4);
-    let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
-    let mut c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
+    let c84 = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_4);
+    let c86 = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
+    let mut c90 = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
     c90.numbers = tcl_dialect::NumberSyntax::Tcl85;
     assert_eq!(
         string_is_member_type_for_dialect(&["wideinteger", "-strict", "VALUE"], c84),
@@ -417,7 +419,9 @@ fn original_class_type_projection_requires_its_own_family_and_release() {
         string_is_member_type_for_dialect(&["integer", "-failindex", "out", "VALUE"], c90),
         None
     );
-    let jim = crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jimtcl"));
+    let jim = tcl_native_model::InvocationDialect::of_profile(
+        crate::native_test_provider::profile("jimtcl"),
+    );
     assert_eq!(
         string_is_member_type_for_dialect(&["integer", "-strict", "VALUE"], jim),
         None

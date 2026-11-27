@@ -1002,7 +1002,7 @@ mod tests {
             let spec = context
                 .resolve_spec(registry, "regexp")
                 .expect("provider has regexp metadata");
-            let dialect = crate::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 registry.profile().expect("provider owns its profile"),
             );
             let effects = |arguments: &[&str]| {

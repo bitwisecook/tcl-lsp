@@ -44,5 +44,5 @@ No implementation binding is claimed by this observation record.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json)
-- [rust/tcl-registry/tests/data/native_property_owners/initial.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/initial.tsv)
+- [rust/tcl-native-model/tests/data/native_property_owners/initial-manifest.json](../../../../rust/tcl-native-model/tests/data/native_property_owners/initial-manifest.json)
+- [rust/tcl-native-model/tests/data/native_property_owners/initial.tsv](../../../../rust/tcl-native-model/tests/data/native_property_owners/initial.tsv)

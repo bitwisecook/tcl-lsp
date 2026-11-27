@@ -167,7 +167,7 @@ impl SourceOrdinaryLiteralPool {
     pub(super) fn note_command_lookup(
         &mut self,
         head: &str,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) {
         // Normal numeric formatter output is in the selected numeric parser's
         // language. A CmdName conversion of such bytes can overwrite a shared
@@ -201,7 +201,7 @@ impl SourceStockLiteralObject {
     pub(crate) fn accepts_integer_contents(
         self,
         text: &str,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> bool {
         self.integer_contents.is_some_and(|recipe| {
             Some(recipe) == tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol::select(dialect)
@@ -410,7 +410,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-jim-text-evaluation.md
         let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
         let options = SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 registry.profile().unwrap(),
             )),
             ..Default::default()
@@ -460,7 +460,7 @@ mod tests {
                     registry,
                     SourceAnalysisOptions {
                         host_extensible_command_table,
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             registry.profile().unwrap(),
                         )),
                         native_compilation:
@@ -567,7 +567,7 @@ mod tests {
             owner.commands(),
             SourceAnalysisOptions {
                 unknown_entry,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                     frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
@@ -675,7 +675,7 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let options = SourceAnalysisOptions {
             native_entry: Some(entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 registry.profile().unwrap(),
             )),
             ..Default::default()
@@ -706,7 +706,7 @@ mod tests {
         let jim_registry = tcl_registry::model::ingress::static_context_for("jim").commands();
         let jim_options = SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 jim_registry.profile().unwrap(),
             )),
             ..Default::default()
@@ -754,7 +754,7 @@ mod tests {
             registry,
             SourceAnalysisOptions {
                 native_entry: Some(&entry),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },

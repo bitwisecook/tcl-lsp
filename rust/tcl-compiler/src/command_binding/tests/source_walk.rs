@@ -40,7 +40,7 @@ fn hypothetical_lookup_does_not_inherit_a_different_selected_operation() {
         tcl_lexer::LexerConfig::for_profile(owner.commands().profile()),
         owner.commands(),
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             )),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
@@ -397,7 +397,7 @@ fn trusted_loader_requires_the_audited_native_engine() {
         None,
     ] {
         let mut dialect =
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         dialect.native_family = family;
         let mut state = ModuleCommandBindings::initial_with_options(
             &registry,
@@ -430,7 +430,7 @@ fn conditional_expression_mutation_reaches_the_selected_body() {
     let proof = source_proof(
         source,
         "set",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(
         proof
@@ -445,7 +445,7 @@ fn source_pending_return_never_executes_dead_command_restoration() {
     let binding = source_proof(
         source,
         "set",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(
         binding
@@ -460,7 +460,7 @@ fn source_invocation_freezes_values_before_later_argument_effects() {
     let binding = source_proof(
         source,
         "list",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert_eq!(
         binding
@@ -477,7 +477,7 @@ fn source_literal_callee_parameters_select_the_actual_caller_alias() {
     let binding = source_proof(
         source,
         "list",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert_eq!(
         binding
@@ -500,7 +500,7 @@ fn source_catch_resumes_after_a_pending_return_without_running_dead_mutations() 
     let binding = source_proof(
         source,
         "set",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(
         binding
@@ -518,7 +518,7 @@ fn source_abrupt_substitution_skips_later_words_and_outer_dispatch() {
         let binding = source_proof(
             source,
             "set",
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         assert!(
             binding
@@ -531,7 +531,7 @@ fn source_abrupt_substitution_skips_later_words_and_outer_dispatch() {
     let binding = source_proof(
         source,
         "puts",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(
         binding
@@ -546,7 +546,7 @@ fn source_math_callee_preserves_return_boundary_and_global_effects() {
     let binding = source_proof(
         source,
         "list",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert_eq!(
         binding
@@ -570,7 +570,7 @@ fn source_c_import_follows_the_original_command_object() {
     let binding = source_proof(
         source,
         "::b::f",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let target = binding.proved_target().expect("stable imported command");
     assert_eq!(target.command, "::a::saved");
@@ -582,7 +582,7 @@ fn source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed() {
     // tclsh 8.6 / 9.0: with the import preload renamed away, export,
     // import and forget in namespace bodies rebind no root command.
     let source = "rename auto_import savedPrelude\nnamespace eval src {proc p {} {return P}; namespace export p}\nnamespace eval dst {namespace import ::src::*}\nnamespace eval dst {namespace forget ::src::p}\nset x 0\nincr x\nset after 1";
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     for head in ["namespace export", "namespace import", "namespace forget"] {
         let binding = source_proof(source, head, dialect);
         assert!(!binding.execution_is_unknown(), "{head}: {binding:#?}");
@@ -607,7 +607,7 @@ fn source_body_namespace_statements_outside_the_closed_premises_stay_open() {
     // destructor of an object a forced import replaces, an ensemble map
     // changed for `namespace` or `string`, and an ensemble created over
     // `::namespace` or, by its namespace name, over `::string`.
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let hijack = "proc ::hijack {args} {rename ::incr ::saved_incr; proc ::incr {args} {return -code return}}\n";
     let export = "namespace eval ::m {proc h {} {}; namespace export h}\n";
     let tail = "set x 0\nincr x\nset after 1";
@@ -662,7 +662,7 @@ fn source_renamed_procedure_executes_its_retained_implementation_generation() {
         source_proof(
             source,
             "set after",
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
         )
         .proved_target()
         .is_none()
@@ -675,7 +675,7 @@ fn source_jim_import_retargets_the_original_source_name() {
     let binding = source_proof(
         source,
         "::b::f",
-        tcl_registry::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+        tcl_native_model::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
             tcl_dialect::model::Release::JIM_0_84,
         )),
     );
@@ -694,7 +694,7 @@ fn source_alias_expands_prefixes_after_late_target_lookup() {
     let binding = source_proof(
         source,
         "outer",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let target = binding.proved_target().expect("effective alias target");
     assert_eq!(target.command, "::set");
@@ -714,7 +714,7 @@ fn source_original_empty_and_native_method_classes_have_bounded_construction() {
         let binding = source_proof(
             &source,
             "set after",
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         assert_eq!(
             binding
@@ -737,7 +737,7 @@ fn source_constructor_and_rebound_member_implementations_withdraw_construction_p
             source_proof(
                 source,
                 "set after",
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
             )
             .proved_target()
             .is_none()
@@ -751,7 +751,7 @@ fn source_repeated_body_joins_future_rebindings_before_specialisation() {
     let binding = source_proof(
         source,
         "set y1",
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert!(binding.proved_target().is_none());
 }

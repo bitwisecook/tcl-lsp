@@ -54,7 +54,7 @@ fn original_numeric_comparison_keeps_retired_header_refusal_before_lexical_fallb
 
 #[test]
 fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     let mut vm = Vm::new();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(vm.set_native_engine_profile(crate::environment::profile_for_dialect("tcl9.0")));
@@ -63,10 +63,10 @@ fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() 
         LogicalExpressionParseProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_quote_provider(
-        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalExpressionQuoteProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_numeric_provider(
         tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
@@ -127,7 +127,7 @@ use tcl_runtime_api::Completion;
 #[test]
 fn c84_reached_expression_matches_seven_original_cache_controls() {
     use tcl_syntax::scalar_getter::{NativeScalarCache as Cache, NativeScalarGetterKind as Getter};
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let class = |value: &Value| match value.native_scalar_cache() {
         Some(Cache::Tcl84Long(_)) => "int",
         Some(Cache::Number(Number::Int(_))) => "wideInt",
@@ -198,7 +198,7 @@ fn c84_reached_expression_matches_seven_original_cache_controls() {
 
 fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
     arith_in(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
         op,
         a,
         b,
@@ -294,7 +294,8 @@ fn operand_failures_keep_logical_simulation_separate_from_the_host_engine() {
         float.error_code_bytes().unwrap().as_deref(),
         Some(b"NONE".as_slice())
     );
-    let older_native = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_5);
+    let older_native =
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_5);
     for error in [
         arith_in(
             older_native,
@@ -317,7 +318,7 @@ fn operand_failures_keep_logical_simulation_separate_from_the_host_engine() {
             Some(b"ARITH DOMAIN {floating-point value}".as_slice())
         );
     }
-    let native = tcl_registry::InvocationDialect::of_profile(host);
+    let native = tcl_native_model::InvocationDialect::of_profile(host);
     let error = arith_in(native, BinOp::Add, &Value::string("bad"), &Value::int(1))
         .expect_err("actual host operand rejection");
     assert_eq!(
@@ -333,7 +334,7 @@ fn operand_failures_keep_logical_simulation_separate_from_the_host_engine() {
 #[test]
 fn reached_operand_error_codes_follow_the_actual_expression_release() {
     for version in [tcl_dialect::TclVersion::V8_4, tcl_dialect::TclVersion::V8_5] {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let value = Value::string("invalid");
         let arithmetic =
             arith_in(dialect, BinOp::Add, &value, &Value::int(1)).expect_err("non-numeric operand");
@@ -343,7 +344,7 @@ fn reached_operand_error_codes_follow_the_actual_expression_release() {
         let boolean = boolean_for_vm(
             &mut original,
             &value,
-            tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+            tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
         )
         .expect_err("non-boolean operand");
         if version == tcl_dialect::TclVersion::V8_4 {

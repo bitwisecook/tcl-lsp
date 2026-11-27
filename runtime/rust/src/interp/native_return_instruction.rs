@@ -25,7 +25,7 @@ type OriginalReturnString<'a> = &'a dyn Fn(
 
 use super::{Code, Interp, NativeReturnOptions};
 use crate::obj::TclObj;
-use tcl_registry::native_return_options::NativeReturnOptionsApplication;
+use tcl_native_model::native_return_options::NativeReturnOptionsApplication;
 use tcl_syntax::{
     scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue},
     value::ValueError,

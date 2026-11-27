@@ -201,7 +201,7 @@ impl Value {
     pub fn adopt_native_object_representation(
         &self,
         donor: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.adopt_native_object_representation_with_string_mutation(
             donor,
@@ -219,7 +219,7 @@ impl Value {
     pub fn adopt_native_object_representation_with_string_mutation(
         &self,
         donor: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         string_mutation: tcl_core_types::ResidentStringMutation,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.adopt_native_object_representation_with_string_mutation_using::<ValueError>(
@@ -235,7 +235,7 @@ impl Value {
     >(
         &self,
         donor: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         string_mutation: tcl_core_types::ResidentStringMutation,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
@@ -250,7 +250,7 @@ impl Value {
     fn adopt_native_object_representation_with_string_mutation_using<E: From<ValueError>>(
         &self,
         donor: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         string_mutation: tcl_core_types::ResidentStringMutation,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {

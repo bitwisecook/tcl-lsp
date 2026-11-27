@@ -573,7 +573,9 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         {
             const FLAG: &[&str] = &["-nonewline"];
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(FLAG);
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    FLAG,
+                );
             match interp.native_jim_compare_immediate(first, &table, 0) {
                 Ok(matched) => matched,
                 Err(error) => return interp.report_cmd_error(error.into()),
@@ -810,7 +812,7 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         None => 0,
         Some(&a) => match interp.native_index_operand(
             a,
-            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+            &tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
                 SEEK_ORIGINS.names(),
             ),
             false,

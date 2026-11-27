@@ -303,7 +303,7 @@ impl<'r> CodegenCtx<'r> {
     }
 
     /// Native engine snapshot for a reached hook, independent of its catalogue.
-    pub(super) fn native_hook_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(super) fn native_hook_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         if let Some(binding) = self
             .invocation_tokens
             .as_deref()

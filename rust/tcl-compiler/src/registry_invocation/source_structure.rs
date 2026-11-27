@@ -575,7 +575,7 @@ impl OriginalSourceHeadCorrespondence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalRegistryWords {
     command: String,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     arguments: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     operands: Vec<Option<OriginalOperandSource>>,
     origins: Vec<crate::registry_invocation::InvocationWordOrigin>,
@@ -602,7 +602,7 @@ impl OriginalRegistryWords {
     }
     /// Independently retained invocation dialect, when actual selection owns it.
     #[must_use]
-    pub const fn dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub const fn dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.dialect
     }
     /// Effective post-head operands, retaining dynamic/opaque/expanded states.

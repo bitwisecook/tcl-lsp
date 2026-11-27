@@ -296,7 +296,7 @@ fn registered_string_index_reaches_original_storage_without_namespace_search() {
         }
         let binary = Value::from_native_byte_array(
             std::rc::Rc::from(&b"\xff\0"[..]),
-            tcl_registry::InvocationDialect::of_profile(profile),
+            tcl_native_model::InvocationDialect::of_profile(profile),
         )
         .unwrap();
         let index = Value::new_native_string_bytes(b"0".as_slice());
@@ -327,7 +327,7 @@ fn registered_string_index_keeps_aliased_getter_primary_and_foreign_release_refu
         let mut vm = crate::native_fixture::core(profile);
         let subject = Value::from_native_byte_array(
             std::rc::Rc::from(&b"0"[..]),
-            tcl_registry::InvocationDialect::of_profile(profile),
+            tcl_native_model::InvocationDialect::of_profile(profile),
         )
         .unwrap();
         let index = subject.clone();

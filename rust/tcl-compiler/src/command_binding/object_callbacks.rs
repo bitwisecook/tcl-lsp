@@ -553,7 +553,7 @@ mod tests {
             &registry,
             SourceAnalysisOptions {
                 host_extensible_command_table,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -733,7 +733,7 @@ mod tests {
             assert!(after.variable_context.dynamic_bindings, "{dialect}");
             let words = [tcl_registry::InvocationWord::Dynamic];
             let arguments = InvocationArguments::structured(&words).with_dialect(
-                tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap()),
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap()),
             );
             let invocation = tcl_registry::InvocationWords::structured(
                 tcl_registry::InvocationWord::Literal("llength"),

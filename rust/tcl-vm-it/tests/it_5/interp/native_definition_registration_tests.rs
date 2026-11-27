@@ -20,7 +20,7 @@
 fn definition_workers_retain_the_selected_registration_namespace_and_token() {
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
-        let dialect = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile());
+        let dialect = tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile());
         let native = crate::fixture::root_compilation_entry(&mut vm);
         for member in [
             "private",

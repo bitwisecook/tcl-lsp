@@ -24,7 +24,7 @@ use super::{
     slot_ref_class, slot_ref_obj,
 };
 use tcl_cmd_core::CmdError;
-use tcl_registry::native_property_lookup::{
+use tcl_native_model::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
 use tcl_syntax::value::ValueError;
@@ -42,7 +42,7 @@ struct RetiredNativeProperties {
     methods: Option<super::native_method_cache::RetiredMethodTable>,
     members: [[Option<BTreeMap<String, Value>>; 2]; 2],
     caches: [Option<NativePropertyCache>; 2],
-    recipes: [Option<tcl_registry::native_property_lookup::NativePropertyLookupProtocol>; 2],
+    recipes: [Option<tcl_native_model::native_property_lookup::NativePropertyLookupProtocol>; 2],
 }
 impl RetiredNativeProperties {
     fn finish(
@@ -50,7 +50,7 @@ impl RetiredNativeProperties {
         vm: &mut Vm,
         owner: &crate::interp::oo_cleanup::OriginalOoCleanup,
     ) -> Result<(), CmdError> {
-        use tcl_registry::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
+        use tcl_native_model::native_property_lookup::NativePropertyStorageRetirementStep as Stage;
         let mut first = owner.check_cleanup(vm).err();
         for class in 0..2 {
             if let Some(recipe) = self.recipes[class] {
@@ -603,7 +603,7 @@ fn property_lookup_failure(
     writable: bool,
     operation: &OriginalPropertyOperation,
     bytes: &[u8],
-    recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+    recipe: tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
     mut error: Vec<u8>,
 ) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
     let other = vm
@@ -1084,9 +1084,9 @@ fn read_property_definition_options(
     args: &[Value],
     cursor: &mut usize,
     original_names: &mut super::original_name_operands::OriginalOoNameScope,
-    recipe: tcl_registry::native_property_lookup::NativePropertyNameProtocol,
-    options: &tcl_registry::native_index_lookup::NativeStaticIndexTable,
-    kinds: &tcl_registry::native_index_lookup::NativeStaticIndexTable,
+    recipe: tcl_native_model::native_property_lookup::NativePropertyNameProtocol,
+    options: &tcl_native_model::native_index_lookup::NativeStaticIndexTable,
+    kinds: &tcl_native_model::native_index_lookup::NativeStaticIndexTable,
 ) -> Result<(TclOoPropertyKind, Option<Value>, Option<Value>), Completion<Value>> {
     let mut kind = TclOoPropertyKind::ReadWrite;
     let mut getter = None;

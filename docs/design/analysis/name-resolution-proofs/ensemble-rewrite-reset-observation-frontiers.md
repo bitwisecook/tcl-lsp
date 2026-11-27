@@ -140,9 +140,9 @@ No implementation binding is claimed by this observation record.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/manifest.json](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/manifest.json)
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/probe.c](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/probe.c)
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-8.5.19.tsv)
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-8.6.18.tsv)
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-9.0.4.tsv)
-- [rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_ensemble_rewrite/reset-9.1.0.tsv)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/manifest.json](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/manifest.json)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/probe.c](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/probe.c)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-8.5.19.tsv](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-8.5.19.tsv)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-8.6.18.tsv](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-8.6.18.tsv)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-9.0.4.tsv](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-9.0.4.tsv)
+- [rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-9.1.0.tsv](../../../../rust/tcl-native-model/tests/data/native_ensemble_rewrite/reset-9.1.0.tsv)

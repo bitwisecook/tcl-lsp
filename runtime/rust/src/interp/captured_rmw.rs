@@ -24,6 +24,8 @@ use crate::{
     obj::Owned,
     obj::{self, TclObj},
 };
+use tcl_registry::native_rmw::LegacyIncrementDialect;
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::native_rmw::{NativeRmwOperation, NativeRmwReadFailure, NativeRmwReadPolicy};
 
 struct IncrementTarget<'a> {

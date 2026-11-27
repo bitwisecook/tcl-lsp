@@ -21,6 +21,7 @@
 use super::CommandRegistry;
 use crate::InvocationArguments;
 use crate::arg_role::ArgRole;
+use crate::completion::CompletionCodeDialect;
 use crate::hooks::LoweringHookId;
 use crate::spec::CommandSpec;
 use tcl_dialect::model::SurfaceQuery;

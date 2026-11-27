@@ -476,7 +476,7 @@ int Jim_GetLong(Jim_Interp *interp, Jim_Obj *objPtr, long *longPtr)
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_numeric_error/command.rs](../../../../rust/tcl-registry/src/native_numeric_error/command.rs), `original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima` (linked): Software source definition checks stride recipes keep actual command tables primitive widths and minima.
+- [rust/tcl-native-model/src/native_numeric_error/command.rs](../../../../rust/tcl-native-model/src/native_numeric_error/command.rs), `original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima` (linked): Software source definition checks stride recipes keep actual command tables primitive widths and minima.
 - [rust/tcl-vm/src/cmd_list/native_original_stride_controls.rs](../../../../rust/tcl-vm/src/cmd_list/native_original_stride_controls.rs), `original_stride_guest_and_header_predicates_match_native644` (linked): Software source definition checks stride guest and header predicates match native644.
 - [runtime/rust/src/cmd_list/native_original_stride_controls.rs](../../../../runtime/rust/src/cmd_list/native_original_stride_controls.rs), `original_stride_guest_and_header_predicates_match_native644` (linked): Software source definition checks stride guest and header predicates match native644.
 

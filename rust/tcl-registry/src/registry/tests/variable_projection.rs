@@ -188,7 +188,7 @@ fn variable_write_projection_marks_computed_heads_opaque() {
 fn variable_write_projection_distinguishes_aliases_from_value_writes() {
     let reg = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for (head, arguments) in [
             ("global", vec![crate::InvocationWord::Literal("item")]),
             (

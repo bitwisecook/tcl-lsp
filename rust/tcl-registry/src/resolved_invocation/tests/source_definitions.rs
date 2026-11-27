@@ -25,7 +25,7 @@ fn source_enum_values_and_definition_bodies_use_the_selected_invocation() {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
     let registry = CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
     let query = Some(SurfaceQuery::core(Family::Tcl, "9.1"));
     let args = [
         crate::InvocationWord::Literal("is"),

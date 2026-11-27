@@ -149,7 +149,7 @@ impl Builder<'_> {
             visits,
             captured,
             self.stamp.expression_policy.as_ref(),
-            tcl_registry::InvocationDialect::for_version(self.stamp.physical),
+            tcl_native_model::InvocationDialect::for_version(self.stamp.physical),
         ) {
             Ok(())
         } else {

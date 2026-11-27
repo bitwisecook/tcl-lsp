@@ -139,7 +139,7 @@ impl OriginalCallbackPrefix {
         word: &tcl_lexer::NativeWord,
         facts: &tcl_registry::InvocationFacts,
         argument: usize,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         let policy = dialect.authored_name_policy()?;
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&word.config());
@@ -272,7 +272,7 @@ impl SourceInvocationBinding {
 
 fn original_callback_words(
     prefix: &SignatureSourceNameInput,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     facts: &tcl_registry::InvocationFacts,
     argument: usize,
 ) -> Option<Vec<SignatureSourceNameInput>> {
@@ -344,7 +344,7 @@ fn original_trace_kind(
 
 fn original_single_script_words(
     prefix: &SignatureSourceNameInput,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<Vec<SignatureSourceNameInput>> {
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.execution_point()?.grammar());
     let inputs = prefix.original_list_elements()?;
@@ -383,7 +383,7 @@ mod tests {
 
     fn bindings(
         source: &str,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         registry: &tcl_registry::CommandRegistry,
     ) -> SourceCommandBindings {
         SourceCommandBindings::analyse_with_options(
@@ -404,7 +404,7 @@ mod tests {
     fn prefix(
         source: &str,
         written: usize,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<OriginalCallbackPrefix> {
         let bindings = bindings(source, dialect, registry);
@@ -420,7 +420,7 @@ mod tests {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let point =
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(environment)).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let dialect = tcl_native_model::InvocationDialect::of_point(point);
             let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
             let callback = prefix("lsort -command {::cmp fixed} {b a}", 2, dialect, registry)
                 .unwrap_or_else(|| panic!("{environment}: original lsort prefix"));
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn original_callback_scope_refuses_foreign_vectors_and_installer_head_lookup() {
         // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
         );
         let registry = tcl_registry::CommandRegistry::build_default();

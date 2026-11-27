@@ -550,7 +550,7 @@ impl Vm {
     fn install_original_resolved_namespace_cache(
         &mut self,
         original: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         entered: &OriginalLookup,
         namespace: NsId,
         target: Token,

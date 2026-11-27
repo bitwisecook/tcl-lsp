@@ -350,7 +350,7 @@ impl AdviceInvocationContext<'_> {
             match &graph.policy {
                 AdviceNamingPolicy::Native(selected) => (*selected == policy).then_some(())?,
                 AdviceNamingPolicy::Logical(input) => {
-                    (tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                    (tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                         .authored_name_policy()
                         == Some(policy))
                     .then_some(())?;
@@ -844,7 +844,7 @@ mod tests {
             .references(&member)?
             .into_iter()
             .find(|reference| reference.kind() == tcl_registry::definer::MemberRefKind::Class)?;
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()?;
         let name = SignatureSourceNameInput::OriginalWord(
             crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(

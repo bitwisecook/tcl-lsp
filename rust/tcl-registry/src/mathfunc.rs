@@ -49,7 +49,7 @@ impl NativeInfoFunctionsRecipe {
     /// Select the reached C implementation. Hosted and Jim surfaces cannot
     /// borrow this recipe from a Tcl-shaped profile.
     #[must_use]
-    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+    pub fn select(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
             return None;
         }
@@ -185,7 +185,7 @@ impl NativeExpressionFunctionCommandName {
         expression: &crate::conditional_expression::ConditionalExpressionEvaluation,
         source: &str,
         ordinal: usize,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         // Proof: naming.expression.original-function-navigation
         // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
@@ -324,7 +324,7 @@ pub fn expr_grammar_ceiling(profile: &'static DialectProfile) -> Option<MathFunc
 /// `profile` — the axis that governs the *in-`expr`* spelling `bare(…)`.
 #[must_use]
 pub fn available_in_expr(bare: &str, profile: &'static DialectProfile) -> bool {
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
         return jim_fixed_math_function_names(dialect).is_some_and(|names| names.contains(&bare));
     }
@@ -342,7 +342,7 @@ pub fn available_in_expr(bare: &str, profile: &'static DialectProfile) -> bool {
 /// `sin` — only exists from 8.5 onward.
 #[must_use]
 pub fn command_wrappers_available(profile: &'static DialectProfile) -> bool {
-    if crate::InvocationDialect::of_profile(profile).family()
+    if tcl_native_model::InvocationDialect::of_profile(profile).family()
         == Some(tcl_dialect::model::Family::Jim)
     {
         return false;
@@ -354,7 +354,7 @@ pub fn command_wrappers_available(profile: &'static DialectProfile) -> bool {
 /// An unmeasured Jim release never inherits C Tcl's open math command table.
 #[must_use]
 pub fn jim_fixed_math_function_names(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<&'static [&'static str]> {
     dialect
         .core_point
@@ -368,7 +368,7 @@ pub fn jim_fixed_math_function_names(
 /// This supplies no registration token, arity, result or compiler authority.
 #[must_use]
 pub fn fresh_fixed_function_presence(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     name: &str,
 ) -> Option<bool> {
     if native_function_dispatch(dialect) != Some(NativeMathFunctionDispatch::FixedTable) {
@@ -400,7 +400,7 @@ pub enum NativeMathFunctionDispatch {
 /// assistance catalogue. Unknown engines and unmeasured Jim releases abstain.
 #[must_use]
 pub fn native_function_dispatch(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<NativeMathFunctionDispatch> {
     use tcl_dialect::model::Family;
     match dialect.family()? {
@@ -422,7 +422,7 @@ pub fn native_function_dispatch(
 /// Unknown native policies never silently acquire C math semantics.
 #[must_use]
 pub fn native_math_protocol(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<tcl_syntax::expr::mathfunc::NativeMathProtocol> {
     use tcl_syntax::expr::mathfunc::NativeMathProtocol;
     if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
@@ -466,7 +466,7 @@ pub enum NativeScalarMathInputRequirement {
 /// identity, normal completion and execution observers remain caller obligations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeScalarMathProtocol {
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     operand_at: usize,
 }
 
@@ -545,7 +545,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn fixed_scalar_math_protocol(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         registry_identity: &str,
         registered_arity: Option<usize>,
         call_arity: usize,
@@ -650,12 +650,14 @@ mod tests {
             let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
             let registry = crate::CommandRegistry::build_default().project_for_profile(profile);
             let native = if name == "jim" {
-                crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                    tcl_dialect::model::Release::JIM_0_84,
-                ))
+                tcl_native_model::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::canonical(
+                        tcl_dialect::model::Release::JIM_0_84,
+                    ),
+                )
             } else {
                 assert!(registry.get("::tcl::mathfunc::abs").is_none(), "{name}");
-                crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
             };
             assert_eq!(
                 super::native_function_dispatch(native),
@@ -680,7 +682,7 @@ mod tests {
             if name == "jim" {
                 // A missing inherited-source roster fails open by its own
                 // contract; that metadata is independent of actual dispatch.
-                let unmeasured = crate::InvocationDialect::of_point(
+                let unmeasured = tcl_native_model::InvocationDialect::of_point(
                     tcl_dialect::model::DialectPoint::canonical(
                         tcl_dialect::model::Release::JIM_0_79,
                     ),
@@ -719,7 +721,7 @@ mod tests {
     fn double_scalar_protocol_requires_selected_c_implementation_and_exact_operand() {
         let registry = crate::CommandRegistry::build_default();
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let values = [crate::InvocationWord::DynamicNonOption];
             if version == tcl_dialect::TclVersion::V8_4 {
                 let protocol = registry
@@ -774,9 +776,9 @@ mod tests {
                 );
             }
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         assert!(
             registry
                 .fixed_scalar_math_protocol(jim, "::tcl::mathfunc::double", Some(1), 1)
@@ -796,10 +798,10 @@ mod tests {
     fn fixed_scalar_math_requires_native_registration_identity_and_arity() {
         let registry = crate::CommandRegistry::build_default();
         for dialect in [
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
-            crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                tcl_dialect::model::Release::JIM_0_84,
-            )),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            tcl_native_model::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            ),
         ] {
             let protocol = registry
                 .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::sqrt", Some(1), 1)
@@ -840,7 +842,7 @@ mod tests {
         assert!(
             registry
                 .fixed_scalar_math_protocol(
-                    crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                    tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
                     "::tcl::mathfunc::sqrt",
                     Some(1),
                     1
@@ -865,7 +867,7 @@ mod tests {
             TclVersion::V9_0,
             TclVersion::V9_1,
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let context = dialect.expression_parse_context(None);
             let expression =
                 crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
@@ -901,7 +903,7 @@ mod tests {
                     .is_none()
             );
         }
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_4);
         let expression = crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
             "Pi()",
             &dialect.expression_parse_context(None),
@@ -912,7 +914,7 @@ mod tests {
                 .original_function_command_name("Pi()", 0, dialect)
                 .is_none()
         );
-        let dialect = crate::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
         );
         let expression = crate::conditional_expression::ConditionalExpressionEvaluation::prepare(
@@ -1024,7 +1026,7 @@ mod tests {
     fn native_dispatch_uses_actual_engine_instead_of_assistance_profile() {
         for version in TclVersion::ALL {
             assert_eq!(
-                native_function_dispatch(crate::InvocationDialect::for_version(version)),
+                native_function_dispatch(tcl_native_model::InvocationDialect::for_version(version)),
                 Some(if version == TclVersion::V8_4 {
                     NativeMathFunctionDispatch::FixedTable
                 } else {
@@ -1032,20 +1034,24 @@ mod tests {
                 })
             );
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         assert!(command_wrappers_available(profile("tcl9.1")));
         assert_eq!(
             native_function_dispatch(jim),
             Some(NativeMathFunctionDispatch::FixedTable)
         );
         assert_eq!(
-            native_function_dispatch(crate::InvocationDialect::of_profile(profile("tcl"))),
+            native_function_dispatch(tcl_native_model::InvocationDialect::of_profile(profile(
+                "tcl"
+            ))),
             None
         );
         assert_eq!(
-            native_function_dispatch(crate::InvocationDialect::of_profile(profile("f5-irules"))),
+            native_function_dispatch(tcl_native_model::InvocationDialect::of_profile(profile(
+                "f5-irules"
+            ))),
             None
         );
     }

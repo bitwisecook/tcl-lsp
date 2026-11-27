@@ -24,7 +24,7 @@ use crate::var_resolve::{
     ContentsWorld, ResolveContext, RootContentsKind, VariableObserverProjection,
     canonical_binding_value_key, cell_key, trace_key,
 };
-use tcl_registry::native_variable_destruction::VariableDestructionProtocol;
+use tcl_native_model::native_variable_destruction::VariableDestructionProtocol;
 use tcl_registry::{CommandRegistry, TraceOperation};
 
 /// Contents inventory for a reached native array operation. The member set is
@@ -432,7 +432,7 @@ mod tests {
         let mut state = ResolveContext::for_frame(
             VariableFrameKind::Global,
             BindingIdentity::Bound,
-            Some(tcl_registry::InvocationDialect::of_profile(
+            Some(tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
             )),
         );

@@ -492,7 +492,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         }
         let Some(target_address) = native_ensemble_command_address(
             ctx,
-            tcl_registry::EnsembleImplementationFamily::Dict,
+            tcl_native_model::EnsembleImplementationFamily::Dict,
             sub,
         ) else {
             return false;
@@ -649,12 +649,12 @@ fn dict_lappend(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
 
 fn native_ensemble_command_address(
     ctx: &CodegenCtx,
-    family: tcl_registry::EnsembleImplementationFamily,
+    family: tcl_native_model::EnsembleImplementationFamily,
     tail: &str,
 ) -> Option<Vec<u8>> {
     ctx.registry
         .profile()
-        .map(tcl_registry::InvocationDialect::of_profile)
+        .map(tcl_native_model::InvocationDialect::of_profile)
         .and_then(|dialect| {
             dialect.ensemble_implementation_command_address(family, tail.as_bytes())
         })
@@ -700,7 +700,7 @@ fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mu
     }
     let Some(target_address) = native_ensemble_command_address(
         ctx,
-        tcl_registry::EnsembleImplementationFamily::Namespace,
+        tcl_native_model::EnsembleImplementationFamily::Namespace,
         "eval",
     ) else {
         return false;
@@ -750,7 +750,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     if sub == "for" && rest.len() == 3 {
         let Some(target_address) = native_ensemble_command_address(
             ctx,
-            tcl_registry::EnsembleImplementationFamily::Array,
+            tcl_native_model::EnsembleImplementationFamily::Array,
             "for",
         ) else {
             return false;
@@ -783,7 +783,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
         "names" | "size" if !rest.is_empty() => {
             let Some(target_address) = native_ensemble_command_address(
                 ctx,
-                tcl_registry::EnsembleImplementationFamily::Array,
+                tcl_native_model::EnsembleImplementationFamily::Array,
                 sub,
             ) else {
                 return false;
@@ -1265,7 +1265,7 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
     let Some(protocol) = ctx
         .native_hook_dialect()
-        .and_then(tcl_registry::InvocationDialect::unset_option_protocol)
+        .and_then(tcl_native_model::InvocationDialect::unset_option_protocol)
     else {
         return false;
     };

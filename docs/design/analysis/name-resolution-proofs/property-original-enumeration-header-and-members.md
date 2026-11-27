@@ -44,9 +44,9 @@ No implementation binding is claimed by this observation record.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/manifest.json)
-- [rust/tcl-registry/tests/data/native_property_owners/probe.c](../../../../rust/tcl-registry/tests/data/native_property_owners/probe.c)
-- [rust/tcl-registry/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/native.tsv)
+- [rust/tcl-native-model/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-native-model/tests/data/native_property_owners/manifest.json)
+- [rust/tcl-native-model/tests/data/native_property_owners/probe.c](../../../../rust/tcl-native-model/tests/data/native_property_owners/probe.c)
+- [rust/tcl-native-model/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-native-model/tests/data/native_property_owners/native.tsv)
 - [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c)
 - [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json)
 - [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv)

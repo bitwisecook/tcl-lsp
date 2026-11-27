@@ -67,15 +67,15 @@ fn logical_provider_changes_stale_only_interpreter_policy_guards() {
     ) -> bool {
         match provider {
             0 => interp.set_logical_eval_object_provider(
-                tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
                 host,
             ),
             1 => interp.set_logical_source_word_provider(
-                tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+                tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation,
                 host,
             ),
             2 => interp.set_logical_expression_parse_provider(
-                tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation,
                 host,
             ),
             _ => unreachable!(),

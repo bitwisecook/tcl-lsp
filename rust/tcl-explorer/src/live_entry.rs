@@ -64,7 +64,7 @@ pub fn recompile_through_live_entry(ir: &Module, module: &mut ModuleAsm) {
 /// `None` unless `dialect` is a plain Tcl release, the only family whose
 /// compiler tclsh's disassembly is the reference for.
 fn live_interpreter(dialect: &'static tcl_dialect::DialectProfile) -> Option<tcl_vm::Vm> {
-    if tcl_registry::InvocationDialect::of_profile(dialect).family()
+    if tcl_native_model::InvocationDialect::of_profile(dialect).family()
         != Some(tcl_dialect::model::Family::Tcl)
     {
         return None;

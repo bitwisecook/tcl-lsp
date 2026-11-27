@@ -71,7 +71,7 @@ mod original_publication_tests;
 #[cfg(test)]
 mod original_record_retirement_tests;
 
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooMethodPayloadType, NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
 };
 
@@ -570,8 +570,10 @@ pub struct OoState {
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<Vec<u8>, obj::Owned>>,
     property_caches: BTreeMap<(OoId, bool), native_properties::NativePropertyCache>,
     /// Pure originating release recipe retained by the actual property producer.
-    property_origins:
-        BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+    property_origins: BTreeMap<
+        (OoId, bool),
+        tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
+    >,
 
     classes: BTreeMap<OoId, Class>,
     objects: BTreeMap<OoId, Object>,

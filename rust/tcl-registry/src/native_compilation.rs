@@ -21,9 +21,10 @@
 //! These descriptors supplement runtime dispatch; a terminal runtime command
 //! target cannot prove that an interpreter previously compiled an operation.
 
-use crate::{InvocationDialect, InvocationWords, SemanticOperationId};
+use crate::{InvocationWords, SemanticOperationId};
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 mod compiled_bodies;
 mod expression_compilation;
@@ -97,7 +98,7 @@ impl NativeCompilationGuard {
     /// Actual native C command-entry ordering. A profile-only or foreign engine
     /// supplies no guard, and the guard itself authenticates no captured opcode.
     #[must_use]
-    pub fn for_native_dialect(dialect: crate::InvocationDialect) -> Option<Self> {
+    pub fn for_native_dialect(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         let tcl_syntax::naming::NativeNameProtocol::C(version) = dialect.native_name_protocol()?
         else {
             return None;
@@ -206,6 +207,21 @@ pub struct NativeCompilationContext {
     pub loop_depth: u32,
     /// Enclosing inline catch exception ranges; absent compiler evidence abstains.
     pub catch_depth: Option<u32>,
+}
+
+/// Character-script trace callbacks enter the direct evaluator in the
+/// triggering frame; they do not inherit the installer's compiler mode.
+#[must_use]
+pub const fn trace_callback_compilation(
+    _protocol: tcl_native_model::native_variable_trace::NativeVariableTraceProtocol,
+) -> NativeCompilationContext {
+    // Source proof: naming.variable.trace-callback-direct-source (docs/design/analysis/name-resolution-proofs/trace-callback-direct-source.md).
+    NativeCompilationContext {
+        mode: NativeCompilationMode::Direct,
+        frame: NativeCompilationFrame::ScriptCode,
+        loop_depth: 0,
+        catch_depth: Some(0),
+    }
 }
 
 impl NativeCompilationContext {

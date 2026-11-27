@@ -414,7 +414,7 @@ fn compiles_dict_each(
             && words.len() == 3
             && words[0].literal
             && words[2].literal
-            && crate::InvocationDialect::for_version(version)
+            && tcl_native_model::InvocationDialect::for_version(version)
                 .read_list(words[0].text)
                 .is_ok_and(|names| {
                     names.len() == 2 && names.iter().all(|name| is_local_scalar(name))
@@ -461,7 +461,7 @@ fn compiled_loop_variables_with(
             version.map_or_else(
                 || crate::literal_folds::split_list(text),
                 |release| {
-                    crate::InvocationDialect::for_version(release)
+                    tcl_native_model::InvocationDialect::for_version(release)
                         .read_list(text)
                         .ok()
                         .map(|names| {
@@ -489,7 +489,7 @@ fn compiles_each_loop(version: TclVersion, words: &[CompileWord<'_>]) -> bool {
         && body.literal
         && pairs.chunks(2).all(|pair| {
             pair[0].literal
-                && crate::InvocationDialect::for_version(version)
+                && tcl_native_model::InvocationDialect::for_version(version)
                     .read_list(pair[0].text)
                     .is_ok_and(|names| {
                         !names.is_empty() && names.iter().all(|name| is_local_scalar(name))

@@ -163,7 +163,7 @@ fn original_source_name_purpose_preserves_native_entry_recipe_and_hosted_barrier
     let input = input();
     let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     let (_owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
-    let policy = tcl_registry::InvocationDialect::of_profile(profile)
+    let policy = tcl_native_model::InvocationDialect::of_profile(profile)
         .authored_name_policy()
         .unwrap();
     let actual = SourceAnalysisEntry {
@@ -225,7 +225,7 @@ fn original_source_name_purpose_preserves_native_entry_recipe_and_hosted_barrier
     let conflicting = conflicting.intern();
     let unknown = tcl_registry::CommandRegistry::build_default().project_for_profile(conflicting);
     assert!(
-        tcl_registry::InvocationDialect::of_profile(conflicting)
+        tcl_native_model::InvocationDialect::of_profile(conflicting)
             .authored_name_policy()
             .is_none()
     );

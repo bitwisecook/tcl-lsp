@@ -31,7 +31,7 @@ use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 use tcl_runtime_api::{Code, Completion, OoId};
 
 // Object / class creation.

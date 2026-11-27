@@ -180,7 +180,7 @@ mod tests {
         command: &str,
         values: &[InvocationWord<'_>],
     ) -> Option<Vec<(usize, VariableOutputCommitment)>> {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment(environment).unit_profile(),
         );
         let registry = crate::CommandRegistry::build_default();

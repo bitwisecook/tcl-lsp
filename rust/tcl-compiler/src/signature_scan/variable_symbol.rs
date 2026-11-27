@@ -1330,7 +1330,7 @@ mod tests {
     use tcl_syntax::word_rules::WordValueRules;
 
     fn original_word(profile: &str, source: &[u8]) -> SignatureSourceNameInput {
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
         );
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);

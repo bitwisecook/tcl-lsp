@@ -21,7 +21,7 @@ use tcl_compiler::executable_ir::{CompletionId, ExecutableFunctionId};
 use tcl_compiler::native_lowering::ir::NativeOp;
 use tcl_compiler::native_lowering::ir::{NativeBlock, NativeStatement, NativeValue};
 use tcl_compiler::native_lowering::representation::Representation;
-use tcl_registry::native_boolean_truth::{
+use tcl_native_model::native_boolean_truth::{
     NativeBooleanExpressionResultProduction as Production, NativeBooleanTruthPurpose as Purpose,
 };
 

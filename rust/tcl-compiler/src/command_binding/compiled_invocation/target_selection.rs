@@ -183,7 +183,7 @@ fn closed_surface_catalogue_dispatch(
         && state
             .baseline
             .dialect
-            .and_then(tcl_registry::InvocationDialect::family)
+            .and_then(tcl_native_model::InvocationDialect::family)
             .is_some_and(tcl_dialect::model::Family::closed_load_time_resolution)
 }
 

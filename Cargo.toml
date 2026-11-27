@@ -61,6 +61,7 @@ members = [
     "rust/tcl-bytecode-tables",
     "rust/tcl-bytecode",
     "rust/tcl-runtime-api",
+    "rust/tcl-native-model",
     "rust/tcl-registry",
     "rust/tcl-bigip-schema",
     "rust/tcl-spectcl",

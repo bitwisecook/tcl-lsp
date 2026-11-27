@@ -696,7 +696,7 @@ struct NativeCReturnState {
 pub(crate) struct NativeTraceResultState {
     result: Value,
     interpreter: Option<NativeTraceInterpreterState>,
-    recipe: tcl_registry::native_variable_trace::NativeTraceStateRecipe,
+    recipe: tcl_native_model::native_variable_trace::NativeTraceStateRecipe,
     physical_owner: variable_trace_outcomes::TracePhysicalOwner,
 }
 
@@ -738,18 +738,18 @@ struct NativeErrorState {
 struct LogicalProviders {
     /// Explicit simulation capability. It never contributes a native compiler
     /// or hardware result receipt; native policy remains independently selected.
-    quote: Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
-    source_words: Option<tcl_registry::invocation_words::LogicalSourceWordProvider>,
-    source_file: Option<tcl_registry::source_file::LogicalSourceFileProvider>,
-    eval_object: Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
-    expression_parse: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    quote: Option<tcl_native_model::LogicalExpressionQuoteProvider>,
+    source_words: Option<tcl_native_model::LogicalSourceWordProvider>,
+    source_file: Option<tcl_native_model::source_file::LogicalSourceFileProvider>,
+    eval_object: Option<tcl_native_model::native_eval_object::LogicalEvalObjectProvider>,
+    expression_parse: Option<tcl_native_model::LogicalExpressionParseProvider>,
     numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
     math_functions: Option<tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider>,
     /// Explicit authored name/string simulation, independent of the host engine.
     names: Option<tcl_syntax::naming::NamePolicyProtocol>,
     /// Explicit compiler-local simulation, separate from name and host authority.
     compiled_variables:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
 }
 
 /// Interpreter, command and binding epochs, policy stamp and surface profile.
@@ -952,8 +952,9 @@ pub struct InterpState {
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
     commands: HashMap<String, Command>,
-    alias_registrations:
-        tcl_registry::native_alias_registration::NativeAliasRegistrationTable<CommandTokenIdentity>,
+    alias_registrations: tcl_native_model::native_alias_registration::NativeAliasRegistrationTable<
+        CommandTokenIdentity,
+    >,
     /// Sole owned namespace/command-address authority, shared by weak native services.
     name_world: Rc<NameWorldCell>,
     /// Structured slots, private storage projections, and stable command-token

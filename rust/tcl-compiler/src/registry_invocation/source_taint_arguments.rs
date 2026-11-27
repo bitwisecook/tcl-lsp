@@ -153,7 +153,7 @@ fn literal_or_scalar_read(
 
 fn closed_source_list_producer(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<()> {
     use tcl_registry::world_effect::{CallbackKinds, Reentrancy};
     let arguments = schema.authored_source_list_arguments()?;

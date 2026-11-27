@@ -35,7 +35,7 @@
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
-use tcl_registry::native_binary_usage::NativeBinaryArgumentUsage;
+use tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage;
 
 /// Register `binary`.
 pub fn install(interp: &mut Interp) {
@@ -51,7 +51,7 @@ pub fn install(interp: &mut Interp) {
         NAMES,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+        tcl_native_model::EnsembleImplementationFamily::Binary,
         b"binary",
         binary_cmd,
         STOCK_MEMBERS,
@@ -59,13 +59,11 @@ pub fn install(interp: &mut Interp) {
     );
     if interp
         .native_invocation_dialect()
-        .ensemble_implementation_namespace(
-            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
-        )
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Binary)
         .is_some()
     {
         interp.register_stock_nested_ensemble(
-            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+            tcl_native_model::EnsembleImplementationFamily::Binary,
             b"::tcl::binary::encode",
             stock_encode,
             &[
@@ -75,7 +73,7 @@ pub fn install(interp: &mut Interp) {
             ],
         );
         interp.register_stock_nested_ensemble(
-            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+            tcl_native_model::EnsembleImplementationFamily::Binary,
             b"::tcl::binary::decode",
             stock_decode,
             &[
@@ -196,7 +194,7 @@ fn binary_cmd_with_arguments(
         return interp.error(b"native binary root protocol required");
     };
     let index = match protocol {
-        tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Ensemble => {
+        tcl_native_model::native_binary_usage::NativeBinaryRootDispatch::Ensemble => {
             let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
                 return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
                     subs,
@@ -207,8 +205,8 @@ fn binary_cmd_with_arguments(
             };
             index
         }
-        tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed
-        | tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Scripted => {
+        tcl_native_model::native_binary_usage::NativeBinaryRootDispatch::Indexed
+        | tcl_native_model::native_binary_usage::NativeBinaryRootDispatch::Scripted => {
             // Scripted ingress reaches only its separately registered helpers;
             // their immutable parser prefix selects this internal parse view.
             match interp.native_static_option_index(argv[1], subs, false, "option") {
@@ -292,7 +290,7 @@ fn binary_encode_wrapped_with_arguments(
     uu: bool,
     arguments: &crate::interp::native_arguments::OriginalArguments,
 ) -> Result<Code, tcl_cmd_core::CmdError> {
-    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose;
     use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
     arguments.check()?;
     let dialect = interp.native_invocation_dialect();
@@ -459,7 +457,7 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if interp
                 .native_invocation_dialect()
                 .binary_format_conversion()
-                == Some(tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8)
+                == Some(tcl_native_model::native_binary_value::NativeBinaryByteConversion::Utf8)
             {
                 // Jim's compound format procedure returns raw string bytes;
                 // C's byte-array Unicode stringification is a separate type.
@@ -556,7 +554,7 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let o = match val {
             tcl_cmd_core::binary::ScanValue::Bytes(bytes) => {
                 if interp.native_invocation_dialect().binary_data_conversion()
-                    == Some(tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8)
+                    == Some(tcl_native_model::native_binary_value::NativeBinaryByteConversion::Utf8)
                 {
                     obj::new_string_bytes(bytes)
                 } else {
@@ -645,9 +643,9 @@ mod tests {
         for reference in tcl_test_support::available_tclshs() {
             let dialect = reference.version.dialect_profile_name().to_owned();
             compare_native_binary(&reference.path, &dialect, BINARY_VALUE_SCRIPTS);
-            if tcl_registry::InvocationDialect::for_version(reference.version)
+            if tcl_native_model::InvocationDialect::for_version(reference.version)
                 .binary_root_dispatch()
-                == Some(tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed)
+                == Some(tcl_native_model::native_binary_usage::NativeBinaryRootDispatch::Indexed)
             {
                 for source in BINARY_VALUE_SCRIPTS.iter().skip(2).take(6) {
                     let with_code = format!("{source}; list $c $r $::errorCode");

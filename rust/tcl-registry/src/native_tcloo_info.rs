@@ -26,9 +26,9 @@ pub use methods::{
     METHOD_INFO_OPTIONS, NativeTclooMethodInfoProtocol, NativeTclooMethodInfoSelection,
 };
 
-use crate::InvocationDialect;
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{TclVersion, model::Family};
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::native_string::NativeStringProtocol;
 
 /// Which `TclOO` second-level `info` ensemble is being dispatched.

@@ -146,7 +146,7 @@ fn original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback() {
         .unwrap();
         let mut context = CodegenCtx::new(true, &["pairs", "local"], &registry);
         context.native_entry = Some(&entry);
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(profile));
         context.source_string_protocol = entry.source_string_protocol;
         context.compiled_variable_protocol = entry.compiled_variable_protocol;
         context.emit_native_words(&parsed.commands[0].words);

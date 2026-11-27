@@ -486,11 +486,11 @@ pub fn resolve_word_exprs(
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     let dialect = context
         .and_then(|context| context.context().environment.point())
-        .map(tcl_registry::InvocationDialect::of_point)
+        .map(tcl_native_model::InvocationDialect::of_point)
         .or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         });
     resolve_word_exprs_with_dialect(registry, context, words, dialect)
 }
@@ -501,7 +501,7 @@ pub fn resolve_word_exprs_with_dialect(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
     words: &[WordExpr],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     resolve_word_exprs_with_dialect_and_metadata_context(
         registry,
@@ -515,7 +515,7 @@ fn resolve_word_exprs_with_dialect_and_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     words: &[WordExpr],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     if words.is_empty() {
         return Err(RegistryInvocationDecline::MissingCommandHead);
@@ -549,7 +549,7 @@ pub(crate) fn resolve_registry_words_in_realm(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
     facts: &[InvocationWord<'_>],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     resolve_registry_words_in_realm_with_metadata_context(
@@ -565,7 +565,7 @@ pub(crate) fn resolve_registry_words_in_realm_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     facts: &[InvocationWord<'_>],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     resolve_registry_words_in_realm_with_metadata_context_and_case(
@@ -578,7 +578,7 @@ pub(super) fn resolve_registry_words_in_realm_with_metadata_context_and_case(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     facts: &[InvocationWord<'_>],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Result<
     (
@@ -692,11 +692,11 @@ pub(super) fn resolve_command_tokens_with_metadata_context_and_case(
     let Some(binding) = &tokens.source_binding else {
         let dialect = context
             .and_then(|context| context.context().environment.point())
-            .map(tcl_registry::InvocationDialect::of_point)
+            .map(tcl_native_model::InvocationDialect::of_point)
             .or_else(|| {
                 registry
                     .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile)
+                    .map(tcl_native_model::InvocationDialect::of_profile)
             });
         let resolution = resolve_word_exprs_with_dialect_and_metadata_context(
             registry,
@@ -744,7 +744,7 @@ pub(super) fn resolve_command_tokens_with_metadata_context_and_case(
         binding.variable_context.invocation_dialect.or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         }),
     )
 }
@@ -754,7 +754,7 @@ pub(super) fn resolve_effective_tokens_with_metadata_context(
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
     effective: &EffectiveCommandWords,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     resolve_effective_tokens_with_metadata_context_and_case(
         registry, context, tokens, effective, dialect,
@@ -767,7 +767,7 @@ pub(super) fn resolve_effective_tokens_with_metadata_context_and_case(
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
     effective: &EffectiveCommandWords,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Result<
     (
         RegistryInvocationResolution,
@@ -847,7 +847,7 @@ pub(super) fn resolve_effective_tokens_with_metadata_context_and_case(
 fn require_native_implementation_lookup(
     tokens: &CommandTokens,
     resolution: RegistryInvocationResolution,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> RegistryInvocationResolution {
     if tokens
         .source_binding

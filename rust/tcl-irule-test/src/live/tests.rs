@@ -44,7 +44,7 @@ fn native_framework_initialization_restores_f5_policy_after_success_and_error() 
     );
     assert_eq!(session.vm.dialect_profile().name, "f5-irules");
     let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
-    let point = tcl_registry::InvocationDialect::of_profile(host)
+    let point = tcl_native_model::InvocationDialect::of_profile(host)
         .execution_point()
         .unwrap();
     let host_policy = tcl_syntax::naming::NamePolicyProtocol::for_native_point(point);

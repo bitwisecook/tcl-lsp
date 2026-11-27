@@ -91,7 +91,7 @@ impl crate::CommandRegistry {
         identity: &str,
         words: &NativeCompilerWords<'_>,
         operand_from: usize,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let registered = self.native_compilation_for_registration(identity, dialect)?;
         if registered.grammar != crate::native_compilation::NativeCompilationGrammar::Unresolved
@@ -109,7 +109,7 @@ impl crate::CommandRegistry {
         identity: &str,
         words: &NativeCompilerWords<'_>,
         operand_from: usize,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let query = dialect.authoring_query()?;
         let registration = self.native_registration_exact_descriptor(identity, dialect)?;
@@ -377,7 +377,7 @@ mod tests {
     fn monolithic_member_refinement_uses_the_exact_rooted_registration_descriptor() {
         use crate::native_compilation::NativeCompilationGrammar;
         let mut registry = crate::CommandRegistry::build_default();
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_4);
         let shipped = registry
             .native_registration_exact_descriptor("string", dialect)
             .unwrap();
@@ -428,7 +428,7 @@ mod tests {
         let registry = crate::CommandRegistry::build_default();
         for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(profile_name).unwrap();
-            let dialect = crate::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             for (source, plain_member) in [
                 (b"string match * $subject".as_slice(), true),
                 (b"renamed mat * $subject".as_slice(), true),

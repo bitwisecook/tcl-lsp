@@ -27,6 +27,7 @@ use tcl_cmd_core::{
     native_jim_index::{self, NativeJimIndexObjects},
     CmdError,
 };
+use tcl_registry::native_stock_list::ObjectLengthDialect;
 use tcl_syntax::{
     native_jim_index::{JimIndex, JimIndexExpression},
     native_string::NativeStringProtocol,
@@ -278,7 +279,7 @@ impl NativeIndexOps for Interp {
         original: &*mut TclObj,
         command: tcl_cmd_core::native_option_index::OptionCommand,
     ) -> Result<Option<i64>, CmdError> {
-        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose as Purpose;
         use tcl_syntax::scalar_getter::NativeScalarGetterValue;
         let arguments = OriginalArguments::enter(self, &[*original])?;
         arguments.check_original_for(self, 0, *original)?;
@@ -324,7 +325,7 @@ impl NativeIndexOps for Interp {
     ) -> Result<Option<tcl_cmd_core::index::ListNumber>, CmdError> {
         use tcl_cmd_core::index::{ListNumber, ListNumericKind};
         use tcl_cmd_core::native_option_index::OptionCommand;
-        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose as Purpose;
         use tcl_syntax::scalar_getter::NativeScalarGetterValue;
         let purpose = match (command, kind) {
             (OptionCommand::Search, ListNumericKind::Integer) => Purpose::ListSearchInteger,
@@ -777,7 +778,7 @@ impl NativeIndexOps for Interp {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         let dialect = self.native_invocation_dialect();
         let provider = Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         );
         let protocol = dialect
             .native_string_materialization(provider)
@@ -804,7 +805,7 @@ impl NativeIndexOps for Interp {
     ) -> Result<Vec<*mut TclObj>, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         let protocol = self.native_invocation_dialect().native_string_materialization(
-            Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+            Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
         ).ok_or(ValueError::CommandProtocolUnavailable("original Index container List issuer"))?.protocol();
         if protocol.is_jim084() {
             let context = self.native_jim_object_context();

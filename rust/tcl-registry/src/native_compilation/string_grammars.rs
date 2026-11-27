@@ -23,8 +23,9 @@ use super::{
     NativeCompilationGuard, NativeCompilationSelection, NativeCompilationWordShape,
     NativeNamedInvocationProtocol, literal_shape,
 };
-use crate::{InvocationDialect, InvocationWords, SemanticOperationId};
+use crate::{InvocationWords, SemanticOperationId};
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 // TclCompileSubstCmd (C8.6–9.1): TclWordKnownAtCompileTime options are
 // considered only when the final template is the original SIMPLE_WORD.

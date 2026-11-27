@@ -27,7 +27,7 @@ pub enum NativeDictionaryAppendInputs {
     /// Append original operands in sequence to one prepared dictionary member.
     PerOperand,
     /// Concatenate original arguments before the one member append operation.
-    Concatenate(crate::native_object_append::NativeObjectCatProtocol),
+    Concatenate(tcl_native_model::native_object_append::NativeObjectCatProtocol),
 }
 
 /// Construction of a dictionary member absent at the native lookup.
@@ -122,18 +122,66 @@ pub struct NativeDictionaryRootProtocol {
     pub immediate_children: bool,
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait NativeDictionaryDialect {
     /// Native dictionary insertion order, removal order and result spelling.
     #[must_use]
-    pub fn native_dictionary_layout(self) -> Option<tcl_syntax::value::NativeDictionaryLayout> {
+    fn native_dictionary_layout(self) -> Option<tcl_syntax::value::NativeDictionaryLayout>;
+
+    /// Select only the actual Jim worker. C and unknown invocations abstain.
+    #[must_use]
+    fn native_dictionary_root_protocol(
+        self,
+        purpose: NativeDictionaryRootPurpose,
+    ) -> Option<NativeDictionaryRootProtocol>;
+
+    /// Select the actual set/unset path worker's publication order. This pure
+    /// recipe supplies no cell, successful read, alias, object or loaded wrapper.
+    #[must_use]
+    fn native_dictionary_path_publication(self) -> Option<NativeDictionaryPathPublication>;
+
+    /// Validate the already-produced Jim dictionary-variable root bytes.
+    /// This is pure list/cardinality knowledge, independently of a current
+    /// cell, successful read, representation conversion or native dispatch.
+    #[must_use]
+    fn dictionary_variable_root_valid(self, root: &[u8]) -> Option<bool>;
+
+    /// Original list-value ordinal selected by Jim's counted dictionary key.
+    /// A duplicate key selects its last value; malformed/odd roots and missing
+    /// members abstain. No value or normal-completion certificate is issued.
+    #[must_use]
+    fn dictionary_variable_value_ordinal(self, root: &[u8], index: &[u8]) -> Option<usize>;
+
+    /// Select the actual Tcl 9 array-default command independently of the
+    /// source grammar or a vendor's compatibility version.
+    #[must_use]
+    fn native_array_default_protocol(self) -> Option<tcl_runtime_api::NativeArrayDefaultProtocol>;
+
+    /// Select the native primitive GET frontier. Scripted Jim wrappers own
+    /// their normal Tcl reads rather than receiving this C primitive receipt.
+    #[must_use]
+    fn native_dictionary_variable_lookup(self) -> Option<NativeDictionaryVariableLookup>;
+
+    /// Select C primitive member ownership. Jim dictionary append is an actual
+    /// scripted procedure and grants no borrowed-member primitive capability.
+    #[must_use]
+    fn native_dictionary_append_policy(self) -> Option<NativeDictionaryAppendPolicy>;
+
+    /// Select the actual dictionary command's preprocessing owner. Vendor
+    /// simulation and C8.4 command absence provide no dictionary capability.
+    #[must_use]
+    fn native_dictionary_append_inputs(self) -> Option<NativeDictionaryAppendInputs>;
+}
+
+impl NativeDictionaryDialect for tcl_native_model::InvocationDialect {
+    fn native_dictionary_layout(self) -> Option<tcl_syntax::value::NativeDictionaryLayout> {
         tcl_syntax::value::NativeDictionaryLayout::for_string_protocol(
             self.native_string_protocol()?,
         )
     }
 
-    /// Select only the actual Jim worker. C and unknown invocations abstain.
-    #[must_use]
-    pub fn native_dictionary_root_protocol(
+    fn native_dictionary_root_protocol(
         self,
         purpose: NativeDictionaryRootPurpose,
     ) -> Option<NativeDictionaryRootProtocol> {
@@ -163,10 +211,7 @@ impl crate::InvocationDialect {
         })
     }
 
-    /// Select the actual set/unset path worker's publication order. This pure
-    /// recipe supplies no cell, successful read, alias, object or loaded wrapper.
-    #[must_use]
-    pub fn native_dictionary_path_publication(self) -> Option<NativeDictionaryPathPublication> {
+    fn native_dictionary_path_publication(self) -> Option<NativeDictionaryPathPublication> {
         match self.native_string_protocol()? {
             NativeStringProtocol::C(
                 TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1,
@@ -178,11 +223,7 @@ impl crate::InvocationDialect {
         }
     }
 
-    /// Validate the already-produced Jim dictionary-variable root bytes.
-    /// This is pure list/cardinality knowledge, independently of a current
-    /// cell, successful read, representation conversion or native dispatch.
-    #[must_use]
-    pub fn dictionary_variable_root_valid(self, root: &[u8]) -> Option<bool> {
+    fn dictionary_variable_root_valid(self, root: &[u8]) -> Option<bool> {
         (self.native_string_protocol()? == NativeStringProtocol::Jim084).then_some(())?;
         Some(
             tcl_syntax::list::split_native_list_bytes(root, NativeStringProtocol::Jim084)
@@ -190,11 +231,7 @@ impl crate::InvocationDialect {
         )
     }
 
-    /// Original list-value ordinal selected by Jim's counted dictionary key.
-    /// A duplicate key selects its last value; malformed/odd roots and missing
-    /// members abstain. No value or normal-completion certificate is issued.
-    #[must_use]
-    pub fn dictionary_variable_value_ordinal(self, root: &[u8], index: &[u8]) -> Option<usize> {
+    fn dictionary_variable_value_ordinal(self, root: &[u8], index: &[u8]) -> Option<usize> {
         (self.native_string_protocol()? == NativeStringProtocol::Jim084).then_some(())?;
         let elements =
             tcl_syntax::list::split_native_list_bytes(root, NativeStringProtocol::Jim084).ok()?;
@@ -210,12 +247,7 @@ impl crate::InvocationDialect {
             .find_map(|(ordinal, pair)| (pair[0].as_ref() == index).then_some(ordinal * 2 + 1))
     }
 
-    /// Select the actual Tcl 9 array-default command independently of the
-    /// source grammar or a vendor's compatibility version.
-    #[must_use]
-    pub fn native_array_default_protocol(
-        self,
-    ) -> Option<tcl_runtime_api::NativeArrayDefaultProtocol> {
+    fn native_array_default_protocol(self) -> Option<tcl_runtime_api::NativeArrayDefaultProtocol> {
         match self.native_string_protocol()? {
             NativeStringProtocol::C(TclVersion::V9_0 | TclVersion::V9_1) => {
                 Some(tcl_runtime_api::NativeArrayDefaultProtocol::Tcl9)
@@ -225,10 +257,7 @@ impl crate::InvocationDialect {
         }
     }
 
-    /// Select the native primitive GET frontier. Scripted Jim wrappers own
-    /// their normal Tcl reads rather than receiving this C primitive receipt.
-    #[must_use]
-    pub fn native_dictionary_variable_lookup(self) -> Option<NativeDictionaryVariableLookup> {
+    fn native_dictionary_variable_lookup(self) -> Option<NativeDictionaryVariableLookup> {
         match self.native_string_protocol()? {
             NativeStringProtocol::C(
                 TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1,
@@ -237,10 +266,7 @@ impl crate::InvocationDialect {
         }
     }
 
-    /// Select C primitive member ownership. Jim dictionary append is an actual
-    /// scripted procedure and grants no borrowed-member primitive capability.
-    #[must_use]
-    pub fn native_dictionary_append_policy(self) -> Option<NativeDictionaryAppendPolicy> {
+    fn native_dictionary_append_policy(self) -> Option<NativeDictionaryAppendPolicy> {
         let inputs = self.native_dictionary_append_inputs()?;
         let (missing, empty) = match self.native_string_protocol()? {
             NativeStringProtocol::C(TclVersion::V8_5 | TclVersion::V8_6) => (
@@ -261,10 +287,8 @@ impl crate::InvocationDialect {
             empty,
         })
     }
-    /// Select the actual dictionary command's preprocessing owner. Vendor
-    /// simulation and C8.4 command absence provide no dictionary capability.
-    #[must_use]
-    pub fn native_dictionary_append_inputs(self) -> Option<NativeDictionaryAppendInputs> {
+
+    fn native_dictionary_append_inputs(self) -> Option<NativeDictionaryAppendInputs> {
         match self.native_string_protocol()? {
             NativeStringProtocol::C(TclVersion::V8_4) => None,
             NativeStringProtocol::C(TclVersion::V8_5 | TclVersion::V8_6)
@@ -797,7 +821,9 @@ impl NativeDictionaryCommand {
         if variables.as_bytes().contains(&0) {
             return NativeCompilationSelection::Unknown;
         }
-        let Ok(names) = crate::InvocationDialect::for_version(version).read_list(variables) else {
+        let Ok(names) =
+            tcl_native_model::InvocationDialect::for_version(version).read_list(variables)
+        else {
             return self.local_fallback(from, version);
         };
         if names.len() != 2 || !names.iter().all(|name| local_scalar(name)) {
@@ -829,7 +855,7 @@ mod compiler_tests {
     fn dictionary_variable_ordinal_matches_current_native_key_values() {
         // Native proof: naming.dictionary-variable.original-counted-values
         // docs/design/analysis/name-resolution-proofs/dictionary-variable-original-counted-values.md
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         );
         let cases: &[(&str, &[u8], &[u8])] = &[
@@ -873,7 +899,8 @@ mod compiler_tests {
                     tcl_dialect::TclVersion::profile_name_for(&fields[0][..3])
                         .expect("captured release"),
                 );
-                let dialect = crate::InvocationDialect::of_profile(profile.unit_profile());
+                let dialect =
+                    tcl_native_model::InvocationDialect::of_profile(profile.unit_profile());
                 assert_eq!(dialect.dictionary_variable_value_ordinal(root, key), None);
                 assert_eq!(
                     fields[2], "1",
@@ -939,7 +966,7 @@ mod compiler_tests {
         from: usize,
         selectors: usize,
         expected: Vec<usize>,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         context: NativeCompilationContext,
     ) {
         use crate::native_compiler_word_projection::NativeCompilerWordOperand as Word;
@@ -989,7 +1016,7 @@ mod compiler_tests {
 
     fn assert_dictionary_named_fallback_refusals(
         version: TclVersion,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         context: NativeCompilationContext,
     ) {
         use crate::native_compiler_words::NativeCompilerWords;
@@ -1035,7 +1062,7 @@ mod compiler_tests {
             ..Default::default()
         };
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let select = |source: &str| {
@@ -1079,7 +1106,7 @@ mod compiler_tests {
     fn original_dictionary_named_fallback_counts_selectors_not_operands() {
         let registry = crate::CommandRegistry::build_default();
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let context = NativeCompilationContext {
                 mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: NativeCompilationFrame::ScriptCode,
@@ -1161,7 +1188,7 @@ mod compiler_tests {
     fn original_dictionary_85_nonlocal_fallback_is_generic() {
         let source = "dict incr d a 5";
         let version = TclVersion::V8_5;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let image = tcl_lexer::SourceImage::native(source.as_bytes());
         let parsed = tcl_lexer::native_script_words_in(
@@ -1261,6 +1288,7 @@ mod compiler_tests {
 
 #[cfg(test)]
 mod path_publication_tests {
+    use crate::native_dictionary::NativeDictionaryDialect;
     #[test]
     fn original_path_publication_keeps_jim_worker_separate_from_c_lookup_frontier() {
         // Source: Jim_SetDictKeysVector's ordinary variable lookup and initial
@@ -1269,7 +1297,7 @@ mod path_publication_tests {
         // docs/design/analysis/name-resolution-proofs/dictionary-original-path-missing-variable-publication.md
         use super::NativeDictionaryPathPublication as Publication;
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::for_tcl_version(version),
             );
             assert_eq!(
@@ -1277,16 +1305,17 @@ mod path_publication_tests {
                 (version >= tcl_dialect::TclVersion::V8_5).then_some(Publication::COriginalName)
             );
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         assert_eq!(
             jim.native_dictionary_path_publication(),
             Some(Publication::JimOriginalVariable)
         );
         assert!(jim.native_dictionary_variable_lookup().is_none());
-        let mut authored_only =
-            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jim"));
+        let mut authored_only = tcl_native_model::InvocationDialect::of_profile(
+            crate::native_test_provider::profile("jim"),
+        );
         // Software premise: removing the actual core point withdraws the
         // native worker recipe while preserving the independently chosen family.
         authored_only.core_point = None;
@@ -1302,9 +1331,9 @@ mod root_protocol_tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Pure selected source schedules do not grant an original cell/header.
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         for purpose in [
             NativeDictionaryRootPurpose::ArraySet,
             NativeDictionaryRootPurpose::VariableSet,
@@ -1337,7 +1366,7 @@ mod root_protocol_tests {
                 }
             );
             for version in tcl_dialect::TclVersion::ALL {
-                let c = crate::InvocationDialect::of_point(
+                let c = tcl_native_model::InvocationDialect::of_point(
                     tcl_dialect::model::DialectPoint::for_tcl_version(version),
                 );
                 assert!(c.native_dictionary_root_protocol(purpose).is_none());

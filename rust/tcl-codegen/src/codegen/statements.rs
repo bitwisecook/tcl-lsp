@@ -114,7 +114,9 @@ enum NativeEmissionTask {
         tcl_bytecode::NativeExpressionNumberLiteral,
     ),
     PrivateLogicalBoolean85(bool),
-    NativeCommandLiteral(Box<tcl_registry::native_command_literal::NativeCompiledCommandLiteral>),
+    NativeCommandLiteral(
+        Box<tcl_native_model::native_command_literal::NativeCompiledCommandLiteral>,
+    ),
     RegisteredExpressionNumber(
         tcl_dialect::TclVersion,
         Vec<u8>,

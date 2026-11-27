@@ -32,7 +32,7 @@ fn original_receiver_table_keeps_opaque_and_zero_names_distinct() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -74,7 +74,7 @@ fn original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain() {
             config,
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -123,7 +123,7 @@ fn original_receiver_formal_admission_preserves_counted_opaque_names() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -169,7 +169,7 @@ fn native_default_constructor_uses_captured_worker_identity_and_rejects_replacem
             registry,
             SourceAnalysisOptions {
                 native_entry: Some(&entry),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -229,7 +229,7 @@ fn visibility_metadata_keeps_original_entries_and_definition_order() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -289,7 +289,9 @@ fn native_classmethod_inheritance_retains_the_original_delegate_owner() {
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                 &registry,
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation:
                         tcl_registry::native_compilation::NativeCompilationContext {
                             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -358,7 +360,7 @@ fn class_method_entry_requires_both_original_definition_receivers() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -424,7 +426,7 @@ fn class_block_method_entry_retains_the_original_inner_source() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -490,7 +492,7 @@ fn method_source_inventory_is_temporal_and_retains_receiver_kind() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -568,7 +570,7 @@ fn constructor_entry_retains_original_formals_without_proving_the_result_class()
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -622,7 +624,7 @@ fn class_definition_receipt_is_independent_of_constructor_execution() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -649,7 +651,7 @@ fn compiled_class_definition_retains_absolute_method_command_identity() {
         tcl_lexer::LexerConfig::default(),
         &registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             )),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
@@ -688,7 +690,7 @@ fn constructor_declaration_retains_its_formal_and_exact_read_source() {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         &registry,
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()
@@ -716,7 +718,7 @@ fn method_declaration_retains_local_frame_without_receiver_namespace() {
         tcl_lexer::LexerConfig::default(),
         &CommandRegistry::build_default(),
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_1,
             )),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
@@ -776,7 +778,7 @@ fn custom_metaclass_receipts(source: &str, dialect: &str) -> Vec<(String, String
         registry,
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()

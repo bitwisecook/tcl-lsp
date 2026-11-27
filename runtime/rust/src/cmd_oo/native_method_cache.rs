@@ -21,7 +21,7 @@ use super::{
     native_context, obj, BTreeMap, CallStep, Interp, Method, OoId, OoState, Rc, RefCell, TclObj,
 };
 use std::ops::Deref;
-use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
+use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
 /// A Method record retains its current native name independently of the table key.
 pub(super) struct NativeMethodRecord {
@@ -275,7 +275,7 @@ pub(super) fn retain_owners(
 }
 
 use std::rc::Weak;
-use tcl_registry::native_tcloo_method_cache::{
+use tcl_native_model::native_tcloo_method_cache::{
     NativeTclOoMethodCacheProtocol, NativeTclOoMethodCacheStamp,
 };
 
@@ -736,7 +736,7 @@ impl Interp {
 mod tests {
     use super::*;
     use crate::interp::Code;
-    use tcl_registry::native_tcloo_method_definition::NativeTclooMethodPayloadType;
+    use tcl_native_model::native_tcloo_method_definition::NativeTclooMethodPayloadType;
     fn interp(version: &str) -> Interp {
         Interp::with_native_core(
             crate::interp::default_host(),

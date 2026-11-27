@@ -18,8 +18,10 @@
 
 //! Selected vwait operand grammar, separate from notifier or observer capability.
 
-use crate::{ArgRole, InvocationArguments, InvocationDialect};
+use crate::native_event::NativeEventDialect;
+use crate::{ArgRole, InvocationArguments};
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 /// Original argv boundary accepted by the basic single-name wait owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,7 +148,7 @@ impl NativeVwaitProtocol {
                 }
                 let index =
                     InvocationDialect::for_version(version).native_index_lookup_protocol()?;
-                let table = crate::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                let table = tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
                     C_OPTIONS,
                 );
                 let mut roles = Vec::new();
@@ -190,10 +192,16 @@ impl NativeVwaitProtocol {
     }
 }
 
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait NativeVwaitDialect {
     /// Actual C or pinned Jim event grammar; missing native axes decline.
     #[must_use]
-    pub fn native_vwait_protocol(self) -> Option<NativeVwaitProtocol> {
+    fn native_vwait_protocol(self) -> Option<NativeVwaitProtocol>;
+}
+
+impl NativeVwaitDialect for tcl_native_model::InvocationDialect {
+    fn native_vwait_protocol(self) -> Option<NativeVwaitProtocol> {
         self.native_event_protocol()
             .map(super::native_event::NativeEventProtocol::vwait)
     }

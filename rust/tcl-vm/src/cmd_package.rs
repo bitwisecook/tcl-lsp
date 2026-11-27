@@ -21,6 +21,7 @@
 
 use std::cmp::Ordering;
 use tcl_core_types::NameBytes;
+use tcl_registry::native_package::NativePackageDialect;
 use tcl_registry::native_package::NativePackageErrorCode;
 
 use tcl_dialect::{
@@ -240,7 +241,7 @@ fn package_subcommand(
     options: &'static [&'static str],
 ) -> Result<&'static str, Completion<Value>> {
     let table =
-        tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
+        tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
     let selection = if vm.package_table_is_authored() {
         let bytes = package_operand_bytes(vm, original)?;
         Ok(tcl_registry::native_package::select_authored_keyword(
@@ -774,7 +775,7 @@ fn pkg_prefer(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value>
                 Err(completion) => return completion,
             };
             let table =
-                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
                     protocol.preference_members().expect("C preference table"),
                 );
             let selected = match vm.checked(|vm| {
@@ -988,7 +989,7 @@ fn defer_package_script(
     let location = script.source_location();
     match vm.prepare_script_commands_value_for(
         script,
-        tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+        tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
     ) {
         Ok(prepared) => {
             if let Some(unit) = prepared.prefix {

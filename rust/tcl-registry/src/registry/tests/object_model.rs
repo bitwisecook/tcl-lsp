@@ -163,7 +163,7 @@ fn native_root_factory_descriptor_uses_actual_axes() {
             registry
                 .native_default_construction_grammar(
                     "oo::class",
-                    crate::InvocationDialect::for_version(version),
+                    tcl_native_model::InvocationDialect::for_version(version),
                     tcl_dialect::model::InvocationRealm::RuleLoader,
                 )
                 .is_some(),
@@ -182,16 +182,16 @@ fn native_root_factory_descriptor_uses_actual_axes() {
             physically_projected
                 .native_default_construction_grammar(
                     "oo::class",
-                    crate::InvocationDialect::for_version(version),
+                    tcl_native_model::InvocationDialect::for_version(version),
                     tcl_dialect::model::InvocationRealm::RuleLoader,
                 )
                 .is_none(),
             "actual axes cannot restore metadata removed by physical projection"
         );
     }
-    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let jim = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     assert!(
         registry
             .native_default_construction_grammar(

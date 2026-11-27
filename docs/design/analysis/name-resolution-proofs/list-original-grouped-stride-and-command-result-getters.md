@@ -4046,7 +4046,7 @@ C Tcl 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclDecls
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/lsort.rs](../../../../rust/tcl-cmd-core/src/lsort.rs), `run_original`: Same original operation across parse, selected job, callback, result construction and retirement.
-- [rust/tcl-registry/src/native_numeric_error/command.rs](../../../../rust/tcl-registry/src/native_numeric_error/command.rs), `NativeNumericCommandPurpose`: Separate original comparator returned-value Int/Wide purpose and diagnostic wrapper.
+- [rust/tcl-native-model/src/native_numeric_error/command.rs](../../../../rust/tcl-native-model/src/native_numeric_error/command.rs), `NativeNumericCommandPurpose`: Separate original comparator returned-value Int/Wide purpose and diagnostic wrapper.
 - [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `native_list_replace_prepared_range_checked`: Checked sibling on existing range replacement kernel without additional working holds.
 - [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs), `replace_prepared_native_range_using`: Expose existing checked physical replacement kernel for the actual command tail and sorted header.
 - [rust/tcl-cmd-core/src/lsort.rs](../../../../rust/tcl-cmd-core/src/lsort.rs), `GroupingFailure`: Classifies actual size/leading-coordinate branches; diagnostics are selected from the typed failure, never reparsed displayed text.

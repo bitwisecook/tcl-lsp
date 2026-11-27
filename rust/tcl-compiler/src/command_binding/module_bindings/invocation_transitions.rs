@@ -326,7 +326,7 @@ fn exact_procedure_definition_key(
     facts: &tcl_registry::InvocationFacts,
     namespace: &crate::ir_helpers::ExecutionNamespace,
     precise_procedure: &str,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     let transitions = facts.state_transitions.declared()?;
     let [fact] = transitions.facts() else {
@@ -563,7 +563,7 @@ pub(in super::super) enum ProcedureDefinitionReplay {
 pub(in super::super) fn recover_procedure_definition(
     invocation: &ResolvedBindingInvocation,
     namespace: &crate::ir_helpers::ExecutionNamespace,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> ProcedureDefinitionReplay {
     use tcl_registry::SemanticOperationId;
     use tcl_registry::hooks::LoweringHookId;
@@ -623,7 +623,8 @@ pub(in super::super) fn recover_procedure_definition(
     ) else {
         return ProcedureDefinitionReplay::Unavailable;
     };
-    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+    let Some(grammar) = dialect.and_then(tcl_native_model::InvocationDialect::parameter_grammar)
+    else {
         return ProcedureDefinitionReplay::Unavailable;
     };
     if tcl_syntax::formal_params::parse_formal_parameters_in(params, grammar).is_err() {

@@ -557,8 +557,8 @@ TclOONextObjCmd(
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `NativeTclooMethodReportRole`: Named, Constructor and Destructor roles are issued by the actual selected call producer; report text cannot authenticate a role.
-- [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `NativeTclooMethodReportProtocol`: Select through actual original TclOO declaration availability; literal Foundation report names do not authenticate physical ownership.
+- [rust/tcl-native-model/src/native_tcloo_method_definition.rs](../../../../rust/tcl-native-model/src/native_tcloo_method_definition.rs), `NativeTclooMethodReportRole`: Named, Constructor and Destructor roles are issued by the actual selected call producer; report text cannot authenticate a role.
+- [rust/tcl-native-model/src/native_tcloo_method_definition.rs](../../../../rust/tcl-native-model/src/native_tcloo_method_definition.rs), `NativeTclooMethodReportProtocol`: Select through actual original TclOO declaration availability; literal Foundation report names do not authenticate physical ownership.
 - [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs), `FoundationMethodReports`: Own actual bootstrap-selected constructor/destructor report headers or Values independently of unnamed Method records; retain genuine missing-owner refusal.
 - [rust/tcl-vm/src/cmd_oo.rs](../../../../rust/tcl-vm/src/cmd_oo.rs), `FoundationMethodReports`: Own actual bootstrap-selected constructor/destructor report headers or Values independently of unnamed Method records; retain genuine missing-owner refusal.
 - [runtime/rust/src/cmd_oo/native_method_cache.rs](../../../../runtime/rust/src/cmd_oo/native_method_cache.rs), `ReachedMethodChain`: Retain the role issued by actual constructor/destructor entry and inherited next; literal names and unrelated method caches supply no role.

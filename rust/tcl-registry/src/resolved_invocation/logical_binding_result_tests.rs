@@ -24,7 +24,7 @@ fn selected_logical_result_binding_axis_keeps_native_effects_unknown() {
     let profile = tcl_dialect::DialectProfile::plain_tcl();
     let context = crate::model::ingress::context_for_profile(profile);
     assert!(
-        crate::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .native_name_protocol()
             .is_none()
     );
@@ -85,7 +85,8 @@ fn structured_conditional_and_output_roles_keep_unknown_payloads() {
     use crate::InvocationWord::{Dynamic, Expanded, Literal};
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let owner = crate::model::ingress::static_context_for(profile);
-        let dialect = crate::InvocationDialect::of_profile(owner.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(owner.commands().profile().unwrap());
         for (head, arguments, expected) in [
             (
                 "if",

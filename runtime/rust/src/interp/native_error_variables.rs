@@ -20,6 +20,7 @@
 
 use super::{new_string, Interp, TraceAccess, GLOBAL};
 use crate::obj;
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueError;
 
@@ -131,7 +132,7 @@ pub(super) struct NativeErrorTraceState {
     logged: bool,
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
-        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+        Option<Box<tcl_native_model::native_expression_error::NativeExpressionErrorStage>>,
 }
 
 impl Interp {
@@ -295,7 +296,7 @@ impl Interp {
         self.native_invocation_dialect()
             .native_error_log_protocol()
             .is_some_and(
-                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+                tcl_native_model::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
             )
     }
 
@@ -1263,16 +1264,17 @@ impl Interp {
             } else {
                 self.exc.borrow().native.info_len
             };
-            let append = tcl_registry::native_error_log::NativeErrorInfoAppend::from_accumulated(
-                &bytes, length,
-            )
-            .ok_or_else(|| {
-                self.refuse_completion_value_access(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native errorInfo append extent",
-                    ),
+            let append =
+                tcl_native_model::native_error_log::NativeErrorInfoAppend::from_accumulated(
+                    &bytes, length,
                 )
-            })?;
+                .ok_or_else(|| {
+                    self.refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native errorInfo append extent",
+                        ),
+                    )
+                })?;
             if starting {
                 #[cfg(test)]
                 self.observe_c84_error_episode("c84.first_episode", None);

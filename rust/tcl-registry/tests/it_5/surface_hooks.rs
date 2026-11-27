@@ -21,11 +21,12 @@
 //! (`docs/design/registry/registry-split/02-behaviour-to-surfaces.md`).
 
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 use tcl_registry::native_compilation::NativeCompilationGrammar;
 use tcl_registry::source_navigation::static_tcl_source_display;
 use tcl_registry::{
-    ClauseShapeIssue, InvocationArguments, InvocationDialect, Traits, TryClauseKind,
-    TryCompletionSelector, default_registry, installed, selected_try_control_invocation,
+    ClauseShapeIssue, InvocationArguments, Traits, TryClauseKind, TryCompletionSelector,
+    default_registry, installed, selected_try_control_invocation,
 };
 
 #[test]

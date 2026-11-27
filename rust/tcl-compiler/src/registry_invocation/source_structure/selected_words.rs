@@ -177,7 +177,7 @@ impl OriginalSourceRegistryContext {
         // This facade owns a fresh source interpretation only. A genuine
         // positioned selection may project Registry syntax, but cannot issue
         // lookup-preserving rewrites or execution authority to this consumer.
-        if tcl_registry::InvocationDialect::of_profile(self.input.unit_profile())
+        if tcl_native_model::InvocationDialect::of_profile(self.input.unit_profile())
             .authored_name_policy()
             .is_some()
             && let Some(mut selected) =

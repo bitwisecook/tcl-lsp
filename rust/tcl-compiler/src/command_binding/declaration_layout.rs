@@ -488,7 +488,7 @@ struct OriginalDeclarationWordSource<'a> {
     site: &'a CommandAllocationSite,
     words: &'a [tcl_source::words::WordExpr],
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 }
 
 #[cfg(test)]

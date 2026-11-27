@@ -125,8 +125,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
+use tcl_native_model::InvocationDialect;
 use tcl_registry::model::{ContextRegistry, ResolvedContext};
-use tcl_registry::{AliasTargetLookup, InvocationDialect, TransitionSubject};
+use tcl_registry::{AliasTargetLookup, TransitionSubject};
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameProtocol};
 
 mod advice_graph;

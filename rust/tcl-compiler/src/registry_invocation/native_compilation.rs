@@ -335,7 +335,7 @@ fn native_simple_text_component(text: &str) -> bool {
 pub fn native_compilation_syntax(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     context: tcl_registry::native_compilation::NativeCompilationContext,
 ) -> Option<(
     InvocationFacts,

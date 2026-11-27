@@ -39,11 +39,11 @@ pub(super) struct NativeErrorStack {
 impl NativeErrorStack {
     pub(super) fn configure(
         &mut self,
-        recipe: Option<tcl_registry::native_error_objects::NativeErrorObjectsProtocol>,
+        recipe: Option<tcl_native_model::native_error_objects::NativeErrorObjectsProtocol>,
     ) {
         let protocol = recipe
             .filter(|recipe| recipe.has_error_stack())
-            .map(tcl_registry::native_error_objects::NativeErrorObjectsProtocol::strings);
+            .map(tcl_native_model::native_error_objects::NativeErrorObjectsProtocol::strings);
         if self.protocol != protocol {
             self.protocol = protocol;
             self.header =
@@ -189,7 +189,7 @@ mod tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let recipe = tcl_registry::InvocationDialect::for_version(version)
+            let recipe = tcl_native_model::InvocationDialect::for_version(version)
                 .native_error_objects_protocol()
                 .unwrap();
             let mut stack = NativeErrorStack::default();
@@ -268,7 +268,7 @@ mod tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let recipe = tcl_registry::InvocationDialect::for_version(version)
+            let recipe = tcl_native_model::InvocationDialect::for_version(version)
                 .native_error_objects_protocol()
                 .unwrap();
             let member = Value::native_list_constructor(
@@ -320,9 +320,10 @@ mod tests {
         // naming.error.original-invocation-context-capture
         // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
         // No source text, fresh strings or retired-header revival repairs a view.
-        let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
-            .native_error_objects_protocol()
-            .unwrap();
+        let recipe =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                .native_error_objects_protocol()
+                .unwrap();
         let member = Value::native_list_constructor(vec![Value::string("old")], recipe.strings());
         let observed = member.native_lifetime_lease();
         let argv = NativeListItems::new(vec![member], false);
@@ -410,7 +411,7 @@ mod tests {
     fn reached_instruction_capture_preserves_missing_owner_refusal() {
         // naming.error.original-invocation-context-capture
         // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
-        use tcl_registry::native_return_options::NativeReturnOptionsApplication;
+        use tcl_native_model::native_return_options::NativeReturnOptionsApplication;
         use tcl_runtime_api::NativeExecutionError;
         use tcl_syntax::raw_string::NativeValueAccessRefusal;
         let mut vm =
@@ -436,9 +437,10 @@ mod tests {
 
     #[test]
     fn explicit_stack_copies_original_members_into_the_private_header() {
-        let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
-            .native_error_objects_protocol()
-            .unwrap();
+        let recipe =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .native_error_objects_protocol()
+                .unwrap();
         let mut stack = NativeErrorStack::default();
         stack.configure(Some(recipe));
         let identity = stack.header.as_ref().unwrap().native_object_identity();

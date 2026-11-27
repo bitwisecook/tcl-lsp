@@ -194,12 +194,15 @@ impl InvocationCompletionRoute {
     /// return. C rejects raw break/continue escaping a procedure; Jim propagates
     /// them. Codes released by a configured return keep their own identity.
     #[must_use]
-    pub fn through_procedure_boundary_in(self, dialect: Option<crate::InvocationDialect>) -> Self {
+    pub fn through_procedure_boundary_in(
+        self,
+        dialect: Option<tcl_native_model::InvocationDialect>,
+    ) -> Self {
         if let Self::TclAlternatives(codes) = self
             && codes
                 .iter()
                 .any(|code| matches!(code, CompletionCode::Break | CompletionCode::Continue))
-            && dialect.map(crate::InvocationDialect::procedure_completion_policy)
+            && dialect.map(tcl_native_model::InvocationDialect::procedure_completion_policy)
                 != Some(ProcedureCompletionPolicy::Jim)
         {
             return if self.normal_possible() {
@@ -212,7 +215,9 @@ impl InvocationCompletionRoute {
             self,
             Self::Tcl(CompletionCode::Break | CompletionCode::Continue)
         ) {
-            return match dialect.map(crate::InvocationDialect::procedure_completion_policy) {
+            return match dialect
+                .map(tcl_native_model::InvocationDialect::procedure_completion_policy)
+            {
                 Some(ProcedureCompletionPolicy::Tcl) => Self::Tcl(CompletionCode::Error),
                 Some(ProcedureCompletionPolicy::Jim) => self,
                 Some(ProcedureCompletionPolicy::Unknown) | None => Self::UnknownAbrupt,
@@ -233,10 +238,16 @@ pub enum ProcedureCompletionPolicy {
     Unknown,
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait ProcedureCompletionDialect {
     /// The actual engine's procedure boundary, independent of host surfaces.
     #[must_use]
-    pub fn procedure_completion_policy(self) -> ProcedureCompletionPolicy {
+    fn procedure_completion_policy(self) -> ProcedureCompletionPolicy;
+}
+
+impl ProcedureCompletionDialect for tcl_native_model::InvocationDialect {
+    fn procedure_completion_policy(self) -> ProcedureCompletionPolicy {
         match self.family() {
             Some(tcl_dialect::model::Family::Jim) => ProcedureCompletionPolicy::Jim,
             Some(tcl_dialect::model::Family::Tcl) => ProcedureCompletionPolicy::Tcl,
@@ -266,7 +277,7 @@ impl ReturnInvocationGrammar {
     /// release. Numeral and lexer overrides do not select another handler.
     /// This describes its grammar, without supplying a compiler or entry.
     #[must_use]
-    pub fn for_dialect(dialect: crate::InvocationDialect) -> Self {
+    pub fn for_dialect(dialect: tcl_native_model::InvocationDialect) -> Self {
         Self::for_family_release(dialect.family(), dialect.tcl_version)
     }
 
@@ -315,7 +326,8 @@ pub enum ReturnStateEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CommandRegistry, InvocationArguments, InvocationDialect};
+    use crate::{CommandRegistry, InvocationArguments};
+    use tcl_native_model::InvocationDialect;
 
     fn route(words: &[&str], dialect: InvocationDialect) -> InvocationCompletionRoute {
         CommandRegistry::build_default()
@@ -584,14 +596,16 @@ mod tests {
         let registry = CommandRegistry::build_default();
         for (dialect, code, empty) in [
             (
-                crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
                 CompletionCode::Return,
                 false,
             ),
             (
-                crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                    tcl_dialect::model::Release::JIM_0_84,
-                )),
+                tcl_native_model::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::canonical(
+                        tcl_dialect::model::Release::JIM_0_84,
+                    ),
+                ),
                 CompletionCode::Other(7),
                 true,
             ),
@@ -807,7 +821,8 @@ mod tests {
 #[cfg(test)]
 mod numeric_tests {
     use super::*;
-    use crate::{CommandRegistry, InvocationArguments, InvocationDialect};
+    use crate::{CommandRegistry, InvocationArguments};
+    use tcl_native_model::InvocationDialect;
 
     #[test]
     fn native_completion_code_conversion_keeps_release_and_engine_differences() {
@@ -864,7 +879,7 @@ mod numeric_tests {
     fn jim_static_definition_retains_normal_completion_under_contextual_arity() {
         let context = crate::model::ingress::static_context_for("jim");
         let registry = context.commands();
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         );
         let args = crate::InvocationArguments::literals(&["p", "", "{x OLD}", "return $x"])

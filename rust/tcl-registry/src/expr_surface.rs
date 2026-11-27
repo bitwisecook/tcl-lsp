@@ -274,12 +274,12 @@ impl RuntimeExprSurface {
                 .builtin_math_function_command_visible(name)
                 .filter(|visible| *visible);
         }
-        let dialect = crate::InvocationDialect::of_profile(self.profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(self.profile);
         for family in [
-            crate::EnsembleImplementationFamily::String,
-            crate::EnsembleImplementationFamily::Dict,
-            crate::EnsembleImplementationFamily::Array,
-            crate::EnsembleImplementationFamily::Namespace,
+            tcl_native_model::EnsembleImplementationFamily::String,
+            tcl_native_model::EnsembleImplementationFamily::Dict,
+            tcl_native_model::EnsembleImplementationFamily::Array,
+            tcl_native_model::EnsembleImplementationFamily::Namespace,
         ] {
             let Some(namespace) = dialect.ensemble_implementation_namespace(family) else {
                 continue;

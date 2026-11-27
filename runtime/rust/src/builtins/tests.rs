@@ -19,9 +19,7 @@
 #[cfg(have_tommath)]
 #[test]
 fn measured_bare_matches_runtime_requires_independent_authored_policy() {
-    use tcl_registry::invocation_words::{
-        LogicalExpressionParseProvider, LogicalSourceWordProvider,
-    };
+    use tcl_native_model::{LogicalExpressionParseProvider, LogicalSourceWordProvider};
     let fixture =
         include_str!("../../../../rust/tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv");
     leak_free(|interp| {
@@ -114,7 +112,7 @@ fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
 #[cfg(have_tommath)]
 #[test]
 fn logical_parser_requires_an_independent_host_and_separate_cache_policy() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
     leak_free(|interp| {
         let source = tcl_dialect::DialectProfile::irules();
@@ -142,7 +140,7 @@ fn logical_parser_requires_an_independent_host_and_separate_cache_policy() {
 #[cfg(have_tommath)]
 #[test]
 fn logical_parser_host_changes_retire_cached_policy_without_rebinding_objects() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
     leak_free(|interp| {
         let source = tcl_dialect::DialectProfile::irules();
@@ -191,7 +189,7 @@ fn logical_parser_host_changes_retire_cached_policy_without_rebinding_objects() 
 #[cfg(have_tommath)]
 #[test]
 fn logical_expression_materialises_original_storage_under_its_actual_host() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     leak_free(|interp| {
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
@@ -200,7 +198,7 @@ fn logical_expression_materialises_original_storage_under_its_actual_host() {
             LogicalExpressionParseProvider::Tcl84CoreSimulation,
             host,
         ));
-        let recipe = tcl_registry::InvocationDialect::of_profile(host)
+        let recipe = tcl_native_model::InvocationDialect::of_profile(host)
             .byte_array_string_recipe(None)
             .unwrap();
         let object = crate::obj::Owned::fresh(crate::bytearray::new_byte_array(b"1+2", recipe));
@@ -405,8 +403,7 @@ fn source_word_simulation_is_independent_of_expression_parser_installation() {
     leak_free(|interp| {
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        let provider =
-            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation;
+        let provider = tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation;
         interp.set_dialect_profile(source);
         assert!(interp.source_string_protocol().is_none());
         assert!(!interp.set_logical_source_word_provider(provider, source));

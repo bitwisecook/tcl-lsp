@@ -220,7 +220,7 @@ mod tests {
                 .map(TclVersion::dialect_profile_name)
                 .and_then(tcl_dialect::DialectProfile::find)
                 .unwrap();
-            let version = crate::InvocationDialect::of_profile(profile)
+            let version = tcl_native_model::InvocationDialect::of_profile(profile)
                 .tcl_version
                 .unwrap();
             let source = unhex(columns[2]);

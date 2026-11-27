@@ -33,6 +33,7 @@ use crate::namespace::{Namespaces, GLOBAL};
 use crate::{builtins, obj, parse};
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::guard::{GuardDomain, GuardManager, OwnedGuardManager};
 use tcl_runtime_api::jim_error_stack::JimErrorStack;
 use tcl_runtime_api::CommandEvaluation;
@@ -61,7 +62,7 @@ pub(in super::super) const DEFAULT_RUNTIME_VERSION: tcl_dialect::TclVersion =
 pub(super) fn install_ambient_release(version: tcl_dialect::TclVersion) {
     tcl_syntax::number::set_runtime_syntax(version.number_syntax());
     crate::regex_capi::set_runtime_release(version);
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     parse::install_native_list_policy(
         dialect.lexer_grammar.list_parse,
         dialect.lexer_grammar.escapes,
@@ -118,7 +119,7 @@ impl Interp {
     ) -> Option<Interp> {
         install_surfaces();
         let protocol =
-            tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
+            tcl_native_model::InvocationDialect::of_profile(profile).native_bootstrap_protocol()?;
         if protocol.names().tcl_version().is_some() {
             tcl_syntax::list::split_native_list_bytes(
                 &inputs.package_path,

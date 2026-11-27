@@ -1062,7 +1062,9 @@ mod tests {
                 Some(owner),
                 Some(crate::command_binding::SourceAnalysisEntry {
                     native_entry: Some(std::sync::Arc::new(entry)),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 }),

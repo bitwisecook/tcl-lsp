@@ -346,7 +346,7 @@ fn retained_expression_argument_folding_requires_actual_availability() {
     let entry = crate::command_binding::SourceAnalysisEntry {
         invocation_dialect: registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile),
+            .map(tcl_native_model::InvocationDialect::of_profile),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         native_entry: Some(std::sync::Arc::new(native)),
         ..crate::command_binding::SourceAnalysisEntry::default()

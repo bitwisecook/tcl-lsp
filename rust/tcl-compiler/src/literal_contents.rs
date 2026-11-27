@@ -284,7 +284,7 @@ mod tests {
     fn entry(registry: &CommandRegistry) -> ResolveContext {
         let mut state = ResolveContext::for_function("::worker");
         state.binding_identity = BindingIdentity::Bound;
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         state

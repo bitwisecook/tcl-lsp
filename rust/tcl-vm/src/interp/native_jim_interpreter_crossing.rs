@@ -198,7 +198,7 @@ impl Vm {
             let scope = NativeOperationScope::enter(vm)?;
             let completion = match vm.eval_original_script_value(
                 copied.borrowed(),
-                tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
                 None,
             ) {
                 Ok(completion) => completion,
@@ -298,7 +298,7 @@ impl Vm {
             scope.check(vm)?;
             let completion = match vm.eval_original_script_value(
                 script.borrowed(),
-                tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
                 None,
             ) {
                 Ok(completion) => completion,

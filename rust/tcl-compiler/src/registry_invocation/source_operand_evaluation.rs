@@ -186,7 +186,7 @@ mod tests {
                             Some(&input),
                         ),
                         native_entry: Some(&native),
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_compilation:

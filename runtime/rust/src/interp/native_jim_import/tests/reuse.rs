@@ -48,7 +48,7 @@ fn import_observed(actual: &mut Interp, label: &str) {
         .collect();
     entered_import(actual, &arguments, |actual, traversal, body, frame| {
         let code = actual.eval_original_body_framed(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             body,
             frame,
         );
@@ -123,7 +123,7 @@ fn genuine_import_source_cannot_certify_full_traversal_after_a_publishing_break(
         |actual, traversal, body, frame| {
             assert_eq!(
                 actual.eval_original_body_framed(
-                    tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                     body,
                     frame,
                 ),

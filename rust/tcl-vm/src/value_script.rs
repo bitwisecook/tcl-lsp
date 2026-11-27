@@ -343,7 +343,7 @@ mod tests {
     fn observe_script_input(
         case: &str,
         hex: &str,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         config: tcl_lexer::LexerConfig,
         observed: &mut String,
     ) {
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn original_script_storage_matches_156_native_windows() {
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
         );
         let config = tcl_lexer::LexerConfig::from_grammar(

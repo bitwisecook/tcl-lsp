@@ -220,7 +220,7 @@ fn dictionary_callback_vm(
     vm.register_native_command(
         "advance",
         tcl_vm::native_conformance::dictionary_search_mutation_driver(
-            tcl_registry::InvocationDialect::of_profile(profile),
+            tcl_native_model::InvocationDialect::of_profile(profile),
             add,
         )
         .unwrap(),

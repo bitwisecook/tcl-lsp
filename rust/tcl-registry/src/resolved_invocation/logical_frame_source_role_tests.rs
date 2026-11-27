@@ -18,9 +18,10 @@
 
 use crate::value_transfer::OperandId;
 use crate::{
-    ArgRole, CommandRegistry, FrameLevel, InvocationArguments, InvocationDialect,
-    InvocationResolutionUnresolved, InvocationWord, InvocationWords, TclType,
+    ArgRole, CommandRegistry, FrameLevel, InvocationArguments, InvocationResolutionUnresolved,
+    InvocationWord, InvocationWords, TclType,
 };
+use tcl_native_model::InvocationDialect;
 
 #[test]
 fn logical_frame_source_roles_use_consensus_without_native_frame_facts() {

@@ -722,7 +722,7 @@ impl SubCommand {
     pub fn run_const_fold_in(
         &self,
         args: &[&str],
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<String> {
         use crate::native_compilation::NativeCompilationGrammar;
         use crate::native_dictionary::NativeDictionaryCommand;

@@ -66,7 +66,7 @@ impl crate::expr::ExprCtx for NoCtx<'_> {
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
         Some(self.0.host())
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<Owned, crate::expr_error::ExprError> {

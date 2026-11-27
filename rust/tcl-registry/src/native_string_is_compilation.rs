@@ -612,7 +612,7 @@ mod tests {
     fn private_ascii_failindex_decline_rejects_other_shapes() {
         use crate::native_compilation::NativeBodyCompilation;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
             ..NativeCompilationContext::default()
@@ -654,7 +654,7 @@ mod tests {
         };
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let private = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands),
             operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
@@ -715,7 +715,7 @@ mod tests {
         };
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let private = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands),
             operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
@@ -802,7 +802,7 @@ mod tests {
                 private.select_native_words(
                     &captured,
                     1,
-                    Some(crate::InvocationDialect::for_version(version)),
+                    Some(tcl_native_model::InvocationDialect::for_version(version)),
                     context
                 ),
                 NativeCompilationSelection::Generic
@@ -816,7 +816,7 @@ mod tests {
             NativeBodyCompilation, NativeCompilationSpec, NativeOriginalCompilerNameEffects,
         };
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let source_words = words(b"::tcl::string::is $c $s", version);
         let captured =
             NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version)).unwrap();
@@ -903,7 +903,7 @@ mod tests {
     fn a_real_private_descriptor_keeps_the_single_original_subject() {
         let registry = crate::CommandRegistry::build_default();
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let private = registry
                 .native_compilation_for_registration("::tcl::string::is", dialect)
                 .expect("the actual private StringIs compiler has a descriptor");
@@ -961,11 +961,11 @@ mod tests {
             registry
                 .native_compilation_for_registration(
                     "::tcl::string::not_is",
-                    crate::InvocationDialect::for_version(TclVersion::V9_0)
+                    tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0)
                 )
                 .is_none()
         );
-        let c85 = crate::InvocationDialect::for_version(TclVersion::V8_5);
+        let c85 = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_5);
         assert_eq!(
             registry
                 .native_compilation_for_registration("::tcl::string::is", c85)
@@ -1101,7 +1101,7 @@ mod tests {
             let original =
                 NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
                     .unwrap();
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let selection = spec.select_native_words(&original, 1, Some(dialect), context);
             assert!(!matches!(
                 selection,
@@ -1119,7 +1119,7 @@ mod tests {
             spec.select_native_words(&original, 1, None, context),
             NativeCompilationSelection::Unknown
         );
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let selection = spec.select_native_words(&original, 0, Some(dialect), context);
         assert_eq!(selection, NativeCompilationSelection::Unknown);
         assert!(native_instruction_plan(spec, selection, &original, 0, dialect, context).is_err());

@@ -279,7 +279,7 @@ fn string_ordering_uses_selected_native_units_and_jim_equality_uses_bytes() {
         let selected = registry.profile().unwrap();
         let policy = FoldPolicy::for_retained_entry(
             registry,
-            Some(tcl_registry::InvocationDialect::of_profile(selected)),
+            Some(tcl_native_model::InvocationDialect::of_profile(selected)),
             &tcl_lexer::LexerConfig::from_grammar(selected.grammar),
         );
         for (expression, expected) in [

@@ -442,7 +442,7 @@ pub(super) fn compare(
     let sa = a.native_object_snapshot();
     let sb = b.native_object_snapshot();
     if matches!(sa.cache, Cache::String { .. }) && matches!(sb.cache, Cache::String { .. }) {
-        let representation = tcl_registry::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
+        let representation = tcl_native_model::native_string_length::NativeStringLengthRepresentation::PureProperByteArray;
         let ca = a.native_character_count_with_protocol(operation.strings, representation)?;
         let cb = b.native_character_count_with_protocol(operation.strings, representation)?;
         let reached = if sa.resident.as_ref().is_some_and(|bytes| bytes.len() == ca)

@@ -465,7 +465,7 @@ pub(in super::super) fn publication_slot(
         && let NativeNameProtocol::C(version) = recipe
     {
         tcl_registry::native_procedure::procedure_name_creation_error(
-            tcl_registry::InvocationDialect::for_version(version),
+            tcl_native_model::InvocationDialect::for_version(version),
             slot.namespace.is_root(),
             slot.simple.as_bytes(),
         )?

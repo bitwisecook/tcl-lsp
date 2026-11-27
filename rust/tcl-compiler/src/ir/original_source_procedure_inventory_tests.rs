@@ -44,7 +44,7 @@ fn allocated_module() -> (tcl_vm::Vm, super::Module) {
     );
     lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
         native_entry: Some(&entry),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     });
     let module = crate::lowering::lower_to_ir_with(

@@ -109,7 +109,7 @@ impl Interp {
             );
         };
         if protocol.dispatches_list(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             &snapshot,
         ) {
             let frame = self.unlocated_frame();
@@ -125,8 +125,9 @@ impl Interp {
         // naming.mathop-procedure-source-controls
         // docs/design/analysis/name-resolution-proofs/mathop-procedure-source-controls.md
         if !self.in_proc()
-            && protocol
-                .compiles_source(tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody)
+            && protocol.compiles_source(
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
+            )
         {
             return self.eval_generic_control_body(body);
         }
@@ -338,7 +339,7 @@ impl Interp {
         location: Option<(Option<Rc<[u8]>>, u32)>,
     ) -> Code {
         self.eval_original_control_body_location_with_purpose(
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             original,
             location,
         )
@@ -346,7 +347,7 @@ impl Interp {
 
     fn eval_original_control_body_location_with_purpose(
         &mut self,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         original: *mut TclObj,
         location: Option<(Option<Rc<[u8]>>, u32)>,
     ) -> Code {
@@ -378,7 +379,7 @@ impl Interp {
         original: *mut TclObj,
     ) -> Code {
         self.eval_original_control_body_location_with_purpose(
-            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::CompiledStack,
             original,
             None,
         )
@@ -414,7 +415,7 @@ impl Interp {
             }
         }
         self.eval_original_body_framed_with_inventory(
-            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::Eval,
             obj,
             frame,
             inventory,
@@ -424,7 +425,7 @@ impl Interp {
     /// Evaluate an original object using its selected native dispatch recipe.
     pub(crate) fn eval_original_body_framed(
         &mut self,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         original: *mut TclObj,
         frame: CmdFrame,
     ) -> Code {
@@ -433,7 +434,7 @@ impl Interp {
 
     fn eval_original_body_framed_with_inventory(
         &mut self,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         original: *mut TclObj,
         frame: CmdFrame,
         inventory: &mut Option<Rc<native_jim_lookup::OriginalJimCommandInventoryReturn>>,
@@ -479,7 +480,7 @@ impl Interp {
     #[inline(never)]
     fn prepare_original_body_evaluation(
         &mut self,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
         original: *mut TclObj,
     ) -> Result<Box<PreparedOriginalBodyEvaluation>, Code> {
         let owner = obj::Owned::retain(original);
@@ -493,7 +494,7 @@ impl Interp {
         };
         let compiled_stack = matches!(
             purpose,
-            tcl_registry::native_eval_object::EvalObjectPurpose::CompiledStack
+            tcl_native_model::native_eval_object::EvalObjectPurpose::CompiledStack
         );
         if compiled_stack && !protocol.compiles_source(purpose) {
             return Err(self.report_cmd_error(
@@ -620,7 +621,7 @@ impl Interp {
             }
         }
         let code = self.eval_original_body_framed(
-            tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::UpLevel,
             obj,
             frame,
         );

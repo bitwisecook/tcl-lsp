@@ -279,7 +279,7 @@ impl SignatureSourceCommand {
         if let NativeNameProtocol::C(version) = recipe {
             let selected = recipe.command_lookup_slot(context, key.bytes()).ok()?;
             tcl_registry::native_procedure::procedure_name_creation_error(
-                tcl_registry::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
                 selected.namespace.is_root(),
                 selected.simple.as_bytes(),
             )?
@@ -352,7 +352,7 @@ impl SignatureSourceCommand {
                 .command_lookup_slot(context, written.as_bytes())
                 .ok()?;
             tcl_registry::native_procedure::procedure_name_creation_error(
-                tcl_registry::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
                 selected.namespace.is_root(),
                 selected.simple.as_bytes(),
             )?

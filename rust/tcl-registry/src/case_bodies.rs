@@ -54,7 +54,7 @@ impl CaseListSpec {
             arguments.dialect().map(|dialect| dialect.word_values),
             arguments
                 .dialect()
-                .and_then(crate::InvocationDialect::authoring_query),
+                .and_then(tcl_native_model::InvocationDialect::authoring_query),
         )
     }
 
@@ -255,7 +255,8 @@ mod tests {
         let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
         let spec = registry.get("switch").unwrap();
         let options = spec.options.iter().collect::<Vec<_>>();
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (clause_list, no_match) in [
             ("a {set x 1}", true),
             ("a {set x 1} default {set x 2}", false),
@@ -316,7 +317,8 @@ mod tests {
             .options
             .iter()
             .collect::<Vec<_>>();
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
         let words = [Literal("-regexp"), Dynamic, Literal("a {BODY}")];
         let possible = CaseListSpec::SWITCH
             .possible_body_operands(
@@ -384,7 +386,7 @@ mod tests {
             Literal("a {set x 1}"),
         ];
         for version in [tcl_dialect::TclVersion::V8_4, tcl_dialect::TclVersion::V8_6] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let selected = spec
                 .possible_body_operands(
                     InvocationArguments::structured(&data_marker).with_dialect(dialect),
@@ -416,7 +418,7 @@ mod tests {
             crate::InvocationWord::Literal("loud {set debug 1} default {set debug 0}"),
         ];
         let arguments = InvocationArguments::structured(&values).with_dialect(
-            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules()),
+            tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules()),
         );
         let selected = spec
             .case_list
@@ -442,7 +444,8 @@ mod tests {
     fn malformed_and_fallthrough_lists_share_authored_clause_grammar() {
         let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
         let spec = registry.get("switch").unwrap();
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for text in ["a {set x 1} dangling", "a -"] {
             let words = ["x", text];
             assert!(
@@ -487,7 +490,7 @@ mod tests {
                 .unwrap()
                 .possible_body_operands(
                     InvocationArguments::structured(&words)
-                        .with_dialect(crate::InvocationDialect::for_version(version)),
+                        .with_dialect(tcl_native_model::InvocationDialect::for_version(version)),
                     &spec.options.iter().collect::<Vec<_>>(),
                 )
                 .unwrap();
@@ -517,7 +520,8 @@ mod tests {
         for dialect_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = crate::model::ingress::static_context_for(dialect_name).commands();
             let spec = registry.get("switch").unwrap();
-            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
             let options = spec.options.iter().collect::<Vec<_>>();
             let words = [
                 crate::InvocationWord::Literal("-exact"),

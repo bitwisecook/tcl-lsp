@@ -42,7 +42,7 @@ pub(super) fn logical_module_for(
     );
     assert!(input.has_logical_source_name_context());
     assert!(
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .is_some()
     );
@@ -935,7 +935,7 @@ fn original_inlining_activation_requires_selected_c_parameter_grammar() {
     assert!(input.has_logical_source_name_context());
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
         logical_source_input: Some(input.clone()),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     };
     let original = CompilationUnit::build_with_source_entry(
@@ -968,10 +968,10 @@ fn original_inlining_activation_requires_selected_c_parameter_grammar() {
         0,
         "the C control must exercise an eligible transform"
     );
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
-    let unknown = tcl_registry::InvocationDialect {
+    let unknown = tcl_native_model::InvocationDialect {
         variable_lookup_policy: None,
         ..jim
     };

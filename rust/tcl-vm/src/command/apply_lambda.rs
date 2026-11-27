@@ -59,7 +59,7 @@ fn prepare_lambda_declaration(
     let Some(protocol) = vm.native_invocation_dialect().native_string_protocol() else {
         return Err(vm.refuse_host_command("native lambda list producer is unavailable".into()));
     };
-    let Some(diagnostics) = tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+    let Some(diagnostics) = tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol::select(
         vm.native_invocation_dialect(),
     ) else {
         return Err(

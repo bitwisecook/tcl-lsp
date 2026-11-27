@@ -62,7 +62,7 @@ fn namespace_analysis(
         namespace: "::".to_owned(),
         identity: "namespace-preparation".to_owned(),
     };
-    let entry = (tcl_registry::InvocationDialect::of_profile(profile).family()
+    let entry = (tcl_native_model::InvocationDialect::of_profile(profile).family()
         == Some(tcl_dialect::model::Family::Tcl))
     .then(|| crate::environment_ingress::captured_native_entry(profile));
     let inventory = SourceCommandBindings::analyse_in_frame_with_options(
@@ -74,7 +74,7 @@ fn namespace_analysis(
             native_entry: entry
                 .as_ref()
                 .map(crate::environment_ingress::CapturedNativeEntry::as_entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
@@ -423,7 +423,7 @@ fn original_switch_source_admission_withdraws_changed_or_truncated_vectors() {
         &segment,
     );
     inventory.stamp_original_tokens(&mut tokens);
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let context = NativeCompilationContext {
         mode: NativeCompilationMode::BytecodeObject,
         frame: NativeCompilationFrame::ProcedureCode,
@@ -550,7 +550,7 @@ fn original_namespace_source_admission_rejects_changed_or_truncated_vectors() {
     inventory.stamp_original_tokens(&mut tokens);
     let binding = tokens.source_binding.as_ref().unwrap().clone();
     assert!(binding.original_compiler_source(&tokens).is_some());
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let context = NativeCompilationContext {
         mode: NativeCompilationMode::BytecodeObject,
         frame: NativeCompilationFrame::ProcedureCode,

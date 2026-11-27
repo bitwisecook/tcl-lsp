@@ -92,7 +92,7 @@ impl VariableAliasDestination {
     pub fn is_active_in_frame(
         self,
         frame: VariableAliasFrame,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<bool> {
         self.is_active_in_frame_with_policy(frame, Some(dialect))
     }
@@ -103,7 +103,7 @@ impl VariableAliasDestination {
     pub fn is_active_in_frame_with_policy(
         self,
         frame: VariableAliasFrame,
-        dialect: Option<crate::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<bool> {
         match (self, frame) {
             (_, VariableAliasFrame::Unknown) => None,
@@ -383,7 +383,7 @@ pub fn local_alias_name(
     subject: &TransitionSubject,
     argument_index: usize,
     purpose: VariableAliasNamePurpose,
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<TransitionSubject> {
     if let TransitionSubject::LocatedNativeBytes {
         value: name,
@@ -391,28 +391,29 @@ pub fn local_alias_name(
     } = subject
     {
         let argument_index = *argument_index;
-        let selected = match dialect.and_then(crate::InvocationDialect::native_name_protocol) {
-            Some(protocol) => match purpose {
-                VariableAliasNamePurpose::Global => {
-                    tcl_syntax::naming::global_local_name_bytes(protocol, name)?
+        let selected =
+            match dialect.and_then(tcl_native_model::InvocationDialect::native_name_protocol) {
+                Some(protocol) => match purpose {
+                    VariableAliasNamePurpose::Global => {
+                        tcl_syntax::naming::global_local_name_bytes(protocol, name)?
+                    }
+                    VariableAliasNamePurpose::NamespaceVariable => {
+                        tcl_syntax::naming::variable_local_name_bytes(protocol, name)
+                    }
+                },
+                None if dialect.is_some_and(|dialect| {
+                    dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                }) =>
+                {
+                    tcl_syntax::naming::c_family_local_alias_name_bytes(name)?
                 }
-                VariableAliasNamePurpose::NamespaceVariable => {
-                    tcl_syntax::naming::variable_local_name_bytes(protocol, name)
+                None => {
+                    return Some(TransitionSubject::Unknown {
+                        argument_index,
+                        word_kind: InvocationWordKind::KnownBytes,
+                    });
                 }
-            },
-            None if dialect.is_some_and(|dialect| {
-                dialect.family() == Some(tcl_dialect::model::Family::Tcl)
-            }) =>
-            {
-                tcl_syntax::naming::c_family_local_alias_name_bytes(name)?
-            }
-            None => {
-                return Some(TransitionSubject::Unknown {
-                    argument_index,
-                    word_kind: InvocationWordKind::KnownBytes,
-                });
-            }
-        };
+            };
         return Some(TransitionSubject::LocatedNativeBytes {
             value: selected,
             argument_index,
@@ -425,7 +426,9 @@ pub fn local_alias_name(
         argument_index,
         word_kind: InvocationWordKind::Opaque,
     };
-    let Some(protocol) = dialect.and_then(crate::InvocationDialect::native_name_protocol) else {
+    let Some(protocol) =
+        dialect.and_then(tcl_native_model::InvocationDialect::native_name_protocol)
+    else {
         if dialect.is_some_and(|dialect| dialect.family() == Some(tcl_dialect::model::Family::Tcl))
         {
             return Some(

@@ -31,7 +31,7 @@ use tcl_cmd_core::{
         original_boolean_expression_result, original_boolean_truth,
     },
 };
-use tcl_registry::{
+use tcl_native_model::{
     InvocationDialect,
     native_boolean_truth::{
         NativeBooleanExpressionResultProduction as Production,

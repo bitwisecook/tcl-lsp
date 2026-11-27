@@ -324,7 +324,7 @@ mod tests {
         let mut context = ResolveContext::for_frame(
             VariableFrameKind::Global,
             crate::var_resolve::BindingIdentity::Bound,
-            Some(tcl_registry::InvocationDialect::of_profile(
+            Some(tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
             )),
         );

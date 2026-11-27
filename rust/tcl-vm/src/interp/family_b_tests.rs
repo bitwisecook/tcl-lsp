@@ -19,6 +19,7 @@
 use super::*;
 use crate::command::NativeCommand;
 use std::cell::Cell;
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::GLOBAL_FRAME;
 
 const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
@@ -66,7 +67,7 @@ fn without_literal_observation(
 fn construction_without_a_native_engine_refuses() {
     let source = tcl_dialect::DialectProfile::irules();
     assert!(
-        tcl_registry::InvocationDialect::of_profile(source)
+        tcl_native_model::InvocationDialect::of_profile(source)
             .native_bootstrap_protocol()
             .is_none()
     );

@@ -27,7 +27,7 @@ pub(super) struct ExprErrorState {
     pub(super) preserve_result: bool,
     pub(super) string_result: Option<tcl_syntax::native_string::NativeStringProtocol>,
     pub(super) error_stage:
-        Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+        Option<Box<tcl_native_model::native_expression_error::NativeExpressionErrorStage>>,
 }
 
 impl ExprError {

@@ -217,7 +217,7 @@ pub(super) fn install_members(
     operation: &OriginalPropertyOperation,
     originals: &[NativeObjectLifetimeLease],
 ) -> Result<BTreeSet<String>, CmdError> {
-    use tcl_registry::native_property_lookup::NativePropertyMemberInstallationStep as Stage;
+    use tcl_native_model::native_property_lookup::NativePropertyMemberInstallationStep as Stage;
     operation.check(vm)?;
     let recipe = vm
         .actual_native_invocation_dialect()

@@ -507,7 +507,7 @@ impl ObjectHandleFacts {
         // The unit's own point versions its source; `tk` analyses that unit
         // under the anonymous lenient profile, every other input under itself.
         let versioned_source = !input.has_hosted_source_name_context()
-            && tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            && tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .is_some();
         if (!logical && !versioned_source)

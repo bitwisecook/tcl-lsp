@@ -301,7 +301,7 @@ fn original_native_and_explicit_standalone_dispatch_keep_their_reached_purpose()
     let context = environment.default_context_registry();
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
     let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     let source = "list VALUE";
     let native = SourceCommandBindings::analyse_with_options(
         source,

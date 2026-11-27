@@ -246,7 +246,7 @@ fn tcloo_constructor_signature_advice_keeps_unknown_formal_grammar_separate_from
     // naming.source.original-class-constructor-call
     // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
     let plain =
-        tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     assert!(plain.authored_name_policy().is_some());
     assert!(plain.native_name_protocol().is_none());
     assert!(plain.parameter_grammar().is_none());

@@ -22,7 +22,7 @@ fn original_command_currency_uses_actual_engine_and_independent_epochs() {
     // naming.command.native-command-entry-currency
     // docs/design/analysis/name-resolution-proofs/command-native-command-entry-currency.md
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let dialect = crate::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find(profile).unwrap(),
         );
         let guard = NativeCompilationGuard::for_native_dialect(dialect).unwrap();
@@ -34,7 +34,7 @@ fn original_command_currency_uses_actual_engine_and_independent_epochs() {
     }
     for environment in ["tcl", "jim", "f5-irules", "f5-bigip"] {
         let profile = crate::model::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         assert!(
             NativeCompilationGuard::for_native_dialect(dialect).is_none(),
             "{environment}"

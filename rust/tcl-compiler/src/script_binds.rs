@@ -162,7 +162,7 @@ fn binds(
         let resolution = registry.resolve_structured_invocation(
             tcl_registry::InvocationWords::literals(command, &args),
             registry.profile().and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).authoring_query()
+                tcl_native_model::InvocationDialect::of_profile(profile).authoring_query()
             }),
         );
         let Some(resolved) = resolution.resolved() else {
@@ -290,7 +290,7 @@ pub(crate) fn linear_declaration_read_layout(
     image: &tcl_lexer::SourceImage,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<LinearDeclarationReadLayout> {
     let segments =
         tcl_source::segment::segment_commands_image_with_offset_and_config(image, 0, config)?;
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn linear_read_layout_declines_unmodelled_completion_and_nested_effects() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for (script, expected) in [
             ("namespace upvar ::ns a alias; return $missing", true),
@@ -744,7 +744,7 @@ mod tests {
                     &input,
                 )),
             native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         };
         let analysis = crate::analyser::Analyser::new()
@@ -784,7 +784,7 @@ mod tests {
             let entry = crate::command_binding::SourceAnalysisEntry {
                 metadata_context: metadata,
                 native_entry: Some(std::sync::Arc::new(captured)),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 ..Default::default()
             };
             let analysis = crate::analyser::Analyser::new()

@@ -18,7 +18,8 @@
 
 //! Dialect-aware capture-command argv grammar, independent of execution.
 
-use crate::{InvocationArguments, InvocationDialect};
+use crate::InvocationArguments;
+use tcl_native_model::InvocationDialect;
 
 /// Purpose of the selected Jim completion-mask model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -310,13 +311,23 @@ pub fn select_original_catch_invocation<E>(
     select_catch_invocation_by(length, dialect, |index| inspect(index).map(Some))
 }
 
+/// Positional `catch` envelope, when the dialect has that grammar.
+/// Jim's leading completion-code switches require its invocation selector.
+#[must_use]
+pub fn catch_positional_arity(dialect: InvocationDialect) -> Option<crate::Arity> {
+    match dialect.completion_options_policy()? {
+        tcl_native_model::CompletionOptionsPolicy::Legacy => Some(crate::Arity::new(1, 2)),
+        tcl_native_model::CompletionOptionsPolicy::Options => Some(crate::Arity::new(1, 3)),
+    }
+}
+
 fn select_catch_invocation_by<E>(
     length: usize,
     dialect: InvocationDialect,
     inspect: impl FnMut(usize) -> Result<Option<Vec<u8>>, E>,
 ) -> Result<CatchInvocationSelection, E> {
     use CatchInvocationSelection::{Invalid, Unknown, Valid};
-    if let Some(arity) = dialect.catch_positional_arity() {
+    if let Some(arity) = catch_positional_arity(dialect) {
         if !arity.accepts(u16::try_from(length).unwrap_or(u16::MAX)) {
             return Ok(Invalid);
         }

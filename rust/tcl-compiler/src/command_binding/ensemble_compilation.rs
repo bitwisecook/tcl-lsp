@@ -19,8 +19,8 @@
 //! Actual compiler registration and map selection, independent of live semantics.
 
 use super::{ModuleCommandBindings, SourceCommandTarget};
+use tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection;
 use tcl_registry::native_compilation::NativeCompilationWordShape;
-use tcl_registry::native_ensemble::NativeEnsembleWorkerSelection;
 use tcl_registry::native_selected_worker::{
     OriginalSelectedWorkerCompilation, OriginalSelectedWorkerInvocation,
 };
@@ -459,7 +459,7 @@ mod native_mapping_tests {
     fn original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens() {
         for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
             let lookup = NativeCompilationSpec {

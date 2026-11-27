@@ -148,7 +148,7 @@ impl Interp {
             return true; // the permissive fallback profile gates nothing
         };
         if let Some(admitted) = tcl_registry::CommandRegistry::native_stock_registration_admission(
-            tcl_registry::InvocationDialect::of_profile(self.dialect_profile()),
+            tcl_native_model::InvocationDialect::of_profile(self.dialect_profile()),
             name,
         ) {
             return admitted;

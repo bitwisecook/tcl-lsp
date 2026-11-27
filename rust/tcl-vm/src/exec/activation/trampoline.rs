@@ -463,7 +463,7 @@ impl Vm {
             .last()
             .is_none_or(|frame| frame.pc != 0 || frame.fatal_tail.is_none())
             || self.native_invocation_dialect().script_parse_timing()
-                != Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
+                != Some(tcl_native_model::NativeScriptParseTiming::BeforeScript)
         {
             return None;
         }

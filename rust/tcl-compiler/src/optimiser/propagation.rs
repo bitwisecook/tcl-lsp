@@ -574,7 +574,7 @@ fn sccp_constants_from(
     }
     let mut out = std::collections::HashMap::new();
     let dialect = policy.invocation_dialect.unwrap_or_else(|| {
-        tcl_registry::InvocationDialect::of_profile(
+        tcl_native_model::InvocationDialect::of_profile(
             policy
                 .dialect
                 .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),

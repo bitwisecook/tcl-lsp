@@ -25,7 +25,7 @@ fn selected_analysis_policy() -> FoldPolicy {
     let profile = registry.profile().unwrap();
     FoldPolicy::for_retained_entry(
         registry,
-        Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         &tcl_lexer::LexerConfig::from_grammar(profile.grammar),
     )
 }
@@ -105,7 +105,7 @@ fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let policy = FoldPolicy::for_retained_entry(
             context.commands(),
-            Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             &config,
         );
         let parse_context = policy.preparation_context().unwrap();
@@ -167,7 +167,7 @@ fn positioned_simulation_requires_matching_whole_expression_preparation() {
     let origin = Arc::new(SourceOriginId::authored(&Arc::from("0")));
     let source = ExecutedScriptSource::contiguous(Arc::clone(&origin), "0", 0).unwrap();
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
     );
     let ExpressionPreparationProof::Prepared(witness) =
         prepare_expression_witness("0", &policy.preparation_context().unwrap(), None)
@@ -219,7 +219,7 @@ fn positioned_simulation_requires_matching_whole_expression_preparation() {
         [] as [crate::command_binding::SourceMathInvocation; 0]
     );
     let other_engine = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
     );
     assert_eq!(
         evaluate_expr_with_constants_and_math_bindings(
@@ -261,7 +261,7 @@ fn semantic_loop_values_retain_each_native_conversion() {
         condition_base: None,
     };
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
     );
     assert!(
         summarise_for_statement_with_dependencies(&statement, &StaticEnv::new(), 20, policy, None,)
@@ -312,7 +312,7 @@ fn original_assignment_values_use_whole_words_without_promoting_literal_data() {
             let (context, module) = &*fixture;
             let policy = FoldPolicy::for_retained_entry(
                 context.commands(),
-                Some(tcl_registry::InvocationDialect::of_profile(
+                Some(tcl_native_model::InvocationDialect::of_profile(
                     module
                         .source_metadata_input
                         .as_ref()
@@ -377,7 +377,7 @@ fn original_increment_amount_keeps_braced_data_separate_from_reads() {
             );
             let policy = FoldPolicy::for_retained_entry(
                 context.commands(),
-                Some(tcl_registry::InvocationDialect::of_profile(
+                Some(tcl_native_model::InvocationDialect::of_profile(
                     module
                         .source_metadata_input
                         .as_ref()
@@ -442,7 +442,7 @@ fn original_increment_reads_use_whole_words_and_decode_literal_escapes() {
             );
             let policy = FoldPolicy::for_retained_entry(
                 context.commands(),
-                Some(tcl_registry::InvocationDialect::of_profile(
+                Some(tcl_native_model::InvocationDialect::of_profile(
                     module
                         .source_metadata_input
                         .as_ref()
@@ -529,7 +529,7 @@ fn original_exact_case_simulation_keeps_subject_names_and_literal_patterns() {
         );
         let policy = FoldPolicy::for_retained_entry(
             context.commands(),
-            Some(tcl_registry::InvocationDialect::of_profile(
+            Some(tcl_native_model::InvocationDialect::of_profile(
                 input.unit_profile(),
             )),
             &module.native_lexer_config(),
@@ -567,7 +567,7 @@ fn original_case_simulation_refuses_changed_subject_body_and_missing_owner() {
         crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(input));
     let policy = FoldPolicy::for_retained_entry(
         context.commands(),
-        Some(tcl_registry::InvocationDialect::of_profile(
+        Some(tcl_native_model::InvocationDialect::of_profile(
             input.unit_profile(),
         )),
         &module.native_lexer_config(),
@@ -671,10 +671,11 @@ fn standalone_case_simulation_declines_unsupported_matching_modes() {
 
 #[test]
 fn semantic_selected_result_preserves_native_bytes() {
-    let policy =
-        FoldPolicy::default().with_invocation_dialect(tcl_registry::InvocationDialect::of_point(
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        ));
+    let policy = FoldPolicy::default().with_invocation_dialect(
+        tcl_native_model::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        )),
+    );
     let observations = std::cell::RefCell::new(Vec::new());
     let increments = std::cell::RefCell::new(Vec::new());
     let preparations = std::cell::RefCell::new(Vec::new());

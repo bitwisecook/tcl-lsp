@@ -667,7 +667,7 @@ pub(super) fn validate_execution_name_policy_consumers(root: &Path) -> Result<Ve
     let mut problems = Vec::new();
     let dialect = read(
         root,
-        "rust/tcl-registry/src/native_string_materialization.rs",
+        "rust/tcl-native-model/src/native_string_materialization.rs",
     )?;
     let name_issuer = dialect
         .split_once("pub fn native_name_protocol(")

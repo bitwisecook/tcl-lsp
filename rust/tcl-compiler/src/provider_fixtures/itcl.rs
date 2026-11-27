@@ -276,9 +276,11 @@ mod tests {
             let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
             assert!(
                 !tcl_registry::definer::DefinitionDispatcher::ItclClass
-                    .native_installation_is_audited(tcl_registry::InvocationDialect::of_profile(
-                        registry.profile().unwrap()
-                    ))
+                    .native_installation_is_audited(
+                        tcl_native_model::InvocationDialect::of_profile(
+                            registry.profile().unwrap()
+                        )
+                    )
             );
         }
     }

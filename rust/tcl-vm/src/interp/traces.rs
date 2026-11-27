@@ -72,14 +72,14 @@ impl Vm {
         &mut self,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         self.save_native_trace_result(
-            tcl_registry::native_variable_trace::NativeTraceStatePurpose::VariableChain,
+            tcl_native_model::native_variable_trace::NativeTraceStatePurpose::VariableChain,
         )
     }
 
     pub(super) fn save_native_command_trace_result(
         &mut self,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::{
+        use tcl_native_model::native_variable_trace::{
             NativeTraceStatePurpose, NativeTraceStateRecipe,
         };
         match self
@@ -97,15 +97,15 @@ impl Vm {
         &mut self,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         self.save_native_trace_result(
-            tcl_registry::native_variable_trace::NativeTraceStatePurpose::VariableScript,
+            tcl_native_model::native_variable_trace::NativeTraceStatePurpose::VariableScript,
         )
     }
 
     fn save_native_trace_result(
         &mut self,
-        purpose: tcl_registry::native_variable_trace::NativeTraceStatePurpose,
+        purpose: tcl_native_model::native_variable_trace::NativeTraceStatePurpose,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        use tcl_registry::native_variable_trace::NativeTraceStateRecipe;
+        use tcl_native_model::native_variable_trace::NativeTraceStateRecipe;
         let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
         let physical_owner =
             variable_trace_outcomes::TracePhysicalOwner::capture(self, scope.currency().clone());

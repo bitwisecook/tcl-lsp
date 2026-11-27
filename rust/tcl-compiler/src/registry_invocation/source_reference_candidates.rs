@@ -64,7 +64,7 @@ pub(crate) fn original_body_reference_candidates(
         .any(|candidate| candidate == body)
         .then_some(())?;
     let mut names = BTreeSet::new();
-    let mut parser = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+    let mut parser = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
         .expression_parse_context(Some(input.unit_profile()));
     parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
     let mut work = vec![SourceRegion::Script(body.content_span())];

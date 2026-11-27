@@ -1199,6 +1199,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-source",
@@ -1222,6 +1223,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
@@ -1258,6 +1260,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-native-model",
  "tcl-platform",
  "tcl-registry",
  "tcl-runtime-api",
@@ -1339,11 +1342,24 @@ dependencies = [
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-platform",
  "tcl-regex",
  "tcl-registry",
  "tcl-source",
  "tcl-sslictcl",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-native-model"
+version = "0.1.0"
+dependencies = [
+ "tcl-cmd-core",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -1399,6 +1415,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-regex",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -1432,6 +1449,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-engine-api",
  "tcl-engine-tclvm",
+ "tcl-native-model",
  "tcl-registry",
  "tcl-syntax",
  "tcl-vm",
@@ -1446,6 +1464,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-native-model",
  "tcl-registry",
  "tcl-source",
  "tcl-spectcl",
@@ -1476,6 +1495,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-native-model",
  "tcl-pkg-model",
  "tcl-registry",
  "tcl-runtime-api",
@@ -1549,6 +1569,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-host-native",
  "tcl-lexer",
+ "tcl-native-model",
  "tcl-platform",
  "tcl-regex",
  "tcl-registry",

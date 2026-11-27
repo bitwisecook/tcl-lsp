@@ -52,7 +52,7 @@ fn statement(
     if let Some(native) = native {
         lowerer.set_source_analysis_options(SourceAnalysisOptions {
             native_entry: Some(native),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 input.analyser_profile(),
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),

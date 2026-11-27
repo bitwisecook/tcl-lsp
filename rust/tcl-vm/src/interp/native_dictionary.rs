@@ -20,6 +20,7 @@
 
 use super::{CapturedVariableUpdate, Local, Value, VarTraceCell, Vm};
 use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_runtime_api::{Completion, VariableUpdateResult};
 
 /// The native caller's write receiver, independent of dictionary transformation.

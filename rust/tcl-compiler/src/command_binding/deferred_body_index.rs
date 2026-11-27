@@ -176,7 +176,7 @@ mod tests {
             &tcl_registry::CommandRegistry::build_default(),
             crate::command_binding::SourceAnalysisOptions {
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_6,
                 )),
                 ..Default::default()

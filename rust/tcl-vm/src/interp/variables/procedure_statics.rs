@@ -49,7 +49,7 @@ impl Vm {
         &mut self,
         outer: Vec<Value>,
         strings: tcl_syntax::native_string::NativeStringProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         table: &mut VarTable,
         fresh: &mut Vec<VarId>,
         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,

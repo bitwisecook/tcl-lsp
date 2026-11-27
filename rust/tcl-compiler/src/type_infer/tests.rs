@@ -38,7 +38,7 @@ fn original_factory_tokens(
     marker: &str,
     head: &str,
 ) -> crate::ir::CommandTokens {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let registry =
         tcl_registry::model::ingress::static_context_for(version.dialect_profile_name()).commands();
     let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
@@ -62,7 +62,7 @@ fn original_factory_tokens(
 fn standalone_factory_metadata(
     version: tcl_dialect::TclVersion,
 ) -> TypePropagationMetadata<'static> {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let context =
         tcl_registry::model::SemanticContext::for_environment(version.dialect_profile_name());
     let registry =

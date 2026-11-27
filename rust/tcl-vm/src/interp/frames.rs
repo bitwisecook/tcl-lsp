@@ -584,7 +584,7 @@ impl Vm {
     ) -> Completion<Value> {
         let completion = match self.eval_original_script_value(
             source,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
             source.source_location(),
         ) {
             Ok(completion) => completion,

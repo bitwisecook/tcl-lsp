@@ -132,7 +132,7 @@ fn original_lazy_boolean_input_keeps_capacity_and_existing_first_host_metadata()
     let failure = match super::native_boolean_in(
         original.as_ptr(),
         interp.native_invocation_dialect(),
-        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+        tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
         None,
     ) {
         Err(error) => error,

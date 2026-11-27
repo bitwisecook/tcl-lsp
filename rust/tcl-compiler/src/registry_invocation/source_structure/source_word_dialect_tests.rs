@@ -32,7 +32,7 @@ fn original_source_schema_uses_retained_word_dialect_for_file_grammar() {
         let words = source_registry_words(source, &analysis, &command).expect(dialect);
         let grammar = words
             .dialect
-            .and_then(tcl_registry::InvocationDialect::source_file_grammar)
+            .and_then(tcl_native_model::InvocationDialect::source_file_grammar)
             .expect(dialect);
         assert!(
             matches!(
@@ -43,7 +43,7 @@ fn original_source_schema_uses_retained_word_dialect_for_file_grammar() {
                         .first()
                         .and_then(|word| word.literal_bytes())
                 ),
-                tcl_registry::source_file::SourceFileSelection::Selected(_)
+                tcl_native_model::source_file::SourceFileSelection::Selected(_)
             ),
             "{dialect}"
         );

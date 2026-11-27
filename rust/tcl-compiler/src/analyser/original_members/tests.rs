@@ -491,7 +491,7 @@ fn original_method_source_roles_retain_complete_words_across_routes_and_readonly
     assert!(unknown.parameters_word().is_some());
     assert!(unknown.body_word().is_some());
     assert!(unknown.source_dialect().is_none());
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let foreign_dialect = moved

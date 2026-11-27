@@ -138,7 +138,7 @@ fn keyword_tables(
             schema.words.arguments(),
         );
         if let Some(profile) = context.commands().profile() {
-            words = words.with_dialect(tcl_registry::InvocationDialect::of_profile(profile));
+            words = words.with_dialect(tcl_native_model::InvocationDialect::of_profile(profile));
         }
         let selected =
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(

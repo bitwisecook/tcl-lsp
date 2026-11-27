@@ -491,7 +491,7 @@ impl SourceCommandBindings {
         &mut self,
         declaration: &DeferredSourceBody,
         outcomes: &SourceOutcomes,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) {
         if declaration.receiver_method
             || declaration.event.is_some()
@@ -658,7 +658,7 @@ mod tests {
             config,
             registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
@@ -734,7 +734,7 @@ mod tests {
     fn original_jim_fresh_store_completion_uses_the_selected_write_kernel() {
         // Implementation contract: naming.source.closed-leaf-handler-completion
         // docs/design/analysis/name-resolution-proofs/closed-leaf-handler-completion.md
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
         );
         let registry = tcl_registry::model::ingress::static_context_for("jim").commands();

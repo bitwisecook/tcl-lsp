@@ -516,7 +516,7 @@ mod tests {
                     tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                     owner.commands(),
                     super::super::SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_compilation:
@@ -665,7 +665,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
         let input = logical_source_input();
         let context = input.context_registry();
-        let dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
         let options = super::super::SourceAnalysisOptions {
             logical_source_input: Some(&input),
             invocation_dialect: Some(dialect),
@@ -736,7 +736,7 @@ mod tests {
         let context = input.context_registry();
         let options = super::super::SourceAnalysisOptions {
             logical_source_input: Some(&input),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                 input.unit_profile(),
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
@@ -796,7 +796,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(Some(selected)),
             registry,
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(selected)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(selected)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
@@ -1055,7 +1055,9 @@ mod tests {
                 tcl_lexer::LexerConfig::for_profile(Some(profile)),
                 registry,
                 super::super::SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },

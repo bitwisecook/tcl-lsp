@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 impl DeclarationSourceOperandLayoutAdvice {
     #[cfg(test)]
-    pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn dialect(&self) -> tcl_native_model::InvocationDialect {
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(advice) => advice.dialect(),
             DeclarationSourceOperandLayoutKind::Configured { layout, .. } => layout.dialect(),

@@ -692,7 +692,7 @@ fn original_authored_numeric_selection_does_not_query_the_native_host() {
         crate::expr::boolean_for_vm(
             &mut vm,
             &Value::new_native_string_bytes(b"2".as_slice()),
-            tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot
+            tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot
         )
         .unwrap()
     );
@@ -708,7 +708,7 @@ fn original_authored_expression_increment_and_boolean_policies_do_not_query_host
     let (mut vm, numeric) = provided("tcl9.0");
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(vm.set_logical_expression_parse_provider(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_numeric_provider(
         tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
@@ -1165,7 +1165,7 @@ fn original_arithmetic_pure_context_keeps_the_existing_cached_header_guard() {
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // The explicit pure policy issues no VM scope. It still checks the
     // original Value header before accepting its descriptive cached number.
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let original =
         Value::from_native_scalar_cache(NativeScalarCache::Number(Number::Int(6)), None, dialect)
             .unwrap();

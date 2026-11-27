@@ -210,7 +210,7 @@ fn formal_renaming_observer_controls_report_the_distinct_names() {
             );
             assert_row(&mut vm, &result, rows, &format!("ARGS_{suffix}"));
         }
-        if tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()).family()
+        if tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()).family()
             == Some(tcl_dialect::model::Family::Jim)
         {
             let result = call(
@@ -231,7 +231,7 @@ fn formal_renaming_observer_controls_report_the_distinct_names() {
             .code,
             tcl_runtime_api::Code::Ok
         );
-        let legacy = tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        let legacy = tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
             .tcl_version
             == Some(tcl_dialect::TclVersion::V8_4);
         for (head, parameter, suffix) in [

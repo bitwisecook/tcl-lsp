@@ -282,7 +282,7 @@ mod tests {
         LexerConfig,
     ) {
         let context = tcl_registry::model::ingress::static_context_for(environment);
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment(environment).unit_profile(),
         );
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);

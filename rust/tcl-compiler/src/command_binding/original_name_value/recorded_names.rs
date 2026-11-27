@@ -339,7 +339,7 @@ impl super::super::SourceInvocationBinding {
     pub(crate) fn original_source_word_dialect_for_tokens(
         &self,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<tcl_registry::InvocationDialect> {
+    ) -> Option<tcl_native_model::InvocationDialect> {
         self.original_lexer_config_for_tokens(tokens)?;
         if let Some(original) = &self.original_written_words {
             return original.dialect;
@@ -556,9 +556,10 @@ impl super::super::SourceInvocationBinding {
         let original = site
             .source
             .original_lexical_command(words, site.offset, config)?;
-        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
             .authored_name_policy()?;
-        if tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+        if tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()
             != Some(policy)
         {
             return None;
@@ -724,9 +725,10 @@ impl super::super::SourceInvocationBinding {
                 return Some(OriginalRecordedNamePurpose::Native);
             }
         }
-        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.analyser_profile())
             .authored_name_policy()?;
-        (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+        (tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()
             == Some(policy))
         .then_some(())?;
         Some(OriginalRecordedNamePurpose::Logical(

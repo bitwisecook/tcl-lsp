@@ -25,6 +25,7 @@ use super::{
     Interp, TraceAccess, VariableTraceGuestOutcome,
 };
 use crate::{frame::VariableReceiver, obj, vars::TraceHome};
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::{raw_string::NativeValueAccessRefusal, value::ValueError};
 

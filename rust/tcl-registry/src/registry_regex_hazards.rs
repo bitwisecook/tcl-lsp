@@ -68,7 +68,7 @@ impl CommandRegistry {
         }
         let query = arguments
             .dialect()
-            .and_then(crate::InvocationDialect::authoring_query)
+            .and_then(tcl_native_model::InvocationDialect::authoring_query)
             .or_else(|| self.own_surface_query());
         let spec = self.get_for_surface(name, query)?;
         if spec.pattern_type != Some(crate::patterns::PatternType::Regex) {
@@ -180,7 +180,7 @@ mod tests {
         CommandRegistry::build_default().possible_pattern_argument_indices_words(
             name,
             InvocationArguments::structured(words)
-                .with_dialect(crate::InvocationDialect::of_profile(profile)),
+                .with_dialect(tcl_native_model::InvocationDialect::of_profile(profile)),
         )
     }
 
@@ -198,7 +198,7 @@ mod tests {
             );
             let registry = CommandRegistry::build_default();
             let arguments = InvocationArguments::structured(&words).with_dialect(
-                crate::InvocationDialect::of_profile(
+                tcl_native_model::InvocationDialect::of_profile(
                     crate::model::ingress::resolve_environment(environment).unit_profile(),
                 ),
             );

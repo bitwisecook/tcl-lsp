@@ -22,7 +22,7 @@ use super::*;
 fn unknown_namespace_binding_retains_only_a_may_storage_domain() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut state = ResolveContext::for_function("::top");
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     state.widen();
@@ -41,7 +41,7 @@ fn native_read_success_requires_contents_kind_lifetime_and_observer_proofs() {
     for profile in ["tcl8.6", "jim"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
         let mut state = ResolveContext::for_function("::p");
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         state.bind_unknown_incoming("parameter", registry);
@@ -79,7 +79,7 @@ fn native_read_success_requires_contents_kind_lifetime_and_observer_proofs() {
 fn current_local_scalar_store_proves_contents_without_a_unique_incarnation() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut state = ResolveContext::for_function("::p");
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     let target = resolve_literal_place("value", &state, false, registry);
@@ -115,7 +115,7 @@ fn current_local_scalar_store_proves_contents_without_a_unique_incarnation() {
 fn proved_tcl_variable_policy_does_not_require_native_compiler_identity() {
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let mut state = ResolveContext::for_function("::top");
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
     dialect.tcl_version = None;
     assert_eq!(
         dialect.variable_lookup_policy,
@@ -137,7 +137,7 @@ fn proved_tcl_variable_policy_does_not_require_native_compiler_identity() {
 fn procedure_local_or_unselected_native_engine_does_not_claim_namespace_domain() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
     let mut state = ResolveContext::for_function("::p");
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     state.widen();
@@ -185,7 +185,7 @@ fn conditional_store_preserves_only_closed_presence_alternatives() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut state = ResolveContext::for_function("::p");
     state.binding_identity = BindingIdentity::Bound;
-    state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     let target = resolve_literal_place("x", &state, false, registry);
@@ -215,7 +215,7 @@ fn closed_presence_join_does_not_create_a_must_value_or_survive_opacity() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut missing = ResolveContext::for_function("::p");
     missing.binding_identity = BindingIdentity::Bound;
-    missing.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    missing.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     let mut defined = missing.clone();

@@ -27,6 +27,7 @@ use crate::interp::constructor_diagnostics::Kind;
 use crate::obj::TclObj;
 use crate::{obj, parse};
 use std::rc::Rc;
+use tcl_registry::native_package::NativePackageDialect;
 
 impl Interp {
     // capability host
@@ -110,10 +111,10 @@ impl Interp {
     #[must_use]
     pub fn set_logical_eval_object_provider(
         &mut self,
-        provider: tcl_registry::native_eval_object::LogicalEvalObjectProvider,
+        provider: tcl_native_model::native_eval_object::LogicalEvalObjectProvider,
         actual_host: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        if tcl_registry::InvocationDialect::of_profile(actual_host)
+        if tcl_native_model::InvocationDialect::of_profile(actual_host)
             .execution_point()
             .is_none()
             || self
@@ -140,7 +141,7 @@ impl Interp {
 
     pub(in super::super) fn eval_object_protocol(
         &self,
-    ) -> Option<tcl_registry::native_eval_object::NativeEvalObjectProtocol> {
+    ) -> Option<tcl_native_model::native_eval_object::NativeEvalObjectProtocol> {
         self.native_invocation_dialect()
             .invocation_eval_object_protocol(
                 self.logical_eval_object_provider
@@ -149,14 +150,14 @@ impl Interp {
             )
     }
 
-    pub(crate) fn eval_frame_dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn eval_frame_dialect(&self) -> tcl_native_model::InvocationDialect {
         let dialect = self.native_invocation_dialect();
         if dialect.native_eval_object_protocol().is_some() {
             return dialect;
         }
         self.logical_eval_object_provider.get().map_or_else(
             || dialect,
-            |(_, host)| tcl_registry::InvocationDialect::of_profile(host),
+            |(_, host)| tcl_native_model::InvocationDialect::of_profile(host),
         )
     }
 
@@ -199,10 +200,10 @@ impl Interp {
     #[must_use]
     pub fn set_logical_source_word_provider(
         &mut self,
-        provider: tcl_registry::invocation_words::LogicalSourceWordProvider,
+        provider: tcl_native_model::LogicalSourceWordProvider,
         actual_host: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        if tcl_registry::InvocationDialect::of_profile(actual_host)
+        if tcl_native_model::InvocationDialect::of_profile(actual_host)
             .execution_point()
             .is_none()
             || self
@@ -243,11 +244,11 @@ impl Interp {
     #[must_use]
     pub fn set_logical_expression_parse_provider(
         &mut self,
-        provider: tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        provider: tcl_native_model::LogicalExpressionParseProvider,
         actual_host: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        let dialect = tcl_registry::InvocationDialect::of_profile(self.dialect_profile());
-        if tcl_registry::InvocationDialect::of_profile(actual_host)
+        let dialect = tcl_native_model::InvocationDialect::of_profile(self.dialect_profile());
+        if tcl_native_model::InvocationDialect::of_profile(actual_host)
             .execution_point()
             .is_none()
             || dialect
@@ -268,7 +269,7 @@ impl Interp {
     pub(crate) fn logical_expression_parse_policy(
         &self,
     ) -> Option<(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_native_model::LogicalExpressionParseProvider,
         tcl_dialect::DialectProfileKey,
     )> {
         self.logical_expression_parse_provider
@@ -291,7 +292,7 @@ impl Interp {
         }
         let dialect = self.native_invocation_dialect();
         let point = dialect.execution_point()?;
-        let profile = if tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+        let profile = if tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
             .execution_point()
             == Some(point)
         {
@@ -384,7 +385,7 @@ impl Interp {
         // installed 8.4 must re-install its own release even when its version
         // field needs no change.
         install_ambient_release(version);
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         parse::install_native_list_policy(
             dialect.lexer_grammar.list_parse,
             dialect.lexer_grammar.escapes,

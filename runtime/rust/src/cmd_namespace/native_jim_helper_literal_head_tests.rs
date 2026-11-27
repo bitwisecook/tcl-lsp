@@ -82,7 +82,7 @@ fn phase(interp: &mut Interp, label: &str, reuse: bool, originals: [&Owned; 3]) 
         None,
         false,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             vector.as_ptr(),
         )),
         None,

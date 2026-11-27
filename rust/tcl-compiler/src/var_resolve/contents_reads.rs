@@ -28,6 +28,7 @@ use super::{
 use crate::place;
 use crate::place::{CellGeneration, CellOwner, IndexKind, Place, PlaceKind};
 use tcl_registry::CommandRegistry;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 
 impl ResolveContext {
     /// Last proved contents write to this binding, independently of root recreation.
@@ -76,7 +77,7 @@ impl ResolveContext {
         let dialect = self.invocation_dialect.or_else(|| {
             registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
         });
         let Some(dialect) = dialect else {
             return false;
@@ -450,7 +451,7 @@ impl ResolveContext {
         &self,
         place: &Place,
         registry: &CommandRegistry,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> bool {
         let Some(index) = place
             .index

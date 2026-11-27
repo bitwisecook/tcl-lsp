@@ -968,7 +968,7 @@ mod tests {
         let entry = super::super::SourceAnalysisEntry {
             native_entry: Some(Arc::new(captured)),
             metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(&input)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()

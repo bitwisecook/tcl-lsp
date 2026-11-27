@@ -90,7 +90,7 @@ impl Backend {
 fn analysis_tcl_version(analysis: &AnalysisResult) -> Option<tcl_dialect::TclVersion> {
     analysis
         .resolved_profile()
-        .and_then(|profile| tcl_registry::InvocationDialect::of_profile(profile).tcl_version)
+        .and_then(|profile| tcl_native_model::InvocationDialect::of_profile(profile).tcl_version)
 }
 
 fn w120_source_requirements(

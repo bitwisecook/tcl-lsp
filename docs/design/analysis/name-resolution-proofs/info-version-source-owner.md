@@ -216,10 +216,10 @@ jim jim, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function 
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_info_version.rs](../../../../rust/tcl-registry/src/native_info_version.rs), `InvocationDialect::native_info_version_source`: Select the actual report source, independently of caller variable lookup and external build version observations.
+- [rust/tcl-native-model/src/native_info_version.rs](../../../../rust/tcl-native-model/src/native_info_version.rs), `InvocationDialect::native_info_version_source`: Select the actual report source, independently of caller variable lookup and external build version observations.
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_version_report`: Consume live C global or selected Jim fallback report without creating foreign bootstrap variables.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `info_version_report`: Apply the same reporting purpose on the excluded Runtime port.
-- [rust/tcl-registry/src/native_info_version.rs](../../../../rust/tcl-registry/src/native_info_version.rs), `native_info_version::tests::selected_version_report_keeps_jim_independent_of_tcl_globals` (linked): Select C live-global and Jim core-report sources independently; wrong engine member declines.
+- [rust/tcl-native-model/src/native_info_version.rs](../../../../rust/tcl-native-model/src/native_info_version.rs), `native_info_version::tests::selected_version_report_keeps_jim_independent_of_tcl_globals` (linked): Select C live-global and Jim core-report sources independently; wrong engine member declines.
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::actual_jim_version_report_does_not_read_tcl_bootstrap_globals` (linked): A selected fresh Jim core reports 0.84 without Tcl globals and ignores an unrelated Tcl patchLevel write; no git-build claim.
 
 ## Evidence

@@ -20,6 +20,7 @@ use std::{cell::RefCell, rc::Rc};
 use tcl_bytecode::ModuleAsm;
 use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, NativeProcedureHeaderCompilation as Header};
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::{
     CompileError, CompileService, NativeCompilationEntry, ProcedureCompileTargetBytes,
     ProcedureDispatch, ScriptCommandPlan, ScriptCompileTargetBytes, SourceImage,
@@ -136,7 +137,7 @@ fn run_cached_body(vm: &mut Vm, body: &Value) {
 }
 
 fn check_constructor_roster(profile: &'static DialectProfile) {
-    let roster = tcl_registry::InvocationDialect::of_profile(profile)
+    let roster = tcl_native_model::InvocationDialect::of_profile(profile)
         .native_bootstrap_protocol()
         .unwrap()
         .core_mathfunc_roster()

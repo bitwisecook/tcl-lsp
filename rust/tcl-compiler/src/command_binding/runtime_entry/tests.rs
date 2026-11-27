@@ -35,7 +35,7 @@ fn entry(implementation: NativeCommandImplementation) -> NativeCompilationEntry 
         profile: tcl_dialect::DialectProfile::plain_tcl().cache_key(),
         invocation_policy: Some(tcl_dialect::DialectProfile::plain_tcl().cache_key()),
         expression_policy: None,
-        execution_point: tcl_registry::InvocationDialect::for_version(
+        execution_point: tcl_native_model::InvocationDialect::for_version(
             tcl_dialect::TclVersion::V9_0,
         )
         .execution_point(),
@@ -106,7 +106,7 @@ fn select_fixture_native_point(
     snapshot: &mut NativeCompilationEntry,
     version: tcl_dialect::TclVersion,
 ) {
-    let point = tcl_registry::InvocationDialect::for_version(version)
+    let point = tcl_native_model::InvocationDialect::for_version(version)
         .execution_point()
         .expect("measured C fixture point");
     snapshot.execution_point = Some(point);
@@ -164,7 +164,7 @@ fn analyse_source(entry: &NativeCompilationEntry, source: &str) -> SourceCommand
         &tcl_registry::CommandRegistry::build_default(),
         SourceAnalysisOptions {
             native_entry: Some(entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_0,
             )),
             native_compilation: NativeCompilationContext {
@@ -186,7 +186,7 @@ fn original_native_world_selects_policy_before_any_branch_and_never_reseeds_with
     for version in tcl_dialect::TclVersion::ALL {
         let mut snapshot = entry(NativeCommandImplementation::Opaque);
         select_fixture_native_point(&mut snapshot, version);
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let mut state = super::super::ModuleCommandBindings::initial_with_options(
             &registry,
             SourceAnalysisOptions {
@@ -235,7 +235,7 @@ fn original_native_world_selects_policy_before_any_branch_and_never_reseeds_with
         &registry,
         SourceAnalysisOptions {
             native_entry: Some(&incomplete),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_0,
             )),
             ..Default::default()
@@ -258,7 +258,7 @@ fn original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry
     // docs/design/analysis/name-resolution-proofs/command-original-native-entry-world-bootstrap.md
     let registry = tcl_registry::CommandRegistry::build_default();
     let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jimtcl")).unwrap();
-    let dialect = tcl_registry::InvocationDialect::of_point(point);
+    let dialect = tcl_native_model::InvocationDialect::of_point(point);
     let mut snapshot = entry(NativeCommandImplementation::Registry {
         identity: "set".to_owned(),
         compiler_hook: false,
@@ -421,7 +421,7 @@ fn mutable_native_source_paths_stop_at_original_local_hits() {
             &registry,
             SourceAnalysisOptions {
                 native_entry: Some(&snapshot),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(version)),
                 ..SourceAnalysisOptions::default()
             },
             None,
@@ -1068,7 +1068,7 @@ fn actual_observer_table_closes_only_callback_uncertainty() {
             &registry,
             SourceAnalysisOptions {
                 native_entry: Some(&snapshot),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_5,
                 )),
                 native_compilation: NativeCompilationContext {
@@ -1143,7 +1143,7 @@ fn observer_effects_do_not_revoke_closed_compiler_admission() {
             &registry,
             SourceAnalysisOptions {
                 native_entry: Some(&snapshot),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(version)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
                     frame: NativeCompilationFrame::ProcedureCode,
@@ -1184,7 +1184,7 @@ fn assert_observed_compiler_plan(
         &segments[1],
     );
     analysis.stamp_original_tokens(&mut tokens);
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let plan = crate::registry_invocation::native_operation_selection_plan(
         &tokens,
         dialect.lexer_grammar.escapes,
@@ -1237,7 +1237,7 @@ fn opaque_noop_header_selects_only_the_certified_empty_operation() {
 #[test]
 fn nested_noop_keeps_the_actual_header_selected_before_argument_replacement() {
     use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let registry = tcl_registry::CommandRegistry::build_default();
     let mut snapshot = entry(NativeCommandImplementation::Opaque);
     snapshot.commands[0].slot.simple = "noop".into();
@@ -1612,7 +1612,7 @@ fn analyse_mapped_ensemble_source(
         tcl_lexer::LexerConfig::default(),
         &tcl_registry::CommandRegistry::build_default(),
         SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(version)),
             native_entry: Some(&snapshot),
             native_compilation: NativeCompilationContext {
                 mode: NativeCompilationMode::BytecodeObject,

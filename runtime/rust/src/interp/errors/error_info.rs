@@ -24,6 +24,7 @@ use super::super::{
     drop_fresh, native_operation_currency, new_string, Code, ExceptionState, Interp,
 };
 use crate::{obj, parse};
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_runtime_api::error_stack::validate_error_stack;
 
 impl Interp {
@@ -207,7 +208,7 @@ impl Interp {
             .native_invocation_dialect()
             .native_error_log_protocol()
             .is_some_and(
-                tcl_registry::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
+                tcl_native_model::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
             )
         {
             self.exc.borrow_mut().already_logged = true;
@@ -324,7 +325,7 @@ impl Interp {
             .native_invocation_dialect()
             .native_error_log_protocol()
             .is_some_and(
-                tcl_registry::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
+                tcl_native_model::native_error_log::NativeErrorLogProtocol::evaluation_owns_logged_flag,
             )
         {
             // C8.4 Tcl_LogCommandInfo clears this after AddObjErrorInfo and

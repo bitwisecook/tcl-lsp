@@ -68,7 +68,7 @@ impl CodegenCtx<'_> {
                 entry.execution_point.is_some_and(|point| {
                     program.evaluation_policy_matches(
                         entry.expression_policy.as_ref(),
-                        tcl_registry::InvocationDialect::of_point(point),
+                        tcl_native_model::InvocationDialect::of_point(point),
                     )
                 })
             }) {
@@ -246,7 +246,7 @@ impl CodegenCtx<'_> {
                 preparations,
                 &captured,
                 policy,
-                tcl_registry::InvocationDialect::of_point(point),
+                tcl_native_model::InvocationDialect::of_point(point),
             )
         })
     }

@@ -25,9 +25,10 @@ use super::{
     NativeCompilationGuard, NativeCompilationMode, NativeCompilationSelection,
     NativeCompilationSpec, NativeCompilationWordShape, NativeNamedInvocationProtocol,
 };
-use crate::{InvocationDialect, InvocationWords};
+use crate::InvocationWords;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 impl NativeCompilationSpec {
     /// Resolve native compilation using source shape, never computed argv text.

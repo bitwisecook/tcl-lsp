@@ -79,7 +79,7 @@ fn procedure_header_policy_matches_actual_native_compiler_registration() {
         ("value", ""),
     ];
     for reference in available_tclshs() {
-        let dialect = tcl_registry::InvocationDialect::for_version(reference.version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(reference.version);
         for (parameters, body) in cases {
             compare_native_procedure_header(&reference.path, dialect, parameters, body);
         }
@@ -90,7 +90,7 @@ fn procedure_header_policy_matches_actual_native_compiler_registration() {
         locate_jimsh().expect("validated Jim override")
     };
     if let Some(jim) = jim {
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
         );
         for (parameters, body) in cases {
@@ -244,7 +244,7 @@ fn namespace_resolver_cache_admission_matches_native_c() {
 
 fn compare_native_procedure_header(
     interpreter: &Path,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parameters: &str,
     body: &str,
 ) {
@@ -562,7 +562,7 @@ fn output_lookup_after_write_traces_matches_selected_c_protocol() {
 
 fn compare(path: &Path, profile: &'static DialectProfile) {
     for (name, body, jim_body) in CASES {
-        let body = if tcl_registry::InvocationDialect::of_profile(profile).family()
+        let body = if tcl_native_model::InvocationDialect::of_profile(profile).family()
             == Some(tcl_dialect::model::Family::Jim)
         {
             jim_body.unwrap_or(body)

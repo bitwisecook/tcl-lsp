@@ -78,9 +78,11 @@ mod tests {
                 result
                     .result
                     .native_string_bytes(
-                        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
-                            .native_string_protocol()
-                            .unwrap()
+                        tcl_native_model::InvocationDialect::of_static_profile(
+                            vm.dialect_profile()
+                        )
+                        .native_string_protocol()
+                        .unwrap()
                     )
                     .unwrap()
                     .as_ref(),
@@ -132,7 +134,7 @@ mod tests {
             );
             let argument = Value::from_native_byte_array(
                 Rc::from(bytes(fields[3])),
-                tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+                tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()),
             )
             .unwrap();
             let result = vm.invoke_command("p", &[argument]);
@@ -148,9 +150,11 @@ mod tests {
                 result
                     .result
                     .native_string_bytes(
-                        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
-                            .native_string_protocol()
-                            .unwrap()
+                        tcl_native_model::InvocationDialect::of_static_profile(
+                            vm.dialect_profile()
+                        )
+                        .native_string_protocol()
+                        .unwrap()
                     )
                     .unwrap()
                     .as_ref(),

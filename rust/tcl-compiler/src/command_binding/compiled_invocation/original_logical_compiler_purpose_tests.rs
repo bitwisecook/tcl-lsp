@@ -142,7 +142,7 @@ fn original_native_and_authored_unknown_compiler_purposes_are_not_logical_source
         context.commands(),
         SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
                 Some(&input),
             ),
@@ -164,7 +164,7 @@ fn original_native_and_authored_unknown_compiler_purposes_are_not_logical_source
     );
     assert_eq!(entry.execution_point, environment.point());
     drop(owner);
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let authored = SourceCommandBindings::analyse_with_options(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.lexer_grammar),

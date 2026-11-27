@@ -21,7 +21,7 @@
 use crate::command::settle_control_options;
 use crate::interp::Vm;
 use crate::value::Value;
-use tcl_registry::native_eval_object::{EvalObjectPurpose, NativeNamespaceFramePurpose};
+use tcl_native_model::native_eval_object::{EvalObjectPurpose, NativeNamespaceFramePurpose};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
@@ -180,7 +180,7 @@ pub(super) fn namespace_frame_arguments(
     purpose: NativeNamespaceFramePurpose,
     original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
 ) -> Result<Vec<Value>, tcl_cmd_core::CmdError> {
-    use tcl_registry::native_eval_object::NativeNamespaceFrameArguments;
+    use tcl_native_model::native_eval_object::NativeNamespaceFrameArguments;
     use tcl_syntax::value::ValueError;
 
     original_names.check(vm)?;

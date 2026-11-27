@@ -36,7 +36,7 @@ pub(super) struct JimNamespaceOriginBackend<'a> {
     pub(super) protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
 }
 
-impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
+impl tcl_native_model::native_jim_lookup::NativeJimNamespaceOriginBackend
     for JimNamespaceOriginBackend<'_>
 {
     type Original = Value;
@@ -313,8 +313,8 @@ impl Vm {
         original: &Value,
         key: &str,
         reference: Option<NativeCommandNameReference>,
-        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        protocol: tcl_native_model::native_command_literal::NativeCommandNameProtocol,
+        dialect: tcl_native_model::InvocationDialect,
         entered: &OriginalLookup,
     ) -> Result<Option<CommandId>, CmdError> {
         let selected = entered.command(self, key)?;
@@ -562,15 +562,15 @@ impl Vm {
                 entered: &entered,
                 protocol,
             };
-            let outcome = tcl_registry::native_jim_lookup::native_jim_namespace_origin(
+            let outcome = tcl_native_model::native_jim_lookup::native_jim_namespace_origin(
                 &mut backend,
                 original,
             )?;
             match outcome {
-                tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Found(bytes) => {
-                    Ok(bytes)
-                }
-                tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Missing(
+                tcl_native_model::native_jim_lookup::NativeJimNamespaceOriginOutcome::Found(
+                    bytes,
+                ) => Ok(bytes),
+                tcl_native_model::native_jim_lookup::NativeJimNamespaceOriginOutcome::Missing(
                     original,
                 ) => {
                     let bytes = backend.vm.native_name_operand_bytes_checked(&original)?;
@@ -1341,7 +1341,7 @@ mod tests {
         let original = Value::new_native_string_bytes(b"head".as_slice());
         original
             .install_unresolved_native_command_name_cache(
-                tcl_registry::InvocationDialect::for_version(TclVersion::V8_4),
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V8_4),
             )
             .unwrap();
         let resident = original.resident_string_bytes().unwrap();
@@ -1394,7 +1394,7 @@ mod tests {
             original.native_command_name_cache(),
             duplicate.native_command_name_cache()
         );
-        let foreign = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+        let foreign = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
         assert!(
             original
                 .adopt_native_object_representation(&duplicate, foreign)

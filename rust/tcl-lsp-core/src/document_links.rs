@@ -308,7 +308,7 @@ impl OriginalLinkSelection<'_> {
     fn source_operands(
         &self,
         words: &crate::original_invocation::OriginalRegistryWords,
-    ) -> Option<tcl_registry::source_file::SourceFileOperands> {
+    ) -> Option<tcl_native_model::source_file::SourceFileOperands> {
         let context = self.analysis.resolved_input.as_ref()?.context_registry();
         let source_handler = words.with_source_schema(&context, |selected| {
             selected.semantics.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::Source)
@@ -324,7 +324,8 @@ impl OriginalLinkSelection<'_> {
                 .first()
                 .and_then(|word| word.literal_bytes()),
         );
-        let tcl_registry::source_file::SourceFileSelection::Selected(operands) = selection else {
+        let tcl_native_model::source_file::SourceFileSelection::Selected(operands) = selection
+        else {
             return None;
         };
         Some(operands)

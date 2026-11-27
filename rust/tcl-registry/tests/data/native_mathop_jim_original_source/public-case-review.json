@@ -297,7 +297,7 @@
     "body_sha256": "04238aa5931ab38eb21d16f1714af4eb11be0a00cfa01f5f23006c1c90abe53b",
     "absolute_plus_guard_hex": "",
     "shared_raw_helper_bytes_equal": true,
-    "software_helper_path": "rust/tcl-registry/src/native_scripts/jim_namespace_info.tcl",
+    "software_helper_path": "rust/tcl-native-model/src/native_scripts/jim_namespace_info.tcl",
     "authority": "Public info args/body queries; byte equality is a source comparison, not an original object/header/table/compiled/frame identity claim."
   }
 }

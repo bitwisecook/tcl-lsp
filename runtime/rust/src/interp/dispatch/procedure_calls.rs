@@ -383,7 +383,7 @@ impl Interp {
         let info_frame = if let Some(receiver) = info_receiver {
             self.frames.borrow().current_original_jim_procedure().and_then(|procedure| {
                 match procedure {
-                    Some(procedure) if procedure.original_jim_namespace_helper_origin(self)?.is_some_and(|(kind, _)| kind == tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Info) => {
+                    Some(procedure) if procedure.original_jim_namespace_helper_origin(self)?.is_some_and(|(kind, _)| kind == tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Info) => {
                         native_jim_namespace_info::OriginalNamespaceInfoFrame::capture(self, &procedure, receiver).map(Some)
                     }
                     _ => Ok(None),
@@ -625,7 +625,7 @@ impl Interp {
             self.execute_original_c_body(artifact, frame)
         } else if let Some(original) = jim_body {
             self.eval_original_body_framed(
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::ControlBody,
                 original,
                 frame,
             )
@@ -746,7 +746,7 @@ impl Interp {
         let protocol = self
             .native_invocation_dialect()
             .usage_protocol(Some(
-                tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
             ))
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "procedure usage",
@@ -785,7 +785,7 @@ impl Interp {
 /// Build a `wrong # args` message from explicit leading `words` followed by the
 /// formal `shown` parameters for an ensemble-rewritten call.
 fn proc_usage_words<O: obj::ObjectPointer>(
-    protocol: tcl_registry::native_usage::NativeUsageProtocol,
+    protocol: tcl_native_model::native_usage::NativeUsageProtocol,
     words: &[&[u8]],
     shown: &[Param<O>],
     grammar: Option<tcl_dialect::ParameterGrammar>,
@@ -814,7 +814,7 @@ fn formal_usage<O: obj::ObjectPointer>(
 }
 
 fn proc_usage<O: obj::ObjectPointer>(
-    protocol: tcl_registry::native_usage::NativeUsageProtocol,
+    protocol: tcl_native_model::native_usage::NativeUsageProtocol,
     called: &[u8],
     params: &[Param<O>],
     quote_name: bool,

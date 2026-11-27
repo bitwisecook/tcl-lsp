@@ -374,7 +374,7 @@ fn missing_arity_protocol_refuses_before_guest_state_changes() {
         assert_eq!(interp.native_access_refusal(), None);
         assert!(interp
                 .native_invocation_dialect()
-                .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
+                .wrong_arguments_protocol(Some(tcl_native_model::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
                 .is_none());
         interp.set_result_bytes(b"RESULT BEFORE");
         interp.set_error_state(b"CODE BEFORE");

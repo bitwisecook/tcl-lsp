@@ -27,7 +27,7 @@ use crate::interp::{Code, Command, Interp};
 use crate::obj;
 use crate::obj::TclObj;
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
 };
 
@@ -593,7 +593,7 @@ fn nextto_cmd_with_original(
 pub(super) fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
         if let Some(selected) =
-            tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableProtocol::select(
+            tcl_native_model::native_tcloo_method_definition::NativeTclooClassVariableProtocol::select(
                 interp.native_invocation_dialect(),
             )
         {
@@ -669,9 +669,9 @@ fn classvariable_original(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     originals: &crate::interp::native_arguments::OriginalArguments,
-    selected: tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableProtocol,
+    selected: tcl_native_model::native_tcloo_method_definition::NativeTclooClassVariableProtocol,
 ) -> Code {
-    use tcl_registry::native_tcloo_method_definition::NativeTclooClassVariableHeadStage;
+    use tcl_native_model::native_tcloo_method_definition::NativeTclooClassVariableHeadStage;
 
     if argv.len() < 2 {
         return wrong_args(interp, b"classvariable name ...");

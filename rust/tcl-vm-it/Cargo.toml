@@ -46,6 +46,7 @@ tcl-host-native = { path = "../tcl-host-native" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-test-support = { path = "../tcl-test-support" }

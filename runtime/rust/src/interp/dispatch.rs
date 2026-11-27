@@ -137,7 +137,7 @@ impl<'a> CallMeta<'a> {
     /// Borrow genuine C or Jim invocation objects without reading argument Strings.
     /// Other frame formats keep their independently selected word transport.
     pub(crate) fn original_frame_arguments(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         original_argv: Option<&'a [*mut TclObj]>,
     ) -> Option<&'a [*mut TclObj]> {
         dialect.native_string_protocol().and(original_argv)

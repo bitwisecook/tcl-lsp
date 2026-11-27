@@ -618,7 +618,7 @@ mod original_decoded_tests {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim0.84"] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
-            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
             let image = tcl_lexer::SourceImage::document("apply {{} puts\\ hi ::N}");
             let plan = tcl_lexer::native_script_words_in(

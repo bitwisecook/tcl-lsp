@@ -157,7 +157,7 @@ fn log_line(output: &str) -> &str {
 }
 
 fn check_reflected_calls(log: &str, separator: Option<char>, version: TclVersion) {
-    let dialect = crate::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let calls: Vec<_> = separator.map_or_else(
         || {
             dialect

@@ -41,6 +41,7 @@ use std::cell::{Cell, RefCell};
 use std::ffi::{c_char, c_void};
 use std::ptr::NonNull;
 use std::rc::{Rc, Weak};
+use tcl_registry::native_stock_list::ObjectLengthDialect;
 
 use tcl_engine_api::{EngineError, NativeStringStorageIdentity, Value};
 use tcl_syntax::list::{self, ListError};
@@ -1015,9 +1016,10 @@ impl Obj {
         use tcl_registry::native_stock_list::{
             NativeObjectLengthAction as Action, NativeStockListInputClass as Class,
         };
-        let protocol = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
-            .native_object_length_protocol()
-            .expect("the shim implements actual C9");
+        let protocol =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .native_object_length_protocol()
+                .expect("the shim implements actual C9");
         let class = match &*self.rep.borrow() {
             Rep::None | Rep::String(_) => Class::String,
             Rep::List(_) => Class::List,

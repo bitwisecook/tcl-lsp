@@ -18,7 +18,6 @@
 
 //! Selected basic timer callback and global variable-wait purposes.
 
-use crate::InvocationDialect;
 use tcl_dialect::TclVersion;
 use tcl_syntax::native_object::{NativeObjectCacheSnapshot, NativeObjectSnapshot};
 use tcl_syntax::scalar_getter::NativeScalarCache;
@@ -284,10 +283,16 @@ impl NativeEventProtocol {
         }
     }
 }
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait NativeEventDialect {
     /// Select actual C84–C91 or pinned Jim event purposes; unknown axes decline.
     #[must_use]
-    pub fn native_event_protocol(self) -> Option<NativeEventProtocol> {
+    fn native_event_protocol(self) -> Option<NativeEventProtocol>;
+}
+
+impl NativeEventDialect for tcl_native_model::InvocationDialect {
+    fn native_event_protocol(self) -> Option<NativeEventProtocol> {
         self.native_scalar_getter_protocol()
             .map(|p| NativeEventProtocol {
                 version: p.tcl_version(),
@@ -299,6 +304,7 @@ impl InvocationDialect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_native_model::InvocationDialect;
     #[test]
     fn event_wait_and_script_purposes_keep_actual_providers_separate() {
         for version in TclVersion::ALL {

@@ -233,7 +233,7 @@ fn new_registered_string_using(
         return Value::from_native_scalar_cache_with_storage(
             tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(value),
             None,
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
             Some((
                 Rc::from(bytes),
                 tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
@@ -499,7 +499,9 @@ impl NativeLiteralPool {
                     .ok_or(NativeLiteralUnavailable("retired Boolean literal slot"))?;
                 original
                     .native_scalar_getter(
-                        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+                        tcl_native_model::InvocationDialect::for_version(
+                            tcl_dialect::TclVersion::V8_4,
+                        ),
                         tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
                     )
                     .map_err(|_| NativeLiteralUnavailable("C84 Boolean literal conversion"))?;
@@ -696,7 +698,7 @@ impl NativeLiteralPool {
                         num_chars: None,
                         unicode: None,
                     },
-                    tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                    tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
                     Some((
                         Rc::from(literal.bytes()),
                         tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
@@ -734,7 +736,7 @@ impl NativeLiteralPool {
                 Value::from_native_scalar_cache(
                     tcl_syntax::scalar_getter::NativeScalarCache::Number(value.number()),
                     None,
-                    tcl_registry::InvocationDialect::for_version(*version),
+                    tcl_native_model::InvocationDialect::for_version(*version),
                 )
                 .map_err(|_| NativeLiteralUnavailable("native folded expression header"))?
             }
@@ -1019,7 +1021,8 @@ mod tests {
         table.intern_bytes(b"17");
         let first = pool(&world, &table, tcl_dialect::TclVersion::V9_0);
         let value = first.value(0).unwrap();
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         value
             .native_scalar_probe(dialect, NativeScalarGetterKind::Wide)
             .unwrap()
@@ -1157,7 +1160,8 @@ mod tests {
         table.intern_bytes(b"17\0suffix");
         let owner = pool(&world, &table, tcl_dialect::TclVersion::V8_4);
         let original = owner.value(0).unwrap();
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
         assert_eq!(
             original.native_scalar_cache(),
             Some(NativeScalarCache::Tcl84Long(17))
@@ -1260,8 +1264,8 @@ impl NativeDirectSourceOperands {
     fn new(
         asm: &tcl_bytecode::FunctionAsm,
         protocol: NativeStringProtocol,
-        selected: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        selected: tcl_native_model::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         let refused = |value: bool, facet: &str| {
             #[cfg(debug_assertions)]
@@ -1349,8 +1353,8 @@ impl crate::Vm {
         &self,
         asm: &Rc<tcl_bytecode::FunctionAsm>,
         namespace: &ByteNamespacePath,
-        selected: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        selected: tcl_native_model::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Result<Option<crate::compiled::CompiledUnit>, tcl_syntax::value::ValueError> {
         let Some(entry) = self.logical_uplevel_source_entry(selected, purpose)? else {
             return Ok(None);
@@ -1380,8 +1384,8 @@ impl crate::Vm {
         asm: Rc<tcl_bytecode::FunctionAsm>,
         namespace: ByteNamespacePath,
         strings: NativeStringProtocol,
-        selected: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
-        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        selected: tcl_native_model::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_native_model::native_eval_object::EvalObjectPurpose,
     ) -> Result<crate::compiled::CompiledUnit, tcl_syntax::value::ValueError> {
         let mut operands = NativeDirectSourceOperands::new(&asm, strings, selected, purpose)?;
         operands.execution_policy = Some(self.native_compiler_policy());
@@ -1474,7 +1478,7 @@ mod source_finalization_tests {
             let protocol = NativeStringProtocol::C(version);
             let source = Value::from_native_byte_array(
                 Rc::from(&b"abc"[..]),
-                tcl_registry::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
             )
             .unwrap();
             let pool = Rc::new(NativeLiteralPool {
@@ -1525,10 +1529,11 @@ mod source_finalization_tests {
 
     #[test]
     fn direct_source_operands_are_fresh_and_never_receive_registered_integer_caches() {
-        use tcl_registry::native_eval_object::EvalObjectPurpose;
-        let selected = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
-            .native_eval_object_protocol()
-            .unwrap();
+        use tcl_native_model::native_eval_object::EvalObjectPurpose;
+        let selected =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                .native_eval_object_protocol()
+                .unwrap();
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4);
         let mut asm = tcl_bytecode::FunctionAsm {
             plain_command_dispatch: true,

@@ -370,8 +370,9 @@ impl super::super::types::AnalysisResult {
         if !resolved.has_logical_source_name_context() {
             return false;
         }
-        let Some(policy) = tcl_registry::InvocationDialect::of_profile(resolved.analyser_profile())
-            .authored_name_policy()
+        let Some(policy) =
+            tcl_native_model::InvocationDialect::of_profile(resolved.analyser_profile())
+                .authored_name_policy()
         else {
             return false;
         };

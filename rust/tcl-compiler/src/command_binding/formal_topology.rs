@@ -21,7 +21,7 @@
 use super::original_name_value::OriginalProducedNameValue;
 use crate::signature_scan::scope::SignatureSourceNameKey;
 use std::sync::Arc;
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::formal_params::{ByteFormalParameter, FormalByteArgumentBinding};
 
 pub(crate) fn native_formal_parameters(

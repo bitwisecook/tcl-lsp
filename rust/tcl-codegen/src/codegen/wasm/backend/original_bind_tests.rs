@@ -37,7 +37,7 @@ fn original_module() -> WasmModule {
     let mut entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_logical_source(&input)
         .expect("complete original Logical source input");
     entry.compiled_variable_provider = Some(
-        tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
+        tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
     );
     let unit = CompilationUnit::build_with_context_registry(
         "proc sum {a b c} {return [expr {$a + $b + $c}]}\nsum 1 2 3\n",

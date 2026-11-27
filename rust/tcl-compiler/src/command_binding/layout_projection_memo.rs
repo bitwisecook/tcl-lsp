@@ -28,7 +28,7 @@ pub(super) struct LayoutProjectionKey {
     pub(super) namespace: SourceNamespaceKey,
     pub(super) head: tcl_lexer::NativeWord,
     pub(super) config: tcl_lexer::LexerConfig,
-    pub(super) dialect: tcl_registry::InvocationDialect,
+    pub(super) dialect: tcl_native_model::InvocationDialect,
     pub(super) logical_source: bool,
 }
 

@@ -45,6 +45,7 @@ tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 # The shared owners the shim must not re-implement: list quoting/splitting,
 # number parsing and double formatting (`tcl-syntax`), and option-table
 # prefix resolution with its C-shaped messages (`tcl-cmd-core`).

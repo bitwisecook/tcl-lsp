@@ -101,13 +101,13 @@ fn original_package_version_string_uses_actual_formatter_and_full_first_failure(
         let first = Value::from_native_scalar_cache(
             NativeScalarCache::Tcl84Long(i64::MIN),
             None,
-            tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+            tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()),
         )
         .unwrap();
         let later = Value::from_native_scalar_cache(
             NativeScalarCache::Tcl84Long(2),
             None,
-            tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile()),
+            tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile()),
         )
         .unwrap();
         let operands = [Value::string("vcompare"), first, later];

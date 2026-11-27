@@ -418,7 +418,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArgRole, CommandRegistry, InvocationArguments, InvocationDialect, InvocationWord};
+    use crate::{ArgRole, CommandRegistry, InvocationArguments, InvocationWord};
+    use tcl_native_model::InvocationDialect;
 
     #[test]
     fn sole_return_result_roles_match_all_six_native_option_spelling_controls() {

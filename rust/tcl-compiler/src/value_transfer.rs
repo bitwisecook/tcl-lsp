@@ -812,7 +812,7 @@ impl<'a> LatticeDriver<'a> {
         key: &crate::var_resolve::VariableCellKey,
     ) -> bool {
         let dialect = self.policy.invocation_dialect.unwrap_or_else(|| {
-            tcl_registry::InvocationDialect::of_profile(
+            tcl_native_model::InvocationDialect::of_profile(
                 self.registry
                     .profile()
                     .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),

@@ -35,7 +35,7 @@ use tcl_source::words::WordPart;
 // error, result representation, frame, or executable rewriting permission.
 pub(super) fn logical_boolean_literal_condition(
     text: &str,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     config: tcl_lexer::LexerConfig,
 ) -> Option<tcl_syntax::expr::ast::ExprNode> {
     use tcl_syntax::expr::ast::ExprNode;
@@ -414,7 +414,7 @@ impl Builder<'_> {
         Ok(mentions)
     }
 
-    fn entry_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn entry_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
 

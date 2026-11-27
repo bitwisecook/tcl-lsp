@@ -29,6 +29,8 @@ use crate::value::Value;
 use std::rc::Rc;
 use tcl_core_types::NameBytes;
 use tcl_dialect::PackagePrefer;
+use tcl_registry::native_event::NativeEventDialect;
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_runtime_api::{Code, Completion, ROOT_NS};
 
 /// `interp debug`'s one option word (`debugTypes[]`, `tclInterp.c`): C resolves
@@ -221,7 +223,7 @@ impl Vm {
         {
             let protocol = &child.bootstrap.protocol;
             let actual = child.actual_engine_profile.and_then(|profile| {
-                tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
+                tcl_native_model::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
             });
             if actual != Some(*protocol) {
                 return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
@@ -389,7 +391,7 @@ impl Vm {
                 crate::expr::original_numeric_command_ops(
                     self,
                     context,
-                    tcl_registry::native_numeric_error::NativeNumericCommandPurpose::DebugFrame,
+                    tcl_native_model::native_numeric_error::NativeNumericCommandPurpose::DebugFrame,
                     |original, selected| match original.getter(value, selected.getter_kind())? {
                         tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(boolean) => {
                             Ok(boolean.is_true())

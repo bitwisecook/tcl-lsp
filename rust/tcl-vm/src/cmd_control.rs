@@ -218,7 +218,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     // The loop copies or refetches its lists by the recipe of the objects it walks.
     let dialect = strings.tcl_version().map_or_else(
         || vm.actual_native_invocation_dialect(),
-        tcl_registry::InvocationDialect::for_version,
+        tcl_native_model::InvocationDialect::for_version,
     );
     let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
         return vm.refuse_host_command("native generic each-loop protocol is unavailable".into());
@@ -536,7 +536,7 @@ impl ControlState {
                     return;
                 }
                 let value =
-                    match crate::expr::expression_boolean_for_vm(vm, &completion.result, tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
+                    match crate::expr::expression_boolean_for_vm(vm, &completion.result, tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
                         Ok(value) => value,
                         Err(error) => {
                             let completion = crate::command::completion_from_tcl_error(vm, error);

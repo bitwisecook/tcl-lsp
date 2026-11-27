@@ -105,8 +105,8 @@ use tcl_syntax::expr::parser::parse_expr;
 /// A mock context: a `$var` table; `[cmd]` is unsupported in these tests.
 struct MockCtx(std::collections::HashMap<String, i64>);
 impl ExprCtx for MockCtx {
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
     }
     fn read_var(&mut self, name: &str) -> Result<Owned, ExprError> {
         self.0
@@ -123,9 +123,9 @@ impl ExprCtx for MockCtx {
     }
 }
 
-struct NativeCtx(tcl_registry::InvocationDialect);
+struct NativeCtx(tcl_native_model::InvocationDialect);
 impl ExprCtx for NativeCtx {
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.0
     }
     fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
@@ -142,7 +142,7 @@ impl ExprCtx for NativeCtx {
 #[test]
 fn c84_reached_expression_matches_seven_original_cache_controls() {
     use tcl_syntax::scalar_getter::{NativeScalarCache as Cache, NativeScalarGetterKind as Getter};
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
     let class = |value| match obj::native_scalar_cache(value).unwrap() {
         Some(Cache::Tcl84Long(_)) => "int",
         Some(Cache::Number(tcl_syntax::number::Number::Int(_))) => "wideInt",
@@ -184,7 +184,7 @@ fn checked_comparison_separates_jim_bytes_counts_and_storage_refusal() {
     crate::counters::reset();
     {
         let profile = crate::environment::profile_for_dialect("jim");
-        let mut context = NativeCtx(tcl_registry::InvocationDialect::of_profile(profile));
+        let mut context = NativeCtx(tcl_native_model::InvocationDialect::of_profile(profile));
         let mut ops = TowerOps {
             ctx: &mut context,
             jim: None,
@@ -243,10 +243,10 @@ fn expression_refusal_bypasses_guest_capture_and_finally() {
 fn selected_numeric_input_preserves_original_bytes_and_caches_the_actual_object() {
     crate::counters::reset();
     {
-        let jim = tcl_registry::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("jim"),
         );
-        let c = tcl_registry::InvocationDialect::of_profile(
+        let c = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl8.6"),
         );
         let raw = Owned::fresh(obj::new_string_bytes(&[b'1', 0, 0xff]));

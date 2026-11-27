@@ -53,8 +53,8 @@ impl InterpState {
         }
     }
 
-    pub(crate) fn native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        tcl_registry::InvocationDialect::of_static_profile(self.native_execution_profile())
+    pub(crate) fn native_invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
+        tcl_native_model::InvocationDialect::of_static_profile(self.native_execution_profile())
     }
 
     /// Physical engine provenance at bootstrap and compilation ingress. Logical
@@ -65,8 +65,10 @@ impl InterpState {
             .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
     }
 
-    pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        tcl_registry::InvocationDialect::of_static_profile(self.actual_native_execution_profile())
+    pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
+        tcl_native_model::InvocationDialect::of_static_profile(
+            self.actual_native_execution_profile(),
+        )
     }
 
     /// Advanced by every mutable borrow of the name world.
@@ -82,7 +84,7 @@ impl InterpState {
         {
             return protocols;
         }
-        let actual = tcl_registry::InvocationDialect::of_static_profile(profile);
+        let actual = tcl_native_model::InvocationDialect::of_static_profile(profile);
         let name = actual.native_name_protocol();
         let protocols = ActualNativeProtocols {
             string: actual.native_string_protocol(),
@@ -114,7 +116,7 @@ impl InterpState {
     /// Actual physical native provenance for scalar cache and object-carrier adapters.
     /// Logical source and event simulation policies do not authenticate this carrier.
     #[must_use]
-    pub fn native_scalar_carrier_dialect(&self) -> tcl_registry::InvocationDialect {
+    pub fn native_scalar_carrier_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.actual_native_invocation_dialect()
     }
 
@@ -129,12 +131,14 @@ impl InterpState {
     pub fn byte_array_result(
         &self,
         bytes: Rc<[u8]>,
-        provider: Option<tcl_registry::native_string_materialization::LogicalStringProvider>,
+        provider: Option<tcl_native_model::native_string_materialization::LogicalStringProvider>,
     ) -> Result<Value, tcl_syntax::value::ValueError> {
         let recipe = match provider {
-            Some(provider) => tcl_registry::InvocationDialect::of_profile(self.source_profile())
-                .byte_array_string_recipe(Some(provider))
-                .filter(|recipe| recipe.logical_provider() == Some(provider)),
+            Some(provider) => {
+                tcl_native_model::InvocationDialect::of_profile(self.source_profile())
+                    .byte_array_string_recipe(Some(provider))
+                    .filter(|recipe| recipe.logical_provider() == Some(provider))
+            }
             None => self
                 .actual_native_invocation_dialect()
                 .byte_array_string_recipe(None),
@@ -207,7 +211,7 @@ impl InterpState {
 
     pub(crate) fn expression_quote_control(
         &self,
-    ) -> Option<tcl_registry::invocation_words::ExpressionQuoteControl> {
+    ) -> Option<tcl_native_model::ExpressionQuoteControl> {
         let dialect = self.native_invocation_dialect();
         dialect.expression_quote_control().or_else(|| {
             self.logical_providers

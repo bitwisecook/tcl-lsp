@@ -162,7 +162,7 @@ pub struct OriginalSourceMethodMetadata {
     forward_prefix: Option<Vec<SignatureSourceNameInput>>,
     parameters: Option<tcl_lexer::NativeWord>,
     body: Option<tcl_lexer::NativeWord>,
-    source_dialect: Option<tcl_registry::InvocationDialect>,
+    source_dialect: Option<tcl_native_model::InvocationDialect>,
     definition_parent: Option<crate::registry_invocation::OriginalSourceScriptBody>,
 }
 
@@ -320,7 +320,7 @@ impl OriginalSourceMethodMetadata {
         mut self,
         parameters: Option<tcl_lexer::NativeWord>,
         body: Option<tcl_lexer::NativeWord>,
-        source_dialect: Option<tcl_registry::InvocationDialect>,
+        source_dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<Self> {
         let original = self.declaration.original_word();
         if parameters.iter().chain(body.iter()).any(|word| {
@@ -480,7 +480,7 @@ impl OriginalSourceMethodMetadata {
     /// Independently selected source dialect for the retained argument roles.
     /// An unknown entry supplies no parameter grammar or execution authority.
     #[must_use]
-    pub const fn source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub const fn source_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.source_dialect
     }
 

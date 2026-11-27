@@ -459,7 +459,7 @@ mod tests {
         use crate::native_compiler_words::NativeCompilerWords;
         use crate::native_control_compilation::NativeControlPreparationStep;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let source = tcl_lexer::SourceImage::native(b"format {%s%s} literal $cmd".as_slice());
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let parsed = tcl_lexer::native_script_words_in(
@@ -534,7 +534,7 @@ mod tests {
                 .is_none()
         );
         for version in [TclVersion::V8_4, TclVersion::V8_5] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             assert_eq!(spec.compiler_hook_presence(dialect), Some(false));
             assert_eq!(
                 spec.select(invocation, shapes, Some(dialect), context()),
@@ -582,7 +582,7 @@ mod tests {
             spec.select_native_words(
                 &words,
                 1,
-                Some(crate::InvocationDialect::for_version(version)),
+                Some(tcl_native_model::InvocationDialect::for_version(version)),
                 context()
             ),
             NativeCompilationSelection::Inline { .. }
@@ -604,7 +604,7 @@ mod tests {
         };
         use crate::native_compiler_words::NativeCompilerWords;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let source = tcl_lexer::SourceImage::native(b"format {%s} $cmd".as_slice());
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let parsed = tcl_lexer::native_script_words_in(
@@ -753,7 +753,7 @@ mod tests {
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let source = tcl_lexer::SourceImage::native(b"format %x $x".as_slice());
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let parsed = tcl_lexer::native_script_words_in(
@@ -814,7 +814,7 @@ mod tests {
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for format in [b"%d".as_slice(), b"%f".as_slice()] {
             for (version, expected) in [
                 (TclVersion::V8_4, NativeCompilationSelection::Unknown),
@@ -918,7 +918,7 @@ mod tests {
         use crate::native_control_compilation::NativeControlPreparationStep as Step;
         use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let spec = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::FormatStringConcat,
             operation: SemanticOperationId::Invoke,
@@ -968,7 +968,7 @@ mod tests {
         };
         use crate::native_compiler_words::NativeCompilerWords;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let spec = NativeCompilationSpec {
             grammar: NativeCompilationGrammar::FormatStringConcat,
             operation: SemanticOperationId::Invoke,
@@ -1044,7 +1044,7 @@ mod tests {
                 spec.select_native_words(
                     &words,
                     1,
-                    Some(crate::InvocationDialect::for_version(other)),
+                    Some(tcl_native_model::InvocationDialect::for_version(other)),
                     context()
                 ),
                 NativeCompilationSelection::Unknown
@@ -1057,7 +1057,7 @@ mod tests {
         use crate::native_compilation::NativeBodyCompilation;
         use crate::native_compiler_words::NativeCompilerWords;
         let version = TclVersion::V9_0;
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for source in ["format $fmt {*}$values", "format %s $value"] {
             let parsed = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::native(source.as_bytes()),

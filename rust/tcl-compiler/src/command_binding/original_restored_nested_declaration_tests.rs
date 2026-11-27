@@ -260,7 +260,7 @@ fn original_script_restoration_keeps_reached_nested_statement_and_consumed_site_
     .with_resolved_analysis_input(input.clone());
     lowerer.set_source_analysis_options(SourceAnalysisOptions {
         native_entry: Some(captured.as_entry()),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

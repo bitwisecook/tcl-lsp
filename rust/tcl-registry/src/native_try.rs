@@ -27,8 +27,9 @@ use crate::native_compilation::{
     NativeCompiledBodies, NativeCompiledBodyContext, NativeCompiledBodyErrorContext,
     NativeCompiledBodyOperand,
 };
-use crate::{InvocationDialect, InvocationWords, SemanticOperationId, TryClauseKind};
+use crate::{InvocationWords, SemanticOperationId, TryClauseKind};
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 /// Clause whose required arguments are absent before its selector is parsed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,20 +71,49 @@ pub enum NativeTryClauseFailure {
     TrapPrefixFormat,
 }
 
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait JimTryDialect {
     /// Actual Jim `GetEnum` declaration, independent of source clause grammar.
     #[must_use]
-    pub fn native_jim_try_handler_table(
+    fn native_jim_try_handler_table(
         self,
-    ) -> Option<crate::native_index_lookup::NativeStaticIndexTable> {
-        self.native_jim_enum_protocol()?;
-        Some(crate::native_index_lookup::NativeStaticIndexTable::supported_backend(&JIM_HANDLERS))
-    }
+    ) -> Option<tcl_native_model::native_index_lookup::NativeStaticIndexTable>;
 
     /// Interpret an ordinal already selected from this native handler table.
     /// This metadata grants no original-object getter or Enum cache authority.
     #[must_use]
-    pub fn native_jim_try_handler(self, index: usize) -> Option<NativeTryClauseArgument> {
+    fn native_jim_try_handler(self, index: usize) -> Option<NativeTryClauseArgument>;
+
+    /// Error tuple from the actual C try clause producer.
+    #[must_use]
+    fn try_clause_failure_error_code(
+        self,
+        failure: NativeTryClauseFailure,
+    ) -> Option<&'static [u8]>;
+
+    /// Actual native `try` clause argument error metadata, independent of text.
+    /// Releases without native `try` and unsupported engines abstain.
+    #[must_use]
+    fn try_clause_argument_error_code(
+        self,
+        clause: NativeTryClauseArgument,
+    ) -> Option<&'static [u8]>;
+}
+
+impl JimTryDialect for tcl_native_model::InvocationDialect {
+    fn native_jim_try_handler_table(
+        self,
+    ) -> Option<tcl_native_model::native_index_lookup::NativeStaticIndexTable> {
+        self.native_jim_enum_protocol()?;
+        Some(
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                &JIM_HANDLERS,
+            ),
+        )
+    }
+
+    fn native_jim_try_handler(self, index: usize) -> Option<NativeTryClauseArgument> {
         self.native_jim_enum_protocol()?;
         match index {
             0 => Some(NativeTryClauseArgument::On),
@@ -93,9 +123,7 @@ impl InvocationDialect {
         }
     }
 
-    /// Error tuple from the actual C try clause producer.
-    #[must_use]
-    pub fn try_clause_failure_error_code(
+    fn try_clause_failure_error_code(
         self,
         failure: NativeTryClauseFailure,
     ) -> Option<&'static [u8]> {
@@ -110,10 +138,7 @@ impl InvocationDialect {
         })
     }
 
-    /// Actual native `try` clause argument error metadata, independent of text.
-    /// Releases without native `try` and unsupported engines abstain.
-    #[must_use]
-    pub fn try_clause_argument_error_code(
+    fn try_clause_argument_error_code(
         self,
         clause: NativeTryClauseArgument,
     ) -> Option<&'static [u8]> {
@@ -273,7 +298,7 @@ mod tests {
         let second = jim.native_jim_try_handler_table().unwrap();
         assert_eq!(first.declaration_identity(), second.declaration_identity());
         let protocol = jim.native_jim_enum_protocol().unwrap();
-        let flags = crate::native_jim_enum::NativeJimEnumFlags(1);
+        let flags = tcl_native_model::native_jim_enum::NativeJimEnumFlags(1);
         let cached = protocol
             .lookup(b"trap", &first, flags, Some(b"handler"))
             .unwrap();
@@ -286,7 +311,9 @@ mod tests {
             Some(NativeTryClauseArgument::Trap)
         );
         let foreign =
-            crate::native_index_lookup::NativeStaticIndexTable::supported_backend(&FOREIGN);
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                &FOREIGN,
+            );
         assert_ne!(first.declaration_identity(), foreign.declaration_identity());
         assert_eq!(protocol.cached_index(Some(&cached), &foreign, flags), None);
         assert!(

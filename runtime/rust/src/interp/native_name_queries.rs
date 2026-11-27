@@ -23,6 +23,7 @@ use super::{Command, ImportQueryPurpose, Interp, ProcDef};
 use crate::obj::{self, NativeObjectLifetime, TclObj};
 use std::rc::{Rc, Weak};
 use tcl_cmd_core::CmdError;
+use tcl_registry::commands::tcl::JimInfoDialect;
 use tcl_runtime_api::{ProcInfo, ProcParam};
 use tcl_syntax::value::ValueError;
 

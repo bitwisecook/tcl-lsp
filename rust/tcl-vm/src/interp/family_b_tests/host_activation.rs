@@ -81,7 +81,7 @@ fn explicit_host_engine_keeps_source_logical_and_availability_axes_separate() {
     assert_eq!(entry.profile, source.cache_key());
     assert_eq!(
         entry.execution_point,
-        tcl_registry::InvocationDialect::of_profile(host).execution_point()
+        tcl_native_model::InvocationDialect::of_profile(host).execution_point()
     );
     assert_eq!(
         vm.actual_native_execution_profile().cache_key(),
@@ -99,7 +99,7 @@ fn explicit_host_engine_keeps_source_logical_and_availability_axes_separate() {
     vm.active_native_profile = Some(host);
     assert_eq!(
         vm.native_invocation_dialect().numbers,
-        tcl_registry::InvocationDialect::of_profile(host).numbers
+        tcl_native_model::InvocationDialect::of_profile(host).numbers
     );
     vm.active_native_profile = None;
     assert_eq!(vm.native_invocation_dialect().numbers, logical.numbers);
@@ -163,7 +163,7 @@ fn authored_numeric_provider_is_explicit_and_scoped_to_logical_activations() {
 
 #[test]
 fn authored_expression_policy_has_no_fixed_table_and_refuses_before_function_operands() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
     use tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation;
     let source = tcl_dialect::DialectProfile::irules();
@@ -201,7 +201,7 @@ fn authored_expression_policy_has_no_fixed_table_and_refuses_before_function_ope
     assert!(scalar.math_functions.is_none());
     assert_eq!(
         scalar.execution_point,
-        tcl_registry::InvocationDialect::of_profile(host).execution_point()
+        tcl_native_model::InvocationDialect::of_profile(host).execution_point()
     );
     assert_eq!(
         vm.try_eval_expr("077+1")
@@ -237,7 +237,7 @@ fn host_activation_preserves_separate_authored_numeric_and_expression_policies()
     assert!(vm.set_native_engine_profile(host));
     assert!(vm.set_logical_numeric_provider(provider));
     assert!(vm.set_logical_expression_parse_provider(
-        tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation
+        tcl_native_model::LogicalExpressionParseProvider::Tcl84CoreSimulation
     ));
     assert_eq!(
         vm.expression_source_profile().cache_key(),
@@ -318,7 +318,7 @@ fn host_activation_preserves_separate_authored_numeric_and_expression_policies()
 
 #[test]
 fn source_word_recipe_requires_its_own_provider_and_cache_identity() {
-    use tcl_registry::invocation_words::LogicalSourceWordProvider;
+    use tcl_native_model::LogicalSourceWordProvider;
     let provider = LogicalSourceWordProvider::Tcl84CoreSimulation;
     let host = crate::environment::profile_for_dialect("tcl9.0");
     let mut vm = Vm::new();
@@ -373,7 +373,7 @@ fn expression_source_cache_follows_selected_success_and_failure_preparation() {
 
 #[test]
 fn logical_parser_capability_has_explicit_host_cache_and_child_ownership() {
-    use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+    use tcl_native_model::LogicalExpressionParseProvider;
     let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
     let source = tcl_dialect::DialectProfile::irules();
     let host = crate::environment::profile_for_dialect("tcl9.0");
@@ -421,7 +421,7 @@ fn explicit_host_source_keeps_parser_compiler_and_cache_profile_together() {
     assert!(vm.set_command_surface_profile(host));
     assert!(vm.set_native_engine_profile(host));
     assert!(vm.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation,
     ));
     let original = without_literal_observation(
         vm.native_compilation_entry_for_namespace("", false)

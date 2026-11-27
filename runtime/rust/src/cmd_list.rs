@@ -26,6 +26,7 @@
 
 use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::list as list_core;
+use tcl_registry::native_list_assignment::ListAssignmentDialect;
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::list;
@@ -638,20 +639,21 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Interp {
         obj::native_character_count(
             *value,
             tcl_syntax::native_string::NativeStringProtocol::Jim084,
-            tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString,
+            tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString,
         )
     }
     fn jim_search_option(
         &mut self,
         original: &*mut TclObj,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
-        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
-            &tcl_cmd_core::native_jim_lsearch::OPTIONS,
-        );
+        let table =
+            tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                &tcl_cmd_core::native_jim_lsearch::OPTIONS,
+            );
         match self.native_jim_enum_from_original(
             *original,
             &table,
-            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(true),
             None,
         )? {
             Ok(index) => Ok(index),
@@ -841,7 +843,7 @@ fn lsort_original_comparison_result(
 ) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
     use tcl_cmd_core::index::NativeIndexOps;
     use tcl_cmd_core::CmdError;
-    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose;
     use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
     let result = interp.get_obj_result();
     interp.check_index_operation(original)?;

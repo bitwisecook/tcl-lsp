@@ -45,6 +45,7 @@ tcl-syntax = { path = "../tcl-syntax" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
 # APL (iApp presentation) lexer, for the bespoke `tcl-apl` token path.

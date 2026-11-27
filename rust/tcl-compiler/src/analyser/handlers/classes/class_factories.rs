@@ -490,7 +490,7 @@ impl Analyser {
             return None;
         }
         let input = self.result.resolved_input.as_ref()?;
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()?;
         let index = self.workspace_class_factories.as_ref()?;
         let foreign = request

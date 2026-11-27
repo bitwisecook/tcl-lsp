@@ -30,7 +30,7 @@ use tcl_runtime_api::Completion;
 /// # Errors
 /// Refuses an engine without the independently selected native C search API.
 pub fn dictionary_search_mutation_driver(
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     add: bool,
 ) -> Result<Rc<dyn NativeCommand>, tcl_syntax::value::ValueError> {
     let protocol = dialect.native_string_protocol().ok_or(

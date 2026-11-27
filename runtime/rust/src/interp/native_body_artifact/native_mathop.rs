@@ -97,7 +97,7 @@ impl crate::expr::ExprCtx for PrimitiveContext<'_> {
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
         Some(self.0.host())
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<obj::Owned, crate::expr_error::ExprError> {
@@ -177,7 +177,7 @@ impl Interp {
                 let truth = crate::typed_value::native_boolean_for_interp(
                     self,
                     result.as_ptr(),
-                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                    tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
                 )
                 .map_err(|error| self.report_cmd_error(error))?;
                 return self

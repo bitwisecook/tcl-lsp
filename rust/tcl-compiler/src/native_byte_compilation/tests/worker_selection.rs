@@ -207,7 +207,8 @@ fn cached_worker_target(
 
 #[test]
 fn original_map_cache_selects_its_node_and_missing_evidence_stays_unknown() {
-    use tcl_registry::native_ensemble::{NativeEnsembleWorkerSelection, select_worker_in_entry};
+    use tcl_native_model::native_ensemble::NativeEnsembleWorkerSelection;
+    use tcl_registry::native_ensemble::select_worker_in_entry;
     use tcl_runtime_api::native_compilation::NativeEnsembleTargetPrimary;
     for version in [
         tcl_dialect::TclVersion::V8_6,

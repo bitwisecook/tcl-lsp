@@ -26,7 +26,7 @@ use tcl_cmd_core::{
     return_options::{self, ReturnOptionsOps, ReturnOptionsProtocol, ReturnOptionsPurpose},
     CmdError,
 };
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::{
     native_string::NativeStringProtocol,
     scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue},
@@ -68,7 +68,7 @@ impl NativeReturnOps {
 
     pub(crate) fn selected(interp: &Interp) -> Result<(Self, ReturnOptionsProtocol), CmdError> {
         let dialect = interp.native_invocation_dialect();
-        use tcl_registry::native_return_options::LogicalReturnOptionsProvider;
+        use tcl_native_model::native_return_options::LogicalReturnOptionsProvider;
         let protocol = dialect
             .return_options_protocol()
             .or_else(|| {
@@ -207,7 +207,7 @@ impl ReturnOptionsOps for NativeReturnOps {
     }
     fn completion_code_cache(&self, value: &Owned) -> Option<i32> {
         if let Some(protocol) = self.dialect.native_index_lookup_protocol() {
-            let table = tcl_registry::native_return_options::completion_code_table();
+            let table = tcl_native_model::native_return_options::completion_code_table();
             if let Ok(Some(index)) =
                 protocol.cached_index(crate::obj::native_index::cache(value.as_ptr()), &table)
             {
@@ -237,7 +237,7 @@ impl ReturnOptionsOps for NativeReturnOps {
             let protocol = self.dialect.native_index_lookup_protocol().ok_or(
                 ValueError::CommandProtocolUnavailable("native completion Index origin"),
             )?;
-            let table = tcl_registry::native_return_options::completion_code_table();
+            let table = tcl_native_model::native_return_options::completion_code_table();
             let index = usize::try_from(code)
                 .ok()
                 .filter(|index| *index < table.entry_count())

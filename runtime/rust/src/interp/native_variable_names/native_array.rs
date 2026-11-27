@@ -22,6 +22,7 @@ use super::{
     obj, Code, Interp, NativeVariableNameLookupPurpose, OriginalArguments,
     OriginalCVariableCapture, Owned, TclObj, ValueError, ValueOps,
 };
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 
 enum OriginalArraySetValues {
     List {
@@ -376,7 +377,7 @@ impl Interp {
             .map_err(|error| self.report_cmd_error(error))?;
         let reached = (|| {
             if self.native_invocation_dialect().native_array_set_protocol()
-                != Some(tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable)
+                != Some(tcl_native_model::native_array::NativeArraySetProtocol::JimOriginalVariable)
             {
                 return Err(self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original Jim array-set worker").into(),

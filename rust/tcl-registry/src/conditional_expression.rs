@@ -73,7 +73,7 @@ impl ConditionalExpressionEvaluation {
         &self,
         source: &str,
         ordinal: usize,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<crate::mathfunc::NativeExpressionFunctionCommandName> {
         // Proof: naming.expression.original-function-navigation
         // docs/design/analysis/name-resolution-proofs/original-function-navigation.md

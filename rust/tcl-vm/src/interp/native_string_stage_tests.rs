@@ -43,7 +43,7 @@ struct Formatter {
     shimmer_root: RefCell<
         Option<(
             crate::value::NativeObjectLifetimeLease,
-            tcl_registry::InvocationDialect,
+            tcl_native_model::InvocationDialect,
         )>,
     >,
 }

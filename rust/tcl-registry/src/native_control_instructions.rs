@@ -18,7 +18,6 @@
 
 //! Original native if/while/for/catch compiler recipes.
 
-use crate::InvocationDialect;
 use crate::native_compilation::{
     NativeCompilationContext, NativeCompilationGrammar, NativeCompiledBodyContext,
 };
@@ -34,6 +33,7 @@ use crate::native_expression_program::{
     NativeExpressionProgram, prepare_native_expression_program,
 };
 use tcl_lexer::Span;
+use tcl_native_model::InvocationDialect;
 
 /// A native script operand, including catch/for's substituted-script path.
 #[derive(Debug, Clone, PartialEq, Eq)]

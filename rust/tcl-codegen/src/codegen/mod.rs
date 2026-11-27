@@ -338,7 +338,7 @@ pub struct CodegenCtx<'r> {
     native_compiler_prerequisites:
         Vec<tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite>,
     /// Actual runtime policies, independent of the retained authoring profile.
-    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     /// Independently selected source-local compiler, including logical providers.
     compiled_variable_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
     borrowed_local_layout: Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
@@ -367,7 +367,8 @@ pub struct CodegenCtx<'r> {
     /// A transformed CFG retained a dependency which this artifact cannot guard.
     native_dependency_refusal: bool,
     /// Hazards captured from actual emitted instructions before peepholes.
-    native_compiler_pass_hazards: Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard>,
+    native_compiler_pass_hazards:
+        Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard>,
     /// Actual second compiler pass omits executable `START_CMD` markers.
     compact_compiler_pass: bool,
     /// Active C8.4 `Catch` body compilation checkpoints, independently of

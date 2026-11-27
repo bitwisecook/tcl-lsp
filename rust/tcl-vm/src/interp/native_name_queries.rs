@@ -22,6 +22,7 @@ use super::native_operation_currency::NativeOperationScope;
 use super::{Command, CommandId, NsId, Rc, Value, Vm};
 use crate::command::ProcDef;
 use tcl_cmd_core::CmdError;
+use tcl_registry::commands::tcl::JimInfoDialect;
 use tcl_runtime_api::{ProcInfo, ProcParam};
 use tcl_syntax::value::ValueError;
 

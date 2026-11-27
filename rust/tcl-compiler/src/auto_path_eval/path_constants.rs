@@ -449,7 +449,7 @@ impl<S: std::hash::BuildHasher> PathConstantImports for HashMap<String, String, 
 }
 
 pub(super) fn authored_policy(profile: &'static DialectProfile) -> Option<NamePolicyProtocol> {
-    tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+    tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy()
 }
 fn global_key(protocol: NativeNameProtocol, namespace: &str, name: &str) -> String {
     match protocol {
@@ -535,7 +535,7 @@ pub fn constant_path_assignments_with_naming_policy(
     policy: Option<NamePolicyProtocol>,
     namespace: Option<&str>,
 ) -> PathConstantAssignments {
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let policy = policy.filter(|provider| {
         dialect
             .authored_name_policy()

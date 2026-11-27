@@ -335,7 +335,7 @@ impl tcl_cmd_core::switch::NativeCompiledSwitchObjects for Interp {
         obj::check_native_liveness(*value)?;
         crate::bytearray::native_binary_bytes(
             *value,
-            tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+            tcl_native_model::native_binary_value::NativeBinaryByteConversion::Narrow(
                 version.string_character_model(),
             ),
             true,

@@ -56,7 +56,7 @@ mod implementation_tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             owner.commands(),
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
@@ -122,7 +122,7 @@ impl SourceInstalledProcedureBody {
     pub(crate) fn matches_named_parameter_text(
         &self,
         raw: &str,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> bool {
         let original = self.original_parameters.as_ref();
         if original.is_some_and(|formals| {
@@ -499,7 +499,7 @@ impl OriginalNativeProcedureBody {
         if &self.input != input
             || input.has_logical_source_name_context()
             || input.has_hosted_source_name_context()
-            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            || tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .is_none()
             || input
@@ -584,7 +584,7 @@ impl SourceCommandBindings {
     ) -> Vec<std::sync::Arc<OriginalNativeProcedureBody>> {
         if input.has_logical_source_name_context()
             || input.has_hosted_source_name_context()
-            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            || tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
                 .is_none()
             || input

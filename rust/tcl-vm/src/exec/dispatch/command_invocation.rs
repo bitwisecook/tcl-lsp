@@ -151,7 +151,7 @@ impl Vm {
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
         if let Err(refusal) = self.reset_native_ensemble_rewrite(
-            tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
+            tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent::AfterSuccessfulOrdinaryLookup,
         ) {
             return refusal;
         }
@@ -240,7 +240,7 @@ impl Vm {
         original: &Value,
         ordinary: bool,
     ) -> Result<(Option<String>, u64), Completion<Value>> {
-        use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
+        use tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
         if ordinary
             && let Err(refusal) = self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)
         {

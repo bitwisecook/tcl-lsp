@@ -45,6 +45,7 @@
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 
 use std::sync::{Mutex, OnceLock};
+use tcl_registry::commands::tcl::JimInfoDialect;
 
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::DialectProfile;
@@ -139,7 +140,7 @@ pub(crate) fn release_subcommands(
 ) -> &'static [&'static [u8]] {
     if command == "info" {
         let dialect =
-            tcl_registry::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
+            tcl_native_model::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
         if let Some(names) = dialect.native_jim_info_member_names() {
             static BYTES: OnceLock<Box<[&'static [u8]]>> = OnceLock::new();
             return BYTES.get_or_init(|| names.iter().map(|name| name.as_bytes()).collect());
@@ -165,7 +166,7 @@ pub(crate) fn release_subcommands(
             .copied()
             .filter(|name| {
                 if command == "array"
-                    && tcl_registry::InvocationDialect::of_profile(profile)
+                    && tcl_native_model::InvocationDialect::of_profile(profile)
                         .native_array_search_member_present(name)
                         == Some(false)
                 {

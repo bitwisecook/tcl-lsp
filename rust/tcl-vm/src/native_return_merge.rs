@@ -171,7 +171,7 @@ fn seed_original_merged_error_options(
 /// Apply the reached original merged header without regenerating option words.
 pub(crate) fn process(
     vm: &mut crate::Vm,
-    purpose: tcl_registry::native_return_options::NativeReturnOptionsApplication,
+    purpose: tcl_native_model::native_return_options::NativeReturnOptionsApplication,
     code: i32,
     level: i64,
     options: &Value,
@@ -280,7 +280,7 @@ pub(crate) fn process_stack(
         };
     process(
         vm,
-        tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+        tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
         merged.code,
         i64::from(merged.level),
         &merged.options,

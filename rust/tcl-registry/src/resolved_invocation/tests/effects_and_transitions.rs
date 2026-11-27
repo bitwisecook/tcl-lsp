@@ -474,7 +474,7 @@ fn no_value_append_forms_do_not_donate_mutation_contracts() {
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = crate::model::ingress::static_context_for(environment).commands();
         let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         for command in ["append", "lappend"] {
             let words = InvocationWords::literals(command, &["x"]).with_dialect(dialect);
             let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());

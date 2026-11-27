@@ -116,7 +116,7 @@ fn read_list(
     version.map_or_else(
         || Ok(crate::literal_folds::split_list(value)),
         |version| {
-            crate::InvocationDialect::for_version(version)
+            tcl_native_model::InvocationDialect::for_version(version)
                 .read_list(value)
                 .map(|rows| Some(rows.into_iter().map(std::borrow::Cow::into_owned).collect()))
         },

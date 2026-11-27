@@ -32,7 +32,7 @@ fn string(bytes: &[u8]) -> Value {
 fn list(vm: &Vm, members: &[&Value]) -> Value {
     Value::native_list_constructor(
         members.iter().map(|value| (*value).clone()).collect(),
-        tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        tcl_native_model::InvocationDialect::of_static_profile(vm.dialect_profile())
             .native_string_protocol()
             .unwrap(),
     )
@@ -83,37 +83,37 @@ const PROPERTY_COUNTED_ROWS: [(&str, &str); 6] = [
     (
         "tcl8.4",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/tcl8.4/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/tcl8.4/stdout.tsv"
         ),
     ),
     (
         "tcl8.5",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/tcl8.5/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/tcl8.6/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/tcl9.0/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/tcl9.1/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/tcl9.1/stdout.tsv"
         ),
     ),
     (
         "jimtcl",
         include_str!(
-            "../../../../tcl-registry/tests/data/native_property_counted_original/jim/stdout.tsv"
+            "../../../../tcl-native-model/tests/data/native_property_counted_original/jim/stdout.tsv"
         ),
     ),
 ];
@@ -168,7 +168,7 @@ fn original_property_names_and_values_match_native_c9_counted_access() {
         let interp = instance(engine);
         // The original property capture enters C9 source before counted
         // access. Unavailable factory argv has its own native channel below.
-        if tcl_registry::InvocationDialect::of_static_profile(interp.dialect_profile())
+        if tcl_native_model::InvocationDialect::of_static_profile(interp.dialect_profile())
             .native_property_name_protocol()
             .is_none()
         {
@@ -306,7 +306,7 @@ fn original_configurable_availability_matches_native_counted_argv_without_source
         );
         assert_row(&mut interp, &result, captured, "FACTORY_OBJV");
         let available =
-            tcl_registry::InvocationDialect::of_static_profile(interp.dialect_profile())
+            tcl_native_model::InvocationDialect::of_static_profile(interp.dialect_profile())
                 .native_property_name_protocol()
                 .is_some();
         assert_eq!(

@@ -37,7 +37,7 @@ fn select_fixture_native_point(
     snapshot: &mut NativeCompilationEntry,
     version: tcl_dialect::TclVersion,
 ) {
-    let point = tcl_registry::InvocationDialect::for_version(version)
+    let point = tcl_native_model::InvocationDialect::for_version(version)
         .execution_point()
         .expect("measured C fixture point");
     snapshot.execution_point = Some(point);
@@ -107,7 +107,7 @@ fn entry(implementation: NativeCommandImplementation) -> NativeCompilationEntry 
         profile: tcl_dialect::DialectProfile::plain_tcl().cache_key(),
         invocation_policy: Some(tcl_dialect::DialectProfile::plain_tcl().cache_key()),
         expression_policy: None,
-        execution_point: tcl_registry::InvocationDialect::for_version(
+        execution_point: tcl_native_model::InvocationDialect::for_version(
             tcl_dialect::TclVersion::V9_0,
         )
         .execution_point(),
@@ -179,7 +179,7 @@ fn compile_service_emits_original_mutable_named_invocation_without_static_tag() 
     use tcl_runtime_api::CompileService;
     for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let profile = tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
-        let version = tcl_registry::InvocationDialect::of_profile(profile)
+        let version = tcl_native_model::InvocationDialect::of_profile(profile)
             .tcl_version
             .unwrap();
         let mut snapshot = mapped_ensemble_entry(Some("::helper"));

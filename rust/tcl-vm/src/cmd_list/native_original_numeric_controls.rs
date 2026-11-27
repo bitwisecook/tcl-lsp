@@ -22,7 +22,7 @@ use tcl_cmd_core::index::NativeIndexOps;
 include!(
     "../../../../runtime/rust/tests/data/native_original_list_numeric645_647/software_controls.rs"
 );
-fn make(input: (&str, &str), dialect: tcl_registry::InvocationDialect) -> Option<Value> {
+fn make(input: (&str, &str), dialect: tcl_native_model::InvocationDialect) -> Option<Value> {
     match input.0 {
         "absent" => None,
         "counted-string" => Some(Value::new_native_string_bytes(unhex(input.1))),

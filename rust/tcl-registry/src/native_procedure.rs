@@ -122,7 +122,7 @@ impl NativeProcedureActivationProtocol {
     /// Unshared bodies retain their original representation in every engine.
     #[must_use]
     pub fn copies_shared_definition_body(self) -> bool {
-        use crate::native_procedure_body::{
+        use tcl_native_model::native_procedure_body::{
             NativeProcedureBodyAction, NativeProcedureBodyCreationProtocol,
         };
         let strings = match self {
@@ -255,7 +255,7 @@ impl NativeProcedureActivationProtocol {
 /// Select procedure activation only from the actual native core issuer.
 #[must_use]
 pub fn procedure_activation_protocol(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<NativeProcedureActivationProtocol> {
     use tcl_dialect::model::{Family, Release};
     match dialect.family()? {
@@ -281,7 +281,7 @@ pub enum ProcedureNamePublication {
 /// C Tcl 8.6 and later retain the selected namespace object.
 #[must_use]
 pub fn procedure_name_publication(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<ProcedureNamePublication> {
     use tcl_dialect::model::{Family, Release};
     match dialect.family()? {
@@ -303,7 +303,7 @@ pub fn procedure_name_publication(
 #[must_use]
 pub fn published_procedure_key(
     constructed: String,
-    dialect: Option<crate::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<String> {
     let rendered = tcl_syntax::naming::canonical_written_command(&constructed);
     if rendered == constructed {
@@ -355,7 +355,7 @@ impl ProcedureDefinitionBodyPolicy {
 /// compiler implementation for the platform or inferring phase from source origin.
 #[must_use]
 pub fn procedure_definition_body_policy(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Option<ProcedureDefinitionBodyPolicy> {
     use tcl_dialect::model::{Family, InvocationRealm};
@@ -412,7 +412,7 @@ pub enum NativeCompilerCacheMutation {
 /// not a mutation here: C Tcl does not advance `compileEpoch` for that operation.
 #[must_use]
 pub fn native_compiler_cache_invalidated(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     mutation: NativeCompilerCacheMutation,
 ) -> Option<bool> {
     use tcl_dialect::model::Family;
@@ -444,7 +444,7 @@ pub fn native_compiler_cache_invalidated(
 #[must_use]
 pub fn select_procedure_header(
     header: tcl_dialect::NativeProcedureHeaderCompilation,
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     shapes: &[crate::native_compilation::NativeCompilationWordShape],
     context: crate::native_compilation::NativeCompilationContext,
 ) -> crate::native_compilation::NativeCompilationSelection {
@@ -488,7 +488,7 @@ pub fn select_procedure_header(
 /// additionally recognises source backslash-newline whitespace.
 #[must_use]
 pub fn procedure_header_compilation(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parameters: Option<&str>,
     body: Option<&str>,
     precompiled_body: Option<bool>,
@@ -507,7 +507,7 @@ pub fn procedure_header_compilation(
 /// C8.4 tests a `CString` body prefix; C8.5+ examines the complete body bytes.
 #[must_use]
 pub fn procedure_header_compilation_bytes(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     parameters: Option<&[u8]>,
     body: Option<&[u8]>,
     precompiled_body: Option<bool>,
@@ -597,8 +597,11 @@ impl NativeProcedureDefinitionSpec {
 
     /// Native definition usage without a command prefix inferred by consumers.
     #[must_use]
-    pub fn usage(self, dialect: Option<crate::InvocationDialect>) -> Option<&'static str> {
-        match dialect.and_then(crate::InvocationDialect::parameter_grammar) {
+    pub fn usage(
+        self,
+        dialect: Option<tcl_native_model::InvocationDialect>,
+    ) -> Option<&'static str> {
+        match dialect.and_then(tcl_native_model::InvocationDialect::parameter_grammar) {
             Some(tcl_dialect::ParameterGrammar::Tcl) => Some("proc name args body"),
             Some(tcl_dialect::ParameterGrammar::Jim) => Some("proc name args ?statics? body"),
             None => None,
@@ -607,8 +610,8 @@ impl NativeProcedureDefinitionSpec {
 
     /// Native operand count under an explicitly selected interpreter policy.
     #[must_use]
-    pub fn arity(self, dialect: Option<crate::InvocationDialect>) -> crate::Arity {
-        match dialect.and_then(crate::InvocationDialect::parameter_grammar) {
+    pub fn arity(self, dialect: Option<tcl_native_model::InvocationDialect>) -> crate::Arity {
+        match dialect.and_then(tcl_native_model::InvocationDialect::parameter_grammar) {
             Some(tcl_dialect::ParameterGrammar::Tcl) => crate::Arity::exact(3),
             Some(tcl_dialect::ParameterGrammar::Jim) => crate::Arity::new(3, 4),
             None => crate::Arity::any(),
@@ -689,7 +692,7 @@ pub fn select_native_procedure_definition(
     use NativeProcedureDefinitionSelection as Selection;
     let Some(grammar) = arguments
         .dialect()
-        .and_then(crate::InvocationDialect::parameter_grammar)
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
     else {
         return Selection::Unknown;
     };
@@ -786,7 +789,7 @@ impl StaticVariableValueError {
 /// or the requested original name dependency is unavailable.
 #[must_use]
 pub fn static_variable_value_specifier(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     field_count: usize,
     original_name: Option<&[u8]>,
 ) -> Option<Result<StaticVariableValueSpecifier, StaticVariableValueError>> {
@@ -835,7 +838,7 @@ fn jim_static_variable_value_specifier(
 /// The message uses a `CString` reporting operand, never the storage key.
 #[must_use]
 pub fn procedure_unknown_namespace_error(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     original_name: &[u8],
 ) -> Option<(Vec<u8>, Option<Vec<u8>>)> {
     let version = dialect.native_scalar_getter_protocol()?.tcl_version()?;
@@ -858,7 +861,7 @@ pub fn procedure_unknown_namespace_error(
 /// modern Tcl and Jim permit them. Missing physical recipe remains unavailable.
 #[must_use]
 pub fn procedure_name_creation_error(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     holder_is_global: bool,
     simple_name: &[u8],
 ) -> Option<Result<(), Vec<u8>>> {
@@ -980,7 +983,7 @@ pub type ByteStaticVariableError = StaticVariableError<Vec<u8>>;
 #[must_use]
 pub fn parse_static_variables_bytes(
     source: &[u8],
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<Result<Vec<ByteStaticVariableDeclaration>, ByteStaticVariableError>> {
     if !dialect.native_scalar_getter_protocol()?.is_jim084() {
         return None;
@@ -1099,7 +1102,8 @@ mod tests {
                     .expect("captured release")
                     .dialect_profile_name()
             });
-            let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(environment.unit_profile());
             let native = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
                 dialect.execution_point().unwrap(),
             )
@@ -1130,7 +1134,7 @@ mod tests {
         }
         assert_eq!(checked, 18);
         let mut unknown =
-            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+            tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
         unknown.core_point = None;
         assert!(procedure_name_creation_error(unknown, false, b":p").is_none());
     }
@@ -1195,9 +1199,10 @@ mod tests {
             TclVersion::V9_0,
             TclVersion::V9_1,
         ] {
-            let protocol =
-                procedure_activation_protocol(crate::InvocationDialect::for_version(version))
-                    .unwrap();
+            let protocol = procedure_activation_protocol(
+                tcl_native_model::InvocationDialect::for_version(version),
+            )
+            .unwrap();
             assert!(protocol.retains_prepared_body());
             assert!(protocol.copies_shared_definition_body());
             assert!(!protocol.formal_list_precedes_body_capture());
@@ -1209,10 +1214,11 @@ mod tests {
                 version == TclVersion::V8_4
             );
         }
-        let protocol = procedure_activation_protocol(crate::InvocationDialect::of_point(
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        ))
-        .unwrap();
+        let protocol =
+            procedure_activation_protocol(tcl_native_model::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            ))
+            .unwrap();
         assert!(!protocol.retains_prepared_body());
         assert!(!protocol.copies_shared_definition_body());
         assert!(protocol.formal_list_precedes_body_capture());
@@ -1276,7 +1282,7 @@ mod tests {
             for (case, row) in fixture.lines().enumerate() {
                 assert!(row.contains("code=0"), "{version:?} {case}");
                 let actual = procedure_header_compilation_bytes(
-                    crate::InvocationDialect::for_version(version),
+                    tcl_native_model::InvocationDialect::for_version(version),
                     Some(parameters[case]),
                     Some(bodies[case]),
                     Some(false),
@@ -1300,7 +1306,9 @@ mod tests {
     fn procedure_publication_retains_the_native_namespace_owner_axis() {
         for version in tcl_dialect::TclVersion::ALL {
             assert_eq!(
-                procedure_name_publication(crate::InvocationDialect::for_version(version)),
+                procedure_name_publication(tcl_native_model::InvocationDialect::for_version(
+                    version
+                )),
                 Some(if version <= tcl_dialect::TclVersion::V8_5 {
                     ProcedureNamePublication::RenderedNameLookup
                 } else {
@@ -1308,7 +1316,7 @@ mod tests {
                 })
             );
         }
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         );
         assert_eq!(
@@ -1324,7 +1332,7 @@ mod tests {
     fn compiler_cache_mutations_retain_the_native_owner_and_hook_axes() {
         use tcl_runtime_api::native_compilation::NativeCompilerHookPresence as Hook;
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             assert_eq!(
                 native_compiler_cache_invalidated(
                     dialect,
@@ -1377,7 +1385,7 @@ mod tests {
             ..Default::default()
         };
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             assert_eq!(
                 select_procedure_header(
                     Header::NoOp,
@@ -1433,7 +1441,7 @@ mod tests {
     fn native_header_policy_preserves_formal_bytes_and_whitespace_versions() {
         use tcl_dialect::NativeProcedureHeaderCompilation as Header;
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for (parameters, body, expected) in [
                 ("args", "", Header::NoOp),
                 (" args ", " \t\n\u{b}\u{c}\r", Header::NoOp),
@@ -1471,7 +1479,7 @@ mod tests {
                 Header::Unknown
             );
         }
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::ingress::resolve_environment("jim").unit_profile(),
         );
         assert_eq!(
@@ -1484,7 +1492,7 @@ mod tests {
     fn evaluated_argv_shape_selects_native_body_and_result() {
         let words = ["p", "a", "{x 1}", "set x"];
         let c = InvocationArguments::literals(&words).with_dialect(
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         assert_eq!(
             NativeProcedureDefinitionSpec::Core.select(c),
@@ -1513,7 +1521,7 @@ mod tests {
         // Implementation contract: naming.procedure.original-jim-static-list-capture-inputs
         // docs/design/analysis/name-resolution-proofs/procedure-original-jim-static-list-capture-inputs.md
         let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap();
-        let dialect = crate::InvocationDialect::of_point(point);
+        let dialect = tcl_native_model::InvocationDialect::of_point(point);
         let bytes = b"x\xed\xa0\x80 &y\xed\xa0\x81 {z\0tail VALUE} {&literal PAIR}";
         let declarations = parse_static_variables_bytes(bytes, dialect)
             .unwrap()
@@ -1563,8 +1571,11 @@ mod tests {
         );
         for version in tcl_dialect::TclVersion::ALL {
             assert!(
-                parse_static_variables_bytes(bytes, crate::InvocationDialect::for_version(version))
-                    .is_none()
+                parse_static_variables_bytes(
+                    bytes,
+                    tcl_native_model::InvocationDialect::for_version(version)
+                )
+                .is_none()
             );
         }
         let mut unknown = dialect;
@@ -1618,7 +1629,8 @@ mod definition_body_policy_tests {
 
     #[test]
     fn rule_loader_body_formation_is_independent_of_native_compilation() {
-        let f5 = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        let f5 =
+            tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
         let loader = procedure_definition_body_policy(f5, InvocationRealm::RuleLoader).unwrap();
         let runtime =
             procedure_definition_body_policy(f5, InvocationRealm::InterpreterRuntime).unwrap();
@@ -1631,7 +1643,7 @@ mod definition_body_policy_tests {
         assert_eq!(runtime.accepts(Shape::Expanded), None);
         for version in tcl_dialect::TclVersion::ALL {
             let native = procedure_definition_body_policy(
-                crate::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
                 InvocationRealm::RuleLoader,
             )
             .unwrap();
@@ -1642,7 +1654,7 @@ mod definition_body_policy_tests {
     #[test]
     fn an_f5_trunk_host_accepts_a_braced_body_and_decides_no_other() {
         for name in ["f5-tmsh", "f5-iapps"] {
-            let dialect = crate::InvocationDialect::of_profile(
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find(name).unwrap(),
             );
             for realm in [
@@ -1710,9 +1722,10 @@ mod recompilation_ownership_tests {
         ];
         let mut completed = 0;
         for (version, cases) in engines {
-            let protocol =
-                procedure_activation_protocol(crate::InvocationDialect::for_version(version))
-                    .expect("actual C procedure issuer");
+            let protocol = procedure_activation_protocol(
+                tcl_native_model::InvocationDialect::for_version(version),
+            )
+            .expect("actual C procedure issuer");
             for (case, source) in cases.into_iter().enumerate() {
                 let rows: Vec<Vec<&str>> = source
                     .lines()

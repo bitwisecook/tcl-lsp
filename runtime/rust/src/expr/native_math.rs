@@ -53,7 +53,7 @@ impl MathOperation {
     pub(crate) fn string(&self, value: *mut TclObj) -> Result<Vec<u8>, ExprError> {
         self.original.string(value)
     }
-    pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.original.dialect()
     }
     /// Complete selected classification before a subsequent operand is reached.

@@ -49,7 +49,7 @@ const ENCODING_SUBS: &[&str] = &[
 pub(super) fn register_encoding(vm: &mut Vm) {
     match vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Encoding)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Encoding)
     {
         Some(namespace) => {
             let subs = crate::environment::release_subcommands(
@@ -79,7 +79,7 @@ pub(crate) fn refresh_encoding_profile(vm: &mut Vm) {
     register_encoding(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Encoding)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Encoding)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("encoding");

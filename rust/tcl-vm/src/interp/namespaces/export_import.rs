@@ -391,7 +391,7 @@ impl Vm {
         pattern: &[u8],
         original: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<Option<Completion<Value>>, tcl_cmd_core::CmdError> {
-        use tcl_registry::native_namespace_name::NativeNamespaceImportPreloadRoute;
+        use tcl_native_model::native_namespace_name::NativeNamespaceImportPreloadRoute;
         use tcl_syntax::value::ValueError;
 
         original.check(self)?;

@@ -188,7 +188,7 @@ pub(crate) struct DeclarationLifecycleInvocation {
     pub(crate) effective: EffectiveCommandWords,
     pub(crate) arguments: Vec<Option<String>>,
     pub(crate) argument_offset: usize,
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
 }
 
 /// Exact original declaration layout under its selected provider semantics.
@@ -538,7 +538,7 @@ fn declaration_flow_for_original_schema(
     values: &[EffectiveInvocationWord],
     facts: &tcl_registry::InvocationFacts,
     invocation: InvocationWords<'_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     frame: tcl_registry::VariableAliasFrame,
 ) -> Option<DeclarationInvocationFlow> {
     let arguments = invocation.arguments();
@@ -737,7 +737,7 @@ fn source_advice_has_no_declared_lookup_mutation_with(
 pub(crate) fn declared_argument_words(
     tokens: &CommandTokens,
     effective: &EffectiveCommandWords,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<EffectiveInvocationWord> {
     effective
         .words
@@ -873,7 +873,7 @@ fn retain_declared_local_values(
     selected: &mut DeclarationInvocationFlow,
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) {
     if let Some(inputs) = facts
         .representation_effect
@@ -921,7 +921,7 @@ fn retain_declared_aliases_and_case(
     registry: &CommandRegistry,
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) {
     // Possible case operands do not predict the selected arm. A fixed
     // subject needs an independently selected matcher to certify reads in
@@ -967,7 +967,7 @@ fn retain_declared_aliases_and_case(
 
 fn declared_alias_targets_caller(
     alias: &tcl_registry::VariableCellAliasTransition,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> bool {
     // naming.tcloo.original-declared-receiver-caller-traits
     // docs/design/analysis/name-resolution-proofs/tcloo-original-declared-receiver-caller-traits.md
@@ -994,7 +994,7 @@ fn retain_declared_variable_roles(
     facts: &tcl_registry::InvocationFacts,
     arguments: tcl_registry::InvocationArguments<'_>,
     values: &[EffectiveInvocationWord],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<()> {
     let output = facts.successful_variable_output_commitments(arguments);
     let conditional_output = matches!(
@@ -1120,7 +1120,7 @@ mod tests {
     #[test]
     fn original_inert_declaration_values_survive_missing_entered_observations() {
         let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
-        let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         for (source, expected) in [
             (

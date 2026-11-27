@@ -42,8 +42,8 @@ pub struct NativeJimExistsProtocol;
 impl NativeJimExistsProtocol {
     /// Original declaration identity for the shared same-object enum cache.
     #[must_use]
-    pub fn table(self) -> crate::native_index_lookup::NativeStaticIndexTable {
-        crate::native_index_lookup::NativeStaticIndexTable::supported_backend(OPTIONS)
+    pub fn table(self) -> tcl_native_model::native_index_lookup::NativeStaticIndexTable {
+        tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(OPTIONS)
     }
     /// Meaning of the ordinal returned by the actual original enum lookup.
     #[must_use]
@@ -63,10 +63,16 @@ impl NativeJimExistsProtocol {
         b"?-command|-proc|-alias|-channel|-var? name"
     }
 }
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait JimExistsDialect {
     /// Actual Jim enum backend selects the matching core existence worker.
     #[must_use]
-    pub fn native_jim_exists_protocol(self) -> Option<NativeJimExistsProtocol> {
+    fn native_jim_exists_protocol(self) -> Option<NativeJimExistsProtocol>;
+}
+
+impl JimExistsDialect for tcl_native_model::InvocationDialect {
+    fn native_jim_exists_protocol(self) -> Option<NativeJimExistsProtocol> {
         self.native_jim_enum_protocol()
             .map(|_| NativeJimExistsProtocol)
     }
@@ -78,10 +84,10 @@ fn argument_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
     }
     if let [option, _] = arguments {
         let protocol = NativeJimExistsProtocol;
-        if let Ok(cache) = crate::native_jim_enum::NativeJimEnumProtocol.lookup(
+        if let Ok(cache) = tcl_native_model::native_jim_enum::NativeJimEnumProtocol.lookup(
             option.as_bytes(),
             &protocol.table(),
-            crate::native_jim_enum::NativeJimEnumFlags::options(false),
+            tcl_native_model::native_jim_enum::NativeJimEnumFlags::options(false),
             None,
         ) {
             let tcl_core_types::NativeJimOptionCache::Enum { entry, .. } = cache else {

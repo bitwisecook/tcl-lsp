@@ -79,7 +79,7 @@ pub fn select_application_folds(
     if source.len() > MAX_APPLICATION_SOURCE_BYTES {
         return Err(ClosedSourceRefusal::Budget);
     }
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     if dialect.execution_point().is_none()
         || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
     {

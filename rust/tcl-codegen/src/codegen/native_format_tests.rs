@@ -30,7 +30,8 @@ fn original_format_instruction_keeps_single_value_and_mixed_piece_order() {
             (b"format {%s} $a".as_slice(), false),
             (b"format {A%s%%B%s} $a $b".as_slice(), true),
         ] {
-            let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
             let image = tcl_lexer::SourceImage::native(source);
             let parsed = tcl_lexer::native_script_words_in(
                 image.clone(),
@@ -81,7 +82,7 @@ fn original_c90_hex_decline_keeps_ordinary_invocation_emission() {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let entry = crate::test_support::captured_native_entry(profile);
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     let image = tcl_lexer::SourceImage::native(b"format %x $x".as_slice());
     let parsed = tcl_lexer::native_script_words_in(
         image.clone(),

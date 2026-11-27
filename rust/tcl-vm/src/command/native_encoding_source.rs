@@ -231,7 +231,7 @@ pub(super) fn source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// accepts, so a miss there is `bad option`; any other layout is wrong # args.
 fn invalid_source_layout(
     vm: &mut Vm,
-    grammar: tcl_registry::source_file::SourceFileGrammar,
+    grammar: tcl_native_model::source_file::SourceFileGrammar,
     count: usize,
     first: Option<&[u8]>,
 ) -> Completion<Value> {
@@ -272,16 +272,17 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
             ValueError::CommandProtocolUnavailable("native source file protocol").into(),
         );
     };
-    let first =
-        if args.len() > 1 && grammar != tcl_registry::source_file::SourceFileGrammar::Filename {
-            match names.read(vm, &args[0]) {
-                Ok(bytes) => Some(bytes),
-                Err(error) => return completion_from_cmd_error(vm, error),
-            }
-        } else {
-            None
-        };
-    let tcl_registry::source_file::SourceFileSelection::Selected(selected) =
+    let first = if args.len() > 1
+        && grammar != tcl_native_model::source_file::SourceFileGrammar::Filename
+    {
+        match names.read(vm, &args[0]) {
+            Ok(bytes) => Some(bytes),
+            Err(error) => return completion_from_cmd_error(vm, error),
+        }
+    } else {
+        None
+    };
+    let tcl_native_model::source_file::SourceFileSelection::Selected(selected) =
         grammar.select_original(args.len(), first.as_deref())
     else {
         return invalid_source_layout(vm, grammar, args.len(), first.as_deref());

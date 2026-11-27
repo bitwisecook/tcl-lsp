@@ -628,7 +628,7 @@ impl OriginalSourcePointEntry {
         &self.payload.site
     }
 
-    pub(super) fn source_file_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    pub(super) fn source_file_dialect(&self) -> Option<tcl_native_model::InvocationDialect> {
         self.payload.snapshot.state.baseline.dialect
     }
 
@@ -850,7 +850,7 @@ mod tests {
                 ..options
             },
             super::super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V9_0,
                 )),
                 ..options

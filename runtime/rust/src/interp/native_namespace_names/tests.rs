@@ -665,7 +665,7 @@ fn logical_namespace_creation_keeps_its_explicit_simulation_and_internal_owner()
     assert_eq!(policy.authority(), NamePolicyAuthority::AuthoredSimulation);
     assert!(interp.invocation_name_protocol().is_none());
     assert!(interp.set_logical_source_word_provider(
-        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        tcl_native_model::LogicalSourceWordProvider::Tcl84CoreSimulation,
         crate::environment::profile_for_dialect("tcl8.6"),
     ));
     let created = interp.ns_eval_framed(b"::logical_created", b"", None, false, None, None);

@@ -369,7 +369,7 @@ impl ResolveContext {
         use tcl_registry::native_procedure::StaticVariableInitialiser as Initialiser;
         if self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::family)
+            .and_then(tcl_native_model::InvocationDialect::family)
             != Some(tcl_dialect::model::Family::Jim)
             || allocation.incarnation == AllocationIncarnation::RepeatedFresh
         {
@@ -1107,7 +1107,7 @@ mod tests {
 
     fn root(registry: &tcl_registry::CommandRegistry) -> ResolveContext {
         let mut context = ResolveContext::for_function("::top");
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         context
@@ -1243,7 +1243,7 @@ mod original_callable_static_tests {
     use tcl_syntax::{naming::ExecutionNamePolicy, word_rules::WordValueRules};
 
     fn context() -> ResolveContext {
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
         );
         let mut root = ResolveContext::default().in_frame(&VariableExecutionFrame::Global);

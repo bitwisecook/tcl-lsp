@@ -157,7 +157,7 @@ pub(crate) fn with_local<R>(value: *mut TclObj, borrow: impl FnOnce(&Local) -> R
 pub(crate) fn install_parsed_with_stage_check<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Parsed,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: &mut dyn FnMut() -> Result<(), E>,
     retain: &dyn Fn(&E),
 ) -> Result<(), E> {
@@ -166,7 +166,7 @@ pub(crate) fn install_parsed_with_stage_check<E: From<ValueError>>(
 fn install_parsed_using<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Parsed,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: Option<&mut dyn FnMut() -> Result<(), E>>,
     retain: Option<&dyn Fn(&E)>,
 ) -> Result<(), E> {
@@ -236,7 +236,7 @@ fn install_parsed_primary<E: From<ValueError>>(
 pub(crate) fn install_local_with_stage_check<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Local,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: &mut dyn FnMut() -> Result<(), E>,
     retain: &dyn Fn(&E),
 ) -> Result<(), E> {
@@ -245,7 +245,7 @@ pub(crate) fn install_local_with_stage_check<E: From<ValueError>>(
 fn install_local_using<E: From<ValueError>>(
     value: *mut TclObj,
     cache: Local,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: Option<&mut dyn FnMut() -> Result<(), E>>,
     retain: Option<&dyn Fn(&E)>,
 ) -> Result<(), E> {

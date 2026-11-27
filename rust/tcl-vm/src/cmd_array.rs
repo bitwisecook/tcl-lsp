@@ -23,6 +23,7 @@
 //! `array unset a` (no pattern) that iterates and unsets elements would leave
 //! an empty array instead of removing the whole array.
 
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 use tcl_runtime_api::completion_options::{
     self as shared_options, ControlOptionPolicy, OptionValue,
@@ -37,7 +38,7 @@ use crate::value::Value;
 pub(crate) fn register(vm: &mut Vm) {
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Array)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Array)
     else {
         vm.register_stock_builtin("array", cmd_array);
         return;
@@ -68,7 +69,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Array)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Array)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("array");
@@ -465,7 +466,7 @@ fn array_set_original(
         );
     };
     match selected {
-        tcl_registry::native_array::NativeArraySetProtocol::COriginalName => {
+        tcl_native_model::native_array::NativeArraySetProtocol::COriginalName => {
             let bytes = match original_bytes(vm, name, currency) {
                 Ok(bytes) => bytes,
                 Err(error) => return error,
@@ -474,7 +475,7 @@ fn array_set_original(
                 array_set_c_after_trace(vm, name, &bytes, list, strings, target, currency)
             })
         }
-        tcl_registry::native_array::NativeArraySetProtocol::JimOriginalVariable => {
+        tcl_native_model::native_array::NativeArraySetProtocol::JimOriginalVariable => {
             array_set_jim(vm, name, list, strings, currency)
         }
     }

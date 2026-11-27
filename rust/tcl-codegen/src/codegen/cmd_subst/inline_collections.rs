@@ -358,10 +358,10 @@ impl CodegenCtx<'_> {
             let Some(target_address) = self
                 .registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile)
+                .map(tcl_native_model::InvocationDialect::of_profile)
                 .and_then(|dialect| {
                     dialect.ensemble_implementation_command_address(
-                        tcl_registry::EnsembleImplementationFamily::Array,
+                        tcl_native_model::EnsembleImplementationFamily::Array,
                         sub.as_bytes(),
                     )
                 })

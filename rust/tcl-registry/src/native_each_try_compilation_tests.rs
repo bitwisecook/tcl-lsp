@@ -88,7 +88,7 @@ fn declarations(steps: &[NativeControlPreparationStep]) -> Vec<String> {
 fn original_each_and_try_recipes_match_190_native_selection_and_local_windows() {
     let mut matched = 0;
     for (version, fixture) in fixtures() {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         for row in fixture.lines().skip(1) {
             let columns = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let index = columns[0].parse::<usize>().unwrap();
@@ -174,7 +174,7 @@ fn original_each_and_try_recipes_match_190_native_selection_and_local_windows() 
 #[test]
 fn try_dynamic_body_is_protected_but_iterator_values_precede_the_loop_range() {
     for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let image = SourceImage::native(b"try $missing on error {m o} {set m}".as_slice());
         let parsed = native_script_words_in(
             image.clone(),

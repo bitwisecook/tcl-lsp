@@ -58,10 +58,9 @@ impl NativeHandlerLookupPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        InvocationDialect, InvocationWord, native_compilation::NormalHandlerImplementationLookup,
-    };
+    use crate::{InvocationWord, native_compilation::NormalHandlerImplementationLookup};
     use tcl_dialect::TclVersion;
+    use tcl_native_model::InvocationDialect;
 
     fn encoding_paths() -> &'static NativeHandlerLookupPaths {
         let registry = crate::CommandRegistry::build_default();

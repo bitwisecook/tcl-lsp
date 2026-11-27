@@ -682,7 +682,7 @@ impl Lowerer<'_> {
             base,
             WordValueRules::from_config(&self.config),
             self.invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::parameter_grammar),
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar),
             surface,
         ) else {
             self.module

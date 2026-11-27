@@ -92,7 +92,7 @@ pub(crate) fn checked_original_argument_lifted_calls(
 pub(crate) struct OriginalAuthoredSourceSubstitutionWords {
     pub(super) words: Vec<tcl_lexer::NativeWord>,
     registry: tcl_registry::RegistrySnapshot,
-    pub(super) dialect: Option<tcl_registry::InvocationDialect>,
+    pub(super) dialect: Option<tcl_native_model::InvocationDialect>,
     realm: tcl_dialect::model::InvocationRealm,
 }
 

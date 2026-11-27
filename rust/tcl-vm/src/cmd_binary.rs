@@ -32,7 +32,7 @@ use crate::expr::{
 };
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+use tcl_native_model::native_numeric_error::NativeNumericCommandPurpose;
 
 pub(crate) fn register(vm: &mut Vm) {
     if let Some(scripted) = vm
@@ -47,7 +47,7 @@ pub(crate) fn register(vm: &mut Vm) {
     }
     let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Binary)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Binary)
     else {
         vm.register_stock_builtin("binary", cmd_binary);
         return;
@@ -93,7 +93,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Binary)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Binary)
         .is_none()
     {
         for identity in ["tcl::binary::encode", "tcl::binary::decode", "binary"] {
@@ -188,7 +188,7 @@ fn binary_wrong_args(
     invocation: BinaryInvocation,
     member: &str,
     codec: Option<&str>,
-    operation: tcl_registry::native_binary_usage::NativeBinaryArgumentUsage,
+    operation: tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage,
 ) -> Completion<Value> {
     let mut header = vec![
         vm.invoked_name_value()
@@ -215,7 +215,7 @@ fn binary_wrong_args(
         );
     };
     let Some(protocol) = vm.native_invocation_dialect().usage_protocol(Some(
-        tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+        tcl_native_model::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
     )) else {
         return vm.refuse_host_command("native argument usage protocol is not selected".to_owned());
     };
@@ -229,7 +229,7 @@ fn binary_wrong_args(
     };
     let operands: Vec<_> = bytes
         .iter()
-        .map(|word| tcl_registry::native_usage::NativeUsageWord::Original(word))
+        .map(|word| tcl_native_model::native_usage::NativeUsageWord::Original(word))
         .collect();
     let Some(mut usage) = protocol.render_header(&operands) else {
         return vm.refuse_host_command("native argument usage protocol is not selected".to_owned());
@@ -324,7 +324,7 @@ fn cmd_binary_in_original_using(
         BINARY_SUBS,
     );
     let canon = if vm.native_invocation_dialect().binary_root_dispatch()
-        == Some(tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed)
+        == Some(tcl_native_model::native_binary_usage::NativeBinaryRootDispatch::Indexed)
     {
         match vm.native_static_option_index_checked(sub, subs, false, "option") {
             Ok(index) => subs[index],
@@ -419,7 +419,7 @@ fn binary_encode_in_original_using(
                     invocation,
                     "encode",
                     Some(canon),
-                    tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::EncodeHex,
+                    tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::EncodeHex,
                 );
             };
             let bytes = match value_to_bytes(vm, data) {
@@ -545,7 +545,7 @@ fn binary_encode_wrapped_in_original(
                     .map_err(TclError::from_execution_failure)?;
                 string_wrap = matches!(
                     input,
-                    tcl_registry::native_binary_value::NativeBinaryDecodeInput::String(_)
+                    tcl_native_model::native_binary_value::NativeBinaryDecodeInput::String(_)
                 );
                 wrapchar = input.bytes().to_vec();
                 i += 2;
@@ -556,7 +556,7 @@ fn binary_encode_wrapped_in_original(
                     invocation,
                     "encode",
                     Some(codec),
-                    tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
+                    tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
                 ));
             }
         }
@@ -567,7 +567,7 @@ fn binary_encode_wrapped_in_original(
             invocation,
             "encode",
             Some(codec),
-            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
+            tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::EncodeWrapped,
         ));
     };
     let bytes = match value_to_bytes(vm, data) {
@@ -694,7 +694,7 @@ fn decode_args(
 ) -> Result<
     (
         bool,
-        tcl_registry::native_binary_value::NativeBinaryDecodeInput,
+        tcl_native_model::native_binary_value::NativeBinaryDecodeInput,
     ),
     Completion<Value>,
 > {
@@ -721,7 +721,7 @@ fn decode_args(
                     invocation,
                     "decode",
                     Some(codec),
-                    tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Decode,
+                    tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::Decode,
                 ),
                 tcl_cmd_core::binary::DecodeArgumentsError::UnresolvedOption => {
                     vm.refuse_host_command("native binary option value is unresolved".to_owned())
@@ -745,7 +745,7 @@ fn decode_args(
 fn decode_invalid(
     vm: &mut Vm,
     what: &str,
-    input: &tcl_registry::native_binary_value::NativeBinaryDecodeInput,
+    input: &tcl_native_model::native_binary_value::NativeBinaryDecodeInput,
     error: tcl_cmd_core::binary::DecodeError,
 ) -> Completion<Value> {
     vm.native_invocation_dialect()
@@ -777,7 +777,7 @@ fn binary_format_with_invocation(
                             invocation,
                             "format",
                             None,
-                            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Format,
+                            tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::Format,
                         ));
                     };
                     let grammar = original.binary_grammar()?;
@@ -836,7 +836,7 @@ fn binary_formats(vm: &Vm) -> tcl_dialect::BinaryFormats {
 }
 
 fn binary_bad_field(
-    grammar: tcl_registry::native_binary_value::NativeBinaryFormatGrammar,
+    grammar: tcl_native_model::native_binary_value::NativeBinaryFormatGrammar,
     field: &[u8],
 ) -> tcl_cmd_core::CmdError {
     let (message, store_none) = grammar.bad_field(field);
@@ -853,8 +853,8 @@ struct OriginalBinaryFormat<'a> {
     format: Option<&'a Value>,
     vm: &'a mut Vm,
     original: &'a crate::interp::original_authored_operands::OriginalAuthoredOperandScope,
-    conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
-    narrowing: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    conversion: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
+    narrowing: tcl_native_model::native_binary_value::NativeBinaryByteConversion,
     syntax: tcl_dialect::NumberSyntax,
     numeric: Option<crate::expr::NumericContext<'a>>,
 }
@@ -949,11 +949,13 @@ impl tcl_cmd_core::binary::FormatValueOps for Vm {
             ))
         })?;
         if dialect.binary_data_conversion()
-            == Some(tcl_registry::native_binary_value::NativeBinaryByteConversion::CheckedLatin1)
+            == Some(
+                tcl_native_model::native_binary_value::NativeBinaryByteConversion::CheckedLatin1,
+            )
         {
             return value
                 .as_native_byte_array(
-                    tcl_registry::native_binary_value::NativeBinaryByteConversion::CheckedLatin1,
+                    tcl_native_model::native_binary_value::NativeBinaryByteConversion::CheckedLatin1,
                     protocol,
                 )
                 .map_or_else(
@@ -1030,7 +1032,7 @@ fn binary_scan_with_invocation(
                             invocation,
                             "scan",
                             None,
-                            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Scan,
+                            tcl_native_model::native_binary_usage::NativeBinaryArgumentUsage::Scan,
                         ));
                     };
                     let grammar = original.binary_grammar()?;
@@ -1435,7 +1437,7 @@ mod original_format_scan_tests {
         scope.check(&mut vm).unwrap();
         let foreign = Value::from_native_byte_array(
             std::rc::Rc::from(b"AB".as_slice()),
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
         )
         .unwrap();
         let completion = binary_scan(

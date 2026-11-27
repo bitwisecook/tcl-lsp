@@ -70,7 +70,7 @@ impl NativeLowering {
     #[must_use]
     pub fn definition_guard_identity(
         self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<tcl_runtime_api::guard::GuardIdentity> {
         if self != Self::Definition {
             return None;
@@ -215,7 +215,7 @@ mod tests {
         let identities: Vec<_> = tcl_dialect::TclVersion::ALL
             .into_iter()
             .map(|version| {
-                let dialect = crate::InvocationDialect::for_version(version);
+                let dialect = tcl_native_model::InvocationDialect::for_version(version);
                 let identity = NativeLowering::Definition
                     .definition_guard_identity(dialect)
                     .unwrap();

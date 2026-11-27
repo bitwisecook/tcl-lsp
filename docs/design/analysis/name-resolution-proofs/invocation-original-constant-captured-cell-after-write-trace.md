@@ -9615,7 +9615,7 @@ results, and no state after abnormal termination is asserted.
 - [rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original](../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original)
 - [rust/tcl-registry/tests/data/native_deep_import_chain_original](../../../../rust/tcl-registry/tests/data/native_deep_import_chain_original)
 - [rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original](../../../../rust/tcl-registry/tests/data/native_tcltest_alias_caller_frame_original)
-- [rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs](../../../../rust/tcl-registry/tests/data/native_error_code_metadata_original/original-inputs)
+- [rust/tcl-native-model/tests/data/native_error_code_metadata_original/original-inputs](../../../../rust/tcl-native-model/tests/data/native_error_code_metadata_original/original-inputs)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.5](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.5)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.6](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl8.6)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.0](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/tcl9.0)

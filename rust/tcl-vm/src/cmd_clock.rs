@@ -44,7 +44,7 @@ pub(crate) fn register(vm: &mut Vm) {
 fn register_clock(vm: &mut Vm) {
     if let Some(namespace) = vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Clock)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Clock)
     {
         let subs: Vec<&str> = CLOCK_MEMBERS.iter().map(|&(member, _)| member).collect();
         vm.register_stock_namespace_ensemble("clock", namespace, CLOCK_MEMBERS, &subs);
@@ -77,7 +77,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     register_clock(vm);
     if vm
         .actual_native_invocation_dialect()
-        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Clock)
+        .ensemble_implementation_namespace(tcl_native_model::EnsembleImplementationFamily::Clock)
         .is_none()
     {
         vm.retire_unused_stock_ensemble_namespace("clock");

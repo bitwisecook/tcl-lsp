@@ -474,11 +474,11 @@ fn prepared_length_subtraction(
     script: &Script,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<(
     crate::ir::CommandTokens,
     i32,
-    tcl_registry::InvocationDialect,
+    tcl_native_model::InvocationDialect,
 )> {
     let prepared = crate::math_function_binding::ExpressionMathBindings::new(script, None)
         .at_invocation(expression.words().first()?.source().span.start())?;
@@ -893,7 +893,7 @@ mod tests {
         let entry = crate::command_binding::SourceAnalysisEntry {
             invocation_dialect: registry
                 .profile()
-                .map(tcl_registry::InvocationDialect::of_profile),
+                .map(tcl_native_model::InvocationDialect::of_profile),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             native_entry: Some(std::sync::Arc::new(native)),
             ..crate::command_binding::SourceAnalysisEntry::default()

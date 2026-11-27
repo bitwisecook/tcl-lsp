@@ -37,6 +37,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use tcl_registry::special_vars::BootstrapDialect;
 
 use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
@@ -96,7 +97,7 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
 /// A VM pinned to `profile`. A vendor profile has no native core of its own:
 /// it runs on the engine of the release it emulates.
 fn vm_for_profile(profile: &'static DialectProfile, out: Box<dyn std::io::Write>) -> tcl_vm::Vm {
-    if tcl_registry::InvocationDialect::of_profile(profile)
+    if tcl_native_model::InvocationDialect::of_profile(profile)
         .native_bootstrap_protocol()
         .is_some()
     {

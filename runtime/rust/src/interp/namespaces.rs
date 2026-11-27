@@ -78,7 +78,7 @@ impl Interp {
         loc: Option<(Option<Rc<[u8]>>, u32)>,
         add_eval_frame: bool,
         original_body: Option<(
-            tcl_registry::native_eval_object::EvalObjectPurpose,
+            tcl_native_model::native_eval_object::EvalObjectPurpose,
             *mut TclObj,
         )>,
         original_arguments: Option<&[*mut TclObj]>,
@@ -129,7 +129,7 @@ impl Interp {
         loc: Option<(Option<Rc<[u8]>>, u32)>,
         add_eval_frame: bool,
         original_body: Option<(
-            tcl_registry::native_eval_object::EvalObjectPurpose,
+            tcl_native_model::native_eval_object::EvalObjectPurpose,
             *mut TclObj,
         )>,
         original_arguments: Option<&[*mut TclObj]>,
@@ -201,7 +201,7 @@ impl Interp {
             Some((purpose, original)) => self.eval_original_body_framed(purpose, original, frame),
             None => match jim_body_pointer {
                 Some(original) => self.eval_original_body_framed(
-                    tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                    tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                     original,
                     frame,
                 ),

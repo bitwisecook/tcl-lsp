@@ -764,7 +764,9 @@ pub fn resolve_structured_invocation_in_resolved_context<'r, 'w>(
     let Some(context) = context else {
         let query = commands
             .profile()
-            .and_then(|profile| crate::InvocationDialect::of_profile(profile).authoring_query())
+            .and_then(|profile| {
+                tcl_native_model::InvocationDialect::of_profile(profile).authoring_query()
+            })
             .map(|query| query.with_realm(realm));
         return commands.resolve_structured_invocation(words, query);
     };

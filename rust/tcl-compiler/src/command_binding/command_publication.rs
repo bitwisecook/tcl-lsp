@@ -149,7 +149,8 @@ impl SourceFreshProcedureTraceAbsence {
         profile: &'static tcl_dialect::DialectProfile,
     ) -> bool {
         entry.execution_point.is_some_and(|point| {
-            tcl_registry::InvocationDialect::of_profile(profile).execution_point() == Some(point)
+            tcl_native_model::InvocationDialect::of_profile(profile).execution_point()
+                == Some(point)
         })
     }
 
@@ -168,7 +169,8 @@ impl SourceFreshProcedureTraceAbsence {
             || entry.profile != profile.cache_key()
             || entry.invocation_policy.as_ref() != Some(&entry.profile)
             || !Self::profile_point_matches(entry, profile)
-            || state.baseline.dialect != Some(tcl_registry::InvocationDialect::of_profile(profile))
+            || state.baseline.dialect
+                != Some(tcl_native_model::InvocationDialect::of_profile(profile))
             || state.baseline.source_point_entry.is_some()
             || state.baseline.unknown_entry
             || !state.command_observers.is_quiet()
@@ -483,7 +485,7 @@ mod tests {
         for foreign in ["tcl8.6", "tcl9.1"] {
             let foreign = tcl_dialect::DialectProfile::find(foreign).unwrap();
             changed.execution_point =
-                tcl_registry::InvocationDialect::of_profile(foreign).execution_point();
+                tcl_native_model::InvocationDialect::of_profile(foreign).execution_point();
             assert!(
                 !super::SourceFreshProcedureTraceAbsence::profile_point_matches(&changed, profile)
             );
@@ -520,7 +522,9 @@ mod tests {
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                 owner.commands(),
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },

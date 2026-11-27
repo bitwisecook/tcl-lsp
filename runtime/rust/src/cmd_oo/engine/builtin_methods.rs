@@ -27,7 +27,7 @@ use crate::obj;
 use crate::obj::TclObj;
 use std::rc::Rc;
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooCoreMethod, NativeTclooMethodPayloadType,
 };
 use tcl_syntax::value::ValueOps;

@@ -170,7 +170,7 @@ impl<'a> ExprServices<'a> {
         let format = self
             .fold
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_native_model::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         for component in parts {
             match component.part {

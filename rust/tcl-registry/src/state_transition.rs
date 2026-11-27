@@ -396,7 +396,7 @@ impl InterpreterTransition {
     #[must_use]
     pub fn created_handle_eval_body(
         &self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         arguments: InvocationArguments<'_>,
     ) -> Option<TransitionSubject> {
         self.created_parent_command(dialect)?;
@@ -411,7 +411,10 @@ impl InterpreterTransition {
     /// current parent. The selected handler and successful edge remain caller
     /// obligations; this supplies no child dispatch or compiler-hook proof.
     #[must_use]
-    pub fn created_parent_command(&self, dialect: crate::InvocationDialect) -> Option<String> {
+    pub fn created_parent_command(
+        &self,
+        dialect: tcl_native_model::InvocationDialect,
+    ) -> Option<String> {
         if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
             || dialect.tcl_version.is_none()
         {
@@ -1332,7 +1335,7 @@ pub mod command_binding {
                 .zip(
                     arguments
                         .dialect()
-                        .and_then(crate::InvocationDialect::native_name_protocol)
+                        .and_then(tcl_native_model::InvocationDialect::native_name_protocol)
                         .filter(|protocol| {
                             matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(_))
                         }),

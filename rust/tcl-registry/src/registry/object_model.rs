@@ -414,7 +414,7 @@ impl CommandRegistry {
     pub fn native_default_construction_grammar(
         &self,
         command: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Option<&'static crate::definer::DefinitionBodyGrammar> {
         if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
@@ -435,7 +435,7 @@ impl CommandRegistry {
     pub fn native_class_factory_recipe(
         &self,
         command: &str,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,
     ) -> Option<crate::native_tcloo_bootstrap::NativeClassFactoryRecipe> {
         let spec =

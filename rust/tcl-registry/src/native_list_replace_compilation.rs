@@ -279,7 +279,7 @@ mod tests {
         version: TclVersion,
         select: impl FnOnce(&NativeCompilerWords<'_>) -> T,
     ) -> T {
-        let dialect = crate::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let parsed = tcl_lexer::native_script_words_in(
             tcl_lexer::SourceImage::native(source.as_bytes()),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),

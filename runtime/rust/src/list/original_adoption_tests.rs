@@ -435,7 +435,7 @@ fn original_operational_conversion_retains_slot_failure_before_unused_member_hos
             .map(drop),
             _ => interpreter
                 .process_original_c_return_options(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate,
                     0,
                     0,
                     root.as_ptr(),

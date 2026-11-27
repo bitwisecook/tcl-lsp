@@ -25,7 +25,7 @@ use tcl_compiler::tcl_expr_eval::{
 };
 use tcl_core_types::DiagCode;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_test_support::expressions::MEMBERSHIP_PRECEDENCE_CASES;
 use tcl_test_support::{available_tclshs, locate_jimsh, require_jimsh, run_script};
 

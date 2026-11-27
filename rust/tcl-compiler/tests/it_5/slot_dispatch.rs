@@ -34,7 +34,9 @@ fn inherited_slot_override_refuses_original_later_command() {
                 tcl_lexer::LexerConfig::for_profile(Some(profile)),
                 registry,
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     ..Default::default()
                 },
             );

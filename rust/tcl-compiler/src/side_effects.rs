@@ -339,7 +339,8 @@ fn variable_effect_context<'a>(
         && let Some(profile) = dialect
     {
         let mut supplied = context.clone();
-        supplied.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        supplied.invocation_dialect =
+            Some(tcl_native_model::InvocationDialect::of_profile(profile));
         std::borrow::Cow::Owned(supplied)
     } else {
         std::borrow::Cow::Borrowed(context)

@@ -25,7 +25,7 @@ fn actual_c84_formatter_materializes_original_minimum_children_without_cache_or_
     let formatter =
         tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root)
             .expect("explicit pinned native formatter");
-    let dialect = tcl_registry::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile(),
     );
     let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4);

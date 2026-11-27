@@ -55,8 +55,8 @@ fn array_specialised_compilation_retains_workers_and_shape_protocols() {
             .unwrap()
             .facts();
         let spec = facts.native_compilation.unwrap();
-        let old = crate::InvocationDialect::for_version(TclVersion::V8_5);
-        let current = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        let old = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_5);
+        let current = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
         assert_eq!(
             spec.select(
                 InvocationWords::literals("array", &values),

@@ -759,7 +759,7 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for(engine)
             .commands()
             .clone();
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(engine)).unwrap(),
         );
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);

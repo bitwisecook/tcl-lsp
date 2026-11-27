@@ -40,7 +40,7 @@ impl OriginalRuntimeAppendObjects {
             first: RefCell::new(None),
         }
     }
-    pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.base.dialect
     }
     fn current(&self, value: *mut TclObj) -> Result<(), CmdError> {
@@ -315,7 +315,7 @@ impl NativeCatObjects for OriginalRuntimeAppendObjects {
         let version = protocol.tcl_version().ok_or_else(unwind)?;
         let reached = crate::bytearray::native_binary_bytes_checked(
             value.as_ptr(),
-            tcl_registry::native_binary_value::NativeBinaryByteConversion::Narrow(
+            tcl_native_model::native_binary_value::NativeBinaryByteConversion::Narrow(
                 version.string_character_model(),
             ),
             recipe,

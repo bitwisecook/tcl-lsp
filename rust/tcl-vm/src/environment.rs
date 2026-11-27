@@ -28,6 +28,7 @@
 //! actual installed workers independently of authored command availability.
 
 use std::sync::{Mutex, OnceLock};
+use tcl_registry::commands::tcl::JimInfoDialect;
 
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
@@ -123,7 +124,7 @@ pub(crate) fn release_subcommands(
 ) -> &'static [&'static str] {
     if command == "info" {
         let dialect =
-            tcl_registry::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
+            tcl_native_model::InvocationDialect::of_profile(profile_for_dialect(dialect_name));
         if let Some(names) = dialect.native_jim_info_member_names() {
             return names;
         }
@@ -145,7 +146,7 @@ pub(crate) fn release_subcommands(
             .copied()
             .filter(|name| {
                 if command == "array"
-                    && tcl_registry::InvocationDialect::of_profile(profile)
+                    && tcl_native_model::InvocationDialect::of_profile(profile)
                         .native_array_search_member_present(name.as_bytes())
                         == Some(false)
                 {

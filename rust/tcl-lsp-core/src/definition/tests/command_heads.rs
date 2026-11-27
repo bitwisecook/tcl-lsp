@@ -448,7 +448,7 @@ fn retained_loaded_indirect_definition_does_not_use_a_local_qname_decoy() {
             "loaded-provider".to_owned(),
             &Arc::from("proc greet {} {return loaded}"),
         )],
-        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
             tcl_dialect::TclVersion::V8_6,
         )),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {

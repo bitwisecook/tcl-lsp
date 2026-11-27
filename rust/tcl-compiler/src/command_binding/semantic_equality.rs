@@ -29,7 +29,7 @@ fn cfg_replay_retains_actual_entry_without_later_world_mutations() {
     let assistance = tcl_registry::model::ingress::static_context_for("tcl9.0");
     let actual = tcl_registry::model::ingress::static_context_for("tcl8.4");
     let actual_profile = actual.commands().profile().expect("actual C8.4 fixture");
-    let dialect = tcl_registry::InvocationDialect::of_profile(actual_profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(actual_profile);
     // The actual software interpreter stays alive through all weak entry queries.
     // Its registration/grammar is independent of assistance; no C process is run.
     let captured = crate::environment_ingress::captured_native_entry(actual_profile);
@@ -120,7 +120,7 @@ fn source_proof_equality_ignores_query_caches_but_retains_authority() {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             owner.commands(),
             super::SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 ..Default::default()
             },
         )
@@ -200,7 +200,7 @@ fn native_entry_grammar_selects_original_reads_before_assistance() {
             config,
             owner.commands(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_entry: Some(captured.as_entry()),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
@@ -413,7 +413,7 @@ fn original_snapshot_source(source: &str) -> SourceCommandBindings {
         &tcl_registry::CommandRegistry::build_default(),
         super::SourceAnalysisOptions {
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             )),
             ..Default::default()

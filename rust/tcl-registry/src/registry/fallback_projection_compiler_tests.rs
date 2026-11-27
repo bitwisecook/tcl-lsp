@@ -24,7 +24,7 @@ fn fallback_projection_keeps_the_actual_registered_compilers_release() {
     let source = CommandRegistry::build_default();
     let fallback = source.project_for_profile(DialectProfile::plain_tcl());
     let current = DialectProfile::find("tcl9.0").expect("catalogue profile");
-    let dialect = crate::InvocationDialect::of_profile(current);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(current);
     let spec = fallback
         .native_compilation_for_registration("catch", dialect)
         .expect("the original C9 catch registration remains represented");
@@ -55,8 +55,10 @@ fn fallback_projection_keeps_the_actual_registered_compilers_release() {
 fn exact_projection_does_not_borrow_a_newer_registered_compiler_row() {
     let source = CommandRegistry::build_default();
     let old = source.project_for_profile(DialectProfile::find("tcl8.4").unwrap());
-    let old_dialect = crate::InvocationDialect::of_profile(DialectProfile::find("tcl8.4").unwrap());
-    let new_dialect = crate::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
+    let old_dialect =
+        tcl_native_model::InvocationDialect::of_profile(DialectProfile::find("tcl8.4").unwrap());
+    let new_dialect =
+        tcl_native_model::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
     assert!(
         old.native_compilation_for_registration("catch", old_dialect)
             .is_some()
@@ -75,7 +77,8 @@ fn fallback_projection_preserves_an_authored_compiler_descriptor_refusal() {
         ..crate::CommandSpec::DEFAULT
     })));
     let fallback = source.project_for_profile(DialectProfile::plain_tcl());
-    let dialect = crate::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
+    let dialect =
+        tcl_native_model::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
     assert!(
         fallback
             .native_compilation_for_registration("catch", dialect)

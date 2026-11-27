@@ -161,7 +161,7 @@ fn run(gate: Gate, report: bool) -> Result<ExitCode> {
         collect(&root.join("runtime/rust/src"), &mut paths)?;
     }
     if gate == Gate::Memo {
-        for crate_name in ["tcl-expr", "tcl-registry", "tcl-syntax"] {
+        for crate_name in ["tcl-expr", "tcl-native-model", "tcl-registry", "tcl-syntax"] {
             collect(&root.join("rust").join(crate_name).join("src"), &mut paths)?;
         }
     }

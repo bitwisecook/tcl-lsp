@@ -77,7 +77,7 @@ impl ExecutedExpressionSource {
         parent: CommandAllocationSite,
         words: &[WordExpr],
         values: &[String],
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<Self> {
         let grammar = dialect.expression_arguments()?;
         if words.len() != values.len() || !grammar.accepts_len(values.len()) {
@@ -297,7 +297,8 @@ mod tests {
     use super::*;
 
     fn expression(source: &str, values: &[&str]) -> ExecutedExpressionSource {
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
         let command =
             tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config)

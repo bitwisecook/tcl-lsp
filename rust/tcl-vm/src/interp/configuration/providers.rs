@@ -33,7 +33,7 @@ impl Vm {
         &mut self,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        if tcl_registry::InvocationDialect::of_profile(profile)
+        if tcl_native_model::InvocationDialect::of_profile(profile)
             .execution_point()
             .is_none()
         {
@@ -74,10 +74,10 @@ impl Vm {
     #[must_use]
     pub fn set_logical_quote_provider(
         &mut self,
-        provider: tcl_registry::invocation_words::LogicalExpressionQuoteProvider,
+        provider: tcl_native_model::LogicalExpressionQuoteProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            || tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
                 .logical_expression_quote_control(provider)
                 .is_none()
         {
@@ -101,7 +101,7 @@ impl Vm {
     #[must_use]
     pub fn set_logical_eval_object_provider(
         &mut self,
-        provider: tcl_registry::native_eval_object::LogicalEvalObjectProvider,
+        provider: tcl_native_model::native_eval_object::LogicalEvalObjectProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
             || self
@@ -125,7 +125,7 @@ impl Vm {
 
     pub(crate) fn eval_object_protocol(
         &self,
-    ) -> Option<tcl_registry::native_eval_object::NativeEvalObjectProtocol> {
+    ) -> Option<tcl_native_model::native_eval_object::NativeEvalObjectProtocol> {
         self.native_invocation_dialect()
             .invocation_eval_object_protocol(self.logical_providers.eval_object)
     }
@@ -135,10 +135,10 @@ impl Vm {
     #[must_use]
     pub fn set_logical_source_word_provider(
         &mut self,
-        provider: tcl_registry::invocation_words::LogicalSourceWordProvider,
+        provider: tcl_native_model::LogicalSourceWordProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            || tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
                 .logical_source_string_protocol(provider, self.dialect_profile())
                 .is_none()
         {
@@ -167,8 +167,10 @@ impl Vm {
             .filter(|protocol| protocol.escape_syntax() == self.lexer_config().escapes)
             .or_else(|| {
                 self.logical_providers.source_words.and_then(|provider| {
-                    tcl_registry::InvocationDialect::of_profile(self.expression_source_profile())
-                        .logical_source_string_protocol(provider, self.expression_source_profile())
+                    tcl_native_model::InvocationDialect::of_profile(
+                        self.expression_source_profile(),
+                    )
+                    .logical_source_string_protocol(provider, self.expression_source_profile())
                 })
             })
     }
@@ -179,10 +181,10 @@ impl Vm {
     #[must_use]
     pub fn set_logical_expression_parse_provider(
         &mut self,
-        provider: tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        provider: tcl_native_model::LogicalExpressionParseProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            || tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
                 .logical_expression_parse_context(provider, self.dialect_profile())
                 .is_none()
         {
@@ -202,9 +204,9 @@ impl Vm {
 
     pub(crate) fn expression_template_policy(
         &self,
-    ) -> Option<tcl_registry::substitution::TemplateParseErrors> {
+    ) -> Option<tcl_native_model::TemplateParseErrors> {
         let dialect = self.native_invocation_dialect();
-        tcl_registry::substitution::TemplateParseErrors::for_dialect(dialect).or_else(|| {
+        tcl_native_model::TemplateParseErrors::for_dialect(dialect).or_else(|| {
             self.logical_providers
                 .expression_parse
                 .and_then(|provider| {
@@ -221,7 +223,7 @@ impl Vm {
         provider: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            || tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
                 .authored_logical_numeric_simulation(provider)
                 .is_none()
         {
@@ -246,7 +248,7 @@ impl Vm {
     #[must_use]
     pub fn set_logical_compiled_variable_provider(
         &mut self,
-        provider: tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider,
+        provider: tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
             || self

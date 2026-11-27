@@ -595,7 +595,7 @@ impl PackageResolver {
                 let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
                     .expect("C release profile");
                 let config = LexerConfig::from_grammar(
-                    tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
+                    tcl_native_model::InvocationDialect::of_profile(profile).lexer_grammar,
                 );
                 let policy = NamePolicyProtocol::authored_tcl(version);
                 (config, policy)
@@ -922,7 +922,7 @@ fn original_package_entries_full(
 ) -> Vec<OriginalPackageInfo> {
     use tcl_registry::model::binding::PackageTransition;
     use tcl_registry::{InvocationWord, InvocationWords, StateTransition};
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = dialect
         .authored_name_policy()

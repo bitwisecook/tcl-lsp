@@ -24,11 +24,9 @@
 //! These recipes describe that transfer; callers must independently retain the
 //! actual selected factory/support allocation and current namespace tables.
 
-use crate::{
-    InvocationDialect,
-    definer::{DefinitionBodyGrammar, DefinitionReceiver},
-};
+use crate::definer::{DefinitionBodyGrammar, DefinitionReceiver};
 use tcl_dialect::{TclVersion, model::Family};
+use tcl_native_model::InvocationDialect;
 
 /// Whether a bare stock class-definition `self` returns its class name.
 /// This pure release recipe grants no definition frame or object identity.

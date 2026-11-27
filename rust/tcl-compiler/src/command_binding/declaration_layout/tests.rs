@@ -231,7 +231,7 @@ fn original_tokens_in_image(
     body: &str,
     offset: usize,
 ) -> (super::SourceCommandBindings, crate::ir::CommandTokens) {
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
     );
     original_tokens_in_image_with_config(
@@ -251,7 +251,7 @@ fn original_tokens_in_image_with_config(
     config: tcl_lexer::LexerConfig,
 ) -> (super::SourceCommandBindings, crate::ir::CommandTokens) {
     let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
     );
     let bindings = super::SourceCommandBindings::analyse_image_in_frame_with_options(
@@ -657,7 +657,7 @@ fn declaration_variable_operands_use_the_original_selected_word_configuration() 
     let source = format!("proc p {{}} {{incr {{{name}}}}}");
     let body = format!("incr {{{name}}}");
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let dialect = tcl_registry::InvocationDialect::of_point(
+    let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some("tcl8.6")).unwrap(),
     );
     for brace in [

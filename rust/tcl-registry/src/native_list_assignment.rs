@@ -18,7 +18,8 @@
 
 //! Selected list-assignment invocation grammar, separate from compilation.
 
-use crate::{Arity, InvocationDialect, SemanticOperationId};
+use crate::{Arity, SemanticOperationId};
+use tcl_native_model::InvocationDialect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ListAssignmentSignature {
@@ -62,12 +63,18 @@ impl NativeListAssignmentInvocation {
     }
 }
 
-impl InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait ListAssignmentDialect {
     /// Select only a measured native family and release, plus the one hosted
     /// advice row for iRules (check 32). Tcl compatibility on any other vendor
     /// point, an unknown point or a conflicting point grants no row.
     #[must_use]
-    pub fn list_assignment_invocation(self) -> Option<NativeListAssignmentInvocation> {
+    fn list_assignment_invocation(self) -> Option<NativeListAssignmentInvocation>;
+}
+
+impl ListAssignmentDialect for tcl_native_model::InvocationDialect {
+    fn list_assignment_invocation(self) -> Option<NativeListAssignmentInvocation> {
         use tcl_dialect::model::{Family, Release};
         // Hosted advice, not a measured row: TMM runs `lassign` and the
         // simulator needs a grammar, so the Tcl 8.5 one is assumed until

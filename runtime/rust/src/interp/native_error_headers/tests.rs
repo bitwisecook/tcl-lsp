@@ -26,7 +26,7 @@ fn private_headers_save_without_duplicate_member_references() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let recipe = tcl_registry::InvocationDialect::for_version(version)
+        let recipe = tcl_native_model::InvocationDialect::for_version(version)
             .native_error_objects_protocol()
             .unwrap();
         let key = obj::Owned::fresh(obj::new_string_bytes(b"-custom"));
@@ -93,7 +93,7 @@ fn private_headers_save_without_duplicate_member_references() {
 }
 #[test]
 fn explicit_stack_preserves_original_member_primary_without_string_getters() {
-    let recipe = tcl_registry::InvocationDialect::for_version(TclVersion::V9_0)
+    let recipe = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0)
         .native_error_objects_protocol()
         .unwrap();
     let member = obj::Owned::fresh(crate::list::new_list_obj_native(

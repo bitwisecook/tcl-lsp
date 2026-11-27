@@ -22,7 +22,7 @@ use crate::cmd_control::original_list_conversion_tests as fixture;
 use crate::obj::TclObjType;
 use std::cell::Cell;
 #[cfg(debug_assertions)]
-use tcl_registry::native_return_options::NativeReturnOptionsApplication as Purpose;
+use tcl_native_model::native_return_options::NativeReturnOptionsApplication as Purpose;
 use tcl_registry::special_vars::NativeErrorStorageVariable as Variable;
 thread_local! {
     static MODE: Cell<u8> = const { Cell::new(0) };

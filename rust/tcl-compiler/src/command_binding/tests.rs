@@ -38,7 +38,7 @@ fn analyse(src: &str) -> (CompilationUnit, CommandRegistry) {
 fn source_proof(
     source: &str,
     head: &str,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> SourceInvocationBinding {
     let registry = CommandRegistry::build_default();
     let binding = SourceCommandBindings::analyse_with_options(
@@ -61,7 +61,7 @@ fn allocation_source(source: &str) -> SourceCommandBindings {
         &CommandRegistry::build_default(),
         SourceAnalysisOptions {
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             )),
             ..SourceAnalysisOptions::default()

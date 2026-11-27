@@ -129,10 +129,8 @@ fn visit_cases<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        InvocationDialect,
-        InvocationWord::{Dynamic, Expanded, Literal},
-    };
+    use crate::InvocationWord::{Dynamic, Expanded, Literal};
+    use tcl_native_model::InvocationDialect;
 
     fn roles(
         environment: &str,

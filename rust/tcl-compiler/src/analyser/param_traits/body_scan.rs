@@ -514,7 +514,7 @@ fn lambda_input_bindings<'p>(
     };
     let Some(grammar) = selected
         .dialect
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
     else {
         return Vec::new();
     };

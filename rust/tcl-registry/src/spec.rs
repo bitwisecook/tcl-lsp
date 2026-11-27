@@ -1508,7 +1508,7 @@ impl CommandSpec {
     pub fn run_const_fold_in(
         &self,
         args: &[&str],
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<String> {
         if self.const_fold.is_some() {
             use crate::native_result::NativeResultContract;

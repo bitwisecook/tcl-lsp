@@ -351,7 +351,8 @@ mod tests {
         // Implementation contract: naming.variable.scalar-formal-body-alpha-equivalence
         // docs/design/analysis/name-resolution-proofs/scalar-formal-body-alpha-equivalence.md
         let source = "proc p {longé😀} {return ${longé😀}}";
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let config = LexerConfig::from_grammar(dialect.lexer_grammar);
         let image = tcl_lexer::SourceImage::document(source);
         let parsed = tcl_lexer::native_script_words_in(
@@ -412,7 +413,7 @@ mod tests {
         // Implementation contract: naming.source.original-native-script-body-value
         // docs/design/analysis/name-resolution-proofs/original-native-script-body-value.md
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
             let protocol = dialect.native_source_string_protocol().unwrap();
             for image in [

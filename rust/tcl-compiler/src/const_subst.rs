@@ -167,7 +167,7 @@ pub struct FoldedInvocation {
 pub fn folded_literal_reads_apart(value: &str, release: TclVersion) -> bool {
     // dialect-drift-ok: a C Tcl release's folded result, which that release
     // reads under C's strict list grammar
-    tcl_registry::InvocationDialect::for_version(release)
+    tcl_native_model::InvocationDialect::for_version(release)
         .read_list(value)
         .is_ok_and(|words| {
             words
@@ -194,7 +194,7 @@ struct OriginalConstSubstSource<'a> {
 pub struct SelectedConstFold {
     facts: Box<tcl_registry::InvocationFacts>,
     values: Vec<String>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
@@ -213,7 +213,7 @@ impl SelectedConstFold {
 
     /// Actual execution policy selected at invocation ingress.
     #[must_use]
-    pub fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
 
@@ -616,7 +616,7 @@ impl<'a> ConstSubstCtx<'a> {
     pub fn fold_cmd_subst_in(
         &self,
         inner: &str,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<String> {
         self.fold_at_depth(inner, 0, Some(dialect), None)
             .map(|fold| fold.value.bytes)
@@ -656,7 +656,7 @@ impl<'a> ConstSubstCtx<'a> {
         source: &OriginalConstSubstSource<'_>,
         span: tcl_lexer::Span,
         depth: u32,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<(
         Vec<String>,
         Vec<FoldedInvocation>,
@@ -698,7 +698,7 @@ impl<'a> ConstSubstCtx<'a> {
         &self,
         inner: &str,
         depth: u32,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
         source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
     ) -> Option<ResolvedExactConstSubst> {
         if depth > MAX_CONST_SUBST_DEPTH {
@@ -823,7 +823,7 @@ impl<'a> ConstSubstCtx<'a> {
         &self,
         inner: &str,
         depth: u32,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
         source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
     ) -> Option<(
         Vec<String>,
@@ -1085,7 +1085,8 @@ mod tests {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let supplied = tcl_registry::model::ingress::static_context_for(profile);
             let registry = supplied.commands();
-            let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+            let dialect =
+                tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
             let fold = ctx(registry, &trust, &lookup);
             assert_eq!(
                 fold.fold_cmd_subst_in("lrange {x #value end} 1 1", dialect)
@@ -1132,8 +1133,8 @@ mod tests {
         let trust = |_: &str| true;
         let lookup = |_: &str| None;
         let fold = ctx(&catalogue, &trust, &lookup);
-        let tcl = tcl_registry::InvocationDialect::for_version(TclVersion::V9_0);
-        let jim = tcl_registry::InvocationDialect::of_profile(
+        let tcl = tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0);
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
         );
         assert_eq!(

@@ -228,7 +228,7 @@ pub unsafe extern "C" fn tcl_value_get_bool_for_purpose(
         return TCL_VALUE_GET_ERROR;
     }
     let result =
-        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::from_abi(purpose_tag)
+        tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::from_abi(purpose_tag)
             .ok_or_else(|| {
                 tcl_cmd_core::CmdError::from(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn tcl_value_get_expression_bool(
         return TCL_VALUE_GET_ERROR;
     }
     let result =
-        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::from_abi(
+        tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::from_abi(
             production_tag,
         )
         .ok_or_else(|| {

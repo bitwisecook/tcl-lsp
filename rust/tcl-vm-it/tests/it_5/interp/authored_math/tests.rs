@@ -20,7 +20,7 @@
 //! 8.4 captures.
 
 use crate::prelude::*;
-use tcl_registry::invocation_words::{
+use tcl_native_model::{
     LogicalExpressionParseProvider, LogicalExpressionQuoteProvider, LogicalSourceWordProvider,
 };
 use tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider;
@@ -61,7 +61,7 @@ fn simulation(output: Rc<std::cell::RefCell<Vec<u8>>>) -> Vm {
         tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
     ));
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
     ));
     assert!(vm.set_logical_source_word_provider(LogicalSourceWordProvider::Tcl84CoreSimulation));
     assert!(vm.set_logical_expression_parse_provider(
@@ -75,7 +75,7 @@ fn simulation(output: Rc<std::cell::RefCell<Vec<u8>>>) -> Vm {
         ))
     );
     assert!(vm.set_logical_compiled_variable_provider(
-        tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
+        tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
     assert!(vm.set_logical_math_function_provider(Some(AuthoredMathFunctionProvider::Tcl84Core)));
     vm
 }

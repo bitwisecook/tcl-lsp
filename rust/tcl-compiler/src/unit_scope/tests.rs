@@ -68,7 +68,7 @@ fn known(names: &[&str]) -> HashSet<String> {
 fn source_loader_entry(text: &str) -> crate::command_binding::SourceAnalysisEntry {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
     crate::command_binding::SourceAnalysisEntry {
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         trusted_source_modules: vec![crate::command_binding::TrustedSourceModuleLoader::new(
             tcl_dialect::model::Family::Tcl,
@@ -226,7 +226,7 @@ fn native_argument_caller_unit(
     let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(native)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };

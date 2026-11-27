@@ -20,9 +20,10 @@
 
 use super::implementation_lookup::NativeCompilerImplementationLookup;
 use super::{NativeCompilationGrammar, NativeCompilationSpec};
-use crate::{InvocationDialect, SemanticOperationId};
+use crate::SemanticOperationId;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::Family;
+use tcl_native_model::InvocationDialect;
 
 /// A vendor-owned value-handler contract independent of C compiler workers.
 /// The caller must still prove the original converged public implementation.

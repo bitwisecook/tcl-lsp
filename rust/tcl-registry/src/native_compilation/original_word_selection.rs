@@ -27,8 +27,9 @@ use super::{
     NativeCompilationGrammar, NativeCompilationGuard, NativeCompilationSelection,
     NativeCompilationSpec, NativeCompilationWordShape,
 };
-use crate::{InvocationDialect, InvocationWords};
+use crate::InvocationWords;
 use tcl_dialect::TclVersion;
+use tcl_native_model::InvocationDialect;
 
 impl NativeCompilationSpec {
     fn select_original_string_slice_words(

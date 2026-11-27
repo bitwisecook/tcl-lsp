@@ -20,7 +20,7 @@
 
 use crate::fixture::run;
 use crate::prelude::*;
-use tcl_registry::native_jim_lookup::{NativeJimNamespaceHelper, NativeJimNamespaceHelperKind};
+use tcl_native_model::native_jim_lookup::{NativeJimNamespaceHelper, NativeJimNamespaceHelperKind};
 
 const OBSERVED: &str = include_str!(
     "../../../../../tcl-vm/tests/data/native_jim_helper_literal_head/prefix-selection-20261015.tsv"
@@ -31,7 +31,7 @@ fn jim() -> &'static tcl_dialect::DialectProfile {
 }
 
 fn helpers() -> impl Iterator<Item = NativeJimNamespaceHelper> {
-    let dialect = tcl_registry::InvocationDialect::of_static_profile(jim());
+    let dialect = tcl_native_model::InvocationDialect::of_static_profile(jim());
     NativeJimNamespaceHelperKind::ALL
         .into_iter()
         .map(move |kind| dialect.native_jim_namespace_helper(kind).unwrap())

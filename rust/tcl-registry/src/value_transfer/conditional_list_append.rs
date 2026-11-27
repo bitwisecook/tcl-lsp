@@ -286,9 +286,9 @@ mod tests {
     use super::*;
     use crate::value_transfer::LiteralInputs;
     use crate::{
-        CommandRegistry, CommandSpec, InvocationArguments, InvocationDialect, InvocationWord,
-        InvocationWords,
+        CommandRegistry, CommandSpec, InvocationArguments, InvocationWord, InvocationWords,
     };
+    use tcl_native_model::InvocationDialect;
 
     const EXTRA_EFFECTS: &[SideEffect] = &[
         SideEffect {

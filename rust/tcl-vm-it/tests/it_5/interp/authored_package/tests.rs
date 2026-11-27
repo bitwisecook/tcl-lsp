@@ -159,7 +159,7 @@ fn authored_package_loader_requires_independent_script_dispatch_provider() {
 fn authored_package_loaders_children_and_host_activation_are_separate() {
     let mut vm = host();
     assert!(vm.set_logical_eval_object_provider(
-        tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        tcl_native_model::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
     ));
     assert_eq!(
         text(package(

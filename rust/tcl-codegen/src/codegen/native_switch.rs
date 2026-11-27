@@ -332,7 +332,8 @@ mod tests {
             .unwrap();
             let mut context = CodegenCtx::new(true, &["x"], &registry);
             context.native_entry = Some(&entry);
-            context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+            context.invocation_dialect =
+                Some(tcl_native_model::InvocationDialect::of_profile(profile));
             context.source_string_protocol = entry.source_string_protocol;
             context.native_compilation.frame =
                 tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode;

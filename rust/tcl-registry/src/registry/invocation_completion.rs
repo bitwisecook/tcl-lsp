@@ -302,7 +302,7 @@ pub fn authored_source_return_state_effect(
 
 fn return_state_effect_for_source_grammar(
     args: crate::InvocationArguments<'_>,
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     allow_unanimous_unknown_grammar: bool,
 ) -> crate::completion_route::ReturnStateEffect {
     use crate::completion::CompletionCode;
@@ -340,7 +340,9 @@ fn native_tailcall_completion(
     use crate::completion::CompletionCode as Code;
     use crate::completion_route::InvocationCompletionRoute as Route;
     use tcl_dialect::model::Family;
-    let family = args.dialect().and_then(crate::InvocationDialect::family);
+    let family = args
+        .dialect()
+        .and_then(tcl_native_model::InvocationDialect::family);
     if !matches!(family, Some(Family::Tcl | Family::Jim)) {
         return Route::Unknown;
     }
@@ -445,7 +447,7 @@ impl CommandRegistry {
     ) -> Option<ExactInvocationCompletion> {
         let dialect = dialect.or_else(|| {
             args.dialect()
-                .and_then(crate::InvocationDialect::authoring_query)
+                .and_then(tcl_native_model::InvocationDialect::authoring_query)
         });
         // An expansion can alter the final argv shape.  A descriptor for a
         // well-formed call (notably `exit`) must not override that unknown

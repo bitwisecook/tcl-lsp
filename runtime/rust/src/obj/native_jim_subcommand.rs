@@ -61,7 +61,7 @@ pub(crate) fn cache(original: *mut TclObj) -> Option<NativeJimSubcommandCache> {
 pub(crate) fn install<E: From<ValueError>>(
     original: *mut TclObj,
     retained: NativeJimSubcommandCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: &mut dyn FnMut() -> Result<(), E>,
 ) -> Result<(), E> {
     check()?;

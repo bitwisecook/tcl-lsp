@@ -135,7 +135,7 @@ pub(in super::super) fn refine_original_w123_diagnostics(
     use tcl_lsp_core::package_resolver::{
         PackageRequirementAdvice as Requirement, PackageRequirementAdviceKey as Key,
     };
-    let target = tcl_registry::InvocationDialect::of_profile(dialect).tcl_version;
+    let target = tcl_native_model::InvocationDialect::of_profile(dialect).tcl_version;
     let closure =
         resolver.transitive_requirement_advice_with_context(available, target, &|path, parent| {
             let unknown = || Requirement::new(Key::Unknown, Vec::new(), false, parent.prefer());

@@ -56,7 +56,7 @@ struct ConstantExpressionContext {
     literals: HashMap<(u32, u32), obj::Owned>,
     _scope: crate::interp::native_operation_currency::NativeOperationScope,
     interpreter: Interp,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     host: Rc<dyn tcl_platform::Host>,
 }
 #[cfg(have_tommath)]
@@ -147,7 +147,7 @@ impl crate::expr::ExprCtx for ConstantExpressionContext {
     fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
         Some(Rc::clone(&self.host))
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.dialect
     }
     fn compiled_literal(&mut self, start: u32, end: u32) -> Option<obj::Owned> {
@@ -200,7 +200,7 @@ impl Builder<'_> {
             .interp
             .native_invocation_dialect()
             .native_return_options_application(
-                tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
             )
             .is_some_and(|recipe| recipe.syntax_options_share_message())
         {
@@ -278,7 +278,7 @@ impl Builder<'_> {
             }
             if !program.evaluation_policy_matches(
                 self.stamp.expression_policy.as_ref(),
-                tcl_registry::InvocationDialect::for_version(self.stamp.physical),
+                tcl_native_model::InvocationDialect::for_version(self.stamp.physical),
             ) {
                 return Err((unavailable("native expression error evaluation policy")).into());
             }
@@ -314,7 +314,7 @@ impl Builder<'_> {
                 .interp
                 .native_invocation_dialect()
                 .native_return_options_application(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                 )
                 .is_some_and(|recipe| recipe.syntax_options_share_message())
             {
@@ -322,7 +322,7 @@ impl Builder<'_> {
             }
             return Ok(prepared);
         };
-        let physical = tcl_registry::InvocationDialect::for_version(self.stamp.physical);
+        let physical = tcl_native_model::InvocationDialect::for_version(self.stamp.physical);
         if tcl_registry::native_expression_program::expression_program_emission_for_policy(
             program,
             self.stamp.expression_policy.as_ref(),
@@ -365,7 +365,7 @@ impl Builder<'_> {
                     Ok(original) => {
                         let index = if tcl_registry::native_expression_program::native_expression_boolean_operator(node) {
                             let boolean = crate::typed_value::native_boolean_for_interp(self.interp, original.as_ptr(),
-                                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump).map_err(|error| {
+                                tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump).map_err(|error| {
                                     if let Some(first) = error.native_execution_refusal().cloned().or_else(|| error.native_access_refusal().map(tcl_runtime_api::NativeExecutionError::from)) {
                                         self.interp.refuse_native_execution(first);
                                     }
@@ -432,7 +432,7 @@ impl Builder<'_> {
                             },
                         );
                         if self.interp.native_invocation_dialect()
-                            .native_return_options_application(tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax)
+                            .native_return_options_application(tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax)
                             .is_some_and(|recipe| recipe.syntax_options_share_message())
                         {
                             self.literals.retain_syntax_error_info(options, message);
@@ -705,7 +705,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
     fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
         Some(self.interp.host())
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.interp.native_invocation_dialect()
     }
     fn f5_string_predicate_provider(
@@ -793,7 +793,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                     }
                 };
                 let code = match self.interp.process_original_c_return_options_with_objects(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                     1,
                     0,
                     original_options,
@@ -809,7 +809,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                 if code == Code::Error {
                     self.interp.clear_error_logged();
                     if let Err(first) = self.interp.capture_original_return_instruction_context(
-                        tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                        tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                         original_message,
                         original_options,
                     ) {
@@ -897,7 +897,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
         let pointers = args.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
         let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
             self.artifact.stamp.expression_policy.as_ref(),
-            tcl_registry::InvocationDialect::for_version(self.artifact.stamp.physical),
+            tcl_native_model::InvocationDialect::for_version(self.artifact.stamp.physical),
         )
         .ok_or_else(|| {
             crate::expr_error::ExprError::host_refusal(
@@ -932,7 +932,7 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
     ) -> Result<obj::Owned, crate::expr_error::ExprError> {
         let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
             self.artifact.stamp.expression_policy.as_ref(),
-            tcl_registry::InvocationDialect::for_version(self.artifact.stamp.physical),
+            tcl_native_model::InvocationDialect::for_version(self.artifact.stamp.physical),
         )
         .ok_or_else(|| {
             crate::expr_error::ExprError::host_refusal(
@@ -994,7 +994,7 @@ impl Interp {
                 .map_err(|error| self.report_cmd_error(error))?;
             let code = self
                 .process_original_c_return_options_with_objects(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                     1,
                     0,
                     options,
@@ -1010,7 +1010,7 @@ impl Interp {
             if code == Code::Error {
                 self.clear_error_logged();
                 self.capture_original_return_instruction_context(
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax,
                     self.result_obj(),
                     options,
                 )
@@ -1190,7 +1190,7 @@ impl Interp {
                     execution,
                 )?;
                 crate::typed_value::expression_boolean_for_interp(self, value.as_ptr(),
-                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
+                    tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
                     .map_err(|error| self.report_cmd_error(error))
             }
         }
@@ -1274,7 +1274,7 @@ impl Interp {
                         execution,
                     )?;
                     if !crate::typed_value::expression_boolean_for_interp(self, value.as_ptr(),
-                        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
+                        tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
                         .map_err(|error| self.report_cmd_error(error))?
                     {
                         break;
@@ -1450,26 +1450,26 @@ impl Interp {
 impl PreparedNativeExpression {
     fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
         if self.function_heads.is_empty() {
             Vec::new()
         } else {
-            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::Invocation]
+            vec![tcl_native_model::native_compiler_pass::NativeCompilerPassHazard::Invocation]
         }
     }
 }
 impl ExpressionOperation {
     pub(super) fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
-        self.static_program.as_ref().map_or_else(||vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ExpressionEvaluation],PreparedNativeExpression::compaction_hazards)
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
+        self.static_program.as_ref().map_or_else(||vec![tcl_native_model::native_compiler_pass::NativeCompilerPassHazard::ExpressionEvaluation],PreparedNativeExpression::compaction_hazards)
     }
 }
 impl ControlOperation {
     pub(super) fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
-        use tcl_registry::native_compiler_pass::NativeCompilerPassHazard as Hazard;
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
+        use tcl_native_model::native_compiler_pass::NativeCompilerPassHazard as Hazard;
         let mut hazards = self
             .prepared
             .expressions

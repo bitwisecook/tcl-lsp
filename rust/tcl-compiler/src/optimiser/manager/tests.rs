@@ -398,7 +398,7 @@ fn native_existence_optimisations(source: &str) -> Vec<Optimisation> {
     let capture = crate::environment_ingress::captured_native_entry(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(capture.as_entry().clone())),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
             ..Default::default()
@@ -450,7 +450,7 @@ fn info_exists_rewrite_requires_actual_selected_entry() {
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let unknown = crate::command_binding::SourceAnalysisEntry {
         unknown_entry: true,
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     };
     let unit = CompilationUnit::build_with_source_entry(

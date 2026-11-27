@@ -42,7 +42,7 @@ pub(crate) struct OriginalCommandCleanup {
     world: Weak<NameWorldCell>,
     operation: Result<NativeOperationScope, CmdError>,
     c_order: Option<NativeCommandRetirementOrder>,
-    c_names: Option<tcl_registry::native_command_literal::NativeCommandNameProtocol>,
+    c_names: Option<tcl_native_model::native_command_literal::NativeCommandNameProtocol>,
 }
 impl OriginalCommandCleanup {
     pub(crate) fn enter(vm: &mut Vm) -> Self {
@@ -50,7 +50,7 @@ impl OriginalCommandCleanup {
         let c_order = vm
             .actual_native_invocation_dialect()
             .native_command_creation_protocol()
-            .and_then(tcl_registry::native_command_creation::NativeCommandCreationProtocol::c_deletion_order);
+            .and_then(tcl_native_model::native_command_creation::NativeCommandCreationProtocol::c_deletion_order);
         let c_names = vm
             .actual_native_invocation_dialect()
             .native_command_name_protocol();

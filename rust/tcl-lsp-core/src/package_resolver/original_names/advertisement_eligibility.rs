@@ -31,7 +31,7 @@ use tcl_registry::{InvocationWord, InvocationWords, StateTransition};
 /// It supplies no package inventory, original name, execution or analysis.
 /// Uncertain source ownership and captured bindings keep the full path.
 pub(super) fn may_advertise(content: &str, version: tcl_dialect::TclVersion) -> bool {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
         .expect("C loader release");
@@ -67,7 +67,7 @@ fn vector_may_advertise(
     version: tcl_dialect::TclVersion,
     remaining_queries: &mut usize,
 ) -> bool {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let policy = dialect
         .authored_name_policy()
         .expect("C loader naming recipe");

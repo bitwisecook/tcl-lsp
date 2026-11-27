@@ -51,8 +51,8 @@ impl NumericEnvironment for TargetOnly {
         Err(NumericEnvironmentUnavailable::Target)
     }
 }
-fn jim() -> tcl_registry::InvocationDialect {
-    tcl_registry::InvocationDialect::of_profile(
+fn jim() -> tcl_native_model::InvocationDialect {
+    tcl_native_model::InvocationDialect::of_profile(
         tcl_registry::model::ingress::resolve_known_environment("jim")
             .unwrap()
             .unit_profile(),
@@ -146,7 +146,7 @@ fn descriptive_target_does_not_admit_retired_or_foreign_original_cache() {
             .native_scalar_probe_with_environment(jim(), Kind::Boolean, Some(&environment))
             .is_err()
     );
-    let c = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let c = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let foreign = Value::from_native_scalar_cache_with_storage(
         NativeScalarCache::WordBoolean(true),
         Some(tcl_dialect::TclVersion::V8_6),
@@ -245,7 +245,7 @@ fn original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fiel
             .lines()
             .find(|row| row.starts_with("ROW\tcase=24\tgetter=4\t"))
             .unwrap();
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let value = Value::native_double(f64::NAN, dialect);
         let alias = value.clone();
         let Err(ValueError::NativeScalarGetter(record)) =
@@ -277,7 +277,7 @@ fn operand_dependent_scalar_failure_uses_original_getter_after_a_single_neutral_
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
     // Contrasting software transport of C86 Long's original cached Double
     // failure: null probe leavesString0, live rendering reaches its operand.
-    let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let dialect = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
     let environment = TargetOnly(Some(NativeCIntegerAbi {
         char_bits: 8,
         int_bytes: 4,

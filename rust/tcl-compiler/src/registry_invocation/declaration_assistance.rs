@@ -1073,7 +1073,7 @@ fn alias_declarations(
     name: &str,
     argument: usize,
     written: usize,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Vec<DeclarationArgument> {
     let mut declarations = Vec::new();
     for fact in facts
@@ -1184,7 +1184,7 @@ mod original_alias_source_schema_tests {
             &source[declaration.target().unwrap().span().as_range()],
             "{a(b)}"
         );
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()
             .unwrap();
         let purpose =
@@ -1462,7 +1462,7 @@ mod original_alias_source_schema_tests {
             .as_ref()
             .unwrap();
         let input = analysis.resolved_input.as_ref().unwrap();
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .authored_name_policy()
             .unwrap();
         let purpose =
@@ -1537,7 +1537,7 @@ mod original_alias_source_schema_tests {
         ] {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
             let input = analysis.resolved_input.as_ref().unwrap();
-            let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                 .authored_name_policy()
                 .unwrap();
             let purpose =

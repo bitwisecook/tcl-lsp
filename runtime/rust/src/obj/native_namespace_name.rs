@@ -82,7 +82,7 @@ pub(crate) fn cache(value: *mut TclObj) -> Option<NativeNamespaceNameCache> {
 pub(crate) fn install(
     value: *mut TclObj,
     cache: NativeNamespaceNameCache,
-    protocol: tcl_registry::native_namespace_name::NativeNamespaceNameProtocol,
+    protocol: tcl_native_model::native_namespace_name::NativeNamespaceNameProtocol,
 ) -> Result<(), ValueError> {
     install_using(value, cache, protocol, None, None)
 }
@@ -90,7 +90,7 @@ pub(crate) fn install(
 pub(crate) fn install_using(
     value: *mut TclObj,
     cache: NativeNamespaceNameCache,
-    protocol: tcl_registry::native_namespace_name::NativeNamespaceNameProtocol,
+    protocol: tcl_native_model::native_namespace_name::NativeNamespaceNameProtocol,
     stage: Option<&dyn Fn() -> Result<(), ValueError>>,
     retain: Option<&dyn Fn(ValueError) -> ValueError>,
 ) -> Result<(), ValueError> {

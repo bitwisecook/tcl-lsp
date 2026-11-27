@@ -29,7 +29,8 @@ use tcl_compiler::registry_invocation::source_structure::{
     original_single_source_command_substitution_in_plan, source_registry_words_at,
 };
 use tcl_lexer::{ExecutablePart, NativeWord, SourceImage, Span};
-use tcl_registry::{InvocationDialect, InvocationWord, InvocationWords, ResolvedInvocation};
+use tcl_native_model::InvocationDialect;
+use tcl_registry::{InvocationWord, InvocationWords, ResolvedInvocation};
 
 pub(in crate::package_resolver) struct IndexLoader<'a> {
     source: &'a str,
@@ -579,10 +580,13 @@ impl<'a> IndexLoader<'a> {
                 }
                 // This API's explicit compatibility grammar retains encoding
                 // syntax; it does not select an actual runtime release.
-                LoaderInput::Standalone => tcl_registry::source_file::SourceFileGrammar::Encoding,
+                LoaderInput::Standalone => {
+                    tcl_native_model::source_file::SourceFileGrammar::Encoding
+                }
             };
             let layout = grammar.select_original(arguments.exact_argv_len()?, first);
-            let tcl_registry::source_file::SourceFileSelection::Selected(layout) = layout else {
+            let tcl_native_model::source_file::SourceFileSelection::Selected(layout) = layout
+            else {
                 return None;
             };
             (layout.path_at == argument).then_some(argument)
@@ -1128,7 +1132,7 @@ mod abstention_tests {
         };
         assert_eq!(
             receipt.layout.grammar(),
-            tcl_registry::source_file::SourceFileGrammar::Filename
+            tcl_native_model::source_file::SourceFileGrammar::Filename
         );
         assert!(receipt.matches_current_query(&first, directory));
         assert!(!receipt.matches_current_query(&second, directory));

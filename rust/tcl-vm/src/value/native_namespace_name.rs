@@ -40,7 +40,7 @@ impl Value {
     pub fn install_native_namespace_name_cache(
         &self,
         cache: NativeNamespaceNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.install_native_namespace_name_cache_using(cache, dialect, &mut None)
     }
@@ -48,7 +48,7 @@ impl Value {
     pub(crate) fn install_native_namespace_name_cache_checked<E: From<ValueError>>(
         &self,
         cache: NativeNamespaceNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.install_native_namespace_name_cache_using(cache, dialect, &mut Some(check))
@@ -57,7 +57,7 @@ impl Value {
     fn install_native_namespace_name_cache_using<E: From<ValueError>>(
         &self,
         cache: NativeNamespaceNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         let protocol = dialect.native_namespace_name_protocol().ok_or(
@@ -81,7 +81,7 @@ impl Value {
     /// Refuses a foreign native release or an absent string for a no-updater primary.
     pub fn from_native_namespace_name_cache(
         cache: NativeNamespaceNameCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         resident: Option<(
             std::rc::Rc<[u8]>,
             tcl_syntax::native_string::NativeStringStorageIdentity,
@@ -106,7 +106,7 @@ impl Value {
         bytes: &[u8],
         producer: tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer,
         provider: tcl_syntax::naming::NamePolicyProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Self, ValueError> {
         let recipe = dialect.authored_namespace_result_recipe(provider).ok_or(
             ValueError::CommandProtocolUnavailable("authored namespace result provider"),

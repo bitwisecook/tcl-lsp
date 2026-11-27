@@ -32,7 +32,7 @@ fn original_tokens(
     registry: &tcl_registry::CommandRegistry,
     context: NativeCompilationContext,
 ) -> CommandTokens {
-    let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
+    let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let frame = tcl_compiler::var_resolve::VariableExecutionFrame::Procedure {
         namespace: "::".to_owned(),
@@ -83,7 +83,7 @@ fn original_c91_uplevel_emits_native_frame_operation_and_defers_body_compilation
         .unwrap();
         let mut context = CodegenCtx::new(true, &[], &registry);
         context.native_entry = Some(&entry);
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(profile));
         context.source_string_protocol = entry.source_string_protocol;
         context.compiled_variable_protocol = entry.compiled_variable_protocol;
         context.native_compilation.frame = NativeCompilationFrame::ProcedureCode;
@@ -124,7 +124,7 @@ fn original_variable_read_uses_selected_plan_and_withdraws_missing_compiler_rece
             crate::test_support::captured_native_entry(profile);
         let mut context = CodegenCtx::new(true, &["x", "name"], &registry);
         context.native_entry = Some(&entry);
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_point(
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_point(
             entry.execution_point.unwrap(),
         ));
         context.source_string_protocol = entry.source_string_protocol;
@@ -208,7 +208,7 @@ fn original_dynamic_variable_target_keeps_stack_lookup_and_original_local_operan
             crate::test_support::captured_native_entry(profile);
         let mut context = CodegenCtx::new(true, &["name"], &registry);
         context.native_entry = Some(&entry);
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_point(
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_point(
             entry.execution_point.unwrap(),
         ));
         context.source_string_protocol = entry.source_string_protocol;

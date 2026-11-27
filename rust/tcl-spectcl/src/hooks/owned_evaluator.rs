@@ -31,9 +31,10 @@ use std::sync::Arc;
 
 use tcl_compiler::const_subst::SelectedConstFold;
 use tcl_compiler::optimiser::closed_consumer::{MIN_CLOSED_STACK_BYTES, select_application_folds};
+use tcl_native_model::InvocationDialect;
 use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost};
 use tcl_registry::value_transfer::{EvaluatorGeneration, ImplementationBudget};
-use tcl_registry::{CommandRegistry, CommandSpec, InvocationDialect, RegistrySemanticKey};
+use tcl_registry::{CommandRegistry, CommandSpec, RegistrySemanticKey};
 use tcl_runtime_api::closed_native_consumer::ClosedSourceRefusal;
 use tcl_spec_hooks::private_application::PrivateApplicationHost;
 use tcl_spec_hooks::{HookOwner, HostConfig};

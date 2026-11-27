@@ -173,7 +173,7 @@ impl Vm {
         let scope = native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let protocol = self.native_invocation_dialect().usage_protocol(Some(
-            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
         ));
         let bytes = words
             .iter()
@@ -187,9 +187,9 @@ impl Vm {
             .iter()
             .map(|(bytes, index)| {
                 if *index {
-                    tcl_registry::native_usage::NativeUsageWord::CanonicalIndex(bytes)
+                    tcl_native_model::native_usage::NativeUsageWord::CanonicalIndex(bytes)
                 } else {
-                    tcl_registry::native_usage::NativeUsageWord::Original(bytes)
+                    tcl_native_model::native_usage::NativeUsageWord::Original(bytes)
                 }
             })
             .collect::<Vec<_>>();

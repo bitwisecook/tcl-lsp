@@ -69,7 +69,7 @@ fn finish_catch_preparation(
 fn run_catch_body(
     vm: &mut Vm,
     args: &[Value],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     evaluates_word: bool,
     original: Option<&crate::interp::native_name_consumers::OriginalNameConsumerScope>,
 ) -> Completion<Value> {
@@ -102,7 +102,7 @@ fn run_catch_body(
     let selected = match selection {
         tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
         _ if dialect.completion_options_policy()
-            == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
+            == Some(tcl_native_model::CompletionOptionsPolicy::Legacy) =>
         {
             return native_wrong_arguments_message(
                 vm,

@@ -151,7 +151,7 @@ impl DefinitionBodyGrammar {
         &self,
         name: &str,
         reach: MethodReach,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Option<BuiltinObjectMethodOperation> {
         if !self.profile.has_native_definition_workers()
             || reach != MethodReach::SelfDispatch

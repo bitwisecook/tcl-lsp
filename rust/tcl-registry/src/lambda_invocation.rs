@@ -107,8 +107,9 @@ mod tests {
     fn lambda_selection_keeps_body_namespace_and_ordinary_call_arguments() {
         let words = ["{x} {proc helper {} {return $x}} n", "VALUE"];
         let selected = select_lambda_invocation(
-            InvocationArguments::literals(&words)
-                .with_dialect(crate::InvocationDialect::for_version(TclVersion::V8_6)),
+            InvocationArguments::literals(&words).with_dialect(
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6),
+            ),
             0,
         );
         let LambdaInvocationSelection::Selected(selected) = selected else {
@@ -127,7 +128,7 @@ mod tests {
             select_lambda_invocation(InvocationArguments::literals(&["{} {}"]), 0),
             LambdaInvocationSelection::Unknown
         );
-        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        let dialect = tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6);
         assert_eq!(
             select_lambda_invocation(
                 InvocationArguments::literals(&["one"]).with_dialect(dialect),

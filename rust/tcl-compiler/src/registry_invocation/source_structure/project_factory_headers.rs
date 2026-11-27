@@ -468,7 +468,7 @@ impl OriginalForeignFactoryBody {
                 )?;
                 (candidates.original_words() == projection.native_words()).then_some(())?;
                 let selected = select_logical_factory(providers, &candidates)?;
-                let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                let policy = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
                     .authored_name_policy()?;
                 (selected.2.name().policy() == policy).then_some(())?;
                 selected

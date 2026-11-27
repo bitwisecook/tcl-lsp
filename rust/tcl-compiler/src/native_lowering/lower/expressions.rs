@@ -27,7 +27,7 @@ use super::super::representation::{
 use super::{ExprDecline, Lowerer};
 use crate::intervals::Interval;
 use crate::types::TypeShape;
-use tcl_registry::native_boolean_truth::{
+use tcl_native_model::native_boolean_truth::{
     NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
 };
 use tcl_syntax::expr::ast::render_expr;

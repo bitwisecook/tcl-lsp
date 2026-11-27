@@ -24,6 +24,7 @@ use super::super::{
 };
 use crate::obj;
 use crate::obj::TclObj;
+use tcl_registry::special_vars::ErrorVariableDialect;
 use tcl_syntax::value::ValueError;
 
 impl Interp {
@@ -334,14 +335,14 @@ impl Interp {
         expected: Option<tcl_syntax::native_string::NativeStringProtocol>,
         wrong_arguments: bool,
     ) -> Result<
-        Option<tcl_registry::native_string_materialization::NativeStringMaterialization>,
+        Option<tcl_native_model::native_string_materialization::NativeStringMaterialization>,
         tcl_syntax::value::ValueError,
     > {
         let dialect = self.native_invocation_dialect();
         let expected = expected.or_else(|| {
             wrong_arguments.then(|| dialect.native_wrong_arguments_protocol())
                 .flatten()
-                .and_then(tcl_registry::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result)
+                .and_then(tcl_native_model::native_wrong_arguments::NativeWrongArgumentsProtocol::string_result)
         });
         let Some(expected) = expected else {
             return Ok(None);
@@ -394,7 +395,7 @@ impl Interp {
         );
         let update = match details.error_code.resolve(|| {
             self.native_invocation_dialect()
-                .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
+                .wrong_arguments_protocol(Some(tcl_native_model::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
                 .map(|protocol| protocol.error_code().as_bytes().to_vec())
                 .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("wrong arguments"))
         }) {
@@ -556,7 +557,7 @@ impl Interp {
         prefix_words: usize,
     ) -> Result<Vec<u8>, Code> {
         let Some(protocol) = self.native_invocation_dialect().usage_protocol(Some(
-            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
         )) else {
             return Err(self.refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(

@@ -156,7 +156,7 @@ fn template_result(
         || normal
             .baseline
             .dialect
-            .and_then(tcl_registry::InvocationDialect::native_string_protocol)
+            .and_then(tcl_native_model::InvocationDialect::native_string_protocol)
             .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_none()
         || normal

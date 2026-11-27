@@ -464,7 +464,7 @@ pub(super) fn select_invocation_boxed(
 
 fn compiler_head_decline(
     words: &[tcl_source::words::WordExpr],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<CompiledInvocationSelection> {
     match words
         .first()

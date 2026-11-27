@@ -30,7 +30,7 @@ use tcl_syntax::value::ValueError;
 
 impl NativeJimObjectContext {
     pub(crate) fn new(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Rc<Self>, tcl_syntax::value::ValueError> {
         if dialect.native_string_protocol() != Some(NativeStringProtocol::Jim084) {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

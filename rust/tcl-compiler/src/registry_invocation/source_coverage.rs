@@ -242,7 +242,7 @@ pub(super) fn registered_result_completion_schema_is_supported(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
 ) -> bool {
     use tcl_registry::world_effect::{CallbackKinds, Reentrancy, WorldStateDomain};
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    let mut dialect = tcl_native_model::InvocationDialect::of_profile(input.unit_profile());
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config());

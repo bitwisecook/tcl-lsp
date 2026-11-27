@@ -138,7 +138,7 @@ mod tests {
     use super::*;
 
     fn entered(profile: &str) -> ResolveContext {
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
         );
         let mut caller = ResolveContext::for_namespace("::");

@@ -575,8 +575,8 @@ struct BindingBaseline {
     hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
-    expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+        Option<tcl_native_model::native_compiled_variables::LogicalCompiledVariableProvider>,
+    expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     invocation_realm: tcl_dialect::model::InvocationRealm,
     unknown_entry: bool,
     host_extensible_command_table: bool,
@@ -599,7 +599,7 @@ struct BindingBaseline {
     trusted_loaders: BTreeMap<String, TrustedPackageLoader>,
     trusted_source_modules: Vec<TrustedSourceModuleLoader>,
     release: Option<tcl_dialect::TclVersion>,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -806,7 +806,7 @@ pub(crate) struct OriginalCompilationLookupAdvice {
     words: Arc<[tcl_source::words::WordExpr]>,
     config: tcl_lexer::LexerConfig,
     targets: Vec<SourceCommandTarget>,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     namespace: SourceNamespaceKey,
     unknown: bool,
     may_be_absent: bool,

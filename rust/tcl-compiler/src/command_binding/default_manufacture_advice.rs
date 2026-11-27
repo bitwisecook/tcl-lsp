@@ -201,7 +201,7 @@ mod tests {
         source: &str,
         version: tcl_dialect::TclVersion,
     ) -> super::super::SourceCommandBindings {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();

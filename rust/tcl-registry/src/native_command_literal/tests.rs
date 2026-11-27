@@ -63,7 +63,7 @@ fn records(version: TclVersion) -> (NativeCommandNameCache, NativeCommandNameLoo
 #[test]
 fn live_cache_validity_requires_native_nodes_and_reference_incarnations() {
     for version in TclVersion::ALL {
-        let protocol = crate::InvocationDialect::for_version(version)
+        let protocol = tcl_native_model::InvocationDialect::for_version(version)
             .native_command_name_protocol()
             .unwrap();
         let (cache, state) = records(version);
@@ -108,7 +108,7 @@ fn compiler_priming_is_distinct_from_runtime_getter_reference_selection() {
         command_reference_epoch: 7,
     };
     for version in TclVersion::ALL {
-        let protocol = crate::InvocationDialect::for_version(version)
+        let protocol = tcl_native_model::InvocationDialect::for_version(version)
             .native_command_name_protocol()
             .unwrap();
         let (cache, _) = records(version);

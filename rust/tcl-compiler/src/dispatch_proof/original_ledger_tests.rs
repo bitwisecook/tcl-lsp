@@ -147,7 +147,7 @@ fn held_jim_entry_receives_no_authored_pristine_dispatch_proof() {
     assert!(captured.command_name_policy().is_none());
     let entry = crate::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(captured)),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..Default::default()
     };
@@ -236,7 +236,7 @@ fn authored_simulation_entry_has_layout_purpose_without_pristine_dispatch_covera
         execution_name_policy: Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0),
         )),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         ..Default::default()
     };
     let unit = CompilationUnit::build_with_context_registry(

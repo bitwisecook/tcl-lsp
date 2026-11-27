@@ -224,7 +224,7 @@ pub enum NativeOperandObjectIdentity {
 #[derive(Debug, Clone)]
 pub struct RetainedNativeOperandProof {
     /// Actual native grammar/protocol of the object evidence's interpreter.
-    pub dialect: tcl_registry::InvocationDialect,
+    pub dialect: tcl_native_model::InvocationDialect,
     /// Actual runtime allocation or retained source producer and physical reads.
     pub identity: NativeOperandObjectIdentity,
     /// Numeric value read from its already native representation.
@@ -763,7 +763,7 @@ struct FoldOps<'a> {
     math_calls: Option<&'a ResolvedMathQuery<'a>>,
     operand_proofs: Option<&'a NativeOperandProofs>,
     integer_contents: Option<&'a crate::native_numeric::SourceIntegerContentsReads>,
-    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     arithmetic: tcl_dialect::NativeArithmetic,
     env: &'a Env,
     native_family: Option<tcl_dialect::model::Family>,

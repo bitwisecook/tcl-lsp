@@ -54,11 +54,11 @@ No observation of this exact question is retained for this provider.
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_error_objects.rs](../../../../rust/tcl-registry/src/native_error_objects.rs), `NativeErrorObjectsProtocol`: Selects independently available C private header storage, separate from public return-options projections.
-- [rust/tcl-registry/src/native_error_objects.rs](../../../../rust/tcl-registry/src/native_error_objects.rs), `native_error_objects::tests::original_private_header_fields_match_five_native_constructor_and_save_windows` (linked): Compares all 38 original availability/primary/count/identity projection rows against the release-selected private header recipe; no native launch is implied.
+- [rust/tcl-native-model/src/native_error_objects.rs](../../../../rust/tcl-native-model/src/native_error_objects.rs), `NativeErrorObjectsProtocol`: Selects independently available C private header storage, separate from public return-options projections.
+- [rust/tcl-native-model/src/native_error_objects.rs](../../../../rust/tcl-native-model/src/native_error_objects.rs), `native_error_objects::tests::original_private_header_fields_match_five_native_constructor_and_save_windows` (linked): Compares all 38 original availability/primary/count/identity projection rows against the release-selected private header recipe; no native launch is implied.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c)
-- [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json)
-- [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv)
+- [rust/tcl-native-model/tests/data/native_error_headers/probe.c](../../../../rust/tcl-native-model/tests/data/native_error_headers/probe.c)
+- [rust/tcl-native-model/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-native-model/tests/data/native_error_headers/manifest.json)
+- [rust/tcl-native-model/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-native-model/tests/data/native_error_headers/observations.tsv)

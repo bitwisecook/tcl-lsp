@@ -300,7 +300,7 @@ impl SourceExpressionOperand {
         if self.word.group().kind != tcl_lexer::WordKind::Braced || config != input.lexer_config() {
             return None;
         }
-        let mut context = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        let mut context = tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
             .expression_parse_context(Some(input.unit_profile()));
         context.lexer_grammar = config.grammar_over(context.lexer_grammar);
         let expression = source.get(self.content_span()?.as_range())?;

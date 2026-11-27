@@ -170,7 +170,7 @@ impl ResolvedAnalysisInput {
             && [self.profile, self.unit_profile]
                 .into_iter()
                 .all(|profile| {
-                    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+                    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
                     dialect.native_name_protocol().is_none()
                 })
     }
@@ -324,7 +324,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
         );
         assert!(
-            tcl_registry::InvocationDialect::of_profile(profile)
+            tcl_native_model::InvocationDialect::of_profile(profile)
                 .authored_name_policy()
                 .is_some()
         );
@@ -371,7 +371,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(Some(lexical_point)),
         );
         assert!(
-            tcl_registry::InvocationDialect::of_profile(lexical_point)
+            tcl_native_model::InvocationDialect::of_profile(lexical_point)
                 .core_point
                 .is_some()
         );
@@ -432,7 +432,7 @@ mod tests {
         );
         assert!(input.has_logical_source_name_context());
         assert!(
-            tcl_registry::InvocationDialect::of_profile(profile)
+            tcl_native_model::InvocationDialect::of_profile(profile)
                 .authored_name_policy()
                 .is_some()
         );

@@ -688,7 +688,7 @@ impl Value {
     /// append or format producer on the same live original header.
     pub(crate) fn retain_native_string_representation(
         &self,
-        materialization: tcl_registry::native_string_materialization::NativeStringMaterialization,
+        materialization: tcl_native_model::native_string_materialization::NativeStringMaterialization,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         self.check_native_header()?;
         if self.resident_string_bytes().is_none() {
@@ -716,7 +716,7 @@ impl Value {
     /// Refuses foreign engines, inconsistent unit/count storage, and missing updaters.
     pub fn from_native_string_cache(
         cache: tcl_syntax::native_object::NativeObjectCacheSnapshot,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
@@ -786,7 +786,7 @@ impl Value {
     pub fn native_character_count_with_protocol(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
-        representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+        representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
     ) -> Result<usize, tcl_syntax::value::ValueError> {
         self.native_character_count_using(protocol, representation, &mut None, &mut || {
             self.native_string_bytes(protocol)
@@ -797,7 +797,7 @@ impl Value {
     pub(crate) fn native_character_count_checked(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
-        representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+        representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
         current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
         original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Result<usize, tcl_cmd_core::CmdError> {
@@ -812,7 +812,7 @@ impl Value {
     fn native_character_count_using<E: From<ValueError>>(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
-        representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+        representation: tcl_native_model::native_string_length::NativeStringLengthRepresentation,
         current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
     ) -> Result<usize, E> {
@@ -894,7 +894,7 @@ impl Value {
     ) -> Result<tcl_cmd_core::string::NativeCStringStorage, E> {
         let count = self.native_character_count_using(
             protocol,
-            tcl_registry::native_string_length::NativeStringLengthRepresentation::String,
+            tcl_native_model::native_string_length::NativeStringLengthRepresentation::String,
             &mut Some(&mut *current),
             original_string,
         )?;
@@ -1007,10 +1007,10 @@ impl Value {
         &self,
         model: tcl_dialect::StringCharacterModel,
         representation: Option<
-            tcl_registry::native_string_length::NativeStringLengthRepresentation,
+            tcl_native_model::native_string_length::NativeStringLengthRepresentation,
         >,
     ) -> Result<usize, UnicodeAccessError> {
-        use tcl_registry::native_string_length::NativeStringLengthRepresentation;
+        use tcl_native_model::native_string_length::NativeStringLengthRepresentation;
         if representation.is_some_and(NativeStringLengthRepresentation::preserves_short_string)
             && let Some(string) = self.0.string.borrow().as_ref()
             && string.bytes().len() < 2

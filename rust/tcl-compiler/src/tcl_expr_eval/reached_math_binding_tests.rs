@@ -22,7 +22,7 @@ use super::*;
 
 #[test]
 fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let policy = FoldPolicy::default().with_invocation_dialect(jim);
@@ -56,7 +56,7 @@ fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
 #[test]
 fn analysis_retains_values_and_only_reached_coercion_obligations() {
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
     let calls = |function: &str, _| {
@@ -110,7 +110,7 @@ fn analysis_retains_values_and_only_reached_coercion_obligations() {
 #[test]
 fn known_string_bytes_do_not_erase_an_unproved_operand_materialisation() {
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let original = crate::expr_parser::parse_expr("$x eq \"hello\"", None);
     let environment = Env::from([("x".into(), EnvValue::text("hello"))]);
@@ -143,7 +143,7 @@ fn known_string_bytes_do_not_erase_an_unproved_operand_materialisation() {
 #[test]
 fn retained_value_constants_do_not_prove_required_native_coercions() {
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
     for source in ["$x", "$x+0", "!!$x", "$x==3", "abs($x)"] {
@@ -175,13 +175,15 @@ fn retained_value_constants_do_not_prove_required_native_coercions() {
 fn already_native_object_proof_licenses_only_matching_numeric_reads() {
     let expression = crate::expr_parser::parse_expr("abs($x)", None);
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(-3)))]);
     let mut operands = NativeOperandProofs::from([(
         "x".into(),
         RetainedNativeOperandProof {
-            dialect: tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            dialect: tcl_native_model::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            ),
             identity: NativeOperandObjectIdentity::Runtime {
                 interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
                     owner: 12,
@@ -215,7 +217,7 @@ fn already_native_object_proof_licenses_only_matching_numeric_reads() {
 fn resolved_native_alias_uses_its_terminal_handler_and_frozen_prefix() {
     let expression = crate::expr_parser::parse_expr("chosen()", None);
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     let folded = eval_tcl_expr_with_resolved_math_bindings(
         &expression,
@@ -241,7 +243,7 @@ fn resolved_native_alias_uses_its_terminal_handler_and_frozen_prefix() {
 fn execution_folding_requires_the_reached_native_implementation() {
     let expression = crate::expr_parser::parse_expr("abs(-3)", None);
     let policy = FoldPolicy::default().with_invocation_dialect(
-        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+        tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
     assert_eq!(
         eval_tcl_expr_with_policy(&expression, &Env::new(), policy),
@@ -267,7 +269,7 @@ fn unproved_unreached_function_does_not_suppress_a_valid_lazy_fold() {
         &expression,
         &Env::new(),
         FoldPolicy::default().with_invocation_dialect(
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         ),
         &|function, start| {
             reached.borrow_mut().push((function.to_owned(), start));

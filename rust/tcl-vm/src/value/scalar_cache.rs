@@ -68,10 +68,10 @@ impl Value {
         if matches!(*self.0.intrep.borrow(), IntRep::Str) {
             self.adopt_native_scalar_cache(
                 NativeScalarCache::Number(number),
-                tcl_registry::InvocationDialect::for_version(version)
+                tcl_native_model::InvocationDialect::for_version(version)
                     .native_scalar_getter_protocol()
                     .ok_or(ValueError::ScalarNumericInputUnavailable)?,
-                tcl_registry::InvocationDialect::for_version(version),
+                tcl_native_model::InvocationDialect::for_version(version),
             )?;
         }
         Ok(())
@@ -126,7 +126,7 @@ impl Value {
     pub fn from_native_scalar_cache(
         cache: NativeScalarCache,
         word_boolean_origin: Option<tcl_dialect::TclVersion>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         Self::from_native_scalar_cache_with_storage(cache, word_boolean_origin, dialect, None)
     }
@@ -140,7 +140,7 @@ impl Value {
     pub fn from_native_scalar_cache_with_storage(
         cache: NativeScalarCache,
         word_boolean_origin: Option<tcl_dialect::TclVersion>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
     ) -> Result<Self, ValueError> {
         Self::from_native_scalar_cache_with_storage_using(
@@ -170,7 +170,7 @@ impl Value {
     fn from_native_scalar_cache_with_storage_using(
         cache: NativeScalarCache,
         word_boolean_origin: Option<tcl_dialect::TclVersion>,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
         ingress: Option<&crate::NativeScalarIngress>,
     ) -> Result<Self, ValueError> {
@@ -219,7 +219,7 @@ impl Value {
     pub(crate) fn store_native_legacy_increment_cache(
         &self,
         cache: NativeScalarCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.store_native_legacy_increment_cache_using(cache, dialect, &mut None)
     }
@@ -227,7 +227,7 @@ impl Value {
     pub(crate) fn store_native_legacy_increment_cache_checked<E: From<ValueError>>(
         &self,
         cache: NativeScalarCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         self.store_native_legacy_increment_cache_using(cache, dialect, &mut Some(check))
@@ -236,7 +236,7 @@ impl Value {
     fn store_native_legacy_increment_cache_using<E: From<ValueError>>(
         &self,
         cache: NativeScalarCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;
@@ -268,7 +268,7 @@ impl Value {
         &self,
         cache: NativeScalarCache,
         protocol: NativeScalarGetterProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<(), ValueError> {
         self.adopt_native_scalar_cache_using(cache, protocol, dialect, &mut None)
     }
@@ -277,7 +277,7 @@ impl Value {
         &self,
         cache: NativeScalarCache,
         protocol: NativeScalarGetterProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;

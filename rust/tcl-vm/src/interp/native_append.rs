@@ -198,7 +198,7 @@ impl Vm {
         let issued = self
             .native_invocation_dialect()
             .native_object_append_protocol(Some(
-                tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
             ))
             .ok_or_else(|| {
                 self.refuse_host_command("native object append protocol is unavailable".into())

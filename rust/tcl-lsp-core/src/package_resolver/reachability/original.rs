@@ -708,7 +708,7 @@ mod tests {
             analysis.body_lexer_config.unwrap(),
             &mut |reached| {
                 let input = reached.original_words.as_ref().unwrap().get(2).unwrap();
-                let policy = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                let policy = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
                     .authored_name_policy().unwrap();
                 let key = tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
                     input,

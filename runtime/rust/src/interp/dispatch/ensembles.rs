@@ -27,6 +27,7 @@ use crate::namespace::{NsId, GLOBAL};
 use crate::obj::TclObj;
 use crate::{obj, parse};
 use std::rc::Rc;
+use tcl_registry::command_lookup::EnsembleDispatchDialect;
 
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 pub(in super::super) enum EnsembleUnknown {
@@ -122,9 +123,9 @@ impl Interp {
 
     pub(in super::super::super) fn reset_native_ensemble_rewrite(
         &mut self,
-        event: tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent,
+        event: tcl_native_model::native_ensemble_rewrite::EnsembleRewriteResetEvent,
     ) -> Result<(), Code> {
-        use tcl_registry::native_ensemble_rewrite::LogicalEnsembleRewriteProvider;
+        use tcl_native_model::native_ensemble_rewrite::LogicalEnsembleRewriteProvider;
         let Some(protocol) = self
             .native_invocation_dialect()
             .ensemble_rewrite_protocol(Some(LogicalEnsembleRewriteProvider::Tcl84CoreSimulation))

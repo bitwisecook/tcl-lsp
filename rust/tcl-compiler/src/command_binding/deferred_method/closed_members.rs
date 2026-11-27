@@ -44,7 +44,7 @@ pub(in super::super) fn closed_definition_member(
     let query = state
         .baseline
         .dialect
-        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .and_then(tcl_native_model::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm()));
     let arguments = values
         .iter()
@@ -189,7 +189,7 @@ fn valid_property_declarations(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     arguments: &[&[u8]],
     query: Option<tcl_dialect::model::SurfaceQuery<'_>>,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> bool {
     let Some(declarations) = grammar.source_property_declarations_bytes(arguments, query) else {
         return false;
@@ -198,7 +198,7 @@ fn valid_property_declarations(
         return false;
     };
     declarations.iter().all(|declaration| {
-        tcl_registry::native_property_lookup::native_property_declaration_validity(
+        tcl_native_model::native_property_lookup::native_property_declaration_validity(
             dialect,
             arguments[declaration.name_index()],
         )
@@ -210,7 +210,7 @@ fn valid_closed_member_body(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     member: &tcl_registry::definer::MemberSpec,
     values: &[crate::registry_invocation::EffectiveInvocationWord],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> bool {
     // Class variable declarations are closed native definition metadata;
     // they select no body or constructor callback during declaration.
@@ -264,7 +264,7 @@ fn closed_class_method_block(
 fn valid_member_formals(
     member: &tcl_registry::definer::MemberSpec,
     values: &[crate::registry_invocation::EffectiveInvocationWord],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> bool {
     let expected = member
         .arg_roles
@@ -306,7 +306,7 @@ pub(super) fn class_definition_block(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segment: &tcl_source::segment::SegmentedCommand,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     context: SourceExecutionContext<'_>,
 ) -> Option<ExecutedScriptSource> {
     let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
@@ -389,7 +389,7 @@ pub(in super::super) fn original_definition_member_target(
     let query = state
         .baseline
         .dialect
-        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .and_then(tcl_native_model::InvocationDialect::authoring_query)
         .map(|query| query.with_realm(context.realm()));
     let mut lookup = grammar.definition_member_lookup_for_receiver(member, receiver, query)?;
     if receiver == tcl_registry::definer::DefinitionReceiver::Instance

@@ -21,7 +21,7 @@ use super::*;
 fn context(profile: &str) -> (ResolveContext, &'static CommandRegistry) {
     let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
     let mut context = ResolveContext::for_function("::p");
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+    context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
         registry.profile().unwrap(),
     ));
     (context, registry)

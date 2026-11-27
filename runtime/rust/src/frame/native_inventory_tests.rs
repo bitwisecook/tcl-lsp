@@ -51,7 +51,7 @@ fn array_entry_ledgers_match_all_320_native_table_controls() {
                 _ => panic!("unknown native fixture"),
             };
             let abi = tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(None).unwrap();
-            let protocol = tcl_registry::InvocationDialect::for_version(version)
+            let protocol = tcl_native_model::InvocationDialect::for_version(version)
                 .native_variable_table_protocol(abi)
                 .unwrap();
             let mut table = VarTable::default();
@@ -248,7 +248,7 @@ fn c_declared_cells_preserve_duplicates_before_dynamic_hash_inventory() {
         frames.install_formal_cells(
             &[b"x".to_vec(), b"x".to_vec()],
             tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
-                tcl_registry::InvocationDialect::for_version(TclVersion::V9_0)
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V9_0)
                     .execution_point()
                     .unwrap(),
             )

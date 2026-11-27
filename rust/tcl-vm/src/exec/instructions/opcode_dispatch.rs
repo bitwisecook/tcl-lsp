@@ -900,7 +900,7 @@ impl Vm {
                 match expr::boolean_for_vm(
                     self,
                     &c,
-                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                    tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
                 ) {
                     Ok(true) => {
                         if let Some(idx) = jump_target(asm, &f.off2idx, instr) {
@@ -918,7 +918,7 @@ impl Vm {
                 match expr::boolean_for_vm(
                     self,
                     &c,
-                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                    tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
                 ) {
                     Ok(false) => {
                         if let Some(idx) = jump_target(asm, &f.off2idx, instr) {
@@ -1008,14 +1008,14 @@ impl Vm {
                     (pop(f), Value::empty())
                 };
                 let application = if instr.op == Op::SYNTAX {
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Syntax
                 } else {
-                    tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate
+                    tcl_native_model::native_return_options::NativeReturnOptionsApplication::Immediate
                 };
                 let native_context = self
                     .native_invocation_dialect()
                     .native_return_options_application(application)
-                    .and_then(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name)
+                    .and_then(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name)
                     .map(|name| {
                         (
                             name,
@@ -1057,7 +1057,7 @@ impl Vm {
                     && self
                         .native_invocation_dialect()
                         .native_return_options_application(application)
-                        .is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result)
+                        .is_some_and(tcl_native_model::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result)
                 {
                     self.forget_error_logged();
                 }
@@ -1089,7 +1089,7 @@ impl Vm {
                 let c = if self
                     .native_invocation_dialect()
                     .native_return_options_application(
-                        tcl_registry::native_return_options::NativeReturnOptionsApplication::Stack,
+                        tcl_native_model::native_return_options::NativeReturnOptionsApplication::Stack,
                     )
                     .is_some()
                 {

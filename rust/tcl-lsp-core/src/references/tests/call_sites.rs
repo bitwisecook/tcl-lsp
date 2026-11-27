@@ -52,7 +52,7 @@ fn loaded_terminal_can_report_an_external_call_without_local_edit_authority() {
             "loaded-provider".to_owned(),
             &Arc::from("proc greet {} {return loaded}"),
         )],
-        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
             tcl_dialect::TclVersion::V8_6,
         )),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {

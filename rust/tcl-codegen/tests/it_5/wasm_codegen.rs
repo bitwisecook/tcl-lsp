@@ -1151,7 +1151,7 @@ fn compile_native_refusal_proc(source: &str) -> WasmModule {
     let registry = CommandRegistry::build_default().project_for_profile(profile);
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(capture_native_refusal_entry(profile))),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -1516,7 +1516,7 @@ fn compile_semantic_refusal_invocation() -> WasmModule {
     let registry = CommandRegistry::build_default().project_for_profile(profile);
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
         native_entry: Some(std::sync::Arc::new(capture_native_refusal_entry(profile))),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
             mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
             frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

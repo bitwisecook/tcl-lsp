@@ -489,7 +489,7 @@ fn script_argument_context_places_each_measured_wrapper_shape() {
     let resolve = |name: &'static str, arguments: &[InvocationWord<'static>]| {
         let arguments = arguments.to_vec();
         let words = InvocationWords::structured(InvocationWord::Literal(name), &arguments)
-            .with_dialect(crate::InvocationDialect::for_version(
+            .with_dialect(tcl_native_model::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V8_6,
             ));
         let invocation = registry

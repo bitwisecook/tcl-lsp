@@ -125,7 +125,7 @@ mod tests {
             (TclVersion::V9_0, "tcl9.0"),
             (TclVersion::V9_1, "tcl9.1"),
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let registry = crate::model::ingress::static_context_for_profile(
                 crate::model::ingress::resolve_environment(engine).unit_profile(),
             )
@@ -212,7 +212,7 @@ mod tests {
             (TclVersion::V9_0, "tcl9.0"),
             (TclVersion::V9_1, "tcl9.1"),
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let registry = crate::model::ingress::static_context_for_profile(
                 crate::model::ingress::resolve_environment(engine).unit_profile(),
             )
@@ -292,7 +292,7 @@ mod tests {
         // naming.namespace.original-counted-qualifiers-compiler-and-runtime
         // docs/design/analysis/name-resolution-proofs/original-counted-qualifiers-compiler-and-runtime.md
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for source in [
                 b"namespace qualifiers".as_slice(),
                 b"namespace qualifiers a b",

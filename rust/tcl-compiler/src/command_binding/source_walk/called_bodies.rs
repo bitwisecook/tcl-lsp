@@ -75,7 +75,7 @@ enum PreparedSourceLambda {
 /// Selection and formal parsing precede entry into a lambda frame.
 fn prepare_source_lambda(
     selection: tcl_registry::lambda_invocation::LambdaInvocationSelection,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> PreparedSourceLambda {
     use tcl_registry::lambda_invocation::LambdaInvocationSelection;
     let lambda = match selection {
@@ -83,7 +83,8 @@ fn prepare_source_lambda(
         LambdaInvocationSelection::Invalid => return PreparedSourceLambda::Invalid,
         LambdaInvocationSelection::Unknown => return PreparedSourceLambda::Unknown,
     };
-    let Some(grammar) = dialect.and_then(tcl_registry::InvocationDialect::parameter_grammar) else {
+    let Some(grammar) = dialect.and_then(tcl_native_model::InvocationDialect::parameter_grammar)
+    else {
         return PreparedSourceLambda::Unknown;
     };
     let Ok(parameters) =

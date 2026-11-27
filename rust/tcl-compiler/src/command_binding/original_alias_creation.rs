@@ -111,7 +111,7 @@ impl OriginalAliasCreation {
         let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
             return None;
         };
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let spec = context.registry.get_for_surface(
             native.target.registry_identity()?,
             Some(dialect.authoring_query()?.with_realm(context.realm())),
@@ -392,7 +392,7 @@ mod tests {
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         super::super::SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),

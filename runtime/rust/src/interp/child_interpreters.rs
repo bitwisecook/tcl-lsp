@@ -26,6 +26,7 @@ use crate::namespace::GLOBAL;
 use crate::obj;
 use crate::obj::TclObj;
 use std::rc::Rc;
+use tcl_registry::special_vars::BootstrapDialect;
 
 impl Interp {
     /// The child-as-command subcommand words, in C table order (`options[]` in
@@ -461,7 +462,7 @@ impl Interp {
         });
         // Physical constructor inventory requires the same explicit profile
         // recipe as with_native_core; a logical runtime version is not one.
-        let bootstrap = tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+        let bootstrap = tcl_native_model::InvocationDialect::of_profile(self.dialect_profile())
             .native_bootstrap_protocol();
         let mut child = if bootstrap.is_some() {
             Interp::with_native_core(

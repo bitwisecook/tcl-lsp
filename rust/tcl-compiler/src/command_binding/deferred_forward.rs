@@ -56,7 +56,7 @@ pub(super) fn original_forward_method(
     definition: &ExecutedScriptSource,
     words: &crate::ir::CommandTokens,
     offset: u32,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     context: SourceExecutionContext<'_>,
 ) -> Option<OriginalForwardMethod> {
@@ -94,7 +94,7 @@ pub(super) fn retained_forward_methods(
     definition: &ExecutedScriptSource,
     map: &tcl_lexer::SourceMap<'_>,
     segments: &[tcl_source::segment::SegmentedCommand],
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
     source: super::deferred_method::MethodParameterSource,
     context: SourceExecutionContext<'_>,
 ) -> Arc<OriginalForwardEntries> {
@@ -142,7 +142,7 @@ mod tests {
     use tcl_dialect::TclVersion;
 
     fn analyse(source: &str, version: TclVersion) -> SourceCommandBindings {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let registry =
             tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
                 .commands();

@@ -175,7 +175,7 @@ pub(super) mod tests {
             tcl_lexer::LexerConfig::default(),
             &tcl_registry::CommandRegistry::build_default(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_6,
                 )),
                 native_compilation: NativeCompilationContext {
@@ -244,7 +244,8 @@ pub(super) mod tests {
     -> tcl_runtime_api::native_compilation::NativeCompilationEntry {
         use tcl_core_types::ByteNamespacePath;
         use tcl_runtime_api::native_compilation::*;
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let commands = native_named_command_rows();
         let root = NativeCompilationNamespace {
@@ -318,7 +319,7 @@ pub(super) mod tests {
             tcl_lexer::LexerConfig::default(),
             &tcl_registry::CommandRegistry::build_default(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_6,
                 )),
                 native_entry: Some(entry),
@@ -436,7 +437,9 @@ pub(super) mod tests {
                 registry,
                 SourceAnalysisOptions {
                     native_entry: Some(&entry),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     ..Default::default()
                 },
             );
@@ -493,7 +496,9 @@ pub(super) mod tests {
                 registry,
                 SourceAnalysisOptions {
                     native_entry: Some(&entry),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: NativeCompilationContext {
                         mode: NativeCompilationMode::BytecodeObject,
                         frame: NativeCompilationFrame::ScriptCode,

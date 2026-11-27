@@ -126,7 +126,7 @@ fn original_boolean_unit_with_compilation(
             crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
                 &input,
             )),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: compilation,
         native_entry: Some(std::sync::Arc::new(native)),
         ..crate::command_binding::SourceAnalysisEntry::default()
@@ -964,7 +964,7 @@ fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identit
     // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
     // Software source/IR observation only. The independently measured original
     // opcode rows own actual truth values and getter effects.
-    use tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
+    use tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
     let source = "if {!$lhs} {set result A}; if {$lhs ? $rhs : $other} {set result B}; if {$lhs && $rhs} {set result C}; if {$lhs || $rhs} {set result D}";
     for environment in ["tcl8.4", "tcl9.1"] {
         // The selected original script-object compiler visits all four
@@ -1060,7 +1060,7 @@ fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identit
 fn original_boolean_lowering_separates_inline_and_public_expression_result_producers() {
     // naming.numeric.original-primitive-boolean-vs-expression-truth
     // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
-    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    use tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
     let (_owner, context, unit) = original_boolean_unit(
         "if {$condition} {set result A}; if {[set condition]} {set result B}",
         "tcl8.6",
@@ -1158,7 +1158,7 @@ fn original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owne
 fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches() {
     // naming.numeric.original-primitive-boolean-vs-expression-truth
     // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
-    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    use tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
     let source = "set original 4294967296; if {$original} {set result cell}; if {4294967296} {set result literal}; if {1 + 2} {set result arithmetic}";
     let (_owner, context, unit) = original_boolean_unit(source, "tcl8.4");
     let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
@@ -1405,7 +1405,7 @@ fn original_root_colon_definition_preserves_evaluated_publication_operand() {
             .as_ref()
             .and_then(|entry| entry.execution_point)
             .expect("the independently captured actual entry supplies its point");
-        let protocol = tcl_registry::InvocationDialect::of_point(point)
+        let protocol = tcl_native_model::InvocationDialect::of_point(point)
             .native_name_protocol()
             .expect("the actual C86/C9 point selects its original protocol");
         let root = tcl_syntax::naming::NativeNameContext::root();
@@ -1854,7 +1854,7 @@ fn original_native_definition_keeps_runtime_guard_separate_from_dispatch_proof()
         assert_eq!(
             *identity,
             tcl_registry::NativeLowering::Definition
-                .definition_guard_identity(tcl_registry::InvocationDialect::of_point(point))
+                .definition_guard_identity(tcl_native_model::InvocationDialect::of_point(point))
                 .unwrap()
         );
         assert_eq!(original_constant(&function, argv[0]), "proc");
@@ -1869,7 +1869,7 @@ fn original_native_definition_keeps_runtime_guard_separate_from_dispatch_proof()
 
 #[test]
 fn definition_policy_comparison_retains_canonical_release_and_all_other_axes() {
-    use tcl_registry::InvocationDialect;
+    use tcl_native_model::InvocationDialect;
     for version in tcl_dialect::TclVersion::ALL {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         let declared = InvocationDialect::of_profile(profile);

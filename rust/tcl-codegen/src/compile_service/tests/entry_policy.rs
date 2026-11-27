@@ -26,7 +26,7 @@ fn native_entry_keeps_logical_engine_and_lexical_evidence_independent() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let actual = DialectPoint::canonical(Release::JIM_0_84);
     let mut entry = policy_entry(profile, actual);
-    entry.lexer_grammar = Some(tcl_registry::InvocationDialect::of_point(actual).lexer_grammar);
+    entry.lexer_grammar = Some(tcl_native_model::InvocationDialect::of_point(actual).lexer_grammar);
     entry.invocation_policy = Some(
         tcl_registry::model::ingress::resolve_environment("jim")
             .analyser_profile()
@@ -49,7 +49,9 @@ fn native_entry_keeps_logical_engine_and_lexical_evidence_independent() {
     let catalogue_config = LexerConfig::from_grammar(profile.grammar);
     assert_eq!(
         BytecodeCompileService::native_entry_config(catalogue_config, Some(&entry)),
-        LexerConfig::from_grammar(tcl_registry::InvocationDialect::of_point(actual).lexer_grammar),
+        LexerConfig::from_grammar(
+            tcl_native_model::InvocationDialect::of_point(actual).lexer_grammar
+        ),
     );
     let mut grammar = entry.lexer_grammar.expect("measured grammar");
     grammar.brace_backslash_newline = tcl_dialect::BraceBackslashNewline::Folds;
@@ -84,7 +86,7 @@ fn native_entry_keeps_logical_engine_and_lexical_evidence_independent() {
             .invocation_dialect
             .expect("explicit profile compatibility")
             .core_point,
-        tcl_registry::InvocationDialect::of_profile(profile).core_point,
+        tcl_native_model::InvocationDialect::of_profile(profile).core_point,
     );
     assert!(
         BytecodeCompileService::native_entry_options(&entry, Some(profile))
@@ -104,7 +106,7 @@ fn native_entry_keeps_logical_engine_and_lexical_evidence_independent() {
 #[test]
 fn physical_c9_compiler_cannot_replace_f5_logical_value_or_frame_policy() {
     use tcl_dialect::model::{DialectPoint, Release};
-    use tcl_registry::InvocationDialect;
+    use tcl_native_model::InvocationDialect;
     let logical_profile = DialectProfile::find("f5-irules").unwrap();
     let assistance = DialectProfile::find("tcl9.1").unwrap();
     let physical_point = DialectPoint::canonical(Release::TCL_9_1);
@@ -144,7 +146,7 @@ fn physical_c9_compiler_cannot_replace_f5_logical_value_or_frame_policy() {
 fn direct_source_options_cannot_fill_missing_live_policy_from_authoring() {
     use tcl_compiler::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
     use tcl_dialect::model::{DialectPoint, Release};
-    use tcl_registry::InvocationDialect;
+    use tcl_native_model::InvocationDialect;
     let logical = DialectProfile::find("f5-irules").unwrap();
     let physical = DialectPoint::canonical(Release::TCL_9_1);
     let mut entry = policy_entry(logical, physical);

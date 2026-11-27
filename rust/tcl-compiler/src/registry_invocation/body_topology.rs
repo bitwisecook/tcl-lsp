@@ -41,7 +41,7 @@ use tcl_registry::{CommandRegistry, InvocationWords};
 /// no registry effects, purity, completion or executable opcode permission.
 pub struct PossibleBodyInvocation {
     /// Logical source grammar of this selected layout, independently of runtime dispatch.
-    pub dialect: Option<tcl_registry::InvocationDialect>,
+    pub dialect: Option<tcl_native_model::InvocationDialect>,
     /// Registry-authored topology of possible script entry.
     pub topology: tcl_registry::native_compilation::PossibleBodyTopology,
     /// Frozen native expression operands, preserving unknown evaluated values.

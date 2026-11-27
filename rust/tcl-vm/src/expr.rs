@@ -73,13 +73,13 @@ use context_operators::{compare_values_numeric_checked_in, native_literal};
 pub(crate) struct NumericContext<'a> {
     pub(crate) environment: Option<&'a dyn tcl_platform::NumericEnvironment>,
     pub(crate) original: Option<&'a dyn OriginalArithmeticStages>,
-    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) dialect: tcl_native_model::InvocationDialect,
     pub(crate) simulation:
         Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
 }
 
-impl From<tcl_registry::InvocationDialect> for NumericContext<'_> {
-    fn from(dialect: tcl_registry::InvocationDialect) -> Self {
+impl From<tcl_native_model::InvocationDialect> for NumericContext<'_> {
+    fn from(dialect: tcl_native_model::InvocationDialect) -> Self {
         Self {
             dialect,
             simulation: None,
@@ -90,7 +90,7 @@ impl From<tcl_registry::InvocationDialect> for NumericContext<'_> {
 }
 
 impl std::ops::Deref for NumericContext<'_> {
-    type Target = tcl_registry::InvocationDialect;
+    type Target = tcl_native_model::InvocationDialect;
     fn deref(&self) -> &Self::Target {
         &self.dialect
     }
@@ -333,7 +333,7 @@ impl<'a> ExprEval<'a> {
         result: &Value,
     ) -> Result<tcl_runtime_api::Completion<Value>, TclError> {
         let result = normalize_result_for_vm(self.vm, result,
-            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)?;
+            tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)?;
         Ok(self.finish(result))
     }
 
@@ -652,7 +652,7 @@ impl ExprOps for ExprEval<'_> {
         boolean_for_vm(
             self.vm,
             v,
-            tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+            tcl_native_model::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
         )
     }
 

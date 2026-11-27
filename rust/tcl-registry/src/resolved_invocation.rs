@@ -768,7 +768,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 .words
                 .arguments()
                 .dialect()
-                .and_then(crate::InvocationDialect::parameter_grammar)
+                .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
                 == Some(tcl_dialect::ParameterGrammar::Jim)
     }
 

@@ -25,7 +25,7 @@ use super::super::{
 use crate::interp::{CallMeta, Code, Interp, MethodFrameWhat, ProcFrame};
 use crate::obj::TclObj;
 use tcl_core_types::OoId;
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooMethodPayloadType, NativeTclooMethodReportRole,
 };
 use tcl_syntax::value::ValueOps;

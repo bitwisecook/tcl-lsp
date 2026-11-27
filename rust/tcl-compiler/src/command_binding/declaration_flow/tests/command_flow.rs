@@ -52,7 +52,7 @@ fn lifecycle_subcommand_schedules_its_original_phase_scripts() {
         config,
         &registry,
         super::super::super::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             trusted_package_loaders: std::slice::from_ref(&loader),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
@@ -82,7 +82,7 @@ fn lifecycle_subcommand_schedules_its_original_phase_scripts() {
         inventory,
         registry: &registry,
         config,
-        dialect: tcl_registry::InvocationDialect::of_profile(profile),
+        dialect: tcl_native_model::InvocationDialect::of_profile(profile),
         entry: &frame,
         purpose: DeclarationFlowPurpose::Reads,
         representation_realm: None,

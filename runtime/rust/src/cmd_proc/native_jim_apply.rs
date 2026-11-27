@@ -27,7 +27,7 @@ pub(super) fn apply(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     original: &Owned,
-    diagnostics: tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol,
+    diagnostics: tcl_native_model::native_lambda::NativeLambdaDiagnosticProtocol,
 ) -> Code {
     let mut parts = match ValueOps::list_elements(interp, &original.as_ptr()) {
         Ok(parts) => parts.into_iter().map(Owned::retain).collect::<Vec<_>>(),

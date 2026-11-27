@@ -37,7 +37,7 @@
 //! and only rung that still evaluates source text.
 
 use tcl_core_types::Code as CompletionCode;
-use tcl_registry::native_boolean_truth::{
+use tcl_native_model::native_boolean_truth::{
     NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
 };
 use tcl_syntax::expr::{BinOp, UnaryOp};

@@ -19,6 +19,7 @@
 //! Authored native result dependencies, separate from completion and purity.
 
 use crate::InvocationArguments;
+use crate::native_dictionary::NativeDictionaryDialect;
 
 /// Internal numeric shape produced by a successful native store, before write
 /// callbacks. This carries no number, object identity or folding permission.
@@ -101,7 +102,10 @@ impl VariableResultPhase {
     /// Result when the originally selected cell has no contents after observers.
     /// Never re-resolve its spelling: callbacks may have allocated a different cell.
     #[must_use]
-    pub fn missing_cell_result(self, dialect: crate::InvocationDialect) -> NativeResultSelection {
+    pub fn missing_cell_result(
+        self,
+        dialect: tcl_native_model::InvocationDialect,
+    ) -> NativeResultSelection {
         match self {
             Self::AfterRead => NativeResultSelection::InvalidArguments,
             Self::AfterWrite
@@ -233,7 +237,7 @@ mod tests {
         ];
         for version in tcl_dialect::TclVersion::ALL {
             let args = InvocationArguments::structured(&operands)
-                .with_dialect(crate::InvocationDialect::for_version(version));
+                .with_dialect(tcl_native_model::InvocationDialect::for_version(version));
             assert_eq!(contract.normal_scoped_prefix_operand(args, 1), Some(1));
             assert_eq!(contract.normal_scoped_prefix_operand(args, 0), None);
             assert_eq!(contract.select(args, 1), NativeResultSelection::Unknown);
@@ -244,7 +248,7 @@ mod tests {
         );
         let jim = crate::model::ingress::static_context_for("jim");
         let args = InvocationArguments::structured(&operands).with_dialect(
-            crate::InvocationDialect::of_profile(jim.commands().profile().unwrap()),
+            tcl_native_model::InvocationDialect::of_profile(jim.commands().profile().unwrap()),
         );
         assert_eq!(contract.normal_scoped_prefix_operand(args, 1), None);
         let expanded = [
@@ -252,7 +256,7 @@ mod tests {
             crate::InvocationWord::Expanded,
         ];
         let args = InvocationArguments::structured(&expanded).with_dialect(
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
         );
         assert_eq!(contract.normal_scoped_prefix_operand(args, 1), None);
     }
@@ -267,9 +271,9 @@ mod tests {
             crate::InvocationWord::KnownBytes(b"\xff\0"),
         ];
         let mut dialects = tcl_dialect::TclVersion::ALL
-            .map(crate::InvocationDialect::for_version)
+            .map(tcl_native_model::InvocationDialect::for_version)
             .to_vec();
-        dialects.push(crate::InvocationDialect::of_point(
+        dialects.push(tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         ));
         for dialect in dialects {
@@ -301,7 +305,7 @@ mod tests {
         );
         let hosted = crate::model::ingress::static_context_for("f5-irules").commands();
         let args = InvocationArguments::structured(&operands).with_dialect(
-            crate::InvocationDialect::of_profile(hosted.profile().unwrap()),
+            tcl_native_model::InvocationDialect::of_profile(hosted.profile().unwrap()),
         );
         assert_eq!(contract.list_constructor_completion_code(args, 0), None);
     }
@@ -312,7 +316,7 @@ mod tests {
         let operands = [crate::InvocationWord::Dynamic];
         for version in tcl_dialect::TclVersion::ALL {
             let args = InvocationArguments::structured(&operands)
-                .with_dialect(crate::InvocationDialect::for_version(version));
+                .with_dialect(tcl_native_model::InvocationDialect::for_version(version));
             assert_eq!(
                 contract.normal_list_method_provider(args, 0),
                 (version >= tcl_dialect::TclVersion::V9_0)
@@ -322,9 +326,9 @@ mod tests {
             assert_eq!(contract.normal_list_method_provider(args, 1), None);
         }
         let jim = InvocationArguments::structured(&operands).with_dialect(
-            crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                tcl_dialect::model::Release::JIM_0_84,
-            )),
+            tcl_native_model::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            ),
         );
         assert_eq!(contract.normal_list_method_provider(jim, 0), None);
         assert_eq!(
@@ -348,17 +352,19 @@ mod tests {
         ];
         for (dialect, arithmetic) in [
             (
-                crate::InvocationDialect::for_version(TclVersion::V8_4),
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V8_4),
                 NativeArithmetic::Tcl84Wide,
             ),
             (
-                crate::InvocationDialect::for_version(TclVersion::V8_6),
+                tcl_native_model::InvocationDialect::for_version(TclVersion::V8_6),
                 NativeArithmetic::TclBignum,
             ),
             (
-                crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-                    tcl_dialect::model::Release::JIM_0_84,
-                )),
+                tcl_native_model::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::canonical(
+                        tcl_dialect::model::Release::JIM_0_84,
+                    ),
+                ),
                 NativeArithmetic::JimWide,
             ),
         ] {
@@ -414,7 +420,7 @@ mod tests {
             last_at: 2,
         };
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let args = InvocationArguments::literals(&["prefix", "a b c", "0", "end"])
                 .with_dialect(dialect);
             let selected = contract.select(args, 1);
@@ -460,9 +466,9 @@ mod tests {
                 None
             );
         }
-        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-            tcl_dialect::model::Release::JIM_0_84,
-        ));
+        let jim = tcl_native_model::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
         let jim_args = InvocationArguments::literals(&["a b c", "0", "end"]).with_dialect(jim);
         assert_eq!(
             contract
@@ -498,9 +504,9 @@ mod tests {
         };
         let mut dialects = tcl_dialect::TclVersion::ALL
             .into_iter()
-            .map(crate::InvocationDialect::for_version)
+            .map(tcl_native_model::InvocationDialect::for_version)
             .collect::<Vec<_>>();
-        dialects.push(crate::InvocationDialect::of_point(
+        dialects.push(tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
         ));
         for dialect in dialects {
@@ -554,7 +560,7 @@ mod tests {
             crate::InvocationWord::Literal("1"),
         ];
         let arguments = InvocationArguments::structured(&words).with_dialect(
-            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
         assert_eq!(
             contract.select(arguments, 0).ordinary_range_literal_result(
@@ -585,7 +591,7 @@ mod tests {
         };
         let result = NativeResultSelection::ListArguments { from: 0, len: 2 };
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let literal = result.list_construction(
                 dialect,
                 context,
@@ -639,13 +645,14 @@ mod tests {
             mode: crate::native_compilation::NativeCompilationMode::Direct,
             ..Default::default()
         };
-        let actual = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let actual =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         assert_eq!(
             result.created_representation(actual, context),
             ValueRepresentation::List
         );
         for family in [None, Some(tcl_dialect::model::Family::F5Irules)] {
-            let assist = crate::InvocationDialect {
+            let assist = tcl_native_model::InvocationDialect {
                 core_point: None,
                 native_family: family,
                 ..actual
@@ -672,7 +679,8 @@ mod tests {
             dictionary_at: 0,
             keys_from: 1,
         };
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (words, expected) in [
             (
                 vec!["get", "nested {y OLD y NEW}", "nested", "y"],
@@ -738,7 +746,7 @@ mod tests {
         );
         assert_eq!(
             NativeResultSelection::EmptyString.created_representation(
-                crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
                 crate::native_compilation::NativeCompilationContext::default()
             ),
             tcl_syntax::value::ValueRepresentation::Unknown
@@ -748,7 +756,7 @@ mod tests {
     #[test]
     fn return_result_positions_share_native_option_validation() {
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             for (words, expected) in [
                 (vec![], NativeResultSelection::EmptyString),
                 (vec!["value"], NativeResultSelection::Argument(0)),
@@ -810,7 +818,8 @@ mod tests {
             (Release::TCL_8_6, "x {a] b}"),
             (Release::JIM_0_84, "x a\\]\\ b"),
         ] {
-            let dialect = crate::InvocationDialect::of_point(DialectPoint::canonical(release));
+            let dialect =
+                tcl_native_model::InvocationDialect::of_point(DialectPoint::canonical(release));
             let arguments = crate::InvocationArguments::literals(&words).with_dialect(dialect);
             assert_eq!(
                 contract
@@ -865,7 +874,8 @@ mod tests {
             NativeResultContract::ListArguments { from: 1 }.select(args, 1),
             NativeResultSelection::ListArguments { from: 2, len: 1 }
         );
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         assert_eq!(
             VariableResultPhase::AfterWrite.missing_cell_result(dialect),
             NativeResultSelection::EmptyString
@@ -889,7 +899,10 @@ mod tests {
             words.extend(std::iter::repeat_n("a", values));
             contract
                 .select(InvocationArguments::literals(&words), 0)
-                .created_representation(crate::InvocationDialect::for_version(version), compilation)
+                .created_representation(
+                    tcl_native_model::InvocationDialect::for_version(version),
+                    compilation,
+                )
         };
         for version in TclVersion::ALL {
             let at_least_8_5 = version >= TclVersion::V8_5;
@@ -939,7 +952,7 @@ mod tests {
         let contract = NativeResultContract::ListReverse { list_at: 0 };
         let hundred = vec!["x"; 100].join(" ");
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let reverse = |list: &str, exact, length| {
                 let words = [list];
                 let args = InvocationArguments::literals(&words).with_dialect(dialect);
@@ -997,7 +1010,7 @@ mod tests {
         let contract = NativeResultContract::ListSort;
         let compilation = crate::native_compilation::NativeCompilationContext::default();
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let selected = |words: &[&str]| {
                 let args = InvocationArguments::literals(words).with_dialect(dialect);
                 let selection = contract.select(args, 0);
@@ -1027,7 +1040,7 @@ mod tests {
         let concat = NativeResultContract::ListConcat { from: 0 };
         let join = NativeResultContract::StringJoin { list_at: 0 };
         for version in TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let result = |contract: NativeResultContract, words: &[&str], pooled: bool| {
                 let args = InvocationArguments::literals(words).with_dialect(dialect);
                 contract
@@ -1180,7 +1193,7 @@ impl NativeResultSelection {
     #[must_use]
     pub fn created_representation(
         self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         compilation: crate::native_compilation::NativeCompilationContext,
     ) -> tcl_syntax::value::ValueRepresentation {
         use tcl_syntax::value::ValueRepresentation;
@@ -1256,7 +1269,7 @@ impl NativeResultSelection {
     #[must_use]
     pub fn list_construction(
         self,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         compilation: crate::native_compilation::NativeCompilationContext,
         selected: crate::native_compilation::NativeCompilationSelection,
         shapes: &[crate::native_compilation::NativeCompilationWordShape],

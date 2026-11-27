@@ -76,9 +76,9 @@ fn command_end(
 pub(crate) fn settle_expression_quote(
     vm: &mut Vm,
     mut completion: tcl_runtime_api::Completion<Value>,
-    policy: tcl_registry::invocation_words::ExpressionQuoteControl,
+    policy: tcl_native_model::ExpressionQuoteControl,
 ) -> tcl_runtime_api::Completion<Value> {
-    use tcl_registry::invocation_words::ExpressionQuoteControl;
+    use tcl_native_model::ExpressionQuoteControl;
     if policy == ExpressionQuoteControl::Propagate {
         return completion;
     }
@@ -166,7 +166,7 @@ pub(crate) fn subst_expression_string(
 pub(crate) enum SubstitutionControl {
     Command,
     Word,
-    Expression(tcl_registry::invocation_words::ExpressionQuoteControl),
+    Expression(tcl_native_model::ExpressionQuoteControl),
 }
 
 /// Immutable original template or an index list in the same source arena.

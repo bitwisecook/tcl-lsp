@@ -403,7 +403,7 @@ fn materialized_bodies_keep_the_original_entry_availability_phase() {
     ] {
         let entry = super::super::super::SourceAnalysisEntry {
             invocation_realm: realm,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         };
         let unit = CompilationUnit::build_with_analysis_input(

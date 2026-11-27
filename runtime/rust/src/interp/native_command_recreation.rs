@@ -20,7 +20,7 @@
 
 use super::{Command, ObjCommand};
 use std::rc::{Rc, Weak};
-use tcl_registry::native_command_creation::{
+use tcl_native_model::native_command_creation::{
     NativeCommandCreationProtocol, NativeObjectCommandCreationPurpose,
     NativeRecreatedObjectRetirement,
 };
@@ -770,9 +770,10 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-command-recreation-discard.md
         // Exact ownership checks do not infer idleness from an Rc count or a
         // same-spelled command, and do not donate the measured purpose to Proc.
-        let selected = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
-            .native_command_creation_protocol()
-            .unwrap();
+        let selected =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                .native_command_creation_protocol()
+                .unwrap();
         let mut interpreter = actual_interpreter("tcl8.6");
         let (owner, mut records) = records(&interpreter, 0, 0);
         interpreter

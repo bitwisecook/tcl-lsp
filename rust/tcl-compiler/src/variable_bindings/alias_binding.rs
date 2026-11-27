@@ -262,7 +262,7 @@ pub(super) fn alias_value_binding_validity(
     let policy = state.invocation_dialect.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     if alias
         .destination
@@ -395,7 +395,7 @@ fn bind_alias_values_with_compiled_local(
     let dialect = state.invocation_dialect.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     let frame = state.alias_frame();
     let active = alias

@@ -162,7 +162,7 @@ fn numeric_only_preservation_respects_the_selected_comparison_cache_protocol() {
         let selected = registry.profile().unwrap();
         let policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
             registry,
-            Some(tcl_registry::InvocationDialect::of_profile(selected)),
+            Some(tcl_native_model::InvocationDialect::of_profile(selected)),
             &tcl_lexer::LexerConfig::from_grammar(selected.grammar),
         );
         for (expression, allowed) in [
@@ -227,7 +227,7 @@ fn a_literal_sharing_footprint_includes_native_canonical_pool_bytes() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
         registry,
-        Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         &tcl_lexer::LexerConfig::from_grammar(profile.grammar),
     );
     for (text, canonical) in [("false", "0"), ("0x10", "16")] {
@@ -259,7 +259,7 @@ fn runtime_variable_coercion_follows_the_original_expression_read() {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         registry,
         super::super::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                 ..Default::default()
@@ -314,7 +314,7 @@ fn compiler_literal_footprints_do_not_borrow_runtime_variable_bytes() {
     let profile = registry.profile().unwrap();
     let policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
         registry,
-        Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         &tcl_lexer::LexerConfig::from_grammar(profile.grammar),
     );
     let tree = crate::expr_parser::parse_expr("$unbound + 1", Some("tcl8.6"));
@@ -362,7 +362,7 @@ fn c84_script_preparation_retains_exact_compiler_visits() {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         &registry,
         super::super::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                 frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
@@ -472,7 +472,7 @@ fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
         let profile = registry.profile().unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let parser =
-            tcl_registry::InvocationDialect::of_profile(profile).expression_parse_context(None);
+            tcl_native_model::InvocationDialect::of_profile(profile).expression_parse_context(None);
         for (suffix, allowed) in [
             ("", true),
             (
@@ -492,7 +492,9 @@ fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
                 config,
                 registry,
                 super::super::SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },
@@ -549,7 +551,7 @@ fn selected_nested_normalisation_projects_actual_operand_and_command_source() {
         let profile = registry.profile().unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let parser =
-            tcl_registry::InvocationDialect::of_profile(profile).expression_parse_context(None);
+            tcl_native_model::InvocationDialect::of_profile(profile).expression_parse_context(None);
         for (suffix, allowed) in [
             ("", true),
             (
@@ -569,7 +571,9 @@ fn selected_nested_normalisation_projects_actual_operand_and_command_source() {
                 config,
                 registry,
                 super::super::SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },
@@ -746,7 +750,7 @@ fn conditional_expression_categories_require_closed_lookup_but_keep_may_tree() {
         config,
         registry,
         super::super::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         },
     );
@@ -793,7 +797,7 @@ fn evaluated_expression_source_cannot_replace_original_advisory_owner() {
         config,
         registry,
         super::super::SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             ..Default::default()
         },
     );
@@ -873,7 +877,9 @@ fn conditional_bare_expression_requires_exact_original_payload_and_handler() {
                 config,
                 registry,
                 super::super::SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     ..Default::default()
                 },
             );

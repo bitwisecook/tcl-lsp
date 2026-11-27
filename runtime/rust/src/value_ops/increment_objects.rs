@@ -25,12 +25,13 @@ use crate::interp::Interp;
 use crate::obj;
 use crate::obj::TclObj;
 use std::rc::Rc;
+use tcl_registry::native_rmw::LegacyIncrementDialect;
 use tcl_syntax::number::Number;
 use tcl_syntax::value::ValueError;
 
 /// Actual C8.4/Jim original-object increment, with native probe/COW order.
 pub(crate) struct RuntimeLegacyIncrementObjects {
-    pub(super) dialect: tcl_registry::InvocationDialect,
+    pub(super) dialect: tcl_native_model::InvocationDialect,
     recipe: tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe,
     jim_context: Option<Rc<crate::native_source::NativeJimObjectContext>>,
     pub(super) context: IncrementContext,

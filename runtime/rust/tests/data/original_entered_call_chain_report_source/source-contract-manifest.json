@@ -31,7 +31,7 @@
       "rustfmt_parse": 0
     },
     {
-      "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+      "path": "rust/tcl-native-model/src/native_tcloo_method_definition.rs",
       "base_sha256": "44fa64f10de9dabcb46727fd92699cd5dc331bf82ed66bd5b6d5d4bc519311ec",
       "candidate_sha256": "42a37aea4a177f04f8022d27ecce6fb499935ebbaf04f770ea3dc9bd09af16b6",
       "new_file": false,

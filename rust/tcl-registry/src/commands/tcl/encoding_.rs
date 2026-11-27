@@ -522,7 +522,7 @@ mod tests {
             TclVersion::V9_0,
             TclVersion::V9_1,
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let registry = crate::CommandRegistry::build_default();
             let args = [Literal("convertto"), Literal("utf-8"), Literal("hello")];
             let resolved = registry.resolve_structured_invocation(

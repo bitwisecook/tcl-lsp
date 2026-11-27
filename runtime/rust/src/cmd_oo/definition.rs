@@ -111,7 +111,7 @@ fn install_method(interp: &mut Interp, name: Vec<u8>, original: *mut TclObj, m: 
 
 /// Default visibility for a method name in the current definition context.
 fn default_vis(interp: &Interp, name: &[u8]) -> MethodVis {
-    use tcl_registry::native_tcloo_method_definition::{
+    use tcl_native_model::native_tcloo_method_definition::{
         NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
     };
     let selected = NativeTclooMethodDefinitionProtocol::select(interp.native_invocation_dialect())
@@ -295,7 +295,7 @@ pub(super) fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Cod
 /// `renamemethod oldName newName` — rename the exact original table entry.
 pub(super) fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        use tcl_registry::native_tcloo_method_definition::{
+        use tcl_native_model::native_tcloo_method_definition::{
             NativeTclooMethodDefinitionProtocol, NativeTclooMethodRenameFailure,
         };
         if argv.len() != 3 {
@@ -481,7 +481,7 @@ pub(super) fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Cod
 
 fn method_rename_failure(
     interp: &mut Interp,
-    failure: tcl_registry::native_tcloo_method_definition::NativeTclooMethodRenameFailure,
+    failure: tcl_native_model::native_tcloo_method_definition::NativeTclooMethodRenameFailure,
     original_name: &[u8],
 ) -> Code {
     let message = failure.message(original_name);
@@ -664,7 +664,7 @@ pub(super) const DEFINITION_KINDS: tcl_cmd_core::prefix::OptionTable<'static, &[
 
 pub(super) fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        use tcl_registry::native_tcloo_method_definition::{
+        use tcl_native_model::native_tcloo_method_definition::{
             NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
         };
         let Some(selected) =
@@ -956,7 +956,7 @@ fn apply_method_visibility(
 
 pub(super) fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        use tcl_registry::native_tcloo_method_definition::{
+        use tcl_native_model::native_tcloo_method_definition::{
             NativeTclooMethodDefinitionProtocol, NativeTclooMethodExportOperandOrder,
         };
         let target = match def_target(interp) {

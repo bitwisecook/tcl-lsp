@@ -442,7 +442,7 @@ static int Jim_TimeCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *arg
 
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `cmd_time`: Evaluate original script handle through existing selected ControlBody object door.
 - [runtime/rust/src/cmd_control.rs](../../../../runtime/rust/src/cmd_control.rs), `time_cmd`: Retain original script object through generic control-body evaluation rather than byte rebuilding.
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::dispatches_list`: Keep independent original object/purpose/release list dispatch selection.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `NativeEvalObjectProtocol::dispatches_list`: Keep independent original object/purpose/release list dispatch selection.
 - [rust/tcl-vm-it/tests/it_5/command/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/tests.rs), `command::tests::time_keeps_original_counted_script_and_skips_zero_count_materialization` (linked): Implementation regression retains opaque counted script names in genuine selected core and separately skips invalid script decoding at zero count; no actual native or Rust pass claimed.
 - [runtime/rust/src/cmd_control.rs](../../../../runtime/rust/src/cmd_control.rs), `cmd_control::tests::time_retains_original_list_body_and_result_objects` (linked): Implementation regression preserves selected modern/Jim original List dispatch, same returned element identity and missing script string representation; native cache/dispatch remains independently selected and no launch/pass is claimed.
 

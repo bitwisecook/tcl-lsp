@@ -613,10 +613,16 @@ impl NativePackageProtocol {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait NativePackageDialect {
     /// Authenticate the actual package command protocol.
     #[must_use]
-    pub fn native_package_protocol(self) -> Option<NativePackageProtocol> {
+    fn native_package_protocol(self) -> Option<NativePackageProtocol>;
+}
+
+impl NativePackageDialect for tcl_native_model::InvocationDialect {
+    fn native_package_protocol(self) -> Option<NativePackageProtocol> {
         let string = self.native_string_protocol()?;
         match string.tcl_version() {
             Some(version) => Some(NativePackageProtocol::C(version)),
@@ -789,7 +795,7 @@ mod manifest_key_tests {
         for version in TclVersion::ALL {
             let policy = NamePolicyProtocol::authored_tcl(version);
             let config = tcl_lexer::LexerConfig::from_grammar(
-                crate::InvocationDialect::for_version(version).lexer_grammar,
+                tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
             );
             let plain = NativePackageNameKey::from_native_units(b"json::write", policy);
             assert_eq!(plain.manifest_atom(config).as_deref(), Some("json::write"));

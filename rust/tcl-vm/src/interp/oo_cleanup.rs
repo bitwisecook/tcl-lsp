@@ -48,7 +48,7 @@ pub(crate) struct OriginalOoCleanup {
     namespace_traversal: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
     pub(crate) method_cache_selected: bool,
     pub(crate) property_recipe:
-        Option<tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+        Option<tcl_native_model::native_property_lookup::NativePropertyLookupProtocol>,
 }
 /// Readonly original cleanup currency on an authentic OO procedure continuation.
 /// It creates no entered invocation and owns no frame, Method or Native payload.
@@ -60,7 +60,7 @@ struct SavedOriginalOoCleanup {
     entry_failure: Option<CmdError>,
     namespace_traversal: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
     method_cache_selected: bool,
-    property_recipe: Option<tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+    property_recipe: Option<tcl_native_model::native_property_lookup::NativePropertyLookupProtocol>,
 }
 impl SavedOriginalOoCleanup {
     fn attach(&self, vm: &mut Vm) -> OriginalOoCleanup {

@@ -23,7 +23,7 @@ use tcl_codegen::compile_service::BytecodeCompileService;
 /// Jimsh declares its bundled Tcl library before it evaluates a script, and
 /// the recorded Jim vectors ran there (`dict update` is one of its procs).
 fn declare_jim_library(vm: &mut tcl_vm::Vm, profile: &'static tcl_dialect::DialectProfile) {
-    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let mut declared = std::collections::HashSet::new();
     for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
         for procedure in tcl_registry::native_scripted_distribution::procedures(dialect, library) {

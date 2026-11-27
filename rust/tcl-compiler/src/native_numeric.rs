@@ -65,7 +65,7 @@ impl SourceNativeNumber {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceNativeNumericObject {
     /// Actual selected native numeric, result and representation protocols.
-    pub dialect: tcl_registry::InvocationDialect,
+    pub dialect: tcl_native_model::InvocationDialect,
     /// Original native preparation and allocation instruction.
     pub preparation: Arc<SourceExpressionPreparation>,
     /// Actual native numeric result, independently from rendered bytes.
@@ -78,17 +78,17 @@ pub struct SourceNativeNumericObject {
 /// Jim require separate range/getter proofs and cannot construct this domain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceIntegerConvertibleContents {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 }
 
 impl SourceIntegerConvertibleContents {
-    fn for_dialect(dialect: tcl_registry::InvocationDialect) -> Option<Self> {
+    fn for_dialect(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         (dialect.family() == Some(tcl_dialect::model::Family::Tcl)
             && dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::TclBignum))
         .then_some(Self { dialect })
     }
 
-    fn agrees_with(self, mut dialect: tcl_registry::InvocationDialect) -> bool {
+    fn agrees_with(self, mut dialect: tcl_native_model::InvocationDialect) -> bool {
         dialect.lexer_grammar = self.dialect.lexer_grammar;
         dialect.word_values = self.dialect.word_values;
         dialect == self.dialect
@@ -99,7 +99,7 @@ impl SourceIntegerConvertibleContents {
 /// bytes cannot supply a number, native object identity or frozen operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceNativeNumericShape {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     production: SourceNumericShapeProduction,
     weakened_category: bool,
     integer_inputs: bool,
@@ -120,7 +120,7 @@ enum SourceNumericShapeProduction {
 
 impl SourceNativeNumericShape {
     pub(crate) const fn from_selected(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         production: tcl_registry::native_result::NativeNumericStoreProduction,
     ) -> Self {
         Self {
@@ -133,7 +133,7 @@ impl SourceNativeNumericShape {
     }
 
     pub(crate) const fn from_result(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         production: tcl_registry::native_result::NativeNumericResultProduction,
     ) -> Self {
         Self {
@@ -145,7 +145,7 @@ impl SourceNativeNumericShape {
         }
     }
     pub(crate) const fn from_expression(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         production: tcl_registry::runtime_expr_validation::NativeExpressionNumericResultProduction,
     ) -> Self {
         Self {
@@ -158,7 +158,7 @@ impl SourceNativeNumericShape {
     }
 
     pub(crate) const fn from_conversion(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         production: tcl_registry::native_numeric_conversion::NativeOperandNumericCacheProduction,
     ) -> Self {
         Self {
@@ -446,7 +446,7 @@ impl StoredNativeRepresentation {
     pub(crate) fn integer_contents_in(
         &self,
         bytes: Option<&str>,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Option<SourceIntegerConvertibleContents> {
         let dialect = dialect?;
         let proof = SourceIntegerConvertibleContents::for_dialect(dialect)?;
@@ -1037,7 +1037,7 @@ pub(crate) fn source_read_operand(
 /// representation or a unique native object.
 #[derive(Debug, Clone)]
 pub(crate) struct SourceIntegerContentsRead {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     recipe: tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol,
     contents: ExactValue<String>,
     number: TclValue,
@@ -1059,7 +1059,7 @@ impl SourceIntegerContentsRead {
     }
     pub(crate) fn accepts_number(
         &self,
-        dialect: Option<tcl_registry::InvocationDialect>,
+        dialect: Option<tcl_native_model::InvocationDialect>,
         contents: &str,
     ) -> bool {
         dialect == Some(self.dialect)

@@ -255,7 +255,7 @@ mod tests {
         let version = tcl_dialect::TclVersion::V8_6;
         let policy = NamePolicyProtocol::authored_tcl(version);
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let image = tcl_lexer::SourceImage::native(b"proc p {v\xed\xa0\x80} {}".as_slice());
         let plan = tcl_lexer::native_script_words_in(
             image.clone(),

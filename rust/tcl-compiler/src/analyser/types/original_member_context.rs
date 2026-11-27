@@ -562,7 +562,7 @@ impl OriginalLexicalNextCall {
 pub(super) fn parameter_arity(
     word: &NativeWord,
     policy: tcl_syntax::naming::NamePolicyProtocol,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<tcl_registry::Arity> {
     let key = SignatureSourceNameKey::from_original_native_word(
         word,

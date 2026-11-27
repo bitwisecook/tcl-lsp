@@ -726,7 +726,7 @@ impl Interp {
         let dialect = self.native_invocation_dialect();
         let issued =
             match dialect.native_object_append_protocol(Some(
-                tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+                tcl_native_model::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
             )) {
                 Some(issued) => issued,
                 None => return self.refuse_native_access(
@@ -816,7 +816,7 @@ impl Interp {
         let dialect = self.native_invocation_dialect();
         let objects = RuntimeAppendObjects {
             dialect,
-            binary_recipe: dialect.byte_array_string_recipe(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)),
+            binary_recipe: dialect.byte_array_string_recipe(Some(tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)),
         };
         self.append_retained_operands_using(
             AppendInputSources {

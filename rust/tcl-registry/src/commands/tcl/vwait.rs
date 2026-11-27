@@ -71,6 +71,7 @@
 //! not ban `vwait`), so it resolves both the command and the new options
 //! today, the same way `tcl::process`'s identical `TCL90_PLUS` gate does
 //! (`commands/tcl/tcl_process.rs`).
+use crate::native_vwait::NativeVwaitDialect;
 use crate::prelude::*;
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
@@ -196,7 +197,7 @@ fn vwait_layout_roles(
     arguments: crate::InvocationArguments<'_>,
     _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
-    let roles_under = |dialect: crate::InvocationDialect| {
+    let roles_under = |dialect: tcl_native_model::InvocationDialect| {
         dialect.native_vwait_protocol()?.source_roles(arguments)
     };
     if let Some(dialect) = arguments.dialect() {
@@ -204,12 +205,12 @@ fn vwait_layout_roles(
     }
     // No engine named: the roles every C release and Jim give (a lone
     // `vwait done` names its variable in each), else none.
-    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
-        tcl_dialect::model::Release::JIM_0_84,
-    ));
+    let jim = tcl_native_model::InvocationDialect::of_point(
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+    );
     let mut answers = tcl_dialect::TclVersion::ALL
         .iter()
-        .map(|&version| crate::InvocationDialect::for_version(version))
+        .map(|&version| tcl_native_model::InvocationDialect::for_version(version))
         .chain([jim])
         .map(roles_under);
     let first = answers.next()?;

@@ -37,7 +37,7 @@ pub(crate) struct OriginalNativeCompilerInvocation<'a> {
     pub offset: u32,
     pub config: LexerConfig,
     pub source_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
-    pub compiler_dialect: Option<tcl_registry::InvocationDialect>,
+    pub compiler_dialect: Option<tcl_native_model::InvocationDialect>,
     pub context: NativeCompilationContext,
     pub operand_from: usize,
 }
@@ -430,13 +430,13 @@ mod tests {
         let spec = registry
             .native_compilation_for_registration(
                 "switch",
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
             )
             .unwrap();
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
-            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let config = LexerConfig::from_grammar(profile.grammar);
             let image = SourceImage::document(
                 "switch -- miss {x {set kept 1} x {set masked 2} default {set done 3}}",
@@ -527,7 +527,7 @@ mod tests {
         use tcl_syntax::native_variable_words::NativeVariableWordOperand;
 
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let config = LexerConfig::from_grammar(dialect.lexer_grammar);
             for (source, grammar, operation, inline) in [
                 (
@@ -625,13 +625,13 @@ mod tests {
         let spec = registry
             .native_compilation_for_registration(
                 "variable",
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
             )
             .unwrap();
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
-            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let config = LexerConfig::from_grammar(profile.grammar);
             let image = SourceImage::document("variable ${ns}::v");
             let words = source_words(&image, config, 0);

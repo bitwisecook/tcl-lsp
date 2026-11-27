@@ -42,6 +42,7 @@ use crate::hover::{OptionSpec, OptionValue};
 use crate::lifecycle::Lifecycle;
 use crate::option_effect::{EffectAxis, OptionEffect, OptionEffectKind, SubstitutionKind};
 use tcl_dialect::model::SpecSurface;
+use tcl_native_model::TemplateParseErrors;
 
 // `-nobackslashes`/`-nocommands`/`-novariables` are the only recognised
 // switches in Tcl 8.4, 8.5, 8.6, and 9.0 — byte-for-byte identical
@@ -202,7 +203,7 @@ impl NativeSubstitutionOptions {
     /// Select the actual supported C release or Jim option declaration.
     /// This does not select a command implementation or materialise operands.
     #[must_use]
-    pub fn select(dialect: crate::InvocationDialect) -> Option<Self> {
+    pub fn select(dialect: tcl_native_model::InvocationDialect) -> Option<Self> {
         use tcl_dialect::{TclVersion, model::Family};
         match dialect.family()? {
             Family::Tcl => {
@@ -297,42 +298,6 @@ pub enum SubstitutionTemplateSelection {
         /// Whether the shared component scanner's parse rejection is native.
         parse_errors: TemplateParseErrors,
     },
-}
-
-/// Scope of the currently shared native template parser's rejection proof.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TemplateParseErrors {
-    /// C Tcl rejects malformed variable/bracket components incrementally.
-    Rejected,
-    /// Jim 0.84's independent template variable acceptance; other parser errors
-    /// remain unresolved rather than becoming guest errors.
-    Jim084,
-}
-
-impl TemplateParseErrors {
-    /// Reached native template policy from the independently retained engine.
-    #[must_use]
-    pub fn for_dialect(dialect: crate::InvocationDialect) -> Option<Self> {
-        match dialect.execution_point()?.family() {
-            tcl_dialect::model::Family::Tcl => Some(Self::Rejected),
-            tcl_dialect::model::Family::Jim
-                if dialect.execution_point()?.release()
-                    == tcl_dialect::model::Release::JIM_0_84 =>
-            {
-                Some(Self::Jim084)
-            }
-            _ => None,
-        }
-    }
-
-    /// Variable grammar of this selected template, independent of written words.
-    #[must_use]
-    pub const fn variable_syntax(self) -> tcl_lexer::word_parts::TemplateVariableSyntax {
-        match self {
-            Self::Rejected => tcl_lexer::word_parts::TemplateVariableSyntax::CTcl,
-            Self::Jim084 => tcl_lexer::word_parts::TemplateVariableSyntax::Jim084,
-        }
-    }
 }
 
 impl crate::ResolvedInvocation<'_, '_> {
@@ -446,7 +411,7 @@ pub(crate) fn compiler_template_kinds(
     use crate::native_compilation::NativeCompilationSelection as Selection;
     let count = arguments.exact_argv_len().ok_or(Selection::Unknown)?;
     let template_at = count.checked_sub(1).ok_or(Selection::Generic)?;
-    let dialect = crate::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let options = SUBST_OPTIONS
         .iter()
         .filter(|option| option.supports_dialect(dialect.authoring_query(), None))
@@ -577,8 +542,9 @@ mod tests {
         };
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = crate::model::ingress::static_context_for(engine);
-            let dialect =
-                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
+                context.commands().profile().unwrap(),
+            );
             let options = NativeSubstitutionOptions::select(dialect).unwrap();
             assert_eq!(options.kinds(&[]), Ok(SubstitutionKinds::ALL));
             assert_eq!(
@@ -647,8 +613,9 @@ mod tests {
         use super::SubstitutionTemplateSelection as Selection;
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = crate::model::ingress::static_context_for(profile);
-            let dialect =
-                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
+                context.commands().profile().unwrap(),
+            );
             let words = [
                 crate::InvocationWord::Literal("-noc"),
                 crate::InvocationWord::Dynamic,
@@ -695,7 +662,7 @@ mod tests {
     fn assert_substituted_template_declines(
         spec: &crate::native_compilation::NativeCompilationSpec,
         invocation: crate::InvocationWords<'_>,
-        dialect: crate::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         entry: crate::native_compilation::NativeCompilationContext,
         profile: &str,
     ) {
@@ -719,8 +686,9 @@ mod tests {
         };
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = crate::model::ingress::static_context_for(profile);
-            let dialect =
-                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            let dialect = tcl_native_model::InvocationDialect::of_profile(
+                context.commands().profile().unwrap(),
+            );
             let spec = context
                 .commands()
                 .get_for_surface("subst", dialect.authoring_query())

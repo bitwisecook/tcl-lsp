@@ -164,7 +164,7 @@ mod tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let arguments = [
                 Literal("-glob"),
                 Dynamic,
@@ -229,8 +229,9 @@ mod tests {
     fn logical_case_layout_requires_unversioned_source_and_the_same_bounded_shape() {
         use crate::InvocationWord::{Dynamic, Literal};
         let registry = crate::CommandRegistry::build_default();
-        let dialect =
-            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
         let config =
             tcl_lexer::LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::plain_tcl()));
         let values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
@@ -265,7 +266,7 @@ mod tests {
             }
         }
         for version in tcl_dialect::TclVersion::ALL {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let words = crate::InvocationWords::structured(Literal("switch"), &arguments)
                 .with_dialect(dialect);
             if let Some(selected) = registry
@@ -316,7 +317,7 @@ mod tests {
                 vec![Literal("-glob"), Dynamic, Literal("a*"), Literal("break")],
             ),
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let selected = registry
                 .resolve_structured_invocation(
                     crate::InvocationWords::structured(Literal("switch"), &arguments)

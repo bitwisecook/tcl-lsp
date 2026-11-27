@@ -817,7 +817,7 @@ fn selected_scoped_prefix_result(
     else {
         return None;
     };
-    let tcl_registry::native_namespace_code::NamespaceCodeConstruction::FreshList {
+    let tcl_native_model::native_namespace_code::NamespaceCodeConstruction::FreshList {
         fresh_string_literals: [head, selector],
     } = handler.construction()
     else {
@@ -1143,7 +1143,7 @@ mod tests {
             tcl_lexer::LexerConfig::default(),
             &tcl_registry::CommandRegistry::build_default(),
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::for_version(
                     tcl_dialect::TclVersion::V8_6,
                 )),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
@@ -1166,7 +1166,9 @@ mod tests {
                 &registry,
                 SourceAnalysisOptions {
                     native_entry: Some(&entry),
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation: crate::environment_ingress::authoring_native_compilation(),
                     ..Default::default()
                 },
@@ -1226,7 +1228,7 @@ mod tests {
                     &registry,
                     SourceAnalysisOptions {
                         native_entry: Some(&entry),
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             profile,
                         )),
                         native_compilation:

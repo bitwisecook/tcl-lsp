@@ -56,7 +56,7 @@ fn original_argument_context(
     version: tcl_dialect::TclVersion,
     config: tcl_lexer::LexerConfig,
 ) -> CodegenCtx<'_> {
-    let dialect = tcl_registry::InvocationDialect::for_version(version);
+    let dialect = tcl_native_model::InvocationDialect::for_version(version);
     let mut context = CodegenCtx::new(true, &[], registry);
     context.invocation_dialect = Some(dialect);
     context.source_string_protocol = dialect.native_source_string_protocol();
@@ -163,7 +163,7 @@ fn original_inline_argument_emitters_keep_lexical_nul_and_escape_values() {
     // Lexical emission and opcode wiring only; no native process or handler claim.
     let registry = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
-        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let dialect = tcl_native_model::InvocationDialect::for_version(version);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for (source, operation, expected) in [
             (r#"list "A\u0000B""#, Op::LIST, b"A\xc0\x80B".as_slice()),
@@ -248,7 +248,7 @@ fn original_regexp_argument_indices_survive_consumed_options() {
     let registry = CommandRegistry::build_default();
     let version = tcl_dialect::TclVersion::V8_6;
     let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
     );
     for source in [
         r#"regexp "P\u0000AT" "S\u0000UB""#,
@@ -332,7 +332,7 @@ fn original_argument_ordinals_keep_worker_prefixes_and_derived_heads_separate() 
     let registry = CommandRegistry::build_default();
     let version = tcl_dialect::TclVersion::V8_6;
     let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
     );
     let source = r#"worker "A\u0000B" key"#;
     let image = tcl_lexer::SourceImage::native(source.as_bytes());
@@ -402,7 +402,7 @@ fn original_argument_emission_refuses_missing_stale_and_unavailable_lexical_rece
     let registry = CommandRegistry::build_default();
     let version = tcl_dialect::TclVersion::V8_6;
     let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        tcl_native_model::InvocationDialect::for_version(version).lexer_grammar,
     );
     let source = r#"worker "A\u0000B" key"#;
     let image = tcl_lexer::SourceImage::native(source.as_bytes());
@@ -515,7 +515,7 @@ fn tailcall_value_emission_retains_native_namespace_and_original_words() {
         let mut ctx = CodegenCtx::new(true, &[], registry);
         ctx.invocation_dialect = registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile);
+            .map(tcl_native_model::InvocationDialect::of_profile);
         ctx.emit_inline_cmd_subst("[tailcall target {$literal}]");
         let ops = ctx
             .instructions

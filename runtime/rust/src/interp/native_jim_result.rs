@@ -251,7 +251,7 @@ mod tests {
             assert!(actual.native_execution_refusal().is_none());
             ACTUAL.with(|slot| *slot.borrow_mut() = None);
         }
-        let dialect = tcl_registry::InvocationDialect::of_profile(
+        let dialect = tcl_native_model::InvocationDialect::of_profile(
             crate::environment::profile_for_dialect("tcl9.1"),
         );
         let property = Owned::fresh(obj::new_string_bytes(b"-original"));

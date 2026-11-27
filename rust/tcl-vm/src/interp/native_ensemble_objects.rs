@@ -25,6 +25,7 @@ use crate::{
 };
 use tcl_cmd_core::ensemble::EnsembleObjectRole;
 use tcl_core_types::NameBytes;
+use tcl_registry::command_lookup::EnsembleDispatchDialect;
 use tcl_syntax::value::ValueError;
 
 #[derive(Clone, Copy)]
@@ -287,10 +288,10 @@ impl Vm {
     }
 
     pub(super) fn native_original_ensemble_table_plan(
-        configuration: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
+        configuration: tcl_native_model::native_ensemble::NativeEnsembleConfigurationProtocol,
         def: &EnsembleDef,
         exports: &[NameBytes],
-    ) -> tcl_registry::native_ensemble::NativeEnsembleTablePlan {
+    ) -> tcl_native_model::native_ensemble::NativeEnsembleTablePlan {
         let keys: Vec<_> = def.map.iter().map(|(key, _)| key.as_bytes()).collect();
         let explicit = def
             .subcommands

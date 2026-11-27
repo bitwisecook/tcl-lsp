@@ -748,7 +748,7 @@ mod tests {
         });
         cfg.blocks.insert(cfg.entry, entry);
         let mut context = crate::var_resolve::ResolveContext::for_function("::f");
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        context.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         context.define_literal("x", "OLD", registry);

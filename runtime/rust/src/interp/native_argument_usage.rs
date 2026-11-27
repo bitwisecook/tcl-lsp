@@ -210,7 +210,7 @@ impl OriginalArgumentUsage {
     pub(super) fn render_header(
         &self,
         interpreter: &mut Interp,
-        protocol: tcl_registry::native_usage::NativeUsageProtocol,
+        protocol: tcl_native_model::native_usage::NativeUsageProtocol,
     ) -> Result<Vec<u8>, CmdError> {
         self.originals.check_for(interpreter)?;
         let mut header = Vec::new();
@@ -251,11 +251,11 @@ impl OriginalArgumentUsage {
             .iter()
             .map(|(bytes, cached, rewritten)| {
                 if !*cached {
-                    tcl_registry::native_usage::NativeUsageWord::Original(bytes)
+                    tcl_native_model::native_usage::NativeUsageWord::Original(bytes)
                 } else if *rewritten {
-                    tcl_registry::native_usage::NativeUsageWord::RewrittenIndex(bytes)
+                    tcl_native_model::native_usage::NativeUsageWord::RewrittenIndex(bytes)
                 } else {
-                    tcl_registry::native_usage::NativeUsageWord::CanonicalIndex(bytes)
+                    tcl_native_model::native_usage::NativeUsageWord::CanonicalIndex(bytes)
                 }
             })
             .collect::<Vec<_>>();

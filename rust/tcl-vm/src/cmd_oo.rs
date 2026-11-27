@@ -42,7 +42,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use tcl_registry::native_tcloo_method_definition::{
+use tcl_native_model::native_tcloo_method_definition::{
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
 };
 
@@ -348,8 +348,10 @@ pub(crate) struct OoState {
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<String, Value>>,
     property_caches: BTreeMap<(OoId, bool), native_properties::NativePropertyCache>,
     /// Originating pure release recipe, independently of the current profile.
-    property_origins:
-        BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+    property_origins: BTreeMap<
+        (OoId, bool),
+        tcl_native_model::native_property_lookup::NativePropertyLookupProtocol,
+    >,
 
     /// Matching old-visible declaration retirement tickets, never lookup authority.
     variable_mapping_retirements: BTreeMap<(OoId, bool, bool), std::rc::Weak<()>>,

@@ -494,7 +494,7 @@ mod tests {
     fn fixture() -> (ResolveContext, SourceObjectAllocation) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let mut state = ResolveContext::for_function("::p");
-        state.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+        state.invocation_dialect = Some(tcl_native_model::InvocationDialect::of_profile(
             registry.profile().unwrap(),
         ));
         state.interpreter = Some("actual-interpreter".to_owned());

@@ -544,7 +544,9 @@ impl VariableTracePrefix {
                     && right.input.is_current(context)
                     && context
                         .invocation_dialect
-                        .and_then(tcl_registry::InvocationDialect::native_variable_trace_protocol)
+                        .and_then(
+                            tcl_native_model::InvocationDialect::native_variable_trace_protocol,
+                        )
                         .is_some_and(|protocol| {
                             protocol
                                 .variable_prefix_matches(left.input.bytes(), right.input.bytes())
@@ -601,7 +603,7 @@ pub struct ResolveContext {
     /// Name input issuer retained independently of namespace tokens and string producers.
     pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     /// Logical expression parser the source entry explicitly installed.
-    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    pub expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// Actual Jim namespace-object bytes retained from the entry snapshot.
     pub namespace_objects:
         HashMap<crate::command_binding::SourceNamespaceKey, tcl_core_types::NameBytes>,
@@ -611,7 +613,7 @@ pub struct ResolveContext {
     /// Whether the selected frame's namespace is statically known.
     pub namespace_known: bool,
     /// Explicit core policies, independent of catalogue availability.
-    pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    pub invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     /// Original source lexical recipe, not a runtime or naming-policy grant.
     pub(crate) source_read_configuration: SourceReadConfiguration,
     /// Foreign frame selected for this region, if it cannot be the current frame.
@@ -797,7 +799,7 @@ impl ResolveContext {
             .collect();
         let bytes = match self
             .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::list_result_serialization)
+            .and_then(tcl_native_model::InvocationDialect::list_result_serialization)
         {
             Some(layout) => layout.render(&words),
             None => tcl_syntax::list_result::portable_list_result(&words)?,
@@ -810,7 +812,7 @@ impl ResolveContext {
     pub(crate) fn for_frame(
         frame_kind: VariableFrameKind,
         binding_identity: BindingIdentity,
-        invocation_dialect: Option<tcl_registry::InvocationDialect>,
+        invocation_dialect: Option<tcl_native_model::InvocationDialect>,
     ) -> Self {
         Self {
             invocation_dialect,

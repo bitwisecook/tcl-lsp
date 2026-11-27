@@ -28,7 +28,7 @@ fn original_selected_completion_keeps_descriptor_and_argument_grammar_independen
     use crate::registry::InvocationCompletion;
     let context = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
     let profile = crate::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-    let dialect = crate::InvocationDialect::of_profile(profile);
+    let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
     let mut registry = CommandRegistry::build_default();
     registry.insert(crate::CommandSpec {
         name: "metadata_return_fixture",

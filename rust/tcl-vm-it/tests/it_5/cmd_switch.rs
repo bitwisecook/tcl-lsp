@@ -52,7 +52,7 @@ mod native_jim {
                 if index == 30
                     && let Err(error) = list.native_character_count_with_protocol(
                         tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                        tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString,
+                        tcl_native_model::native_string_length::NativeStringLengthRepresentation::JimCachedString,
                     )
                 {
                     return Completion::new(

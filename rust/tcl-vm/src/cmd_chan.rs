@@ -45,7 +45,7 @@ use crate::expr::{
 };
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-use tcl_registry::native_numeric_error::{
+use tcl_native_model::native_numeric_error::{
     NativeNumericCommandProtocol, NativeNumericCommandPurpose, NativeReadCountProtocol,
 };
 
@@ -933,7 +933,7 @@ fn seek_origin_operand(
     } else {
         vm.native_index_operand_checked(
             value,
-            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+            &tcl_native_model::native_index_lookup::NativeStaticIndexTable::supported_backend(
                 SEEK_ORIGINS.names(),
             ),
             false,

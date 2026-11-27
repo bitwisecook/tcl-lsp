@@ -27,6 +27,7 @@ use crate::{
     command_binding::original_name_value::OriginalProducedNameValue,
     place::{Place, PlaceKind},
 };
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{CommandRegistry, TraceOperation};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -70,7 +71,7 @@ fn same_receiver(left: &Place, right: &Place) -> bool {
 pub(crate) struct OriginalNormalValueRead {
     receiver: Place,
     origin: ContentsOrigin,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 }
 
 impl OriginalNormalValueRead {
@@ -243,7 +244,7 @@ mod tests {
     };
 
     fn context(name: &str) -> ResolveContext {
-        let dialect = tcl_registry::InvocationDialect::of_point(
+        let dialect = tcl_native_model::InvocationDialect::of_point(
             tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap(),
         );
         let policy = dialect.authored_name_policy().unwrap();

@@ -21,6 +21,7 @@
 use super::{Code, Interp};
 use crate::value_ops::{RuntimeAppendValue, RuntimeDictionaryObjects};
 use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
+use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
 use tcl_syntax::value::ValueOps;
 

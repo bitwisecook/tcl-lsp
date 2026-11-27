@@ -42,7 +42,7 @@ impl CodegenCtx<'_> {
     ) -> tcl_lexer::Span {
         match (
             self.invocation_dialect
-                .and_then(tcl_registry::InvocationDialect::native_error_log_protocol),
+                .and_then(tcl_native_model::InvocationDialect::native_error_log_protocol),
             command.source_extent,
         ) {
             (Some(_), Some(extent)) => extent,

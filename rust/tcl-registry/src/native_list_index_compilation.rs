@@ -191,7 +191,7 @@ mod tests {
         let registry = crate::CommandRegistry::build_default();
         let mut windows = 0;
         for &(version, table) in TABLES {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let spec = registry
                 .native_compilation_for_registration("lindex", dialect)
                 .unwrap();
@@ -297,7 +297,7 @@ mod tests {
             TclVersion::V9_0,
             TclVersion::V9_1,
         ] {
-            let dialect = crate::InvocationDialect::for_version(version);
+            let dialect = tcl_native_model::InvocationDialect::for_version(version);
             let spec = registry
                 .native_compilation_for_registration("lindex", dialect)
                 .unwrap();

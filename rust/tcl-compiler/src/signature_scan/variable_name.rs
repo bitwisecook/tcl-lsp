@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn original_executable_root_keeps_channel_configuration_and_separate_index() {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let dialect = tcl_registry::InvocationDialect::of_point(
+            let dialect = tcl_native_model::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some(name)).unwrap(),
             );
             let policy = dialect.authored_name_policy().unwrap();

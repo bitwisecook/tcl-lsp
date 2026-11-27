@@ -84,7 +84,7 @@ pub(crate) fn install_core(interp: &mut Interp) {
         NAMES,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Namespace,
+        tcl_native_model::EnsembleImplementationFamily::Namespace,
         b"namespace",
         namespace_cmd,
         STOCK_MEMBERS,
@@ -412,7 +412,7 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Delete,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Delete,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
@@ -443,7 +443,7 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.ns_eval_objects_with_arguments(
                 argv[2],
                 argv[3],
-                tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
                 Some(argv),
             );
         }
@@ -454,7 +454,7 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.ns_eval_objects_with_arguments(
             argv[2],
             body.as_ptr(),
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceConcat,
             Some(argv),
         )
     })
@@ -719,7 +719,7 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Which,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Which,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
@@ -896,7 +896,7 @@ fn namespace_list_elements_using(
     let protocol = interp
         .native_invocation_dialect()
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         ))
         .ok_or_else(|| {
             arguments.retain_refusal(
@@ -981,8 +981,8 @@ pub(crate) fn publish_namespace_error_using(
     let materialization = match interp
         .native_invocation_dialect()
         .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
-        )) {
+        tcl_native_model::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+    )) {
         Some(materialization) if materialization.protocol() == error.string_protocol => {
             materialization
         }
@@ -1060,7 +1060,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Inscope,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Inscope,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
@@ -1082,7 +1082,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let (body, purpose) = if argv.len() == 4 {
         (
             obj::Owned::retain(argv[3]),
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
         )
     } else {
         let tail = obj::Owned::fresh(interp.new_list_object(&argv[4..]));
@@ -1092,7 +1092,7 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         (
             body,
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceConcat,
         )
     };
     let location = interp.arg_location(argv[3]);
@@ -1116,7 +1116,7 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Origin,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Origin,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
@@ -1191,7 +1191,7 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Code,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Code,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
@@ -1202,9 +1202,8 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(policy) = interp
         .native_invocation_dialect()
         .namespace_code_handler_policy(Some(
-            tcl_registry::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
-        ))
-    else {
+        tcl_native_model::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
+    )) else {
         return interp.refuse_native_access(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "namespace code",
@@ -1257,7 +1256,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj], originals: &OriginalArgum
     if let Some(helper) = interp
         .native_invocation_dialect()
         .native_jim_namespace_helper(
-            tcl_registry::native_jim_lookup::NativeJimNamespaceHelperKind::Upvar,
+            tcl_native_model::native_jim_lookup::NativeJimNamespaceHelperKind::Upvar,
         )
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);

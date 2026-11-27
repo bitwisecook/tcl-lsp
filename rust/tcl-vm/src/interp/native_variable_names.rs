@@ -113,7 +113,7 @@ impl Vm {
         let tcl_syntax::naming::NativeNameProtocol::C(version) = selected.recipe() else {
             return None;
         };
-        tcl_registry::InvocationDialect::for_version(version).native_variable_name_protocol()
+        tcl_native_model::InvocationDialect::for_version(version).native_variable_name_protocol()
     }
 
     /// The authored simulation's C variable names: an authored recipe with no
@@ -158,7 +158,7 @@ impl Vm {
         &mut self,
         original: &Value,
         protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         original_names: &super::native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<bool, Completion<Value>> {
         let original_bytes = original_names

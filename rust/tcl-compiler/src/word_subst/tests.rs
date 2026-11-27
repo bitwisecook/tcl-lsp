@@ -728,7 +728,7 @@ fn original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecar
 fn entered_operand_tokens(
     source: &str,
     command_index: usize,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> (
     CommandTokens,
     tcl_registry::CommandRegistry,
@@ -759,7 +759,7 @@ fn entered_operand_tokens(
 #[test]
 fn entered_expression_operand_survives_absent_parent_dispatch() {
     let source = "return [expr {1 / 0}]";
-    let actual = tcl_registry::InvocationDialect::of_point(
+    let actual = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_6),
     );
     let (tokens, registry, config) = entered_operand_tokens(source, 0, actual);
@@ -784,7 +784,7 @@ fn entered_expression_operand_survives_absent_parent_dispatch() {
 
 #[test]
 fn entered_expression_operands_decline_unreached_and_replaced_evaluators() {
-    let actual = tcl_registry::InvocationDialect::of_point(
+    let actual = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_6),
     );
     for (source, command) in [
@@ -806,7 +806,7 @@ fn entered_expression_operands_decline_unreached_and_replaced_evaluators() {
 
 #[test]
 fn entered_expression_operands_retain_actual_grammar_and_original_bytes() {
-    let actual = tcl_registry::InvocationDialect::of_point(
+    let actual = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_4),
     );
     let (tokens, registry, config) = entered_operand_tokens("return [expr {1 / 0o0}]", 0, actual);
@@ -839,7 +839,7 @@ fn entered_expression_operands_retain_actual_grammar_and_original_bytes() {
 fn actual_entry_grammar_precedes_assistance_during_lowering_and_nested_lifting() {
     let registry = registry();
     let assistance = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
-    let jim = tcl_registry::InvocationDialect::of_point(
+    let jim = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
     );
     let mut lowerer = crate::lowering::Lowerer::with_config(&registry, assistance);

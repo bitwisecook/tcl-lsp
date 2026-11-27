@@ -121,7 +121,7 @@ impl Drop for NativeRuntimeLiteralArray {
 pub(super) fn register_original_literal(
     world: &Rc<RefCell<NativeLiteralWorld<obj::Owned>>>,
     key: NativeLiteralKey,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     check: &impl Fn() -> Result<(), tcl_cmd_core::CmdError>,
     refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
     retain: &impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError,
@@ -309,7 +309,7 @@ impl Interp {
                             )?;
                             crate::typed_value::native_boolean(
                                 original,
-                                tcl_registry::InvocationDialect::for_version(
+                                tcl_native_model::InvocationDialect::for_version(
                                     tcl_dialect::TclVersion::V8_4,
                                 ),
                             )?;
@@ -339,7 +339,7 @@ impl Interp {
                                     tcl_syntax::scalar_getter::NativeScalarCache::Number(
                                         value.number(),
                                     ),
-                                    tcl_registry::InvocationDialect::for_version(*version)
+                                    tcl_native_model::InvocationDialect::for_version(*version)
                                         .native_scalar_getter_protocol()
                                         .ok_or(ValueError::ScalarNumericInputUnavailable)?,
                                 )?;
@@ -648,7 +648,7 @@ impl Interp {
 
 pub(super) fn registered_string(
     bytes: &[u8],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<obj::Owned, ValueError> {
     let value = obj::Owned::fresh(obj::new_string_bytes(bytes));
     if dialect.native_string_protocol()

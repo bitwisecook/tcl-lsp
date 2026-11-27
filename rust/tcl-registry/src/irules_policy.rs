@@ -454,7 +454,8 @@ B}}"
                 "{command}: positive runtime"
             );
         }
-        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let dialect =
+            tcl_native_model::InvocationDialect::of_profile(context.commands().profile().unwrap());
         let loader_table = registry.effective_semantics_for_dialect(dialect);
         let runtime_table = registry
             .effective_semantics_for_dialect_in_realm(dialect, InvocationRealm::InterpreterRuntime);

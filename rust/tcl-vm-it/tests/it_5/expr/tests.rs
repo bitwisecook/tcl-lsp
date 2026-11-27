@@ -82,7 +82,7 @@ fn native_integer_arithmetic_uses_the_selected_engine_on_both_paths() {
     ];
     for profile in arithmetic_profiles() {
         for (expression, tcl84, modern, jim) in cases {
-            let expected = match tcl_registry::InvocationDialect::of_profile(profile)
+            let expected = match tcl_native_model::InvocationDialect::of_profile(profile)
                 .arithmetic()
                 .unwrap()
             {
@@ -98,7 +98,7 @@ fn native_integer_arithmetic_uses_the_selected_engine_on_both_paths() {
 #[test]
 fn native_literal_and_final_string_conversion_are_distinct() {
     for profile in arithmetic_profiles() {
-        let policy = tcl_registry::InvocationDialect::of_profile(profile)
+        let policy = tcl_native_model::InvocationDialect::of_profile(profile)
             .arithmetic()
             .unwrap();
         native_case(

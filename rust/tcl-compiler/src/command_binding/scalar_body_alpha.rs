@@ -942,7 +942,7 @@ mod tests {
     fn original_scalar_alpha_raw_zero_requires_selected_formal_and_body_correspondence() {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap();
-            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let dialect = tcl_native_model::InvocationDialect::of_point(point);
             let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
             let source = "proc p {long\0tail} {return ${long\0tail}}";
             for image in [

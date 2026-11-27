@@ -44,8 +44,8 @@ enum CoroutineStep {
 impl CoroutineOperation {
     pub(super) fn compaction_hazards(
         &self,
-    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
-        use tcl_registry::native_compiler_pass::NativeCompilerPassHazard as Hazard;
+    ) -> Vec<tcl_native_model::native_compiler_pass::NativeCompilerPassHazard> {
+        use tcl_native_model::native_compiler_pass::NativeCompilerPassHazard as Hazard;
         self.steps
             .iter()
             .filter_map(|step| match step {

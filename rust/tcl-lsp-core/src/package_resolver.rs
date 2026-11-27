@@ -592,7 +592,7 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
     }
     let registry_context = tcl_registry::model::ingress::static_context_for("tcl");
     let mut dialect =
-        tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        tcl_native_model::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
     dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&config);
     let mut names = Vec::new();

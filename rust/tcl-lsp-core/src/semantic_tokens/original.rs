@@ -37,7 +37,7 @@ pub(super) struct OriginalTokenRoles {
     heads: FxHashSet<u32>,
     class_heads: FxHashSet<u32>,
     operands: FxHashMap<u32, crate::original_invocation::OriginalOperandSource>,
-    formal_dialects: FxHashMap<u32, Option<tcl_registry::InvocationDialect>>,
+    formal_dialects: FxHashMap<u32, Option<tcl_native_model::InvocationDialect>>,
     current: bool,
     lexical_oo: bool,
     /// Heads the analysis recorded an invocation for. The structure-only

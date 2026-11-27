@@ -144,7 +144,7 @@ pub(crate) fn resolved_handler_invocation_with_metadata_context(
     let dialect = binding.variable_context.invocation_dialect.or_else(|| {
         registry
             .profile()
-            .map(tcl_registry::InvocationDialect::of_profile)
+            .map(tcl_native_model::InvocationDialect::of_profile)
     });
     let (resolution, authored_case_body_selection) =
         resolve_effective_tokens_with_metadata_context_and_case(

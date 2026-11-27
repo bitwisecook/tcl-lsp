@@ -95,7 +95,7 @@ mod exists_;
 mod exit_;
 mod jim_arithmetic;
 mod jim_loop;
-pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
+pub use exists_::{JimExistsDialect, NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
 mod fconfigure_;
@@ -124,9 +124,9 @@ pub use info_::{
     resolve_info_oo_properties_option, resolve_info_oo_properties_option_original,
 };
 pub use info_jim::{
-    NativeJimAliasLookupFailure, NativeJimCommandInventory, NativeJimCommandInventoryKind,
-    NativeJimInfoDispatch, NativeJimInfoProtocol, NativeJimInfoReport, NativeJimInfoScope,
-    NativeJimVariableInventoryKind,
+    JimInfoDialect, NativeJimAliasLookupFailure, NativeJimCommandInventory,
+    NativeJimCommandInventoryKind, NativeJimInfoDispatch, NativeJimInfoProtocol,
+    NativeJimInfoReport, NativeJimInfoScope, NativeJimVariableInventoryKind,
 };
 mod interp;
 mod join_;

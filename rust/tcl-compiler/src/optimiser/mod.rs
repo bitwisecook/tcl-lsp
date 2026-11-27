@@ -414,7 +414,7 @@ impl<'a> PassContext<'a> {
         env: &crate::tcl_expr_eval::Env,
         policy: crate::tcl_expr_eval::FoldPolicy,
     ) -> Option<crate::tcl_expr_eval::TclValue> {
-        let family = tcl_registry::InvocationDialect::of_profile(self.dialect?).family()?;
+        let family = tcl_native_model::InvocationDialect::of_profile(self.dialect?).family()?;
         matches!(
             family,
             tcl_dialect::model::Family::F5Tcl | tcl_dialect::model::Family::F5Irules

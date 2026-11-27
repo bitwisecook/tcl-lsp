@@ -103,7 +103,7 @@ impl NativeErrorStorageVariable {
 /// that presentation. A reimplementation retains an unresolved footprint.
 #[must_use]
 pub fn native_error_storage(
-    dialect: crate::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<&'static [NativeErrorStorageVariable]> {
     dialect.family().is_some_and(c_core_lineage).then_some(&[
         NativeErrorStorageVariable::ErrorCode,
@@ -166,10 +166,16 @@ impl NativeErrorVariableProtocol {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait ErrorVariableDialect {
     /// Actual C8.5+ callbacks; C8.4, Jim and authored vendor simulations abstain.
     #[must_use]
-    pub fn native_error_variable_protocol(self) -> Option<NativeErrorVariableProtocol> {
+    fn native_error_variable_protocol(self) -> Option<NativeErrorVariableProtocol>;
+}
+
+impl ErrorVariableDialect for tcl_native_model::InvocationDialect {
+    fn native_error_variable_protocol(self) -> Option<NativeErrorVariableProtocol> {
         match self.native_name_protocol()? {
             tcl_syntax::naming::NativeNameProtocol::C(version)
                 if version >= tcl_dialect::TclVersion::V8_5 =>
@@ -267,7 +273,7 @@ pub enum SpecialVariableHook {
 impl SpecialVariableHook {
     /// Native global name selected independently of catalogue availability.
     #[must_use]
-    pub fn name_in(self, dialect: crate::InvocationDialect) -> Option<&'static str> {
+    pub fn name_in(self, dialect: tcl_native_model::InvocationDialect) -> Option<&'static str> {
         match self {
             Self::DoublePrecision => dialect.double_string_policy()?.precision_variable(),
         }
@@ -1534,11 +1540,17 @@ impl NativeBootstrapProtocol {
     }
 }
 
-impl crate::InvocationDialect {
+/// [`InvocationDialect`](tcl_native_model::InvocationDialect) selectors for this module's types. The types
+/// live in the registry core, so the selectors are an extension trait.
+pub trait BootstrapDialect {
     /// Actual native constructor policy; vendor compatibility and authored
     /// simulations cannot issue a physical root birth inventory.
     #[must_use]
-    pub fn native_bootstrap_protocol(self) -> Option<NativeBootstrapProtocol> {
+    fn native_bootstrap_protocol(self) -> Option<NativeBootstrapProtocol>;
+}
+
+impl BootstrapDialect for tcl_native_model::InvocationDialect {
+    fn native_bootstrap_protocol(self) -> Option<NativeBootstrapProtocol> {
         Some(NativeBootstrapProtocol {
             names: self.native_name_protocol()?,
         })
@@ -1560,7 +1572,7 @@ mod native_bootstrap_tests {
             .chain(["jim"])
         {
             let profile = crate::model::resolve_environment(profile_name).unit_profile();
-            let dialect = crate::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let protocol = dialect.native_bootstrap_protocol().unwrap();
             let abi = tcl_core_types::NativeHashAbi {
                 plain_char: tcl_core_types::NativeHashBytePromotion::Signed,
@@ -1603,7 +1615,7 @@ mod native_bootstrap_tests {
 
     #[test]
     fn application_arguments_and_unknown_engines_have_separate_authority() {
-        let c = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+        let c = tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
             .native_bootstrap_protocol()
             .unwrap();
         let names: Vec<_> = c
@@ -1613,7 +1625,7 @@ mod native_bootstrap_tests {
             .map(NativeBootstrapVariable::name)
             .collect();
         assert_eq!(names, ["argv0", "argc", "argv", "tcl_interactive"]);
-        let jim = crate::InvocationDialect::of_profile(
+        let jim = tcl_native_model::InvocationDialect::of_profile(
             crate::model::resolve_environment("jim").unit_profile(),
         )
         .native_bootstrap_protocol()
@@ -1623,7 +1635,7 @@ mod native_bootstrap_tests {
                 .is_none()
         );
         assert!(
-            crate::InvocationDialect::of_profile(
+            tcl_native_model::InvocationDialect::of_profile(
                 tcl_dialect::DialectProfile::find("f5-irules").unwrap()
             )
             .native_bootstrap_protocol()
@@ -1648,8 +1660,8 @@ mod native_error_variable_tests {
             ("tcl9.1", "9.1.0"),
         ] {
             let profile = crate::model::resolve_environment(name).unit_profile();
-            let protocol =
-                crate::InvocationDialect::of_profile(profile).native_error_variable_protocol();
+            let protocol = tcl_native_model::InvocationDialect::of_profile(profile)
+                .native_error_variable_protocol();
             assert_eq!(protocol.is_some(), name != "tcl8.4");
             let rows: Vec<_> = fixture
                 .lines()
@@ -1682,7 +1694,7 @@ mod native_error_variable_tests {
         for name in ["jim", "f5-irules"] {
             let profile = crate::model::resolve_environment(name).unit_profile();
             assert!(
-                crate::InvocationDialect::of_profile(profile)
+                tcl_native_model::InvocationDialect::of_profile(profile)
                     .native_error_variable_protocol()
                     .is_none()
             );

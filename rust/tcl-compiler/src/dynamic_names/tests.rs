@@ -210,7 +210,7 @@ fn supplied_logical_name_patterns_require_an_actual_authored_c_policy() {
     );
     assert!(input.has_logical_source_name_context());
     assert!(
-        tcl_registry::InvocationDialect::of_profile(profile)
+        tcl_native_model::InvocationDialect::of_profile(profile)
             .authored_name_policy()
             .is_none()
     );

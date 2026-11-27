@@ -19,7 +19,7 @@
 //! Checked physical operations for the shared original expression-result worker.
 
 use super::{IntRep, NativeStringStorageIdentity, Value};
-use tcl_registry::InvocationDialect;
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::{
     number::Number,
     scalar_getter::{

@@ -42,7 +42,7 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
     arg_tokens: &[tcl_lexer::Token],
     parameter_indices: &[usize],
 ) {
-    let Some(grammar) = tcl_registry::InvocationDialect::of_profile(
+    let Some(grammar) = tcl_native_model::InvocationDialect::of_profile(
         analyser.resolved_analysis_input().unit_profile(),
     )
     .parameter_grammar() else {
@@ -146,7 +146,7 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
     arg_tokens: &[tcl_lexer::Token],
     lambda_indices: &[usize],
 ) {
-    let Some(grammar) = tcl_registry::InvocationDialect::of_profile(
+    let Some(grammar) = tcl_native_model::InvocationDialect::of_profile(
         analyser.resolved_analysis_input().unit_profile(),
     )
     .parameter_grammar() else {

@@ -79,7 +79,7 @@ fn invoke(interp: &mut Interp, namespace: *mut TclObj, words: &[*mut TclObj]) ->
         None,
         false,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             vector.as_ptr(),
         )),
         None,

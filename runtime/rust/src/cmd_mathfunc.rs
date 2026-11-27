@@ -32,6 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
+use tcl_registry::special_vars::BootstrapDialect;
 use tcl_syntax::expr::mathfunc::{integer_conversion, IntegerConversion, NativeMathProtocol};
 use tcl_syntax::naming::qualifier_segments;
 

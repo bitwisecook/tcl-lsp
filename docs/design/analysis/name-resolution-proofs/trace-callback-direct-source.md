@@ -281,10 +281,10 @@ tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, functio
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Purpose-separated matching engine source entry only.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Purpose-separated matching engine source entry only.
 - [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs), `NativeDirectSourceOperands`: Fresh source objects for a genuine plain direct control plan; no native registered literal objects.
-- [rust/tcl-registry/src/native_variable_trace.rs](../../../../rust/tcl-registry/src/native_variable_trace.rs), `NativeVariableTraceProtocol::callback_compilation`: Independently selected Direct ScriptCode trace source entry with loop0/catchSome0; triggering physical frame and copied-prefix lifetime remain separate.
-- [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `native_eval_object::trace_source_tests::copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation` (linked): TraceCallback selects matching C direct operands, declines Jim/foreign version strings, and leaves ControlBody compilation independent.
+- [rust/tcl-native-model/src/native_variable_trace.rs](../../../../rust/tcl-native-model/src/native_variable_trace.rs), `NativeVariableTraceProtocol::callback_compilation`: Independently selected Direct ScriptCode trace source entry with loop0/catchSome0; triggering physical frame and copied-prefix lifetime remain separate.
+- [rust/tcl-native-model/src/native_eval_object.rs](../../../../rust/tcl-native-model/src/native_eval_object.rs), `native_eval_object::trace_source_tests::copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation` (linked): TraceCallback selects matching C direct operands, declines Jim/foreign version strings, and leaves ControlBody compilation independent.
 
 ## Evidence
 

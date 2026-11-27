@@ -150,7 +150,7 @@ fn assert_case_role_projection_by_release(current: &crate::model::assembly::Cont
 #[test]
 fn authored_jim_core_layout_uses_source_grammar_in_shared_registry() {
     let registry = CommandRegistry::build_default();
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").analyser_profile(),
     );
     for (arguments, body, statics) in [
@@ -203,7 +203,7 @@ fn authored_jim_layout_preserves_c_unknown_and_expanded_refusals() {
     let registry = CommandRegistry::build_default();
     for dialect in [
         None,
-        Some(crate::InvocationDialect::for_version(
+        Some(tcl_native_model::InvocationDialect::for_version(
             tcl_dialect::TclVersion::V8_6,
         )),
     ] {
@@ -220,13 +220,13 @@ fn authored_jim_layout_preserves_c_unknown_and_expanded_refusals() {
         let selected = registry
             .resolve_structured_invocation(
                 words,
-                dialect.and_then(crate::InvocationDialect::authoring_query),
+                dialect.and_then(tcl_native_model::InvocationDialect::authoring_query),
             )
             .resolved()
             .unwrap();
         assert!(selected.authored_source_procedure_arguments().is_none());
     }
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").analyser_profile(),
     );
     let arguments = [InvocationWord::Expanded];
@@ -244,7 +244,7 @@ fn authored_jim_layout_preserves_c_unknown_and_expanded_refusals() {
 
 #[test]
 fn authored_jim_core_layout_refuses_conflicting_selected_roles() {
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").analyser_profile(),
     );
     let cases: &[&[(u8, ArgRole)]] = &[
@@ -323,7 +323,7 @@ fn authored_jim_layout_does_not_infer_a_core_descriptor_from_proc_hook() {
         command_table_effect: Some(CommandTableEffect::DefinesProcedure),
         ..CommandSpec::DEFAULT
     });
-    let dialect = crate::InvocationDialect::of_profile(
+    let dialect = tcl_native_model::InvocationDialect::of_profile(
         crate::model::ingress::resolve_environment("jim").analyser_profile(),
     );
     let arguments = [
@@ -579,7 +579,7 @@ fn cardinality_scan_roles_preserve_unknown_values_and_expansion_uncertainty() {
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = crate::model::ingress::static_context_for(environment).commands();
         let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-        let dialect = crate::InvocationDialect::of_profile(profile);
+        let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
         for command in ["scan", "binary"] {
             if command == "binary" && environment == "jim" {
                 continue;

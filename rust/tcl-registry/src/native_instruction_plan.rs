@@ -22,7 +22,6 @@
 //! token, compiler attachment and implementation prerequisites. This projection
 //! does not grant that authority or create a local-variable table.
 
-use crate::InvocationDialect;
 use crate::native_compilation::{
     NativeAppendKind, NativeCompilationContext, NativeCompilationFrame, NativeCompilationGrammar,
     NativeCompilationSelection, NativeCompilationSpec,
@@ -30,6 +29,7 @@ use crate::native_compilation::{
 use crate::native_compiler_words::{
     NativeCompiledListRecipe, NativeCompiledListUnavailable, NativeCompilerWords,
 };
+use tcl_native_model::InvocationDialect;
 use tcl_syntax::native_variable_words::{
     NativeVariableWordOperand, NativeVariableWordUnavailable, native_variable_word,
 };

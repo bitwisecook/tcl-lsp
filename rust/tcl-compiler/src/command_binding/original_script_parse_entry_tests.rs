@@ -49,7 +49,7 @@ fn original_direct(
             crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
                 &input,
             )),
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_entry: Some(Arc::new(owner.as_entry().clone())),
         native_compilation: NativeCompilationContext {
             mode: NativeCompilationMode::Direct,

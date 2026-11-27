@@ -812,7 +812,7 @@ pub(super) fn retain_value_formals(
     }
     let Some(grammar) = variables
         .invocation_dialect
-        .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+        .and_then(tcl_native_model::InvocationDialect::parameter_grammar)
     else {
         return;
     };
@@ -910,7 +910,7 @@ mod tests {
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
             SourceAnalysisOptions {
                 host_extensible_command_table,
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
                     ..Default::default()
@@ -962,7 +962,9 @@ mod tests {
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                 registry,
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation:
                         tcl_registry::native_compilation::NativeCompilationContext {
                             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -1044,7 +1046,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     registry,
                     SourceAnalysisOptions {
-                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                             registry.profile().unwrap(),
                         )),
                         native_compilation:
@@ -1080,7 +1082,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(registry.profile()),
             registry,
             SourceAnalysisOptions {
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
                     registry.profile().unwrap(),
                 )),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
@@ -1129,7 +1131,7 @@ mod tests {
                 native_entry: Some(&entry),
                 invocation_dialect: registry
                     .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile),
+                    .map(tcl_native_model::InvocationDialect::of_profile),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..SourceAnalysisOptions::default()
             },
@@ -1657,7 +1659,9 @@ mod tests {
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                 registry,
                 SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(
+                        profile,
+                    )),
                     native_compilation:
                         tcl_registry::native_compilation::NativeCompilationContext {
                             mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,

@@ -841,7 +841,7 @@ mod tests {
         let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(&entry),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         });
@@ -915,7 +915,7 @@ mod tests {
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             trusted_package_loaders: &providers,
             native_entry: Some(entry.as_entry()),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..crate::command_binding::SourceAnalysisOptions::default()
         });

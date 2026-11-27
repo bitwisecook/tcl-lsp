@@ -97,7 +97,7 @@ pub fn detect_static_passthrough(
 fn classify_passthrough(
     proc: &Procedure,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<PassthroughShape> {
     if let Some(body) = static_passthrough_body(proc, registry) {
         return Some(PassthroughShape::Static { body });
@@ -158,7 +158,7 @@ fn static_passthrough_body(proc: &Procedure, registry: &CommandRegistry) -> Opti
 fn param_body_passthrough_param(
     proc: &Procedure,
     registry: &CommandRegistry,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> Option<(String, Vec<String>, tcl_registry::FrameEffectSpec)> {
     if proc.params.len() != 1 {
         return None;
@@ -685,7 +685,7 @@ fn concrete_body_selects_caller(
     frame: tcl_registry::FrameEffectSpec,
     selector: &[String],
     literal: &str,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    dialect: Option<tcl_native_model::InvocationDialect>,
 ) -> bool {
     let mut concrete: Vec<_> = selector
         .iter()
@@ -791,7 +791,7 @@ mod tests {
             Lowerer::with_config(registry, tcl_lexer::LexerConfig::for_profile(Some(profile)));
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             unknown_entry: false,
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..crate::command_binding::SourceAnalysisOptions::default()
         });

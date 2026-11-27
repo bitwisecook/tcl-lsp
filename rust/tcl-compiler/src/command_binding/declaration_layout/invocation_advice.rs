@@ -35,7 +35,7 @@ impl OriginalDeclarationCallLayoutAdvice {
         self.layout.targets()
     }
 
-    pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
+    pub(crate) fn dialect(&self) -> tcl_native_model::InvocationDialect {
         self.layout.dialect()
     }
 

@@ -29,6 +29,7 @@
 //! string bytes independently of a checked Unicode projection; `as_bytes`
 //! uses that byte owner directly.
 
+use tcl_registry::native_rmw::LegacyIncrementDialect;
 #[path = "value_ops/native_concat.rs"]
 mod native_concat;
 #[cfg(test)]
@@ -163,7 +164,7 @@ fn int_add_using(
 }
 
 fn original_integer_axes(
-    selected: tcl_registry::InvocationDialect,
+    selected: tcl_native_model::InvocationDialect,
     original: &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
 ) -> Result<(), ValueError> {
     let actual = original.dialect();
@@ -217,13 +218,13 @@ fn integer_magnitude_from_number_using<E: From<ValueError>>(
 
 /// Authenticated modern C increment operations on borrowed physical members.
 pub(crate) struct VmIncrementObjects {
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     string: tcl_syntax::native_string::NativeStringProtocol,
 }
 
 impl VmIncrementObjects {
     pub(crate) fn selected(
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
         dialect
             .native_scalar_getter_protocol()
@@ -436,7 +437,7 @@ impl Vm {
     fn safe_index_integer(
         &mut self,
         value: &Value,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
     ) -> Result<i64, ValueError> {
         match self.as_int(value) {
             Err(error)
@@ -888,7 +889,7 @@ impl ValueOps for Vm {
     }
 
     fn native_char_len(&mut self, value: &Value) -> Result<usize, ValueError> {
-        use tcl_registry::native_string_materialization::LogicalStringProvider;
+        use tcl_native_model::native_string_materialization::LogicalStringProvider;
         let dialect = self.native_invocation_dialect();
         let provider = Some(LogicalStringProvider::Tcl84CoreSimulation);
         let protocol = dialect

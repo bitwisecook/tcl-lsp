@@ -387,7 +387,7 @@ mod tests {
         let profile = registry.profile().unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let options = SourceAnalysisOptions {
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         };

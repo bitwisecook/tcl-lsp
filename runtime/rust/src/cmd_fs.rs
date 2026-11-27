@@ -95,7 +95,7 @@ pub(crate) fn install_file(interp: &mut Interp) {
         NAMES,
     );
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::File,
+        tcl_native_model::EnsembleImplementationFamily::File,
         b"file",
         file_cmd,
         FILE_MEMBERS,
@@ -189,7 +189,7 @@ fn source_in_scope(
     argv: &[*mut TclObj],
     arguments: &crate::interp::native_arguments::OriginalArguments,
 ) -> Code {
-    use tcl_registry::source_file::{SourceFileGrammar, SourceFileSelection};
+    use tcl_native_model::source_file::{SourceFileGrammar, SourceFileSelection};
     let dialect = interp.native_invocation_dialect();
     let Some(grammar) = dialect.source_file_grammar() else {
         return interp.report_cmd_error(

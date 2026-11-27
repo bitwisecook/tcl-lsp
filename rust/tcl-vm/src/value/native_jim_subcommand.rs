@@ -33,7 +33,7 @@ impl Value {
     pub(crate) fn install_native_jim_subcommand_cache_checked<E: From<ValueError>>(
         &self,
         cache: NativeJimSubcommandCache,
-        dialect: tcl_registry::InvocationDialect,
+        dialect: tcl_native_model::InvocationDialect,
         check: &mut dyn FnMut() -> Result<(), E>,
     ) -> Result<(), E> {
         check()?;
@@ -77,8 +77,9 @@ mod tests {
         let foreign = NativeJimSubcommandCache::new(
             NativeIndexCache::new(
                 Rc::new(table),
-                std::mem::size_of::<tcl_registry::native_jim_lookup::NativeJimNamespaceSubcommand>(
-                ),
+                std::mem::size_of::<
+                    tcl_native_model::native_jim_lookup::NativeJimNamespaceSubcommand,
+                >(),
                 table.lookup(b"parent").unwrap().index(),
             ),
             Arc::new(()),

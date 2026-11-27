@@ -86,6 +86,7 @@ tcl-dialect = { path = "../../rust/tcl-dialect" }
 # The registry owns the release-specific `expr` command and grammar surface;
 # both native engines query it rather than encoding command-name/version cases.
 tcl-registry = { path = "../../rust/tcl-registry" }
+tcl-native-model = { path = "../../rust/tcl-native-model" }
 # Dependency-free shared vocabulary — listed directly here, rather than
 # relying on it arriving transitively via `tcl-lexer`/`tcl-syntax`, for
 # `RecursionLimit`/`RecursionGuard` (the shared native-stack safety-net

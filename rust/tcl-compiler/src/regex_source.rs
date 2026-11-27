@@ -489,7 +489,7 @@ pub(crate) fn source_pattern_index(
     command: &str,
     arg_tokens: &[tcl_lexer::Token],
     config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Option<usize> {
     crate::registry_invocation::with_source_argument_words(
         source,
@@ -722,7 +722,7 @@ mod tests {
                 &registry,
                 "regexp",
                 tcl_registry::InvocationArguments::literals(a).with_dialect(
-                    tcl_registry::InvocationDialect::of_profile(
+                    tcl_native_model::InvocationDialect::of_profile(
                         tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
                     ),
                 ),
@@ -747,7 +747,8 @@ mod tests {
 
     #[test]
     fn pattern_layout_preserves_unknown_options_and_fixed_option_values() {
-        use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord};
+        use tcl_native_model::InvocationDialect;
+        use tcl_registry::{InvocationArguments, InvocationWord};
         let registry = CommandRegistry::build_default();
         let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let locate = |words: &[InvocationWord<'_>]| {
@@ -795,7 +796,8 @@ mod tests {
     #[test]
     fn source_pattern_layout_uses_original_substitution_and_quote_boundaries() {
         let registry = CommandRegistry::build_default();
-        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let dialect =
+            tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for (source, expected) in [
             ("regexp -start $start \"a+$suffix\" $input", Some(2)),

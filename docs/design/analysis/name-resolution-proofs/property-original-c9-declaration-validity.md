@@ -166,9 +166,9 @@ InstallStdPropertyImpls(
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `native_property_declaration_validity`: Selected pure declaration validity without physical cache or installation authority.
-- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `NativePropertyLookupProtocol::validate_declaration`: Physical C9.1 owner delegates to the same validation kernel.
-- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `native_property_lookup::tests::original_c9_property_validity_does_not_issue_a_physical_lookup_recipe` (linked): C9.0/C9.1 pure declaration validation is available independently of the C9.1 physical cache selector.
+- [rust/tcl-native-model/src/native_property_lookup.rs](../../../../rust/tcl-native-model/src/native_property_lookup.rs), `native_property_declaration_validity`: Selected pure declaration validity without physical cache or installation authority.
+- [rust/tcl-native-model/src/native_property_lookup.rs](../../../../rust/tcl-native-model/src/native_property_lookup.rs), `NativePropertyLookupProtocol::validate_declaration`: Physical C9.1 owner delegates to the same validation kernel.
+- [rust/tcl-native-model/src/native_property_lookup.rs](../../../../rust/tcl-native-model/src/native_property_lookup.rs), `native_property_lookup::tests::original_c9_property_validity_does_not_issue_a_physical_lookup_recipe` (linked): C9.0/C9.1 pure declaration validation is available independently of the C9.1 physical cache selector.
 
 ## Evidence
 

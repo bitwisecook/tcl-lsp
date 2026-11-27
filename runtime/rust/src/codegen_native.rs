@@ -556,7 +556,7 @@ impl crate::expr::ExprCtx for NoCtx<'_> {
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
         Some(self.0.host())
     }
-    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+    fn invocation_dialect(&self) -> tcl_native_model::InvocationDialect {
         self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
@@ -1367,7 +1367,7 @@ mod original_expression_completion_tests {
                     unsafe {
                         crate::codegen_abi::tcl_value_get_expression_bool(
                     completion.result,
-                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi as i32,
+                    tcl_native_model::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi as i32,
                     &mut truth,
                 )
                     },

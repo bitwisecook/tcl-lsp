@@ -92,7 +92,7 @@ fn method_frame_summary_keeps_the_issued_header_and_actual_registry() {
     let profile = environment.unit_profile();
     let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         native_entry: Some(std::sync::Arc::new(native)),
         ..Default::default()
@@ -158,7 +158,7 @@ fn native_frame_aliases_distinguish_written_scalar_reads_from_literal_values() {
     let profile = environment.unit_profile();
     let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
     let entry = crate::command_binding::SourceAnalysisEntry {
-        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         native_entry: Some(std::sync::Arc::new(native)),
         ..Default::default()

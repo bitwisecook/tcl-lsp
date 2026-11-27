@@ -384,7 +384,7 @@ fn original_literal_evaluation(
         .original_arguments_complete_normally(tokens)
         .then_some(())?;
     let dialect = binding.variable_context.invocation_dialect?;
-    (dialect == tcl_registry::InvocationDialect::of_profile(profile)).then_some(())?;
+    (dialect == tcl_native_model::InvocationDialect::of_profile(profile)).then_some(())?;
     let args = tokens
         .words()
         .iter()

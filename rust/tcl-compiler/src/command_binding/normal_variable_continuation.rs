@@ -234,7 +234,7 @@ mod tests {
         // Implementation contract: naming.variable.quiet-normal-continuation
         // docs/design/analysis/name-resolution-proofs/quiet-normal-variable-continuation.md
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let dialect = tcl_native_model::InvocationDialect::of_profile(registry.profile().unwrap());
         let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         for (source, unknown_entry, expected) in [
             ("set fresh VALUE; list $fresh", false, true),
@@ -291,7 +291,7 @@ mod tests {
             let analysed = super::super::SourceCommandBindings::analyse_with_options(&source,
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar), &registry,
                 super::super::SourceAnalysisOptions {
-                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    invocation_dialect: Some(tcl_native_model::InvocationDialect::of_profile(profile)),
                     native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                         mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
                         frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,

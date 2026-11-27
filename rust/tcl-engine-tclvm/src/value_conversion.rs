@@ -57,7 +57,7 @@ impl ActualScalarImport<'_> {
 
 pub(super) fn import_vm_scalar(
     facts: &tcl_engine_api::NativeScalarCache,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     resident: Option<(
         Rc<[u8]>,
         tcl_syntax::native_string::NativeStringStorageIdentity,
@@ -75,14 +75,14 @@ pub(super) fn import_vm_scalar(
 #[cfg(test)]
 pub(super) fn to_vm_value(
     value: &Value,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<tcl_vm::Value, EngineError> {
     to_vm_value_using(value, dialect, None)
 }
 
 pub(super) fn to_vm_value_using(
     value: &Value,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
     actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<tcl_vm::Value, EngineError> {
     if let Some(actual) = actual {
@@ -291,7 +291,7 @@ pub(super) fn from_vm_value_using(
 #[cfg(test)]
 pub(super) fn from_vm_value(
     value: &tcl_vm::Value,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Value, EngineError> {
     if let Some(bytes) = value.byte_array_representation() {
         let payload = Value::byte_array(bytes);
@@ -317,7 +317,7 @@ pub(super) fn from_vm_value(
 #[cfg(test)]
 pub(super) fn native_string_bytes(
     value: &tcl_vm::Value,
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 ) -> Result<Rc<[u8]>, EngineError> {
     let protocol = dialect.native_string_protocol().ok_or_else(|| {
         EngineError::ExecutionRefusal(

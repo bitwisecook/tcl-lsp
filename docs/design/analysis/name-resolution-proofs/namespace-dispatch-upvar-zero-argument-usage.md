@@ -77,8 +77,8 @@ No captured result for this exact purpose is attached for this provider.
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/namespace.rs](../../../../rust/tcl-cmd-core/src/namespace.rs), `unknown_subcommand_message`: Selects the actual release noun and complete worker choice list for a rejected original byte selector.
-- [rust/tcl-registry/src/native_namespace_upvar.rs](../../../../rust/tcl-registry/src/native_namespace_upvar.rs), `NativeNamespaceUpvarProtocol::arguments`: Keeps absent surface and each installed worker/forwarding argument grammar distinct from successful cell installation.
-- [rust/tcl-registry/src/native_namespace_upvar.rs](../../../../rust/tcl-registry/src/native_namespace_upvar.rs), `native_namespace_upvar::tests::original_namespace_upvar_grammar_preserves_worker_and_forwarded_frontiers` (linked): Asserts C84 unavailable and zero-argument refusal on every installed protocol; this pure grammar assertion does not construct a native link.
+- [rust/tcl-native-model/src/native_namespace_upvar.rs](../../../../rust/tcl-native-model/src/native_namespace_upvar.rs), `NativeNamespaceUpvarProtocol::arguments`: Keeps absent surface and each installed worker/forwarding argument grammar distinct from successful cell installation.
+- [rust/tcl-native-model/src/native_namespace_upvar.rs](../../../../rust/tcl-native-model/src/native_namespace_upvar.rs), `native_namespace_upvar::tests::original_namespace_upvar_grammar_preserves_worker_and_forwarded_frontiers` (linked): Asserts C84 unavailable and zero-argument refusal on every installed protocol; this pure grammar assertion does not construct a native link.
 
 ## Evidence
 

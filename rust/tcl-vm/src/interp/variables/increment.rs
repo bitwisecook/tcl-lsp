@@ -21,6 +21,8 @@
 use super::super::{CapturedVariableUpdate, PreparedIncrementAmount, ResolvedVar, Vm};
 use crate::value::Value;
 use crate::vars::VarState as Local;
+use tcl_registry::native_rmw::LegacyIncrementDialect;
+use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::native_rmw::{NativeRmwAmountError, NativeRmwOperation};
 use tcl_runtime_api::Completion;
 

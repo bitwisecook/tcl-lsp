@@ -296,7 +296,7 @@ pub fn install(interp: &mut Interp) {
                 |members| members.iter().map(|member| member.as_bytes()).collect(),
             );
         interp.register_stock_ensemble(
-            tcl_registry::invocation_words::EnsembleImplementationFamily::Clock,
+            tcl_native_model::EnsembleImplementationFamily::Clock,
             b"clock",
             clock_cmd,
             CLOCK_MEMBERS,
@@ -305,7 +305,7 @@ pub fn install(interp: &mut Interp) {
         return;
     }
     interp.register_stock_ensemble(
-        tcl_registry::invocation_words::EnsembleImplementationFamily::Clock,
+        tcl_native_model::EnsembleImplementationFamily::Clock,
         b"clock",
         clock_cmd,
         &[],
@@ -405,7 +405,7 @@ mod bootstrap_tests {
     fn private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks() {
         for version in tcl_dialect::TclVersion::ALL {
             let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let dialect = tcl_native_model::InvocationDialect::of_profile(profile);
             let registry = crate::environment::store_for_profile(profile);
             let interp = Interp::with_native_core(
                 crate::interp::default_host(),

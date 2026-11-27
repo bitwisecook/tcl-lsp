@@ -373,7 +373,7 @@ struct OriginalDeclarationLayout {
 struct ProcedureOperands<'a> {
     effective: &'a crate::registry_invocation::EffectiveCommandWords,
     values: &'a [EffectiveInvocationWord],
-    dialect: tcl_registry::InvocationDialect,
+    dialect: tcl_native_model::InvocationDialect,
 }
 
 #[cfg(test)]

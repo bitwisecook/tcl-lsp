@@ -323,7 +323,7 @@ fn namespace_call_in_fixture(
         None,
         true,
         Some((
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            tcl_native_model::native_eval_object::EvalObjectPurpose::NamespaceBody,
             body.as_ptr(),
         )),
         None,

@@ -358,7 +358,7 @@ impl OriginalNativeFrameSlot {
 mod tests {
     use super::*;
     use tcl_lexer::{LexerConfig, SourceImage, Span};
-    use tcl_registry::InvocationDialect;
+    use tcl_native_model::InvocationDialect;
     use tcl_syntax::word_rules::WordValueRules;
 
     fn topology(parameters: &[u8], engine: &str) -> OriginalFormalTopology {

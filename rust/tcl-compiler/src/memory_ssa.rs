@@ -482,7 +482,7 @@ fn original_alias_frame(
                 .context()
                 .environment
                 .point()
-                .map(tcl_registry::InvocationDialect::of_point)
+                .map(tcl_native_model::InvocationDialect::of_point)
         })?;
     FrameLevel::parse_for_dialect(word, dialect)
 }
