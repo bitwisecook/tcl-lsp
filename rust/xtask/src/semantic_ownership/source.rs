@@ -101,12 +101,12 @@ pub(super) fn crates(gate: Gate) -> &'static [&'static str] {
 }
 
 #[derive(Clone, Copy)]
-struct Token<'a> {
-    text: &'a str,
-    line: usize,
+pub(super) struct Token<'a> {
+    pub(super) text: &'a str,
+    pub(super) line: usize,
 }
 
-fn tokens(source: &str) -> Vec<Token<'_>> {
+pub(super) fn tokens(source: &str) -> Vec<Token<'_>> {
     let mut out = Vec::new();
     let mut offset = 0;
     let mut line = 1;

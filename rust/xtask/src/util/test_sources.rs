@@ -140,7 +140,7 @@ fn declared_module(line: &str) -> Option<&str> {
         .then_some(name)
 }
 
-fn module_file(root: &Path, parent: &str, name: &str) -> Option<String> {
+pub(crate) fn module_file(root: &Path, parent: &str, name: &str) -> Option<String> {
     let (directory, file) = parent.rsplit_once('/')?;
     let stem = file.strip_suffix(".rs")?;
     let nested = format!("{directory}/{stem}");

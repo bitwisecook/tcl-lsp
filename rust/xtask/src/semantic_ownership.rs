@@ -18,6 +18,7 @@
 
 mod evidence;
 mod layering;
+mod module_layers;
 mod source;
 
 use std::collections::BTreeMap;
@@ -40,6 +41,7 @@ const BYPASS_TAG: &str = "grammar-bypass-ok:";
 const GATES: &[&str] = &[
     "walker-ownership",
     "crate-layer",
+    "module-layers",
     "memo-type",
     "release-table",
     "grammar-bypass",
@@ -326,6 +328,14 @@ pub(crate) enum Command {
     },
     /// Enforce the workspace layering in deny.toml.
     CrateLayer,
+    /// Report the module-to-crate map's back-edges for the compiler split,
+    /// and check upward dev-dependencies and test bodies behind
+    /// `test-support`.
+    ModuleLayers {
+        /// Regenerate the back-edge ledger and add unassigned modules.
+        #[arg(long)]
+        write: bool,
+    },
     /// Check analysis memoisation outside the database.
     MemoType {
         /// Print current sites for review.
@@ -356,6 +366,7 @@ impl Command {
             )),
             Self::WalkerOwnership { report } => run(Gate::Walker, report),
             Self::CrateLayer => layering::run(&repo_root()),
+            Self::ModuleLayers { write } => module_layers::run(&repo_root(), write),
             Self::MemoType { report } => run(Gate::Memo, report),
             Self::ReleaseTable { report } => run(Gate::Release, report),
             Self::GrammarBypass { report } => run(Gate::Grammar, report),

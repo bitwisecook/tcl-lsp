@@ -150,3 +150,53 @@ largest are:
 ## Review fixes (26 November 2026, deep review)
 
 - **O2:** the example ranks `tcl-diagnostics` 11, above `tcl-semantic` (10, decision D-C); `tcl-db` is 12 ([step 13](13-unit-and-db.md)).
+
+## As built (27 November 2026)
+
+Item 247. The gate is `rust/xtask/src/semantic_ownership/module_layers.rs`,
+run as `cargo xtask module-layers` by `cargo xtask check` and
+`make xtask-gates` (0.5 s, under the test-profile `xtask` alias). It differs
+from the design in these points:
+
+- **Re-exports.** A `crate::` path is followed through `pub use` items
+  (of any visibility) to the module that defines it before a row is matched.
+  `use crate::analyser::ResolvedAnalysisInput` therefore counts against
+  `analyser::input`, and `crate::command_binding::SourceNamespaceKey` against
+  `command_binding::namespace_context`. Paths into another crate's re-export
+  (`expr_ast`, `naming`) match no row and are not counted.
+- **Rows.** A row names a top-level module, a submodule, or an item by the
+  path that defines it; the longest matching row wins. The gate fails, in
+  both modes, on a top-level module without a row, a row naming nothing, a
+  crate with two ranks, and the `unassigned` crate that `--write` gives a new
+  module.
+- **Test code** is a `#[cfg(test)]` item, an item behind `test-support` or
+  `any(test, feature = "test-support")`, and a file declared under a test
+  gate.
+- **Mode switch.** `module-layers.tsv`'s `# mode: reporting` line becomes
+  `# mode: enforcing` at step 13. Reporting prints the ledger's diff;
+  enforcing fails on any difference, a lower count included, so the ledger is
+  lowered with the tree.
+- **Dev-dependency order.** A dev-dependency of crate A on B is upward when B
+  depends on A, or when A has dependents and B reaches a `deny.toml` layer
+  (a ban with wrappers) that A does not. `xtask` and `xtask-backing` are
+  tooling and are not checked. A self dev-dependency (`tcl-spectcl` enabling
+  its own `programmed-packs`, item 318a; `tcl-vm` its own `test-support`) is
+  not an edge. Items 246 and 269–272 left two cases, both `tcl-cshim`'s
+  tests: `tcl-engine-tclvm` and `tcl-spec-hooks` (`dev-edges.tsv`).
+- **The `test-support` body lint** (deep review W1) reads every workspace
+  crate's `src`. A body is a `#[test]` function, or a `pub fn` that an
+  enabling crate's test of the same name calls, directly or through a
+  `macro_rules!` that declares `#[test]` functions (`tcl-compiler-it`'s
+  `spectcl_seeded_tests!`). It finds 12 `tcl-compiler` modules
+  (`test-support-bodies.tsv`). Item 267 counts 13: the 13th,
+  `command_binding::spectcl_test_bodies`, only re-exports the others.
+- **Duplicated crates.** For each crate whose `test-support` feature another
+  crate enables, the gate prints how many workspace crates that test build
+  compiles a second time beside a `tcl-lsp-server` build, item 296's
+  measure. Today: `tcl-compiler`'s from `tcl-codegen` 2 and from
+  `tcl-compiler-it` 9; `tcl-vm`'s from `tcl-engine-tclvm` 2, `tcl-irule-test`
+  1, `tcl-spectcl` 4 and `tcl-vm-it` 1. The counts come from
+  `cargo metadata --no-deps` and ignore optional dependencies.
+- **Ranks** follow the crate table as revised (O2): `tcl-diagnostics` 11.
+  `tcl-irules`, which takes `irules_checks` and `irules_event_checks`
+  (item 285), is ranked 12. No module goes to `tcl-db`.

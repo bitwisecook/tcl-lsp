@@ -21,6 +21,21 @@ deleted or its query moves into the database. [Release tables](release-tables.ts
 hand-written release facts outside `tcl-dialect` and the registry. The dependency
 check reads the protected crate layers from the wrapper lists in `deny.toml`. [cargo-deny wrapper configuration](https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html#wrappers)
 
+[Module layers](module-layers.tsv) maps each `tcl-compiler` module to its
+target crate and rank for the crate split
+([design](../../../design/compiler/crate-split/01-module-layers.md)). A row
+may name a submodule, or an item by the path that defines it, when a module's
+parts go to different crates. [Back-edges](module-back-edges.tsv) counts the
+production `crate::` references from a module to one of an equal or higher
+rank, after following `pub use` re-exports. The `# mode:` line selects
+`reporting`, which prints the ledger's diff and never fails, or `enforcing`,
+which fails on any difference. `cargo xtask module-layers --write`
+regenerates the back-edge ledger and adds new modules as `unassigned`, which
+fails until a target is chosen. The same gate fails in both modes on
+[upward dev-dependencies](dev-edges.tsv) and on
+[test bodies behind `test-support`](test-support-bodies.tsv) beyond their
+known lists, which may only shrink.
+
 [Host primitives](grammar-bypasses.tsv) records existing uses of host string
 operations in Tcl grammar consumers. The scanner works on Rust source tokens
 and uses the operation to identify the relevant grammar. Some recorded uses
@@ -46,6 +61,9 @@ Add each behavioural claim with a link to its test declaration or vector row.
 - **Claim** A hand-written release-keyed operator table is detected. [Evidence](../../../../rust/xtask/src/semantic_ownership/source.rs#finds_hand_written_operator_tables)
 - **Claim** The grammar check recognises multiline method calls and ignores comments and quoted Rust examples. [Evidence](../../../../rust/xtask/src/semantic_ownership/source.rs#finds_tcl_host_primitives_across_lines_and_ignores_literals)
 - **Claim** A baseline entry cannot cover an additional site with the same declaration and operation. [Evidence](../../../../rust/xtask/src/semantic_ownership.rs#ratchet_rejects_a_second_site_and_requires_a_removed_site_to_be_deleted)
+- **Claim** A module naming a module of an equal or higher rank is a back-edge, also through a `pub use` re-export, and fails only in enforcing mode. [Evidence](../../../../rust/xtask/src/semantic_ownership/module_layers.rs#a_lower_module_naming_a_higher_one_is_a_back_edge_through_a_re_export)
+- **Claim** A new upward dev-dependency fails the module-layers gate. [Evidence](../../../../rust/xtask/src/semantic_ownership/module_layers.rs#a_new_upward_dev_dependency_fails)
+- **Claim** A new test body behind `test-support` fails the module-layers gate. [Evidence](../../../../rust/xtask/src/semantic_ownership/module_layers.rs#a_new_test_body_behind_test_support_fails)
 - **Claim** A contract claim with no linked test or vector fails validation. [Evidence](../../../../rust/xtask/src/semantic_ownership/evidence.rs#an_unlinked_claim_fails_even_if_the_other_claims_have_evidence)
 - **Claim** A waiver applies only to its own tag in an attached comment. [Evidence](../../../../rust/xtask/src/util/waivers.rs#site_tags_are_exact_and_comment_scoped)
 - **Claim** Literal SslicTcl words with unmatched braces keep the enclosing script balanced. [Evidence](../../../../rust/tcl-sslictcl/src/emit.rs#words_keep_the_enclosing_document_balanced)

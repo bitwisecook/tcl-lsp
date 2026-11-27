@@ -937,6 +937,7 @@ XTASK_GATES := \
 	'parser-ownership' \
 	'walker-ownership' \
 	'crate-layer' \
+	'module-layers' \
 	'memo-type' \
 	'release-table' \
 	'release-facts --check' \
