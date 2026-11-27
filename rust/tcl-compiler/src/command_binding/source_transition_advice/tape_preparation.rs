@@ -27,6 +27,7 @@ use super::{
     OriginalSourceTransitionAdviceTape, SourceAdviceQuery, SourceCommandTransitionObligation,
     logical_navigation,
 };
+use crate::command_binding::SourceOriginLexical;
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, NativeWord};
 use tcl_registry::model::ContextRegistry;
@@ -253,7 +254,7 @@ pub(in super::super) struct OriginalSourceTransitionSeed {
     // Only the Normal-source query uses this attachment. Source syntax reuse
     // keeps its existing four-field seed equality below.
     pub(in super::super) analysis_owner: Option<Arc<super::super::OriginalSourceAnalysisOwner>>,
-    pub(in super::super) origin: Arc<super::super::SourceOriginId>,
+    pub(in super::super) origin: Arc<tcl_names::origin::SourceOriginId>,
     pub(in super::super) config: LexerConfig,
     pub(in super::super) baseline: Arc<super::super::BindingBaseline>,
     pub(in super::super) logical_input: Option<crate::analyser::ResolvedAnalysisInput>,

@@ -144,7 +144,7 @@ fn body_unit_entry_context(
         conditional_function_source_entry(cfg, module_source_metadata_input(ir_module, registry))
     } else if declaration_body {
         if let Some(namespace) = proc.body.namespace_context.as_deref() {
-            let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+            let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: namespace.display().unwrap_or_default(),
                 identity: id.reporting_key(),
             }
@@ -152,16 +152,16 @@ fn body_unit_entry_context(
             crate::var_resolve::ResolveContext::default().in_frame(&frame)
         } else {
             crate::var_resolve::ResolveContext::default()
-                .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+                .in_frame(&tcl_names::variable::VariableExecutionFrame::Unknown)
         }
     } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
         let frame = if ir_module.lambda_body_units.contains(id) {
-            crate::var_resolve::VariableExecutionFrame::Procedure {
+            tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: namespace.display().unwrap_or_default(),
                 identity: id.reporting_key(),
             }
         } else {
-            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+            tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
                 namespace: namespace.display().unwrap_or_default(),
                 identity: id.reporting_key(),
             }
@@ -170,7 +170,7 @@ fn body_unit_entry_context(
         crate::var_resolve::ResolveContext::default().in_frame(&frame)
     } else {
         crate::var_resolve::ResolveContext::default()
-            .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+            .in_frame(&tcl_names::variable::VariableExecutionFrame::Unknown)
     };
     entry_context.namespace_cells.closed = false;
     (original_declaration_body, declaration_body, entry_context)

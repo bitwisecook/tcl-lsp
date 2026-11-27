@@ -19,13 +19,12 @@
 //! Conditional scalar formal renaming without changing frames or values.
 
 use super::declaration_layout::original_declaration_layouts;
-use super::{
-    CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings, SourceInvocationBinding,
-};
+use super::{ModuleCommandBindings, SourceCommandBindings, SourceInvocationBinding};
 use crate::signature_scan::variable_symbol::{
     SignatureSourceVariableSlot, SignatureSourceVariableSymbol,
 };
 use tcl_lexer::{ExecutablePart, LexerConfig, SourceImage};
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_result::{NativeResultContract, NativeResultSelection};
 
 /// Semantic equivalence for the sole scalar formal of a closed source whose
@@ -216,7 +215,7 @@ fn scalar_alpha_body_site(
     config: LexerConfig,
 ) -> Option<CommandAllocationSite> {
     trace_alpha("body-geometry", site.offset);
-    let super::ExecutedScriptMapping::Contiguous { base } = body.source.mapping else {
+    let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = body.source.mapping else {
         return None;
     };
     let body_commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
@@ -487,7 +486,7 @@ impl SourceCommandBindings {
         if !binding.original_operands_preserve_lookup(&tokens, registry, row, 0) {
             return None;
         }
-        let head = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let head = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             head,
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             symbol.policy(),
@@ -495,7 +494,7 @@ impl SourceCommandBindings {
         trace_alpha("selected-return-target", body_site.offset);
         let target = binding.original_registry_target_for_name(&head)?;
         let final_state = self.original_completed_root_state.as_ref()?;
-        if target.kind != super::BindingKind::Builtin
+        if target.kind != tcl_names::command::BindingKind::Builtin
             || !final_state.retained_target_is_current(&target)
             || state.source_execution_observed(target.identity.as_ref())
             || state.runtime_execution_observed(target.identity.as_ref())
@@ -574,7 +573,8 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let super::ExecutedScriptMapping::Contiguous { base } = body.source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = body.source.mapping
+        else {
             return None;
         };
         let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
@@ -648,14 +648,13 @@ impl SourceCommandBindings {
             if !binding.original_operands_preserve_lookup(&tokens, context.registry, row, 0) {
                 return None;
             }
-            let head =
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    words.first()?,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
-                    context.symbol.policy(),
-                )?;
+            let head = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                words.first()?,
+                tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
+                context.symbol.policy(),
+            )?;
             let target = binding.original_registry_target_for_name(&head)?;
-            if target.kind != super::BindingKind::Builtin
+            if target.kind != tcl_names::command::BindingKind::Builtin
                 || !self
                     .original_completed_root_state
                     .as_ref()?
@@ -956,8 +955,12 @@ mod tests {
                 )
                 .unwrap();
                 let words = &plan.commands[0].words;
-                let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(&words[2],
-                    tcl_syntax::word_rules::WordValueRules::from_config(&config), dialect.authored_name_policy().unwrap()).unwrap();
+                let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                    &words[2],
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    dialect.authored_name_policy().unwrap(),
+                )
+                .unwrap();
                 let topology =
                     super::super::formal_topology::OriginalFormalTopology::from_original_key(
                         key, dialect,

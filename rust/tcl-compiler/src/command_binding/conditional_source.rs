@@ -27,21 +27,20 @@ pub use region::{
     OriginalSourceConditionalRegionSet,
 };
 
-use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceExecutionContext, SourceNamespaceKey,
-    SourceOutcomes,
-};
+use super::{Arc, ModuleCommandBindings, SourceExecutionContext, SourceOutcomes};
 use std::collections::BTreeMap;
 use tcl_lexer::SourceImage;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct SourceConditionalNamespaceExit {
     pub(super) delegation:
         Arc<super::original_namespace_body::OriginalConditionalNamespaceDelegation>,
-    pub(super) body: super::ExecutedScriptSource,
+    pub(super) body: tcl_names::origin::ExecutedScriptSource,
     pub(super) namespace: SourceNamespaceKey,
-    pub(super) entered: crate::var_resolve::VariableExecutionFrame,
-    pub(super) parent: crate::var_resolve::VariableExecutionFrame,
+    pub(super) entered: tcl_names::variable::VariableExecutionFrame,
+    pub(super) parent: tcl_names::variable::VariableExecutionFrame,
     pub(super) parent_variables: Arc<crate::var_resolve::ResolveContext>,
 }
 
@@ -52,7 +51,7 @@ struct SourceConditionalContext {
     namespace: String,
     namespace_key: SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     depth: u32,
     invocation_offset: u32,
 }
@@ -96,7 +95,7 @@ impl SourceConditionalContext {
 
 #[derive(Clone, PartialEq, Eq)]
 struct SourceConditionalScriptFrame {
-    source: Arc<super::SourceOriginId>,
+    source: Arc<tcl_names::origin::SourceOriginId>,
     image: SourceImage,
     base: u32,
     commands: Arc<[tcl_source::segment::SegmentedCommand]>,
@@ -365,7 +364,7 @@ struct SourceConditionalContinuationPayload {
     point: super::OriginalSourcePointEntry,
     plan: Arc<SourceConditionalPlan>,
     child_owner: Arc<super::OriginalSourceAnalysisOwner>,
-    child_origin: Arc<super::SourceOriginId>,
+    child_origin: Arc<tcl_names::origin::SourceOriginId>,
     child_input: crate::analyser::ResolvedAnalysisInput,
     child_outcomes: Arc<SourceOutcomes>,
     conditional_outcome: Option<OriginalSourceConditionalOutcome>,
@@ -632,7 +631,7 @@ impl super::SourceCommandBindings {
 
     pub(crate) fn source_association_has_conflicting_entry(
         &self,
-        parent: &super::CommandAllocationSite,
+        parent: &tcl_names::command::CommandAllocationSite,
         argument: usize,
         body: &crate::registry_invocation::OriginalSourceScriptBody,
     ) -> bool {

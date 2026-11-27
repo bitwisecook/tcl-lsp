@@ -115,7 +115,7 @@ pub(super) fn callback_writes_any(
     if !deferred.any || deferred.any_sites.is_empty() {
         return deferred.any;
     }
-    let skipped: HashSet<&crate::command_binding::CommandAllocationSite> = cfg
+    let skipped: HashSet<&tcl_names::command::CommandAllocationSite> = cfg
         .blocks
         .iter()
         .filter(|(id, _)| !executable(id))

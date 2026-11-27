@@ -18,8 +18,8 @@
 
 //! Readonly original formal topology, independently of entering an activation.
 
-use super::original_name::SignatureSourceNameKey;
 use super::scope::SignatureSourceNameInput;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::formal_params::{ByteFormalParameter, FormalArityError, FormalByteArgumentBinding};
 
 /// Original `ParamList` value and its independently selected binding grammar.

@@ -18,12 +18,13 @@
 
 //! Lexical source headers of a declaration and its authored source tokens.
 
-use super::super::{CommandAllocationSite, SourceCommandBindings};
+use super::super::SourceCommandBindings;
 use super::{
     DeclarationLayoutIssuer, DeclarationLayoutObservation, OriginalDiagnosticFrameEntry,
     original_declaration_layouts,
 };
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 impl SourceCommandBindings {
     /// Logical source metadata meets all genuine pre-operand occurrences of a

@@ -18,10 +18,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use tcl_compiler::command_binding::{
-    BindingKind, CommandIdentity, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
-    RuntimeCommandTokenIdentity, SourceCommandKey, SourceNamespaceKey,
+use tcl_compiler::command_binding::{MayBinding, ModuleCommandBindings, ResolvedCommandTarget};
+use tcl_names::command::{
+    BindingKind, CommandIdentity, RuntimeCommandTokenIdentity, SourceCommandKey,
 };
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_runtime_api::native_compilation::{NativeCommandImplementation, NativeCompilationBinding};
 
 use tcl_compiler::command_binding::runtime_entry::*;

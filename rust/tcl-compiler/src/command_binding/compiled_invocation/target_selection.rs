@@ -18,15 +18,14 @@
 
 //! Selection for one compiler target: ensemble, inline, named and no-op operations.
 
-use super::super::{
-    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget,
-};
+use super::super::{Arc, ModuleCommandBindings, SourceCommandTarget};
 use super::registered_compiler::registered_compiler_selection;
 use super::{
     CompiledExecutionCertainty, CompiledInvocationSelection, CompilerInvocation,
     SourceCompiledInvocationProof, SourceNativeCompilerAdmission,
     SourceNativeStructuredPreparation,
 };
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 use tcl_registry::native_compilation::{NativeCompilationGuard, NativeCompilationSelection};
 
 pub(super) fn select_target(
@@ -539,7 +538,7 @@ fn select_noop_target(
             };
             let Some(namespace_context) = namespace_key
                 .as_ref()
-                .and_then(super::super::SourceNamespaceKey::native_context)
+                .and_then(tcl_names::namespace::SourceNamespaceKey::native_context)
                 .filter(|namespace| namespace.interpreter == entry.interpreter)
             else {
                 result.unknown = true;
@@ -588,7 +587,7 @@ pub(super) fn implementation_dependency(
 ) -> Option<super::super::SourceNativeCompilationDependency> {
     let namespace_key = state
         .native_root_namespace_key()
-        .unwrap_or_else(|| super::super::SourceNamespaceKey::authored("::"));
+        .unwrap_or_else(|| tcl_names::namespace::SourceNamespaceKey::authored("::"));
     let binding = super::super::source_binding(state, lookup.slot, &namespace_key);
     let target = binding.proved_target()?;
     if !target.registry_backed

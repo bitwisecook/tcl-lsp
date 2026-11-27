@@ -18,10 +18,11 @@
 
 //! Live runtime ingress replaces the compiler driver's fresh-table contract.
 
-use super::{
-    Arc, BTreeMap, BTreeSet, BindingKind, CommandIdentity, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, RuntimeCommandTokenIdentity, SourceCommandKey, SourceNamespaceKey,
+use super::{Arc, BTreeMap, BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget};
+use tcl_names::command::{
+    BindingKind, CommandIdentity, RuntimeCommandTokenIdentity, SourceCommandKey,
 };
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_runtime_api::native_compilation::{NativeCommandImplementation, NativeCompilationBinding};
 
 impl ModuleCommandBindings {
@@ -162,7 +163,7 @@ impl ModuleCommandBindings {
                 return Some(false);
             }
         }
-        if target.kind != super::BindingKind::Builtin
+        if target.kind != tcl_names::command::BindingKind::Builtin
             || !target.registry_backed
             || token.declaration != 0
             || token.allocation.is_some()
@@ -202,7 +203,7 @@ impl ModuleCommandBindings {
         &self,
         token: Option<&CommandIdentity>,
         generation: u32,
-        allocation: Option<&super::CommandAllocation>,
+        allocation: Option<&tcl_names::command::CommandAllocation>,
     ) -> Option<tcl_runtime_api::native_compilation::NativeProcedureHeaderPrerequisite> {
         if generation != 0 || allocation.is_some() {
             return None;

@@ -197,7 +197,7 @@ pub(super) fn record_logical_frame_statement(
     stmt: &Statement,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) -> bool {

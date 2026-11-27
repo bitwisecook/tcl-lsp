@@ -19,17 +19,20 @@
 //! What a bounded class definition retains: methods, lifecycle bodies and instance variables.
 
 use super::super::{
-    Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, InvocationFacts,
-    ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, retained_script_operand,
-    source_effective_words,
+    Arc, DeferredSourceBody, InvocationFacts, ModuleCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation, retained_script_operand, source_effective_words,
 };
 use super::closed_members::{class_definition_block, closed_definition_member};
 use super::{
     BoundedMethodDefinition, MethodParameterSource, RetainedClassEntries, SourceMethodReceiver,
     SourceReceiverMethodEntries, SourceReceiverMethodEntry,
 };
-use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use crate::command_binding::ExecutedScriptWords;
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
+use tcl_names::word::SignatureSourceNameKey;
 
 pub(super) fn closed_bounded_method_segments(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
@@ -290,7 +293,7 @@ pub(super) fn apply_declared_visibility(
 }
 
 pub(in super::super) fn original_member_input(
-    origin: &super::super::SourceOriginId,
+    origin: &tcl_names::origin::SourceOriginId,
     words: &crate::ir::CommandTokens,
     offset: u32,
     ordinal: usize,
@@ -380,7 +383,7 @@ pub(in super::super) fn retained_method_entry(
                 .iter()
                 .map(|formal| (formal.name.clone(), formal.default.clone()))
                 .collect(),
-            frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+            frame: tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                 identity: super::super::source_activation_name(
                     body.source_origin.as_ref(),
                     &body.identity,
@@ -461,7 +464,7 @@ fn retained_lifecycle_entries(
                 .iter()
                 .map(|formal| (formal.name.clone(), formal.default.clone()))
                 .collect(),
-            frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+            frame: tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                 identity: super::super::source_activation_name(
                     body.source_origin.as_ref(),
                     &body.identity,

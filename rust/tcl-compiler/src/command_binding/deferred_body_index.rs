@@ -18,9 +18,10 @@
 
 //! Original body intervals derived from one exact retained declaration inventory.
 
-use super::{DeferredImplementationId, DeferredSourceBody, SourceOriginId};
+use super::{DeferredImplementationId, DeferredSourceBody};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, Weak};
+use tcl_names::origin::SourceOriginId;
 
 type Inventory = BTreeMap<DeferredImplementationId, DeferredSourceBody>;
 
@@ -276,7 +277,7 @@ mod tests {
                 .is_some()
         );
         let mut conflicting = bindings.deferred.values().next().unwrap().clone();
-        conflicting.namespace_key = crate::command_binding::SourceNamespaceKey::authored("::other");
+        conflicting.namespace_key = tcl_names::namespace::SourceNamespaceKey::authored("::other");
         conflicting.implementation_generation += 1;
         bindings
             .deferred

@@ -22,7 +22,7 @@ fn assert_original_nested_eval_activation(
     source: &str,
     expected: &str,
     materialised: bool,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
     context: &tcl_registry::model::ContextRegistry,
     options: super::super::SourceAnalysisOptions<'_>,
@@ -47,7 +47,7 @@ fn assert_original_nested_eval_activation(
         assert_eq!(entered.base(), 0);
         assert!(matches!(
             entered.mapping,
-            super::super::ExecutedScriptMapping::Materialised
+            tcl_names::origin::ExecutedScriptMapping::Materialised
         ));
         assert_ne!(entered.origin, origin);
     }
@@ -106,7 +106,7 @@ fn original_nested_parser_keeps_entered_root_frame_separate_from_whole_input() {
     };
     let input =
         crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
-    let frame = crate::var_resolve::VariableExecutionFrame::Global;
+    let frame = tcl_names::variable::VariableExecutionFrame::Global;
     let options = super::super::SourceAnalysisOptions::for_logical_source(&input).unwrap();
     for (source, expected, materialised) in [
         ("eval {set x VALUE; list $x}", "set x VALUE; list $x", false),

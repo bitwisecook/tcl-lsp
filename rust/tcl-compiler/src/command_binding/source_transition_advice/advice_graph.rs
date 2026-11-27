@@ -291,7 +291,7 @@ impl AdviceGraph {
 
     pub(super) fn declared_source_selection(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         head: &SourceAdviceNameInput,
         words: &[NativeWord],
     ) -> Option<super::super::DeclaredSourceSelection> {
@@ -302,7 +302,7 @@ impl AdviceGraph {
             return None;
         };
         super::super::DeclaredSourceSelection::authored(
-            super::super::CommandAllocationSite {
+            tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(origin),
                 offset: words.first()?.span().start(),
             },

@@ -473,7 +473,7 @@ pub struct Lowerer<'r> {
     namespace_exports: Vec<(String, String)>,
     /// A retained body may be lowered into both a unit and a generic region.
     /// Record each original directive once per actual namespace.
-    namespace_directive_sites: HashSet<(crate::command_binding::CommandAllocationSite, String)>,
+    namespace_directive_sites: HashSet<(tcl_names::command::CommandAllocationSite, String)>,
     /// Depth of statically-dead branches currently being lowered.
     /// `if {0} {…}` / `if {1} {…} else {…}` bump this
     /// around the dead body so any `namespace import` /

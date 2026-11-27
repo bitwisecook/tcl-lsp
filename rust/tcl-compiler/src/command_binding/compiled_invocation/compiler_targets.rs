@@ -19,9 +19,9 @@
 //! The compiler registrations a lookup reaches: native compiler targets, imports and snapshots.
 
 use super::super::{
-    Arc, BTreeSet, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    SourceCommandTarget, SourceLookupSnapshot,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandTarget, SourceLookupSnapshot,
 };
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 
 /// Immutable command table at a native compilation boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,7 +47,7 @@ impl NativeCompilationSnapshot {
     pub(in super::super) fn compiler_targets_for_original_input(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> NativeCompilerTargets {
         self.table
             .state
@@ -75,7 +75,7 @@ impl ModuleCommandBindings {
     pub(in super::super) fn native_compiler_targets_for_original_input(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> NativeCompilerTargets {
         self.trace_original_compiler_world(input, namespace);
         if self.source_step_observed()
@@ -196,7 +196,7 @@ impl ModuleCommandBindings {
     fn trace_original_compiler_world(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) {
         if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             let mut world = (*self.original_command_world).clone();
@@ -224,7 +224,7 @@ impl ModuleCommandBindings {
 
     fn trace_original_compiler_cell(
         &self,
-        key: &super::super::SourceCommandKey,
+        key: &tcl_names::command::SourceCommandKey,
         bindings: Option<&BTreeSet<MayBinding>>,
     ) {
         if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
@@ -359,8 +359,8 @@ impl ModuleCommandBindings {
         eligible: &mut BTreeSet<super::super::ResolvedCommandTarget>,
         generic: &mut bool,
         unknown: &mut bool,
-        visiting: &mut BTreeSet<super::super::CommandIdentity>,
-        raw_import: Option<&super::super::CommandIdentity>,
+        visiting: &mut BTreeSet<tcl_names::command::CommandIdentity>,
+        raw_import: Option<&tcl_names::command::CommandIdentity>,
     ) {
         if let (MayBinding::Target(target), Some(raw)) = (binding, raw_import) {
             self.collect_original_imported_compiler(target, raw, eligible, unknown);
@@ -467,7 +467,7 @@ impl ModuleCommandBindings {
     fn collect_original_imported_compiler(
         &self,
         target: &super::super::ResolvedCommandTarget,
-        raw: &super::super::CommandIdentity,
+        raw: &tcl_names::command::CommandIdentity,
         eligible: &mut BTreeSet<super::super::ResolvedCommandTarget>,
         unknown: &mut bool,
     ) {
@@ -501,8 +501,8 @@ impl ModuleCommandBindings {
         eligible: &mut BTreeSet<super::super::ResolvedCommandTarget>,
         generic: &mut bool,
         unknown: &mut bool,
-        visiting: &mut BTreeSet<super::super::CommandIdentity>,
-        raw_import: Option<&super::super::CommandIdentity>,
+        visiting: &mut BTreeSet<tcl_names::command::CommandIdentity>,
+        raw_import: Option<&tcl_names::command::CommandIdentity>,
     ) {
         let raw = raw_import.or(import.compiler.as_ref());
         if let Some(raw) = raw {

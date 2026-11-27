@@ -19,9 +19,9 @@
 //! The cell an alias operand names: original targets, namespace slots and selected frames.
 
 use super::OriginalVariableInvocation;
-use crate::place;
-use crate::place::{CellGeneration, CellIdentity, CellOwner, Place};
 use crate::var_resolve::{ResolveContext, resolve_literal_place};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, Place};
 use tcl_registry::{CallerFrameSelection, CommandRegistry, FrameLevel, VariableAliasTarget};
 
 pub(super) fn original_alias_target(
@@ -275,7 +275,7 @@ fn namespace_target(
 
 fn namespace_target_in_identity(
     state: &ResolveContext,
-    identity: &crate::command_binding::SourceNamespaceKey,
+    identity: &tcl_names::namespace::SourceNamespaceKey,
     variable: Option<&str>,
     registry: &CommandRegistry,
     destination: bool,

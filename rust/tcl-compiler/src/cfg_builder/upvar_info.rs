@@ -512,7 +512,7 @@ pub(crate) fn method_reaches_caller_frame(
             .cloned()
             .or_else(|| match &method.execution_namespace {
                 ExecutionNamespace::Exact(namespace) => Some(
-                    crate::command_binding::SourceNamespaceKey::authored(namespace),
+                    tcl_names::namespace::SourceNamespaceKey::authored(namespace),
                 ),
                 ExecutionNamespace::SourceContext(context) => Some(context.clone()),
                 ExecutionNamespace::RuntimeSelected => None,
@@ -557,7 +557,7 @@ pub(crate) fn collect_upvar_targets_with_registry(
         params,
         registry,
         None,
-        &crate::command_binding::SourceNamespaceKey::authored("::"),
+        &tcl_names::namespace::SourceNamespaceKey::authored("::"),
     )
 }
 
@@ -568,7 +568,7 @@ pub(super) fn collect_upvar_targets_with_bindings(
     params: &[String],
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     module: &crate::ir::Module,
 ) -> UpvarInfo {
     let Some((input, metadata)) =
@@ -635,7 +635,7 @@ impl UpvarBindings<'_> {
     fn for_each_resolved_invocation<F>(
         self,
         statement: &Statement,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
         visit: F,
     ) where
         F: for<'w> FnMut(
@@ -649,7 +649,7 @@ impl UpvarBindings<'_> {
     fn target_resolution_may_be_unknown(
         self,
         command: &str,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> bool {
         self.source
             .target_resolution_may_be_unknown(command, namespace)
@@ -663,7 +663,7 @@ struct LogicalFrameScan<'a> {
     params: &'a [String],
     registry: &'a CommandRegistry,
     bindings: UpvarBindings<'a>,
-    namespace: &'a crate::command_binding::SourceNamespaceKey,
+    namespace: &'a tcl_names::namespace::SourceNamespaceKey,
     depth: u32,
 }
 

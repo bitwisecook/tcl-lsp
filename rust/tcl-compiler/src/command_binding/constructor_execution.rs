@@ -48,7 +48,7 @@ struct SelectedConstructor {
 // Implementation contract: naming.tcloo.original-named-manufacture-cell-transfer
 // docs/design/analysis/name-resolution-proofs/tcloo-original-named-manufacture-cell-transfer.md
 struct DefaultConstructorCompletion {
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     class: SourceCommandTarget,
     inputs: Vec<crate::signature_scan::scope::SignatureSourceNameInput>,
 }
@@ -65,7 +65,7 @@ impl DefaultConstructorCompletion {
         body.is_none()
             .then(|| {
                 Some(DefaultConstructorCompletion {
-                    site: super::CommandAllocationSite {
+                    site: tcl_names::command::CommandAllocationSite {
                         source: Arc::clone(state.current_source_origin.as_ref()?),
                         offset: site,
                     },
@@ -321,7 +321,7 @@ impl SourceCommandBindings {
         target: &SourceCommandTarget,
         context: SourceExecutionContext<'_>,
     ) -> Option<Box<SelectedConstructor>> {
-        if target.kind != super::BindingKind::Class
+        if target.kind != tcl_names::command::BindingKind::Class
             || !target.prepended.is_empty()
             || state.source_step_observed()
             || state.source_execution_observed(target.identity.as_ref())

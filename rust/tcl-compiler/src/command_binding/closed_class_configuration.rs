@@ -28,14 +28,14 @@ use tcl_registry::{InvocationFacts, ObjectDispatchLayer};
 /// definition it configures as it stood before the configuration ran.
 pub(super) struct ClosedClassConfiguration {
     pub(super) grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
-    pub(super) body: super::ExecutedScriptSource,
+    pub(super) body: tcl_names::origin::ExecutedScriptSource,
     pub(super) parameters: tcl_dialect::ParameterGrammar,
     pub(super) class: super::SourceCommandTarget,
     pub(super) receipt: super::ClassDefinitionReceipt,
     pub(super) bounded: Option<super::module_bindings::BoundedClassConstruction>,
     pub(super) tainted: bool,
     pub(super) tainted_all: bool,
-    pub(super) site: super::CommandAllocationSite,
+    pub(super) site: tcl_names::command::CommandAllocationSite,
 }
 
 impl SourceCommandBindings {
@@ -123,7 +123,7 @@ impl SourceCommandBindings {
                 .tainted_object_dispatch
                 .contains(&class_target.command),
             tainted_all: state.tainted_object_dispatch.contains("*"),
-            site: super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: std::sync::Arc::clone(state.current_source_origin.as_ref()?),
                 offset: native.segment.span.start(),
             },

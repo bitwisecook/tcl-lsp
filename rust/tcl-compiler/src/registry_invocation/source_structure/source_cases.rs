@@ -85,7 +85,7 @@ impl OriginalSourceCase {
                 let Some(executed) = script.executed_source.as_deref() else {
                     return false;
                 };
-                let crate::command_binding::ExecutedScriptMapping::Contiguous { base } =
+                let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } =
                     executed.mapping
                 else {
                     return false;

@@ -22,18 +22,14 @@ use super::{
     AnalysisResult, ClassDef, MemberSide, OriginalSourceMethodMetadata,
     OriginalSourceSpecialMemberMetadata,
 };
-use crate::{
-    analyser::ResolvedAnalysisInput,
-    command_binding::CommandAllocationSite,
-    signature_scan::{
-        original_name::SourceDeclarationMetadata,
-        scope::{
-            SignatureSourceCommand, SignatureSourceLookup, SignatureSourceNameKey,
-            SourceCommandPublication,
-        },
-    },
+use crate::analyser::ResolvedAnalysisInput;
+use crate::signature_scan::original_name::SourceDeclarationMetadata;
+use crate::signature_scan::scope::{
+    SignatureSourceCommand, SignatureSourceLookup, SourceCommandPublication,
 };
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Token};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::{
     native_compilation::NativeCompilationGrammar, native_tcloo_compilation::NativeTclOoHelper,
 };

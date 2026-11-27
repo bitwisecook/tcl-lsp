@@ -102,7 +102,7 @@ fn normal_store_resolves_actual_alias_destination_after_arguments() {
         let places = normal.mutation_places(selected, registry);
         assert_eq!(places.len(), 1);
         let target = crate::var_resolve::resolve_place("y", selected, false, registry);
-        assert_eq!(places[0].kind, crate::place::PlaceKind::Scalar);
+        assert_eq!(places[0].kind, tcl_names::place::PlaceKind::Scalar);
         assert!(!places[0].observed && !places[0].dynamic);
         assert!(places[0].cell.is_some());
         assert_eq!(places[0].cell, target.cell);

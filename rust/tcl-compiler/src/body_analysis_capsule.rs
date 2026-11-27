@@ -149,7 +149,7 @@ struct NeutralDeclaration {
         tcl_core_types::ByteCommandSlot,
     )>,
     authored_source_slot: Option<tcl_core_types::ByteCommandSlot>,
-    namespace: crate::command_binding::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     written_name: String,
     display: String,
     parameters: Vec<String>,

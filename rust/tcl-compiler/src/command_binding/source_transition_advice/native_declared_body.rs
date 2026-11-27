@@ -19,12 +19,12 @@
 //! Original Native source headers retain their independent source body/schema.
 
 use super::source_procedure::OriginalSourceProcedureBody;
+use crate::command_binding::SourceCommandBindings;
 use crate::command_binding::formal_topology::OriginalFormalTopology;
-use crate::command_binding::{SourceCommandBindings, SourceNamespaceKey};
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceNameInput, SignatureSourceNameKey,
-};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use std::sync::Arc;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
+use tcl_names::word::SignatureSourceNameKey;
 
 macro_rules! n17_source_trace {
     ($($arg:tt)*) => {
@@ -67,7 +67,7 @@ impl PartialEq for OriginalNativeSourceDeclaration {
 impl Eq for OriginalNativeSourceDeclaration {}
 
 impl OriginalNativeSourceDeclaration {
-    pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub(crate) fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         self.procedure.declaration.site()
     }
     pub(crate) fn name_input(&self) -> &SignatureSourceNameInput {

@@ -28,7 +28,7 @@ use tcl_lexer::NativeWord;
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LogicalNavigationScope {
     Declared(Arc<OriginalDeclaredLogicalBodyContext>),
-    Document(Arc<crate::command_binding::SourceOriginId>),
+    Document(Arc<tcl_names::origin::SourceOriginId>),
 }
 impl LogicalNavigationScope {
     fn owns_words(&self, original: &[NativeWord], input: &ResolvedAnalysisInput) -> bool {
@@ -51,7 +51,7 @@ impl LogicalNavigationScope {
 pub(super) struct OriginalLogicalDocumentWords {
     input: ResolvedAnalysisInput,
     original: Arc<[NativeWord]>,
-    origin: Arc<crate::command_binding::SourceOriginId>,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
 }
 impl OriginalLogicalDocumentWords {
     pub(super) fn matches_source(
@@ -254,7 +254,7 @@ impl OriginalLogicalCommandCandidates {
     fn capture_document(
         graph: &AdviceGraph,
         original: &[NativeWord],
-        origin: &Arc<crate::command_binding::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
     ) -> Option<Self> {
         let AdviceNamingPolicy::Logical(input) = &graph.policy else {
             return None;
@@ -283,9 +283,7 @@ impl OriginalLogicalCommandCandidates {
     /// Genuine whole-document source issuer, only for the separate Document
     /// recipe. Missing here does not imply an absent or entered caller frame.
     #[must_use]
-    pub fn original_document_source_origin(
-        &self,
-    ) -> Option<&crate::command_binding::SourceOriginId> {
+    pub fn original_document_source_origin(&self) -> Option<&tcl_names::origin::SourceOriginId> {
         match &self.scope {
             LogicalNavigationScope::Document(origin) => Some(origin),
             LogicalNavigationScope::Declared(_) => None,
@@ -969,7 +967,7 @@ impl OriginalSourceTransitionAdviceTape {
         &mut self,
         graph: &AdviceGraph,
         original: &[NativeWord],
-        origin: &Arc<crate::command_binding::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
     ) {
         let Some(head) = original.first() else {
             return;

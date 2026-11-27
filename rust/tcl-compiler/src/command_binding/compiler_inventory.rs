@@ -18,8 +18,10 @@
 
 //! Compiler visitation and runtime entry are independent source inventories.
 
-use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
+use super::{Arc, SourceCommandBindings, SourceInvocationBinding};
+use crate::command_binding::SourceOriginLexical;
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
 
 fn compiler_syntax_trace_enabled() -> bool {
     static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -81,7 +83,7 @@ pub(crate) struct OriginalCompilerArgumentSyntax<'a> {
     metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
     original: &'a super::compiled_invocation::SourceOriginalCompilerWords,
     snapshot: &'a Arc<super::SourceLookupSnapshot>,
-    namespace: &'a super::SourceNamespaceKey,
+    namespace: &'a tcl_names::namespace::SourceNamespaceKey,
     dialect: Option<tcl_native_model::InvocationDialect>,
     analysis_owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
 }
@@ -682,7 +684,7 @@ pub struct SourceCompilerInvocation {
     pub original_words: Option<Arc<super::compiled_invocation::SourceOriginalCompilerWords>>,
     pub policy: Option<Arc<SourceNativeCompilerPolicy>>,
     pub namespace: String,
-    pub namespace_key: super::SourceNamespaceKey,
+    pub namespace_key: tcl_names::namespace::SourceNamespaceKey,
     pub head: Option<String>,
     // Derived equality compares in field order: the whole table last.
     pub table: Arc<super::SourceLookupSnapshot>,
@@ -1020,7 +1022,7 @@ impl SourceCommandBindings {
     pub(super) fn attach_compiler_invocation(
         &self,
         mut binding: SourceInvocationBinding,
-        origin: Option<&Arc<super::SourceOriginId>>,
+        origin: Option<&Arc<tcl_names::origin::SourceOriginId>>,
         offset: u32,
     ) -> SourceInvocationBinding {
         let Some(origin) = origin else {
@@ -1093,8 +1095,8 @@ impl SourceCommandBindings {
     /// admission, source image and entry prerequisites must still be retained.
     pub(crate) fn compiled_script_namespace_context(
         &self,
-        source: &super::ExecutedScriptSource,
-    ) -> Option<super::SourceNamespaceKey> {
+        source: &tcl_names::origin::ExecutedScriptSource,
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
         let mut contexts = self.compiled_children.iter().flat_map(|(site, children)| {
             children.iter().filter_map(move |child| {
                 if &child.script != source {
@@ -1238,7 +1240,7 @@ impl SourceCommandBindings {
 
     pub(super) fn record_runtime_coverage(
         &mut self,
-        origin: Option<&Arc<super::SourceOriginId>>,
+        origin: Option<&Arc<tcl_names::origin::SourceOriginId>>,
         base: u32,
         length: usize,
         outcomes: &super::SourceOutcomes,
@@ -1284,7 +1286,7 @@ impl SourceInvocationBinding {
         config: tcl_lexer::LexerConfig,
         rules: tcl_syntax::word_rules::WordValueRules,
         policy: tcl_syntax::naming::NamePolicyProtocol,
-    ) -> Option<crate::signature_scan::scope::SignatureSourceNameKey> {
+    ) -> Option<tcl_names::word::SignatureSourceNameKey> {
         self.original_source_name_word_at_span(span, config, rules, policy)
             .map(|(_, key)| key)
     }
@@ -1297,7 +1299,7 @@ impl SourceInvocationBinding {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<(
         &tcl_source::words::WordExpr,
-        crate::signature_scan::scope::SignatureSourceNameKey,
+        tcl_names::word::SignatureSourceNameKey,
     )> {
         let site = self.invocation_site()?;
         let (image, words) =
@@ -1329,7 +1331,7 @@ fn original_name_word_from_layout<'a>(
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<(
     &'a tcl_source::words::WordExpr,
-    crate::signature_scan::scope::SignatureSourceNameKey,
+    tcl_names::word::SignatureSourceNameKey,
 )> {
     let native = crate::registry_invocation::original_native_compiler_words(
         image,
@@ -1348,9 +1350,8 @@ fn original_name_word_from_layout<'a>(
     if selected.next().is_some() {
         return None;
     }
-    let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-        native, rules, policy,
-    )?;
+    let key =
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(native, rules, policy)?;
     Some((word, key))
 }
 

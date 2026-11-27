@@ -233,7 +233,7 @@ impl OriginalProcedureStaticReadAlternatives {
         &'a self,
         binding: &'a super::super::SourceInvocationBinding,
         advice: &super::super::OriginalCompilationLookupAdvice,
-    ) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
+    ) -> Option<&'a tcl_names::variable::VariableExecutionFrame> {
         let header = &self.declaration.header;
         if binding
             .original_analysis_owner
@@ -272,10 +272,10 @@ impl OriginalProcedureStaticReadAlternatives {
         let allocation = body.allocation();
         let source = body.source();
         let span = self.declaration.read.original_body_span()?;
-        let super::super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
             return None;
         };
-        if allocation.incarnation != super::super::AllocationIncarnation::First
+        if allocation.incarnation != tcl_names::command::AllocationIncarnation::First
             || allocation.site.offset != header.declaration.offset
             || !Arc::ptr_eq(&allocation.site.source, &header.declaration.source)
             || allocation.namespace != header.namespace
@@ -310,7 +310,7 @@ impl OriginalProcedureStaticReadAlternatives {
     ) -> Option<()> {
         if !matches!(
             binding.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+            tcl_names::variable::VariableExecutionFrame::Procedure { .. }
         ) {
             return None;
         }
@@ -436,10 +436,10 @@ impl OriginalProcedureStaticReadAlternatives {
 }
 
 fn child_binding_frame_refusal(
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     has_lookup_snapshot: bool,
 ) -> &'static str {
-    use crate::var_resolve::VariableExecutionFrame as Frame;
+    use tcl_names::variable::VariableExecutionFrame as Frame;
     match (frame, has_lookup_snapshot) {
         (Frame::Global, true) => "child.binding_frame.Global.lookup",
         (Frame::Global, false) => "child.binding_frame.Global.no_lookup",

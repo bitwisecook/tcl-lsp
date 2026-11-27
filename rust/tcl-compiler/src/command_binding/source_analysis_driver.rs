@@ -18,10 +18,8 @@
 
 //! The entry points that interpret one source instance and the root state they start from.
 
-use super::namespace_context::SourceNamespaceKey;
 use super::native_compiler_formals::OriginalNativeCompilerFormals;
 use super::source_analysis_entry::SourceAnalysisOptions;
-use super::source_origin::{SourceOriginId, SourceOriginKind};
 use super::source_point_entry::OriginalSourcePointEntry;
 use super::source_walk::{SourceBodyEntryPurpose, source_variables_in_frame};
 use super::{
@@ -31,10 +29,13 @@ use super::{
 };
 #[cfg(any(test, debug_assertions))]
 use super::{original_command_table, root_owner_work};
+use crate::command_binding::SourceOriginProjection;
 #[cfg(any(test, debug_assertions))]
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, OnceLock};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
 use tcl_registry::CommandRegistry;
 
 impl PartialEq for OriginalSourceAnalysisOwner {
@@ -87,12 +88,12 @@ struct SourceInterpretationEntry<'a> {
 }
 
 fn source_entry_frame_and_options<'a>(
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
     image: &tcl_lexer::SourceImage,
     options: SourceAnalysisOptions<'a>,
     purpose: tcl_lexer::SourceSegmentationPurpose,
 ) -> (
-    &'a crate::var_resolve::VariableExecutionFrame,
+    &'a tcl_names::variable::VariableExecutionFrame,
     SourceAnalysisOptions<'a>,
 ) {
     let frame = options
@@ -102,7 +103,7 @@ fn source_entry_frame_and_options<'a>(
         stock_tclsh_stdout: options.stock_tclsh_stdout.filter(|_| {
             matches!(
                 frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Global
+                tcl_names::variable::VariableExecutionFrame::Global
             ) && purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
                 && image.channel() == tcl_lexer::SourceChannel::Document
         }),
@@ -135,7 +136,7 @@ fn initial_source_interpretation_state(
 
 fn source_entry_namespace_key(
     options: &SourceAnalysisOptions<'_>,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     namespace: &str,
 ) -> SourceNamespaceKey {
     options
@@ -150,8 +151,8 @@ fn source_entry_namespace_key(
         .unwrap_or_else(|| SourceNamespaceKey::authored(namespace))
 }
 
-fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
-    use crate::var_resolve::VariableExecutionFrame;
+fn source_frame_namespace(frame: &tcl_names::variable::VariableExecutionFrame) -> &str {
+    use tcl_names::variable::VariableExecutionFrame;
     match frame.layout() {
         VariableExecutionFrame::Namespace(namespace)
         | VariableExecutionFrame::NamespaceActivation { namespace, .. }
@@ -173,7 +174,7 @@ fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) ->
 }
 
 pub(super) fn root_source_execution_context<'a>(
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
     namespace: &'a str,
     namespace_key: &'a SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
@@ -432,9 +433,9 @@ impl SourceCommandBindings {
         options: SourceAnalysisOptions<'_>,
     ) -> Self {
         let frame = if namespace == "::" {
-            crate::var_resolve::VariableExecutionFrame::Global
+            tcl_names::variable::VariableExecutionFrame::Global
         } else {
-            crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned())
+            tcl_names::variable::VariableExecutionFrame::Namespace(namespace.to_owned())
         };
         Self::analyse_in_frame_with_options(source, &frame, config, registry, options)
     }
@@ -444,7 +445,7 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn analyse_in_frame_with_options(
         source: &str,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
@@ -464,7 +465,7 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn analyse_image_in_frame_with_options(
         image: &tcl_lexer::SourceImage,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
@@ -485,7 +486,7 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn analyse_image_in_frame_with_purpose(
         image: &tcl_lexer::SourceImage,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
@@ -509,7 +510,7 @@ impl SourceCommandBindings {
 
     pub(crate) fn analyse_image_with_original_native_formals(
         image: &tcl_lexer::SourceImage,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
@@ -546,7 +547,7 @@ impl SourceCommandBindings {
         Some(Self::analyse_source_in_frame_with_options(
             source,
             &tcl_lexer::SourceImage::document(source),
-            &crate::var_resolve::VariableExecutionFrame::Global,
+            &tcl_names::variable::VariableExecutionFrame::Global,
             config,
             registry,
             options,
@@ -594,7 +595,7 @@ impl SourceCommandBindings {
 
     fn update_source_interpretation_frame(
         state: &mut ModuleCommandBindings,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
     ) {
         if &state.variable_frame != frame {
             state.source_variables = source_variables_in_frame(&state.source_variables, frame);
@@ -610,17 +611,17 @@ impl SourceCommandBindings {
     fn entry_activation(
         state: &mut ModuleCommandBindings,
         options: &SourceAnalysisOptions<'_>,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         namespace_key: &SourceNamespaceKey,
         registry: &CommandRegistry,
-    ) -> crate::var_resolve::VariableExecutionFrame {
+    ) -> tcl_names::variable::VariableExecutionFrame {
         let Some(entry) = options
             .entry_procedure_frame()
-            .filter(|_| matches!(frame, crate::var_resolve::VariableExecutionFrame::Global))
+            .filter(|_| matches!(frame, tcl_names::variable::VariableExecutionFrame::Global))
         else {
             return frame.clone().with_namespace_identity(namespace_key.clone());
         };
-        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: source_frame_namespace(frame).to_owned(),
             identity: super::source_origin::source_activation_name(
                 state.current_source_origin.as_ref(),
@@ -647,7 +648,7 @@ impl SourceCommandBindings {
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
@@ -779,7 +780,7 @@ impl SourceCommandBindings {
         script: &str,
         source_base: u32,
         callsite: u32,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) -> Option<Self> {

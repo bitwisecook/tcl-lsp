@@ -18,12 +18,13 @@
 
 //! Source-read schemas from the shared original body/transition catalogue.
 
+use super::OriginalSourceCommandTransitionAdvice;
 use super::source_transition_advice::{
     OriginalSourceCataloguePurpose, OriginalSourceTransitionAdviceLookup,
     OriginalSourceTransitionAdviceTape, OriginalSourceTransitionSeed,
 };
-use super::{CommandAllocationSite, OriginalSourceCommandTransitionAdvice};
 use std::sync::{Arc, Mutex};
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::model::ContextRegistry;
 
 pub(super) fn trace_rbs_refusal(offset: u32, stage: &'static str) {

@@ -33,7 +33,7 @@ currently observed motivates. Extend it when a concrete buggy-code case appears.
 
 ## Open — `Place::base()` discards dynamism
 
-`Place::base()` (`rust/tcl-compiler/src/place.rs`) projects an `ArrayElem` or
+`Place::base()` (`rust/tcl-names/src/place.rs`) projects an `ArrayElem` or
 `DictPath` place to its whole-variable identity by calling
 `array_whole(name, ns, observed)`. That constructor takes only those three
 fields, so the `dynamic` flag and `name_reads` on the original place are dropped.
@@ -111,7 +111,7 @@ every other route shares, not against effort available to spend once.
 Two distinct local alias names can genuinely alias the same caller variable
 (`upvar 1 $x date; upvar 1 $x date2`), but only when both resolve the *same*
 `$x` — a relational fact the analysis does not track. `overlap`
-(`rust/tcl-compiler/src/place.rs`) therefore keeps `UpvarAlias` ↔ `UpvarAlias`
+(`rust/tcl-names/src/place.rs`) therefore keeps `UpvarAlias` ↔ `UpvarAlias`
 of different names overlapping: rare, and sound in the suppress-only direction.
 
 The consequence is a false negative rather than a false positive: a genuinely

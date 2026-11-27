@@ -18,6 +18,7 @@
 
 //! Class advice: Jim classes, class declarations, references, constructors and instances.
 
+use crate::command_binding::SourceOriginLexical;
 use std::sync::Arc;
 
 impl super::super::CommandBindingRealm {

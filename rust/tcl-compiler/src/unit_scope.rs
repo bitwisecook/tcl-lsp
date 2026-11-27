@@ -135,7 +135,7 @@ pub struct CalleeEvidence {
     pub slots: BTreeMap<usize, ArgConsts>,
     /// Exact source implementations actually reached by these callers.
     /// Contents alone do not correlate a `QName` with an analysed declaration.
-    pub source_implementations: Vec<crate::command_binding::CommandAllocation>,
+    pub source_implementations: Vec<tcl_names::command::CommandAllocation>,
 }
 
 impl CalleeEvidence {
@@ -200,8 +200,8 @@ pub struct CallSiteEvidence {
     by_callee: BTreeMap<String, CalleeEvidence>,
     by_body: BTreeMap<crate::ir::ProcedureId, CalleeEvidence>,
     body_labels: BTreeMap<crate::ir::ProcedureId, String>,
-    external_opaque_declarations: BTreeSet<crate::command_binding::CommandAllocationSite>,
-    by_implementation: BTreeMap<crate::command_binding::CommandAllocation, CalleeEvidence>,
+    external_opaque_declarations: BTreeSet<tcl_names::command::CommandAllocationSite>,
+    by_implementation: BTreeMap<tcl_names::command::CommandAllocation, CalleeEvidence>,
     /// Whether this round consulted a parameter's value set, i.e. whether
     /// the evidence depends on the previous round and the fixpoint must
     /// iterate.  Not part of the evidence's meaning, so it is excluded from
@@ -420,7 +420,7 @@ impl CallSiteEvidence {
     #[must_use]
     pub fn slice_for_original_declarations(
         &self,
-        declarations: &[crate::command_binding::CommandAllocationSite],
+        declarations: &[tcl_names::command::CommandAllocationSite],
     ) -> Self {
         let mut result = Self::default();
         result.by_implementation.extend(
@@ -450,7 +450,7 @@ impl CallSiteEvidence {
     #[must_use]
     pub fn without_original_declarations(
         &self,
-        declarations: &[crate::command_binding::CommandAllocationSite],
+        declarations: &[tcl_names::command::CommandAllocationSite],
     ) -> Self {
         let mut result = self.clone();
         result
@@ -480,7 +480,7 @@ impl CallSiteEvidence {
         prefix: &[crate::registry_invocation::EffectiveInvocationWord],
         argument_count: usize,
         values: &[Option<String>],
-        allocation: Option<&crate::command_binding::CommandAllocation>,
+        allocation: Option<&tcl_names::command::CommandAllocation>,
     ) {
         let evidence = self.by_callee.entry(qname).or_default();
         let Some(allocation) = allocation else {
@@ -837,7 +837,7 @@ fn record_future_callers(
             if let Some((id, procedure)) = ctx.module.source_procedure_for_target(target) {
                 out.record_opaque_body(id, &procedure.qualified_name);
             }
-            if target.kind == crate::command_binding::BindingKind::Proc
+            if target.kind == tcl_names::command::BindingKind::Proc
                 && ctx.known.contains(&target.command)
             {
                 out.record_opaque_caller(&target.command);

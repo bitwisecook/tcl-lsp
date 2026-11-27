@@ -298,7 +298,7 @@ mod tests {
         let registry = tcl_registry::CommandRegistry::build_default();
         let bindings =
             SourceCommandBindings::analyse(source, tcl_lexer::LexerConfig::default(), &registry);
-        let script = super::super::ExecutedScriptSource::contiguous(
+        let script = tcl_names::origin::ExecutedScriptSource::contiguous(
             Arc::clone(bindings.source_origin().unwrap()),
             source,
             0,
@@ -507,8 +507,9 @@ mod tests {
 
     #[test]
     fn script_admission_realm_depends_on_operand_evaluation_not_source_mapping() {
-        use super::super::{CommandAllocationSite, SourceAnalysisOptions};
+        use super::super::SourceAnalysisOptions;
         use tcl_dialect::model::InvocationRealm;
+        use tcl_names::command::CommandAllocationSite;
 
         let registry_context = tcl_registry::model::ingress::static_context_for("f5-irules");
         let registry = registry_context.commands();

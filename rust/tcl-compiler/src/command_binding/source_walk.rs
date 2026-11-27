@@ -19,7 +19,6 @@
 //! The recursive interpretation of source text: scripts, commands, substitutions and bodies.
 
 use super::binding_projection::PointWalkEntry;
-use super::command_identity::CommandAllocationSite;
 use super::compiled_invocation::NativeCompilationSnapshot;
 use super::invocation_binding::SourceObserverExecution;
 #[cfg(any(test, debug_assertions))]
@@ -32,6 +31,7 @@ use super::{
     rule_declaration,
 };
 use std::sync::{Arc, OnceLock};
+use tcl_names::command::CommandAllocationSite;
 
 mod body_flow;
 mod called_bodies;
@@ -91,7 +91,7 @@ pub(super) use target_walk::{
 #[inline(never)]
 pub(super) fn source_variables_in_frame(
     variables: &Arc<crate::var_resolve::ResolveContext>,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
 ) -> Arc<crate::var_resolve::ResolveContext> {
     Arc::new(variables.in_frame(frame))
 }
@@ -199,9 +199,9 @@ impl SourceCommandBindings {
             || context.frame.namespace_identity().is_some()
             || !matches!(
                 context.frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-                    | crate::var_resolve::VariableExecutionFrame::Unknown
-                    | crate::var_resolve::VariableExecutionFrame::Selected {
+                tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
+                    | tcl_names::variable::VariableExecutionFrame::Unknown
+                    | tcl_names::variable::VariableExecutionFrame::Selected {
                         namespace: None,
                         ..
                     }

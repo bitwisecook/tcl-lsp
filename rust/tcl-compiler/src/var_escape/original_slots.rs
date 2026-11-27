@@ -20,14 +20,14 @@
 
 use crate::command_binding::formal_topology::OriginalFormalTopology;
 use crate::ir::{Module, Procedure};
-use crate::var_resolve::{VariableCellKey, VariableExecutionFrame};
 use tcl_core_types::NameBytes;
+use tcl_names::variable::{VariableCellKey, VariableExecutionFrame};
 
 /// Original fixed scalar argument slots for a proposed source calling convention.
 /// These ordinals are argument positions, never a physical compiled-local layout.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalScalarArgumentSlots {
-    input: crate::signature_scan::original_name::SignatureSourceNameKey,
+    input: tcl_names::word::SignatureSourceNameKey,
     names: Vec<NameBytes>,
 }
 
@@ -76,7 +76,7 @@ impl OriginalScalarArgumentSlots {
 
     /// Complete original `ParamList` producer, independent of activation entry.
     #[must_use]
-    pub fn original_input(&self) -> &crate::signature_scan::original_name::SignatureSourceNameKey {
+    pub fn original_input(&self) -> &tcl_names::word::SignatureSourceNameKey {
         &self.input
     }
 
@@ -376,9 +376,12 @@ mod tests {
             config,
         )
         .unwrap();
-        let input = crate::signature_scan::original_name::SignatureSourceNameKey::from_original_native_word(
-            &words.commands[0].words[2], WordValueRules::from_config(&config), dialect.authored_name_policy().unwrap(),
-        ).unwrap();
+        let input = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+            &words.commands[0].words[2],
+            WordValueRules::from_config(&config),
+            dialect.authored_name_policy().unwrap(),
+        )
+        .unwrap();
         OriginalFormalTopology::from_original_key(input, dialect).unwrap()
     }
 

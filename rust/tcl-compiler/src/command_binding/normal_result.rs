@@ -18,12 +18,13 @@
 
 //! Completed original-source values, independently of total completion.
 
+use super::native_result::EvaluatedSourceValue;
 use super::{
-    Arc, CommandAllocationSite, DeferredImplementationId, DeferredSourceBody, SourceBindingPoint,
-    SourceCommandBindings, SourceCommandTarget, SourceInvocationBinding, SourceOutcomes,
-    native_result::EvaluatedSourceValue,
+    Arc, DeferredImplementationId, DeferredSourceBody, SourceBindingPoint, SourceCommandBindings,
+    SourceCommandTarget, SourceInvocationBinding, SourceOutcomes,
 };
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
 
 /// The value on all represented Normal alternatives of an original evaluation.
 /// This supplies neither a physical object nor an absence-of-error proof.
@@ -235,12 +236,13 @@ impl SourceInvocationBinding {
     ) -> Option<SourceScopedProcedureEvaluation<'_>> {
         let target = self.scoped_unobserved_target(tokens)?;
         if target.registry_backed
-            || target.kind != super::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || target
                 .implementation_allocation
                 .as_ref()
                 .is_none_or(|allocation| {
-                    allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+                    allocation.incarnation
+                        == tcl_names::command::AllocationIncarnation::RepeatedFresh
                 })
         {
             return None;
@@ -474,7 +476,7 @@ impl SourceCommandBindings {
     pub(super) fn attach_invocation_normal_result(
         &self,
         binding: &mut SourceInvocationBinding,
-        origin: Option<&Arc<super::SourceOriginId>>,
+        origin: Option<&Arc<tcl_names::origin::SourceOriginId>>,
         offset: u32,
     ) {
         binding.normal_result_observations = origin.and_then(|origin| {
@@ -875,7 +877,7 @@ mod tests {
             .scoped_procedure_evaluation(&tokens)
             .expect("independent original scoped certificates after abrupt root completion");
         assert_eq!(proof.target.command, "::answer");
-        assert_eq!(proof.target.kind, super::super::BindingKind::Proc);
+        assert_eq!(proof.target.kind, tcl_names::command::BindingKind::Proc);
         assert!(!proof.target.registry_backed);
         assert!(proof.target.matches_authored_implementation(source, 0));
         assert_eq!(proof.result.text(), "42");

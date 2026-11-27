@@ -19,8 +19,8 @@
 //! Original native formal bytes and their independently selected activation plan.
 
 use super::original_name_value::OriginalProducedNameValue;
-use crate::signature_scan::scope::SignatureSourceNameKey;
 use std::sync::Arc;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_native_model::InvocationDialect;
 use tcl_syntax::formal_params::{ByteFormalParameter, FormalByteArgumentBinding};
 
@@ -74,7 +74,7 @@ pub struct OriginalFormalTopology {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ReachedProcedureCall {
     pub(crate) words: Arc<[tcl_lexer::NativeWord]>,
-    pub(crate) allocation: super::CommandAllocation,
+    pub(crate) allocation: tcl_names::command::CommandAllocation,
     pub(crate) captured: usize,
     pub(crate) arity: tcl_registry::Arity,
 }
@@ -90,7 +90,7 @@ impl super::SourceCommandBindings {
             return None;
         }
         let target = binding.proved_execution_target()?;
-        if target.kind != super::BindingKind::Proc || target.registry_backed {
+        if target.kind != tcl_names::command::BindingKind::Proc || target.registry_backed {
             return None;
         }
         let allocation = target.implementation_allocation.as_ref()?;
@@ -455,10 +455,10 @@ impl OriginalFormalTopology {
     /// neither contents nor normal completion nor a native local-table token.
     pub(crate) fn fresh_scalar_formal_name(
         &self,
-        receiver: &crate::place::Place,
+        receiver: &tcl_names::place::Place,
         context: &crate::var_resolve::ResolveContext,
     ) -> bool {
-        use crate::place::{CellGeneration, CellOwner, PlaceKind};
+        use tcl_names::place::{CellGeneration, CellOwner, PlaceKind};
         use tcl_syntax::naming::{NativeNameContext, NativeVariableRootGeometry};
         let protocol = self.producer.policy().recipe();
         let Some(cell) = receiver.cell.as_ref() else {
@@ -783,8 +783,8 @@ mod tests {
     // docs/design/analysis/name-resolution-proofs/formal.original-topology-and-storage.md
     #[test]
     fn decoded_formal_installation_uses_storage_keys_and_fresh_frame_only() {
-        use crate::place::{CellGeneration, CellIdentity, CellOwner, PlaceKind};
         use crate::var_resolve::{ContentsOrigin, ContentsPresence, ResolveContext};
+        use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, PlaceKind};
         use tcl_syntax::naming::ExecutionNamePolicy;
         let registry = tcl_registry::CommandRegistry::build_default();
         for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -794,8 +794,8 @@ mod tests {
             context.invocation_dialect = Some(dialect);
             context.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
             context.retain_namespace_world(
-                super::super::SourceNamespaceKey::authored("::"),
-                [super::super::SourceNamespaceKey::authored("::")],
+                tcl_names::namespace::SourceNamespaceKey::authored("::"),
+                [tcl_names::namespace::SourceNamespaceKey::authored("::")],
                 Some(policy.recipe()),
             );
             let topology = fixture(profile_name, br"{p\uD800}").unwrap();
@@ -805,7 +805,7 @@ mod tests {
                 "{profile_name}"
             );
             let name = &topology.parameters()[0].name;
-            let mut exact = crate::place::scalar("REPORT", crate::place::LOCAL_NS, false);
+            let mut exact = tcl_names::place::scalar("REPORT", tcl_names::place::LOCAL_NS, false);
             exact.cell = Some(CellIdentity {
                 owner: CellOwner::Activation(context.activation.clone().unwrap()),
                 name: tcl_core_types::NameBytes::from(name.as_slice()),

@@ -372,7 +372,10 @@ impl SourceCommandBindings {
                 }
                 result
             } else if target.registry_backed
-                || matches!(target.kind, super::super::BindingKind::Instance { .. })
+                || matches!(
+                    target.kind,
+                    tcl_names::command::BindingKind::Instance { .. }
+                )
             {
                 self.walk_source_target(
                     segment,
@@ -521,7 +524,10 @@ impl SourceCommandBindings {
                 }
                 result
             } else if target.registry_backed
-                || matches!(target.kind, super::super::BindingKind::Instance { .. })
+                || matches!(
+                    target.kind,
+                    tcl_names::command::BindingKind::Instance { .. }
+                )
             {
                 self.walk_source_target(
                     segment,
@@ -640,7 +646,7 @@ impl SourceCommandBindings {
                 .invocation_dialect
                 .and_then(tcl_native_model::InvocationDialect::parameter_grammar),
         ) {
-            let call = super::super::command_identity::CommandAllocationSite {
+            let call = tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(source),
                 offset: site,
             };

@@ -24,6 +24,7 @@ use super::{
     DeclarationLayoutIssuer, OriginalDiagnosticFrameEntry, SourceOriginalVariableFrame,
     original_declaration_layouts, original_source_catalogue_layouts,
 };
+use crate::command_binding::SourceOriginLexical;
 use std::sync::Arc;
 
 impl SourceCommandBindings {
@@ -151,12 +152,12 @@ impl SourceCommandBindings {
             if self.root_origin.as_ref() != Some(origin)
                 || !matches!(
                     state.variable_frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                    tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
                 )
             {
                 return;
             }
-            let Some(source) = super::super::ExecutedScriptSource::contiguous_image(
+            let Some(source) = tcl_names::origin::ExecutedScriptSource::contiguous_image(
                 Arc::clone(origin),
                 image.clone(),
                 base,
@@ -194,7 +195,7 @@ impl SourceCommandBindings {
         &self,
         state: &ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> Option<OriginalDiagnosticFrameEntry> {
         let namespace = context.namespace_identity();

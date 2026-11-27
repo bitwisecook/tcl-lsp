@@ -19,10 +19,11 @@
 //! Terminal navigation after an actual, unobserved alias/import lookup.
 
 use super::{
-    CommandIdentity, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
-    SourceCommandDefinition, SourceInvocationBinding, SourceRuntimeReachability,
+    MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandDefinition,
+    SourceInvocationBinding, SourceRuntimeReachability,
 };
 use std::collections::BTreeSet;
+use tcl_names::command::CommandIdentity;
 
 impl SourceInvocationBinding {
     /// Definition selected by this actual evaluated head after arguments.

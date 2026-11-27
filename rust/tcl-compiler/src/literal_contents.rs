@@ -18,11 +18,9 @@
 
 //! Bounded physical contents alternatives for operand-layout consensus.
 
-use crate::{
-    bounded_set::BoundedSet,
-    place::{CellGeneration, Place},
-    var_resolve::{ContentsPresence, ResolveContext, VariableProofRelocation},
-};
+use crate::bounded_set::BoundedSet;
+use crate::var_resolve::{ContentsPresence, ResolveContext, VariableProofRelocation};
+use tcl_names::place::{CellGeneration, Place};
 use tcl_registry::CommandRegistry;
 
 const MAX_ALTERNATIVES: usize = 8;
@@ -177,14 +175,14 @@ impl ResolveContext {
 
     pub(crate) fn retain_literal_values(
         &mut self,
-        keep: impl Fn(&crate::var_resolve::VariableCellKey) -> bool,
+        keep: impl Fn(&tcl_names::variable::VariableCellKey) -> bool,
     ) {
         self.constant_values.retain(|key, _| keep(key));
         self.closed_literal_contents.retain(|key, _| keep(key));
         self.original_name_values.retain(|key, _| keep(key));
     }
 
-    pub(crate) fn forget_literal_value<Q: crate::var_resolve::VariableCellKeyQuery + ?Sized>(
+    pub(crate) fn forget_literal_value<Q: tcl_names::variable::VariableCellKeyQuery + ?Sized>(
         &mut self,
         key: &Q,
     ) {
@@ -195,7 +193,7 @@ impl ResolveContext {
 
     pub(crate) fn store_literal_value(
         &mut self,
-        key: impl Into<crate::var_resolve::VariableCellKey>,
+        key: impl Into<tcl_names::variable::VariableCellKey>,
         value: String,
     ) {
         let key = key.into();
@@ -213,7 +211,7 @@ impl ResolveContext {
             .chain(other.closed_literal_contents.keys())
             .cloned()
             .collect();
-        let mut joined = crate::var_resolve::VariableCellTable::default();
+        let mut joined = tcl_names::variable::VariableCellTable::default();
         for key in keys {
             if self.constant_values.contains_key(&key)
                 && self.constant_values.get(&key) == other.constant_values.get(&key)
@@ -241,7 +239,7 @@ impl ResolveContext {
 
     fn literal_contents_for_join(
         &self,
-        key: &crate::var_resolve::VariableCellKey,
+        key: &tcl_names::variable::VariableCellKey,
     ) -> Option<ClosedLiteralContents> {
         let receiver = self
             .contents_presence_slots

@@ -18,6 +18,7 @@
 
 //! Original written words and names at a source span of a completed interpretation.
 
+use crate::command_binding::SourceOriginLexical;
 use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
 use std::sync::Arc;
 
@@ -229,7 +230,7 @@ impl super::super::SourceCommandBindings {
         Vec<(
             SignatureSourceNameInput,
             super::super::SourceInvocationBinding,
-            super::super::CommandAllocationSite,
+            tcl_names::command::CommandAllocationSite,
         )>,
     > {
         self.original_written_word_observations_at_span_with(span, config, memo)?
@@ -405,7 +406,10 @@ impl super::super::SourceCommandBindings {
         image: &tcl_lexer::SourceImage,
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<(tcl_lexer::NativeWord, super::super::CommandAllocationSite)> {
+    ) -> Option<(
+        tcl_lexer::NativeWord,
+        tcl_names::command::CommandAllocationSite,
+    )> {
         self.original_written_head_at_span_in_source_with(image, span, config, None)
     }
 
@@ -417,7 +421,10 @@ impl super::super::SourceCommandBindings {
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
         memo: Option<&OriginalRealmQueryMemo>,
-    ) -> Option<(tcl_lexer::NativeWord, super::super::CommandAllocationSite)> {
+    ) -> Option<(
+        tcl_lexer::NativeWord,
+        tcl_names::command::CommandAllocationSite,
+    )> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let mut selected = None;
@@ -531,7 +538,7 @@ impl super::super::SourceCommandBindings {
     /// at or before `limit` (every one when `None`), ascending.
     fn original_written_word_site_offsets(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         limit: Option<u32>,
     ) -> std::collections::BTreeSet<u32> {
         let limit = limit.unwrap_or(u32::MAX);
@@ -550,7 +557,7 @@ impl super::super::SourceCommandBindings {
 
     fn original_written_word_site_binding(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> super::super::SourceInvocationBinding {
         self.attach_invocation_reads(
@@ -608,7 +615,7 @@ impl super::super::SourceCommandBindings {
     /// reverse scan interprets it.
     fn original_written_word_site_step(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
         binding: &super::super::SourceInvocationBinding,
         span: tcl_lexer::Span,
@@ -664,7 +671,7 @@ pub(super) type OriginalWrittenWordObservation = (
     tcl_lexer::NativeWord,
     usize,
     super::super::SourceInvocationBinding,
-    super::super::CommandAllocationSite,
+    tcl_names::command::CommandAllocationSite,
 );
 
 enum OriginalWrittenWordSiteStep {
@@ -673,7 +680,7 @@ enum OriginalWrittenWordSiteStep {
     Found(
         Box<tcl_lexer::NativeWord>,
         usize,
-        super::super::CommandAllocationSite,
+        tcl_names::command::CommandAllocationSite,
     ),
 }
 

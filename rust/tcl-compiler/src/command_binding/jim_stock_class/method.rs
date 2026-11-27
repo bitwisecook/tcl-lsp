@@ -25,6 +25,7 @@ use super::{
     SourceCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceJimClassHelper,
     SourceOutcomes,
 };
+use crate::command_binding::SourceOriginLexical;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalJimStockMethod {

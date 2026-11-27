@@ -19,10 +19,8 @@
 //! Original class relation operands and their ordered source-metadata effects.
 
 use super::MemberSide;
-use crate::{
-    command_binding::CommandAllocationSite,
-    signature_scan::scope::{SignatureSourceLookup, SignatureSourceNameInput},
-};
+use crate::signature_scan::scope::{SignatureSourceLookup, SignatureSourceNameInput};
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::definer::{SlotOp, SlotSpec};
 
 /// The own class relation list selected by the definition grammar.

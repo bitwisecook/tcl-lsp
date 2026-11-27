@@ -27,6 +27,7 @@ use super::{
     OriginalSourceCommandTransition, OriginalSourceCommandTransitionAdvice,
     OriginalSourceTransitionAdviceTape, source_class,
 };
+use crate::command_binding::SourceOriginLexical;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage};
@@ -117,7 +118,7 @@ impl OriginalSourceTransitionAdviceTape {
     /// Conflicting source receipts withdraw this catalogue as a whole.
     pub(in super::super) fn logical_receiver_source_commands(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<
         Vec<(
@@ -143,7 +144,7 @@ impl OriginalSourceTransitionAdviceTape {
     /// The selected command/schema may be unavailable; this grants geometry only.
     pub(crate) fn logical_original_command_at(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
         offset: u32,
     ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
@@ -209,10 +210,10 @@ impl OriginalSourceTransitionAdviceTape {
 
     pub(crate) fn logical_original_word_observations_at_span(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
         span: tcl_lexer::Span,
-    ) -> Option<Vec<(NativeWord, usize, super::super::CommandAllocationSite)>> {
+    ) -> Option<Vec<(NativeWord, usize, tcl_names::command::CommandAllocationSite)>> {
         input.has_logical_source_name_context().then_some(())?;
         if self.logical_body_words.values().any(Option::is_none) {
             return None;
@@ -252,7 +253,7 @@ impl OriginalSourceTransitionAdviceTape {
             observations.push((
                 word.clone(),
                 written,
-                super::super::CommandAllocationSite {
+                tcl_names::command::CommandAllocationSite {
                     source: Arc::clone(origin),
                     offset,
                 },
@@ -264,7 +265,7 @@ impl OriginalSourceTransitionAdviceTape {
     /// Exact Logical catalogue words retain geometry without an entered invocation.
     pub(crate) fn logical_original_word_at_span(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
         span: tcl_lexer::Span,
     ) -> Option<(NativeWord, u32)> {

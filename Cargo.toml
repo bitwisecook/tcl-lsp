@@ -53,6 +53,7 @@ members = [
     "rust/tcl-expr",
     "rust/tcl-syntax",
     "rust/tcl-source",
+    "rust/tcl-names",
     "rust/tcl-platform",
     "rust/tcl-userdirs",
     "rust/tcl-host-native",

@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use tcl_names::variable::VariableExecutionFrame;
 
 #[test]
 fn actual_source_configuration_survives_frames_and_conflicting_join_is_unavailable() {

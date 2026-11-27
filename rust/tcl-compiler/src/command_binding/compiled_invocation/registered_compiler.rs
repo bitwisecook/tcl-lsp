@@ -18,14 +18,14 @@
 
 //! A registered compiler's selection: its compilation point, preparations and dependencies.
 
-use super::super::{
-    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget,
-};
+use super::super::{Arc, ModuleCommandBindings, SourceCommandTarget};
 use super::target_selection::implementation_dependency;
 use super::{
     CompilerInvocation, SourceNativeNamespaceBindingPreparation, SourceNativeStructuredPreparation,
     SourceNativeSwitchPreparation,
 };
+use crate::command_binding::SourceOriginLexical;
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 use tcl_registry::native_compilation::{NativeCompilationGuard, NativeCompilationSelection};
 
 pub(super) struct RegisteredCompilerSelection {

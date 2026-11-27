@@ -190,7 +190,7 @@ fn make_reassignment(params: &[String], args: &[String]) -> String {
 fn loop_parameter_source_words(
     ctx: &PassContext<'_>,
     inventory: &Inventory,
-    original: &crate::command_binding::ExecutedScriptSource,
+    original: &tcl_names::origin::ExecutedScriptSource,
     sites: &[TailSite],
 ) -> Option<Vec<String>> {
     let topology = inventory.formal_topology.as_ref()?;
@@ -236,7 +236,7 @@ fn emit_loop_conversion(
     let Some(original) = proc.body.executed_source.as_deref() else {
         return;
     };
-    if !matches!(original.mapping, crate::command_binding::ExecutedScriptMapping::Contiguous { base } if base == proc.body_offset)
+    if !matches!(original.mapping, tcl_names::origin::ExecutedScriptMapping::Contiguous { base } if base == proc.body_offset)
         || original.text.bytes() != body_source.as_bytes()
     {
         return;

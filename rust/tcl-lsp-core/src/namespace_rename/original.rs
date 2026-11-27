@@ -19,9 +19,10 @@
 //! Namespace edits from authentic original operands and retained byte geometry.
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LineIndex, SourceImage, Span};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_syntax::naming::{NativeNameContext, NativeNamespaceOperandRename};
 
 use crate::namespace_symbol::OriginalNamespaceSymbol;

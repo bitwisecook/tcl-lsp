@@ -746,7 +746,7 @@ pub(crate) fn invocation_calls_named(
             return selected.qualified_name == def_qualified;
         }
         if matches!(definition.allocation().site.source.kind(),
-            tcl_compiler::command_binding::SourceOriginKind::Authored(authored) if authored.as_ref() == source.as_bytes())
+            tcl_names::origin::SourceOriginKind::Authored(authored) if authored.as_ref() == source.as_bytes())
         {
             return false;
         }

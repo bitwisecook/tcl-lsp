@@ -92,6 +92,25 @@ zero packages there. Clean cold/release timings remain explicitly unavailable.
 Development pushes use the explicit `work` exception. No PR merge is
 requested or authorised by that exception.
 
+## Name-key extraction: 248
+
+Implemented on `work` under the owner's minimal-check direction for the
+registry and compiler split: `cargo fmt --check` and `cargo check --workspace
+--all-targets --keep-going` (green except `tcl-runtime`'s existing
+`have_tommath`-gated `crate::expr` reference, untouched here), `cargo test -p
+tcl-names`, and the `module-layers`, `retired-api-gate`, `owner-resolution`,
+`crate-layer`, `memo-type`, `walker-ownership`, `grammar-bypass` and
+`release-table` gates. Deferred to the end-of-stage pass: workspace clippy,
+`make xtask-gates`, and the failset comparisons for `tcl-compiler`,
+`tcl-compiler-it`, `tcl-codegen`, `tcl-lsp-core`, `tcl-lsp-server`,
+`tcl-explorer` and `tcl-spectcl`; no baseline was taken. `test-cleanup
+--check` is red on `work` already (its inventory grew across many crates);
+its rows for the moved test modules are regenerated in that pass. The
+departures from the design are in its
+[as-built section](../../design/compiler/crate-split/03-tcl-names.md#as-built-item-248-27-november-2026),
+and the rebuild record in
+[build-test-cost](../build-test-cost/current-state.md#item-248-step-3a-tcl-names-before--after).
+
 ## Benchmark, test boundaries and runtime repairs
 
 - BPF signed division's public regression passes on the combined in-tree

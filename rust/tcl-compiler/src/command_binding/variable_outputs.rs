@@ -21,10 +21,8 @@
 use super::{
     Arc, ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
 };
-use crate::{
-    place::{CellOwner, Place, PlaceKind},
-    var_resolve::{ContentsPresence, ResolveContext, RootContentsKind},
-};
+use crate::var_resolve::{ContentsPresence, ResolveContext, RootContentsKind};
+use tcl_names::place::{CellOwner, Place, PlaceKind};
 use tcl_registry::{
     CommandRegistry, completion::CompletionCode,
     completion_route::InvocationCompletionRoute as Route,
@@ -93,7 +91,7 @@ pub(super) fn store_is_closed(
     let Some(cell) = &target.cell else {
         return false;
     };
-    if variables.dynamic_bindings || cell.generation == crate::place::CellGeneration::Unknown {
+    if variables.dynamic_bindings || cell.generation == tcl_names::place::CellGeneration::Unknown {
         return false;
     }
     match &cell.owner {
@@ -124,7 +122,7 @@ pub(super) fn store_is_closed(
             target
                 .index
                 .as_ref()
-                .is_some_and(|index| index.kind == crate::place::IndexKind::Literal)
+                .is_some_and(|index| index.kind == tcl_names::place::IndexKind::Literal)
                 && (variables.root_contents_kind(target) == Some(RootContentsKind::Array)
                     || variables.contents_presence(&target.base()) == ContentsPresence::Undefined)
                 && !variables

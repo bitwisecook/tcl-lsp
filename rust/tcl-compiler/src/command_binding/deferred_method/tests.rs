@@ -459,7 +459,7 @@ fn class_block_method_entry_retains_the_original_inner_source() {
             assert_eq!(entry.receiver(), super::SourceMethodReceiver::Class);
             assert!(matches!(
                 entry.frame(),
-                crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
             ));
         }
     }
@@ -520,7 +520,7 @@ fn method_source_inventory_is_temporal_and_retains_receiver_kind() {
             assert_eq!(entry.name(), "ping");
             assert!(matches!(
                 entry.frame(),
-                crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
             ));
             assert!(!entries.contains_key(&(
                 super::SourceMethodReceiver::Class,
@@ -588,7 +588,7 @@ fn constructor_entry_retains_original_formals_without_proving_the_result_class()
             assert_eq!(entry.body().text.try_text().unwrap(), "error CALLBACK");
             assert!(matches!(
                 entry.frame(),
-                crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
             ));
             assert_eq!(payload, 1);
             assert!(binding.proved_construction_result(&registry).is_none());
@@ -668,7 +668,7 @@ fn compiled_class_definition_retains_absolute_method_command_identity() {
     assert!(
         matches!(
             binding.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         ),
         "{binding:#?}"
     );
@@ -734,7 +734,7 @@ fn method_declaration_retains_local_frame_without_receiver_namespace() {
     );
     assert!(matches!(
         global.variable_frame,
-        crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
     ));
     assert!(!global.variable_context.namespace_known);
     assert!(global.unknown);

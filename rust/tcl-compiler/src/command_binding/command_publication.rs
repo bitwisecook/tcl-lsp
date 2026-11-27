@@ -19,15 +19,15 @@
 //! Exact fresh native publications preserve independently unchanged object tables.
 
 use super::{
-    Arc, CommandAllocation, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget,
-    SourceExecutionContext, SourceNativeInvocation,
+    Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceNativeInvocation,
 };
+use tcl_names::command::{CommandAllocation, CommandAllocationSite};
 
 pub(super) struct PreservingCommandPublication {
     factory: SourceCommandTarget,
     allocation: CommandAllocation,
-    slot: super::SourceCommandKey,
-    lookup_namespace: super::SourceNamespaceKey,
+    slot: tcl_names::command::SourceCommandKey,
+    lookup_namespace: tcl_names::namespace::SourceNamespaceKey,
     factory_head: String,
     name: String,
     kind: tcl_registry::CommandBindingDefinitionKind,
@@ -85,8 +85,8 @@ impl PreservingCommandPublication {
             .copied()
             .unwrap_or(0)
         {
-            0 => super::AllocationIncarnation::First,
-            1 => super::AllocationIncarnation::Second,
+            0 => tcl_names::command::AllocationIncarnation::First,
+            1 => tcl_names::command::AllocationIncarnation::Second,
             _ => return None,
         };
         Some(Self {
@@ -121,9 +121,9 @@ impl PreservingCommandPublication {
                 .copied()
                 .unwrap_or(0)
                 == match self.allocation.incarnation {
-                    super::AllocationIncarnation::First => 0,
-                    super::AllocationIncarnation::Second => 1,
-                    super::AllocationIncarnation::RepeatedFresh => return false,
+                    tcl_names::command::AllocationIncarnation::First => 0,
+                    tcl_names::command::AllocationIncarnation::Second => 1,
+                    tcl_names::command::AllocationIncarnation::RepeatedFresh => return false,
                 }
             && self.allocation.site.offset == declaration
             && state.current_source_origin.as_ref() == Some(&self.allocation.site.source)
@@ -140,7 +140,7 @@ pub(super) struct SourceFreshProcedureTraceAbsence {
     entry: Arc<tcl_runtime_api::NativeCompilationEntry>,
     factory: SourceCommandTarget,
     allocation: CommandAllocation,
-    slot: super::SourceCommandKey,
+    slot: tcl_names::command::SourceCommandKey,
 }
 
 impl SourceFreshProcedureTraceAbsence {
@@ -164,7 +164,8 @@ impl SourceFreshProcedureTraceAbsence {
         let entry = state.baseline.native_entry.as_ref()?;
         let profile = context.registry.profile()?;
         if publication.kind != tcl_registry::CommandBindingDefinitionKind::Procedure
-            || publication.allocation.incarnation != super::AllocationIncarnation::First
+            || publication.allocation.incarnation
+                != tcl_names::command::AllocationIncarnation::First
             || !entry.closed
             || entry.profile != profile.cache_key()
             || entry.invocation_policy.as_ref() != Some(&entry.profile)
@@ -249,7 +250,7 @@ impl SourceFreshProcedureTraceAbsence {
         };
         if !target.terminal
             || target.registry_backed
-            || target.kind != super::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || !target.prepended.is_empty()
             || target.implementation_generation != self.allocation.site.offset
             || target.implementation_allocation.as_ref() != Some(&self.allocation)
@@ -288,7 +289,7 @@ impl SourceFreshProcedureTraceAbsence {
     ) -> bool {
         if !self.current_entry(state)
             || target.registry_backed
-            || target.kind != super::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || !target.prepended.is_empty()
             || target.implementation_generation != self.allocation.site.offset
             || target.implementation_allocation.as_ref() != Some(&self.allocation)
@@ -321,7 +322,7 @@ fn selected_publication(
     context: SourceExecutionContext<'_>,
 ) -> Option<(
     String,
-    super::SourceCommandKey,
+    tcl_names::command::SourceCommandKey,
     tcl_registry::CommandBindingDefinitionKind,
 )> {
     let dialect = state.baseline.dialect?;
@@ -343,7 +344,7 @@ fn selected_class_publication(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
 ) -> Option<(
     String,
-    super::SourceCommandKey,
+    tcl_names::command::SourceCommandKey,
     tcl_registry::CommandBindingDefinitionKind,
 )> {
     use tcl_registry::{CommandBindingDefinitionKind, StateTransition};
@@ -383,7 +384,7 @@ fn selected_procedure_publication(
     context: SourceExecutionContext<'_>,
 ) -> Option<(
     String,
-    super::SourceCommandKey,
+    tcl_names::command::SourceCommandKey,
     tcl_registry::CommandBindingDefinitionKind,
 )> {
     use tcl_registry::{CommandBindingDefinitionKind, StateTransition};

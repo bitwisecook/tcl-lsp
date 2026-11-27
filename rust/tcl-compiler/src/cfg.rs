@@ -203,7 +203,7 @@ impl Block {
 pub struct LoopNode {
     /// Actual source instance owning the condition and original loop statement.
     /// A missing owner cannot borrow math proofs from a surrounding function.
-    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    pub executed_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     /// Id of the block the loop statement starts in: the block before its
     /// header, which holds a `for`'s start script.
     pub entry_block: BlockId,
@@ -346,9 +346,9 @@ pub struct Function {
     #[doc(hidden)]
     pub metadata_context: crate::cfg_builder::CfgMetadataContext,
     /// Actual namespace owner retained from the executable body.
-    pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
+    pub namespace_context: Option<Box<tcl_names::namespace::SourceNamespaceKey>>,
     /// Exact source instance retained independently of native admission.
-    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    pub executed_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     /// Original function occurrences across flattened source instances;
     /// conditional topology retains independent actual validation obligations.
     pub implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
@@ -361,12 +361,10 @@ pub struct Function {
     pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     /// Source instance at each observed branch/return/completion terminator.
     pub terminator_sources:
-        HashMap<BlockId, Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>>,
+        HashMap<BlockId, Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>>,
     /// Source instance at every flattened statement, including derived child bodies.
-    pub statement_sources: HashMap<
-        (BlockId, usize),
-        Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
-    >,
+    pub statement_sources:
+        HashMap<(BlockId, usize), Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>>,
     /// Genuine hidden procedure MAY effects retained by their actual call source.
     pub(crate) source_may_calls: HashMap<
         (usize, u32),
@@ -507,7 +505,7 @@ impl Function {
         let source = self.statement_sources.get(&(block, index))?.as_ref()?;
         matches!(
             source.origin.kind(),
-            crate::command_binding::SourceOriginKind::Authored(_)
+            tcl_names::origin::SourceOriginKind::Authored(_)
         )
         .then(|| {
             self.blocks
@@ -525,7 +523,7 @@ impl Function {
         let source = self.terminator_sources.get(&block)?.as_ref()?;
         if !matches!(
             source.origin.kind(),
-            crate::command_binding::SourceOriginKind::Authored(_)
+            tcl_names::origin::SourceOriginKind::Authored(_)
         ) {
             return None;
         }
@@ -543,7 +541,7 @@ impl Function {
         self.executed_source.as_ref().and_then(|source| {
             matches!(
                 source.origin.kind(),
-                crate::command_binding::SourceOriginKind::Authored(_)
+                tcl_names::origin::SourceOriginKind::Authored(_)
             )
             .then_some(span)
         })

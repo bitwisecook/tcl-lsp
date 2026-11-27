@@ -625,7 +625,7 @@ fn logical_source_command_vectors_keep_genuine_conditional_receiver_geometry() {
 
 #[test]
 fn logical_namespace_point_operands_use_independent_original_frame_recipes() {
-    use crate::signature_scan::scope::SignatureNamespaceScope;
+    use tcl_names::namespace::SignatureNamespaceScope;
     for (source, home) in [
         ("namespace eval Target {}", None),
         ("namespace eval N {namespace eval Target {}}", Some("N")),

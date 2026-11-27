@@ -141,7 +141,7 @@ struct StartupReadFacts {
 }
 
 fn startup_read_facts(
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     version: crate::ssa::Version,
     killed: bool,
     initial_global: bool,

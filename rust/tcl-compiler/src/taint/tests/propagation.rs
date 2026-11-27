@@ -295,18 +295,18 @@ fn incoming_global_projection_refuses_foreign_nonroot_and_recreated_storage() {
         crate::environment_ingress::captured_native_entry_with_owner(profile);
     assert!(cell.incoming_root_global(&foreign).is_none());
     // Refusal-only wrappers around the genuine cell issue no SSA or lifetime proof.
-    let recreated = crate::var_resolve::VariableCellKey::Lifetime {
+    let recreated = tcl_names::variable::VariableCellKey::Lifetime {
         source: 1,
         cell: Box::new(cell.clone()),
     };
     assert!(recreated.incoming_root_global(entry).is_none());
-    let member = crate::var_resolve::VariableCellKey::Element {
+    let member = tcl_names::variable::VariableCellKey::Element {
         cell: Box::new(recreated),
         index: "key".into(),
     };
     assert!(member.incoming_root_global(entry).is_none());
     assert!(
-        crate::var_resolve::VariableCellKey::Authored("argv".to_owned())
+        tcl_names::variable::VariableCellKey::Authored("argv".to_owned())
             .incoming_root_global(entry)
             .is_none()
     );
@@ -406,7 +406,7 @@ fn incoming_global_metadata_cannot_replace_genuine_formal_or_gets_sources() {
         .all_body_function_units()
         .find_map(|function| {
             function.ssa.cell_symbols().find_map(|(symbol, cell)| {
-                matches!(cell, crate::var_resolve::VariableCellKey::Activation { simple, .. }
+                matches!(cell, tcl_names::variable::VariableCellKey::Activation { simple, .. }
                         if simple.as_bytes() == b"argv")
                 .then_some((function, symbol))
             })

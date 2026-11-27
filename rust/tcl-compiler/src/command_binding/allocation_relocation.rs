@@ -21,11 +21,11 @@
 
 use std::sync::Arc;
 
-use super::{
-    CommandAllocationSite, SourceInvocationBinding, SourceOriginId, SourceVariableEvaluationOwner,
-    compiled_invocation::SourceNativeCompilerAdmission,
-};
+use super::compiled_invocation::SourceNativeCompilerAdmission;
+use super::{SourceInvocationBinding, SourceVariableEvaluationOwner};
 use crate::ir::{CommandTokens, Script};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 impl CommandTokens {
     /// Visit the allocation site of every invocation these tokens retain for a

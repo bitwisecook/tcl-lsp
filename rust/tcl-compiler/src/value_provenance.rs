@@ -223,7 +223,7 @@ fn fold_literal_list_call(
     let binding = tokens.source_binding.as_ref()?;
     if !matches!(
         binding.source_origin()?.kind(),
-        crate::command_binding::SourceOriginKind::Authored(_)
+        tcl_names::origin::SourceOriginKind::Authored(_)
     ) {
         return None;
     }

@@ -126,7 +126,7 @@ pub fn shadowed_builtin_names_for_module_function(
     unit: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
-    use crate::command_binding::SourceNamespaceKey;
+    use tcl_names::namespace::SourceNamespaceKey;
     fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
         context.exact_native_path().cloned().or_else(|| {
             let authored = context.advisory_key()?;

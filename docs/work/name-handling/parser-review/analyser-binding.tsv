@@ -1104,9 +1104,9 @@ rust/tcl-compiler/src/path_concat.rs::build_file_join_fix_with_config	split	revi
 rust/tcl-compiler/src/path_concat.rs::find_path_concat_warnings	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/path_concat.rs::is_simple_path_segment	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/path_concat.rs::is_simple_path_var	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/place.rs::Place::is_global	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/place.rs::overlap	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/place.rs::retained_cell_overlap	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-names/src/place.rs::Place::is_global	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-names/src/place.rs::overlap	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-names/src/place.rs::retained_cell_overlap	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/place_bridge.rs::command_role_reads	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/place_bridge.rs::def_places	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/place_bridge.rs::element_writes_observed_with_contexts	delimiter and control flow	review structural reader	awaiting site review	—	—
@@ -1468,8 +1468,8 @@ rust/tcl-compiler/src/var_resolve.rs::ResolveContext::point_sensitive	delimiter 
 rust/tcl-compiler/src/var_resolve.rs::VariableExecutionFrame::with_namespace_identity	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/var_resolve/canonical_keys.rs::canonical_binding_value_key	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/var_resolve/canonical_keys.rs::canonical_place_key	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/var_resolve/cell_key.rs::IncomingRootGlobalCell::is_element	delimiter and control flow	review structural reader	awaiting site review	—	—
-rust/tcl-compiler/src/var_resolve/cell_key.rs::VariableCellKey::is_namespace_storage	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-names/src/variable.rs::IncomingRootGlobalCell::is_element	delimiter and control flow	review structural reader	awaiting site review	—	—
+rust/tcl-names/src/variable.rs::VariableCellKey::is_namespace_storage	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/var_resolve/contents_reads.rs::ResolveContext::captured_contents_presence	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/var_resolve/contents_reads.rs::ResolveContext::current_scalar_slot_contents	delimiter and control flow	review structural reader	awaiting site review	—	—
 rust/tcl-compiler/src/var_resolve/contents_reads.rs::ResolveContext::dictionary_element_read_produces_value	delimiter and control flow	review structural reader	awaiting site review	—	—

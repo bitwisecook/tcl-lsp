@@ -55,7 +55,7 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 #[cfg(test)]
 use crate::types::{Elements, TypeShape};
 use crate::types::{TypeKind, TypeLattice, type_join};
-use crate::var_resolve::VariableCellKey;
+use tcl_names::variable::VariableCellKey;
 
 mod caller_safe_factories;
 mod container_elements;
@@ -260,7 +260,7 @@ fn type_version(
 
 /// Conditional normal result types keyed by original implementation allocation.
 pub(crate) type NormalProcedureResultTypes =
-    HashMap<crate::command_binding::CommandAllocation, TypeLattice>;
+    HashMap<tcl_names::command::CommandAllocation, TypeLattice>;
 
 /// Read-only word-shape context at one retained program point.
 struct WordTypingCtx<'a, S: std::hash::BuildHasher> {

@@ -20,9 +20,11 @@
 
 use super::formal_topology::OriginalFormalTopology;
 use super::receiver_self::CalledBodyReceiver;
-use super::{DeferredSourceBody, ExecutedScriptSource, SourceCommandTarget};
-use crate::var_resolve::{ResolveContext, VariableExecutionFrame};
+use super::{DeferredSourceBody, SourceCommandTarget};
+use crate::var_resolve::ResolveContext;
 use std::sync::Arc;
+use tcl_names::origin::ExecutedScriptSource;
+use tcl_names::variable::VariableExecutionFrame;
 
 /// An entered original method retains its selected declaring provider and
 /// receiver axis before body operands execute. A later declaration, class
@@ -78,7 +80,7 @@ impl OriginalReceiverBodyContext {
         })
     }
 
-    pub(crate) fn declaring_allocation(&self) -> Option<&super::CommandAllocation> {
+    pub(crate) fn declaring_allocation(&self) -> Option<&tcl_names::command::CommandAllocation> {
         self.provider.identity.as_ref()?.allocation.as_ref()
     }
 

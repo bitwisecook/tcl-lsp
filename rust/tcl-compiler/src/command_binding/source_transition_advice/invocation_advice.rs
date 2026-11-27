@@ -296,7 +296,7 @@ impl AdviceInvocationContext<'_> {
             obligations.push(SourceCommandTransitionObligation::UnacceptedSourceArity);
         }
         Some(OriginalSourceCommandTransitionAdvice {
-            site: super::super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.origin),
                 offset: native.first()?.span().start(),
             },

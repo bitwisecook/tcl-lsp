@@ -966,7 +966,7 @@ impl Statement {
                     .is_some_and(|origin| {
                         matches!(
                             origin.kind(),
-                            crate::command_binding::SourceOriginKind::Derived { .. }
+                            tcl_names::origin::SourceOriginKind::Derived { .. }
                         )
                     })
         }) {

@@ -196,7 +196,8 @@ pub(super) fn alias_hover_at(
     word: &str,
 ) -> std::ops::ControlFlow<Option<String>> {
     use std::ops::ControlFlow::{Break, Continue};
-    use tcl_compiler::command_binding::{BindingKind, SourceCommandReferenceBinding};
+    use tcl_compiler::command_binding::SourceCommandReferenceBinding;
+    use tcl_names::command::BindingKind;
     let Some(invocation) = crate::definition::invocation_head_at(analysis, cursor) else {
         return Continue(());
     };

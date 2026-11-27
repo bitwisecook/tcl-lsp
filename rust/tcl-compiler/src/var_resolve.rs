@@ -30,7 +30,7 @@
 //! scanner ([`crate::var_refs`]) — rather than re-deriving it.  Anything that
 //! cannot be pinned down statically (dynamic variable name, computed array
 //! name, `upvar` to a dynamic target) resolves to `UNKNOWN` / `dynamic` so the
-//! [`overlap`](crate::place::overlap) relation stays sound (over-approximating).
+//! [`overlap`](tcl_names::place::overlap) relation stays sound (over-approximating).
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -39,18 +39,13 @@ use tcl_registry::CommandRegistry;
 #[cfg(test)]
 use tcl_registry::FrameLevel;
 
-use crate::place::{self, CellGeneration, CellIdentity, CellOwner, Index, Place, PlaceKind};
-mod cell_key;
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, Index, Place, PlaceKind};
 mod fresh_scalar_proposal;
 mod namespace_identity;
 mod original_bytes;
 mod original_name_contents;
 mod original_name_write;
-pub use cell_key::SharedSet;
-pub use cell_key::{
-    VariableCellKey, VariableCellKeyQuery, VariableCellSet, VariableCellTable,
-    VariableNamespaceMembership, VariableNamespaceQuery, VariableNamespaceSet, namespace_contains,
-};
 pub(crate) use fresh_scalar_proposal::FreshScalarVariableSlot;
 pub use original_bytes::resolve_evaluated_variable_input;
 pub(crate) use original_bytes::{
@@ -61,6 +56,10 @@ pub(crate) use original_bytes::{
 };
 pub(crate) use original_name_contents::{OriginalNameValueRead, OriginalNormalValueRead};
 pub(crate) use original_name_write::OriginalNormalValueWrite;
+use tcl_names::variable::{
+    SharedSet, VariableCellKey, VariableCellKeyQuery, VariableCellSet, VariableCellTable,
+    VariableNamespaceSet,
+};
 
 mod canonical_keys;
 mod contents_reads;
@@ -97,98 +96,6 @@ pub use proof_relocation::VariableProofRelocation;
 #[cfg(test)]
 use scalar_binding::inner_read_places;
 use scalar_binding::{bind_cell_identity, bind_scalar_receiver, resolve_name_alias};
-
-/// Actual variable activation selected by executable source interpretation.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub enum VariableExecutionFrame {
-    /// Interpreter global frame, including uplevel #0.
-    Global,
-    /// Namespace-eval activation; Jim keeps its ordinary variables local.
-    Namespace(String),
-    /// Namespace-eval activation with a distinct executable source site.
-    NamespaceActivation {
-        /// Selected namespace table.
-        namespace: String,
-        /// Stable allocation site, distinct from its caller and sibling sites.
-        identity: String,
-    },
-    /// Procedure or event activation with a defining namespace and identity.
-    Procedure {
-        /// Defining command namespace.
-        namespace: String,
-        /// Source execution identity of the activation.
-        identity: String,
-    },
-    /// Receiver method activation whose local table is known independently of
-    /// the receiver's namespace and instance storage.
-    ReceiverMethod {
-        /// Stable execution identity of this local activation.
-        identity: String,
-    },
-    /// A foreign stack activation, whose namespace may be unavailable.
-    Selected {
-        /// Validated caller/absolute frame selector.
-        selector: tcl_registry::FrameLevel,
-        /// Proven selected frame namespace, when available.
-        namespace: Option<String>,
-    },
-    /// Exact namespace identity retained independently of an activation layout.
-    NamespaceIdentity {
-        /// Original namespace incarnation and component boundaries.
-        namespace: crate::command_binding::SourceNamespaceKey,
-        /// Selected activation layout; display fields carry no lookup authority.
-        frame: Box<VariableExecutionFrame>,
-    },
-    /// Neither the selected frame nor its namespace is known.
-    #[default]
-    Unknown,
-}
-
-impl VariableExecutionFrame {
-    /// Attach an original namespace identity without changing frame selection.
-    #[must_use]
-    pub fn with_namespace_identity(
-        self,
-        namespace: crate::command_binding::SourceNamespaceKey,
-    ) -> Self {
-        if matches!(
-            namespace,
-            crate::command_binding::SourceNamespaceKey::Authored(_)
-        ) {
-            self.into_layout()
-        } else {
-            Self::NamespaceIdentity {
-                namespace,
-                frame: Box::new(self.into_layout()),
-            }
-        }
-    }
-
-    fn into_layout(self) -> Self {
-        match self {
-            Self::NamespaceIdentity { frame, .. } => frame.into_layout(),
-            frame => frame,
-        }
-    }
-
-    /// Activation layout, excluding its independent namespace identity carrier.
-    #[must_use]
-    pub fn layout(&self) -> &Self {
-        match self {
-            Self::NamespaceIdentity { frame, .. } => frame.layout(),
-            frame => frame,
-        }
-    }
-
-    /// Original namespace identity; authored display-only frames return none.
-    #[must_use]
-    pub fn namespace_identity(&self) -> Option<&crate::command_binding::SourceNamespaceKey> {
-        match self {
-            Self::NamespaceIdentity { namespace, .. } => Some(namespace),
-            _ => None,
-        }
-    }
-}
 
 /// Namespace-cell allocation facts, independent of whether a value exists.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -590,12 +497,11 @@ pub struct ResolveContext {
     /// Current FQ namespace.
     pub namespace: String,
     /// Exact namespace owner; presentation text is not its inverse.
-    pub namespace_identity: Option<crate::command_binding::SourceNamespaceKey>,
+    pub namespace_identity: Option<tcl_names::namespace::SourceNamespaceKey>,
     /// Reached namespace tables retaining independent component boundaries.
-    pub namespace_identities: cell_key::SharedSet<crate::command_binding::SourceNamespaceKey>,
+    pub namespace_identities: SharedSet<tcl_names::namespace::SourceNamespaceKey>,
     /// Namespace incarnations reachable by a new written-address lookup.
-    pub namespace_addressable_identities:
-        cell_key::SharedSet<crate::command_binding::SourceNamespaceKey>,
+    pub namespace_addressable_identities: SharedSet<tcl_names::namespace::SourceNamespaceKey>,
     /// Whether the retained namespace inventory closes missing table candidates.
     pub namespace_inventory: NamespaceInventoryClosure,
     /// Selected native variable-name input recipe.
@@ -606,7 +512,7 @@ pub struct ResolveContext {
     pub expression_parser: Option<tcl_native_model::LogicalExpressionParseProvider>,
     /// Actual Jim namespace-object bytes retained from the entry snapshot.
     pub namespace_objects:
-        HashMap<crate::command_binding::SourceNamespaceKey, tcl_core_types::NameBytes>,
+        HashMap<tcl_names::namespace::SourceNamespaceKey, tcl_core_types::NameBytes>,
     /// Independently selected authored publication context, after actual cell resolution.
     pub authored_tmm_static:
         Option<tcl_runtime_api::authored_tmm::AuthoredTmmStaticCompilationContext>,
@@ -621,9 +527,9 @@ pub struct ResolveContext {
     /// Proven current activation allocation site, when supplied by source execution.
     pub activation: Option<String>,
     /// Names under a `global` declaration.
-    pub globals: cell_key::SharedSet<String>,
+    pub globals: SharedSet<String>,
     /// Names under a `variable` declaration.
-    pub ns_vars: cell_key::SharedSet<String>,
+    pub ns_vars: SharedSet<String>,
     /// Local alias → caller target (`""` = dynamic/unresolvable).
     pub upvar_aliases: HashMap<String, String>,
     /// Names with an active `trace`.
@@ -638,7 +544,7 @@ pub struct ResolveContext {
     /// Traces whose incoming registration or operation list is unenumerated.
     pub untracked_traces: VariableCellSet,
     /// `TclOO` instance vars in scope.
-    pub instance_vars: cell_key::SharedSet<String>,
+    pub instance_vars: SharedSet<String>,
     /// Advisory declared-state scope for `instance_vars`; never an object token.
     pub instance_owner: String,
     /// Typed selection of the current variable table.
@@ -662,7 +568,7 @@ pub struct ResolveContext {
     pub outward_namespace_destructions: VariableNamespaceSet,
     /// Pending native namespace teardowns whose original active frame still owns the cells.
     pub pending_namespace_retirements:
-        HashMap<crate::command_binding::SourceNamespaceKey, PendingNamespaceRetirement>,
+        HashMap<tcl_names::namespace::SourceNamespaceKey, PendingNamespaceRetirement>,
     /// Retained variable wrappers shared by namespace and activation views.
     pub raw_bindings: crate::raw_binding::RawBindingArena,
     /// Active captured-cell operations, authoritative across selected frames.
@@ -728,7 +634,7 @@ pub struct ResolveContext {
     /// observers. This is separate from its contents and namespace trace world.
     activation_observer_inventory: ActivationObserverInventory,
     /// Actual fresh receiver allocations whose observer world remains enumerated.
-    pub(crate) closed_observer_allocations: HashSet<crate::command_binding::SourceObjectAllocation>,
+    pub(crate) closed_observer_allocations: HashSet<tcl_names::variable::SourceObjectAllocation>,
     /// Namespace-scoped contents clobbers without enumerated cell names.
     pub contents_unknown_namespaces: VariableNamespaceSet,
     /// Physical array roots affected by stores or deletions to an unknown element.
@@ -741,7 +647,7 @@ pub struct ResolveContext {
     /// All current-frame bindings may have been retargeted by evaluated code.
     pub dynamic_bindings: bool,
     /// Namespace tables known to exist at this program point.
-    pub known_namespaces: cell_key::SharedSet<String>,
+    pub known_namespaces: SharedSet<String>,
     /// Reaching namespace-cell allocation, used by Tcl8 global fallback.
     pub namespace_cells: NamespaceCellPresence,
     /// Root lifetimes changed by array or namespace destruction.
@@ -943,8 +849,8 @@ impl Default for ResolveContext {
         Self {
             namespace: "::".to_owned(),
             namespace_identity: None,
-            namespace_identities: cell_key::SharedSet::default(),
-            namespace_addressable_identities: cell_key::SharedSet::default(),
+            namespace_identities: SharedSet::default(),
+            namespace_addressable_identities: SharedSet::default(),
             namespace_inventory: NamespaceInventoryClosure::Open,
             namespace_name_protocol: None,
             execution_name_policy: None,
@@ -956,15 +862,15 @@ impl Default for ResolveContext {
             source_read_configuration: SourceReadConfiguration::Standalone,
             selected_frame: None,
             activation: None,
-            globals: cell_key::SharedSet::default(),
-            ns_vars: cell_key::SharedSet::default(),
+            globals: SharedSet::default(),
+            ns_vars: SharedSet::default(),
             upvar_aliases: HashMap::new(),
             traced: VariableCellSet::default(),
             trace_registrations: VariableCellTable::default(),
             trace_registration_receivers: VariableCellTable::default(),
             possible_trace_registrations: Vec::new(),
             untracked_traces: VariableCellSet::default(),
-            instance_vars: cell_key::SharedSet::default(),
+            instance_vars: SharedSet::default(),
             instance_owner: String::new(),
             frame_kind: VariableFrameKind::Local,
             interpreter: None,
@@ -1005,7 +911,7 @@ impl Default for ResolveContext {
             closed_array_roots: VariableCellSet::default(),
             unknown_bindings: VariableCellSet::default(),
             dynamic_bindings: false,
-            known_namespaces: cell_key::SharedSet::from(["::".to_owned()]),
+            known_namespaces: SharedSet::from(["::".to_owned()]),
             namespace_cells: NamespaceCellPresence::default(),
             generations: VariableCellTable::default(),
             binding_identity: BindingIdentity::Legacy,

@@ -21,6 +21,12 @@
 //! the `head_identity` binding table's retirement (now
 //! the realm command-binding state in `tcl_compiler::realm`).
 //!
+//! It also holds the paths the compiler split retired: the source-syntax
+//! modules now in `tcl-source`, and the source-key descriptors now in
+//! `tcl-names` (`tcl_compiler::place`, and the namespace, command, origin,
+//! variable-cell and signature-name keys under `command_binding`,
+//! `var_resolve`, `raw_binding` and `signature_scan`).
+//!
 //! It also holds the `one-loader` retirements: the CST pack-loader front
 //! end (`load_pack`, `load_pack_cached`, `expand_includes`,
 //! `report_extra_speclib_blocks`) and the second cache identity
@@ -137,6 +143,135 @@ const RETIRED: &[RetiredPattern] = &[
     },
     RetiredPattern {
         needle: "tcl_compiler::ir::NodeId",
+        outside_registry_only: false,
+    },
+    // Source-key descriptors are owned by tcl-names.
+    RetiredPattern {
+        needle: "tcl_compiler::place",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::SourceNamespaceKey",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::SourceCommandKey",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::CommandIdentity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::RuntimeCommandTokenIdentity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::CommandAllocationSite",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::CommandAllocation",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::AllocationIncarnation",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::CommandRefInterner",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::SourceOriginId",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::SourceOriginKind",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::MaterialisedSourceKind",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::OriginalSourcePointOrigin",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::ExecutedScriptSource",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::ExecutedScriptMapping",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::SourceObjectAllocation",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::command_binding::BindingKind",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableExecutionFrame",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableCellKey",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableCellKeyQuery",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableCellSet",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableCellTable",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableNamespaceMembership",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableNamespaceQuery",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::VariableNamespaceSet",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::SharedSet",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::var_resolve::namespace_contains",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::raw_binding::RawBindingSlotId",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::raw_binding::CallableStorageIdentity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::signature_scan::scope::SignatureNamespaceScope",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::signature_scan::scope::SignatureSourceNameKey",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "tcl_compiler::signature_scan::original_name::SignatureSourceNameKey",
         outside_registry_only: false,
     },
     // Literal algorithms are owned by tcl-cmd-core; registry adapters project policy.
@@ -824,6 +959,26 @@ fn find_needle(line: &str, needle: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn source_keys_cannot_return_to_the_compiler() {
+        for line in [
+            "use tcl_compiler::command_binding::SourceNamespaceKey;",
+            "let site: tcl_compiler::command_binding::CommandAllocationSite = site;",
+            "use tcl_compiler::place::{self, Place};",
+            "let frame = tcl_compiler::var_resolve::VariableExecutionFrame::Global;",
+            "use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;",
+        ] {
+            assert_eq!(super::scan(line, false).len(), 1, "{line}");
+        }
+        for line in [
+            "use tcl_names::command::CommandAllocationSite;",
+            "use tcl_compiler::place_bridge::PlaceBridge;",
+            "use tcl_compiler::command_binding::SourceObjectInstanceProof;",
+        ] {
+            assert!(super::scan(line, false).is_empty(), "{line}");
+        }
+    }
+
     #[test]
     fn literal_value_algorithms_cannot_return_to_registry() {
         assert_ne!(

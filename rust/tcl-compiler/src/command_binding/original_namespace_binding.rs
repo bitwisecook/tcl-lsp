@@ -18,11 +18,10 @@
 
 //! Canonical namespace pattern transfers over exact source command cells.
 
-use super::{
-    Arc, BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
-};
-use crate::signature_scan::scope::SignatureNamespaceScope;
+use super::{Arc, BTreeSet, MayBinding, ModuleCommandBindings};
 use tcl_core_types::NameBytes;
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 use tcl_syntax::{
     naming::{NamePolicyProtocol, NativeNamePurpose, NativeNamespacePatternSource},
     native_glob::{NativeGlobProtocol, NativeNameGlobPurpose},
@@ -369,7 +368,7 @@ pub(super) fn apply_forget(
 /// transfer. Publication geometry and an `OnOk` transition cannot issue this seal.
 #[derive(Clone)]
 pub(super) struct OriginalNamespaceBinding {
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: super::SourceCommandTarget,
@@ -557,7 +556,7 @@ impl OriginalNamespaceBinding {
         if !quiet(state)
             || facts.arity_accepts_frozen_arguments() != Some(true)
             || !native.target.registry_backed
-            || native.target.kind != super::BindingKind::Builtin
+            || native.target.kind != tcl_names::command::BindingKind::Builtin
             || native.target.implementation_generation != 0
             || native.target.runtime_implementation_generation.is_some()
             || !native.target.prepended.is_empty()
@@ -625,7 +624,7 @@ impl OriginalNamespaceBinding {
             );
         }
         Some(Self {
-            site: super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(state.current_source_origin.as_ref()?),
                 offset: native.segment.span.start(),
             },
@@ -710,9 +709,9 @@ fn import_origins_are_live(
                     && target.prepended.is_empty()
                     && matches!(
                         target.kind,
-                        super::BindingKind::Proc
-                            | super::BindingKind::Builtin
-                            | super::BindingKind::Class
+                        tcl_names::command::BindingKind::Proc
+                            | tcl_names::command::BindingKind::Builtin
+                            | tcl_names::command::BindingKind::Class
                     ))
                 .then_some(target.token.as_ref()?.clone())
             });
@@ -840,7 +839,9 @@ fn import_is_fresh_and_closed(
             || !target.prepended.is_empty()
             || !matches!(
                 target.kind,
-                super::BindingKind::Proc | super::BindingKind::Builtin | super::BindingKind::Class
+                tcl_names::command::BindingKind::Proc
+                    | tcl_names::command::BindingKind::Builtin
+                    | tcl_names::command::BindingKind::Class
             )
             || target.token.is_none()
         {
@@ -901,7 +902,7 @@ mod tests {
                 .as_ref()
                 .unwrap_or_else(|| panic!("{}", version.dialect_profile_name()))
                 .state;
-            let namespace = super::super::SourceNamespaceKey::authored("::A");
+            let namespace = tcl_names::namespace::SourceNamespaceKey::authored("::A");
             assert_eq!(
                 state.namespace_exports.get(&namespace),
                 Some(&super::BTreeSet::from([vec![

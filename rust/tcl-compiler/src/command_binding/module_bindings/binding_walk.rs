@@ -18,7 +18,6 @@
 
 //! The IR walk that collects binding states, with the transitions of embedded substitutions.
 
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::{BindingWalkOutcome, InvocationBindingContext, ModuleCommandBindings};
 use super::invocation_transitions::{
     apply_may_invocation_transitions, apply_resolved_may_transitions,
@@ -28,6 +27,7 @@ use crate::ir::{Script, Statement};
 use crate::ir_helpers::{evaluated_command_substitutions_with_replay, nested_bodies};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 impl ModuleCommandBindings {

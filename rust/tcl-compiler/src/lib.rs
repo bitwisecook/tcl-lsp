@@ -173,7 +173,6 @@ mod contents_source;
 pub mod literal_contents;
 pub mod optimiser;
 pub mod path_concat;
-pub mod place;
 pub mod place_bridge;
 pub mod raw_binding;
 pub(crate) mod read_schedule;

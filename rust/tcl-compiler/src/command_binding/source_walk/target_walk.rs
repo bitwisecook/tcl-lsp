@@ -250,7 +250,7 @@ pub(in super::super) fn prepare_source_native_invocation<'a>(
     let semantic_context = registry
         .profile()
         .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    if let super::super::BindingKind::Instance { factory } = target.kind {
+    if let tcl_names::command::BindingKind::Instance { factory } = target.kind {
         // A widget call takes its selected instance method's declared facts;
         // an unknown or computed method stays an unresolved call.
         let facts = resolve_source_instance_facts(state, registry, factory, invocation, realm)

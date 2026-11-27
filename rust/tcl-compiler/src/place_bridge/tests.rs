@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::compilation_unit::CompilationUnit;
-use crate::place::{Index, LOCAL_NS, PlaceKind, array_elem, overlap, scalar};
+use tcl_names::place::{Index, LOCAL_NS, PlaceKind, array_elem, overlap, scalar};
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -403,5 +403,5 @@ fn standalone_evaluated_data_keeps_reads_unknown_without_a_component_owner() {
     );
     let mut literal = Vec::new();
     command_reads("puts {$value}", &context, &mut literal, &registry);
-    assert_eq!(literal, [] as [crate::place::Place; 0]);
+    assert_eq!(literal, [] as [tcl_names::place::Place; 0]);
 }

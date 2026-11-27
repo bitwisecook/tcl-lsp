@@ -78,13 +78,14 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::auto_path_eval::evaluate_auto_path_expr;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::{Module, Statement};
-use tcl_compiler::place::{self, Index, LOCAL_NS, Place, PlaceKind, overlap};
 use tcl_compiler::place_bridge::{
     build_resolve_context, def_places_at, element_writes_observed_by_reads, read_places_at,
     terminator_read_places, terminator_read_places_at,
 };
 use tcl_compiler::scan_predicate::scan_provably_no_match;
 use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
+use tcl_names::place;
+use tcl_names::place::{Index, LOCAL_NS, Place, PlaceKind, overlap};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 

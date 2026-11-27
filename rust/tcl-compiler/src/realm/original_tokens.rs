@@ -18,6 +18,7 @@
 
 //! Bounded original command preparation under one immutable retained realm.
 
+use crate::command_binding::SourceOriginLexical;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

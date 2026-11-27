@@ -147,7 +147,7 @@ pub(in crate::analyser) mod widget_command;
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
-    procedures: HashSet<crate::command_binding::CommandAllocationSite>,
+    procedures: HashSet<tcl_names::command::CommandAllocationSite>,
     logical_definitions: Option<HashSet<String>>,
     logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
     logical_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
@@ -228,10 +228,10 @@ impl UnitCommandResolver<'_> {
                     .is_some()
             });
         }
-        target.kind == crate::command_binding::BindingKind::Proc
+        target.kind == tcl_names::command::BindingKind::Proc
             && self
                 .procedures
-                .contains(&crate::command_binding::CommandAllocationSite {
+                .contains(&tcl_names::command::CommandAllocationSite {
                     source: std::sync::Arc::clone(&site.source),
                     offset: target.implementation_generation,
                 })
@@ -250,7 +250,7 @@ impl UnitCommandResolver<'_> {
                     .is_some()
             });
         }
-        target.kind == crate::command_binding::BindingKind::Proc
+        target.kind == tcl_names::command::BindingKind::Proc
             && target
                 .implementation_allocation
                 .as_ref()
@@ -1754,7 +1754,7 @@ mod original_logical_command_availability_tests {
             let [target] = targets.as_slice() else {
                 panic!("one original procedure");
             };
-            assert_eq!(target.kind, crate::command_binding::BindingKind::Proc);
+            assert_eq!(target.kind, tcl_names::command::BindingKind::Proc);
             assert!(!target.registry_backed);
             assert!(target.implementation_allocation.is_none());
             assert!(binding.proved_execution_target().is_none());
@@ -1905,7 +1905,7 @@ fn executable_opaque_callee_name_args(
 pub(crate) fn writes_externally_read_special_variable(
     fu: &crate::compilation_unit::FunctionUnit,
     definition: &crate::def_use::DefSite,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<tcl_dialect::model::SurfaceQuery<'_>>,
 ) -> bool {

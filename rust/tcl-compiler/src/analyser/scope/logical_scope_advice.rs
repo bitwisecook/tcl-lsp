@@ -386,7 +386,7 @@ impl super::super::types::AnalysisResult {
             return false;
         };
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-        crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
             &word, rules, policy,
         )
         .as_ref()
@@ -443,9 +443,10 @@ impl super::super::types::AnalysisResult {
                     {
                         None
                     } else {
-                        scope.naming_scope.as_ref().and_then(
-                            crate::signature_scan::scope::SignatureNamespaceScope::display,
-                        )
+                        scope
+                            .naming_scope
+                            .as_ref()
+                            .and_then(tcl_names::namespace::SignatureNamespaceScope::display)
                     };
                     if namespace.is_none() {
                         kind = LogicalVariableScopeKind::UnknownNamespace;
@@ -467,9 +468,10 @@ impl super::super::types::AnalysisResult {
                     {
                         None
                     } else {
-                        scope.naming_scope.as_ref().and_then(
-                            crate::signature_scan::scope::SignatureNamespaceScope::display,
-                        )
+                        scope
+                            .naming_scope
+                            .as_ref()
+                            .and_then(tcl_names::namespace::SignatureNamespaceScope::display)
                     };
                 }
                 ScopeKind::Uplevel => {

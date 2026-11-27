@@ -18,10 +18,10 @@
 
 //! The static read alternatives of an original procedure and the read flow behind each.
 
+use super::super::SourceCommandBindings;
 use super::super::declaration_layout::{
     DeclarationLayoutObservation, original_declaration_layouts,
 };
-use super::super::{CommandAllocationSite, SourceCommandBindings};
 use super::procedure_header::{
     declaration_tokens, original_declaration_operand_input, procedure_declaration_header,
 };
@@ -34,6 +34,7 @@ use crate::registry_invocation::{
     effective_words_for_target,
 };
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 pub(super) fn trace_static_read_refusal<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
@@ -50,10 +51,10 @@ impl OriginalProcedureStaticReadAlternatives {
     #[cfg(debug_assertions)]
     pub(crate) fn trace_static_read_cell(
         &self,
-        key: &crate::var_resolve::VariableCellKey,
+        key: &tcl_names::variable::VariableCellKey,
         name: &str,
     ) {
-        use crate::var_resolve::VariableCellKey;
+        use tcl_names::variable::VariableCellKey;
         fn kind(key: &VariableCellKey) -> &'static str {
             match key {
                 VariableCellKey::Authored(_) => "authored",
@@ -74,7 +75,7 @@ impl OriginalProcedureStaticReadAlternatives {
         );
         match key.root() {
             VariableCellKey::RetainedSlot(slot) => match slot.as_ref() {
-                crate::raw_binding::RawBindingSlotId::Callable {
+                tcl_names::variable::RawBindingSlotId::Callable {
                     allocation,
                     name: held,
                 } => {
@@ -91,16 +92,16 @@ impl OriginalProcedureStaticReadAlternatives {
                         held.as_bytes() == name.as_bytes(),
                     );
                 }
-                crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+                tcl_names::variable::RawBindingSlotId::Variable(cell) => {
                     let owner = match &cell.owner {
-                        crate::place::CellOwner::CurrentFrame => "current-frame",
-                        crate::place::CellOwner::Activation(_) => "activation",
-                        crate::place::CellOwner::Namespace(_) => "namespace",
-                        crate::place::CellOwner::NamespaceIdentity(_) => "namespace-identity",
-                        crate::place::CellOwner::SelectedFrame(_) => "selected-frame",
-                        crate::place::CellOwner::RetainedSlot(_) => "retained-slot",
-                        crate::place::CellOwner::Instance(_) => "instance",
-                        crate::place::CellOwner::AllocatedInstance(_) => "allocated-instance",
+                        tcl_names::place::CellOwner::CurrentFrame => "current-frame",
+                        tcl_names::place::CellOwner::Activation(_) => "activation",
+                        tcl_names::place::CellOwner::Namespace(_) => "namespace",
+                        tcl_names::place::CellOwner::NamespaceIdentity(_) => "namespace-identity",
+                        tcl_names::place::CellOwner::SelectedFrame(_) => "selected-frame",
+                        tcl_names::place::CellOwner::RetainedSlot(_) => "retained-slot",
+                        tcl_names::place::CellOwner::Instance(_) => "instance",
+                        tcl_names::place::CellOwner::AllocatedInstance(_) => "allocated-instance",
                     };
                     eprintln!(
                         "RBS_STATIC_CELL variable owner={owner} generation={:?} name_equal={}",
@@ -129,13 +130,13 @@ impl OriginalProcedureStaticReadAlternatives {
 
     pub(crate) fn owns_declared_callable_static(
         &self,
-        key: &crate::var_resolve::VariableCellKey,
+        key: &tcl_names::variable::VariableCellKey,
         name: &str,
     ) -> bool {
-        let crate::var_resolve::VariableCellKey::RetainedSlot(slot) = key else {
+        let tcl_names::variable::VariableCellKey::RetainedSlot(slot) = key else {
             return false;
         };
-        let crate::raw_binding::RawBindingSlotId::Callable {
+        let tcl_names::variable::RawBindingSlotId::Callable {
             allocation,
             name: held,
         } = slot.as_ref()
@@ -144,7 +145,7 @@ impl OriginalProcedureStaticReadAlternatives {
         };
         let declaration = &self.declaration.header.declaration;
         self.names.contains(name)
-            && allocation.incarnation == super::super::AllocationIncarnation::First
+            && allocation.incarnation == tcl_names::command::AllocationIncarnation::First
             && allocation.site.offset == declaration.offset
             && Arc::ptr_eq(&allocation.site.source, &declaration.source)
             && allocation.implementation_generation == declaration.offset
@@ -182,7 +183,7 @@ impl OriginalProcedureStaticReadAlternatives {
         let key = static_read_guard!("cell_key", view.function().cell_key(symbol));
         static_read_guard!(
             "cell_owner",
-            (matches!(key, crate::var_resolve::VariableCellKey::Authored(_))
+            (matches!(key, tcl_names::variable::VariableCellKey::Authored(_))
                 || self.owns_declared_callable_static(key, name))
             .then_some(())
         );
@@ -364,7 +365,7 @@ struct OriginalStaticReadAlternativeFacet {
 impl OriginalProcedureReadFlowEntry {
     pub(in super::super) fn owns_source(
         &self,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> bool {
         &self.header.declaration.source == origin

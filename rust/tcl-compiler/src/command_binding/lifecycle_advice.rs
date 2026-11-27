@@ -18,18 +18,18 @@
 
 //! Original declaration lifecycle semantics without entered execution authority.
 
-use super::{
-    CommandAllocationSite, SourceBodyPhase, SourceBodyPhaseReachability, SourceCommandBindings,
-};
+use super::{SourceBodyPhase, SourceBodyPhaseReachability, SourceCommandBindings};
+use crate::command_binding::ExecutedScriptWords;
 use crate::ir::CommandTokens;
+use tcl_names::command::CommandAllocationSite;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceScopedLifecycleAdvice {
     pub(crate) invocation: crate::registry_invocation::DeclarationLifecycleInvocation,
     pub(crate) loader: super::TrustedPackageLoader,
     site: CommandAllocationSite,
-    frame: crate::var_resolve::VariableExecutionFrame,
-    namespace: super::SourceNamespaceKey,
+    frame: tcl_names::variable::VariableExecutionFrame,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
 }
 
 impl SourceCommandBindings {
@@ -136,8 +136,8 @@ impl SourceScopedLifecycleAdvice {
         invocation: crate::registry_invocation::DeclarationLifecycleInvocation,
         state: &super::ModuleCommandBindings,
         site: &CommandAllocationSite,
-        frame: &crate::var_resolve::VariableExecutionFrame,
-        namespace: &super::SourceNamespaceKey,
+        frame: &tcl_names::variable::VariableExecutionFrame,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<Self> {
         if state.has_opaque_domain()
             || state.source_step_observed()
@@ -197,13 +197,19 @@ impl SourceScopedLifecycleAdvice {
 
 pub(crate) enum ScopedLifecycleBodySource {
     Absent,
-    Source(super::ExecutedScriptSource, super::SourceNamespaceKey),
+    Source(
+        tcl_names::origin::ExecutedScriptSource,
+        tcl_names::namespace::SourceNamespaceKey,
+    ),
 }
 
 impl ScopedLifecycleBodySource {
     pub(crate) fn into_source(
         self,
-    ) -> Option<(super::ExecutedScriptSource, super::SourceNamespaceKey)> {
+    ) -> Option<(
+        tcl_names::origin::ExecutedScriptSource,
+        tcl_names::namespace::SourceNamespaceKey,
+    )> {
         match self {
             Self::Absent => None,
             Self::Source(source, namespace) => Some((source, namespace)),
@@ -212,7 +218,7 @@ impl ScopedLifecycleBodySource {
 }
 
 impl SourceScopedLifecycleAdvice {
-    pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(crate) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 
@@ -320,7 +326,7 @@ impl SourceScopedLifecycleAdvice {
             let written = self.invocation.effective.written_argument(argument)?;
             let word = self.invocation.effective.words.get(argument + 1)?;
             let value = self.invocation.arguments.get(argument)?.as_deref()?;
-            let source = super::ExecutedScriptSource::from_word(
+            let source = tcl_names::origin::ExecutedScriptSource::from_word(
                 self.site.clone(),
                 written,
                 word,
@@ -329,7 +335,7 @@ impl SourceScopedLifecycleAdvice {
             );
             matches!(
                 source.mapping,
-                super::ExecutedScriptMapping::Contiguous { .. }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
             )
             .then_some(source)
         })();
@@ -486,7 +492,7 @@ mod tests {
         assert_eq!(body.0.try_text().unwrap(), "puts $x");
         let mut changed = tokens.clone();
         changed.source_binding.as_mut().unwrap().variable_frame =
-            crate::var_resolve::VariableExecutionFrame::Global;
+            tcl_names::variable::VariableExecutionFrame::Global;
         assert!(SourceCommandBindings::scoped_lifecycle_advice(&changed, &registry).is_none());
         changed = tokens.clone();
         changed.word_exprs.clear();
@@ -528,8 +534,9 @@ mod tests {
 
     #[test]
     fn lifecycle_repeat_join_withdraws_conflicting_cell_generations() {
-        use crate::place::CellGeneration;
-        use crate::var_resolve::{ResolveContext, VariableCellKey};
+        use crate::var_resolve::ResolveContext;
+        use tcl_names::place::CellGeneration;
+        use tcl_names::variable::VariableCellKey;
         let key = VariableCellKey::Authored("x".to_owned());
         let mut head = ResolveContext::default();
         head.generations

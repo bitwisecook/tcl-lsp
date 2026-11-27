@@ -19,9 +19,11 @@
 //! Reached preparation proofs for exact expression source objects.
 
 use super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, ModuleCommandBindings, SourceCommandBindings,
-    SourceExecutionContext, SourceOutcomes,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
 };
+use crate::command_binding::SourceOriginLexical;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_registry::runtime_expr_validation::{
     ExpressionPreparationProof, NativeExpressionScriptPreparation, PreparedExpressionWitness,
     prepare_expression_witness_with_script_compiler,
@@ -36,8 +38,8 @@ enum ExpressionCoercionPhase {
 #[derive(Debug)]
 struct CurrentExpressionReadCapture {
     invocation: CommandAllocationSite,
-    source: Arc<super::SourceOriginId>,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    source: Arc<tcl_names::origin::SourceOriginId>,
+    frame: tcl_names::variable::VariableExecutionFrame,
     reads: Vec<super::SourceVariableAccess>,
     incompatible: bool,
 }
@@ -57,7 +59,7 @@ impl SourceCommandBindings {
     fn begin_expression_read_capture(
         &mut self,
         proof: &SourceExpressionPreparation,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
     ) -> usize {
         let depth = self.current_expression_reads.0.len();
         self.current_expression_reads
@@ -74,8 +76,8 @@ impl SourceCommandBindings {
 
     pub(super) fn capture_current_expression_read(
         &mut self,
-        origin: &Arc<super::SourceOriginId>,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         read: &super::SourceVariableAccess,
     ) {
         let Some(capture) = self.current_expression_reads.0.last_mut() else {
@@ -725,8 +727,8 @@ enum ExpressionEvaluationIssuer {
 pub(crate) struct SourceConditionalExpressionEvaluation {
     issuer: ExpressionEvaluationIssuer,
     invocation: CommandAllocationSite,
-    namespace_key: super::SourceNamespaceKey,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    namespace_key: tcl_names::namespace::SourceNamespaceKey,
+    frame: tcl_names::variable::VariableExecutionFrame,
     source: Arc<ExecutedScriptSource>,
     evaluation: tcl_registry::conditional_expression::ConditionalExpressionEvaluation,
     pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,
@@ -742,11 +744,11 @@ impl SourceConditionalExpressionEvaluation {
         &self.source
     }
 
-    pub(crate) fn namespace_context(&self) -> &super::SourceNamespaceKey {
+    pub(crate) fn namespace_context(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.namespace_key
     }
 
-    pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(crate) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 
@@ -781,7 +783,7 @@ pub struct SourceExpressionPreparation {
     /// Invocation selecting this expression after its arguments evaluated.
     pub invocation: CommandAllocationSite,
     /// Exact namespace incarnation at the original preparation entry.
-    pub namespace_key: super::SourceNamespaceKey,
+    pub namespace_key: tcl_names::namespace::SourceNamespaceKey,
     /// Exact expression bytes and truthful authored or materialised origin.
     pub source: Arc<ExecutedScriptSource>,
     /// Native prepared tree, grammar and any actual fixed-table prerequisite.
@@ -817,7 +819,9 @@ impl SourceExpressionPreparation {
     /// Match one unchanged written expression to its actual prepared bytes.
     /// Multi-operand concatenation and opaque mappings decline edit ownership.
     #[must_use]
-    pub fn original_expression_mapping(&self) -> Option<(&Arc<super::SourceOriginId>, u32)> {
+    pub fn original_expression_mapping(
+        &self,
+    ) -> Option<(&Arc<tcl_names::origin::SourceOriginId>, u32)> {
         if let Some(expression) = &self.executed_expression {
             if expression.origin != self.source.origin
                 || expression.text.as_bytes() != self.source.text.bytes()
@@ -826,7 +830,8 @@ impl SourceExpressionPreparation {
             }
             return expression.original_expression_mapping();
         }
-        let super::ExecutedScriptMapping::Contiguous { base } = self.source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = self.source.mapping
+        else {
             return None;
         };
         Some((&self.source.origin, base))
@@ -838,7 +843,10 @@ impl SourceExpressionPreparation {
     pub fn original_variable_source(
         &self,
         node: &crate::expr_ast::ExprNode,
-    ) -> Option<(&Arc<super::SourceOriginId>, tcl_source::words::SourceSite)> {
+    ) -> Option<(
+        &Arc<tcl_names::origin::SourceOriginId>,
+        tcl_source::words::SourceSite,
+    )> {
         self.original_variable_source_with_config(
             node,
             tcl_lexer::LexerConfig::from_grammar(self.witness.context().lexer_grammar),
@@ -851,7 +859,10 @@ impl SourceExpressionPreparation {
         &self,
         node: &crate::expr_ast::ExprNode,
         config: tcl_lexer::LexerConfig,
-    ) -> Option<(&Arc<super::SourceOriginId>, tcl_source::words::SourceSite)> {
+    ) -> Option<(
+        &Arc<tcl_names::origin::SourceOriginId>,
+        tcl_source::words::SourceSite,
+    )> {
         if let Some(expression) = &self.executed_expression {
             if expression.origin != self.source.origin
                 || expression.text.as_bytes() != self.source.text.bytes()
@@ -861,7 +872,8 @@ impl SourceExpressionPreparation {
             let original = expression.variable_source(node)?;
             return (original.0 == &self.invocation.source).then_some(original);
         }
-        let super::ExecutedScriptMapping::Contiguous { base } = self.source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = self.source.mapping
+        else {
             return None;
         };
         if self.source.origin != self.invocation.source {
@@ -1094,7 +1106,7 @@ impl super::SourceInvocationBinding {
             self.unobserved_native_dispatch().then_some(())?;
             self.proved_execution_target()?
         };
-        if !target.registry_backed || target.kind != super::BindingKind::Builtin {
+        if !target.registry_backed || target.kind != tcl_names::command::BindingKind::Builtin {
             return None;
         }
         let expression = self.conditional_expression_evaluation(registry, tokens)?;
@@ -1172,7 +1184,7 @@ impl super::SourceInvocationBinding {
                 && observation.source.base() == advice.expression_base
                 && matches!(
                     observation.source.mapping,
-                    super::ExecutedScriptMapping::Contiguous { .. }
+                    tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
                 )
                 && observation.evaluation == advice.evaluation
                 && observation.pool == advice.pool

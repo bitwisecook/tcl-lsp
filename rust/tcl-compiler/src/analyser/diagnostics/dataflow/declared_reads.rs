@@ -307,7 +307,7 @@ impl Analyser {
     fn original_read_startup_readable(
         &self,
         access: &crate::command_binding::SourceVariableAccess,
-        read_cell: Option<&crate::var_resolve::VariableCellKey>,
+        read_cell: Option<&tcl_names::variable::VariableCellKey>,
         read_reference: Option<crate::ssa::SsaReadReference>,
         killed: bool,
         ctx: &ReadBeforeSetCtx<'_>,

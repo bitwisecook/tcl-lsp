@@ -137,7 +137,7 @@ impl Analyser {
         fu: &crate::compilation_unit::FunctionUnit,
         event: Option<&str>,
         statement: &crate::ir::Statement,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
     ) -> Option<crate::analyser::types::CodeFix> {
         let (crate::ir::Statement::AssignConst { name, .. }
         | crate::ir::Statement::AssignValue { name, .. }
@@ -202,7 +202,7 @@ impl Analyser {
                     points.before_statement(id, index),
                     registry,
                 ) {
-                    if place.dynamic || place.ns != crate::place::LOCAL_NS {
+                    if place.dynamic || place.ns != tcl_names::place::LOCAL_NS {
                         continue;
                     }
                     let Some(cell) = crate::connection_scope::cell_from_place(&place) else {
@@ -303,7 +303,7 @@ impl Analyser {
 /// Domain diagnostics retain physical mutation and how an operand selected its
 /// namespace. An implicit current-frame destruction creates no global value.
 struct IrulesCellAccess {
-    place: crate::place::Place,
+    place: tcl_names::place::Place,
     import: Option<String>,
     implicit_destruction: bool,
 }
@@ -425,7 +425,7 @@ fn irules_possible_namespace_writes(
         .into_iter()
         .filter(|name| {
             crate::var_resolve::resolve_place(name, state, false, registry).kind
-                == crate::place::PlaceKind::Unknown
+                == tcl_names::place::PlaceKind::Unknown
                 && crate::var_resolve::possible_access_domain(name, state, registry)
                     == crate::var_resolve::PossibleVariableAccessDomain::NamespaceOnly
         })

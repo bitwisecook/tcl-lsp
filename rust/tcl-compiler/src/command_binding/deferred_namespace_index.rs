@@ -30,11 +30,11 @@
 //! Only namespace holders are indexed. Full metadata, frame, actual incoming and
 //! completion-outcome states remain with their existing owners and consumers.
 
-use super::{
-    BindingKind, DeferredImplementationId, MayBinding, SourceCommandTable, SourceNamespaceKey,
-};
+use super::{DeferredImplementationId, MayBinding, SourceCommandTable};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, OnceLock};
+use tcl_names::command::BindingKind;
+use tcl_names::namespace::SourceNamespaceKey;
 
 type BindingTable = SourceCommandTable<BTreeSet<MayBinding>>;
 
@@ -215,7 +215,7 @@ mod tests {
         );
         SourceCommandBindings::analyse_image_in_frame_with_options(
             &tcl_lexer::SourceImage::document(source),
-            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            &tcl_names::variable::VariableExecutionFrame::Unknown,
             config,
             context.commands(),
             SourceAnalysisOptions::for_logical_source(&input).unwrap(),
@@ -446,7 +446,7 @@ mod tests {
                 1 => special.receiver_method = true,
                 _ => {
                     special.future_frame =
-                        Some(crate::var_resolve::VariableExecutionFrame::Unknown);
+                        Some(tcl_names::variable::VariableExecutionFrame::Unknown);
                 }
             }
             case.deferred.clear();
@@ -466,7 +466,7 @@ mod tests {
         let outcome = super::super::SourceDeferredOutcome {
             implementation: original.implementation_id(),
             namespace_key: original.namespace_key.clone(),
-            frame: crate::var_resolve::VariableExecutionFrame::Unknown,
+            frame: tcl_names::variable::VariableExecutionFrame::Unknown,
             realm: original.realm,
             route: tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit,
             state: Arc::clone(&analysis.final_state),

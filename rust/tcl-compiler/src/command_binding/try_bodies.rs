@@ -232,7 +232,7 @@ fn bind_try_outputs(
             std::slice::from_ref(&target),
             native.segment.span.start(),
         );
-        if target.observed || target.kind == crate::place::PlaceKind::Unknown {
+        if target.observed || target.kind == tcl_names::place::PlaceKind::Unknown {
             state.mark_opaque_binding_mutation();
         }
     }

@@ -18,10 +18,9 @@
 
 //! Original procedure body coverage, independently of callable IR registration.
 
-use super::{
-    AllocationIncarnation, BindingKind, CommandAllocation, DeferredImplementationId,
-    ExecutedScriptSource, MayBinding, SourceCommandBindings, SourceCommandTarget,
-};
+use super::{DeferredImplementationId, MayBinding, SourceCommandBindings, SourceCommandTarget};
+use tcl_names::command::{AllocationIncarnation, BindingKind, CommandAllocation};
+use tcl_names::origin::ExecutedScriptSource;
 
 /// Original body of one exact retained procedure implementation. The caller
 /// independently proves that implementation is selected at its use site.
@@ -33,7 +32,7 @@ pub struct SourceProcedureImplementationBody<'a> {
     /// Original namespace presentation, with no native lookup authority.
     pub namespace: &'a str,
     /// Exact original namespace allocation or native incarnation.
-    pub namespace_key: &'a super::SourceNamespaceKey,
+    pub namespace_key: &'a tcl_names::namespace::SourceNamespaceKey,
     /// Original native formal binding plan.
     pub parameters: &'a [tcl_syntax::formal_params::FormalParameter],
     /// Original byte-valued formal topology, independent of presentation.
@@ -107,7 +106,7 @@ pub struct SourceInstalledProcedureBody {
     /// Namespace presentation selected by the issuing original-body query.
     pub namespace: String,
     /// Exact namespace context, independent of its display spelling.
-    pub namespace_key: super::SourceNamespaceKey,
+    pub namespace_key: tcl_names::namespace::SourceNamespaceKey,
     /// Formals decoded by the selected native definition grammar.
     pub parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     /// Authentic original formal producer and selected binding grammar.
@@ -348,13 +347,13 @@ pub struct OriginalNativeProcedureBody {
     module_entry: Option<super::SourceAnalysisEntry>,
 }
 impl OriginalNativeProcedureBody {
-    pub(crate) fn site(&self) -> &super::CommandAllocationSite {
+    pub(crate) fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         match &self.recipe {
             OriginalNativeProcedureRecipe::ReadFlow(flow) => flow.declaration.declaration_site(),
             OriginalNativeProcedureRecipe::Source(source) => source.site(),
         }
     }
-    pub(crate) fn namespace(&self) -> Option<&super::SourceNamespaceKey> {
+    pub(crate) fn namespace(&self) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         match &self.recipe {
             OriginalNativeProcedureRecipe::ReadFlow(flow) => Some(&flow.read_flow.header.namespace),
             OriginalNativeProcedureRecipe::Source(source) => source.namespace(),

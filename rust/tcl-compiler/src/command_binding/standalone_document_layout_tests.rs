@@ -71,7 +71,7 @@ fn standalone_document_grammar_does_not_become_a_native_string_recipe() {
         tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
     );
     assert!(
-        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             &head,
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             policy,
@@ -160,7 +160,7 @@ fn supplied_source_keeps_native_word_configuration_checks() {
     assert!(!snapshot.state.baseline.metadata_context.is_standalone());
     assert_eq!(config.escapes, policy.string_protocol().escape_syntax());
     assert!(
-        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             &head,
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             policy,

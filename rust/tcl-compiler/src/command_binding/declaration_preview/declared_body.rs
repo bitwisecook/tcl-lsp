@@ -18,17 +18,20 @@
 
 //! A declared procedure body: its standalone and Logical recipes and what its preview answers.
 
+use super::super::SourceCommandBindings;
 use super::super::declaration_layout::{
     DeclarationLayoutObservation, original_declaration_layouts,
 };
-use super::super::{CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings};
 use super::procedure_header::{declaration_tokens, procedure_declaration_header};
 use super::{DeclaredProcedureBody, OriginalLogicalProcedureStaticFacet, ProcedureOperands};
+use crate::command_binding::ExecutedScriptWords;
 use crate::registry_invocation::{
     EffectiveInvocationWord, RegistryInvocationResolution, effective_invocation_word,
     effective_words_for_target, resolve_registry_words_in_realm,
 };
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 impl DeclaredProcedureBody {
     /// Same genuine Logical declaration behind a conditional catalogue read.
@@ -73,7 +76,8 @@ impl DeclaredProcedureBody {
         else {
             return required(false, "declared.header-source");
         };
-        let super::super::ExecutedScriptMapping::Contiguous { base } = self.source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = self.source.mapping
+        else {
             return required(false, "declared.body-mapping");
         };
         let Some(end) = u32::try_from(self.source.text.len())
@@ -83,7 +87,7 @@ impl DeclaredProcedureBody {
             return required(false, "declared.body-end");
         };
         let Some(namespace) =
-            super::super::SourceNamespaceKey::authored_path(scope.namespace_recipe())
+            tcl_names::namespace::SourceNamespaceKey::authored_path(scope.namespace_recipe())
         else {
             return required(false, "declared.namespace");
         };
@@ -286,7 +290,7 @@ impl SourceCommandBindings {
                 .semantic_key()
                 != registry.snapshot().semantic_key()
             || target.registry_backed
-            || target.kind != super::super::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || !target.prepended.is_empty()
             || target.runtime_implementation_generation.is_some()
             || !state.retained_target_is_current(target)
@@ -296,7 +300,7 @@ impl SourceCommandBindings {
         let allocation = target.implementation_allocation.as_ref()?;
         let identity = target.identity.as_ref()?;
         let site = &allocation.site;
-        if allocation.incarnation != super::super::AllocationIncarnation::First
+        if allocation.incarnation != tcl_names::command::AllocationIncarnation::First
             || !Arc::ptr_eq(&site.source, state.current_source_origin.as_ref()?)
             || site.offset != target.implementation_generation
             || allocation.command != target.command
@@ -316,7 +320,7 @@ impl SourceCommandBindings {
             || !Arc::ptr_eq(&body.source.origin, &site.source)
             || !matches!(
                 body.source.mapping,
-                super::super::ExecutedScriptMapping::Contiguous { .. }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
             )
             || !state.namespaces.contains(&body.namespace)
         {
@@ -428,7 +432,7 @@ fn standalone_procedure_body_recipe(
                 )
             })
         || observation.config.list_parse != tcl_dialect::ListParse::Strict
-        || !matches!(&observation.namespace, super::super::SourceNamespaceKey::Authored(current) if current == "::")
+        || !matches!(&observation.namespace, tcl_names::namespace::SourceNamespaceKey::Authored(current) if current == "::")
         || !observation.entry.owns_source(&site.source, site.offset)
         || !observation
             .entry
@@ -442,7 +446,7 @@ fn standalone_procedure_body_recipe(
         return None;
     };
     if !target.registry_backed
-        || target.kind != super::super::BindingKind::Builtin
+        || target.kind != tcl_names::command::BindingKind::Builtin
         || !target.prepended.is_empty()
     {
         return None;
@@ -477,14 +481,14 @@ fn standalone_procedure_body_recipe(
         &tcl_core_types::ByteNamespacePath::root(),
         name.as_bytes(),
     )?;
-    let namespace = super::super::SourceNamespaceKey::authored_path(&coordinate.namespace)?;
+    let namespace = tcl_names::namespace::SourceNamespaceKey::authored_path(&coordinate.namespace)?;
     observation
         .snapshot
         .state
         .namespaces
         .contains(&namespace)
         .then_some(())?;
-    let key = super::super::SourceCommandKey::authored(
+    let key = tcl_names::command::SourceCommandKey::authored(
         tcl_syntax::naming::authored_source_command_spelling(&coordinate)?,
     );
     let written = shape.body.checked_add(1)?;
@@ -844,9 +848,9 @@ fn capture_logical_procedure_words(
 
 pub(in super::super) fn declared_procedure_frame(
     site: &CommandAllocationSite,
-    namespace: &super::super::SourceNamespaceKey,
-) -> crate::var_resolve::VariableExecutionFrame {
-    crate::var_resolve::VariableExecutionFrame::Procedure {
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
+) -> tcl_names::variable::VariableExecutionFrame {
+    tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: namespace.display().unwrap_or_default(),
         identity: super::super::source_activation_name(
             Some(&site.source),

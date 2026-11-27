@@ -22,12 +22,12 @@ use super::{
     Arc, ModuleCommandBindings, OriginalSourceConditionalContinuation,
     SourceConditionalContinuationPayload, SourceConditionalScriptFrame, SourceOutcomes,
 };
-use crate::command_binding::{
-    OriginalSourcePointEntry, SourceCommandBindings, SourceNamespaceKey, SourceOriginId,
-    SourceOriginKind,
-};
+use crate::command_binding::SourceOriginLexical;
+use crate::command_binding::{OriginalSourcePointEntry, SourceCommandBindings};
 use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock, Weak};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
 use tcl_registry::model::ContextRegistry;
 
 type AdviceGraph = crate::command_binding::source_transition_advice::OriginalSourcePointAdviceGraph;
@@ -308,7 +308,7 @@ impl OriginalSourceCutBodyEntryProjection {
     pub(in crate::command_binding) fn snapshot(
         &self,
         parent: &super::super::declaration_layout::DeclarationLayoutObservation,
-        site: &crate::command_binding::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         namespace: &SourceNamespaceKey,
     ) -> Option<super::super::SourceLookupSnapshot> {
         let original = &parent.snapshot.state;

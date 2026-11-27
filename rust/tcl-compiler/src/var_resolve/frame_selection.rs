@@ -18,11 +18,10 @@
 
 //! Selecting and entering activations: namespace and function frames, called frames and proved selected frames.
 
-use super::cell_key::{SharedSet, VariableCellKey};
 use super::{
-    ActivationObserverInventory, BindingIdentity, ContentsWorld, ResolveContext,
-    VariableExecutionFrame, VariableFrameKind,
+    ActivationObserverInventory, BindingIdentity, ContentsWorld, ResolveContext, VariableFrameKind,
 };
+use tcl_names::variable::{SharedSet, VariableCellKey, VariableExecutionFrame};
 use tcl_registry::FrameLevel;
 
 impl ResolveContext {

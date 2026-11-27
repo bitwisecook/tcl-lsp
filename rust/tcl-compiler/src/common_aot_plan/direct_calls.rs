@@ -23,7 +23,6 @@ use super::{
     AotMetadataSelection, CallCandidate, DirectCallSiteId, ProcedureIdentity, SsaValueIdentity,
     call_sites, function_units, nested_call_tokens,
 };
-use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::registry_invocation::InvocationMetadataContext;
@@ -31,6 +30,7 @@ use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisat
 use crate::types::{TypeKind, TypeLattice, type_join};
 use crate::var_escape::ProcEscapeSummary;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use tcl_names::command::BindingKind;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{DispatchDependencies, DispatchDependencyDomain, SemanticOperationId};

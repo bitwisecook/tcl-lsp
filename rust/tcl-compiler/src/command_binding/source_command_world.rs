@@ -26,11 +26,13 @@
 #[cfg(test)]
 use super::SourceCommandBindings;
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandDefinition,
-    SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
+    Arc, ModuleCommandBindings, SourceCommandDefinition, SourceExecutionContext,
+    SourceNativeInvocation,
 };
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::ByteCommandSlot;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 #[cfg(test)]
 use tcl_registry::CommandBindingDefinitionKind;
 use tcl_registry::{InvocationFacts, TransitionSubject};
@@ -184,7 +186,7 @@ pub struct OriginalCommandPublication {
     kind: OriginalCommandPublicationKind,
     definition: Option<SourceCommandDefinition>,
     origin: Option<CommandAllocationSite>,
-    implementation_allocation: Option<super::CommandAllocation>,
+    implementation_allocation: Option<tcl_names::command::CommandAllocation>,
     alias_target: Option<OriginalAliasTarget>,
 }
 
@@ -259,7 +261,7 @@ impl OriginalCommandPublication {
 
     pub(super) fn has_implementation_allocation(
         &self,
-        allocation: &super::CommandAllocation,
+        allocation: &tcl_names::command::CommandAllocation,
     ) -> bool {
         self.implementation_allocation.as_ref() == Some(allocation)
     }
@@ -1020,7 +1022,7 @@ impl ModuleCommandBindings {
     pub(super) fn retain_original_class_publication_definition(
         &mut self,
         site: &CommandAllocationSite,
-        key: &super::SourceCommandKey,
+        key: &tcl_names::command::SourceCommandKey,
         input: &SignatureSourceNameInput,
     ) -> bool {
         let policy = input.policy();
@@ -1053,7 +1055,7 @@ impl ModuleCommandBindings {
         let Some(allocation) = target.implementation_allocation.as_ref() else {
             return false;
         };
-        if target.kind != super::BindingKind::Class
+        if target.kind != tcl_names::command::BindingKind::Class
             || target.registry_backed
             || !target.terminal
             || !target.prepended.is_empty()
@@ -1134,7 +1136,7 @@ pub(super) fn namespace_body_world_closed_on_normal_return(
             tcl_registry::script_body_flow::ScriptBodyFlow::ConcatenatedScript { .. }
         )
         || !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || !native.target.prepended.is_empty()
         || !facts.arg_roles_complete
         || !matches!(facts.subcommand, OwnedSubcommandResolution::Exact { .. })

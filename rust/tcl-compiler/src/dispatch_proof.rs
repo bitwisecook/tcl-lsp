@@ -1042,7 +1042,7 @@ fn source_ledger_subject(
     }
     let reference = binding.evaluated_command_reference()?;
     let crate::command_binding::SourceCommandReferenceBinding::Direct {
-        kind: crate::command_binding::BindingKind::Builtin,
+        kind: tcl_names::command::BindingKind::Builtin,
         identity,
     } = reference.binding()
     else {

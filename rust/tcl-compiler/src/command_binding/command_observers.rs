@@ -19,9 +19,10 @@
 //! Command trace installation retains a registration; effects occur at a reached event.
 
 use super::{
-    Arc, CommandIdentity, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
-    SourceOutcomes, source_binding,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
+    source_binding,
 };
+use tcl_names::command::CommandIdentity;
 use tcl_registry::{TraceOperation, TraceOperationSet, TraceTarget, TraceTransition};
 
 // The stack-budget test must prove that observer frames actually nest.
@@ -76,7 +77,7 @@ pub(super) struct SourceCommandObserver {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(super) struct SourceCommandObservers {
     pub(super) fresh_procedures: std::collections::BTreeMap<
-        super::CommandAllocation,
+        tcl_names::command::CommandAllocation,
         super::command_publication::SourceFreshProcedureTraceAbsence,
     >,
     pub(super) registrations: Vec<SourceCommandObserver>,
@@ -670,7 +671,7 @@ impl SourceCommandBindings {
                     let root =
                         state.namespace_target_key_at(namespace, &context.namespace_identity());
                     if let Some(root) = root {
-                        if !matches!(root, super::SourceNamespaceKey::Authored(_))
+                        if !matches!(root, tcl_names::namespace::SourceNamespaceKey::Authored(_))
                             && !state.namespaces.contains(&root)
                         {
                             continue;

@@ -27,9 +27,10 @@
 //! and the exact original operand bytes.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
-    SourceNamespaceKey, SourceNativeInvocation,
+    Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceNativeInvocation,
 };
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 
 /// The exact script handed to the body walker and the frame it ran
 /// in. Completion is checked only after the walk and parent restoration.
@@ -38,12 +39,12 @@ pub(super) struct OriginalDelegatedScript {
     words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: SourceCommandTarget,
-    body: super::ExecutedScriptSource,
+    body: tcl_names::origin::ExecutedScriptSource,
     argument: usize,
     list_tail: bool,
     namespace: SourceNamespaceKey,
-    entered: crate::var_resolve::VariableExecutionFrame,
-    parent: crate::var_resolve::VariableExecutionFrame,
+    entered: tcl_names::variable::VariableExecutionFrame,
+    parent: tcl_names::variable::VariableExecutionFrame,
 }
 
 /// Selected existing namespace in the stock C command world. The effective
@@ -57,7 +58,7 @@ pub(super) fn existing_namespace(
     let (argument, body) = facts.existing_namespace_script?;
     if !super::original_namespace_body::closed_original_world(state)
         || !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || native.target.implementation_generation != 0
         || !state.retained_target_is_current(native.target)
         || facts.arity_accepts_frozen_arguments() != Some(true)
@@ -99,7 +100,7 @@ fn retained_body(
     context: SourceExecutionContext<'_>,
     argument: usize,
     list_tail: bool,
-) -> Option<super::ExecutedScriptSource> {
+) -> Option<tcl_names::origin::ExecutedScriptSource> {
     let arguments = native.invocation.arguments();
     let count = arguments.exact_argv_len()?;
     if !list_tail || count == argument.checked_add(1)? {
@@ -135,7 +136,7 @@ fn retained_body(
         source: Arc::clone(state.current_source_origin.as_ref()?),
         offset: native.segment.span.start(),
     };
-    Some(super::ExecutedScriptSource::materialised(
+    Some(tcl_names::origin::ExecutedScriptSource::materialised(
         parent,
         (argument..count).collect(),
         &script,
@@ -149,7 +150,7 @@ fn literal_script(
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-) -> Option<(usize, super::ExecutedScriptSource)> {
+) -> Option<(usize, tcl_names::origin::ExecutedScriptSource)> {
     use tcl_registry::script_body_flow::ScriptBodyFlow;
     if !super::original_namespace_body::quiet(state)
         || facts.arity_accepts_frozen_arguments() != Some(true)
@@ -158,7 +159,7 @@ fn literal_script(
         || (facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceEval)
             && facts.existing_namespace_script.is_none())
         || !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || native.target.implementation_generation != 0
         || native.target.runtime_implementation_generation.is_some()
         || !native.target.prepended.is_empty()

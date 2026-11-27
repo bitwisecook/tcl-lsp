@@ -21,7 +21,8 @@
 use super::{
     Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceOutcomes,
 };
-use crate::{place::Place, registry_invocation::EffectiveInvocationWord};
+use crate::registry_invocation::EffectiveInvocationWord;
+use tcl_names::place::Place;
 use tcl_syntax::value::ValueRepresentation;
 
 /// Representation of a frozen value, independently of whether its bytes are
@@ -842,11 +843,11 @@ pub(super) fn retain_value_formals(
             context.registry,
             tcl_registry::TraceOperation::Read,
         );
-        if slot.kind != crate::place::PlaceKind::Scalar
+        if slot.kind != tcl_names::place::PlaceKind::Scalar
             || slot.index.is_some()
             || !variables.read_produces_value(&slot, context.registry)
             || !matches!(slot.cell.as_ref().map(|cell| &cell.owner),
-                Some(crate::place::CellOwner::Activation(owner)) if variables.activation.as_ref() == Some(owner))
+                Some(tcl_names::place::CellOwner::Activation(owner)) if variables.activation.as_ref() == Some(owner))
             || variables.contents_origin(&slot) != crate::var_resolve::ContentsOrigin::Incoming
         {
             continue;

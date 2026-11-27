@@ -45,7 +45,7 @@ fn original_binding_purpose_retains_full_input_and_separates_cached_interpretati
     let context = input.context_registry();
     let registry = context.commands();
     let image = tcl_lexer::SourceImage::document("\u{feff}puts ${a{b}");
-    let frame = crate::var_resolve::VariableExecutionFrame::Global;
+    let frame = tcl_names::variable::VariableExecutionFrame::Global;
     let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
     let whole_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
         &image,

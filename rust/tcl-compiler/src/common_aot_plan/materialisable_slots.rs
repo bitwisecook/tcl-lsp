@@ -70,12 +70,12 @@ pub enum MaterialisableSlotAuthority {
             crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots,
         >,
         /// Exact local activation represented by SSA.
-        cell: crate::var_resolve::VariableCellKey,
+        cell: tcl_names::variable::VariableCellKey,
     },
     /// Exact source cell accounted for by the sealed-program statement proof.
     SealedProgramCell {
         /// Original namespace and root storage key, without a label conversion.
-        cell: crate::var_resolve::VariableCellKey,
+        cell: tcl_names::variable::VariableCellKey,
     },
     /// Actual retained native frame layout and its required incarnation.
     NativeFrame(Box<crate::var_escape::original_slots::OriginalNativeFrameSlot>),
@@ -279,7 +279,7 @@ struct MaterialisableInputs<'a> {
     key: ValueKey,
     pub(super) summary: Option<&'a ProcEscapeSummary>,
     local_slots: &'a BTreeMap<String, u32>,
-    sealed_cells: Option<&'a [crate::var_resolve::VariableCellKey]>,
+    sealed_cells: Option<&'a [tcl_names::variable::VariableCellKey]>,
     pub(super) propagated: &'a HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     intervals: &'a HashMap<ValueKey, Interval>,
     pub(super) enabled: bool,
@@ -288,7 +288,7 @@ struct MaterialisableInputs<'a> {
 
 fn native_frame_slot_allocation(
     input: &MaterialisableInputs<'_>,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
 ) -> Option<(u32, MaterialisableSlotAuthority)> {
     use crate::var_escape::original_slots::OriginalNativeFrameSlot;
     // The entry layout belongs only to the root's actual active frame.
@@ -332,7 +332,7 @@ fn materialisable_slot_allocation(
     input: &MaterialisableInputs<'_>,
 ) -> Option<(u32, MaterialisableSlotAuthority)> {
     use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
-    use crate::var_resolve::VariableCellKey;
+    use tcl_names::variable::VariableCellKey;
     let cell = input.function.ssa.cell_key(input.key.0)?;
     if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
         && input.unit.ir_module.source_entry.native_entry.is_some()

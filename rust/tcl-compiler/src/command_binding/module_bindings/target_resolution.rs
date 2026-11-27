@@ -19,16 +19,18 @@
 //! The targets a command word may reach: source keys, alias chains and unresolved dispatch.
 
 use super::super::binding_projection::{CommandTargetLookup, source_binding_projection};
-use super::super::namespace_context::{CommandKeyQuery, NamespaceKeyQuery, SourceNamespaceKey};
+use super::super::namespace_context::{CommandKeyQuery, NamespaceKeyQuery};
 use super::super::source_walk::registry_head;
 use super::super::trusted_packages::autoload_defines_nothing;
 use super::super::{
-    BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandKey,
-    logical_prefix, original_command_table, runtime_entry,
+    MayBinding, ModuleCommandBindings, ResolvedCommandTarget, logical_prefix,
+    original_command_table, runtime_entry,
 };
 use crate::naming::normalise_qualified_name as nqn;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::{BindingKind, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 impl ModuleCommandBindings {
@@ -114,7 +116,7 @@ impl ModuleCommandBindings {
         let spec = registry_head(registry, effective)?;
         if !matches!(
             self.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         ) {
             return None;
         }

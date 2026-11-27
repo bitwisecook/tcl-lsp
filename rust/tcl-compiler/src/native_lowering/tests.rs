@@ -917,9 +917,10 @@ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
 
 #[test]
 fn native_lowering_cannot_bypass_an_unresolved_chunk_entry() {
-    use crate::command_binding::{CommandAllocationSite, ExecutedScriptSource, SourceOriginId};
     use crate::native_compilation_admission::NativeCompilationAdmission;
     use std::sync::Arc;
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect("set before 1", &registry, false, "tcl9.0");
     let facts = &unit.top_level.semantic_facts;

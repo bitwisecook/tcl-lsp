@@ -290,7 +290,7 @@ pub fn split_original_lambda_literal_lexical_decoded(
 pub struct OriginalDecodedLambdaFormattingBody {
     input: crate::analyser::ResolvedAnalysisInput,
     parent: tcl_lexer::NativeWord,
-    script: crate::command_binding::ExecutedScriptSource,
+    script: tcl_names::origin::ExecutedScriptSource,
     realm: crate::realm::CommandBindingRealm,
 }
 impl OriginalDecodedLambdaFormattingBody {
@@ -629,13 +629,12 @@ mod original_decoded_tests {
             .unwrap();
             let word = &plan.commands[0].words[1];
             let recipe = dialect.authored_name_policy().unwrap();
-            let key =
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    word,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                    recipe,
-                )
-                .unwrap();
+            let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                recipe,
+            )
+            .unwrap();
             let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
             let decoded = super::split_original_lambda_literal_decoded(word, &input).unwrap();
             assert_eq!(decoded.params, "");
@@ -657,13 +656,12 @@ mod original_decoded_tests {
             )
             .unwrap();
             let word = &plan.commands[0].words[1];
-            let key =
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    word,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                    recipe,
-                )
-                .unwrap();
+            let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                recipe,
+            )
+            .unwrap();
             let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
             let decoded = super::split_original_lambda_literal_decoded(word, &input);
             if dialect

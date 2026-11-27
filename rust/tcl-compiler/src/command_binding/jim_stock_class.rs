@@ -23,19 +23,21 @@ mod inheritance;
 mod method;
 mod reference_prefix;
 mod source_advice;
+use crate::command_binding::SourceOriginLexical;
 pub(super) use entry::OriginalJimStockMethodEntry;
 pub(in crate::command_binding) use source_advice::{
     JimStockContinuationMemo, OriginalJimStockSourceEffects,
 };
 
 use super::{
-    Arc, BindingKind, CommandAllocation, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandBindings, SourceCommandKey, SourceCommandTarget,
-    SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
+    Arc, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandBindings,
+    SourceCommandTarget, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
 };
-use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::{ByteCommandSlot, NameBytes};
 use tcl_lexer::NativeWord;
+use tcl_names::command::{BindingKind, CommandAllocation, CommandAllocationSite, SourceCommandKey};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::definer::{SourceJimClassHelper, SourceJimStockClassRecipe};
 use tcl_syntax::naming::{
     NamePolicyAuthority, NamePolicyProtocol, NativeNameContext, NativeNameProtocol,

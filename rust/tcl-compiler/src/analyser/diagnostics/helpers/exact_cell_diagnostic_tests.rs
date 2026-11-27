@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::command_binding::SourceNamespaceKey;
-use crate::var_resolve::VariableCellKey;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::variable::VariableCellKey;
 
 #[test]
 fn qualified_alias_tail_advice_uses_retained_context_over_catalogue_profile() {
@@ -338,7 +338,7 @@ fn original_definition_advice_refuses_missing_and_foreign_function_metadata() {
     );
     let mut missing = original.clone();
     missing.source_metadata_input = None;
-    assert_eq!(definitions(&missing), [] as [crate::place::Place; 0]);
+    assert_eq!(definitions(&missing), [] as [tcl_names::place::Place; 0]);
     assert_eq!(
         special_variable_definition_at_span(&missing, span, registry),
         None
@@ -351,7 +351,7 @@ fn original_definition_advice_refuses_missing_and_foreign_function_metadata() {
         tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
         input.lexer_config(),
     ));
-    assert_eq!(definitions(&foreign), [] as [crate::place::Place; 0]);
+    assert_eq!(definitions(&foreign), [] as [tcl_names::place::Place; 0]);
     assert_eq!(
         special_variable_definition_at_span(&foreign, span, registry),
         None
@@ -415,13 +415,13 @@ fn original_existence_guards_use_retained_availability_and_refuse_missing_foreig
     ));
     assert_eq!(
         collect_existence_guards(&unavailable, &registry, config),
-        [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
+        [] as [(tcl_names::variable::VariableCellKey, crate::cfg::BlockId); 0]
     );
     let mut missing = original.clone();
     missing.source_metadata_input = None;
     assert_eq!(
         collect_existence_guards(&missing, &registry, config),
-        [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
+        [] as [(tcl_names::variable::VariableCellKey, crate::cfg::BlockId); 0]
     );
     let mut foreign = original.clone();
     foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
@@ -432,7 +432,7 @@ fn original_existence_guards_use_retained_availability_and_refuse_missing_foreig
     ));
     assert_eq!(
         collect_existence_guards(&foreign, &registry, config),
-        [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
+        [] as [(tcl_names::variable::VariableCellKey, crate::cfg::BlockId); 0]
     );
 }
 

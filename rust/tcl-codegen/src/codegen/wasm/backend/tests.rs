@@ -25,13 +25,13 @@ use crate::codegen::wasm::native_emit;
 use crate::test_body_identity::fixture_id_if_present;
 
 use super::*;
-use tcl_compiler::command_binding::BindingKind;
 use tcl_compiler::command_binding::analyse_command_binding;
 use tcl_compiler::compilation_unit::FunctionUnit;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::registry_invocation::RegistryInvocationResolution;
 use tcl_compiler::registry_invocation::resolve_command_tokens_with_metadata_context;
 use tcl_lexer::Span;
+use tcl_names::command::BindingKind;
 
 #[test]
 fn condition_argv_and_native_emitters_share_actual_abi_import_indices() {
@@ -683,7 +683,7 @@ fn proc_statement_tokens(unit: &FunctionUnit) -> Vec<(Span, &tcl_compiler::ir::C
 #[test]
 fn host_script_admission_boxes_the_complete_original_byte_image() {
     use std::sync::Arc;
-    use tcl_compiler::command_binding::{ExecutedScriptSource, SourceOriginId};
+    use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
     let original = tcl_lexer::SourceImage::native(b"set raw \xff\0tail".as_slice());
     let origin = Arc::new(SourceOriginId::authored_image(original.clone()));
     let chunk = ExecutedScriptSource::contiguous_image(origin, original.clone(), 0).unwrap();

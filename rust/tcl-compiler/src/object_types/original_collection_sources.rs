@@ -740,7 +740,7 @@ fn collection_declaration_matches(
         name.is_ascii() && name == simple.as_bytes()
     } else {
         let policy = occurrence.symbol().policy();
-        let name = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let name = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             declaration,
             tcl_syntax::word_rules::WordValueRules::from_config(&declaration.config()),
             policy,

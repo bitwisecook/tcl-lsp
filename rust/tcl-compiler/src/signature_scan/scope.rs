@@ -22,105 +22,32 @@ pub use super::name_value::{
     OriginalLogicalListField, SignatureSourceNameInput, SignatureSourceNameValue,
     SignatureSourceStaticListContainer,
 };
-pub use super::original_name::SignatureSourceNameKey;
 
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
+use tcl_names::namespace::SignatureNamespaceScope;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext, NativeNameProtocol};
 
-/// Source namespace geometry. These values supply no namespace existence,
-/// entered frame, command identity or native compilation permission.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SignatureNamespaceScope {
-    /// Explicit symbolic compatibility context without an audited name policy.
-    Symbolic(String),
-    /// C namespace components retained before any display rendering.
-    C(ByteNamespacePath),
-    /// Jim's counted flat namespace value, independent of C components.
-    Jim(NameBytes),
-}
-
-impl SignatureNamespaceScope {
-    /// Whether the retained source geometry is the selected provider's root.
-    #[must_use]
-    pub fn is_root(&self) -> bool {
-        match self {
-            Self::C(path) => path.is_root(),
-            Self::Jim(value) => value.as_bytes().is_empty(),
-            Self::Symbolic(key) => key == "::",
-        }
-    }
-
-    /// Readonly label from retained geometry, including opaque native bytes.
-    /// The result grants no component reconstruction, lookup or source spelling.
-    #[must_use]
-    pub fn reporting_label(&self) -> String {
-        match self {
-            Self::Symbolic(label) => label.clone(),
-            Self::C(path) => tcl_syntax::native_string::resident_name_label(
-                &tcl_syntax::naming::native_namespace_full_name_bytes(path),
-            ),
-            Self::Jim(value) => tcl_syntax::naming::root_unrooted_key(
-                &tcl_syntax::native_string::resident_name_label(value.as_bytes()),
-            ),
-        }
-    }
-
-    pub(crate) fn root(policy: Option<NamePolicyProtocol>) -> Self {
-        match policy.map(NamePolicyProtocol::recipe) {
-            Some(NativeNameProtocol::C(_)) => Self::C(ByteNamespacePath::root()),
-            Some(NativeNameProtocol::Jim084) => Self::Jim(NameBytes::from(b"".as_slice())),
-            None => Self::Symbolic("::".to_owned()),
-        }
-    }
-
-    /// Presentation only; its colon boundaries cannot recover this scope.
-    #[must_use]
-    pub fn display(&self) -> Option<String> {
-        match self {
-            Self::Symbolic(key) => Some(key.clone()),
-            Self::C(path) => {
-                String::from_utf8(tcl_syntax::naming::native_namespace_full_name_bytes(path)).ok()
-            }
-            Self::Jim(value) => Some(crate::naming::root_unrooted_key(value.try_utf8().ok()?)),
-        }
-    }
-
-    /// Retained projection context only; it grants no namespace existence or token.
-    #[must_use]
-    pub fn context(&self) -> Option<NativeNameContext<'_>> {
-        match self {
-            Self::C(path) => Some(NativeNameContext::new(path)),
-            Self::Jim(value) => Some(NativeNameContext::with_jim_namespace(
-                &ROOT,
-                value.as_bytes(),
-            )),
-            Self::Symbolic(_) => None,
-        }
-    }
-
-    pub(crate) fn context_for_policy(
-        &self,
-        policy: NamePolicyProtocol,
-    ) -> Option<NativeNameContext<'_>> {
-        match (self, policy.recipe()) {
-            (Self::C(_), NativeNameProtocol::C(_)) | (Self::Jim(_), NativeNameProtocol::Jim084) => {
-                self.context()
-            }
-            _ => None,
-        }
-    }
-
+/// Namespace geometry selected from signature name inputs, which hold binding
+/// receipts.
+pub trait SignatureNamespaceChild: Sized {
     /// Select a child namespace from independently retained original native units.
     /// This is naming geometry only, without namespace existence or entry proof.
     #[must_use]
-    pub fn child_from_key(&self, key: &SignatureSourceNameKey) -> Option<Self> {
-        self.child_from_input(&SignatureSourceNameInput::OriginalWord(key.clone()))
-    }
+    fn child_from_key(&self, key: &SignatureSourceNameKey) -> Option<Self>;
 
     /// Namespace geometry from a complete word or independently produced value.
     /// A lexical variable root does not donate an evaluated namespace operand.
     #[must_use]
-    pub fn child_from_input(&self, input: &SignatureSourceNameInput) -> Option<Self> {
+    fn child_from_input(&self, input: &SignatureSourceNameInput) -> Option<Self>;
+}
+
+impl SignatureNamespaceChild for SignatureNamespaceScope {
+    fn child_from_key(&self, key: &SignatureSourceNameKey) -> Option<Self> {
+        self.child_from_input(&SignatureSourceNameInput::OriginalWord(key.clone()))
+    }
+
+    fn child_from_input(&self, input: &SignatureSourceNameInput) -> Option<Self> {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
@@ -142,108 +69,32 @@ impl SignatureNamespaceScope {
             )),
         }
     }
-
-    /// Conditional C lambda namespace coordinates from a complete Logical list
-    /// roster. Only a genuine two-field list proves omission; an explicit third
-    /// field never falls back to root. No namespace existence or frame follows.
-    pub(crate) fn from_logical_lambda_list(
-        fields: &[super::name_value::LogicalSourceListNameInput],
-    ) -> Option<Self> {
-        super::name_value::LogicalSourceListNameInput::complete_unchanged_roster(fields)?;
-        let policy = fields.first()?.policy();
-        let recipe = policy.recipe();
-        if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
-            || !matches!(recipe, NativeNameProtocol::C(_))
-        {
-            return None;
-        }
-        match fields {
-            [_, _] => Some(Self::C(ByteNamespacePath::root())),
-            [_, _, namespace] => Some(Self::C(
-                recipe
-                    .lambda_namespace_path(namespace.source_units())
-                    .ok()?,
-            )),
-            _ => None,
-        }
-    }
-
-    /// Strict namespace ancestry from retained components. Unsupported Jim
-    /// parents remain unknown; rendered labels never supply boundaries.
-    #[must_use]
-    pub fn is_strict_ancestor_of(&self, child: &Self, policy: NamePolicyProtocol) -> Option<bool> {
-        match (self, child, policy.recipe()) {
-            (Self::C(parent), Self::C(child), NativeNameProtocol::C(_)) => Some(
-                parent.as_segments().len() < child.as_segments().len()
-                    && child.as_segments().starts_with(parent.as_segments()),
-            ),
-            (Self::Jim(parent), Self::Jim(child), recipe @ NativeNameProtocol::Jim084) => {
-                let mut current = child.as_bytes();
-                loop {
-                    if current == parent.as_bytes() {
-                        return Some(current != child.as_bytes());
-                    }
-                    if current.is_empty() {
-                        return Some(false);
-                    }
-                    if current.contains(&0) {
-                        return None;
-                    }
-                    let next = recipe.namespace_qualifier_bytes(current);
-                    if next == current {
-                        return None;
-                    }
-                    current = next;
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// Optional written namespace spelling checked against the retained geometry.
-    #[must_use]
-    pub fn source_spelling(&self, policy: Option<NamePolicyProtocol>) -> Option<String> {
-        match (self, policy.map(NamePolicyProtocol::recipe)) {
-            (Self::Symbolic(key), None) => Some(key.clone()),
-            (Self::C(path), Some(recipe @ NativeNameProtocol::C(_))) => {
-                tcl_syntax::naming::native_namespace_source_spelling(recipe, path)
-            }
-            (Self::Jim(value), Some(NativeNameProtocol::Jim084)) => {
-                tcl_syntax::naming::native_jim_namespace_source_spelling(value.as_bytes())
-            }
-            _ => None,
-        }
-    }
-
-    pub(crate) fn child(&self, written: &str, policy: Option<NamePolicyProtocol>) -> Option<Self> {
-        let Some(policy) = policy else {
-            let Self::Symbolic(namespace) = self else {
-                return None;
-            };
-            return Some(Self::Symbolic(crate::naming::qualify_namespace(
-                namespace, written,
-            )));
-        };
-        let recipe = policy.recipe();
-        match self {
-            Self::C(_) => Some(Self::C(
-                recipe
-                    .namespace_address_path(self.context()?, written.as_bytes())
-                    .ok()?,
-            )),
-            Self::Jim(_) => Some(Self::Jim(
-                recipe
-                    .jim_namespace_canonical_input(self.context()?, written.as_bytes())
-                    .ok()?
-                    .selected()
-                    .into(),
-            )),
-            Self::Symbolic(_) => None,
-        }
-    }
 }
 
-static ROOT: ByteNamespacePath = ByteNamespacePath::root();
+/// Conditional C lambda namespace coordinates from a complete Logical list
+/// roster. Only a genuine two-field list proves omission; an explicit third
+/// field never falls back to root. No namespace existence or frame follows.
+pub(crate) fn namespace_from_logical_lambda_list(
+    fields: &[super::name_value::LogicalSourceListNameInput],
+) -> Option<SignatureNamespaceScope> {
+    super::name_value::LogicalSourceListNameInput::complete_unchanged_roster(fields)?;
+    let policy = fields.first()?.policy();
+    let recipe = policy.recipe();
+    if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        || !matches!(recipe, NativeNameProtocol::C(_))
+    {
+        return None;
+    }
+    match fields {
+        [_, _] => Some(SignatureNamespaceScope::C(ByteNamespacePath::root())),
+        [_, _, namespace] => Some(SignatureNamespaceScope::C(
+            recipe
+                .lambda_namespace_path(namespace.source_units())
+                .ok()?,
+        )),
+        _ => None,
+    }
+}
 
 /// A selected authored declaration slot. This retains naming policy and
 /// component geometry, never an actual command token or entered lookup proof.

@@ -21,11 +21,11 @@
 use super::OriginalVariableInvocation;
 use super::alias_targets::{alias_target, original_alias_target};
 use super::namespace_retirement::namespace_destruction_from_facts;
-use crate::place;
-use crate::place::{Place, PlaceKind};
 use crate::var_resolve::{
     ResolveContext, project_access, resolve_literal_access, resolve_literal_place,
 };
+use tcl_names::place;
+use tcl_names::place::{Place, PlaceKind};
 use tcl_registry::{
     CommandRegistry, NamespaceTransition, StateTransition, TraceTarget, TraceTransition, Traits,
     VariableCellAliasTransition,

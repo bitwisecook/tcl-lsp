@@ -75,7 +75,7 @@ enum ReportOwner<'a> {
         receiver: ObjectScopeReceiver,
     },
     Original(
-        &'a crate::command_binding::CommandAllocation,
+        &'a tcl_names::command::CommandAllocation,
         ObjectScopeReceiver,
     ),
 }
@@ -347,7 +347,7 @@ enum RelativeOwner<'a> {
     Frame(RelativeFrame),
     Definition(u32, ObjectScopeReceiver),
     Original(
-        &'a crate::command_binding::CommandAllocation,
+        &'a tcl_names::command::CommandAllocation,
         ObjectScopeReceiver,
     ),
 }

@@ -57,7 +57,7 @@ fn full_depth_array_indices_resolve_every_source_read_after_its_index() {
         for context in access.context_alternatives() {
             let place = access.place_in_context(context, &registry);
             let index = place.index.as_ref().expect("resolved native element");
-            assert_eq!(index.kind, crate::place::IndexKind::Literal);
+            assert_eq!(index.kind, tcl_names::place::IndexKind::Literal);
             assert_eq!(index.value, "x");
         }
     }
@@ -100,7 +100,7 @@ fn evaluated_indices_freeze_values_before_later_parts_and_read_observers() {
         for context in access.context_alternatives() {
             let place = access.place_in_context(context, &registry);
             let index = place.index.as_ref().expect("actual element address");
-            assert_eq!(index.kind, crate::place::IndexKind::Literal, "{source}");
+            assert_eq!(index.kind, tcl_names::place::IndexKind::Literal, "{source}");
             assert_eq!(index.value, key, "{source}");
             assert_eq!(place.observed, observed, "{source}");
             if observed {
@@ -121,7 +121,7 @@ fn evaluated_element_addresses_relocate_and_disagreements_remain_unknown() {
         .unwrap();
     let context = &access.context_alternatives()[0];
     let place = access.place_in_context(context, &registry);
-    let crate::place::CellOwner::Activation(owner) = &place.cell.as_ref().unwrap().owner else {
+    let tcl_names::place::CellOwner::Activation(owner) = &place.cell.as_ref().unwrap().owner else {
         panic!("actual local element owner");
     };
     let mut relocation = crate::var_resolve::VariableProofRelocation::default();
@@ -132,7 +132,7 @@ fn evaluated_element_addresses_relocate_and_disagreements_remain_unknown() {
     let target = relocated.place_in_context(&relocated.context_alternatives()[0], &registry);
     assert_eq!(
         target.cell.as_ref().unwrap().owner,
-        crate::place::CellOwner::Activation("relocated-read".to_owned())
+        tcl_names::place::CellOwner::Activation("relocated-read".to_owned())
     );
     assert_eq!(target.index.as_ref().unwrap().value, "k");
     assert_eq!(relocated.source, access.source);
@@ -140,12 +140,12 @@ fn evaluated_element_addresses_relocate_and_disagreements_remain_unknown() {
 
     let mut conflicting = access.clone();
     let mut other = place;
-    other.index = Some(crate::place::Index::literal("different"));
+    other.index = Some(tcl_names::place::Index::literal("different"));
     conflicting.retain_selected_place(context, &other);
     let unresolved = conflicting.place_in_context(context, &registry);
     assert_eq!(
         unresolved.index.as_ref().unwrap().kind,
-        crate::place::IndexKind::Dynamic
+        tcl_names::place::IndexKind::Dynamic
     );
     assert!(!context.read_produces_value(&unresolved, &registry));
 }

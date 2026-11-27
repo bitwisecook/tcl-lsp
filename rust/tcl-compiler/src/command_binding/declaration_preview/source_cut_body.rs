@@ -24,6 +24,7 @@ use super::super::{
 };
 use super::{SourceCommandBindings, original_declaration_layouts};
 use crate::analyser::ResolvedAnalysisInput;
+use crate::command_binding::SourceOriginLexical;
 use crate::ir::CommandTokens;
 use crate::registry_invocation::OriginalSourceScriptBody;
 use std::collections::BTreeMap;
@@ -341,9 +342,9 @@ impl OriginalSourceCutBodyRows {
         state: &super::super::ModuleCommandBindings,
         target: &super::super::SourceCommandTarget,
         ordinary: Option<&super::super::SourceCommandReference>,
-        site: &super::super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
     ) -> bool {
-        target.kind == super::super::BindingKind::Builtin && target.registry_backed
+        target.kind == tcl_names::command::BindingKind::Builtin && target.registry_backed
             && target.prepended.is_empty() && target.implementation_generation == 0
             && target.runtime_implementation_generation.is_none()
             && state.retained_target_is_current(target)
@@ -351,7 +352,7 @@ impl OriginalSourceCutBodyRows {
             && !state.runtime_execution_observed(target.identity.as_ref())
             && ordinary.is_none_or(|reference| {
                 reference.matches_original_invocation_site(site)
-                    && matches!(reference.binding(), super::super::SourceCommandReferenceBinding::Direct { kind: super::super::BindingKind::Builtin, identity }
+                    && matches!(reference.binding(), super::super::SourceCommandReferenceBinding::Direct { kind: tcl_names::command::BindingKind::Builtin, identity }
                         if target.identity.as_ref() == Some(identity))
             })
     }

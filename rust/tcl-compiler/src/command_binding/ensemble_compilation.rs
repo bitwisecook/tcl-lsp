@@ -211,9 +211,9 @@ impl ModuleCommandBindings {
 
     pub(super) fn runtime_ensemble_compiler_for_identity(
         &self,
-        identity: Option<&super::CommandIdentity>,
+        identity: Option<&tcl_names::command::CommandIdentity>,
         generation: u32,
-        allocation: Option<&super::CommandAllocation>,
+        allocation: Option<&tcl_names::command::CommandAllocation>,
     ) -> Option<&tcl_runtime_api::native_compilation::NativeCompilationBinding> {
         self.runtime_ensemble_configuration_for_identity(identity, generation, allocation)
             .filter(|row| {
@@ -223,9 +223,9 @@ impl ModuleCommandBindings {
 
     fn runtime_ensemble_configuration_for_identity(
         &self,
-        identity: Option<&super::CommandIdentity>,
+        identity: Option<&tcl_names::command::CommandIdentity>,
         generation: u32,
-        allocation: Option<&super::CommandAllocation>,
+        allocation: Option<&tcl_names::command::CommandAllocation>,
     ) -> Option<&tcl_runtime_api::native_compilation::NativeCompilationBinding> {
         if generation != 0 || allocation.is_some() {
             return None;

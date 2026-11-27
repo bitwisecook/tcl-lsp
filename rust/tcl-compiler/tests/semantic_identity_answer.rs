@@ -18,8 +18,9 @@
 
 //! Shared naming keys over positioned source allocations.
 
-use tcl_compiler::command_binding::{CommandRefInterner, SourceCommandBindings};
+use tcl_compiler::command_binding::SourceCommandBindings;
 use tcl_core_types::{Answer, CommandRef};
+use tcl_names::command::CommandRefInterner;
 
 fn reference(
     bindings: &SourceCommandBindings,

@@ -53,7 +53,7 @@ fn original_variable_frames_and_aliases_keep_the_whole_parent_config() {
             .unwrap();
         assert!(matches!(
             frame.frame().layout(),
-            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+            tcl_names::variable::VariableExecutionFrame::Procedure { .. }
         ));
         assert_eq!(frame.lexer_config(), config);
         let write = analysis

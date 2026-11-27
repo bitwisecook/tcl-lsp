@@ -22,6 +22,7 @@ use super::{
     Arc, CommandAllocationSite, ModuleCommandBindings, NamePolicyProtocol, NativeWord,
     OriginalJimStockClass, SourceCommandBindings,
 };
+use crate::command_binding::SourceOriginLexical;
 use crate::command_binding::declaration_layout::{
     OriginalDiagnosticFrameEntry, original_declaration_layouts,
 };
@@ -71,7 +72,7 @@ impl OriginalJimFreshReferencePrefix {
         let origin = bindings.root_origin.as_ref()?;
         if !matches!(
             origin.kind(),
-            crate::command_binding::SourceOriginKind::Authored(_)
+            tcl_names::origin::SourceOriginKind::Authored(_)
         ) || world
             .current_source_origin
             .as_ref()
@@ -196,7 +197,7 @@ fn fresh_root_entry(
         if !Arc::ptr_eq(&source.origin, origin)
             || source.base() != 0
             || source.text.bytes() != origin.source_image().bytes()
-            || frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global
+            || frame.layout() != &tcl_names::variable::VariableExecutionFrame::Global
             || namespace != &world.source_root_namespace_key()?
             || row.config != input.lexer_config()
             || initial.baseline.source_point_entry.is_some()

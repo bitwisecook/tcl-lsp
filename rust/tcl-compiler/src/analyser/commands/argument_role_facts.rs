@@ -550,10 +550,11 @@ impl Analyser {
         scope_path: &[usize],
     ) -> (
         Option<crate::signature_scan::scope::SignatureSourceNameInput>,
-        Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        Option<tcl_names::namespace::SignatureNamespaceScope>,
     ) {
         use crate::signature_scan::original_name::OriginalSourceNamePurpose;
-        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use tcl_names::word::SignatureSourceNameKey;
 
         if !self.selected_logical_declaration_advice() {
             let input = self.declaration_name_policy().and_then(|policy| {

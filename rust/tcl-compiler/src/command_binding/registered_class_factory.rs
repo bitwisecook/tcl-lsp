@@ -41,7 +41,7 @@ impl OriginalClassFactoryState {
         if state.baseline.unknown_entry
             || state.has_opaque_domain()
             || !factory.registry_backed
-            || factory.kind != super::BindingKind::Builtin
+            || factory.kind != tcl_names::command::BindingKind::Builtin
             || !factory.prepended.is_empty()
             || factory.implementation_generation != 0
             || factory.runtime_implementation_generation
@@ -95,7 +95,7 @@ impl OriginalClassFactoryState {
                             implementation_generation: raw.implementation_generation,
                             implementation_allocation: raw.implementation_allocation,
                         };
-                        if !(target.kind == super::BindingKind::Builtin
+                        if !(target.kind == tcl_names::command::BindingKind::Builtin
                             && target.registry_backed
                             && target.prepended.is_empty()
                             && target.implementation_generation == 0

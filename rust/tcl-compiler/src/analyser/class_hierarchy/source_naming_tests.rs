@@ -17,9 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceLookup,
-};
+use crate::signature_scan::scope::{SignatureSourceCommand, SignatureSourceLookup};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_syntax::naming::NamePolicyProtocol;
 
 fn source_class(

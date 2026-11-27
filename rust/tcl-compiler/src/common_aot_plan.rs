@@ -35,8 +35,6 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
 
 use crate::cfg::BlockId;
-#[cfg(test)]
-use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Statement};
 use crate::registry_invocation::InvocationMetadataContext;
@@ -47,6 +45,8 @@ use crate::ssa::Symbol;
 use crate::types::TypeKind;
 use crate::types::{TypeLattice, TypeShape};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
+#[cfg(test)]
+use tcl_names::command::BindingKind;
 
 mod authored_source;
 pub use authored_source::{

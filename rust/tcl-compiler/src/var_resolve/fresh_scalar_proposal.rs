@@ -18,11 +18,9 @@
 
 //! Proposed scalar slots under independently closed actual activation ownership.
 
-use super::{
-    BindingIdentity, ContentsPresence, ContentsWorld, ResolveContext, VariableCellKey,
-    VariableFrameKind,
-};
-use crate::place::{CellGeneration, CellOwner, PlaceKind};
+use super::{BindingIdentity, ContentsPresence, ContentsWorld, ResolveContext, VariableFrameKind};
+use tcl_names::place::{CellGeneration, CellOwner, PlaceKind};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::{CommandRegistry, TraceOperation};
 use tcl_syntax::naming::{
     NamePolicyProtocol, NativeNameContext, NativeVariableInputForm, NativeVariableRootGeometry,
@@ -146,13 +144,13 @@ mod tests {
         caller.execution_name_policy = Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
             dialect.authored_name_policy().unwrap(),
         ));
-        let root = crate::command_binding::SourceNamespaceKey::authored("::");
+        let root = tcl_names::namespace::SourceNamespaceKey::authored("::");
         caller.retain_namespace_world(
             root.clone(),
             [root],
             Some(dialect.authored_name_policy().unwrap().recipe()),
         );
-        caller.enter_called_frame(&super::super::VariableExecutionFrame::Procedure {
+        caller.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".into(),
             identity: "actual entered procedure".into(),
         })

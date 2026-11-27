@@ -18,13 +18,13 @@
 
 //! Command keys and lookup paths of an original name operand under its namespace geometry.
 
-use super::super::{
-    BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
-};
+use super::super::{BTreeSet, MayBinding, ModuleCommandBindings};
 #[cfg(any(test, debug_assertions))]
 use super::OriginalGeometryTiming;
 use super::{OriginalAliasLoopPaths, OriginalLookupSlot};
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 use tcl_registry::CommandBindingDefinitionKind;
 
 impl ModuleCommandBindings {
@@ -104,7 +104,7 @@ impl ModuleCommandBindings {
             }
             return Some(());
         }
-        let site = super::super::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(self.current_source_origin.as_ref()?),
             offset: declaration,
         };

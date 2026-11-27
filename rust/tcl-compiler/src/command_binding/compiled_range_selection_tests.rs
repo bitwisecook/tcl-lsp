@@ -16,8 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::{Arc, BTreeSet, CommandAllocationSite, SourceCommandBindings, SourceOriginId};
+use super::{Arc, BTreeSet, SourceCommandBindings};
 use tcl_lexer::Span;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 use tcl_source::words::SourceSite;
 use tcl_source::words::WordExpr;
 
@@ -116,19 +118,11 @@ fn original_ranges_match_full_filter_and_binding_order_at_boundaries() {
 }
 
 #[test]
-fn full_source_identity_breaks_fingerprint_collisions_without_merging_roots() {
-    let mut left = SourceOriginId::authored(&Arc::from("left"));
-    let mut equal = SourceOriginId::authored(&Arc::from("left"));
-    let mut foreign = SourceOriginId::authored(&Arc::from("right"));
-    left.fingerprint = 0;
-    equal.fingerprint = 0;
-    foreign.fingerprint = 0;
+fn full_source_identity_selects_equal_roots_without_merging_foreign_ones() {
+    let left = SourceOriginId::authored(&Arc::from("left"));
+    let equal = SourceOriginId::authored(&Arc::from("left"));
+    let foreign = SourceOriginId::authored(&Arc::from("right"));
     let roots = [Arc::new(left), Arc::new(equal), Arc::new(foreign)];
-    for left in &roots {
-        for right in &roots {
-            assert_eq!(left == right, left.cmp(right).is_eq());
-        }
-    }
     let mut bindings = SourceCommandBindings {
         root_origin: Some(Arc::clone(&roots[0])),
         ..SourceCommandBindings::default()

@@ -110,7 +110,7 @@ fn original_structured_body_caller_keeps_parent_ordinal_and_namespace() {
                     )
                     .unwrap();
                 assert_eq!(body.executed_source.as_deref(), Some(&expected));
-                if let crate::command_binding::SourceOriginKind::Derived {
+                if let tcl_names::origin::SourceOriginKind::Derived {
                     parent: actual_parent,
                     arguments,
                     source: actual_source,

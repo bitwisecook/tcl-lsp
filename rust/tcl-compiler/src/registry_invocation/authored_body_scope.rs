@@ -18,10 +18,11 @@
 
 //! Original standalone body source owns conditional grammar independently of frames.
 
-use crate::command_binding::{SourceAnalysisEntry, SourceNamespaceKey};
+use crate::command_binding::SourceAnalysisEntry;
 use crate::ir::{CommandTokens, Module};
 use std::sync::Arc;
 use tcl_lexer::{NativeScriptCommandWords, NativeWord};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandRegistry, RegistrySnapshot};
 
 /// A genuine source body and its unchanged original lexical command vectors.
@@ -182,7 +183,7 @@ impl OriginalAuthoredSourceBodyScope {
     /// physical frame is selected through these readonly source facets.
     pub(crate) fn original_parent_site(
         &self,
-    ) -> Option<&crate::command_binding::CommandAllocationSite> {
+    ) -> Option<&tcl_names::command::CommandAllocationSite> {
         self.header.source_binding.as_ref()?.invocation_site()
     }
     pub(crate) fn original_body_word(&self) -> &NativeWord {

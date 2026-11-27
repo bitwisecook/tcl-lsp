@@ -244,6 +244,31 @@ All temporary source edits were restored. The extraction's functional and
 baseline-failure comparisons are in the
 [name-handling validation snapshot](../name-handling/current-state.md).
 
+### Item 248 (step 3a, `tcl-names`): before → after
+
+27 November 2026, `work`, with the repository build environment, `cargo
+check` (dev profile, warm, one checkout). Reverse cones deduplicate `cargo
+tree --workspace -i <crate> -e normal,build` (and `,dev` for the test-build
+column), counting the edited crate. The edit probes append one comment line,
+collect the non-fresh workspace artifacts from `--message-format=json`, then
+restore the bytes and re-prime.
+
+| Observation | Before (keys inside `tcl-compiler`) | After |
+|---|---|---|
+| Crates a key-type edit rebuilds (workspace, normal / with dev) | 29 / 33: the edit is a `tcl-compiler` edit | 30 / 34: `tcl-names` and the 29 above it |
+| Crates a `tcl-compiler` edit rebuilds (normal / with dev) | 29 / 33 | 29 / 33; `tcl-names` is not rebuilt |
+| `cargo check -p tcl-names` after a `tcl-names` edit | no such crate | 1 crate, 0.4 s |
+| `cargo check -p tcl-compiler` after a `tcl-names` edit | — | 2 crates (`tcl-names`, `tcl-compiler`), 40.1 s |
+| `cargo check -p tcl-compiler` after a `tcl-compiler` edit | 1 crate, 32.9 s (same tree, the residual `namespace_context.rs`) | 1 crate, 32.9 s |
+| `tcl-names` normal package cone | — | 45; no `tcl-compiler` |
+| Release analysis latency and VM benchmark delta | CI-owned baseline | unavailable here; remeasure through item 106a's CI harness |
+
+As the design expected, a key edit still rebuilds most of the workspace:
+`tcl-names` sits under `tcl-compiler`, whose cone is the stack. What changes
+is that the keys now compile and test in under a second on their own, and a
+binding edit no longer recompiles them. The cone shrinks only as later steps
+take the crates above `tcl-names` out of `tcl-compiler`.
+
 ### Item 246 (step 0, `tcl-compiler`): before → after
 
 `cargo test -p tcl-compiler --lib --no-run` after appending one line to

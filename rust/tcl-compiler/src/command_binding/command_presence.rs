@@ -305,10 +305,10 @@ impl SourceInvocationBinding {
         };
         for handler in handlers {
             let expected = match &handler {
-                super::SourceCommandKey::Slot { .. } => {
+                tcl_names::command::SourceCommandKey::Slot { .. } => {
                     state.original_initial_bindings_for_key(&handler)
                 }
-                super::SourceCommandKey::Authored(_) => {
+                tcl_names::command::SourceCommandKey::Authored(_) => {
                     Some(ModuleCommandBindings::unmodified_bindings(
                         &handler,
                         state.baseline.semantics.binding_names(),
@@ -401,7 +401,10 @@ impl ModuleCommandBindings {
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
     ) -> bool {
         let key = namespace.namespace_key();
-        if !matches!(key.as_ref(), super::SourceNamespaceKey::Authored(_)) {
+        if !matches!(
+            key.as_ref(),
+            tcl_names::namespace::SourceNamespaceKey::Authored(_)
+        ) {
             return self
                 .source_keys_checked(head, key.as_ref())
                 .is_ok_and(|keys| {
@@ -409,7 +412,7 @@ impl ModuleCommandBindings {
                         .any(|slot| self.namespaces.contains(slot.holder().as_ref()))
                 });
         }
-        let super::SourceNamespaceKey::Authored(namespace) = key.as_ref() else {
+        let tcl_names::namespace::SourceNamespaceKey::Authored(namespace) = key.as_ref() else {
             return false;
         };
 
@@ -451,7 +454,7 @@ impl ModuleCommandBindings {
             && self.source_keys_checked(word, namespace).is_ok()
             && (!matches!(
                 namespace.namespace_key().as_ref(),
-                super::SourceNamespaceKey::Authored(_)
+                tcl_names::namespace::SourceNamespaceKey::Authored(_)
             ) || tcl_syntax::naming::is_absolute(word)
                 || ((self.source_variables.namespace_known
                     || self.receiver_command_lookup_path(word).is_some())
@@ -533,7 +536,7 @@ mod tests {
                         expected.clone()
                     }
                 );
-                let script = super::super::ExecutedScriptSource::contiguous(
+                let script = tcl_names::origin::ExecutedScriptSource::contiguous(
                     std::sync::Arc::clone(bindings.source_origin().unwrap()),
                     &source,
                     0,

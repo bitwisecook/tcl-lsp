@@ -18,13 +18,11 @@
 
 //! Conditional exact-argv bracing with independent lookup and expression owners.
 
-use super::{
-    BindingKind, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget,
-    SourceInvocationBinding,
-};
+use super::{ModuleCommandBindings, SourceCommandTarget, SourceInvocationBinding};
 use crate::ir::CommandTokens;
 use crate::registry_invocation::InvocationWordOrigin;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, WordKind};
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 use tcl_syntax::expr::ExprNode;
 use tcl_syntax::expr::parser::{CheckedExprParse, ExprParseContext, NativeExprSyntax};
@@ -1230,12 +1228,14 @@ fn isolated_root_source(
         return false;
     };
     let state = &snapshot.state;
-    if !matches!(site.source.kind(), super::SourceOriginKind::Authored(_))
-        || super::declaration_layout::root_diagnostic_namespace(
-            state,
-            &binding.lookup_namespace_key,
-        )
-        .is_none()
+    if !matches!(
+        site.source.kind(),
+        tcl_names::origin::SourceOriginKind::Authored(_)
+    ) || super::declaration_layout::root_diagnostic_namespace(
+        state,
+        &binding.lookup_namespace_key,
+    )
+    .is_none()
     {
         return false;
     }

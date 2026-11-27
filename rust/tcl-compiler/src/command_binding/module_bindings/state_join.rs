@@ -18,9 +18,10 @@
 
 //! The join of two binding states: bindings, activation values, lookup support and history.
 
-use super::super::{ModuleCommandBindings, PackageProvision, SourceCommandKey};
+use super::super::{ModuleCommandBindings, PackageProvision};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use tcl_names::command::SourceCommandKey;
 
 impl ModuleCommandBindings {
     /// Extend the retained-body inventory at the one copy-on-write mutation
@@ -173,9 +174,9 @@ impl ModuleCommandBindings {
             }
         }
         if self.variable_frame != other.variable_frame
-            && self.variable_frame != crate::var_resolve::VariableExecutionFrame::Unknown
+            && self.variable_frame != tcl_names::variable::VariableExecutionFrame::Unknown
         {
-            self.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+            self.variable_frame = tcl_names::variable::VariableExecutionFrame::Unknown;
             changed = true;
         }
         changed

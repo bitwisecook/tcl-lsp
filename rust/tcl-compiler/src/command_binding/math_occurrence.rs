@@ -24,7 +24,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceMathInvocation {
     /// Original expression source instance.
-    pub origin: Arc<super::SourceOriginId>,
+    pub origin: Arc<tcl_names::origin::SourceOriginId>,
     /// Original function AST start in that source instance.
     pub site: u32,
     /// Function spelling from the checked original expression tree.
@@ -49,19 +49,19 @@ pub struct SourceConditionalMathInvocation {
 impl SourceConditionalMathInvocation {
     /// Exact original declaration or expression evaluation frame.
     #[must_use]
-    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         self.expression.frame()
     }
 
     /// Original typed namespace owner, independently of printed names.
     #[must_use]
-    pub fn namespace_context(&self) -> &super::SourceNamespaceKey {
+    pub fn namespace_context(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         self.expression.namespace_context()
     }
 
     /// Original checked expression bytes and source identity.
     #[must_use]
-    pub fn source(&self) -> &super::ExecutedScriptSource {
+    pub fn source(&self) -> &tcl_names::origin::ExecutedScriptSource {
         self.expression.source()
     }
 
@@ -166,7 +166,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        let original = super::super::ExecutedScriptSource::contiguous(
+        let original = tcl_names::origin::ExecutedScriptSource::contiguous(
             Arc::clone(bindings.source_origin().unwrap()),
             source,
             0,
@@ -250,7 +250,7 @@ mod tests {
                         ..Default::default()
                     },
                 );
-                let original = super::super::ExecutedScriptSource::contiguous(
+                let original = tcl_names::origin::ExecutedScriptSource::contiguous(
                     Arc::clone(bindings.source_origin().unwrap()),
                     source,
                     0,

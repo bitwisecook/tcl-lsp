@@ -19,9 +19,10 @@
 //! Command mutation receivers captured before their trace callbacks.
 
 use super::{
-    Arc, BTreeSet, CommandAllocationSite, CommandIdentity, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandBindings,
+    SourceExecutionContext, SourceOutcomes,
 };
+use tcl_names::command::{CommandAllocationSite, CommandIdentity};
 use tcl_registry::{CommandBindingTransition, TraceOperation};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,7 +34,7 @@ pub(super) struct SourceCommandMutationReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct CapturedCommandMutation {
     subject: String,
-    slot: super::SourceCommandKey,
+    slot: tcl_names::command::SourceCommandKey,
     original: ResolvedCommandTarget,
     kind: CapturedMutationKind,
     certainty: CapturedCommandCertainty,
@@ -49,7 +50,7 @@ enum CapturedCommandCertainty {
 enum CapturedMutationKind {
     Delete,
     Move {
-        destination: super::SourceCommandKey,
+        destination: tcl_names::command::SourceCommandKey,
     },
 }
 
@@ -130,7 +131,7 @@ impl ModuleCommandBindings {
         &self,
         head: &str,
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
-    ) -> Option<(super::SourceCommandKey, ResolvedCommandTarget)> {
+    ) -> Option<(tcl_names::command::SourceCommandKey, ResolvedCommandTarget)> {
         if self.has_opaque_domain()
             || (!crate::naming::is_absolute(head)
                 && super::NamespaceKeyQuery::namespace_key(namespace)
@@ -365,8 +366,9 @@ impl ModuleCommandBindings {
                     (
                         name.literal()?,
                         if interpreter.is_some() {
-                            self.native_root_namespace_key()
-                                .unwrap_or_else(|| super::SourceNamespaceKey::authored("::"))
+                            self.native_root_namespace_key().unwrap_or_else(|| {
+                                tcl_names::namespace::SourceNamespaceKey::authored("::")
+                            })
                         } else {
                             context.namespace_identity()
                         },
@@ -408,7 +410,8 @@ impl ModuleCommandBindings {
             let token = original.token.as_ref().expect("captured token");
             let certainty = if token.runtime.is_none()
                 && token.allocation.as_ref().is_some_and(|allocation| {
-                    allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+                    allocation.incarnation
+                        == tcl_names::command::AllocationIncarnation::RepeatedFresh
                 }) {
                 CapturedCommandCertainty::AllocationFamily
             } else {

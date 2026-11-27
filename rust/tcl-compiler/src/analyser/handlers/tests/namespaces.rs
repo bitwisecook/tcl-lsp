@@ -19,6 +19,7 @@
 //! `namespace eval`, `inscope`, `code`, `path`, `import` and `export`.
 
 use super::*;
+use crate::signature_scan::scope::SignatureNamespaceChild;
 
 // handle_namespace_export_command
 

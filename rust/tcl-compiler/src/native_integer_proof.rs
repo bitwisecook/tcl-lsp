@@ -1014,7 +1014,7 @@ fn validate_operand_bounds(
 
 fn require_operand_use(
     context: &ProofContext<'_, '_>,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     version: u32,
 ) -> Result<(), NativeIntegerDeclineReason> {
     let block_name = context.function_unit.ssa.block_name(context.block);

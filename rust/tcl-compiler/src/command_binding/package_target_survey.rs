@@ -19,13 +19,15 @@
 //! Existing Logical source-point history for an explicitly hypothetical target survey,
 //! and the survey-scoped Logical conditional source control that produces it.
 use super::{
-    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings,
-    OriginalCompilationLookupAdvice, OriginalSourceCommandTransitionAdvice,
-    PreparedSourceNativeInvocation, SourceCommandBindings, SourceCommandTarget,
-    SourceCommandTransitionObligation, SourceExecutionContext, SourceNamespaceKey, SourceOriginId,
-    SourceOutcomes, SourceScriptOperands, compiled_invocation, original_site_operand_layout_advice,
+    Arc, ModuleCommandBindings, OriginalCompilationLookupAdvice,
+    OriginalSourceCommandTransitionAdvice, PreparedSourceNativeInvocation, SourceCommandBindings,
+    SourceCommandTarget, SourceCommandTransitionObligation, SourceExecutionContext, SourceOutcomes,
+    SourceScriptOperands, compiled_invocation, original_site_operand_layout_advice,
     prepare_source_native_invocation, source_binding_projection, source_body_context_boxed,
 };
+use tcl_names::command::{BindingKind, CommandAllocationSite};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::SourceOriginId;
 
 /// Immutable source-model premise, never a package database/provision result.
 #[derive(Debug, Clone)]

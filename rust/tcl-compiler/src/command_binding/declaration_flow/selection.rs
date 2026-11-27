@@ -19,17 +19,18 @@
 //! The declaration layout a command's reads select: selection scopes, read points and layouts.
 
 use super::super::source_read_scope::{trace_rbs_refusal, trace_rbs_required};
-use super::super::{CommandAllocationSite, ExecutedScriptMapping};
 use super::{
     Builder, DeclarationFlowFrame, DeclarationFlowPurpose, DeclarationReadPointScope,
     DeclarationSelectionScope,
 };
 use crate::ir::CommandTokens;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptMapping;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
 
 impl DeclarationReadPointScope<'_> {
-    fn matches_frame(&self, frame: &crate::var_resolve::VariableExecutionFrame) -> bool {
+    fn matches_frame(&self, frame: &tcl_names::variable::VariableExecutionFrame) -> bool {
         match self {
             Self::Observed(scopes) => scopes
                 .iter()
@@ -156,7 +157,7 @@ impl Builder<'_> {
             self.config,
             Some(input.unit_profile()),
         )?;
-        if *frame != crate::var_resolve::VariableExecutionFrame::Global
+        if *frame != tcl_names::variable::VariableExecutionFrame::Global
             || source.mapping != (ExecutedScriptMapping::Contiguous { base: 0 })
             || source.text != *source.origin.source_image()
             || !Arc::ptr_eq(&source.origin, &seed.origin)
@@ -392,8 +393,8 @@ impl Builder<'_> {
             DeclarationFlowFrame::Existing(entry) => {
                 if !(matches!(
                     entry.frame(),
-                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                    tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                        | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
                 ) || self.purpose == DeclarationFlowPurpose::Representation
                     && matches!(
                         entry,

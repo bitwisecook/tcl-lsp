@@ -18,12 +18,14 @@
 
 //! Conditional catalogue coordinates retain their own source and uncertainty.
 
-use super::{CommandAllocationSite, DeclaredCommandCandidate, SourceInvocationBinding};
+use super::{DeclaredCommandCandidate, SourceInvocationBinding};
 use crate::ir::CommandTokens;
 use crate::signature_scan::original_name::SourceOriginalNameOccurrence;
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
 /// Unclosed applicability of a conditional Registry source schema.
@@ -137,7 +139,9 @@ impl OriginalCatalogueSourceCandidate {
     }
 
     /// Unanimous retained source namespace identity, without an executing holder.
-    pub(crate) fn original_source_namespace_key(&self) -> Option<&super::SourceNamespaceKey> {
+    pub(crate) fn original_source_namespace_key(
+        &self,
+    ) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         let first = &self.observations.first()?.namespace;
         self.observations
             .iter()
@@ -156,7 +160,7 @@ fn trace_receiver_catalogue(binding: &SourceInvocationBinding, stage: &str, avai
     if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
         && matches!(
             binding.variable_frame.layout(),
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         )
     {
         eprintln!(
@@ -237,7 +241,7 @@ impl SourceInvocationBinding {
             site.offset,
             first.config,
         )?;
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             original.first()?,
             tcl_syntax::word_rules::WordValueRules::from_config(&first.config),
             policy,

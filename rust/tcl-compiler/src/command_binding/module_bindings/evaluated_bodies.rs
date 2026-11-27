@@ -18,7 +18,7 @@
 
 //! Readable script bodies a runtime barrier evaluates: replay, constructed argv, no-change proofs.
 
-use super::super::namespace_context::{NamespaceKeyQuery, SourceNamespaceKey};
+use super::super::namespace_context::NamespaceKeyQuery;
 use super::super::{InvocationBindingContext, ModuleCommandBindings};
 use super::binding_walk::{collect_binding_states, observe_binding_state};
 use super::{
@@ -26,6 +26,7 @@ use super::{
 };
 use crate::naming::normalise_qualified_name as nqn;
 use std::collections::BTreeSet;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 /// Apply command-binding transitions from a statically readable script body
@@ -288,12 +289,12 @@ pub(super) fn apply_readable_evaluated_body(
             continue;
         }
         let frame = if procedure_target {
-            crate::var_resolve::VariableExecutionFrame::Procedure {
+            tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: body_namespace.clone(),
                 identity: format!("evaluated:{}", invocation.source_span.start()),
             }
         } else {
-            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+            tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
                 namespace: body_namespace.clone(),
                 identity: format!("evaluated:{}", invocation.source_span.start()),
             }
@@ -346,7 +347,7 @@ fn command_bindings_unchanged_by_script(
     }
     namespaces.into_iter().all(|namespace| {
         let mut retained_roots = RetainedBindingRoots::default();
-        let frame = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.clone());
+        let frame = tcl_names::variable::VariableExecutionFrame::Namespace(namespace.clone());
         let outcome = interpret_binding_source(
             source,
             0,

@@ -47,7 +47,7 @@ pub fn lower_proc_body_isolated(
     let mut lowerer = Lowerer::for_standalone_source(registry, config, dialect);
     lowerer.start_module();
     lowerer.source.clone_from(&body_text.to_owned());
-    let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+    let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: namespace.to_owned(),
         identity: "::body-cache".to_owned(),
     };

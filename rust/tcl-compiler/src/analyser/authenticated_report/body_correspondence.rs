@@ -20,14 +20,13 @@
 
 use std::sync::Arc;
 
-use crate::command_binding::{
-    CommandAllocationSite, ExecutedScriptSource, SourceNamespaceKey, SourceOriginId,
-    SourceOriginKind,
-};
 use crate::compilation_unit::OriginalOptimiserPreparedUnit;
 use crate::ir::{MethodKind, Procedure, ProcedureBodyKind, ProcedureId};
 use tcl_core_types::ProcedureModuleId;
 use tcl_lexer::{NativeWord, Span};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId, SourceOriginKind};
 use tcl_registry::CommandRegistry;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -568,7 +567,7 @@ impl ReportBodyInventory {
             && source.text.bytes().is_empty()
             && matches!(
                 &source.mapping,
-                crate::command_binding::ExecutedScriptMapping::Contiguous { base }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { base }
                     if *base == body.declaration.start()
             ))
         .then_some(())?;
@@ -634,7 +633,7 @@ impl ReportBodyInventory {
             && source.text.bytes().is_empty()
             && matches!(
                 &source.mapping,
-                crate::command_binding::ExecutedScriptMapping::Contiguous { base }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { base }
                     if *base == body.declaration.start()
             ))
         .then_some(())?;

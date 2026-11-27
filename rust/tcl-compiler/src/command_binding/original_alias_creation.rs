@@ -19,10 +19,11 @@
 //! Independent normal transfer for fresh, quiet same-interpreter aliases.
 
 use super::{
-    Arc, BTreeSet, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandKey, SourceExecutionContext, SourceNativeInvocation,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
+    SourceExecutionContext, SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite, SourceCommandKey};
 use tcl_registry::{CommandBindingTransition, InvocationFacts, StateTransition};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -344,7 +345,7 @@ impl OriginalAliasCreation {
             || target.terminal
             || target.registry_backed
             || allocation.site != self.site
-            || allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+            || allocation.incarnation == tcl_names::command::AllocationIncarnation::RepeatedFresh
             || identity.runtime.is_some()
             || identity.allocation.as_ref() != Some(allocation)
             || state

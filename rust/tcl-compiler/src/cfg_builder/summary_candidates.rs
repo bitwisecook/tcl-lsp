@@ -18,6 +18,7 @@
 
 //! Original source owners for procedure-effect summary selection.
 
+use crate::command_binding::SourceOriginLexical;
 use crate::ir::{CommandTokens, Module, ProcedureId};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;

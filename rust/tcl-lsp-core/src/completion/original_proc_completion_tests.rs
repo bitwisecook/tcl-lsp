@@ -58,15 +58,14 @@ fn inserted_slot(
     .unwrap();
     assert_eq!(command.commands.len(), 1);
     assert_eq!(command.commands[0].words.len(), 1);
-    let key =
-        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-            &command.commands[0].words[0],
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-            policy,
-        )
-        .unwrap();
+    let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+        &command.commands[0].words[0],
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        policy,
+    )
+    .unwrap();
     tcl_compiler::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
-        &tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+        &tcl_names::namespace::SignatureNamespaceScope::C(
             tcl_core_types::ByteNamespacePath::root(),
         ),
         &key,

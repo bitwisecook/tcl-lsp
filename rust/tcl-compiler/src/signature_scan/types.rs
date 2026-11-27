@@ -56,7 +56,7 @@ pub struct SignatureProc {
     /// Exact authored declaration slot; no runtime token or dispatch permission.
     pub source_name: Option<super::scope::SignatureSourceCommand>,
     /// Original declaration body scope, independent of the reported full name.
-    pub body_namespace: super::scope::SignatureNamespaceScope,
+    pub body_namespace: tcl_names::namespace::SignatureNamespaceScope,
     /// Parsed parameter list.
     ///
     /// Empty *and* [`Self::params_computed`] set means "unknown", not "none"
@@ -1245,7 +1245,7 @@ impl SignatureScanResult {
     pub fn procedures_for_original_name<'a>(
         &'a self,
         input: &super::scope::SignatureSourceNameInput,
-        namespace: &super::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
     ) -> Vec<&'a SignatureProc> {
         let Some(lookup) =
             super::scope::SignatureSourceLookup::from_input(namespace.clone(), input)
@@ -1264,11 +1264,11 @@ impl SignatureScanResult {
     #[must_use]
     pub fn procedures_for_written_name<'a>(
         &'a self,
-        namespace: &super::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
         written: &str,
         policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     ) -> Vec<&'a SignatureProc> {
-        let root = super::scope::SignatureNamespaceScope::root(policy);
+        let root = tcl_names::namespace::SignatureNamespaceScope::root(policy);
         for context in [namespace, &root] {
             let matches = self
                 .procedure_declarations
@@ -1278,11 +1278,13 @@ impl SignatureScanResult {
                         Some(name.policy()) == policy && name.matches_written(context, written)
                     }
                     None => {
-                        matches!(context, super::scope::SignatureNamespaceScope::Symbolic(_))
-                            && context.display().is_some_and(|namespace| {
-                                crate::naming::qualify(&namespace, written)
-                                    == declaration.qualified_name
-                            })
+                        matches!(
+                            context,
+                            tcl_names::namespace::SignatureNamespaceScope::Symbolic(_)
+                        ) && context.display().is_some_and(|namespace| {
+                            crate::naming::qualify(&namespace, written)
+                                == declaration.qualified_name
+                        })
                     }
                 })
                 .collect::<Vec<_>>();

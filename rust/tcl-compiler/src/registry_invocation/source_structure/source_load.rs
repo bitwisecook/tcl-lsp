@@ -421,7 +421,7 @@ mod source_point_tests {
         assert_eq!(declarations.len(), 1);
         assert!(matches!(
             declarations[0].declaration_site().source.kind(),
-            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+            tcl_names::origin::SourceOriginKind::InheritedPoint { .. }
         ));
         let (_, parent_b, load_b) = parent();
         let entry_b = load_b.source_point_entry(&parent_b).unwrap();
@@ -569,7 +569,7 @@ mod source_point_tests {
             .expect("conditional local declaration reference");
         assert!(matches!(
             definition.allocation().site.source.kind(),
-            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+            tcl_names::origin::SourceOriginKind::InheritedPoint { .. }
         ));
         assert!(child.proc_for_definition(definition, source).is_some());
         assert!(

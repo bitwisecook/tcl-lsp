@@ -70,16 +70,16 @@ pub(in super::super) struct UndefSuppression {
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
     pub(in super::super) killed:
-        FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+        FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     pub(in super::super) call_steps: CallStepMap,
     /// Phi versions that can be undefined on some executable path
     /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
     /// read of one is read-before-set; the def-use pass can't express this
     /// because the read targets the *phi* version, not a version-0 origin.
     pub(in super::super) can_undef:
-        FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+        FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     pub(in super::super) preserved_undef:
-        FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+        FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     /// Loop-header phi versions whose *only* undef source is the loop's entry
     /// (zero-trip) edge — the loop body assigns the variable on every back
     /// edge, so the value is defined whenever the loop ran ≥1 time. Maps each
@@ -94,7 +94,7 @@ pub(in super::super) struct UndefSuppression {
     /// A *provably* empty loop (`foreach x {}`, or a constant-false
     /// `while`/`for` SCCP already prunes) is excluded, so it keeps firing.
     pub(in super::super) loop_entry_only_undef:
-        FxHashMap<(crate::var_resolve::VariableCellKey, crate::ssa::Version), FxHashSet<String>>,
+        FxHashMap<(tcl_names::variable::VariableCellKey, crate::ssa::Version), FxHashSet<String>>,
 }
 
 impl UndefSuppression {
@@ -114,7 +114,7 @@ impl UndefSuppression {
     pub(in super::super) fn suppresses_read(
         &self,
         name: &str,
-        key: &(crate::var_resolve::VariableCellKey, crate::ssa::Version),
+        key: &(tcl_names::variable::VariableCellKey, crate::ssa::Version),
     ) -> bool {
         if self.preserved_undef.contains(key) {
             return self.suppresses_unsubstituted(name) || self.dict_with_blanket(name);
@@ -134,7 +134,7 @@ impl UndefSuppression {
     /// fires (first-iteration undef is real).
     pub(in super::super) fn after_loop_defined(
         &self,
-        key: &(crate::var_resolve::VariableCellKey, crate::ssa::Version),
+        key: &(tcl_names::variable::VariableCellKey, crate::ssa::Version),
         block: &str,
     ) -> bool {
         self.loop_entry_only_undef
@@ -469,7 +469,7 @@ pub(in super::super) fn build_undef_suppression(
         ssa: &fu.ssa,
         preserved: &fu.sccp.preserved,
     };
-    let mut can_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
+    let mut can_undef: FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)> =
         FxHashSet::default();
     // One memo for the whole sweep and the loop-entry fixpoint below: both run
     // against `undef_ctx` unchanged, so an answer found for one key stands for
@@ -485,8 +485,10 @@ pub(in super::super) fn build_undef_suppression(
     // match, a `scan` whose input ran out, any declared `Preserve` — holds
     // its prior version, so it is undefined exactly when that version can
     // be: a read of it is then a read before set.
-    let mut preserved_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
-        FxHashSet::default();
+    let mut preserved_undef: FxHashSet<(
+        tcl_names::variable::VariableCellKey,
+        crate::ssa::Version,
+    )> = FxHashSet::default();
     for &(symbol, version) in fu.sccp.preserved.keys() {
         let Some(name) = fu.ssa.cell_key(symbol) else {
             continue;
@@ -547,13 +549,13 @@ pub(in super::super) fn build_undef_suppression(
 /// and the read must keep firing.
 fn build_loop_entry_only_undef(
     fu: &crate::compilation_unit::FunctionUnit,
-    can_undef: &FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    can_undef: &FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     ctx: &PhiUndefCtx<'_>,
     rules: tcl_syntax::word_rules::WordValueRules,
     memo: &mut PhiUndefMemo,
-) -> FxHashMap<(crate::var_resolve::VariableCellKey, crate::ssa::Version), FxHashSet<String>> {
+) -> FxHashMap<(tcl_names::variable::VariableCellKey, crate::ssa::Version), FxHashSet<String>> {
     let mut out: FxHashMap<
-        (crate::var_resolve::VariableCellKey, crate::ssa::Version),
+        (tcl_names::variable::VariableCellKey, crate::ssa::Version),
         FxHashSet<String>,
     > = FxHashMap::default();
     if can_undef.is_empty() {

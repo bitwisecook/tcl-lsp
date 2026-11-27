@@ -31,10 +31,11 @@ use crate::cfg;
 use crate::cfg::BlockId;
 use crate::ir::Statement;
 use crate::var_refs::VarReferenceScanner;
-use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
+use crate::var_resolve::{ResolveContext, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 mod phi_placement;
@@ -264,12 +265,12 @@ pub(crate) struct ArrayElems {
 }
 
 impl ArrayElems {
-    pub(super) fn note(&mut self, mut target: crate::place::Place) {
-        if target.kind != crate::place::PlaceKind::ArrayElem
+    pub(super) fn note(&mut self, mut target: tcl_names::place::Place) {
+        if target.kind != tcl_names::place::PlaceKind::ArrayElem
             || !target
                 .index
                 .as_ref()
-                .is_some_and(|index| index.kind == crate::place::IndexKind::Literal)
+                .is_some_and(|index| index.kind == tcl_names::place::IndexKind::Literal)
         {
             return;
         }
@@ -277,7 +278,7 @@ impl ArrayElems {
             return;
         };
         target.index = None;
-        target.kind = crate::place::PlaceKind::ArrayWhole;
+        target.kind = tcl_names::place::PlaceKind::ArrayWhole;
         let Some(root) = crate::var_resolve::canonical_binding_value_key(&target) else {
             return;
         };

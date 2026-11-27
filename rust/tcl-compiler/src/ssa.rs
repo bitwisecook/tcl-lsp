@@ -54,8 +54,9 @@ use crate::var_refs::VarReferenceScanner;
 use crate::var_refs::VarScanOptions;
 #[cfg(test)]
 use crate::var_resolve::ContentsOrigin;
-use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
+use crate::var_resolve::{ResolveContext, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
+use tcl_names::variable::VariableCellKey;
 use tcl_source::words::SourceSite;
 #[cfg(test)]
 use tcl_source::words::WordExpr;

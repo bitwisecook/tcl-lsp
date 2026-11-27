@@ -18,6 +18,7 @@
 
 //! Records of single source occurrences: package provides and `ifneeded` scripts, `auto_path` entries, qualified variable and namespace references, instance bindings and regex patterns.
 
+use crate::signature_scan::scope::SignatureNamespaceChild;
 use tcl_lexer::Span;
 
 /// `package provide NAME ?VERSION?` record.
@@ -98,7 +99,7 @@ pub struct QualifiedVarRef {
     pub original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     /// Independently retained namespace geometry at this occurrence. Missing
     /// geometry cannot be reconstructed from `qualified_name`.
-    pub original_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    pub original_namespace: Option<tcl_names::namespace::SignatureNamespaceScope>,
 }
 
 /// One occurrence of a word that **names a namespace** — every argument the
@@ -127,14 +128,14 @@ pub struct NamespaceRef {
     /// readonly; their source lineage cannot acquire complete-word geometry.
     pub original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     /// Exact namespace context before interpreting the original operand.
-    pub source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    pub source_context: Option<tcl_names::namespace::SignatureNamespaceScope>,
     /// Original selected word value, retained before any report rendering.
     pub original_name: String,
     /// Candidate literal value range. Consumers verify these exact original bytes
     /// against source before projecting editable subranges; escaped/computed words decline.
     pub source_span: Option<Span>,
     /// Exact original namespace selection, independent of its rendered report.
-    pub source_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    pub source_namespace: Option<tcl_names::namespace::SignatureNamespaceScope>,
     /// Independently selected naming policy for the original namespace operand.
     pub name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     /// The `::`-rooted namespace the occurrence names, with a relative
@@ -154,7 +155,7 @@ impl NamespaceRef {
     /// The report fallback supplies presentation only when that context is absent.
     #[must_use]
     pub(crate) fn from_original(
-        source_context: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        source_context: Option<tcl_names::namespace::SignatureNamespaceScope>,
         name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
         original_name: &str,
         span: Span,
@@ -174,7 +175,7 @@ impl NamespaceRef {
             .flatten();
         let qualified_name = source_namespace
             .as_ref()
-            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+            .and_then(tcl_names::namespace::SignatureNamespaceScope::display)
             .unwrap_or(report_fallback);
         let source_span = span
             .start()
@@ -211,7 +212,7 @@ impl NamespaceRef {
             if let Some(report) = self
                 .source_namespace
                 .as_ref()
-                .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+                .and_then(tcl_names::namespace::SignatureNamespaceScope::display)
             {
                 self.qualified_name = report;
             }
@@ -223,7 +224,7 @@ impl NamespaceRef {
     pub(super) fn original_extent_span(
         &self,
         source: &str,
-        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+        wanted: &tcl_names::namespace::SignatureNamespaceScope,
         member: bool,
     ) -> Option<Span> {
         let input = self.original_name_input.as_ref()?;
@@ -266,7 +267,7 @@ impl NamespaceRef {
     pub fn written_ancestor_span(
         &self,
         source: &str,
-        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+        wanted: &tcl_names::namespace::SignatureNamespaceScope,
     ) -> Option<Span> {
         self.original_extent_span(source, wanted, false)
     }
@@ -275,7 +276,7 @@ impl NamespaceRef {
     pub fn written_member_span(
         &self,
         source: &str,
-        wanted: &crate::signature_scan::scope::SignatureNamespaceScope,
+        wanted: &tcl_names::namespace::SignatureNamespaceScope,
     ) -> Option<Span> {
         self.original_extent_span(source, wanted, true)
     }

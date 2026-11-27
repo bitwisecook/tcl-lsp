@@ -18,8 +18,9 @@
 
 //! Original table absence and independently retained source mutation history.
 
-use super::{MayBinding, ModuleCommandBindings, SourceInvocationBinding, SourceNamespaceKey};
+use super::{MayBinding, ModuleCommandBindings, SourceInvocationBinding};
 use crate::ir::{CommandTokens, Module};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 /// Original table absence joined to the same Module's source mutation history.

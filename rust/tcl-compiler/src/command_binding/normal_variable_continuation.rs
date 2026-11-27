@@ -19,12 +19,13 @@
 //! Original variable worlds on independently closed normal store continuations.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings,
-    SourceInvocationBinding, SourceNativeInvocation, SourceOriginId, SourceOutcomes,
-    SourceRuntimeReachability,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceInvocationBinding,
+    SourceNativeInvocation, SourceOutcomes, SourceRuntimeReachability,
 };
 use crate::var_resolve::ResolveContext;
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 pub(super) type NormalVariableContinuations =
     BTreeMap<CommandAllocationSite, Option<Arc<ResolveContext>>>;

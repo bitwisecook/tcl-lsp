@@ -423,7 +423,7 @@ mod tests {
                 assert_eq!(
                     body.namespace_context
                         .as_deref()
-                        .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+                        .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
                         .as_deref(),
                     expected
                 );

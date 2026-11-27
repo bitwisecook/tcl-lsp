@@ -36,7 +36,7 @@ pub struct Procedure {
     /// Original source publication geometry; no Native binding or body admission.
     pub publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Original allocating instruction; source bytes and display labels cannot replace it.
-    pub declaration_site: Option<crate::command_binding::CommandAllocationSite>,
+    pub declaration_site: Option<tcl_names::command::CommandAllocationSite>,
     /// Body frame purpose, independent of the reporting label.
     pub body_kind: ProcedureBodyKind,
     /// Parameter names.

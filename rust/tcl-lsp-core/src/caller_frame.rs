@@ -595,7 +595,7 @@ fn bindings_from_declared_self_dispatch(
 fn scan_self_method_body<'a>(
     ctx: &BindingScan<'_>,
     cmd: &tcl_source::segment::SegmentedCommand,
-    script: &tcl_compiler::command_binding::ExecutedScriptSource,
+    script: &tcl_names::origin::ExecutedScriptSource,
     callee: &str,
     param_names: &[&str],
     literal_argument: impl Fn(usize) -> Option<(usize, &'a str)>,

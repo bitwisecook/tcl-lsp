@@ -418,7 +418,7 @@ fn single_command_body(
         native_input
             .as_ref()
             .and_then(|input| input.original_word_key())
-            .map(tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::original_word)
+            .map(tcl_names::word::SignatureSourceNameKey::original_word)
     }
     .filter(|word| {
         word.image() == &image

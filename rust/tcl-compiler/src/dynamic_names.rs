@@ -196,7 +196,7 @@ impl DynamicNameBarrier {
 /// Three shapes are deliberately **not** dynamic:
 ///
 /// - `a($k)` — a run-time-chosen *element* of the statically named array
-///   `a`. The [place model](crate::place) already tracks element identity;
+///   `a`. The [place model](tcl_names::place) already tracks element identity;
 ///   treating it as a whole-name clobber would silence array diagnostics
 ///   wholesale.
 /// - `${ns}::tail` — a `::`-qualified name binds or targets its **tail**, so

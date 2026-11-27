@@ -158,7 +158,7 @@ impl NormalTransferInvocation {
         let [place] = places.as_slice() else {
             return None;
         };
-        if place.observed || place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+        if place.observed || place.dynamic || place.kind == tcl_names::place::PlaceKind::Unknown {
             return None;
         }
         let argument_offset = self.invocation.facts.argument_offset;
@@ -297,7 +297,7 @@ impl NormalTransferInvocation {
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Vec<crate::place::Place> {
+    ) -> Vec<tcl_names::place::Place> {
         if self.captured_outputs
             || self.variable_binding_phase()
                 == tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol
@@ -307,7 +307,7 @@ impl NormalTransferInvocation {
         self.with_arguments(|arguments| {
             if state.execution_name_policy.is_some() {
                 return self.original_operands.as_deref().map_or_else(
-                    || vec![crate::place::unknown_top()],
+                    || vec![tcl_names::place::unknown_top()],
                     |operands| crate::variable_bindings::source_variable_read_places_with_original_operands(
                         &self.invocation.facts, arguments, state, registry, operands,
                     ),
@@ -429,14 +429,14 @@ impl NormalTransferInvocation {
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Vec<crate::place::Place> {
+    ) -> Vec<tcl_names::place::Place> {
         if self.captured_outputs {
             return self.definition_places(state, registry);
         }
         self.with_arguments(|arguments| {
             if state.execution_name_policy.is_some() {
                 return self.original_operands.as_deref().map_or_else(
-                    || vec![crate::place::unknown_top()],
+                    || vec![tcl_names::place::unknown_top()],
                     |operands| crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
                         &self.invocation.facts, arguments, state, registry,
                         self.variable_output_arguments().as_deref(), operands,
@@ -456,7 +456,7 @@ impl NormalTransferInvocation {
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Vec<crate::place::Place> {
+    ) -> Vec<tcl_names::place::Place> {
         if self.variable_binding_phase()
             == tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol
         {
@@ -476,7 +476,7 @@ impl NormalTransferInvocation {
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Vec<(usize, crate::place::Place)> {
+    ) -> Vec<(usize, tcl_names::place::Place)> {
         if self.variable_binding_phase()
             == tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol
         {
@@ -492,7 +492,7 @@ impl NormalTransferInvocation {
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Vec<(usize, crate::place::Place)> {
+    ) -> Vec<(usize, tcl_names::place::Place)> {
         if state.execution_name_policy.is_some() {
             let Some(operands) = self
                 .original_operands
@@ -583,7 +583,7 @@ impl NormalTransferInvocation {
         let [place] = places.as_slice() else {
             return None;
         };
-        if place.observed || place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+        if place.observed || place.dynamic || place.kind == tcl_names::place::PlaceKind::Unknown {
             return None;
         }
         self.invocation.effective.words.get(2)
@@ -630,7 +630,7 @@ impl NormalTransferInvocation {
         argument: usize,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> Option<crate::place::Place> {
+    ) -> Option<tcl_names::place::Place> {
         let role = self
             .variable_roles()
             .into_iter()

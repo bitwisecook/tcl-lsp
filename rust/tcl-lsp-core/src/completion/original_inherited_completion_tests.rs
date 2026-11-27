@@ -39,7 +39,7 @@ fn selected_bytes(
     let [word] = command.words.as_slice() else {
         panic!("one inserted selector");
     };
-    tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+    tcl_names::word::SignatureSourceNameKey::from_original_native_word(
         word,
         key.word_value_rules(),
         key.policy(),

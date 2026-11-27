@@ -25,9 +25,10 @@ use crate::analyser::types::{
 use crate::analyser::{AnalysisResult, ClassDef};
 use crate::command_binding::OriginalSourceCommandTransitionAdvice;
 use crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody;
-use crate::signature_scan::original_name::{SignatureSourceNameKey, SourceDeclarationMetadata};
+use crate::signature_scan::original_name::SourceDeclarationMetadata;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::definer::{
     CallableRole, DefinitionMemberNamePurpose, MemberEffect, MemberReceiver,
 };

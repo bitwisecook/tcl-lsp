@@ -23,10 +23,9 @@
 
 use super::{Analyser, Span, Token, TokenType};
 use crate::command_binding::OriginalSourceAnalysisOwner;
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceNameValue,
-};
+use crate::signature_scan::scope::{SignatureSourceCommand, SignatureSourceNameValue};
 use std::sync::Arc;
+use tcl_names::namespace::SignatureNamespaceScope;
 
 // The lazy cell is per Analyser, never thread-local and never a report/cache field.
 // Guards own their state so the full ordinary walk can keep borrowing &mut self.

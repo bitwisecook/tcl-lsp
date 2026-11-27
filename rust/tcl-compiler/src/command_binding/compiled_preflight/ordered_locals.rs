@@ -42,7 +42,7 @@ pub struct SourceCompilerLocalInventory {
     #[doc(hidden)]
     pub config: tcl_lexer::LexerConfig,
     #[doc(hidden)]
-    pub frame: crate::var_resolve::VariableExecutionFrame,
+    pub frame: tcl_names::variable::VariableExecutionFrame,
     #[doc(hidden)]
     pub compilation: NativeCompilationContext,
     #[doc(hidden)]
@@ -69,7 +69,7 @@ impl SourceCompilerFormalOwner {
     fn owns_source(
         &self,
         site: &CommandAllocationSite,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
     ) -> bool {
         match self {
@@ -154,7 +154,7 @@ impl SourceCompilerLocalInventory {
         program: &tcl_registry::native_expression_program::NativeExpressionProgram,
         site: &CommandAllocationSite,
         config: tcl_lexer::LexerConfig,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         compilation: NativeCompilationContext,
     ) -> bool {
         use tcl_registry::native_expression_program::NativeExpressionTree;
@@ -250,7 +250,7 @@ impl SourceCompilerLocalInventory {
         &self,
         site: &CommandAllocationSite,
         config: tcl_lexer::LexerConfig,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         compilation: NativeCompilationContext,
         protocol: NativeCompiledVariableProtocol,
     ) -> bool {
@@ -306,7 +306,7 @@ mod tests {
         let profile = registry.profile().unwrap();
         SourceCommandBindings::analyse_image_in_frame_with_options(
             &tcl_lexer::SourceImage::native(source),
-            &crate::var_resolve::VariableExecutionFrame::Global,
+            &tcl_names::variable::VariableExecutionFrame::Global,
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             registry,
             SourceAnalysisOptions {
@@ -356,7 +356,7 @@ mod tests {
                 .is_none()
         );
         let mut foreign = local.chunk.clone();
-        foreign.source = Arc::new(crate::command_binding::SourceOriginId::authored_image(
+        foreign.source = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             tcl_lexer::SourceImage::document(std::str::from_utf8(source).unwrap()),
         ));
         assert!(!local.owns(

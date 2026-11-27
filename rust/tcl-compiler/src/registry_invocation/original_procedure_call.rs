@@ -126,7 +126,7 @@ pub fn original_authored_procedure_calls_for_module<'a>(
         || advice.targets().is_empty()
         || advice.targets().iter().any(|target| {
             target.registry_backed
-                || target.kind != crate::command_binding::BindingKind::Proc
+                || target.kind != tcl_names::command::BindingKind::Proc
                 || target.implementation_allocation.is_none()
         })
     {

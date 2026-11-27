@@ -114,7 +114,7 @@ impl SourceCommandBindings {
     fn walk_template_variable(
         &mut self,
         variable: &tcl_lexer::word_parts::VarRef<'_>,
-        template: &super::ExecutedScriptSource,
+        template: &tcl_names::origin::ExecutedScriptSource,
         parse_errors: TemplateParseErrors,
         template_span: Option<tcl_lexer::Span>,
         state: &mut ModuleCommandBindings,
@@ -144,7 +144,7 @@ impl SourceCommandBindings {
 
     fn walk_substitution_value(
         &mut self,
-        template: &super::ExecutedScriptSource,
+        template: &tcl_names::origin::ExecutedScriptSource,
         kinds: tcl_registry::substitution::SubstitutionKinds,
         parse_errors: TemplateParseErrors,
         state: &mut ModuleCommandBindings,

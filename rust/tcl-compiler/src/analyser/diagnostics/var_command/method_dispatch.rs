@@ -21,6 +21,7 @@
 use super::W308DiagnosticSite;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use crate::command_binding::SourceOriginLexical;
 use rustc_hash::FxHashSet;
 use std::collections::HashSet;
 use tcl_core_types::{BodyFrameId, DiagCode};
@@ -699,7 +700,7 @@ impl Analyser {
             }
             if let Some(target) = binding
                 .proved_execution_target()
-                .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+                .filter(|target| target.kind == tcl_names::command::BindingKind::Proc)
                 && let Some(result) = self
                     .result
                     .object_handle_facts

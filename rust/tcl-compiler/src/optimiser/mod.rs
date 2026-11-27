@@ -300,7 +300,7 @@ pub struct PassContext<'a> {
     /// tree to recover original source positions.
     pub ir_module: Option<&'a IrModule>,
     /// Command registry — set by the `optimise*` entry points so the
-    /// elimination pass can resolve [`crate::place::Place`]s via the place
+    /// elimination pass can resolve [`tcl_names::place::Place`]s via the place
     /// bridge (O109 array-element precision).  `None` in the bare
     /// [`PassContext::new`] test path → place suppression is simply skipped.
     pub registry: Option<&'a CommandRegistry>,

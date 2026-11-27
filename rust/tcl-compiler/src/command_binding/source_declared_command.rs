@@ -23,11 +23,12 @@ mod logical_lambda;
 pub use logical_body::{OriginalDeclaredLogicalBodyContext, OriginalDeclaredSourceBodyFrame};
 pub(crate) use logical_lambda::OriginalLogicalLambdaBody;
 
-use super::{CommandAllocationSite, SourceAdviceNameInput, SourceInvocationBinding};
+use super::{SourceAdviceNameInput, SourceInvocationBinding};
 use crate::analyser::ResolvedAnalysisInput;
 use crate::registry_invocation::EffectiveInvocationWord;
 use std::sync::Arc;
 use tcl_lexer::NativeWord;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::model::DeclaredCommand;
 
 /// Explicit source obligations; a document contract is never an implementation.

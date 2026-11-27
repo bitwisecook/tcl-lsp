@@ -241,7 +241,7 @@ impl<'a> SsaSourceView<'a> {
     pub(crate) fn captured_argument_value_definition(
         self,
         word: &WordExpr,
-        invocation: &crate::command_binding::CommandAllocationSite,
+        invocation: &tcl_names::command::CommandAllocationSite,
         registry: &CommandRegistry,
     ) -> Option<ValueKey> {
         let access = self.word_variable_access(word)?;
@@ -256,8 +256,8 @@ impl<'a> SsaSourceView<'a> {
         let cell = place.cell.as_ref()?;
         if place.dynamic
             || place.observed
-            || place.kind != crate::place::PlaceKind::Scalar
-            || cell.generation == crate::place::CellGeneration::Unknown
+            || place.kind != tcl_names::place::PlaceKind::Scalar
+            || cell.generation == tcl_names::place::CellGeneration::Unknown
             || access.context_alternatives().iter().any(|context| {
                 let alternative = access.place_in_context(context, registry);
                 alternative.cell.as_ref() != Some(cell)
@@ -392,7 +392,7 @@ impl<'a> SsaSourceView<'a> {
                     place.dynamic,
                     context.contents_presence(&place),
                     place.cell.as_ref().is_some_and(
-                        |cell| cell.generation != crate::place::CellGeneration::Unknown
+                        |cell| cell.generation != tcl_names::place::CellGeneration::Unknown
                     )
                 );
             }
@@ -410,9 +410,9 @@ impl<'a> SsaSourceView<'a> {
                 let place = access.place_in_context(context, registry);
                 !place.observed
                     && !place.dynamic
-                    && place.kind == crate::place::PlaceKind::Scalar
+                    && place.kind == tcl_names::place::PlaceKind::Scalar
                     && place.cell.as_ref().is_some_and(|cell| {
-                        cell.generation != crate::place::CellGeneration::Unknown
+                        cell.generation != tcl_names::place::CellGeneration::Unknown
                     })
                     && crate::var_resolve::canonical_binding_value_key(&place).as_ref() == Some(key)
             })
@@ -500,7 +500,7 @@ impl<'a> SsaSourceView<'a> {
         self,
         word: &WordExpr,
         registry: &tcl_registry::CommandRegistry,
-    ) -> Option<crate::place::Place> {
+    ) -> Option<tcl_names::place::Place> {
         let access = self.word_variable_access(word)?;
         Some(access.place_in_context(&access.variable_context, registry))
     }
@@ -556,7 +556,7 @@ impl<'a> SsaSourceView<'a> {
                     if writes.iter().any(|write| {
                         write.cell.is_some()
                             && write.cell == target.cell
-                            && crate::place::overlap(write, &target)
+                            && tcl_names::place::overlap(write, &target)
                     }) {
                         contents.writes.push((block, index));
                         found = true;
@@ -677,7 +677,12 @@ pub(super) fn source_read_representations(
 /// Common projection for substitutions, expression operands and native named
 /// reads. An empty or opaque inventory cannot supply any positive evidence.
 fn captured_read_representations<'a>(
-    reads: impl Iterator<Item = (&'a crate::var_resolve::ResolveContext, crate::place::Place)>,
+    reads: impl Iterator<
+        Item = (
+            &'a crate::var_resolve::ResolveContext,
+            tcl_names::place::Place,
+        ),
+    >,
     registry: &CommandRegistry,
 ) -> SsaReadRepresentationAdvice {
     use tcl_syntax::value::ValueRepresentation;
@@ -737,7 +742,7 @@ fn captured_read_representations<'a>(
 
 fn exclusive_argument_owner(
     owner: &crate::command_binding::SourceVariableEvaluationOwner,
-    invocation: &crate::command_binding::CommandAllocationSite,
+    invocation: &tcl_names::command::CommandAllocationSite,
 ) -> bool {
     use crate::command_binding::SourceVariableEvaluationOwner;
     match owner {
@@ -758,6 +763,6 @@ fn exclusive_argument_owner(
 pub(in super::super) fn source_read_place(
     access: &crate::command_binding::SourceVariableAccess,
     registry: &CommandRegistry,
-) -> crate::place::Place {
+) -> tcl_names::place::Place {
     access.place_in_context(&access.variable_context, registry)
 }

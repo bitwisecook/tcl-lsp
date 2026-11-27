@@ -28,6 +28,7 @@ use super::{
     boxed_body_advice, boxed_body_resolution, boxed_region_words, note_source_point_body_walk,
     original_operand_effects,
 };
+use crate::command_binding::SourceOriginLexical;
 #[cfg(test)]
 use crate::command_binding::source_transition_advice::body_effects::trace_body_inventory;
 use std::sync::Arc;

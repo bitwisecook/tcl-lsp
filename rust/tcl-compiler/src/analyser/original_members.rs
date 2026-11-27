@@ -29,19 +29,19 @@ use super::{
         OriginalSourcePropertyMetadata, OriginalSourceSpecialMemberMetadata, PropertyDef,
     },
 };
-use crate::{
-    command_binding::{CommandAllocationSite, SourceOriginId},
-    ir::CommandTokens,
-    signature_scan::{
-        original_name::{OriginalSourceNamePurpose, SourceOriginalNameOccurrence},
-        scope::{
-            SignatureNamespaceScope, SignatureSourceLookup, SignatureSourceNameInput,
-            SignatureSourceNameKey, SignatureSourceNameValue,
-        },
-    },
+use crate::ir::CommandTokens;
+use crate::signature_scan::original_name::{
+    OriginalSourceNamePurpose, SourceOriginalNameOccurrence,
+};
+use crate::signature_scan::scope::{
+    SignatureSourceLookup, SignatureSourceNameInput, SignatureSourceNameValue,
 };
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, SourceMap, Token};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SignatureNamespaceScope;
+use tcl_names::origin::SourceOriginId;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::{
     arg_role::ArgRole,
     definer::{

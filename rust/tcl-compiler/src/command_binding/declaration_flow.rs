@@ -24,12 +24,14 @@
 
 pub(super) mod representation;
 
+use super::SourceInvocationBinding;
 use super::declaration_layout::DeclarationLayouts;
-use super::{CommandAllocationSite, ExecutedScriptSource, SourceInvocationBinding};
 use crate::ir::CommandTokens;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
 #[cfg(test)]
@@ -61,7 +63,8 @@ pub(super) struct DeclarationFlowInventory {
     accesses: Arc<super::SourceVariableAccesses>,
     origin_accesses: Arc<super::OriginVariableAccesses>,
     points: Arc<Vec<super::SourceBindingPoint>>,
-    origin_points: Arc<BTreeMap<Arc<super::SourceOriginId>, Vec<super::SourceBindingPoint>>>,
+    origin_points:
+        Arc<BTreeMap<Arc<tcl_names::origin::SourceOriginId>, Vec<super::SourceBindingPoint>>>,
 }
 
 impl DeclarationFlowInventory {
@@ -93,7 +96,9 @@ impl DeclarationFlowInventory {
         accesses: Arc<super::SourceVariableAccesses>,
         origin_accesses: Arc<super::OriginVariableAccesses>,
         points: Arc<Vec<super::SourceBindingPoint>>,
-        origin_points: Arc<BTreeMap<Arc<super::SourceOriginId>, Vec<super::SourceBindingPoint>>>,
+        origin_points: Arc<
+            BTreeMap<Arc<tcl_names::origin::SourceOriginId>, Vec<super::SourceBindingPoint>>,
+        >,
     ) -> Self {
         Self {
             reports: DeclarationFlowReports::default(),
@@ -169,13 +174,17 @@ enum DeclarationFlowFrame {
     Read(Arc<super::declaration_preview::OriginalProcedureReadFlowEntry>),
 }
 impl DeclarationFlowFrame {
-    fn origin(&self) -> &Arc<super::SourceOriginId> {
+    fn origin(&self) -> &Arc<tcl_names::origin::SourceOriginId> {
         match self {
             Self::Existing(entry) => &entry.source().origin,
             Self::Read(entry) => &entry.header.declaration.source,
         }
     }
-    fn owns_read(&self, origin: &Arc<super::SourceOriginId>, span: tcl_lexer::Span) -> bool {
+    fn owns_read(
+        &self,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
+        span: tcl_lexer::Span,
+    ) -> bool {
         match self {
             Self::Existing(entry) => entry.owns_source(origin, span.start()),
             Self::Read(entry) => {
@@ -370,7 +379,7 @@ impl Hash for DeclarationFlowInventory {
 /// observer and object-method alternatives remain outside this diagnostic
 /// graph and cannot be withdrawn by any query on this report.
 pub(crate) struct DeclarationFlowReport {
-    source: Arc<super::SourceOriginId>,
+    source: Arc<tcl_names::origin::SourceOriginId>,
     representation_occurrences: Vec<representation::SourceConversionObservation>,
     reads: BTreeMap<String, tcl_lexer::Span>,
     reached: BTreeSet<u32>,
@@ -695,7 +704,7 @@ impl super::SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Arc<DeclarationFlowReport>> {
         self.declaration_layouts.iter().find_map(|(site, observations)| {
-            if !matches!(site.source.kind(), super::SourceOriginKind::Authored(source) if source == image)
+            if !matches!(site.source.kind(), tcl_names::origin::SourceOriginKind::Authored(source) if source == image)
                 || !original_procedure_entry_matches(
                     &super::declaration_layout::original_declaration_layouts(observations)?.next()?.entry,
                     procedure,
@@ -839,7 +848,7 @@ struct ConditionalRepresentationBodyContext {
     site: CommandAllocationSite,
     words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
     body: crate::registry_invocation::OriginalSourceScriptBody,
-    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     binder: tcl_registry::iteration_entry::ConditionalSourceSingleLoopBinding,
     count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,
@@ -893,12 +902,12 @@ struct Job {
 }
 struct DeclarationSelectionScope<'a> {
     snapshot: &'a Arc<super::SourceLookupSnapshot>,
-    namespace: &'a super::SourceNamespaceKey,
+    namespace: &'a tcl_names::namespace::SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
 }
 
 struct ConditionalRepresentationNaming {
-    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
 }
@@ -933,7 +942,7 @@ struct ConditionalRepresentationBodyInputs<'a> {
     words: &'a Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
     body_argument: usize,
     context: &'a tcl_registry::model::ContextRegistry,
-    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     binder: tcl_registry::iteration_entry::ConditionalSourceSingleLoopBinding,
     count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,

@@ -143,7 +143,7 @@ impl Declaration<'_> {
         }
     }
 
-    fn site(&self) -> &tcl_compiler::command_binding::CommandAllocationSite {
+    fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         match self {
             Self::Procedure(row) => row.declaration_site(),
             Self::Class(row) => row.declaration_site(),

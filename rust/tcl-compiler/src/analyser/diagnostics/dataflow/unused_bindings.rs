@@ -31,7 +31,7 @@ use tcl_core_types::DiagCode;
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct OriginalDispatchProtocol {
     policy: tcl_syntax::naming::NamePolicyProtocol,
-    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: tcl_names::namespace::SignatureNamespaceScope,
     pub(super) params: Vec<String>,
 }
 
@@ -597,7 +597,7 @@ impl Analyser {
         &'a self,
         site: &super::super::super::state::VarCommandSite,
         peers: &'a FxHashMap<crate::ir::ProcedureId, OriginalDispatchPeer>,
-    ) -> Option<&'a crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<&'a tcl_names::namespace::SignatureNamespaceScope> {
         let mut containing = peers
             .values()
             .filter(|peer| {

@@ -118,7 +118,7 @@ impl OriginalJimStockSourceEffects {
     pub(in crate::command_binding) fn matches_seed(
         &self,
         owner: Option<&Arc<OriginalSourceAnalysisOwner>>,
-        origin: &Arc<crate::command_binding::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         baseline: &Arc<BindingBaseline>,
     ) -> bool {
         owner.is_some_and(|owner| Arc::ptr_eq(owner, &self.owner))
@@ -151,7 +151,7 @@ pub(in crate::command_binding) struct JimStockContinuationMemo(
 
 struct JimStockContinuationSlot {
     points: std::sync::Weak<Vec<super::super::SourceBindingPoint>>,
-    origin: std::sync::Weak<super::super::SourceOriginId>,
+    origin: std::sync::Weak<tcl_names::origin::SourceOriginId>,
     baseline: std::sync::Weak<super::super::BindingBaseline>,
     any: bool,
 }
@@ -173,7 +173,7 @@ impl JimStockContinuationMemo {
     fn any(
         &self,
         points: &super::super::SharedSourceInventory<Vec<super::super::SourceBindingPoint>>,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         baseline: &Arc<super::super::BindingBaseline>,
         scan: impl FnOnce(&[super::super::SourceBindingPoint]) -> bool,
     ) -> bool {

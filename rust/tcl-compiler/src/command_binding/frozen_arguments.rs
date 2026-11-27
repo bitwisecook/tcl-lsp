@@ -474,7 +474,7 @@ mod tests {
                     script.text.try_text().unwrap() == "set x VALUE"
                         && matches!(
                             script.origin.kind(),
-                            super::super::SourceOriginKind::Derived { .. }
+                            tcl_names::origin::SourceOriginKind::Derived { .. }
                         )
                 })
         );

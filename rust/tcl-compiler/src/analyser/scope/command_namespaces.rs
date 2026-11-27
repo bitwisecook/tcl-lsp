@@ -50,7 +50,7 @@ pub(super) fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> S
     if let Some(display) = child
         .naming_scope
         .as_ref()
-        .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+        .and_then(tcl_names::namespace::SignatureNamespaceScope::display)
     {
         if let Some(domain) = &child.original_interpreter_source_domain {
             return child
@@ -164,7 +164,7 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 pub fn original_namespace_scope_at(
     root: &Scope,
     byte_offset: u32,
-) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+) -> Option<&tcl_names::namespace::SignatureNamespaceScope> {
     let mut cursor = root;
     while let Some(child) = innermost_containing_child(cursor, byte_offset) {
         cursor = child;

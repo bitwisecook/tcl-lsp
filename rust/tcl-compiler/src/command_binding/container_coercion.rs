@@ -21,7 +21,8 @@
 use super::{
     ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
 };
-use crate::{native_numeric::ClosedContainerRepresentations, place::Place};
+use crate::native_numeric::ClosedContainerRepresentations;
+use tcl_names::place::Place;
 use tcl_registry::representation::{OrdinaryContainerCoercion, OrdinaryContainerRepresentation};
 use tcl_syntax::value::ValueRepresentation;
 
@@ -35,7 +36,7 @@ pub(super) fn target(coercion: OrdinaryContainerCoercion) -> ValueRepresentation
 pub(super) struct CapturedContainerCoercion {
     receiver: Place,
     origin: crate::var_resolve::ContentsOrigin,
-    source: Option<super::Arc<super::SourceOriginId>>,
+    source: Option<super::Arc<tcl_names::origin::SourceOriginId>>,
     previous: Option<ClosedContainerRepresentations>,
     value: crate::native_numeric::StoredNativeRepresentation,
     stock_completion: Option<tcl_registry::completion_route::InvocationCompletionRoute>,

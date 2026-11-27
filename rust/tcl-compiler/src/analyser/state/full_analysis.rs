@@ -401,10 +401,10 @@ impl Analyser {
             .and_then(|entry| entry.source_point_entry.as_ref())
         {
             let kind = match point.frame().layout() {
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. } => {
+                tcl_names::variable::VariableExecutionFrame::Procedure { .. } => {
                     super::super::types::ScopeKind::Proc
                 }
-                crate::var_resolve::VariableExecutionFrame::Global => {
+                tcl_names::variable::VariableExecutionFrame::Global => {
                     super::super::types::ScopeKind::Global
                 }
                 _ => super::super::types::ScopeKind::Namespace,
@@ -429,7 +429,7 @@ impl Analyser {
             let policy = self.declaration_name_policy();
             let mut naming_scope = self
                 .selected_logical_declaration_advice()
-                .then(|| crate::signature_scan::scope::SignatureNamespaceScope::root(policy));
+                .then(|| tcl_names::namespace::SignatureNamespaceScope::root(policy));
             for segment in crate::naming::key_segments(&seed) {
                 naming_scope = naming_scope.and_then(|scope| scope.child(&segment, policy));
                 let mut child = super::super::types::Scope::new(

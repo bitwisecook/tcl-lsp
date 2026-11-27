@@ -22,14 +22,14 @@
 use super::{CompletionEdit, CompletionItem, CompletionKind};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::command_binding::SourceOriginalVariableFrame;
-use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
 use tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot;
 use tcl_compiler::signature_scan::variable_symbol::{
     OriginalVariableSymbolReceiver, SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
 };
-use tcl_compiler::var_resolve::VariableExecutionFrame;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::namespace::SignatureNamespaceScope;
+use tcl_names::variable::VariableExecutionFrame;
 use tcl_syntax::naming::{NamePolicyProtocol, NativeVariableRootGeometry};
 
 pub(super) fn items(

@@ -460,7 +460,7 @@ fn codegen_procedures(
         let namespace_context =
             ir_proc.and_then(|procedure| procedure.body.namespace_context.as_deref());
         let Some(procedure_namespace) = namespace_context
-            .and_then(tcl_compiler::command_binding::SourceNamespaceKey::source_artifact_path)
+            .and_then(tcl_names::namespace::SourceNamespaceKey::source_artifact_path)
         else {
             continue;
         };
@@ -488,9 +488,8 @@ fn codegen_procedures(
                 *qname,
                 tcl_bytecode::ProcedureProvenance {
                     name: proc.qualified_name.clone(),
-                    namespace_context: namespace_context.and_then(
-                        tcl_compiler::command_binding::SourceNamespaceKey::to_compiled_context,
-                    ),
+                    namespace_context: namespace_context
+                        .and_then(tcl_names::namespace::SourceNamespaceKey::to_compiled_context),
                     parameters: proc.params_raw.clone(),
                     body: body.clone(),
                 },
@@ -612,7 +611,7 @@ fn codegen_module_with_top_context(
     let namespace = match ir_module.retained_source_bindings.as_deref() {
         Some(owner) => owner
             .original_top_namespace_for_module(ir_module, registry)
-            .and_then(tcl_compiler::command_binding::SourceNamespaceKey::source_artifact_path),
+            .and_then(tcl_names::namespace::SourceNamespaceKey::source_artifact_path),
         None => ir_module
             .original_byte_source_namespace_for_codegen(registry)
             .cloned(),
@@ -729,11 +728,11 @@ mod tests {
     #[test]
     fn procedure_emission_keeps_body_geometry_separate_from_its_display_name() {
         use std::sync::Arc;
-        use tcl_compiler::command_binding::{
-            AllocationIncarnation, CommandAllocationSite, SourceNamespaceKey, SourceOriginId,
-        };
         use tcl_compiler::ir::{Script, Statement};
         use tcl_core_types::ByteNamespacePath;
+        use tcl_names::command::{AllocationIncarnation, CommandAllocationSite};
+        use tcl_names::namespace::SourceNamespaceKey;
+        use tcl_names::origin::SourceOriginId;
 
         // Only a release's registry defines `proc`; the bare catalogue lowers
         // `proc p {} {...}` to a call and issues no body.
@@ -960,7 +959,7 @@ mod original_top_namespace_tests {
                 1 => changed.retained_source_bindings = None,
                 _ => {
                     changed.top_level_namespace_context = Some(
-                        tcl_compiler::command_binding::SourceNamespaceKey::authored("::donated"),
+                        tcl_names::namespace::SourceNamespaceKey::authored("::donated"),
                     );
                 }
             }

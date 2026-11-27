@@ -682,7 +682,7 @@ impl Scan<'_> {
                 .body
                 .namespace_context
                 .as_deref()
-                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+                .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
             else {
                 self.out.any = true;
                 continue;

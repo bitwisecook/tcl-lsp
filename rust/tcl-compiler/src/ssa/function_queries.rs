@@ -23,9 +23,9 @@ use super::{SsaFunction, SsaReadReference, Symbol, Version};
 use crate::cfg;
 use crate::cfg::BlockId;
 use crate::ir::CommandTokens;
-use crate::var_resolve::{VariableCellKey, VariableCellKeyQuery};
 use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::{VariableCellKey, VariableCellKeyQuery};
 use tcl_source::words::SourceSite;
 
 impl SsaFunction {

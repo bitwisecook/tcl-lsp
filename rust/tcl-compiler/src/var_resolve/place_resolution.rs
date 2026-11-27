@@ -22,8 +22,8 @@ use super::observer_projection::project_access;
 use super::scalar_binding::{bind_scalar, classify_index, has_subst, inner_read_places};
 use super::{PossibleVariableAccessDomain, ResolveContext};
 use crate::naming::split_array_name;
-use crate::place;
-use crate::place::{CellOwner, Index, Place, PlaceKind};
+use tcl_names::place;
+use tcl_names::place::{CellOwner, Index, Place, PlaceKind};
 use tcl_registry::CommandRegistry;
 
 /// Resolve an alias destination slot, whose namespace creation grammar never

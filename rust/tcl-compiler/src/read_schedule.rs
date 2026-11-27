@@ -80,7 +80,7 @@ impl RepeatedReadContentsWitness {
             || place
                 .cell
                 .as_ref()
-                .is_none_or(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+                .is_none_or(|cell| cell.generation == tcl_names::place::CellGeneration::Unknown)
             || !matches!(
                 before.read_contents_origin(&place, registry),
                 ContentsOrigin::WrittenAt(_)

@@ -18,9 +18,10 @@
 
 //! Original forward prefix storage, separate from future target dispatch.
 
-use super::{Arc, BTreeMap, ExecutedScriptSource, SourceExecutionContext};
+use super::{Arc, BTreeMap, SourceExecutionContext};
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
+use tcl_names::origin::ExecutedScriptSource;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalForwardMethod {

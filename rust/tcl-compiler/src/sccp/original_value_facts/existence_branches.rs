@@ -459,7 +459,7 @@ pub fn existence_constant_branches_with_ssa_with_metadata_context(
                                 == crate::var_resolve::ContentsOrigin::Incoming
                             && place.cell.as_ref().is_some_and(|cell| {
                                 matches!(
-                                    &cell.owner, crate::place::CellOwner::Activation(owner)
+                                    &cell.owner, tcl_names::place::CellOwner::Activation(owner)
                                         if context.activation.as_ref() == Some(owner)
                                 )
                             });

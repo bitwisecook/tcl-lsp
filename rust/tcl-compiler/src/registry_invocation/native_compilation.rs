@@ -554,7 +554,7 @@ pub struct NativeOperationSelectionPlan {
     /// Exact native operation whose selection the range preserves.
     pub operation: tcl_registry::SemanticOperationId,
     /// Exact source-instance owner; equal bytes and spans cannot substitute.
-    pub compilation_site: crate::command_binding::CommandAllocationSite,
+    pub compilation_site: tcl_names::command::CommandAllocationSite,
     /// Original command and auxiliary implementation lookup premises.
     pub requirements: Vec<tcl_runtime_api::CommandBindingIdentity>,
     /// Actual raw compiler registration selected independently of the handler.
@@ -840,7 +840,7 @@ pub fn native_procedure_noop_plan(tokens: &CommandTokens) -> Option<NativeProced
 #[must_use]
 pub fn native_compiler_replay_source(
     tokens: &CommandTokens,
-    site: &crate::command_binding::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
 ) -> Option<String> {
     if tokens.words().len() != tokens.argv_texts.len() {
         return None;

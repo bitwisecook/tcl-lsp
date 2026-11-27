@@ -115,16 +115,14 @@ impl OriginalReceiverVariableInventory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature_scan::scope::SignatureSourceNameKey;
-    use crate::{
-        allocated_instance::AllocatedInstanceLinkOutcome as Outcome,
-        command_binding::{
-            AllocationIncarnation, CommandAllocationSite, SourceObjectAllocation, SourceOriginId,
-            formal_topology::OriginalFormalTopology,
-        },
-        var_resolve::{ResolveContext, VariableExecutionFrame},
-    };
+    use crate::allocated_instance::AllocatedInstanceLinkOutcome as Outcome;
+    use crate::command_binding::formal_topology::OriginalFormalTopology;
+    use crate::var_resolve::ResolveContext;
     use std::sync::Arc;
+    use tcl_names::command::{AllocationIncarnation, CommandAllocationSite};
+    use tcl_names::origin::SourceOriginId;
+    use tcl_names::variable::{SourceObjectAllocation, VariableExecutionFrame};
+    use tcl_names::word::SignatureSourceNameKey;
 
     fn inputs(version: tcl_dialect::TclVersion, source: &[u8]) -> Vec<SignatureSourceNameInput> {
         let profile = match version {
@@ -309,7 +307,7 @@ mod tests {
             ),
             Outcome::Linked
         );
-        let formal_key = crate::var_resolve::VariableCellKey::Activation {
+        let formal_key = tcl_names::variable::VariableCellKey::Activation {
             identity: context.activation.clone().unwrap(),
             simple: b"v\xed\xa0\x80".into(),
         };
@@ -322,7 +320,7 @@ mod tests {
             tcl_registry::TraceOperation::Read,
         );
         assert!(
-            matches!(&linked.cell.unwrap().owner, crate::place::CellOwner::AllocatedInstance(owner) if **owner == allocation)
+            matches!(&linked.cell.unwrap().owner, tcl_names::place::CellOwner::AllocatedInstance(owner) if **owner == allocation)
         );
         ReceiverFixture {
             version,
@@ -363,7 +361,7 @@ mod tests {
             )
             .unwrap();
         assert!(
-            matches!(selected.cell.as_ref().map(|cell| &cell.owner), Some(crate::place::CellOwner::AllocatedInstance(owner)) if owner.as_ref() == allocation)
+            matches!(selected.cell.as_ref().map(|cell| &cell.owner), Some(tcl_names::place::CellOwner::AllocatedInstance(owner)) if owner.as_ref() == allocation)
         );
         assert_eq!(
             candidates
@@ -374,7 +372,7 @@ mod tests {
                 )
                 .unwrap()
                 .kind,
-            crate::place::PlaceKind::Unknown
+            tcl_names::place::PlaceKind::Unknown
         );
         // A comparison receipt supplies no complete CPP primary selection.
         let compiler = tcl_syntax::naming::NativeCompiledVariableProtocol::authored_tcl(version);
@@ -389,18 +387,18 @@ mod tests {
                 tcl_registry::TraceOperation::Read,
             )
             .kind,
-            crate::place::PlaceKind::Unknown
+            tcl_names::place::PlaceKind::Unknown
         );
         for name in [b"first".as_slice(), b"k\0tail"] {
             assert!(!context.alias_bindings.contains_key(
-                &crate::var_resolve::VariableCellKey::Activation {
+                &tcl_names::variable::VariableCellKey::Activation {
                     identity: context.activation.clone().unwrap(),
                     simple: name.into()
                 }
             ));
         }
         assert!(!context.contents_presence_slots.keys().any(|key| {
-            matches!(key.root(), crate::var_resolve::VariableCellKey::AllocatedInstance { simple, .. } if simple.as_bytes() == b"first")
+            matches!(key.root(), tcl_names::variable::VariableCellKey::AllocatedInstance { simple, .. } if simple.as_bytes() == b"first")
         }));
         zero
     }
@@ -416,7 +414,7 @@ mod tests {
         let mut invalid = context.clone();
         invalid
             .unknown_bindings
-            .insert(crate::var_resolve::VariableCellKey::Activation {
+            .insert(tcl_names::variable::VariableCellKey::Activation {
                 identity: invalid.activation.clone().unwrap(),
                 simple: b"k\0tail".into(),
             });

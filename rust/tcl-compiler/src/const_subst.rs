@@ -486,7 +486,7 @@ impl<'a> ConstSubstCtx<'a> {
     fn retained_argument_read_produces_value(
         &self,
         context: &crate::var_resolve::ResolveContext,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
     ) -> bool {
         context.read_produces_value(place, self.registry)
             && !(place.is_global()

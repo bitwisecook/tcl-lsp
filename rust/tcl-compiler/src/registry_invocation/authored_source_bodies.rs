@@ -18,10 +18,12 @@
 
 //! Original standalone declaration bodies retain their independent source owner.
 
-use crate::command_binding::{CommandAllocationSite, SourceAnalysisEntry, SourceNamespaceKey};
+use crate::command_binding::SourceAnalysisEntry;
 use crate::ir::{CommandTokens, Module, Procedure, ProcedureBodyKind, Script};
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, NativeWord, Span};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
 /// Conditional source declaration syntax; no publication, frame or Native entry.
@@ -217,14 +219,13 @@ impl OriginalAuthoredProcedureBody {
         installed: &crate::command_binding::SourceInstalledProcedureBody,
     ) -> bool {
         self.matches_procedure(module, procedure)
-            && installed.allocation.incarnation
-                == crate::command_binding::AllocationIncarnation::First
+            && installed.allocation.incarnation == tcl_names::command::AllocationIncarnation::First
             && installed.allocation.site == self.site
             && installed.namespace_key == self.namespace
             && installed.parameters == self.parameters
             && installed.source.origin == self.site.source
             && installed.source.mapping
-                == crate::command_binding::ExecutedScriptMapping::Contiguous {
+                == tcl_names::origin::ExecutedScriptMapping::Contiguous {
                     base: self.body_span.start(),
                 }
             && self

@@ -20,7 +20,7 @@
 //! observed after a store cannot manufacture this operation's completion.
 
 use super::{ContentsOrigin, ContentsPresence, ResolveContext, RootContentsKind};
-use crate::place::{CellOwner, IndexKind, Place, PlaceKind};
+use tcl_names::place::{CellOwner, IndexKind, Place, PlaceKind};
 use tcl_native_model::InvocationDialect;
 use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{CommandRegistry, TraceOperation};

@@ -20,9 +20,9 @@
 
 use super::super::{Analyser, ResolvedAnalysisInput};
 use super::{OriginalInterpreterSourceDomain, SourceInterpreterVisibilitySnapshot};
-use crate::signature_scan::scope::SignatureNamespaceScope;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Span, Token};
+use tcl_names::namespace::SignatureNamespaceScope;
 
 /// A literal lambda's original source namespace under its child declaration.
 /// This retains source materialisation and future-entry assumptions; it is not

@@ -34,7 +34,7 @@ pub(in super::super) struct PhiUndefCtx<'a> {
     pub registry: &'a tcl_registry::CommandRegistry,
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,
-    pub killed: &'a FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    pub killed: &'a FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     pub considered: &'a HashSet<BlockId>,
     pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
     pub exists_guards: &'a [ExistenceGuard],
@@ -125,11 +125,11 @@ pub(in super::super) fn has_global_startup_binding(
 /// root namespace. Authored cells retain their separate declaration-only scope
 /// contract; a same-spelled named namespace never acquires root startup facts.
 pub(in super::super) fn startup_cell_binding<'a>(
-    cell: &'a crate::var_resolve::VariableCellKey,
+    cell: &'a tcl_names::variable::VariableCellKey,
     initial_global: bool,
     global_aliases: &HashSet<String>,
 ) -> (&'a str, bool) {
-    use crate::var_resolve::VariableCellKey;
+    use tcl_names::variable::VariableCellKey;
     match cell {
         VariableCellKey::Authored(name) => (
             startup_var_name(name),
@@ -142,7 +142,7 @@ pub(in super::super) fn startup_cell_binding<'a>(
             (
                 display,
                 match identity {
-                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                    tcl_names::namespace::SourceNamespaceKey::Authored(namespace) => {
                         namespace == "::"
                     }
                     _ => identity
@@ -172,7 +172,7 @@ pub(super) struct StartupFacts {
 }
 
 impl StartupFacts {
-    fn for_name(name: &crate::var_resolve::VariableCellKey, ctx: &PhiUndefCtx<'_>) -> Self {
+    fn for_name(name: &tcl_names::variable::VariableCellKey, ctx: &PhiUndefCtx<'_>) -> Self {
         let (startup_name, global_binding) =
             startup_cell_binding(name, ctx.initial_global, ctx.global_aliases);
         let startup = ctx.registry.startup_existence(startup_name, ctx.dialect);
@@ -440,7 +440,7 @@ impl UndefWalk {
 /// query and reused by every later one; it must only be shared between
 /// queries whose [`PhiUndefCtx`] is the same.
 pub(in super::super) fn phi_can_undef(
-    name: &crate::var_resolve::VariableCellKey,
+    name: &tcl_names::variable::VariableCellKey,
     version: crate::ssa::Version,
     ctx: &PhiUndefCtx<'_>,
     memo: &mut PhiUndefMemo,
@@ -468,19 +468,19 @@ pub(in super::super) fn phi_can_undef(
 
 /// `(name, version) → Phi` index used by [`phi_can_undef`].
 pub(in super::super) type PhiDefMap =
-    FxHashMap<(crate::var_resolve::VariableCellKey, crate::ssa::Version), crate::ssa::Phi>;
+    FxHashMap<(tcl_names::variable::VariableCellKey, crate::ssa::Version), crate::ssa::Phi>;
 
 /// `(name, version) → defining block` index, so [`phi_can_undef`] can test
 /// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
 pub(in super::super) type PhiBlockMap =
-    FxHashMap<(crate::var_resolve::VariableCellKey, crate::ssa::Version), BlockId>;
+    FxHashMap<(tcl_names::variable::VariableCellKey, crate::ssa::Version), BlockId>;
 
 /// The versions an opaque `switch` may define — a name one of its arms
 /// writes — each with the version the statement read and the block it sits
 /// in. Such a version holds its prior one when no arm runs, so it is
 /// undefined exactly when that one can be: a phi with one operand.
 pub(in super::super) type MayDefMap = FxHashMap<
-    (crate::var_resolve::VariableCellKey, crate::ssa::Version),
+    (tcl_names::variable::VariableCellKey, crate::ssa::Version),
     (BlockId, crate::ssa::Version),
 >;
 
@@ -489,7 +489,7 @@ pub(in super::super) type MayDefMap = FxHashMap<
 /// the call sits in and the version it found
 /// ([`crate::value_transfer::summary_steps`]).
 pub(in super::super) type CallStepMap = FxHashMap<
-    (crate::var_resolve::VariableCellKey, crate::ssa::Version),
+    (tcl_names::variable::VariableCellKey, crate::ssa::Version),
     (
         crate::value_transfer::ExistenceStep,
         BlockId,
@@ -562,7 +562,7 @@ pub(in super::super) fn call_steps(
 pub(in super::super) struct UndefIndexMaps {
     pub phi_def: PhiDefMap,
     pub phi_block: PhiBlockMap,
-    pub killed: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    pub killed: FxHashSet<(tcl_names::variable::VariableCellKey, crate::ssa::Version)>,
     pub may_defs: MayDefMap,
 }
 

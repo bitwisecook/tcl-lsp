@@ -19,6 +19,7 @@
 //! Original invocation metadata for a module, function or point, and the owners it refuses.
 
 use super::*;
+use crate::command_binding::{SourceOriginLexical, SourceOriginProjection};
 
 #[test]
 fn original_module_metadata_preserves_explicit_standalone_without_supplied_fallback() {

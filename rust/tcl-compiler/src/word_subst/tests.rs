@@ -37,7 +37,7 @@ fn original_logical_tokens_in_image(
     let bindings =
         crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
             image,
-            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            &tcl_names::variable::VariableExecutionFrame::Unknown,
             config,
             registry,
             crate::command_binding::SourceAnalysisOptions::for_logical_source(input).unwrap(),

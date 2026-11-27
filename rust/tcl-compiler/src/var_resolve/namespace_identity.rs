@@ -21,8 +21,8 @@
 use super::{
     CellGeneration, CellIdentity, CellOwner, Place, ResolveContext, authored_namespace_place, place,
 };
-use crate::command_binding::SourceNamespaceKey;
 use tcl_core_types::ByteNamespacePath;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_syntax::naming::{NativeNameProtocol, NativeNameQualification};
 
 impl ResolveContext {
@@ -464,10 +464,10 @@ fn authored_static_cell_owner(cell: &CellIdentity) -> Option<&SourceNamespaceKey
     match &cell.owner {
         CellOwner::NamespaceIdentity(key) => Some(key),
         CellOwner::RetainedSlot(slot) => match slot.as_ref() {
-            crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+            tcl_names::variable::RawBindingSlotId::Variable(cell) => {
                 authored_static_cell_owner(cell)
             }
-            crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+            tcl_names::variable::RawBindingSlotId::Callable { .. } => None,
         },
         _ => None,
     }
@@ -477,11 +477,11 @@ fn authored_static_cell_owner(cell: &CellIdentity) -> Option<&SourceNamespaceKey
 mod tests {
     use super::*;
     use crate::var_resolve::{
-        CommandRegistry, ContentsPresence, FrameLevel, PlaceKind, VariableCellKey,
-        VariableExecutionFrame, VariableFrameKind, cell_key, project_access, resolve_literal_place,
-        restore_execution_frame, trace_key,
+        CommandRegistry, ContentsPresence, FrameLevel, PlaceKind, VariableFrameKind, cell_key,
+        project_access, resolve_literal_place, restore_execution_frame, trace_key,
     };
     use tcl_dialect::TclVersion;
+    use tcl_names::variable::{VariableCellKey, VariableExecutionFrame};
     use tcl_runtime_api::native_compilation::{
         NativeInterpreterIdentity, NativeNamespaceContext, NativeVariableObserverPresence,
     };

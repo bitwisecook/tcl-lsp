@@ -23,10 +23,8 @@ use super::{
     ContentsOrigin, ContentsPresence, ResolveContext, VariableProofRelocation,
     canonical_binding_value_key,
 };
-use crate::{
-    command_binding::original_name_value::OriginalProducedNameValue,
-    place::{Place, PlaceKind},
-};
+use crate::command_binding::original_name_value::OriginalProducedNameValue;
+use tcl_names::place::{Place, PlaceKind};
 use tcl_registry::native_dictionary::NativeDictionaryDialect;
 use tcl_registry::{CommandRegistry, TraceOperation};
 
@@ -236,8 +234,9 @@ impl ResolveContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
     use tcl_lexer::{LexerConfig, SourceImage, Span};
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::{
         naming::{ExecutionNamePolicy, NativeVariableInputForm},
         word_rules::WordValueRules,

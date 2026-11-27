@@ -169,7 +169,7 @@ fn shallow_param_traits(
         selected_source_child_body: None,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base)
+            .map(tcl_names::origin::ExecutedScriptSource::base)
             .or_else(|| {
                 env.original_logical_body
                     .map(|body| body.scope().scope_body().content_span().start())
@@ -304,7 +304,7 @@ fn infer_param_traits_deep_at_depth(
         selected_source_child_body: None,
         source_base: env
             .executed_source
-            .map(crate::command_binding::ExecutedScriptSource::base)
+            .map(tcl_names::origin::ExecutedScriptSource::base)
             .or_else(|| {
                 env.original_logical_body
                     .map(|body| body.scope().scope_body().content_span().start())
@@ -414,7 +414,7 @@ struct ScanCtx<'p, 'r> {
     /// Positioned scans retain the actual evaluated body origin and its map;
     /// standalone scans require conservative unpositioned identity consensus.
     identities: &'r crate::realm::CommandBindingRealm,
-    executed_source: Option<&'r crate::command_binding::ExecutedScriptSource>,
+    executed_source: Option<&'r tcl_names::origin::ExecutedScriptSource>,
     original_logical_body:
         Option<&'r std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>>,
     source_base: Option<u32>,
@@ -575,7 +575,7 @@ impl<'p> ScanCtx<'p, '_> {
         let source_base = self.source_base.and_then(|base| base.checked_add(offset?));
         let source_base = self.executed_source.map_or(source_base, |source| {
             let base = source_base?;
-            crate::command_binding::ExecutedScriptSource::contiguous(
+            tcl_names::origin::ExecutedScriptSource::contiguous(
                 std::sync::Arc::clone(&source.origin),
                 text,
                 base,
@@ -592,10 +592,10 @@ impl<'p> ScanCtx<'p, '_> {
         &self,
         text: &str,
         offset: u32,
-    ) -> Option<crate::command_binding::ExecutedScriptSource> {
+    ) -> Option<tcl_names::origin::ExecutedScriptSource> {
         let source = self.executed_source?;
         let base = self.source_base?.checked_add(offset)?;
-        crate::command_binding::ExecutedScriptSource::contiguous(
+        tcl_names::origin::ExecutedScriptSource::contiguous(
             std::sync::Arc::clone(&source.origin),
             text,
             base,
@@ -634,7 +634,7 @@ pub struct TraitScanEnv<'a> {
     pub identities: &'a crate::realm::CommandBindingRealm,
     /// Exact evaluated body bytes and origin. Missing carriers use only
     /// conservative unpositioned identity consensus.
-    pub executed_source: Option<&'a crate::command_binding::ExecutedScriptSource>,
+    pub executed_source: Option<&'a tcl_names::origin::ExecutedScriptSource>,
     /// Actual original Logical procedure/formal/body owner. This readonly
     /// source template is independent of evaluated body or Native entry.
     pub original_logical_body:

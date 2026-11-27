@@ -27,10 +27,12 @@
 //! Sharing retains those observations, not their present execution validity:
 //! existing point, module and native-generation guards still decide each query.
 
-use super::{ExecutedScriptSource, SourceCommandBindings, SourceNamespaceKey, SourceOriginId};
+use super::SourceCommandBindings;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
 
 // Complete semantic identity selects an entry; hashes only select buckets.
 type ProjectionKey = (Arc<SourceOriginId>, SourceNamespaceKey);

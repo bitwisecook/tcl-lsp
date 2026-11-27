@@ -191,7 +191,7 @@ fn append_handler_selected(
     };
     if !native.target.registry_backed
         || !native.target.prepended.is_empty()
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || facts.successful_handler != Some(SuccessfulHandlerSpec::VariableStringAppend)
         || spec.grammar != NativeCompilationGrammar::VariableAppend(NativeAppendKind::String)
         || spec.operation != facts.operation
@@ -218,7 +218,7 @@ fn append_handler_selected(
 pub(super) struct CapturedAppend {
     before: ModuleCommandBindings,
     name: String,
-    writer: crate::place::Place,
+    writer: tcl_names::place::Place,
     inputs: Vec<Arc<SourceNativeStringAccess>>,
     prepared_epoch: Option<u64>,
     value: Option<append_value::CapturedAppendValue>,
@@ -376,10 +376,10 @@ fn publish_append(
     before: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
     name: &str,
-    writer: &crate::place::Place,
+    writer: &tcl_names::place::Place,
     inputs: &[Arc<SourceNativeStringAccess>],
     prepared_epoch: u64,
-) -> Option<crate::place::Place> {
+) -> Option<tcl_names::place::Place> {
     let normal = outcomes.normal.as_mut()?;
     let after = crate::var_resolve::resolve_literal_access(
         name,

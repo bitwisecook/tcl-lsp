@@ -19,9 +19,9 @@
 //! The execution context of a walk and the derived contexts built outside recursive frames.
 
 use super::super::compiled_invocation::NativeCompilationSnapshot;
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::variable_access::SourceVariableEvaluationOwner;
 use super::super::{SourceArgumentReceipts, SourceExecutionContext, original_name_value};
+use tcl_names::namespace::SourceNamespaceKey;
 
 /// Source selection is independent of an actual entered-body observation.
 /// Conditional descendants retain their selected source and analysis frame.
@@ -57,7 +57,7 @@ impl<'a> SourceExecutionContext<'a> {
 
     pub(in super::super) fn entered_frame(
         &self,
-    ) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
+    ) -> Option<&'a tcl_names::variable::VariableExecutionFrame> {
         (self.body_entry() == SourceBodyEntryPurpose::Selected).then_some(self.frame)
     }
 
@@ -192,7 +192,7 @@ pub(super) fn source_selected_context_boxed<'a>(
 pub(in super::super) fn source_body_context_boxed<'a>(
     context: &SourceExecutionContext<'a>,
     namespace: &'a str,
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext {
         control: context
@@ -215,7 +215,7 @@ pub(in super::super) fn source_body_context_boxed<'a>(
 pub(super) fn source_selected_frame_boxed(
     context: &SourceExecutionContext<'_>,
     namespace_known: bool,
-) -> Box<crate::var_resolve::VariableExecutionFrame> {
+) -> Box<tcl_names::variable::VariableExecutionFrame> {
     Box::new(if namespace_known {
         context
             .frame
@@ -228,15 +228,15 @@ pub(super) fn source_selected_frame_boxed(
 
 #[inline(never)]
 pub(super) fn source_parent_frame_boxed(
-    frame: &crate::var_resolve::VariableExecutionFrame,
-) -> Box<crate::var_resolve::VariableExecutionFrame> {
+    frame: &tcl_names::variable::VariableExecutionFrame,
+) -> Box<tcl_names::variable::VariableExecutionFrame> {
     Box::new(frame.clone())
 }
 
 #[inline(never)]
 pub(super) fn source_frame_context_boxed<'a>(
     context: &SourceExecutionContext<'a>,
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
 ) -> Box<SourceExecutionContext<'a>> {
     Box::new(SourceExecutionContext { frame, ..*context })
 }

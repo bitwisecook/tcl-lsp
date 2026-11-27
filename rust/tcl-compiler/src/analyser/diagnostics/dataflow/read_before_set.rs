@@ -41,7 +41,7 @@ fn place_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     block: &str,
     index: i32,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
 ) -> FactView {
     let (Some(block), Some(symbol)) = (fu.cfg.block_id(block), fu.ssa.cell_symbol(cell)) else {
         return FactView::Pending;
@@ -824,7 +824,7 @@ impl Analyser {
             let native_alternative = own_activation == Some(true)
                 && matches!(
                     cell_name,
-                    crate::var_resolve::VariableCellKey::Activation { simple, .. }
+                    tcl_names::variable::VariableCellKey::Activation { simple, .. }
                         if simple.as_bytes() == var.as_bytes()
                 )
                 && !declaration.scope_aliases.contains(var)
@@ -851,8 +851,8 @@ impl Analyser {
             #[cfg(debug_assertions)]
             if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
                 let storage_kind = match cell_name.root() {
-                    crate::var_resolve::VariableCellKey::Authored(_) => "authored",
-                    crate::var_resolve::VariableCellKey::Activation { .. } => "activation",
+                    tcl_names::variable::VariableCellKey::Authored(_) => "authored",
+                    tcl_names::variable::VariableCellKey::Activation { .. } => "activation",
                     _ => "other",
                 };
                 eprintln!(
@@ -984,7 +984,7 @@ fn existence_query_cells(
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-) -> Vec<crate::var_resolve::VariableCellKey> {
+) -> Vec<tcl_names::variable::VariableCellKey> {
     let Some(tokens) = stmt.tokens() else {
         return Vec::new();
     };
@@ -1053,7 +1053,7 @@ fn substitution_unbinds(
 /// statement itself (`info exists var`), which W210 never reports.
 fn is_existence_query_word(
     stmt_opt: Option<&crate::ir::Statement>,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     exists_guards: &[super::super::helpers::ExistenceGuard],
     fu: &crate::compilation_unit::FunctionUnit,
     use_site: &crate::def_use::UseSite,
@@ -1093,7 +1093,7 @@ fn use_site_safe_initialises(
     stmt: Option<&crate::ir::Statement>,
     fu: &crate::compilation_unit::FunctionUnit,
     use_site: &crate::def_use::UseSite,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     let safe = match stmt {

@@ -19,9 +19,8 @@
 //! Method-name references captured from the operands of a class definition.
 
 use super::super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, InvocationFacts, ModuleCommandBindings,
-    SourceExecutionContext, SourceNativeInvocation, retained_script_operand,
-    source_effective_words,
+    Arc, InvocationFacts, ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation,
+    retained_script_operand, source_effective_words,
 };
 use super::closed_members::{class_definition_block, original_definition_member_target};
 use super::retained_entries::{
@@ -32,6 +31,8 @@ use super::{
     SourceReceiverMethodEntries, SourceReceiverMethodEntry,
 };
 use tcl_core_types::NameBytes;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 pub(super) fn standalone_definition_class<'a>(
     native: SourceNativeInvocation<'_>,
@@ -101,7 +102,7 @@ pub(super) fn standalone_definition_class<'a>(
             }
             if raw.len() != 1
                 || !matches!(raw.iter().next(), Some(super::super::MayBinding::Target(target))
-                if target.kind == super::super::BindingKind::Class && target.terminal
+                if target.kind == tcl_names::command::BindingKind::Class && target.terminal
                     && target.prepended.is_empty() && target.token.as_ref() == Some(identity))
             {
                 return None;

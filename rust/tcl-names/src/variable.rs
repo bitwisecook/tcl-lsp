@@ -16,9 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Domain-separated variable storage keys and compatibility-only text queries.
+//! Domain-separated variable storage keys, the activation frames and
+//! allocations that own them, and compatibility-only text queries.
 
-use crate::command_binding::SourceNamespaceKey;
+use crate::command::{AllocationIncarnation, CommandAllocationSite};
+use crate::namespace::SourceNamespaceKey;
+use crate::place::CellIdentity;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
@@ -75,12 +78,12 @@ pub enum VariableCellKey {
     /// Cell belonging to an actual bounded object allocation.
     AllocatedInstance {
         /// Original allocation identity.
-        allocation: Box<crate::command_binding::SourceObjectAllocation>,
+        allocation: Box<SourceObjectAllocation>,
         /// Selected member key.
         simple: NameBytes,
     },
     /// Actual retained raw wrapper or callable-owned static allocation.
-    RetainedSlot(Box<crate::raw_binding::RawBindingSlotId>),
+    RetainedSlot(Box<RawBindingSlotId>),
     /// A particular physical lifetime of an otherwise identical storage slot.
     Lifetime {
         /// Reached operation which replaced the previous lifetime.
@@ -99,17 +102,20 @@ pub enum VariableCellKey {
 
 /// An original incoming root-global address, retaining any element key.
 /// This supplies no bound-variable, incoming-value or successful-read fact.
-pub(crate) struct IncomingRootGlobalCell<'a> {
+#[doc(hidden)]
+pub struct IncomingRootGlobalCell<'a> {
     cell: &'a VariableCellKey,
     name: &'a NameBytes,
 }
 
 impl IncomingRootGlobalCell<'_> {
-    pub(crate) const fn name(&self) -> &NameBytes {
+    #[must_use]
+    pub const fn name(&self) -> &NameBytes {
         self.name
     }
 
-    pub(crate) const fn is_element(&self) -> bool {
+    #[must_use]
+    pub const fn is_element(&self) -> bool {
         matches!(self.cell, VariableCellKey::Element { .. })
     }
 }
@@ -124,7 +130,9 @@ impl VariableCellKey {
     /// Select an incoming global only in its retained native entry's root.
     /// Elements keep their own cell identity; recreated lifetimes and symbolic
     /// or foreign storage never acquire incoming provenance from their labels.
-    pub(crate) fn incoming_root_global(
+    #[doc(hidden)]
+    #[must_use]
+    pub fn incoming_root_global(
         &self,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Option<IncomingRootGlobalCell<'_>> {
@@ -148,10 +156,9 @@ impl VariableCellKey {
 
     /// Tcl can update its root error cells during error presentation without
     /// a represented source store. Their reads are ineligible for forwarding.
-    pub(crate) fn is_native_error_storage(
-        &self,
-        dialect: tcl_native_model::InvocationDialect,
-    ) -> bool {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_native_error_storage(&self, dialect: tcl_native_model::InvocationDialect) -> bool {
         let Some(storage) = tcl_registry::special_vars::native_error_storage(dialect) else {
             return false;
         };
@@ -229,8 +236,8 @@ impl VariableCellKey {
             match owner {
                 crate::place::CellOwner::Activation(identity) => Some(identity),
                 crate::place::CellOwner::RetainedSlot(slot) => match slot.as_ref() {
-                    crate::raw_binding::RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
-                    crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+                    RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
+                    RawBindingSlotId::Callable { .. } => None,
                 },
                 _ => None,
             }
@@ -238,8 +245,8 @@ impl VariableCellKey {
         match self.root() {
             Self::Activation { identity, .. } => Some(identity),
             Self::RetainedSlot(slot) => match slot.as_ref() {
-                crate::raw_binding::RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
-                crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+                RawBindingSlotId::Variable(cell) => in_owner(&cell.owner),
+                RawBindingSlotId::Callable { .. } => None,
             },
             _ => None,
         }
@@ -285,7 +292,7 @@ impl VariableCellKey {
                 }
             }
             (Self::RetainedSlot(slot), namespace) => match slot.as_ref() {
-                crate::raw_binding::RawBindingSlotId::Variable(cell) => match &cell.owner {
+                RawBindingSlotId::Variable(cell) => match &cell.owner {
                     crate::place::CellOwner::NamespaceIdentity(owner) => {
                         namespace_contains(namespace, owner)
                     }
@@ -294,7 +301,7 @@ impl VariableCellKey {
                     }
                     _ => false,
                 },
-                crate::raw_binding::RawBindingSlotId::Callable { .. } => false,
+                RawBindingSlotId::Callable { .. } => false,
             },
             _ => false,
         }
@@ -305,11 +312,11 @@ impl VariableCellKey {
         match self.root() {
             Self::Namespace { identity, .. } => Some(identity),
             Self::RetainedSlot(slot) => match slot.as_ref() {
-                crate::raw_binding::RawBindingSlotId::Variable(cell) => match &cell.owner {
+                RawBindingSlotId::Variable(cell) => match &cell.owner {
                     crate::place::CellOwner::NamespaceIdentity(identity) => Some(identity),
                     _ => None,
                 },
-                crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+                RawBindingSlotId::Callable { .. } => None,
             },
             _ => None,
         }
@@ -330,13 +337,13 @@ impl VariableCellKey {
                 Some(VariableNamespaceMembership::Authored(namespace))
             }
             Self::RetainedSlot(slot) => match slot.as_ref() {
-                crate::raw_binding::RawBindingSlotId::Variable(cell) => match &cell.owner {
+                RawBindingSlotId::Variable(cell) => match &cell.owner {
                     crate::place::CellOwner::Namespace(scope) => {
                         Some(VariableNamespaceMembership::Authored(scope))
                     }
                     _ => None,
                 },
-                crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+                RawBindingSlotId::Callable { .. } => None,
             },
             _ => None,
         }
@@ -357,7 +364,7 @@ impl VariableCellKey {
             Self::Namespace { .. } => true,
             Self::Authored(name) => tcl_syntax::naming::is_absolute(name),
             Self::RetainedSlot(slot) => {
-                matches!(slot.as_ref(), crate::raw_binding::RawBindingSlotId::Variable(cell) if matches!(cell.owner, crate::place::CellOwner::Namespace(_) | crate::place::CellOwner::NamespaceIdentity(_)))
+                matches!(slot.as_ref(), RawBindingSlotId::Variable(cell) if matches!(cell.owner, crate::place::CellOwner::Namespace(_) | crate::place::CellOwner::NamespaceIdentity(_)))
             }
             _ => false,
         }
@@ -754,6 +761,136 @@ impl<'a> IntoIterator for &'a VariableNamespaceSet {
     }
 }
 
+/// Actual variable activation selected by executable source interpretation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum VariableExecutionFrame {
+    /// Interpreter global frame, including uplevel #0.
+    Global,
+    /// Namespace-eval activation; Jim keeps its ordinary variables local.
+    Namespace(String),
+    /// Namespace-eval activation with a distinct executable source site.
+    NamespaceActivation {
+        /// Selected namespace table.
+        namespace: String,
+        /// Stable allocation site, distinct from its caller and sibling sites.
+        identity: String,
+    },
+    /// Procedure or event activation with a defining namespace and identity.
+    Procedure {
+        /// Defining command namespace.
+        namespace: String,
+        /// Source execution identity of the activation.
+        identity: String,
+    },
+    /// Receiver method activation whose local table is known independently of
+    /// the receiver's namespace and instance storage.
+    ReceiverMethod {
+        /// Stable execution identity of this local activation.
+        identity: String,
+    },
+    /// A foreign stack activation, whose namespace may be unavailable.
+    Selected {
+        /// Validated caller/absolute frame selector.
+        selector: tcl_registry::FrameLevel,
+        /// Proven selected frame namespace, when available.
+        namespace: Option<String>,
+    },
+    /// Exact namespace identity retained independently of an activation layout.
+    NamespaceIdentity {
+        /// Original namespace incarnation and component boundaries.
+        namespace: SourceNamespaceKey,
+        /// Selected activation layout; display fields carry no lookup authority.
+        frame: Box<VariableExecutionFrame>,
+    },
+    /// Neither the selected frame nor its namespace is known.
+    #[default]
+    Unknown,
+}
+
+impl VariableExecutionFrame {
+    /// Attach an original namespace identity without changing frame selection.
+    #[must_use]
+    pub fn with_namespace_identity(self, namespace: SourceNamespaceKey) -> Self {
+        if matches!(namespace, SourceNamespaceKey::Authored(_)) {
+            self.into_layout()
+        } else {
+            Self::NamespaceIdentity {
+                namespace,
+                frame: Box::new(self.into_layout()),
+            }
+        }
+    }
+
+    fn into_layout(self) -> Self {
+        match self {
+            Self::NamespaceIdentity { frame, .. } => frame.into_layout(),
+            frame => frame,
+        }
+    }
+
+    /// Activation layout, excluding its independent namespace identity carrier.
+    #[must_use]
+    pub fn layout(&self) -> &Self {
+        match self {
+            Self::NamespaceIdentity { frame, .. } => frame.layout(),
+            frame => frame,
+        }
+    }
+
+    /// Original namespace identity; authored display-only frames return none.
+    #[must_use]
+    pub fn namespace_identity(&self) -> Option<&SourceNamespaceKey> {
+        match self {
+            Self::NamespaceIdentity { namespace, .. } => Some(namespace),
+            _ => None,
+        }
+    }
+}
+
+/// Immutable allocation of one callable implementation's persistent storage.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CallableStorageIdentity {
+    /// Source allocation instruction, independent of the callable's current name.
+    pub site: CommandAllocationSite,
+    /// Repeated allocation has no unique retained runtime implementation.
+    pub incarnation: AllocationIncarnation,
+    /// Implementation generation at this allocation.
+    pub implementation_generation: u32,
+}
+
+/// Identity of a retained variable wrapper, rather than its current link target.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum RawBindingSlotId {
+    /// Wrapper allocated in a proved variable table and lifetime.
+    Variable(Box<CellIdentity>),
+    /// Private persistent variable allocated by one callable implementation.
+    Callable {
+        /// Immutable callable allocation.
+        allocation: CallableStorageIdentity,
+        /// Counted static-table name, independent of its source presentation.
+        name: NameBytes,
+    },
+}
+
+impl RawBindingSlotId {
+    /// Exact retained wrapper allocation, distinct from its named source slot.
+    #[must_use]
+    pub fn storage_key(&self) -> VariableCellKey {
+        VariableCellKey::RetainedSlot(Box::new(self.clone()))
+    }
+}
+
+/// One reached object allocation in its actual caller activation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceObjectAllocation {
+    /// Exact source instruction that invoked the manufacturer.
+    pub site: CommandAllocationSite,
+    /// Frame in which that invocation was evaluated.
+    pub frame: VariableExecutionFrame,
+    /// Bounded execution incarnation; repeated families supply no unique proof.
+    pub incarnation: AllocationIncarnation,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -844,11 +981,10 @@ mod tests {
             storage_domain: None,
             execution: None,
         };
-        let wrapper = VariableCellKey::RetainedSlot(Box::new(
-            crate::raw_binding::RawBindingSlotId::Variable(Box::new(cell)),
-        ))
-        .with_lifetime(37)
-        .with_index("key");
+        let wrapper =
+            VariableCellKey::RetainedSlot(Box::new(RawBindingSlotId::Variable(Box::new(cell))))
+                .with_lifetime(37)
+                .with_index("key");
         assert_eq!(wrapper.activation_identity(), Some("caller"));
         let label = VariableCellKey::Authored(wrapper.compatibility_name());
         assert!(label.activation_identity().is_none());

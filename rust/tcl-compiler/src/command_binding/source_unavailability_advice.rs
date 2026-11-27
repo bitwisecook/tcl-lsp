@@ -18,13 +18,11 @@
 
 //! Original source lookup applicability for excluded Registry descriptors.
 
-use super::{
-    OriginalCatalogueSourceObligation, OriginalCommandLookup, SourceCommandKey,
-    SourceInvocationBinding,
-};
+use super::{OriginalCatalogueSourceObligation, OriginalCommandLookup, SourceInvocationBinding};
 use crate::ir::CommandTokens;
 use tcl_core_types::{ByteCommandSlot, NameBytes};
 use tcl_dialect::model::InvocationRealm;
+use tcl_names::command::SourceCommandKey;
 use tcl_registry::model::{CommandSourceUnavailability, ContextRegistry};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

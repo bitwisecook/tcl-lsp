@@ -18,10 +18,13 @@
 
 //! Static layout projections of one immutable lookup point.
 
+#[cfg(test)]
+use crate::command_binding::SourceOriginLexical;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use super::{SourceInvocationBinding, SourceNamespaceKey};
+use super::SourceInvocationBinding;
+use tcl_names::namespace::SourceNamespaceKey;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct LayoutProjectionKey {

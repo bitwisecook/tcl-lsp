@@ -18,14 +18,14 @@
 
 //! Hosted declaration bodies retain source scope without publication or entry.
 
-use super::{
-    CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings, SourceNamespaceKey,
-    SourceRuleDeclarationCandidate,
-};
+use super::{SourceCommandBindings, SourceRuleDeclarationCandidate};
 use crate::analyser::ResolvedAnalysisInput;
 use crate::signature_scan::vendor_name::VendorSourceNameInput;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Span};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_syntax::naming::{VendorSourceFormalExtent, VendorSourceNamePurpose};
 
 /// An actual rule-loader declaration's conditional body and authored scope.
@@ -181,7 +181,7 @@ fn hosted_declaration_row_matches(
         || !matches!(
             row.entry.as_ref(),
             super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
-                frame: crate::var_resolve::VariableExecutionFrame::Global,
+                frame: tcl_names::variable::VariableExecutionFrame::Global,
                 ..
             }
         )

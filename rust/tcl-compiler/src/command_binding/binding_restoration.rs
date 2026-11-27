@@ -18,13 +18,13 @@
 
 //! Restoring retained bindings onto a script and stamping source proofs onto its command words.
 
-use super::command_identity::CommandAllocationSite;
 use super::{
     OriginalSourceAnalysisOwner, SourceCommandBindings, SourceInvocationBinding, compiler_inventory,
 };
 use crate::ir::Script;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 impl SourceCommandBindings {
     /// Restore carriers from their selected original source instance.

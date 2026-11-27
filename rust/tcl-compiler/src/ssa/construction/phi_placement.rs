@@ -27,12 +27,12 @@ use crate::cfg;
 use crate::cfg::BlockId;
 use crate::ir::Statement;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-use crate::var_resolve::VariableCellKey;
 use crate::variable_bindings::PointResolveContexts;
 #[cfg(test)]
 use crate::variable_bindings::build_point_resolve_contexts;
 use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 fn original_source_may_call(

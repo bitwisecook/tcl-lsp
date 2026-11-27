@@ -23,9 +23,10 @@ use super::{
     ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation, SourceCommandOrigin,
     SourceInterpreterVisibilitySnapshot, SourceVisibleSlot,
 };
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::{SignatureNamespaceChild, SignatureSourceNameInput};
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Span, Token};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::{
     ChildInterpreterSafety, InterpreterTransition, StateTransition, TransitionSubject,
 };
@@ -555,8 +556,7 @@ impl Analyser {
         let body = bindings.declared_receiver_body_entry_at(origin, native.first()?.span().start());
         let body = body?;
         let source = body.source();
-        let crate::command_binding::ExecutedScriptMapping::Contiguous { base } = source.mapping
-        else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
             return None;
         };
         let end = base.checked_add(u32::try_from(source.text.bytes().len()).ok()?)?;

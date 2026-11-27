@@ -41,7 +41,7 @@ use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, Trait
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalLogicalProcedureBody {
     scope: Arc<OriginalDeclaredLogicalBodyContext>,
-    site: crate::command_binding::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     summary_coordinate: tcl_core_types::ByteCommandSlot,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     parameters_text: String,
@@ -71,7 +71,7 @@ impl OriginalLogicalProcedureBody {
     pub(crate) fn scope(&self) -> &Arc<OriginalDeclaredLogicalBodyContext> {
         &self.scope
     }
-    pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub(crate) fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Conditional header name geometry; never an installed command slot.
@@ -144,7 +144,7 @@ impl OriginalLogicalProcedureBody {
                 .map(String::as_str)
                 .eq(self.parameters.iter().map(|p| p.name.as_str()))
             && procedure.body.namespace_context.as_deref()
-                == crate::command_binding::SourceNamespaceKey::authored_path(
+                == tcl_names::namespace::SourceNamespaceKey::authored_path(
                     self.scope.namespace_recipe(),
                 )
                 .as_ref()
@@ -538,7 +538,7 @@ impl LogicalBodyWalk<'_, '_> {
         let formal_topology = self.formal_topology(&formal.original, input);
         let card = Arc::new(OriginalLogicalProcedureBody {
             scope: Arc::clone(&scope),
-            site: crate::command_binding::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.context.origin),
                 offset: invocation.native.first()?.span().start(),
             },
@@ -583,7 +583,7 @@ impl LogicalBodyWalk<'_, '_> {
     ) -> Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>> {
         let dialect = crate::command_binding::source_analysis_entry::source_input_dialect(input);
         dialect.authored_name_policy().and_then(|policy| {
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
                 formal,
                 tcl_syntax::word_rules::WordValueRules::from_config(&self.context.config),
                 policy,

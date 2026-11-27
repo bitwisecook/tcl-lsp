@@ -88,7 +88,7 @@ impl OriginalSourceReceiverBodyDeclaration {
     }
     /// Original declaration worker site; no dispatch point is fabricated.
     #[must_use]
-    pub fn declaration_site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub fn declaration_site(&self) -> &tcl_names::command::CommandAllocationSite {
         self.method.declaration().site()
     }
     /// Independently retained member side, without an entered receiver.

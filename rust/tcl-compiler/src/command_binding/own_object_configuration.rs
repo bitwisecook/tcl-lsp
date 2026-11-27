@@ -19,9 +19,10 @@
 //! Represented stock own-object method registration at its actual allocation.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings,
-    SourceExecutionContext, SourceNativeInvocation, SourceObjectInstanceProof, SourceOutcomes,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation, SourceObjectInstanceProof, SourceOutcomes,
 };
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::{
     InvocationFacts, ObjectDispatchLayer, ObjectDispatchTransition, StateTransition,
 };
@@ -37,7 +38,7 @@ pub(super) struct OriginalOwnObjectMethodConfiguration {
     config: tcl_lexer::LexerConfig,
     target_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     handler: super::SourceCommandTarget,
-    body: super::ExecutedScriptSource,
+    body: tcl_names::origin::ExecutedScriptSource,
     transfers: Vec<OriginalOwnObjectMethodTransfer>,
 }
 
@@ -175,7 +176,7 @@ pub(super) fn own_object_definition(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     state: &ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
-) -> Option<super::ExecutedScriptSource> {
+) -> Option<tcl_names::origin::ExecutedScriptSource> {
     if script_layout {
         super::retained_script_operand(
             1,
@@ -199,7 +200,7 @@ fn inline_member_definition(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
     state: &ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
-) -> Option<super::ExecutedScriptSource> {
+) -> Option<tcl_names::origin::ExecutedScriptSource> {
     let count = native.invocation.arguments().exact_argv_len()?;
     let members = native.words.get(2..)?;
     if native.words.len() != count.checked_add(1)?
@@ -229,7 +230,8 @@ fn inline_member_definition(
     let start = members.first()?.original_written_span(source)?.start();
     let end = native.segment.execution_span(source).end();
     let text = source.get(usize::try_from(start).ok()?..usize::try_from(end).ok()?)?;
-    let definition = super::ExecutedScriptSource::contiguous(Arc::clone(origin), text, start)?;
+    let definition =
+        tcl_names::origin::ExecutedScriptSource::contiguous(Arc::clone(origin), text, start)?;
     let map = tcl_lexer::SourceMap::from_image(&definition.text).with_base(start, 0, 0);
     let commands = tcl_source::segment::segment_commands_image_with_offset_and_config(
         &definition.text,
@@ -292,7 +294,7 @@ pub(super) fn configuration_target(
 
 fn own_object_method_transfers(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
-    body: &super::ExecutedScriptSource,
+    body: &tcl_names::origin::ExecutedScriptSource,
     receiver: &SourceObjectInstanceProof,
     dialect: tcl_native_model::InvocationDialect,
     parameters: super::deferred_method::MethodParameterSource,

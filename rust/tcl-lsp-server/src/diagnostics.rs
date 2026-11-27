@@ -534,7 +534,7 @@ pub(super) struct IndexedDiagnosticChange {
         tcl_core_types::ByteCommandSlot,
         tcl_syntax::naming::NamePolicyProtocol,
     )>,
-    pub(super) original_sites: Vec<tcl_compiler::command_binding::CommandAllocationSite>,
+    pub(super) original_sites: Vec<tcl_names::command::CommandAllocationSite>,
     pub(super) command_names: HashSet<String>,
     pub(super) source_or_package_changed: bool,
 }

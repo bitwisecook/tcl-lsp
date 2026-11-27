@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::command_binding::ExecutedScriptWords;
 
 fn complete_logical_declaration_tokens(
     source: &str,
@@ -471,7 +472,7 @@ fn original_declaration_procedure_name_keeps_native_operand_identity() {
             config,
         )
         .unwrap();
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             &native[1],
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             observation
@@ -864,7 +865,7 @@ fn exact_parent_layout_reuse_refuses_lost_original_source_or_frame() {
     let mut lost_source = original.clone();
     lost_source.current_source_origin = None;
     let mut lost_frame = original.clone();
-    lost_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+    lost_frame.variable_frame = tcl_names::variable::VariableExecutionFrame::Unknown;
     let mut lost_dialect = original.clone();
     Arc::make_mut(&mut lost_dialect.source_variables).invocation_dialect = None;
     for state in [lost_source, lost_frame, lost_dialect] {
@@ -883,7 +884,7 @@ fn exact_parent_layout_reuse_refuses_lost_original_source_or_frame() {
                 &super::nested_layouts::ScopeAliasOwnershipShare::default()
             ),
             [] as [(
-                crate::command_binding::executed_script_source::ExecutedScriptSource,
+                tcl_names::origin::ExecutedScriptSource,
                 std::vec::Vec<
                     crate::command_binding::declaration_layout::DeclarationLayoutObservation,
                 >
@@ -979,7 +980,7 @@ fn nested_layout_syntax_reuse_keeps_original_owner_refusal() {
     let mut lost_source = original.clone();
     lost_source.current_source_origin = None;
     let mut lost_frame = original.clone();
-    lost_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+    lost_frame.variable_frame = tcl_names::variable::VariableExecutionFrame::Unknown;
     for state in [lost_source, lost_frame] {
         let mut changed = parents.clone();
         changed[0].snapshot = Arc::new(SourceLookupSnapshot::in_realm(
@@ -1033,7 +1034,7 @@ fn nested_layout_visit_key_keeps_complete_lookup_and_owner_facets() {
     changed[0].issuer = DeclarationLayoutIssuer::EnteredActivation;
     assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
     let mut changed = parents.clone();
-    changed[0].namespace = super::super::SourceNamespaceKey::authored("::other");
+    changed[0].namespace = tcl_names::namespace::SourceNamespaceKey::authored("::other");
     assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &changed)));
     let mut changed = parents.clone();
     changed[0].config.expand_syntax = !changed[0].config.expand_syntax;
@@ -1076,7 +1077,7 @@ fn nested_layout_visit_key_keeps_complete_lookup_and_owner_facets() {
 fn nested_layout_visit_bucket_collision_keeps_distinct_source_worlds() {
     let (source, parents) = nested_layout_key_fixture();
     let mut changed = parents.clone();
-    changed[0].namespace = super::super::SourceNamespaceKey::authored("::other");
+    changed[0].namespace = tcl_names::namespace::SourceNamespaceKey::authored("::other");
     let mut visits = NestedDeclarationLayoutVisits::default();
     // A shared bucket cannot collapse two authentic parent namespaces.
     assert!(visits.insert_in_bucket(0, NestedDeclarationLayoutKey::new(&source, &parents)));
@@ -1173,7 +1174,7 @@ fn nested_declared_layout_declines_lookup_after_unknown_variable_observers() {
             &super::nested_layouts::ScopeAliasOwnershipShare::default()
         ),
         [] as [(
-            crate::command_binding::executed_script_source::ExecutedScriptSource,
+            tcl_names::origin::ExecutedScriptSource,
             std::vec::Vec<crate::command_binding::declaration_layout::DeclarationLayoutObservation>
         ); 0]
     );
@@ -1227,7 +1228,7 @@ fn uninstalled_body_layout_retains_original_candidate_without_runtime_authority(
     let original = super::super::source_binding(
         &initial,
         "upvar",
-        &super::super::SourceNamespaceKey::authored("::"),
+        &tcl_names::namespace::SourceNamespaceKey::authored("::"),
     );
     assert!(layout.targets().contains(original.proved_target().unwrap()));
     assert!(binding.unknown);
@@ -1399,7 +1400,7 @@ fn original_declared_body_parse_cut_keeps_only_the_complete_original_prefix() {
     };
     let body = "# retained comment\n\u{feff}puts pre; puts ${a{b}\nputs after";
     let whole = format!("proc p {{}} {{{body}}}");
-    let origin = Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+    let origin = Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
         whole.as_str(),
     )));
     let base = u32::try_from(whole.find(body).unwrap()).unwrap();
@@ -1443,7 +1444,7 @@ fn original_declared_body_parse_cut_uses_geometry_after_f5_segment_merging() {
     };
     assert!(config.brace_line_continuation.continues());
     let parent = CommandAllocationSite {
-        source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
             "eval $body",
         ))),
         offset: 0,
@@ -1484,7 +1485,7 @@ fn original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty() {
     // Hard lexical/Unicode refusal is not a complete empty source tape.
     let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
     let parent = CommandAllocationSite {
-        source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
             "eval $body",
         ))),
         offset: 0,
@@ -1522,7 +1523,7 @@ fn original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty() {
     );
     assert!(syntax.commands(&opaque, config).is_none());
     let mut overflow = clean;
-    overflow.mapping = super::super::ExecutedScriptMapping::Contiguous { base: u32::MAX };
+    overflow.mapping = tcl_names::origin::ExecutedScriptMapping::Contiguous { base: u32::MAX };
     assert!(syntax.commands(&overflow, config).is_none());
 }
 
@@ -1541,7 +1542,9 @@ fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key()
         tcl_source::segment::segment_commands_with_offset_and_config(source, 0, config).remove(0);
     let tokens = super::super::source_command_tokens_boxed(&image, 0, config, &segment);
     let parent = CommandAllocationSite {
-        source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(source))),
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            source,
+        ))),
         offset: 0,
     };
     let word = &tokens.words()[1];
@@ -1555,7 +1558,7 @@ fn original_declared_body_parser_keeps_bom_value_and_complete_parent_cache_key()
     let body = ExecutedScriptSource::from_word(parent.clone(), 0, word, value, config);
     assert_eq!(
         body.mapping,
-        super::super::ExecutedScriptMapping::Materialised
+        tcl_names::origin::ExecutedScriptMapping::Materialised
     );
     assert_eq!(body.base(), 0);
     assert_ne!(body.origin, parent.source);

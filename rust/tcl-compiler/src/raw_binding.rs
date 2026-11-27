@@ -23,50 +23,27 @@
 //! Named slots and retained allocations have typed, separate storage keys;
 //! namespace component geometry and incarnation survive every capture and join.
 
-use crate::command_binding::{AllocationIncarnation, CommandAllocationSite};
-use crate::place::{self, CellIdentity, CellOwner, Place};
-use crate::var_resolve::{
-    ResolveContext, VariableCellKey, VariableCellSet, VariableCellTable, VariableProofRelocation,
-    canonical_place_key,
-};
+use crate::var_resolve::{ResolveContext, VariableProofRelocation, canonical_place_key};
 use std::collections::BTreeSet;
 use tcl_core_types::NameBytes;
+use tcl_names::command::AllocationIncarnation;
+use tcl_names::place;
+use tcl_names::place::{CellIdentity, CellOwner, Place};
+use tcl_names::variable::RawBindingSlotId;
+use tcl_names::variable::{
+    CallableStorageIdentity, VariableCellKey, VariableCellSet, VariableCellTable,
+};
 
-/// Immutable allocation of one callable implementation's persistent storage.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CallableStorageIdentity {
-    /// Source allocation instruction, independent of the callable's current name.
-    pub site: CommandAllocationSite,
-    /// Repeated allocation has no unique retained runtime implementation.
-    pub incarnation: AllocationIncarnation,
-    /// Implementation generation at this allocation.
-    pub implementation_generation: u32,
-}
-
-/// Identity of a retained variable wrapper, rather than its current link target.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum RawBindingSlotId {
-    /// Wrapper allocated in a proved variable table and lifetime.
-    Variable(Box<CellIdentity>),
-    /// Private persistent variable allocated by one callable implementation.
-    Callable {
-        /// Immutable callable allocation.
-        allocation: CallableStorageIdentity,
-        /// Counted static-table name, independent of its source presentation.
-        name: NameBytes,
-    },
-}
-
-impl RawBindingSlotId {
-    /// Exact retained wrapper allocation, distinct from its named source slot.
-    #[must_use]
-    pub fn storage_key(&self) -> VariableCellKey {
-        VariableCellKey::RetainedSlot(Box::new(self.clone()))
-    }
-
+/// Alpha relocation of a retained wrapper identity, which reaches the
+/// variable proof relocation of binding.
+pub trait RawBindingSlotRelocation {
     /// Alpha-relocate variable allocations while retaining external callable allocations.
     #[must_use]
-    pub fn relocated(&self, relocation: &VariableProofRelocation) -> Self {
+    fn relocated(&self, relocation: &VariableProofRelocation) -> Self;
+}
+
+impl RawBindingSlotRelocation for RawBindingSlotId {
+    fn relocated(&self, relocation: &VariableProofRelocation) -> Self {
         match self {
             Self::Variable(cell) => {
                 let mut original = place::scalar(
@@ -136,7 +113,7 @@ impl RawBindingArena {
         receiver.index.is_some() && self.retiring_arrays.contains(&key)
             && self.slots.get(&key).is_some_and(|slot| {
                 matches!(&slot.contents, RawBindingContents::Direct(root)
-                    if root.kind == crate::place::PlaceKind::ArrayWhole && root.cell == receiver.cell)
+                    if root.kind == tcl_names::place::PlaceKind::ArrayWhole && root.cell == receiver.cell)
             })
     }
 
@@ -153,7 +130,7 @@ impl RawBindingArena {
         let RawBindingContents::Direct(root) = &slot.contents else {
             return None;
         };
-        if root.kind != crate::place::PlaceKind::ArrayWhole {
+        if root.kind != tcl_names::place::PlaceKind::ArrayWhole {
             return None;
         }
         let mut member = original.clone();
@@ -564,7 +541,7 @@ impl ResolveContext {
                     tcl_registry::TraceOperation::Read,
                     registry,
                 );
-                target.kind != crate::place::PlaceKind::Unknown
+                target.kind != tcl_names::place::PlaceKind::Unknown
                     && !target.dynamic
                     && !target.observed
                     && !observers.unknown_residual
@@ -585,7 +562,7 @@ impl ResolveContext {
     ) -> bool {
         let slot = raw_destination_bytes(name.as_bytes(), self, registry);
         let key = crate::var_resolve::cell_key(&slot);
-        if slot.kind == crate::place::PlaceKind::Unknown
+        if slot.kind == tcl_names::place::PlaceKind::Unknown
             || slot.cell.is_none()
             || self.dynamic_bindings
             || self.unknown_bindings.contains(&key)
@@ -600,7 +577,7 @@ impl ResolveContext {
         let target = link
             .cloned()
             .unwrap_or_else(|| raw_value_bytes(name.as_bytes(), self, registry));
-        if target.kind == crate::place::PlaceKind::Unknown {
+        if target.kind == tcl_names::place::PlaceKind::Unknown {
             return false;
         }
         if link.is_none()
@@ -626,7 +603,7 @@ impl ResolveContext {
             return self.capture_original_static_reference(name, registry);
         }
         let target = raw_value_bytes(name.as_bytes(), self, registry);
-        if target.kind == crate::place::PlaceKind::Unknown || target.dynamic {
+        if target.kind == tcl_names::place::PlaceKind::Unknown || target.dynamic {
             return Err(StaticCaptureResult::Unknown);
         }
         let observers =
@@ -665,7 +642,7 @@ impl ResolveContext {
     ) -> Result<(VariableCellKey, bool), StaticCaptureResult> {
         let slot = raw_destination_bytes(name.as_bytes(), self, registry);
         let key = crate::var_resolve::cell_key(&slot);
-        if slot.kind == crate::place::PlaceKind::Unknown
+        if slot.kind == tcl_names::place::PlaceKind::Unknown
             || slot.cell.is_none()
             || self.dynamic_bindings
             || self.unknown_bindings.contains(&key)
@@ -687,7 +664,7 @@ impl ResolveContext {
             .or_else(|| self.name_alias_bindings.get(&key))
             .cloned();
         let target = link.unwrap_or_else(|| raw_value_bytes(name.as_bytes(), self, registry));
-        if target.kind == crate::place::PlaceKind::Unknown {
+        if target.kind == tcl_names::place::PlaceKind::Unknown {
             return Err(StaticCaptureResult::Unknown);
         }
         self.capture_raw_slot_at(&slot, &target, None, registry)
@@ -725,7 +702,7 @@ impl ResolveContext {
         target.cell = Some(CellIdentity {
             owner: CellOwner::RetainedSlot(Box::new(identity.clone())),
             name: name.clone(),
-            generation: crate::place::CellGeneration::Incoming,
+            generation: tcl_names::place::CellGeneration::Incoming,
             interpreter: self.interpreter.clone(),
             storage_domain: None,
             execution: self.execution,
@@ -802,7 +779,7 @@ impl ResolveContext {
         } else {
             let mut retained = target.clone();
             retained.cell.as_mut()?.owner = CellOwner::RetainedSlot(Box::new(identity.clone()));
-            retained.cell.as_mut()?.generation = crate::place::CellGeneration::Incoming;
+            retained.cell.as_mut()?.generation = tcl_names::place::CellGeneration::Incoming;
             self.copy_retained_contents(target, &retained);
             RawBindingContents::Direct(Box::new(retained))
         };
@@ -1026,8 +1003,10 @@ impl ResolveContext {
         self.name_alias_bindings.remove(&named);
         self.namespace_alias_bindings.remove(&named);
         self.namespace_name_alias_bindings.remove(&named);
-        self.generations
-            .insert(named.clone(), crate::place::CellGeneration::After(source));
+        self.generations.insert(
+            named.clone(),
+            tcl_names::place::CellGeneration::After(source),
+        );
         self.forget_literal_value(&named);
         self.value_representations.remove(&named);
         self.contents_presence
@@ -1039,12 +1018,14 @@ impl ResolveContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::var_resolve::{VariableExecutionFrame, restore_execution_frame};
+    use crate::var_resolve::restore_execution_frame;
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::variable::VariableExecutionFrame;
 
     #[test]
     fn retained_wrappers_keep_namespace_incarnation_and_component_boundaries() {
-        use crate::command_binding::SourceNamespaceKey;
         use tcl_core_types::ByteNamespacePath;
+        use tcl_names::namespace::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -1070,7 +1051,7 @@ mod tests {
             original.cell = Some(CellIdentity {
                 owner: CellOwner::NamespaceIdentity(Box::new(namespace)),
                 name: "x".into(),
-                generation: crate::place::CellGeneration::Incoming,
+                generation: tcl_names::place::CellGeneration::Incoming,
                 interpreter: None,
                 storage_domain: None,
                 execution: None,
@@ -1095,7 +1076,7 @@ mod tests {
     fn allocation() -> CallableStorageIdentity {
         CallableStorageIdentity {
             site: CommandAllocationSite {
-                source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+                source: std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored(
                     &"statics".into(),
                 )),
                 offset: 10,
@@ -1237,9 +1218,12 @@ mod tests {
 #[cfg(test)]
 mod original_callable_static_tests {
     use super::*;
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
-    use crate::var_resolve::{VariableExecutionFrame, restore_execution_frame};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
+    use crate::var_resolve::restore_execution_frame;
     use tcl_lexer::{LexerConfig, SourceImage, Span};
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::variable::VariableExecutionFrame;
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::{naming::ExecutionNamePolicy, word_rules::WordValueRules};
 
     fn context() -> ResolveContext {
@@ -1285,7 +1269,7 @@ mod original_callable_static_tests {
     fn allocation(offset: u32) -> CallableStorageIdentity {
         CallableStorageIdentity {
             site: CommandAllocationSite {
-                source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+                source: std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored(
                     &"static declarations".into(),
                 )),
                 offset,
@@ -1495,7 +1479,7 @@ mod original_callable_static_tests {
             crate::variable_bindings::source_variable_write_places_with_original_operands(
                 &facts, arguments, &entered, registry, &operands,
             ),
-            [] as [crate::place::Place; 0]
+            [] as [tcl_names::place::Place; 0]
         );
         crate::variable_bindings::transfer_source_namespace_cells_with_input(
             &mut entered,

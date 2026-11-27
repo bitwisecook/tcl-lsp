@@ -764,7 +764,7 @@ impl NormalRepresentationInvocation {
         &self,
         parser: tcl_syntax::expr::parser::ExprParseContext,
         span: tcl_lexer::Span,
-        parent: Option<crate::command_binding::CommandAllocationSite>,
+        parent: Option<tcl_names::command::CommandAllocationSite>,
     ) -> Option<crate::word_subst::LiftedSourceExpression> {
         crate::word_subst::source_expression_from_invocation_with_syntax_context(
             self.handler()?,

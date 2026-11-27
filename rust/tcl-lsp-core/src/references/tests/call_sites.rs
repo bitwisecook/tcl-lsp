@@ -40,9 +40,8 @@ fn retained_colon_procedure_does_not_reference_the_empty_name() {
 #[test]
 fn loaded_terminal_can_report_an_external_call_without_local_edit_authority() {
     use std::sync::Arc;
-    use tcl_compiler::command_binding::{
-        SourceAnalysisEntry, SourceOriginKind, TrustedSourceModuleLoader,
-    };
+    use tcl_compiler::command_binding::{SourceAnalysisEntry, TrustedSourceModuleLoader};
+    use tcl_names::origin::SourceOriginKind;
     let source = "proc greet {} {return local}\nsource provider.tcl\nset cmd greet\n$cmd\n";
     let entry = Arc::new(SourceAnalysisEntry {
         trusted_source_modules: vec![TrustedSourceModuleLoader::new(

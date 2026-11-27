@@ -75,7 +75,7 @@ impl SourceCommandBindings {
             return opaque_source_invocation(state);
         };
         let id = DictionaryScopeId {
-            site: super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(origin),
                 offset: native.segment.span.start(),
             },

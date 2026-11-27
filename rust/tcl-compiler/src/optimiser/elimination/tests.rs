@@ -719,7 +719,7 @@ fn original_adce_keeps_actual_remote_stores_after_local_consumers_disappear() {
             .unwrap();
         let writes = crate::place_bridge::def_places(statement, context, registry);
         assert!(writes.iter().any(|place| {
-                matches!(crate::var_resolve::cell_key(place).root(), crate::var_resolve::VariableCellKey::Namespace { simple, .. }
+                matches!(crate::var_resolve::cell_key(place).root(), tcl_names::variable::VariableCellKey::Namespace { simple, .. }
                     if simple.as_bytes() == b"exported")
             }), "actual remote target retained for {engine}");
         let mut pass = PassContext::new(&unit.source, InterproceduralAnalysis::default());

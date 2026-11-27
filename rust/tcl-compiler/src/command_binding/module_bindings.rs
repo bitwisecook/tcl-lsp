@@ -18,19 +18,20 @@
 
 //! The whole-module may-state: initial table, resolution, transitions, joins and the IR walk.
 
-use super::namespace_context::SourceNamespaceKey;
 use super::source_analysis_entry::SourceAnalysisOptions;
 use super::source_walk::SourceBodyEntryPurpose;
 use super::{
     BindingWalkOutcome, DeferredImplementationId, DeferredSourceBody, DiscardedProcedureHistory,
-    ModuleCommandBindings, RetainedEvaluatedBody, SourceCommandBindings, SourceCommandKey,
-    SourceExecutionContext, retained_source,
+    ModuleCommandBindings, RetainedEvaluatedBody, SourceCommandBindings, SourceExecutionContext,
+    retained_source,
 };
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::helpers::invocation_facts;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry};
 
 mod binding_transitions;
@@ -257,7 +258,7 @@ impl ModuleCommandBindings {
                 .cloned()
                 .collect::<Vec<_>>()
             {
-                let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
                     namespace: root.namespace.clone(),
                     identity: root.identity.clone(),
                 }
@@ -492,7 +493,7 @@ fn interpret_binding_source(
     source: &str,
     offset: u32,
     namespace: &str,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
     retained: &mut RetainedBindingRoots,
@@ -516,8 +517,8 @@ fn interpret_binding_source(
             control: crate::command_binding::source_execution_control::SourceExecutionControl::new(
                 if matches!(
                     frame.layout(),
-                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                    tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                        | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
                 ) {
                     bindings.baseline.body_compilation()
                 } else {

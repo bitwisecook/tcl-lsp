@@ -33,9 +33,9 @@ use super::source_places::{
 };
 use super::variable_traces::{apply_trace, apply_trace_with_original};
 use crate::ir::Statement;
-use crate::place;
-use crate::place::{CellGeneration, Place, PlaceKind};
 use crate::var_resolve::{ResolveContext, cell_key, project_access, resolve_literal_access};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, Place, PlaceKind};
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
     CommandRegistry, NamespaceTransition, StateTransition, StateTransitionDomain,

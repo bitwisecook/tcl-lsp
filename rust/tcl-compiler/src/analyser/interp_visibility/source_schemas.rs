@@ -20,8 +20,8 @@
 
 use super::super::{Analyser, ResolvedAnalysisInput};
 use super::{SourceCommandOrigin, SourceInterpreterVisibilitySnapshot, SourceVisibleSlot};
-use crate::signature_scan::scope::SignatureNamespaceScope;
 use tcl_lexer::{NativeWord, SourceImage, Token};
+use tcl_names::namespace::SignatureNamespaceScope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalSourceAsciiListValue {

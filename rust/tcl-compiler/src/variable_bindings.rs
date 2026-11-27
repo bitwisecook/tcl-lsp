@@ -30,12 +30,13 @@ use tcl_registry::{CommandRegistry, VariableAliasTarget, VariableCellAliasTransi
 
 use crate::cfg::{BlockId, Function};
 use crate::ir::Statement;
-use crate::place::{self, CellGeneration, CellOwner, Place, PlaceKind};
 #[cfg(test)]
 use crate::var_resolve::resolve_place;
 use crate::var_resolve::{ResolveContext, cell_key, resolve_literal_access};
 #[cfg(test)]
 use crate::var_resolve::{project_access, resolve_literal_place, trace_key};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
 
 mod alias_binding;
 mod alias_targets;
@@ -258,7 +259,7 @@ pub(crate) struct ConditionalLogicalScalarStore {
     after: ResolveContext,
     input: crate::analyser::ResolvedAnalysisInput,
     words: std::sync::Arc<[tcl_source::words::WordExpr]>,
-    site: crate::command_binding::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     name: String,
     /// The stored literal; `None` for a substituted value word, whose
     /// contents the store does not know.
@@ -271,7 +272,7 @@ impl ConditionalLogicalScalarStore {
         after: &ResolveContext,
         input: &crate::analyser::ResolvedAnalysisInput,
         words: std::sync::Arc<[tcl_source::words::WordExpr]>,
-        site: crate::command_binding::CommandAllocationSite,
+        site: tcl_names::command::CommandAllocationSite,
         (name, value): (String, Option<String>),
         registry: &CommandRegistry,
     ) -> Option<Self> {
@@ -310,7 +311,7 @@ impl ConditionalLogicalScalarStore {
         if self.before.namespace_identity != after.namespace_identity
             || !matches!(
                 after.namespace_identity,
-                Some(crate::command_binding::SourceNamespaceKey::Authored(_))
+                Some(tcl_names::namespace::SourceNamespaceKey::Authored(_))
             )
             || !(self.input.has_logical_source_name_context() || hosted)
             || self.before.interpreter.is_some()
@@ -389,7 +390,7 @@ impl ConditionalLogicalScalarStore {
 /// resolved. Authored keys carry no native geometry, so the cell itself
 /// holds no storage domain; a native or presentation owner never qualifies.
 pub(crate) fn is_hosted_worker_namespace_cell(
-    cell: &crate::place::CellIdentity,
+    cell: &tcl_names::place::CellIdentity,
     context: &ResolveContext,
 ) -> bool {
     let (Some(hosted), CellOwner::NamespaceIdentity(identity)) =
@@ -397,7 +398,7 @@ pub(crate) fn is_hosted_worker_namespace_cell(
     else {
         return false;
     };
-    let crate::command_binding::SourceNamespaceKey::Authored(namespace) = identity.as_ref() else {
+    let tcl_names::namespace::SourceNamespaceKey::Authored(namespace) = identity.as_ref() else {
         return false;
     };
     cell.storage_domain.is_none()

@@ -24,10 +24,11 @@ pub mod ordered_locals;
 mod original_preparation;
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, NativeCompilationSnapshot,
-    SourceCommandBindings, SourceExecutionContext,
+    Arc, ModuleCommandBindings, NativeCompilationSnapshot, SourceCommandBindings,
+    SourceExecutionContext,
 };
 use crate::ir::CommandTokens;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_compilation::{
     NativeCompilationFailureScope, NativeCompilationMode, NativeCompilationSelection,
     NativeCompilationStep, NativeCompilationSteps, NativeExpressionCompilerStep,
@@ -66,7 +67,7 @@ pub struct SourceNativeCompilationDependency {
     pub target: super::SourceCommandTarget,
     /// Actual command lookup namespace at compilation.
     pub namespace: String,
-    pub(crate) namespace_key: super::SourceNamespaceKey,
+    pub(crate) namespace_key: tcl_names::namespace::SourceNamespaceKey,
     /// Effective literal command head selected by the compiler.
     pub head: String,
     /// Table-validation boundary, separate from later runtime dispatch.
@@ -138,7 +139,7 @@ impl SourceCommandBindings {
     pub fn native_compilation_source_at(
         &self,
         chunk_offset: u32,
-    ) -> Option<&super::ExecutedScriptSource> {
+    ) -> Option<&tcl_names::origin::ExecutedScriptSource> {
         self.compilation_sources
             .get(&CommandAllocationSite {
                 source: Arc::clone(self.root_origin.as_ref()?),
@@ -159,10 +160,10 @@ impl SourceCommandBindings {
         let original = origin.source_image().bytes();
         let carrier = (original.get(base as usize..(base as usize).saturating_add(image.len()))
             == Some(image.bytes()))
-        .then(|| super::ExecutedScriptSource {
+        .then(|| tcl_names::origin::ExecutedScriptSource {
             text: image.clone(),
             origin: Arc::clone(origin),
-            mapping: super::ExecutedScriptMapping::Contiguous { base },
+            mapping: tcl_names::origin::ExecutedScriptMapping::Contiguous { base },
         });
         self.compilation_sources
             .entry(CommandAllocationSite {
@@ -208,10 +209,10 @@ pub(super) struct SourceCompiledChild {
     pub enclosing: CommandAllocationSite,
     pub table: Arc<super::SourceLookupSnapshot>,
     pub parent: Arc<super::compiled_invocation::SourceNativeCompilerAdmission>,
-    pub script: super::ExecutedScriptSource,
+    pub script: tcl_names::origin::ExecutedScriptSource,
     pub compilation: tcl_registry::native_compilation::NativeCompilationContext,
-    pub parent_namespace_key: super::SourceNamespaceKey,
-    pub namespace_key: super::SourceNamespaceKey,
+    pub parent_namespace_key: tcl_names::namespace::SourceNamespaceKey,
+    pub namespace_key: tcl_names::namespace::SourceNamespaceKey,
     pub compiler_visits: Arc<super::compiler_inventory::SourceCompilerVisits>,
 }
 
@@ -1132,10 +1133,10 @@ impl CompilerTraversal<'_> {
                         enclosing: self.chunk.clone(),
                         table: Arc::clone(&self.snapshot.table),
                         parent: Arc::clone(parent),
-                        script: super::ExecutedScriptSource {
+                        script: tcl_names::origin::ExecutedScriptSource {
                             text: original,
                             origin: Arc::clone(&self.chunk.source),
-                            mapping: super::ExecutedScriptMapping::Contiguous {
+                            mapping: tcl_names::origin::ExecutedScriptMapping::Contiguous {
                                 base: span.start(),
                             },
                         },
@@ -1518,10 +1519,10 @@ impl CompilerTraversal<'_> {
             enclosing: self.chunk.clone(),
             table: Arc::clone(&self.snapshot.table),
             parent: Arc::clone(parent),
-            script: super::ExecutedScriptSource {
+            script: tcl_names::origin::ExecutedScriptSource {
                 text: tcl_lexer::SourceImage::native(text.as_bytes()),
                 origin: Arc::clone(&self.chunk.source),
-                mapping: super::ExecutedScriptMapping::Contiguous {
+                mapping: tcl_names::origin::ExecutedScriptMapping::Contiguous {
                     base: source.span.start().checked_add(1)?,
                 },
             },

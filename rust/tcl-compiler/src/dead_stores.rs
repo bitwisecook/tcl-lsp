@@ -49,10 +49,10 @@ use crate::compilation_unit::FunctionUnit;
 use crate::def_use::DefKind;
 use crate::ir::Statement;
 use crate::ir_helpers::expr_has_command;
-use crate::place::{LOCAL_NS, Place, PlaceKind};
 use crate::place_bridge::{
     build_point_resolve_contexts, def_places, element_writes_observed_with_contexts,
 };
+use tcl_names::place::{LOCAL_NS, Place, PlaceKind};
 
 /// A def *place* a dead-store check may report: a plain proc-local scalar or
 /// array — not a global/namespace var (`ns != LOCAL_NS`), `upvar` alias or

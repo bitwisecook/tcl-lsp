@@ -20,7 +20,6 @@
 
 use super::direct_calls::DirectProcDecision;
 use super::{AotMetadataSelection, CallCandidate, DirectCallSiteId, call_sites, function_units};
-use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::registry_invocation::{
     InvocationMetadataContext, RegistryInvocationResolution,
@@ -28,6 +27,7 @@ use crate::registry_invocation::{
 };
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use std::collections::BTreeMap;
+use tcl_names::command::BindingKind;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{DispatchDependencies, SemanticOperationId, Traits};
 

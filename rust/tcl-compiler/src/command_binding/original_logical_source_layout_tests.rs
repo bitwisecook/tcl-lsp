@@ -31,7 +31,7 @@ fn original(source: &str, input: &ResolvedAnalysisInput) -> crate::ir::CommandTo
     let config = input.lexer_config();
     let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
         &image,
-        &crate::var_resolve::VariableExecutionFrame::Unknown,
+        &tcl_names::variable::VariableExecutionFrame::Unknown,
         config,
         input.borrowed_context_registry().commands(),
         SourceAnalysisOptions::for_logical_source(input).unwrap(),
@@ -64,7 +64,7 @@ fn original_logical_reached_roles_distinguish_literal_and_expression_inventory()
     assert!(binding.original_compiler_words.is_none());
     assert_eq!(
         binding.variable_frame,
-        crate::var_resolve::VariableExecutionFrame::Unknown
+        tcl_names::variable::VariableExecutionFrame::Unknown
     );
     let advice = binding
         .original_conditional_operand_layout_advice(&literal, registry)
@@ -258,7 +258,7 @@ fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
     let image = tcl_lexer::SourceImage::document("puts {[dict size DATA]}");
     let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
         &image,
-        &crate::var_resolve::VariableExecutionFrame::Unknown,
+        &tcl_names::variable::VariableExecutionFrame::Unknown,
         config,
         context.commands(),
         SourceAnalysisOptions {

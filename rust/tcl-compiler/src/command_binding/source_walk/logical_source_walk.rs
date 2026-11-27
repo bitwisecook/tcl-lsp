@@ -22,14 +22,15 @@ use super::super::binding_projection::source_binding_projection;
 use super::super::module_bindings::apply_namespace_transition;
 use super::super::source_origin::source_activation_name;
 use super::super::{
-    BindingKind, ModuleCommandBindings, SourceCommandBindings, SourceCommandTarget,
-    SourceExecutionContext, SourceOutcomes, SourceScriptOperands, compiled_invocation,
-    declaration_preview, logical_definition, source_analysis_entry,
+    ModuleCommandBindings, SourceCommandBindings, SourceCommandTarget, SourceExecutionContext,
+    SourceOutcomes, SourceScriptOperands, compiled_invocation, declaration_preview,
+    logical_definition, source_analysis_entry,
 };
 use super::command_walk::source_command_tokens_boxed;
 use super::execution_context::{source_body_context_boxed, source_namespace_context_boxed};
 use super::target_walk::prepare_source_native_invocation;
 use std::sync::Arc;
+use tcl_names::command::BindingKind;
 use tcl_registry::InvocationFacts;
 
 impl SourceCommandBindings {
@@ -414,7 +415,7 @@ impl SourceCommandBindings {
             return None;
         }
         *state = entered;
-        let frame = crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+        let frame = tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
             namespace: namespace_name.clone(),
             identity: source_activation_name(
                 state.current_source_origin.as_ref(),

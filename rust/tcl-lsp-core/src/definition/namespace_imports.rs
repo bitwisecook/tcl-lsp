@@ -299,8 +299,7 @@ pub(super) fn export_verdict_for_slot_in(
             in_document_point(analysis, ctx, import_at),
         );
     }
-    let scope =
-        tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(slot.namespace.clone());
+    let scope = tcl_names::namespace::SignatureNamespaceScope::C(slot.namespace.clone());
     let observable = namespace_exports_observable(analysis, &scope, policy);
     #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
@@ -331,7 +330,7 @@ pub(super) fn export_verdict_for_slot_in(
 /// one is available, and what remains, deliberately, when one is not.
 pub(super) fn namespace_exports_observable(
     analysis: &AnalysisResult,
-    scope: &tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    scope: &tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> bool {
     analysis

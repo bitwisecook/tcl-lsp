@@ -21,8 +21,8 @@
 use super::{
     ContentsOrigin, ContentsPresence, ContentsWorld, NamespaceInventoryClosure, ResolveContext,
 };
-use crate::place;
-use crate::place::CellGeneration;
+use tcl_names::place;
+use tcl_names::place::CellGeneration;
 
 impl ResolveContext {
     /// Original byte correspondence does not inherit representation cache currency.

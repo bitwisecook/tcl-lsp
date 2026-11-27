@@ -167,7 +167,7 @@ pub struct Scope {
     /// An independently walked interpreter script has its own source root.
     pub(in super::super) interpreter_source_body: InterpreterSourceBody,
     /// Retained authored namespace geometry; supplies no actual activation or token.
-    pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    pub naming_scope: Option<tcl_names::namespace::SignatureNamespaceScope>,
     /// Scope kind (global, namespace, proc).
     pub kind: ScopeKind,
     /// Scope identifier — namespace name for namespace/global

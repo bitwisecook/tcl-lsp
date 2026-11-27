@@ -18,13 +18,16 @@
 
 //! Namespace syntax of a genuine original immediate body, without body entry.
 
-use super::{ExecutedScriptSource, SourceInvocationBinding, SourceNamespaceKey};
+use super::SourceInvocationBinding;
+use crate::command_binding::{ExecutedScriptWords, SourceOriginLexical};
 use crate::ir::CommandTokens;
 use crate::registry_invocation::{
     EffectiveInvocationWord, InvocationMetadataContext, InvocationWordOrigin,
     effective_invocation_word, original_structured_invocation_with_metadata_context,
 };
 use tcl_lexer::{LexerConfig, Span};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_registry::{ArgRole, BodyInterpreter, BodyKind, CommandRegistry, ScriptTiming};
 
 impl SourceInvocationBinding {
@@ -426,7 +429,7 @@ mod tests {
         assert_eq!(&body.origin, &site.source);
         assert_eq!(
             body.mapping,
-            super::super::ExecutedScriptMapping::Contiguous { base: body.base() }
+            tcl_names::origin::ExecutedScriptMapping::Contiguous { base: body.base() }
         );
         assert_eq!(
             site.source
@@ -657,7 +660,7 @@ mod tests {
             assert_eq!(body.text.bytes(), b"puts \\\n A");
             assert!(matches!(
                 body.mapping,
-                super::super::ExecutedScriptMapping::Contiguous { .. }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
             ));
             for dynamic in ["if {$condition} \"$body\"", "if {$condition} $body"] {
                 let fixture = original_geometry_fixture(dynamic, environment);

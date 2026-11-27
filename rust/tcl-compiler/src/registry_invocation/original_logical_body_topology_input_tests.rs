@@ -32,7 +32,7 @@ fn original_logical_body_topology_requires_the_supplied_complete_input_at_same_r
     let bindings =
         crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
             &image,
-            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            &tcl_names::variable::VariableExecutionFrame::Unknown,
             config,
             registry,
             crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),

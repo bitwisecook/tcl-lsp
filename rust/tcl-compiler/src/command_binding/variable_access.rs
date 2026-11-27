@@ -18,9 +18,7 @@
 
 //! Reached variable accesses: who evaluated them, where they resolve and the queries over them.
 
-use super::command_identity::CommandAllocationSite;
 use super::invocation_reads::SourceVariableReadResidual;
-use super::namespace_context::SourceNamespaceKey;
 use super::object_instance::SourceObjectInstanceProof;
 use super::{
     ModuleCommandBindings, SelectedSourceVariablePlace, SourceCommandBindings,
@@ -28,6 +26,8 @@ use super::{
 };
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 /// Temporal owner of a reached read, independently of its lexical source span.
@@ -136,7 +136,7 @@ impl SourceVariableAccess {
         &self,
         context: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
-    ) -> crate::place::Place {
+    ) -> tcl_names::place::Place {
         self.selected_places
             .iter()
             .find(|selected| selected.context.as_ref() == context)
@@ -167,7 +167,7 @@ impl SourceVariableAccess {
     pub(super) fn retain_selected_place(
         &mut self,
         context: &Arc<crate::var_resolve::ResolveContext>,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
     ) {
         if let Some(selected) = self
             .selected_places
@@ -426,7 +426,7 @@ impl SourceCommandBindings {
         state: &ModuleCommandBindings,
         owner: Option<&SourceVariableEvaluationOwner>,
         registry: &CommandRegistry,
-        selected_place: &crate::place::Place,
+        selected_place: &tcl_names::place::Place,
     ) {
         let Some(origin) = &state.current_source_origin else {
             return;

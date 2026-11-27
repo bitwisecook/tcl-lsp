@@ -260,7 +260,7 @@ impl Lowerer<'_> {
 fn invokes_only_retained_source_commands(
     binding: &crate::command_binding::SourceInvocationBinding,
 ) -> bool {
-    use crate::command_binding::BindingKind;
+    use tcl_names::command::BindingKind;
     if binding.execution_is_unknown() {
         return false;
     }

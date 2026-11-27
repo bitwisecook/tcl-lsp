@@ -194,8 +194,8 @@ mod expression_source_tests {
         let extent = inner.original_written_span(source).unwrap();
         assert_eq!(&source[extent.as_range()], "[puts $payload]");
         assert_eq!(source.as_bytes().get(extent.end() as usize), Some(&b']'));
-        let replay_site = crate::command_binding::CommandAllocationSite {
-            source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored_image(
+        let replay_site = tcl_names::command::CommandAllocationSite {
+            source: std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                 tcl_lexer::SourceImage::document(source),
             )),
             offset: nested.word_exprs[0].source().span.start(),

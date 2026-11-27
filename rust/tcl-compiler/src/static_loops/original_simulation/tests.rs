@@ -156,11 +156,11 @@ fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
 
 #[test]
 fn positioned_simulation_requires_matching_whole_expression_preparation() {
-    use crate::command_binding::{
-        CommandAllocationSite, ExecutedScriptSource, SourceExpressionPreparation, SourceOriginId,
-    };
+    use crate::command_binding::SourceExpressionPreparation;
     use crate::math_function_binding::ExpressionMathBindings;
     use std::sync::Arc;
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
     use tcl_registry::runtime_expr_validation::{
         ExpressionPreparationProof, prepare_expression_witness,
     };
@@ -175,7 +175,7 @@ fn positioned_simulation_requires_matching_whole_expression_preparation() {
         panic!("literal preparation succeeds")
     };
     let preparation = SourceExpressionPreparation {
-        namespace_key: crate::command_binding::SourceNamespaceKey::authored("::"),
+        namespace_key: tcl_names::namespace::SourceNamespaceKey::authored("::"),
         invocation: CommandAllocationSite {
             source: origin,
             offset: 0,

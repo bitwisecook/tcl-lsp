@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::place::{LOCAL_NS, places_read_to_form, scalar};
+use tcl_names::place::{LOCAL_NS, places_read_to_form, scalar};
+use tcl_names::variable::VariableExecutionFrame;
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -149,7 +150,7 @@ fn called_activation_closure_withdraws_on_unknown_writes_callbacks_aliases_and_j
     let registry = registry();
     let state = called_frame_with_unknown_namespace_contents("actual-call");
     let mut withdrawn = state.clone();
-    withdrawn.record_contents_write(&crate::place::unknown_top(), 0, true);
+    withdrawn.record_contents_write(&tcl_names::place::unknown_top(), 0, true);
     let local = resolve_literal_place("missing", &withdrawn, false, &registry);
     assert_eq!(
         withdrawn.contents_presence(&local),
@@ -327,7 +328,7 @@ fn literal_array_element() {
     assert_eq!(p.name, "a");
     assert_eq!(p.ns, LOCAL_NS);
     assert_eq!(p.index, Some(Index::literal("k")));
-    assert_eq!(places_read_to_form(&p), [] as [crate::place::Place; 0]);
+    assert_eq!(places_read_to_form(&p), [] as [tcl_names::place::Place; 0]);
 }
 
 #[test]
@@ -370,9 +371,9 @@ fn resolved_array_elements_feed_the_overlap_precision() {
     let r = registry();
     let ak = resolve_place("a(k)", &ctx(), false, &r);
     let aj = resolve_place("a(j)", &ctx(), false, &r);
-    assert!(!crate::place::overlap(&ak, &aj));
+    assert!(!tcl_names::place::overlap(&ak, &aj));
     let dyn_elem = resolve_place("a($i)", &ctx(), false, &r);
-    assert!(crate::place::overlap(&dyn_elem, &ak));
+    assert!(tcl_names::place::overlap(&dyn_elem, &ak));
 }
 
 #[test]
@@ -1166,4 +1167,30 @@ fn physical_proof_relocation_round_trips_aliases_contents_and_observers() {
         "unmapped caller stays an exact dependency"
     );
     assert_eq!(relocated.relocated(&relocation.inverse().unwrap()), context);
+}
+
+#[test]
+fn worker_overlap_preserves_unknown_selection_and_initialisation_epochs() {
+    use crate::var_resolve::{ResolveContext, resolve_literal_place};
+    use tcl_names::place::overlap;
+    use tcl_registry::f5::WorkerExecution;
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    let resolve = |worker, initialisation_epoch, connection| {
+        let mut context = ResolveContext::for_function("::event");
+        context.known_namespaces.insert("::static".to_owned());
+        context.execution = Some(WorkerExecution {
+            worker,
+            initialisation_epoch,
+            connection,
+        });
+        resolve_literal_place("::static::counter", &context, false, registry)
+    };
+    let first = resolve(Some(0), 1, Some(10));
+    assert!(overlap(&first, &resolve(Some(0), 1, Some(20))));
+    assert!(!overlap(&first, &resolve(Some(1), 1, Some(10))));
+    assert!(!overlap(&first, &resolve(Some(0), 2, Some(10))));
+    let unknown = resolve(None, 1, None);
+    assert!(overlap(&first, &unknown));
+    assert!(overlap(&unknown, &resolve(Some(1), 1, None)));
+    assert_ne!(first.cell, unknown.cell);
 }

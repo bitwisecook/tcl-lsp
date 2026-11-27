@@ -19,7 +19,8 @@
 //! Actual source-producer effects, distinct from bytes/types/completion.
 
 use super::*;
-use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings, SourceOriginId};
+use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+use tcl_names::origin::SourceOriginId;
 use tcl_registry::list_object_methods::NativeListMethod;
 
 fn analyse(source: &str, engine: &str) -> SourceCommandBindings {
@@ -83,7 +84,7 @@ fn same_actual_source_template_and_append_close_only_string_effects() {
         ));
         assert_eq!(
             append.proved_execution_target().unwrap().kind,
-            crate::command_binding::BindingKind::Builtin
+            tcl_names::command::BindingKind::Builtin
         );
         let dialect = tcl_native_model::InvocationDialect::of_profile(
             tcl_dialect::DialectProfile::find(engine).unwrap(),
@@ -209,7 +210,7 @@ fn replaced_handler_cannot_receive_the_stock_append_effect_receipt() {
     );
     assert_eq!(
         append.proved_execution_target().unwrap().kind,
-        crate::command_binding::BindingKind::Proc
+        tcl_names::command::BindingKind::Proc
     );
     let point = bindings.invocation_at_source(
         "string",

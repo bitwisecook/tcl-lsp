@@ -173,7 +173,7 @@ pub(super) fn original_store_receiver(
     arguments: tcl_registry::InvocationArguments<'_>,
     context: SourceExecutionContext<'_>,
     variables: &crate::var_resolve::ResolveContext,
-) -> Option<(crate::place::Place, usize)> {
+) -> Option<(tcl_names::place::Place, usize)> {
     use tcl_registry::{
         native_compilation::NativeCompilationSelection,
         native_instruction_plan::NativeInstructionPlan,
@@ -504,7 +504,7 @@ pub(super) fn current_numeric_index(
     index: usize,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-) -> Option<crate::place::Place> {
+) -> Option<tcl_names::place::Place> {
     // The final original word has no later argv substitution that could replace
     // its captured object. Enter observers withdraw this original-word ingress.
     context.written_representations?;
@@ -812,7 +812,7 @@ fn selected_scoped_prefix_result(
     if before.source_variables.namespace_identity.as_ref() != Some(&namespace) {
         return None;
     }
-    let crate::signature_scan::scope::SignatureNamespaceScope::C(path) =
+    let tcl_names::namespace::SignatureNamespaceScope::C(path) =
         before.original_namespace_geometry(&namespace, script.policy())?
     else {
         return None;
@@ -833,7 +833,7 @@ pub(super) fn stock_scoped_prefix_operand(
     facts: &tcl_registry::InvocationFacts,
 ) -> Option<usize> {
     if !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || native.target.implementation_generation != 0
         || native.target.runtime_implementation_generation.is_some()
         || !native.target.prepended.is_empty()
@@ -1177,8 +1177,7 @@ mod tests {
         let source = "set first one; set first";
         let analysed = inspect(source);
         let selected = analysed.invocation_at_source("set", 15);
-        let expected =
-            crate::command_binding::SourceNamespaceKey::from_native_entry(&entry).unwrap();
+        let expected = tcl_names::namespace::SourceNamespaceKey::from_native_entry(&entry).unwrap();
         assert_eq!(
             selected.variable_context.namespace_identity.as_ref(),
             Some(&expected)

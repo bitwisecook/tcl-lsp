@@ -18,11 +18,11 @@
 
 //! Original variable operands retained at their actual handler boundary.
 
-use super::{
-    Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding, SourceOriginId,
-};
+use super::{Arc, SourceCommandBindings, SourceInvocationBinding};
 use crate::variable_bindings::OriginalVariableInvocation;
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 pub(super) type OriginalVariableInvocations =
     BTreeMap<CommandAllocationSite, Option<Arc<OriginalVariableInvocation>>>;
@@ -153,7 +153,7 @@ mod tests {
             crate::registry_invocation::normal_transfer_invocation(registry, None, &missing)
                 .unwrap()
                 .written_definition_places(&left.variable_context, registry),
-            [] as [(usize, crate::place::Place); 0]
+            [] as [(usize, tcl_names::place::Place); 0]
         );
 
         let origin = bindings.root_origin.clone().unwrap();

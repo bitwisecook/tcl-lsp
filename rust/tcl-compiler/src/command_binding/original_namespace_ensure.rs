@@ -18,11 +18,10 @@
 
 //! Same-operation namespace allocation correspondence for variable transfer.
 
-use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceExecutionContext, SourceNamespaceKey,
-    SourceNativeInvocation,
-};
+use super::{Arc, ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation};
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{
     InvocationFacts, NamespaceTransition, NamespaceTransitionTarget, StateTransition,
     TransitionSubject,

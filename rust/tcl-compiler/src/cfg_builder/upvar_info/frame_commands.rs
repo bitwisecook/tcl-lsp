@@ -102,7 +102,7 @@ pub(super) fn record_frame_effect(
     params: &[String],
     registry: &CommandRegistry,
     context: FrameCommandContext<'_>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     match spec.layout {
@@ -330,7 +330,7 @@ fn record_uplevel_call(
     args: &[String],
     registry: &CommandRegistry,
     context: FrameCommandContext<'_>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     let (level, rest) = resolve_frame_args(spec, args, registry, context.dialect, context.tokens);
@@ -365,7 +365,7 @@ pub(super) fn record_upframe_body(
     source_body_is_braced: bool,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     record_upframe_body_at_depth(
@@ -407,7 +407,7 @@ fn record_constructed_body(
     word: &str,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) -> bool {
     let Some(bindings) = bindings else {

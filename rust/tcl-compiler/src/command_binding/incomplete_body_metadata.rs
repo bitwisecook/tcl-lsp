@@ -20,8 +20,8 @@
 
 use super::declaration_layout::original_declaration_layouts;
 use super::{
-    CommandAllocationSite, ModuleCommandBindings, OriginalCompilationLookupAdvice,
-    SourceCommandBindings, SourceExecutionContext,
+    ModuleCommandBindings, OriginalCompilationLookupAdvice, SourceCommandBindings,
+    SourceExecutionContext,
 };
 use crate::registry_invocation::{
     EffectiveInvocationWord, RegistryInvocationResolution, effective_invocation_word,
@@ -31,6 +31,7 @@ use std::sync::Arc;
 use tcl_lexer::{
     ExecutablePart, ExecutablePartArena, ExecutableText, LexerConfig, SourceImage, Span, SubstFlags,
 };
+use tcl_names::command::CommandAllocationSite;
 
 struct IncompleteHeader {
     tokens: Box<crate::ir::CommandTokens>,
@@ -186,7 +187,7 @@ fn procedure_namespace(
     row: &super::declaration_layout::DeclarationLayoutObservation,
     header: &IncompleteHeader,
     registry: &tcl_registry::CommandRegistry,
-) -> Option<super::SourceNamespaceKey> {
+) -> Option<tcl_names::namespace::SourceNamespaceKey> {
     if row.snapshot.state.baseline.registry_snapshot.as_ref()
         != Some(&registry.snapshot().semantic_key())
     {
@@ -232,7 +233,7 @@ fn procedure_namespace(
             .execution_name_policy?
             .native_recipe()?;
         let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 original.get(name.checked_add(1)?)?,
                 tcl_syntax::word_rules::WordValueRules::from_config(&config),
                 policy,
@@ -530,7 +531,7 @@ fn incomplete_child_layout_advice(
     row: &super::declaration_layout::DeclarationLayoutObservation,
     header: &IncompleteHeader,
     tokens: &crate::ir::CommandTokens,
-    origin: &Arc<super::SourceOriginId>,
+    origin: &Arc<tcl_names::origin::SourceOriginId>,
     config: LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<OriginalCompilationLookupAdvice> {

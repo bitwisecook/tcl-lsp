@@ -17,10 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use tcl_names::variable::VariableExecutionFrame;
 
 fn retain_worker_namespace_geometry(context: &mut ResolveContext) {
-    use crate::command_binding::SourceNamespaceKey;
     use tcl_core_types::ByteNamespacePath;
+    use tcl_names::namespace::SourceNamespaceKey;
     use tcl_runtime_api::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
     let key = |token, segments: &[&str]| {
         SourceNamespaceKey::Native(NativeNamespaceContext {

@@ -36,7 +36,7 @@ impl CapturedAppendValue {
     // spelling or the string-effect receipt's owners as a value substitute.
     pub(super) fn capture(
         before: &ModuleCommandBindings,
-        receiver: &crate::place::Place,
+        receiver: &tcl_names::place::Place,
         context: SourceExecutionContext<'_>,
         from: usize,
         count: usize,
@@ -92,7 +92,7 @@ impl CapturedAppendValue {
         outcomes: &mut SourceOutcomes,
         before: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
-        after: &crate::place::Place,
+        after: &tcl_names::place::Place,
     ) {
         let Some(normal) = &mut outcomes.normal else {
             return;

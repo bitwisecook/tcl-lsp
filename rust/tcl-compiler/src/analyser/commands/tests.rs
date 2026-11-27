@@ -821,7 +821,7 @@ fn process_interp_alias_records_target() {
 
 #[test]
 fn logical_namespace_references_keep_original_words_and_independent_frames() {
-    use crate::signature_scan::scope::SignatureNamespaceScope;
+    use tcl_names::namespace::SignatureNamespaceScope;
     for (source, home) in [
         ("namespace exists Target", None),
         ("namespace eval N {namespace exists Target}", Some("N")),
@@ -849,7 +849,7 @@ fn logical_namespace_references_keep_original_words_and_independent_frames() {
         assert_eq!(word.image(), &tcl_lexer::SourceImage::document(source));
         assert_eq!(word.config(), result.body_lexer_config.unwrap());
         assert!(
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 word,
                 tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
                 input.policy(),

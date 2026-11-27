@@ -19,10 +19,9 @@
 //! Actual selected load/store preparation preserves its original source owner.
 
 use super::*;
-use tcl_compiler::command_binding::{
-    SourceAnalysisOptions, SourceCommandBindings, SourceNamespaceKey,
-};
+use tcl_compiler::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
 use tcl_compiler::ir::CommandTokens;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::native_compilation::{NativeCompilationContext, NativeCompilationFrame};
 use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
 
@@ -34,7 +33,7 @@ fn original_tokens(
 ) -> CommandTokens {
     let dialect = tcl_native_model::InvocationDialect::of_point(entry.execution_point.unwrap());
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
-    let frame = tcl_compiler::var_resolve::VariableExecutionFrame::Procedure {
+    let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::".to_owned(),
         identity: "original-variable-preparation".to_owned(),
     }

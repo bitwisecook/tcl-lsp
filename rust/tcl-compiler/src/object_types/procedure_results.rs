@@ -74,7 +74,7 @@ pub(super) fn retain_normal_procedure_result_types(
 
 fn join_procedure_result(
     results: &mut crate::type_infer::NormalProcedureResultTypes,
-    allocation: &crate::command_binding::CommandAllocation,
+    allocation: &tcl_names::command::CommandAllocation,
     result: crate::types::TypeLattice,
 ) {
     results
@@ -87,7 +87,7 @@ fn join_procedure_result(
 /// An allocation site or procedure name alone cannot select a replacement body.
 fn procedure_implementation_units(
     cu: &CompilationUnit,
-) -> Vec<(&crate::command_binding::CommandAllocation, &FunctionUnit)> {
+) -> Vec<(&tcl_names::command::CommandAllocation, &FunctionUnit)> {
     let mut units = Vec::new();
     for implementation in cu.ir_module.procedure_implementation_bodies.iter() {
         let parameters = implementation

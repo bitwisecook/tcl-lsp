@@ -883,9 +883,8 @@ impl<'a> WildcardImportIndex<'a> {
     ) -> bool {
         let mut found = None;
         for subject in &self.original_subjects {
-            let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
-                subject.slot().namespace.clone(),
-            );
+            let scope =
+                tcl_names::namespace::SignatureNamespaceScope::C(subject.slot().namespace.clone());
             if subject.slot().simple.try_utf8().ok() != Some(name)
                 || !scope.display().is_some_and(|label| ns_eq(&label, ns))
             {

@@ -18,7 +18,8 @@
 
 //! Normal-edge parent command installation by the selected interpreter factory.
 
-use super::{BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget};
+use super::{MayBinding, ModuleCommandBindings, ResolvedCommandTarget};
+use tcl_names::command::BindingKind;
 
 impl ModuleCommandBindings {
     pub(super) fn retain_created_interpreter_command(

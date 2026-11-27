@@ -63,7 +63,7 @@ use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use tcl_compiler::command_binding::{
-    Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
+    Binding, analyse_command_binding, scan_module_command_mutations,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::Statement;
@@ -72,6 +72,7 @@ use tcl_compiler::side_effects::{
     StorageType, classify_side_effects,
 };
 use tcl_dialect::model::{Family, SurfaceLayer};
+use tcl_names::command::BindingKind;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 

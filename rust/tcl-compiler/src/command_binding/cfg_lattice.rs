@@ -18,14 +18,14 @@
 
 //! The flow-sensitive CFG view of the command table.
 
+use super::CommandToken;
 use super::cfg_lookup_context::{CfgLookupContexts, CfgPointContext};
-use super::command_identity::CommandToken;
 use super::module_bindings::{
     BindingInvocationMetadata, RetainedBindingRoots, apply_embedded_transitions_in,
     apply_may_invocation_transitions,
 };
 use super::{
-    Binding, BindingBaseline, BindingKind, CommandBinding, InvocationBindingContext, MayBinding,
+    Binding, BindingBaseline, CommandBinding, InvocationBindingContext, MayBinding,
     ModuleCommandBindings, ResolvedCommandTarget,
 };
 use crate::cfg::{BlockId, Function as CfgFunction};
@@ -33,6 +33,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_qualified_name as nqn;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tcl_names::command::BindingKind;
 use tcl_registry::CommandRegistry;
 
 pub(super) fn unavailable_cfg_entry(registry: &CommandRegistry) -> ModuleCommandBindings {

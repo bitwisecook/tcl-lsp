@@ -23,9 +23,10 @@ use super::{CompletionEdit, CompletionItem, CompletionKind};
 use tcl_compiler::analyser::types::MemberSide;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
-use tcl_compiler::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::commands::tcl::TclOoPropertyKind;
 use tcl_registry::definer::SourcePropertyCompletionRole;
 

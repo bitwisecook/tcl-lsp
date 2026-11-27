@@ -354,7 +354,7 @@ impl<'a> NativeSummaryContext<'a> {
             place.observed
                 || place.dynamic
                 || place.index.is_some()
-                || place.kind != crate::place::PlaceKind::Scalar,
+                || place.kind != tcl_names::place::PlaceKind::Scalar,
         ) {
             return None;
         }

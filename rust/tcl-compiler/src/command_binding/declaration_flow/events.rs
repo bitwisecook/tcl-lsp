@@ -19,13 +19,15 @@
 //! The read and write events of words, variables, expressions and bodies.
 
 use super::super::source_read_scope::{trace_rbs_refusal, trace_rbs_required};
-use super::super::{CommandAllocationSite, ExecutedScriptMapping, ExecutedScriptSource};
 use super::{
     Builder, ConditionTargets, ConditionalRepresentationBodyContext, DeclarationFlowPurpose,
     DeclaredCondition, Exits, Job, representation,
 };
+use crate::command_binding::ExecutedScriptWords;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{ExecutedScriptMapping, ExecutedScriptSource};
 use tcl_registry::body_execution::BodyOperand;
 use tcl_source::words::WordExpr;
 use tcl_source::words::WordPart;

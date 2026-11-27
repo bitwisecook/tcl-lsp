@@ -230,7 +230,7 @@ impl WorkspaceIndex {
         &self,
         report: &str,
     ) -> Option<(
-        tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
     )> {
         crate::namespace_symbol::retained_namespace_from_refs(

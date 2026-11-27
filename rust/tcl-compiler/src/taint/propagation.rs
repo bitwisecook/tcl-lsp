@@ -96,7 +96,7 @@ pub(super) fn collect_global_reads(ssa: &SsaFunction) -> FxHashSet<Symbol> {
         if ssa.cell_key(symbol).is_some_and(|key| {
             matches!(
                 key.root(),
-                crate::var_resolve::VariableCellKey::Namespace { .. }
+                tcl_names::variable::VariableCellKey::Namespace { .. }
             )
         }) {
             out.insert(symbol);
@@ -374,7 +374,7 @@ pub(super) fn is_actual_formal_entry(
     };
     if !matches!(
         key.root(),
-        crate::var_resolve::VariableCellKey::Activation { .. }
+        tcl_names::variable::VariableCellKey::Activation { .. }
     ) {
         return false;
     }

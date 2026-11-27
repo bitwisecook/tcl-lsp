@@ -22,6 +22,7 @@ use super::{
     ModuleCommandBindings, SourceBodyEntryPurpose, SourceExecutionContext, SourceNativeInvocation,
     SourceOutcomes,
 };
+use crate::command_binding::SourceOriginLexical;
 use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
 
 /// The original argv and command observers have already run, and the caller
@@ -55,7 +56,7 @@ pub(super) fn transfer(
             super::literal_object_pool::SourceOrdinaryLiteralPool::text_effects_current,
         )
         || !native.target.registry_backed
-        || native.target.kind != super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || native.target.implementation_generation != 0
         || native.target.implementation_allocation.is_some()
         || !native.target.prepended.is_empty()

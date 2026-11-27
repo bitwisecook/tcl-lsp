@@ -18,9 +18,9 @@
 
 //! Equality, hashing and the observation stamp of a binding state.
 
-use super::super::command_identity::{CommandIdentity, CommandToken};
+use super::super::CommandToken;
 use super::super::ensemble_dispatch::EnsembleDispatches;
-use super::super::namespace_context::{SourceNamespaceKey, SourceNamespaceMap, SourceNamespaceSet};
+use super::super::namespace_context::{SourceNamespaceMap, SourceNamespaceSet};
 use super::super::{
     ClassDefinitionReceipt, EnsembleManagement, MayBinding, ModuleCommandBindings,
     PackageProvision, ResolvedCommandTarget, command_observers, literal_object_pool,
@@ -29,6 +29,8 @@ use super::super::{
 use super::bounded_classes::BoundedClassConstruction;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use tcl_names::command::CommandIdentity;
+use tcl_names::namespace::SourceNamespaceKey;
 
 /// Compact identity for every mutable observation axis other than the live
 /// binding map. All set-valued axes below are monotone during the binding
@@ -54,7 +56,7 @@ pub(super) struct NonBindingObservationStamp {
     pub(in super::super) tainted_provider_state: Arc<BTreeSet<String>>,
     pub(in super::super) command_observers: Arc<command_observers::SourceCommandObservers>,
     pub(in super::super) source_variables: Arc<crate::var_resolve::ResolveContext>,
-    pub(in super::super) variable_frame: crate::var_resolve::VariableExecutionFrame,
+    pub(in super::super) variable_frame: tcl_names::variable::VariableExecutionFrame,
     pub(in super::super) objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
     pub(in super::super) namespace_exports:
         Arc<SourceNamespaceMap<BTreeSet<Vec<tcl_core_types::NameBytes>>>>,

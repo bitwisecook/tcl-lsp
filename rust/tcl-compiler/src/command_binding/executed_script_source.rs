@@ -16,67 +16,45 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Executed script bytes and their truthful source relationship.
+//! Executed script sources selected from evaluated words: the literal-word
+//! coordinate proof that needs the effective invocation word.
 
-use super::{Arc, CommandAllocationSite, MaterialisedSourceKind, SourceOriginId};
+use super::Arc;
 use crate::registry_invocation::{EffectiveInvocationWord, effective_invocation_word};
 use tcl_lexer::LexerConfig;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{ExecutedScriptMapping, ExecutedScriptSource, SourceOriginId};
 use tcl_source::words::Provenance;
 use tcl_source::words::WordExpr;
 use tcl_syntax::word_rules::WordValueRules;
 
-/// Mapping from executed script bytes into their owning source instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ExecutedScriptMapping {
-    /// Every byte occurs unchanged at this base in the retained source origin.
-    Contiguous {
-        /// First executable byte, independent of surrounding word delimiters.
-        base: u32,
-    },
-    /// Substitution, escape decoding or concatenation created a new source.
-    Materialised,
-}
-
-/// One evaluated body, shared by word, list and concatenated-script consumers.
-///
-/// ```
-/// use std::sync::Arc;
-/// use tcl_compiler::command_binding::{CommandAllocationSite, ExecutedScriptSource, SourceOriginId};
-/// let parent = CommandAllocationSite {
-///     source: Arc::new(SourceOriginId::authored(&Arc::from("eval $body"))),
-///     offset: 0,
-/// };
-/// let body = ExecutedScriptSource::materialised(parent, vec![0], "set x 1");
-/// assert_eq!(body.text.try_text().unwrap(), "set x 1");
-/// assert_eq!(body.base(), 0);
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExecutedScriptSource {
-    /// Exact bytes received by the native script parser after argv evaluation.
-    pub text: tcl_lexer::SourceImage,
-    /// Semantic source instance; offsets never masquerade as another origin.
-    pub origin: Arc<SourceOriginId>,
-    /// Proved correspondence to the retained source instance.
-    pub mapping: ExecutedScriptMapping,
-}
-
-impl ExecutedScriptSource {
-    /// Retain an unchanged slice only after checking its owning source bytes.
-    #[must_use]
-    pub fn contiguous(origin: Arc<SourceOriginId>, text: &str, base: u32) -> Option<Self> {
-        let start = usize::try_from(base).ok()?;
-        let end = start.checked_add(text.len())?;
-        (origin.source_image().bytes().get(start..end) == Some(text.as_bytes())).then(|| Self {
-            text: native_image(text),
-            origin,
-            mapping: ExecutedScriptMapping::Contiguous { base },
-        })
-    }
-
+/// Executed script constructors that read a word's effective invocation value.
+pub trait ExecutedScriptWords: Sized {
     /// Select a frozen body value and prove a contiguous map only when the
     /// original literal word's bytes agree with its evaluated value.
     #[must_use]
-    pub fn from_word(
+    fn from_word(
+        parent: CommandAllocationSite,
+        argument: usize,
+        word: &WordExpr,
+        value: &str,
+        config: LexerConfig,
+    ) -> Self;
+
+    /// Prove the contiguous source coordinate of an evaluated literal script.
+    /// The lexer owns token extent; decoded or substituted values receive no
+    /// authored coordinate. This is also the inline compiler's mapping seam.
+    #[must_use]
+    fn literal_word_base(
+        source: &str,
+        word: &WordExpr,
+        value: &str,
+        config: LexerConfig,
+    ) -> Option<u32>;
+}
+
+impl ExecutedScriptWords for ExecutedScriptSource {
+    fn from_word(
         parent: CommandAllocationSite,
         argument: usize,
         word: &WordExpr,
@@ -87,7 +65,7 @@ impl ExecutedScriptSource {
             .and_then(|source| Self::literal_word_base(source, word, value, config));
         if let Some(base) = base {
             return Self {
-                text: native_image(value),
+                text: tcl_lexer::SourceImage::native(Arc::<[u8]>::from(value.as_bytes())),
                 origin: parent.source,
                 mapping: ExecutedScriptMapping::Contiguous { base },
             };
@@ -103,56 +81,7 @@ impl ExecutedScriptSource {
         Self::materialised(parent, vec![argument], value)
     }
 
-    /// Retain the actual counted script value. Original static-word decoding
-    /// can establish a source extent, but only byte equality grants a
-    /// contiguous map. Channel/unit conversion remains a materialised source.
-    pub(super) fn from_original_word_value(
-        parent: CommandAllocationSite,
-        argument: usize,
-        word: &tcl_lexer::NativeWord,
-        value: &[u8],
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
-    ) -> Self {
-        // Implementation contract: naming.source.original-native-script-body-value
-        // docs/design/analysis/name-resolution-proofs/original-native-script-body-value.md
-        let text = tcl_lexer::SourceImage::native(value);
-        if word.image() == parent.source.source_image()
-            && word.span().start() >= parent.offset
-            && let Ok(captured) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
-                std::slice::from_ref(word),
-                protocol,
-            )
-            && captured.literal(0) == Some(value)
-            && let Some(span) = captured.original_literal_extent(0, 0..value.len())
-            && span.as_range().len() == value.len()
-            && let Some(script) =
-                Self::contiguous_image(Arc::clone(&parent.source), text.clone(), span.start())
-        {
-            return script;
-        }
-        if word.image() == parent.source.source_image()
-            && word.group().kind == tcl_lexer::WordKind::Braced
-            && let Ok(content) = word.content_span()
-            && let Some(interior) = word
-                .image()
-                .bytes()
-                .get(content.as_range())
-                .and_then(|bytes| std::str::from_utf8(bytes).ok())
-            && let Ok(value) = std::str::from_utf8(value)
-            && folds_to(interior, value, word.config())
-            && let Some(script) =
-                Self::contiguous(Arc::clone(&parent.source), interior, content.start())
-        {
-            return script;
-        }
-        Self::materialised_image(parent, vec![argument], text)
-    }
-
-    /// Prove the contiguous source coordinate of an evaluated literal script.
-    /// The lexer owns token extent; decoded or substituted values receive no
-    /// authored coordinate. This is also the inline compiler's mapping seam.
-    #[must_use]
-    pub fn literal_word_base(
+    fn literal_word_base(
         source: &str,
         word: &WordExpr,
         value: &str,
@@ -165,111 +94,10 @@ impl ExecutedScriptSource {
         .then(|| literal_body_base(source, word, value))
         .flatten()
     }
-
-    /// Retain a computed or concatenated value without inventing authored spans.
-    #[must_use]
-    pub fn materialised(parent: CommandAllocationSite, arguments: Vec<usize>, value: &str) -> Self {
-        Self::materialised_image(parent, arguments, native_image(value))
-    }
-
-    /// Retain an original byte script without a Unicode projection.
-    #[must_use]
-    pub fn materialised_image(
-        parent: CommandAllocationSite,
-        arguments: Vec<usize>,
-        text: tcl_lexer::SourceImage,
-    ) -> Self {
-        Self {
-            origin: Arc::new(SourceOriginId::derived_image(
-                parent,
-                arguments,
-                text.clone(),
-                MaterialisedSourceKind::Script,
-            )),
-            text,
-            mapping: ExecutedScriptMapping::Materialised,
-        }
-    }
-
-    /// Prove an unchanged byte slice while preserving its parser input channel.
-    #[must_use]
-    pub fn contiguous_image(
-        origin: Arc<SourceOriginId>,
-        text: tcl_lexer::SourceImage,
-        base: u32,
-    ) -> Option<Self> {
-        let start = usize::try_from(base).ok()?;
-        let end = start.checked_add(text.len())?;
-        (origin.source_image().bytes().get(start..end) == Some(text.bytes())).then_some(Self {
-            text,
-            origin,
-            mapping: ExecutedScriptMapping::Contiguous { base },
-        })
-    }
-
-    /// Checked advisory text; the original byte script remains authoritative.
-    ///
-    /// # Errors
-    /// Returns the retained bytes' UTF-8 failure.
-    pub fn try_text(&self) -> Result<&str, std::str::Utf8Error> {
-        self.text.try_text()
-    }
-
-    /// Select a script from an evaluated list through the actual list grammar.
-    /// Literal element bytes retain a contiguous source map; decoded elements
-    /// receive a distinct materialised origin instead of an estimated offset.
-    #[must_use]
-    pub fn list_element(
-        &self,
-        parent: CommandAllocationSite,
-        argument: usize,
-        element: usize,
-        rules: WordValueRules,
-    ) -> Option<Self> {
-        let text = self.try_text().ok()?;
-        let values = rules.split_list(text).ok()?;
-        let value = values.get(element)?.as_ref();
-        if let ExecutedScriptMapping::Contiguous { base } = self.mapping
-            && let Some(offset) = literal_list_element_offset(text, element, value, rules.list)
-            && let Some(base) = base.checked_add(offset)
-        {
-            return Some(Self {
-                text: native_image(value),
-                origin: Arc::clone(&self.origin),
-                mapping: ExecutedScriptMapping::Contiguous { base },
-            });
-        }
-        Some(Self::materialised(parent, vec![argument, element], value))
-    }
-
-    /// Offset used by segmentation in this actual source instance.
-    #[must_use]
-    pub const fn base(&self) -> u32 {
-        match self.mapping {
-            ExecutedScriptMapping::Contiguous { base } => base,
-            ExecutedScriptMapping::Materialised => 0,
-        }
-    }
-}
-
-fn native_image(source: &str) -> tcl_lexer::SourceImage {
-    tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
 }
 
 pub(super) fn source_text(origin: &SourceOriginId) -> Option<&str> {
     origin.try_text().ok()
-}
-
-/// A braced body whose value differs from its bytes only by the brace
-/// backslash-newline fold. Parsing the authored bytes substitutes each
-/// continuation exactly as the fold does, so they yield the same commands and
-/// words and keep their document coordinates. The exception is a `${…}` name,
-/// which the parser takes verbatim; a body holding one stays materialised.
-fn folds_to(interior: &str, value: &str, config: LexerConfig) -> bool {
-    interior != value
-        && config.brace_backslash_newline.folds()
-        && !interior.contains("${")
-        && WordValueRules::from_config(&config).collapse_braced_word(interior) == value
 }
 
 fn folded_braced_body<'s>(
@@ -284,7 +112,8 @@ fn folded_braced_body<'s>(
     let span = word.original_written_span(source)?;
     let raw = source.get(span.as_range())?;
     let interior = tcl_syntax::word_rules::whole_braced_word(raw)?;
-    folds_to(interior, value, config).then(|| Some((interior, span.start().checked_add(1)?)))?
+    tcl_names::origin::folds_to(interior, value, config)
+        .then(|| Some((interior, span.start().checked_add(1)?)))?
 }
 
 fn literal_body_base(source: &str, word: &WordExpr, value: &str) -> Option<u32> {
@@ -301,25 +130,6 @@ fn literal_body_base(source: &str, word: &WordExpr, value: &str) -> Option<u32> 
     (interior == value)
         .then(|| span.start().checked_add(1))
         .flatten()
-}
-
-fn literal_list_element_offset(
-    text: &str,
-    element: usize,
-    value: &str,
-    syntax: tcl_dialect::ListParse,
-) -> Option<u32> {
-    let mut next = 0;
-    for index in 0..=element {
-        let item = tcl_syntax::list::find_element_with_syntax(text, next, syntax)
-            .ok()
-            .flatten()?;
-        next = item.next;
-        if index == element && text.get(item.value.clone()) == Some(value) {
-            return u32::try_from(item.value.start).ok();
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -361,7 +171,7 @@ mod tests {
             config,
         )
         .unwrap();
-        let body = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let body = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             &parsed.commands[0].words[3],
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             dialect.authored_name_policy().unwrap(),

@@ -17,10 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::sync::Arc;
+use tcl_compiler::command_binding::SourceExecutionContext;
 use tcl_compiler::command_binding::compiled_preflight::ordered_locals::*;
 use tcl_compiler::command_binding::formal_topology::OriginalFormalTopology;
-use tcl_compiler::command_binding::{CommandAllocationSite, SourceExecutionContext};
 use tcl_core_types::NameBytes;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_compilation::{
     NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
 };
@@ -40,8 +41,8 @@ mod original_native_request_fixtures {
 mod original_native_request_tests {
     use std::hash::{Hash, Hasher};
     use std::sync::Arc;
-    use tcl_compiler::command_binding::CommandAllocationSite;
     use tcl_compiler::command_binding::compiled_preflight::ordered_locals::*;
+    use tcl_names::command::CommandAllocationSite;
 
     fn retained_locals(
         fixture: &super::original_native_request_fixtures::CompiledFixture,

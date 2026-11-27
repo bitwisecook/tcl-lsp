@@ -170,7 +170,7 @@ impl OriginalSourceCommandAvailability {
         let Some(lookup) = self.native_lookup() else {
             return false;
         };
-        let before = |site: &crate::command_binding::CommandAllocationSite| {
+        let before = |site: &tcl_names::command::CommandAllocationSite| {
             !enforce_order || site.offset < self.original_head().span().start()
         };
         let procedures = analysis

@@ -400,7 +400,7 @@ pub enum SourceCommandTransitionObligation {
 /// Complete source operation and the exact Registry-authored transition recipe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceCommandTransition {
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     inputs: Vec<(TransitionSubject, SourceAdviceNameInput)>,
     descriptor: String,
@@ -410,7 +410,7 @@ pub struct OriginalSourceCommandTransition {
 impl OriginalSourceCommandTransition {
     /// Actual original source origin and lexical site, without a runtime point.
     #[must_use]
-    pub const fn site(&self) -> &super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Whole original source vector, never reconstructed from reported names.
@@ -507,7 +507,7 @@ impl OriginalSourceCatalogueBody {
 /// reflection equivalence or syntax-compaction authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceCommandTransitionAdvice {
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     head: SourceAdviceNameInput,
     arguments: Vec<SourceAdviceWord>,
@@ -699,7 +699,7 @@ struct AdviceGraph {
     class_declarations: Vec<Arc<OriginalSourceClassDeclaration>>,
     future_procedure_source: bool,
     procedure_namespace: Option<ByteNamespacePath>,
-    procedure_path: Vec<super::CommandAllocationSite>,
+    procedure_path: Vec<tcl_names::command::CommandAllocationSite>,
     procedure_steps: Arc<std::sync::atomic::AtomicUsize>,
     decoded_phase_steps: Arc<std::sync::atomic::AtomicUsize>,
     handles: Vec<(
@@ -730,7 +730,7 @@ struct JimAliasSourceOperands<'a> {
 }
 
 struct AdviceTapeInputs<'a> {
-    origin: &'a Arc<super::SourceOriginId>,
+    origin: &'a Arc<tcl_names::origin::SourceOriginId>,
     config: LexerConfig,
     policy: AdviceNamingPolicy,
     dialect: InvocationDialect,
@@ -751,7 +751,7 @@ enum SourceAdviceQuery<'a> {
 }
 
 struct AdviceInvocationContext<'a> {
-    origin: &'a Arc<super::SourceOriginId>,
+    origin: &'a Arc<tcl_names::origin::SourceOriginId>,
     context: &'a ContextRegistry,
     config: LexerConfig,
     dialect: InvocationDialect,

@@ -33,7 +33,7 @@ pub enum ExecutionRegionDependency {
         /// Original scoped source binding, retaining conditional reachability.
         binding: Box<crate::command_binding::SourceInvocationBinding>,
         /// Exact accepted declaration activation layout.
-        frame: crate::var_resolve::VariableExecutionFrame,
+        frame: tcl_names::variable::VariableExecutionFrame,
     },
     /// Conditional lifecycle phase-entry interpretation in its declared frame.
     ConditionalPhaseDispatch {
@@ -42,7 +42,7 @@ pub enum ExecutionRegionDependency {
         /// Scoped original phase snapshot; no actual phase entry is granted.
         binding: Box<crate::command_binding::SourceInvocationBinding>,
         /// Original declaration activation retained by the phase owner.
-        frame: crate::var_resolve::VariableExecutionFrame,
+        frame: tcl_names::variable::VariableExecutionFrame,
     },
     /// Every completed scoped declaration traversal omits this phase.
     /// This describes the selected handler condition, not actual execution.
@@ -155,21 +155,21 @@ pub struct PossibleBodyRegion {
 /// authority. A missing receipt means unavailable advice, not an empty body.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConditionalBodySource {
-    source: crate::command_binding::ExecutedScriptSource,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    source: tcl_names::origin::ExecutedScriptSource,
+    frame: tcl_names::variable::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
 }
 
 impl ConditionalBodySource {
     pub(crate) fn new(
-        source: crate::command_binding::ExecutedScriptSource,
-        frame: crate::var_resolve::VariableExecutionFrame,
+        source: tcl_names::origin::ExecutedScriptSource,
+        frame: tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Self> {
-        (!matches!(frame, crate::var_resolve::VariableExecutionFrame::Unknown)
+        (!matches!(frame, tcl_names::variable::VariableExecutionFrame::Unknown)
             && matches!(
                 source.mapping,
-                crate::command_binding::ExecutedScriptMapping::Contiguous { .. }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
             ))
         .then_some(Self {
             source,
@@ -180,13 +180,13 @@ impl ConditionalBodySource {
 
     /// Exact unchanged source slice, with its original source instance and base.
     #[must_use]
-    pub fn source(&self) -> &crate::command_binding::ExecutedScriptSource {
+    pub fn source(&self) -> &tcl_names::origin::ExecutedScriptSource {
         &self.source
     }
 
     /// Frame in which the selected handler would interpret this body.
     #[must_use]
-    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 

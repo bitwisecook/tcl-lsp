@@ -204,7 +204,7 @@ impl OriginalDeclaredLogicalBodyContext {
         parent: Option<Arc<Self>>,
     ) -> Option<Self> {
         let (_, _, content, namespace) = lambda.frame_source(input)?;
-        let crate::signature_scan::scope::SignatureNamespaceScope::C(namespace) = namespace else {
+        let tcl_names::namespace::SignatureNamespaceScope::C(namespace) = namespace else {
             return None;
         };
         if parent.as_ref().is_some_and(|parent| {
@@ -269,7 +269,7 @@ impl OriginalDeclaredLogicalBodyContext {
                 OriginalLogicalBodyOrigin::Lambda(lambda) => lambda.matches_source(self.scope.original_container().image(), input)
                     && matches!(self.frame, OriginalDeclaredSourceBodyFrame::Lambda | OriginalDeclaredSourceBodyFrame::Global)
                     && Arc::ptr_eq(lambda.body(), &self.scope)
-                    && (lambda.namespace() == &crate::signature_scan::scope::SignatureNamespaceScope::C(self.namespace.clone())
+                    && (lambda.namespace() == &tcl_names::namespace::SignatureNamespaceScope::C(self.namespace.clone())
                         || self.selected_frame.as_ref().is_some_and(|selected| selected.matches(input))),
             }
             && self.selected_frame.as_ref().is_none_or(|frame| {

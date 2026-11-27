@@ -19,21 +19,12 @@
 //! Actual bounded object allocations, distinct from nominal type labels.
 
 use super::{
-    AllocationIncarnation, Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget,
-    SourceExecutionContext, SourceInvocationBinding, SourceOutcomes, SourceVariableAccess,
+    Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
+    SourceInvocationBinding, SourceOutcomes, SourceVariableAccess,
 };
 use std::collections::BTreeMap;
-
-/// One reached object allocation in its actual caller activation.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SourceObjectAllocation {
-    /// Exact source instruction that invoked the manufacturer.
-    pub site: CommandAllocationSite,
-    /// Frame in which that invocation was evaluated.
-    pub frame: crate::var_resolve::VariableExecutionFrame,
-    /// Bounded execution incarnation; repeated families supply no unique proof.
-    pub incarnation: AllocationIncarnation,
-}
+use tcl_names::command::{AllocationIncarnation, CommandAllocationSite};
+use tcl_names::variable::SourceObjectAllocation;
 
 /// A reached object allocation whose current dispatch is closed. Constructor
 /// completion is independent; only a successful manufacture publishes a result.
@@ -126,7 +117,7 @@ impl SourceInvocationBinding {
                 let Some(definition) = state.class_definitions.get(identity) else {
                     return false;
                 };
-                if target.kind != super::BindingKind::Class
+                if target.kind != tcl_names::command::BindingKind::Class
                     || definition.dispatcher.is_some()
                     || target.implementation_generation != definition.implementation_generation
                     || state.tainted_object_dispatch.contains("*")
@@ -332,9 +323,9 @@ impl SourceInvocationBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ObjectStore {
-    receiver: crate::place::Place,
+    receiver: tcl_names::place::Place,
     origin: crate::var_resolve::ContentsOrigin,
-    source: Option<Arc<super::SourceOriginId>>,
+    source: Option<Arc<tcl_names::origin::SourceOriginId>>,
     proof: Arc<SourceObjectInstanceProof>,
 }
 
@@ -346,13 +337,13 @@ pub(super) struct SourceObjectState {
     pub(super) receiver_dispatcher_generation: Option<u64>,
     allocations: Vec<(
         CommandAllocationSite,
-        crate::var_resolve::VariableExecutionFrame,
+        tcl_names::variable::VariableExecutionFrame,
         u8,
     )>,
-    stores: crate::var_resolve::VariableCellTable<ObjectStore>,
+    stores: tcl_names::variable::VariableCellTable<ObjectStore>,
     pub(super) prefix_stores:
-        crate::var_resolve::VariableCellTable<super::method_prefix::MethodPrefixStore>,
-    pub(super) named: BTreeMap<super::CommandIdentity, Arc<SourceObjectInstanceProof>>,
+        tcl_names::variable::VariableCellTable<super::method_prefix::MethodPrefixStore>,
+    pub(super) named: BTreeMap<tcl_names::command::CommandIdentity, Arc<SourceObjectInstanceProof>>,
     pub(super) receivers: BTreeMap<String, Arc<SourceObjectInstanceProof>>,
 }
 
@@ -364,8 +355,8 @@ impl Default for SourceObjectState {
             class_delegate_generation: Some(0),
             receiver_dispatcher_generation: Some(0),
             allocations: Vec::new(),
-            stores: crate::var_resolve::VariableCellTable::default(),
-            prefix_stores: crate::var_resolve::VariableCellTable::default(),
+            stores: tcl_names::variable::VariableCellTable::default(),
+            prefix_stores: tcl_names::variable::VariableCellTable::default(),
             named: BTreeMap::new(),
             receivers: BTreeMap::new(),
         }
@@ -494,12 +485,12 @@ impl SourceObjectState {
         self.receivers.clear();
     }
 
-    pub(super) fn invalidate_writes(&mut self, writes: &[crate::place::Place]) {
+    pub(super) fn invalidate_writes(&mut self, writes: &[tcl_names::place::Place]) {
         self.prefix_stores.retain(|_, store| {
             !writes.iter().any(|write| {
                 write.dynamic
                     || write.observed
-                    || write.kind == crate::place::PlaceKind::Unknown
+                    || write.kind == tcl_names::place::PlaceKind::Unknown
                     || (write.cell == store.receiver.cell
                         && (write.index.is_none() || write.index == store.receiver.index))
             })
@@ -508,7 +499,7 @@ impl SourceObjectState {
             !writes.iter().any(|write| {
                 write.dynamic
                     || write.observed
-                    || write.kind == crate::place::PlaceKind::Unknown
+                    || write.kind == tcl_names::place::PlaceKind::Unknown
                     || (write.cell == store.receiver.cell
                         && (write.index.is_none() || write.index == store.receiver.index))
             })
@@ -637,7 +628,7 @@ impl ModuleCommandBindings {
             .values()
             .any(|place| {
                 if !matches!(place.cell.as_ref().map(|cell| &cell.owner),
-                Some(crate::place::CellOwner::AllocatedInstance(owner)) if **owner == *allocation)
+                Some(tcl_names::place::CellOwner::AllocatedInstance(owner)) if **owner == *allocation)
                 {
                     return false;
                 }
@@ -672,7 +663,7 @@ impl ModuleCommandBindings {
     }
     pub(super) fn object_read_proof(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Arc<SourceObjectInstanceProof>> {
         if place.dynamic || place.observed || self.opaque_domain {
@@ -705,7 +696,7 @@ impl ModuleCommandBindings {
             || !class.prepended.is_empty()
             || matches!(
                 context.frame,
-                crate::var_resolve::VariableExecutionFrame::Unknown
+                tcl_names::variable::VariableExecutionFrame::Unknown
             )
         {
             return None;
@@ -915,11 +906,11 @@ pub(super) fn retain_value_formals(
         );
         if slot.dynamic
             || slot.observed
-            || slot.kind != crate::place::PlaceKind::Scalar
+            || slot.kind != tcl_names::place::PlaceKind::Scalar
             || slot.index.is_some()
             || !variables.read_produces_value(&slot, context.registry)
             || !matches!(slot.cell.as_ref().map(|cell| &cell.owner),
-                Some(crate::place::CellOwner::Activation(owner)) if variables.activation.as_ref() == Some(owner))
+                Some(tcl_names::place::CellOwner::Activation(owner)) if variables.activation.as_ref() == Some(owner))
             || variables.contents_origin(&slot) != crate::var_resolve::ContentsOrigin::Incoming
         {
             continue;

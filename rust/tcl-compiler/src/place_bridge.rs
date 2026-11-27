@@ -34,7 +34,6 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
-use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{
     command_subst_texts_with_config, scan_var_ref_forms_braced_with_config, vars_in_expr,
@@ -42,6 +41,8 @@ use crate::var_refs::{
 use crate::var_resolve::ResolveContext;
 #[cfg(test)]
 use crate::var_resolve::resolve_place;
+use tcl_names::place;
+use tcl_names::place::{Place, PlaceKind, overlap, places_read_to_form};
 #[cfg(test)]
 use tcl_source::segment::segment_commands_with_offset_and_config;
 
@@ -292,7 +293,7 @@ pub(crate) fn ssa_destruction_keys(
     after: &ResolveContext,
     registry: &CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'_>>,
-) -> Vec<(crate::var_resolve::VariableCellKey, bool)> {
+) -> Vec<(tcl_names::variable::VariableCellKey, bool)> {
     let actual: Vec<_> = statement_destruction_places_with_continuation_with_metadata_context(
         statement, before, after, registry, metadata,
     )
@@ -568,7 +569,7 @@ fn def_places_with_continuation_with_metadata_context(
             if place
                 .cell
                 .as_ref()
-                .is_some_and(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+                .is_some_and(|cell| cell.generation == tcl_names::place::CellGeneration::Unknown)
                 && let Some(continued) = after_places.iter().find(|continued| {
                     continued.ns == place.ns
                         && continued.name == place.name
@@ -668,7 +669,7 @@ pub fn def_places_at(
                 .into_iter()
                 .map(|place| {
                     if place.cell.as_ref().is_some_and(|cell| {
-                        cell.generation == crate::place::CellGeneration::Unknown
+                        cell.generation == tcl_names::place::CellGeneration::Unknown
                     }) && let Some(selected) = continued.iter().find(|selected| {
                         selected.index == place.index
                             && selected.cell.as_ref().zip(place.cell.as_ref()).is_some_and(
@@ -1362,7 +1363,7 @@ pub fn terminator_read_places(
 /// key path).  Dynamic indices never compare equal — they keep the
 /// conservative behaviour.
 fn same_literal_element(a: &Place, b: &Place) -> bool {
-    use crate::place::IndexKind;
+    use tcl_names::place::IndexKind;
     if a.kind != b.kind || a.ns != b.ns || a.name != b.name || a.cell != b.cell {
         return false;
     }
@@ -1402,7 +1403,7 @@ fn must_alias_killed_in_block(
     points: &PointResolveContexts,
     registry: &CommandRegistry,
 ) -> bool {
-    use crate::place::IndexKind;
+    use tcl_names::place::IndexKind;
     let def_is_literal = match def_place.kind {
         PlaceKind::ArrayElem => def_place
             .index
@@ -1624,7 +1625,7 @@ fn must_replace_contents(replacement: &Place, original: &Place) -> bool {
         && replacement.kind == original.kind
         && matches!(replacement.kind, PlaceKind::Scalar | PlaceKind::ArrayElem)
         && replacement.cell.as_ref().is_some_and(|cell| {
-            cell.generation != crate::place::CellGeneration::Unknown
+            cell.generation != tcl_names::place::CellGeneration::Unknown
                 && original.cell.as_ref() == Some(cell)
         })
         && crate::var_resolve::canonical_binding_value_key(replacement)

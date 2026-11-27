@@ -135,7 +135,7 @@ fn original_expression_read_capture_restores_nested_owner_and_rejects_foreign_fr
     let capture = bindings.begin_expression_read_capture(&proof, &frame);
     bindings.capture_current_expression_read(
         &script.origin,
-        &crate::var_resolve::VariableExecutionFrame::Unknown,
+        &tcl_names::variable::VariableExecutionFrame::Unknown,
         &read,
     );
     assert_eq!(
@@ -210,13 +210,13 @@ fn a_control_expression_retains_its_actual_original_operand_mapping() {
     let reads = bindings.variable_accesses_during_expression_invocation(invocation);
     assert!(reads.iter().any(|read| read.source == variable_site));
     let mut foreign_parent = proof.clone();
-    foreign_parent.invocation.source = Arc::new(super::super::SourceOriginId::authored(
+    foreign_parent.invocation.source = Arc::new(tcl_names::origin::SourceOriginId::authored(
         &Arc::from("foreign"),
     ));
     assert!(foreign_parent.original_variable_source(left).is_none());
     let mut missing = proof.clone();
     missing.executed_expression = None;
-    if missing.source.mapping == super::super::ExecutedScriptMapping::Materialised {
+    if missing.source.mapping == tcl_names::origin::ExecutedScriptMapping::Materialised {
         assert!(missing.original_variable_source(left).is_none());
     }
 }
@@ -423,7 +423,7 @@ fn assert_replaced_expression_target(
         super::super::SourceRuntimeReachability::Reached
     );
     assert_eq!(target.command, "::expr");
-    assert_eq!(target.kind, super::super::BindingKind::Proc);
+    assert_eq!(target.kind, tcl_names::command::BindingKind::Proc);
     assert!(!target.registry_backed);
     assert!(target.matches_authored_implementation(
         source,
@@ -439,7 +439,7 @@ fn assert_nested_owner_refusals(
     profile_name: &str,
 ) {
     let mut wrong_frame = binding.clone();
-    wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+    wrong_frame.variable_frame = tcl_names::variable::VariableExecutionFrame::Global;
     eprintln!(
         "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
         binding.variable_frame,
@@ -815,7 +815,7 @@ fn evaluated_expression_source_cannot_replace_original_advisory_owner() {
         observation.issuer == ExpressionEvaluationIssuer::EvaluatedSource
             && matches!(
                 observation.source.mapping,
-                super::super::ExecutedScriptMapping::Materialised
+                tcl_names::origin::ExecutedScriptMapping::Materialised
             )
     }));
     let original = binding

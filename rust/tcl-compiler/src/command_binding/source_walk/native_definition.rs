@@ -18,16 +18,16 @@
 
 //! Native definitions: closed procedures, callable statics and the deferred bodies they register.
 
-use super::super::command_identity::CommandAllocationSite;
 use super::super::{
     DeferredImplementationId, DeferredSourceBody, ModuleCommandBindings, SourceCommandBindings,
-    SourceCommandKey, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
-    formal_topology, original_class_factory_transfer, original_command_table,
+    SourceExecutionContext, SourceNativeInvocation, SourceOutcomes, formal_topology,
+    original_class_factory_transfer, original_command_table,
 };
 use super::body_flow::{evaluated_script_realm, retained_script_operand};
 use super::native_transfer::transfer_native_invocation;
 use super::outcomes::{boxed_source_branch, opaque_source_invocation};
 use std::sync::Arc;
+use tcl_names::command::{CommandAllocationSite, SourceCommandKey};
 use tcl_registry::{InvocationFacts, StateTransition};
 
 pub(in super::super) fn native_procedure_parameters(
@@ -161,7 +161,8 @@ fn prepare_source_callable_statics(
     Option<crate::raw_binding::CapturedStaticBindings>,
     crate::raw_binding::StaticCaptureResult,
 > {
-    use crate::raw_binding::{CallableStorageIdentity, StaticCaptureResult as Capture};
+    use crate::raw_binding::StaticCaptureResult as Capture;
+    use tcl_names::variable::CallableStorageIdentity;
     use tcl_registry::native_procedure::NativeProcedureDefinitionSelection as Definition;
     let Some(Definition::Valid(definition)) = facts.procedure_definition else {
         return Ok(None);

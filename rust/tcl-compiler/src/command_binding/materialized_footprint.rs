@@ -19,11 +19,13 @@
 //! Conditional materialized text footprints anchored at an original source lookup.
 
 use super::original_name_value::OriginalWordSourcePurpose;
+use crate::command_binding::SourceOriginLexical;
 
-use super::{ModuleCommandBindings, SourceInvocationBinding, SourceNamespaceKey};
+use super::{ModuleCommandBindings, SourceInvocationBinding};
 use crate::ir::CommandTokens;
 use crate::registry_invocation::InvocationMetadataContext;
 use tcl_lexer::LexerConfig;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 #[cfg(test)]
@@ -176,7 +178,7 @@ impl SourceInvocationBinding {
         let advice = self.original_logical_declaration_layout_advice(tokens)?;
         if !advice.closed_logical_source_lookup()
             || advice.targets().iter().any(|target| {
-                target.kind != super::BindingKind::Proc
+                target.kind != tcl_names::command::BindingKind::Proc
                     || target.implementation_allocation.is_none()
             })
         {
@@ -257,7 +259,7 @@ impl SourceInvocationBinding {
         let allocation = first.implementation_allocation.as_ref()?;
         if (!logical && (self.unknown || self.may_be_absent || self.targets != targets))
             || targets.iter().any(|target| {
-                target.kind != super::BindingKind::Proc
+                target.kind != tcl_names::command::BindingKind::Proc
                     || target.registry_backed
                     || target.command != first.command
                     || target.implementation_allocation.as_ref() != Some(allocation)
@@ -821,7 +823,7 @@ impl SourceInvocationBinding {
     fn trace_materialized_footprint_state(
         &self,
         state: &ModuleCommandBindings,
-        site: &super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         source: &str,
         registry: &CommandRegistry,
         config: LexerConfig,
@@ -963,9 +965,12 @@ impl SourceInvocationBinding {
     }
 }
 
-fn original_module_origin(origin: &super::SourceOriginId, module: &crate::ir::Module) -> bool {
+fn original_module_origin(
+    origin: &tcl_names::origin::SourceOriginId,
+    module: &crate::ir::Module,
+) -> bool {
     let mut origin = origin;
-    while let super::SourceOriginKind::Derived { parent, .. } = origin.kind() {
+    while let tcl_names::origin::SourceOriginKind::Derived { parent, .. } = origin.kind() {
         origin = &parent.source;
     }
     origin.source_image() == &module.source

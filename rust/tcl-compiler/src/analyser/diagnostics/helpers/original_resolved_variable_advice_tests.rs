@@ -35,7 +35,7 @@ fn authored_startup_advice_preserves_literal_dollars_and_exact_global_aliases() 
         ("$argv(k)", "$argv"),
         ("é(k)", "é"),
     ] {
-        let cell = crate::var_resolve::VariableCellKey::Authored(name.to_owned());
+        let cell = tcl_names::variable::VariableCellKey::Authored(name.to_owned());
         assert_eq!(startup_cell_binding(&cell, true, &empty), (expected, true));
     }
     assert!(!has_global_startup_binding("$::argv", false, &empty));

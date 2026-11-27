@@ -20,9 +20,9 @@
 
 use super::DeclaredProcedureBody;
 use crate::command_binding::{
-    AllocationIncarnation, Arc, BindingKind, CommandAllocationSite, MayBinding,
-    ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    Arc, MayBinding, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
 };
+use tcl_names::command::{AllocationIncarnation, BindingKind, CommandAllocationSite};
 
 pub(in crate::command_binding) struct OriginalLogicalBodyEntry {
     body: Arc<DeclaredProcedureBody>,
@@ -71,7 +71,7 @@ impl OriginalLogicalBodyEntry {
             || !Arc::ptr_eq(&body.source.origin, &site.source)
             || !matches!(
                 body.source.mapping,
-                crate::command_binding::ExecutedScriptMapping::Contiguous { .. }
+                tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
             )
             || !incoming.namespaces.contains(&body.namespace)
         {
@@ -234,7 +234,8 @@ pub(in crate::command_binding) fn current_entry(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command_binding::{SourceAnalysisOptions, SourceOriginId};
+    use crate::command_binding::SourceAnalysisOptions;
+    use tcl_names::origin::SourceOriginId;
 
     fn analyse(source: &str) -> SourceCommandBindings {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -265,7 +266,7 @@ mod tests {
                     && usize::try_from(point.offset).unwrap() == offset
                     && matches!(
                         point.state.variable_frame.layout(),
-                        crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        tcl_names::variable::VariableExecutionFrame::Procedure { .. }
                     )
             })
     }
@@ -297,7 +298,7 @@ mod tests {
         );
         assert!(matches!(
             bindings.final_state.variable_frame.layout(),
-            crate::var_resolve::VariableExecutionFrame::Global
+            tcl_names::variable::VariableExecutionFrame::Global
         ));
     }
 

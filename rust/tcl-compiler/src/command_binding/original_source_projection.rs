@@ -18,6 +18,10 @@
 
 //! Derived lexical projections of one immutable original source instance.
 
+#[cfg(test)]
+use crate::command_binding::SourceOriginLexical;
+#[cfg(test)]
+use crate::command_binding::SourceOriginProjection;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -164,8 +168,8 @@ impl OriginalSourceProjectionMemo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command_binding::SourceOriginId;
     use crate::ir::CommandTokens;
+    use tcl_names::origin::SourceOriginId;
     use tcl_source::words::Provenance;
 
     fn original_words(image: &SourceImage, config: LexerConfig) -> (u32, Vec<WordExpr>) {

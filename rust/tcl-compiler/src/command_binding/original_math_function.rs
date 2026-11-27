@@ -19,11 +19,9 @@
 //! Original expression identifiers and their distinct function lookup purpose.
 
 use super::declaration_layout::{DeclarationLayoutObservation, original_declaration_layouts};
-use super::{
-    Arc, CommandAllocationSite, SourceCommandBindings, SourceCommandReference,
-    SourceInvocationBinding,
-};
+use super::{Arc, SourceCommandBindings, SourceCommandReference, SourceInvocationBinding};
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::mathfunc::NativeMathFunctionDispatch;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -81,7 +79,7 @@ impl OriginalMathFunctionWordMemo {
 /// result, function registration or native compiler capability.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalMathFunctionOccurrence {
-    source: Arc<super::SourceOriginId>,
+    source: Arc<tcl_names::origin::SourceOriginId>,
     config: LexerConfig,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     registry: tcl_registry::RegistrySemanticKey,
@@ -104,7 +102,10 @@ pub struct OriginalMathFunctionOccurrence {
 struct OriginalMathFunctionLookup {
     name: tcl_registry::mathfunc::NativeExpressionFunctionCommandName,
     policy: tcl_syntax::naming::NamePolicyProtocol,
-    observations: Vec<(Arc<super::SourceLookupSnapshot>, super::SourceNamespaceKey)>,
+    observations: Vec<(
+        Arc<super::SourceLookupSnapshot>,
+        tcl_names::namespace::SourceNamespaceKey,
+    )>,
 }
 
 /// A fixed-table identifier retains its separate original snapshot purpose.
@@ -197,13 +198,13 @@ impl OriginalMathFunctionOccurrence {
 
     /// Original expression namespace identity; no current lookup is implied.
     #[must_use]
-    pub fn namespace(&self) -> &super::SourceNamespaceKey {
+    pub fn namespace(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         self.expression.namespace_context()
     }
 
     /// Conditional original expression frame, without entered-frame authority.
     #[must_use]
-    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         self.expression.frame()
     }
 

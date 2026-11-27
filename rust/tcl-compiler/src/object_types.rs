@@ -105,7 +105,7 @@ pub enum ObjectFactOwner {
     /// A genuine original declaring class allocation.
     OriginalClass {
         /// Original declaring provider, separate from the current receiver.
-        allocation: crate::command_binding::CommandAllocation,
+        allocation: tcl_names::command::CommandAllocation,
         /// Advisory declared-state axis, without object allocation authority.
         receiver: ObjectScopeReceiver,
     },
@@ -164,7 +164,7 @@ pub struct PhysicalObjectTypeReadEvidence {
     unit: String,
     frame: BodyFrameId,
     variable: String,
-    place: crate::place::Place,
+    place: tcl_names::place::Place,
     value: crate::ssa::ValueKey,
     class: String,
 }
@@ -202,7 +202,7 @@ impl PhysicalObjectTypeReadEvidence {
 
     /// Closed physical address and lifetime selected at the read.
     #[must_use]
-    pub fn place(&self) -> &crate::place::Place {
+    pub fn place(&self) -> &tcl_names::place::Place {
         &self.place
     }
 
@@ -309,7 +309,7 @@ impl ObjectHandleFacts {
         &self,
         target: &crate::command_binding::SourceCommandTarget,
     ) -> Option<&crate::types::TypeLattice> {
-        (target.kind == crate::command_binding::BindingKind::Proc).then_some(())?;
+        (target.kind == tcl_names::command::BindingKind::Proc).then_some(())?;
         self.normal_procedure_results
             .get(target.implementation_allocation.as_ref()?)
     }
@@ -763,7 +763,7 @@ fn physical_object_type_read(
     let place = places.first()?;
     if place.dynamic
         || place.observed
-        || place.cell.as_ref()?.generation == crate::place::CellGeneration::Unknown
+        || place.cell.as_ref()?.generation == tcl_names::place::CellGeneration::Unknown
         || places.iter().any(|other| other != place)
     {
         return None;

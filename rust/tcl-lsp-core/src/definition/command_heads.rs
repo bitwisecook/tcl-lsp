@@ -325,7 +325,7 @@ pub(super) fn resolved_indirect_head_target(
         invocation.resolved_definition.as_ref()
     };
     if let Some(definition) = definition {
-        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+        let tcl_names::origin::SourceOriginKind::Authored(source) =
             definition.allocation().site.source.kind()
         else {
             return None;
@@ -385,7 +385,7 @@ pub(crate) fn resolved_indirect_head_proc(
         invocation.resolved_definition.as_ref()
     };
     if let Some(definition) = definition {
-        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+        let tcl_names::origin::SourceOriginKind::Authored(source) =
             definition.allocation().site.source.kind()
         else {
             return None;
@@ -405,7 +405,7 @@ pub(crate) fn resolved_indirect_head_proc(
 /// This retains caller geometry without proving loading or a callable target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalAutoloadRequest {
-    pub(super) name: tcl_compiler::signature_scan::original_name::SignatureSourceNameKey,
+    pub(super) name: tcl_names::word::SignatureSourceNameKey,
     invocation: tcl_compiler::command_binding::SourceInvocationBinding,
     unresolved_lookup: Option<tcl_compiler::command_binding::OriginalCommandLookup>,
 }

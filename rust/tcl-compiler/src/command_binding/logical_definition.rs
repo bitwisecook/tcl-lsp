@@ -19,12 +19,13 @@
 //! A selected Logical procedure definition changes only the authored model.
 
 use super::{
-    Arc, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandKey, SourceCommandTarget, SourceExecutionContext,
-    SourceNamespaceKey, SourceOutcomes, source_binding_projection,
+    Arc, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandTarget,
+    SourceExecutionContext, SourceOutcomes, source_binding_projection,
 };
 use crate::analyser::ResolvedAnalysisInput;
 use tcl_lexer::{NativeWord, SourceChannel};
+use tcl_names::command::{BindingKind, CommandAllocationSite, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 
 struct LogicalProcedureDefinition {
     input: ResolvedAnalysisInput,
@@ -328,7 +329,10 @@ fn original_entry_words(
 ) -> Option<Vec<NativeWord>> {
     let origin = state.current_source_origin.as_ref()?;
     if origin.source_image().channel() != SourceChannel::Document
-        || !matches!(origin.kind(), super::SourceOriginKind::Authored(_))
+        || !matches!(
+            origin.kind(),
+            tcl_names::origin::SourceOriginKind::Authored(_)
+        )
         || offset != context.invocation_offset
         || state.variable_frame != *context.frame
         || state.source_variables.namespace != context.namespace
@@ -975,7 +979,9 @@ proc p "other {last default}" {return SECOND}"#;
             ..SourceAnalysisOptions::default()
         };
         let source = tcl_lexer::SourceImage::document("proc café {élan} {return $élan}");
-        let origin = Arc::new(super::super::SourceOriginId::authored_image(source.clone()));
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
+            source.clone(),
+        ));
         let mut state = ModuleCommandBindings::initial_with_options(
             registry,
             options,
@@ -983,7 +989,7 @@ proc p "other {last default}" {return SECOND}"#;
         );
         state.current_source_origin = Some(Arc::clone(&origin));
         let namespace = SourceNamespaceKey::authored("::");
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let context = super::super::root_source_execution_context(
             &frame,
             "::",
@@ -1014,7 +1020,7 @@ proc p "other {last default}" {return SECOND}"#;
         };
         let mut foreign_source = state.clone();
         foreign_source.current_source_origin =
-            Some(Arc::new(super::super::SourceOriginId::authored_image(
+            Some(Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                 tcl_lexer::SourceImage::document("proc other {value} {return $value}"),
             )));
         assert!(proof().apply(&mut foreign_source, context).is_none());

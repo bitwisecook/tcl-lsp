@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::signature_scan::original_name::SignatureSourceNameKey;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::{naming::ExecutionNamePolicy, word_rules::WordValueRules};
 
 fn value(source: &[u8], context: &ResolveContext) -> OriginalProducedNameValue {

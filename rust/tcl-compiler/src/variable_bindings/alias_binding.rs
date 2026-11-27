@@ -20,9 +20,9 @@
 
 use super::alias_targets::{alias_name_target, alias_target, original_alias_target};
 use super::{AliasBindingValues, OriginalVariableInvocation};
-use crate::place;
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::{ResolveContext, cell_key, resolve_literal_access};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use tcl_registry::{
     CallerFrameSelection, CommandRegistry, StateTransition, VariableAliasTarget,
     VariableCellAliasTransition,
@@ -442,7 +442,7 @@ fn bind_alias_values_with_compiled_local(
     let local = alias.local.literal();
     let key = match (&original_slot, local) {
         (Some(slot), _) => cell_key(slot),
-        (None, Some(local)) => crate::var_resolve::VariableCellKey::Authored(local.to_owned()),
+        (None, Some(local)) => tcl_names::variable::VariableCellKey::Authored(local.to_owned()),
         (None, None) => {
             state.widen();
             return;
@@ -499,7 +499,7 @@ fn selected_alias_binding_validity(
     alias: AliasBindingValues<'_>,
     registry: &CommandRegistry,
     original_slot: Option<&Place>,
-    key: &crate::var_resolve::VariableCellKey,
+    key: &tcl_names::variable::VariableCellKey,
     target: &Place,
 ) -> AliasBindingValidity {
     original_slot.map_or_else(
@@ -532,7 +532,7 @@ fn install_alias_binding(
     alias: AliasBindingValues<'_>,
     registry: &CommandRegistry,
     original_slot: Option<&Place>,
-    key: crate::var_resolve::VariableCellKey,
+    key: tcl_names::variable::VariableCellKey,
     target: Place,
     operands: Option<&OriginalVariableInvocation>,
 ) {

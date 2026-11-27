@@ -22,6 +22,7 @@ use super::{
     Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
     SourceInvocationBinding, SourceObjectInstanceProof, SourceOutcomes, SourceReceiverMethodEntry,
 };
+use crate::command_binding::ExecutedScriptWords;
 
 /// Original method selector captured with an actual object command prefix.
 /// This supplies declaration navigation at registration, never callback execution.
@@ -31,16 +32,19 @@ pub struct SourceCapturedMethodPrefix {
     entry: SourceReceiverMethodEntry,
     selector: tcl_source::words::WordExpr,
     selector_input: crate::signature_scan::scope::SignatureSourceNameInput,
-    capture: super::CommandAllocationSite,
+    capture: tcl_names::command::CommandAllocationSite,
     builder: SourceCommandTarget,
     self_scope: Option<CapturedSelfScope>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct CapturedSelfScope {
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     dispatcher_generation: u64,
-    wrapper: Option<(SourceCommandTarget, super::CommandAllocationSite)>,
+    wrapper: Option<(
+        SourceCommandTarget,
+        tcl_names::command::CommandAllocationSite,
+    )>,
 }
 
 impl SourceCapturedMethodPrefix {
@@ -69,7 +73,7 @@ impl SourceCapturedMethodPrefix {
     }
     /// Exact source instance and instruction of the native builder.
     #[must_use]
-    pub fn capture_site(&self) -> &super::CommandAllocationSite {
+    pub fn capture_site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.capture
     }
 
@@ -161,7 +165,7 @@ pub(super) fn retain_created_prefix(
         entry: entry.clone(),
         selector: selector.clone(),
         selector_input: name.clone(),
-        capture: super::CommandAllocationSite {
+        capture: tcl_names::command::CommandAllocationSite {
             source: Arc::clone(origin),
             offset: native.segment.span.start(),
         },
@@ -193,7 +197,7 @@ fn prefix_receiver(
     }
     let receiver = normal.active_method_receiver(context.frame)?;
     let origin = normal.current_source_origin.as_ref()?;
-    super::ExecutedScriptSource::literal_word_base(
+    tcl_names::origin::ExecutedScriptSource::literal_word_base(
         super::executed_script_source::source_text(origin)?,
         native.words.get(1)?,
         head,
@@ -255,7 +259,7 @@ pub(super) fn retain_scoped_prefix(
     let mut captured = prefix.as_ref().clone();
     captured.self_scope.as_mut().unwrap().wrapper = Some((
         native.target.clone(),
-        super::CommandAllocationSite {
+        tcl_names::command::CommandAllocationSite {
             source: Arc::clone(origin),
             offset: native.segment.span.start(),
         },
@@ -265,9 +269,9 @@ pub(super) fn retain_scoped_prefix(
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct MethodPrefixStore {
-    pub(super) receiver: crate::place::Place,
+    pub(super) receiver: tcl_names::place::Place,
     pub(super) source: u32,
-    pub(super) origin: Arc<super::SourceOriginId>,
+    pub(super) origin: Arc<tcl_names::origin::SourceOriginId>,
     pub(super) prefix: Arc<SourceCapturedMethodPrefix>,
 }
 
@@ -346,7 +350,7 @@ pub(super) fn retain_prefix_store(
 
 pub(super) fn read_prefix(
     state: &ModuleCommandBindings,
-    place: &crate::place::Place,
+    place: &tcl_names::place::Place,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<Arc<SourceCapturedMethodPrefix>> {
     if state.opaque_domain

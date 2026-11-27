@@ -19,9 +19,9 @@
 //! Namespace deletion: the places it destroys and the retirement of cells, observers and links in the original namespace tree.
 
 use crate::ir::Statement;
-use crate::place;
-use crate::place::{CellGeneration, Place};
 use crate::var_resolve::{ResolveContext, cell_key};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, Place};
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
     CommandRegistry, NamespaceTransition, NamespaceTransitionTarget, StateTransition,
@@ -120,14 +120,14 @@ pub(super) fn apply_namespace(
     };
     let identity = match target {
         NamespaceTransitionTarget::Current => state.namespace_identity.clone().or_else(|| {
-            Some(crate::command_binding::SourceNamespaceKey::authored(
+            Some(tcl_names::namespace::SourceNamespaceKey::authored(
                 &state.namespace,
             ))
         }),
         NamespaceTransitionTarget::Named(subject) => subject.literal().and_then(|name| {
             state.namespace_identity_for_written(name).or_else(|| {
                 state.namespace_identity.is_none().then(|| {
-                    crate::command_binding::SourceNamespaceKey::authored(
+                    tcl_names::namespace::SourceNamespaceKey::authored(
                         tcl_syntax::naming::qualify_namespace(&state.namespace, name),
                     )
                 })
@@ -151,14 +151,14 @@ pub(super) fn apply_namespace(
 /// Retire cells in the exact original namespace tree before unset callbacks.
 pub(crate) fn delete_namespace_cells_in_identity(
     state: &mut ResolveContext,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     source_offset: u32,
 ) {
-    use crate::command_binding::SourceNamespaceKey;
-    let mut original: crate::var_resolve::VariableNamespaceSet = state
+    use tcl_names::namespace::SourceNamespaceKey;
+    let mut original: tcl_names::variable::VariableNamespaceSet = state
         .namespace_identities
         .iter()
-        .filter(|identity| crate::var_resolve::namespace_contains(namespace, identity))
+        .filter(|identity| tcl_names::variable::namespace_contains(namespace, identity))
         .cloned()
         .collect();
     original.insert(namespace.clone());
@@ -182,9 +182,9 @@ pub(crate) fn delete_namespace_cells_in_identity(
         frame = current.caller.as_deref();
     }
     for owner in held {
-        let tree: crate::var_resolve::VariableNamespaceSet = original
+        let tree: tcl_names::variable::VariableNamespaceSet = original
             .iter()
-            .filter(|key| crate::var_resolve::namespace_contains(&owner, key))
+            .filter(|key| tcl_names::variable::namespace_contains(&owner, key))
             .cloned()
             .collect();
         original.retain(|key| !tree.contains(key));
@@ -229,9 +229,9 @@ pub(crate) fn complete_pending_namespace_retirements(state: &mut ResolveContext)
         let mut remaining = pending.namespaces;
         for child in &active {
             if remaining.contains(child) {
-                let tree: crate::var_resolve::VariableNamespaceSet = remaining
+                let tree: tcl_names::variable::VariableNamespaceSet = remaining
                     .iter()
-                    .filter(|key| crate::var_resolve::namespace_contains(child, key))
+                    .filter(|key| tcl_names::variable::namespace_contains(child, key))
                     .cloned()
                     .collect();
                 remaining.retain(|key| !tree.contains(key));
@@ -251,11 +251,11 @@ pub(crate) fn complete_pending_namespace_retirements(state: &mut ResolveContext)
 
 fn retire_namespace_cell_incarnations(
     state: &mut ResolveContext,
-    namespaces: &crate::var_resolve::VariableNamespaceSet,
+    namespaces: &tcl_names::variable::VariableNamespaceSet,
     source_offset: u32,
     conditional: bool,
 ) {
-    let selected = |key: &crate::var_resolve::VariableCellKey| {
+    let selected = |key: &tcl_names::variable::VariableCellKey| {
         namespaces
             .iter()
             .any(|namespace| key.is_owned_by_namespace(namespace))
@@ -264,8 +264,7 @@ fn retire_namespace_cell_incarnations(
         .captured_cells
         .delete_namespace_incarnations(namespaces);
     for namespace in namespaces {
-        if !conditional
-            && let crate::command_binding::SourceNamespaceKey::Authored(name) = namespace
+        if !conditional && let tcl_names::namespace::SourceNamespaceKey::Authored(name) = namespace
         {
             state.captured_cells.delete_namespace(name);
         }
@@ -329,7 +328,7 @@ fn retire_namespace_cell_incarnations(
         state.namespace_identity.as_ref() == Some(identity) || !namespaces.contains(identity)
     });
     for namespace in namespaces {
-        if let crate::command_binding::SourceNamespaceKey::Authored(namespace) = namespace {
+        if let tcl_names::namespace::SourceNamespaceKey::Authored(namespace) = namespace {
             state.known_namespaces.retain(|known| {
                 known != namespace && !known.starts_with(&format!("{namespace}::"))
             });
@@ -340,7 +339,7 @@ fn retire_namespace_cell_incarnations(
 
 fn retire_namespace_observers_and_links(
     state: &mut ResolveContext,
-    selected: impl Fn(&crate::var_resolve::VariableCellKey) -> bool,
+    selected: impl Fn(&tcl_names::variable::VariableCellKey) -> bool,
     source_offset: u32,
 ) {
     state.traced.retain(|key| !selected(key));

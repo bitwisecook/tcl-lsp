@@ -23,7 +23,7 @@ use super::ExpressionMathBindings;
 use crate::command_binding::{
     SourceVariableAccess, SourceVariableEvaluationOwner, SourceVariableReadResidual,
 };
-use crate::place::PlaceKind;
+use tcl_names::place::PlaceKind;
 
 /// Original physical scalar reads, retaining their preparation and read issuers.
 /// Commands, arrays, strings and implicit calls remain unsupported here. Even a
@@ -32,13 +32,13 @@ use crate::place::PlaceKind;
 pub(crate) struct OriginalPhysicalConditionReads<'a> {
     _preparation: &'a crate::command_binding::SourceExpressionPreparation,
     _accesses: Vec<&'a SourceVariableAccess>,
-    cells: Vec<crate::var_resolve::VariableCellKey>,
+    cells: Vec<tcl_names::variable::VariableCellKey>,
 }
 
 impl OriginalPhysicalConditionReads<'_> {
     /// Actual possible direct scalar cell reads, for positive overlap vetoes.
     /// An empty list never licenses motion or asserts no other effects.
-    pub(crate) fn cells(&self) -> &[crate::var_resolve::VariableCellKey] {
+    pub(crate) fn cells(&self) -> &[tcl_names::variable::VariableCellKey] {
         &self.cells
     }
 }
@@ -128,7 +128,7 @@ fn physical_read_cells(
     access: &SourceVariableAccess,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-) -> Option<Vec<crate::var_resolve::VariableCellKey>> {
+) -> Option<Vec<tcl_names::variable::VariableCellKey>> {
     access
         .context_alternatives()
         .iter()
@@ -141,7 +141,7 @@ fn physical_read_cell_in_context(
     context: &crate::var_resolve::ResolveContext,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-) -> Option<crate::var_resolve::VariableCellKey> {
+) -> Option<tcl_names::variable::VariableCellKey> {
     // A compatibility profile that happens to match is not retained input.
     let crate::var_resolve::SourceReadConfiguration::Selected(actual) =
         context.source_read_configuration

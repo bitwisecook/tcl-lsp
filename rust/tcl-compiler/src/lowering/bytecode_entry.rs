@@ -375,11 +375,11 @@ fn lower_native_byte_calls(
             });
         }
     }
-    let origin = std::sync::Arc::new(crate::command_binding::SourceOriginId::authored_image(
+    let origin = std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored_image(
         source.clone(),
     ));
     let executed =
-        crate::command_binding::ExecutedScriptSource::contiguous_image(origin, source.clone(), 0)
+        tcl_names::origin::ExecutedScriptSource::contiguous_image(origin, source.clone(), 0)
             .expect("the complete original image is contiguous");
     module.top_level.executed_source = Some(std::sync::Arc::new(executed.clone()));
     let compiler_dialect = options.and_then(|options| options.native_compiler_dialect());

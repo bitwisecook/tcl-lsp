@@ -197,16 +197,14 @@ pub(crate) struct CfgBuilder<'a> {
     bpf_closed_effects: Option<Arc<crate::ir::SourceBpfClosedEffects>>,
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
-    statement_sources: HashMap<
-        (BlockId, usize),
-        Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
-    >,
-    current_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    statement_sources:
+        HashMap<(BlockId, usize), Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>>,
+    current_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     source_may_calls: HashMap<(usize, u32), Vec<global_write_info::OriginalSourceCallMayWrites>>,
     implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
     expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     terminator_sources:
-        HashMap<BlockId, Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>>,
+        HashMap<BlockId, Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>>,
     /// Block name → [`BlockId`], assigned in block-creation order so the
     /// frozen [`Function`]'s interner reflects that order.
     block_ids: FxHashMap<String, BlockId>,

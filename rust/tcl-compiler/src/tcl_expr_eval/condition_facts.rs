@@ -41,7 +41,7 @@ pub(crate) struct PlaceFact {
     /// them for the value domain, a domain fact for every other.
     pub(crate) fact: FactView,
     /// Original query cell, when retained scoped metadata supplies it.
-    pub(crate) original_cell: Option<crate::var_resolve::VariableCellKey>,
+    pub(crate) original_cell: Option<tcl_names::variable::VariableCellKey>,
 }
 
 impl PlaceFact {
@@ -206,7 +206,7 @@ pub(crate) fn condition_read_guards(
     node: &ExprNode,
     expression_base: u32,
     reading: ConditionReading<'_>,
-) -> Vec<(tcl_lexer::Span, crate::var_resolve::VariableCellKey)> {
+) -> Vec<(tcl_lexer::Span, tcl_names::variable::VariableCellKey)> {
     let mut guards = Vec::new();
     let mut pending = vec![(node, Vec::new())];
     while let Some((node, incoming)) = pending.pop() {
@@ -262,7 +262,7 @@ pub(crate) fn condition_read_guards(
 
 fn bound_original_cells(
     facts: Vec<PlaceFact>,
-) -> impl Iterator<Item = crate::var_resolve::VariableCellKey> {
+) -> impl Iterator<Item = tcl_names::variable::VariableCellKey> {
     facts.into_iter().filter_map(|fact| {
         matches!(
             fact.fact,

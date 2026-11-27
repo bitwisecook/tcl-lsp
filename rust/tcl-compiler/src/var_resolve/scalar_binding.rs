@@ -21,11 +21,11 @@
 use super::ResolveContext;
 use super::canonical_keys::cell_key;
 use super::place_resolution::{resolve_access, resolve_alias_destination_slot};
-use crate::place;
-use crate::place::{CellGeneration, CellIdentity, CellOwner, Index, Place, PlaceKind};
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 use std::collections::HashSet;
 use tcl_core_types::NameBytes;
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, Index, Place, PlaceKind};
 use tcl_registry::CommandRegistry;
 
 pub(super) fn has_subst(text: &str) -> bool {

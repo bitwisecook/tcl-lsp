@@ -117,7 +117,7 @@ fn original_alias_and_moved_slots_cannot_borrow_descriptor_pristine_subjects() {
         let reference = binding.evaluated_command_reference().unwrap();
         let direct_unmoved_builtin = matches!(reference.binding(),
                 crate::command_binding::SourceCommandReferenceBinding::Direct {
-                    kind: crate::command_binding::BindingKind::Builtin, identity,
+                    kind: tcl_names::command::BindingKind::Builtin, identity,
                 } if reference.slot() == Some(identity.origin.as_str()));
         assert!(!direct_unmoved_builtin, "{source}");
         let InvocationResolution::Resolved(facts) = &invoke.resolution else {

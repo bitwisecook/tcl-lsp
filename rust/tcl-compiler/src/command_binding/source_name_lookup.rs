@@ -18,12 +18,11 @@
 
 //! Original command-name geometry at an independently retained source point.
 
-use super::{SourceInvocationBinding, SourceNamespaceKey};
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceLookup, SignatureSourceNameInput,
-    SignatureSourceNameKey,
-};
+use super::SourceInvocationBinding;
+use crate::signature_scan::scope::{SignatureSourceLookup, SignatureSourceNameInput};
 use tcl_core_types::{ByteCommandSlot, NameBytes};
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
+use tcl_names::word::SignatureSourceNameKey;
 
 /// Original lookup geometry sealed at one authentic source invocation.
 /// Complete word and readonly value producers remain distinct; candidates
@@ -31,7 +30,7 @@ use tcl_core_types::{ByteCommandSlot, NameBytes};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OriginalCommandLookup {
     input: SignatureSourceNameInput,
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     candidates: Vec<Vec<ByteCommandSlot>>,
     naming_scope: Option<SignatureNamespaceScope>,
     observations: Vec<super::declaration_layout::DeclarationLayoutObservation>,
@@ -47,7 +46,7 @@ impl OriginalCommandLookup {
     }
     /// Exact consuming source instance and command position.
     #[must_use]
-    pub const fn site(&self) -> &super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Independently retained native name policy.
@@ -117,7 +116,7 @@ impl OriginalCommandLookup {
         declarations: impl IntoIterator<
             Item = (
                 &'a crate::signature_scan::scope::SignatureSourceCommand,
-                &'a super::CommandAllocationSite,
+                &'a tcl_names::command::CommandAllocationSite,
                 T,
             ),
         >,
@@ -387,10 +386,10 @@ impl SourceInvocationBinding {
             || !matches!(
                 reference.binding(),
                 SourceCommandReferenceBinding::Direct {
-                    kind: super::BindingKind::Alias,
+                    kind: tcl_names::command::BindingKind::Alias,
                     ..
                 } | SourceCommandReferenceBinding::Imported {
-                    kind: super::BindingKind::Alias,
+                    kind: tcl_names::command::BindingKind::Alias,
                     ..
                 }
             )
@@ -956,7 +955,10 @@ impl SourceInvocationBinding {
                     .map(|path| {
                         path.into_iter()
                             .map(|candidate| {
-                                let super::SourceCommandKey::Slot { namespace, simple } = candidate
+                                let tcl_names::command::SourceCommandKey::Slot {
+                                    namespace,
+                                    simple,
+                                } = candidate
                                 else {
                                     return None;
                                 };

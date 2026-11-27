@@ -63,7 +63,7 @@ fn input(
         panic!("original single word")
     };
     SignatureSourceNameInput::OriginalWord(
-        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             word,
             tcl_syntax::word_rules::WordValueRules::from_config(&config),
             policy,

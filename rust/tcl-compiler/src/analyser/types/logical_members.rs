@@ -526,7 +526,7 @@ impl AnalysisResult {
             )?;
         if !matches!(
             frame.frame().layout(),
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         ) {
             return None;
         }

@@ -28,7 +28,7 @@ fn analyse(
     let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-    let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+    let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::".to_owned(),
         identity: "inventory-test".to_owned(),
     };

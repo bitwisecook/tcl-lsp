@@ -20,10 +20,11 @@
 //! does not publish a command, select a live symbol or grant an editable span.
 
 use super::original_name::SourceOriginalNameOccurrence;
-use super::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use super::scope::SignatureSourceNameInput;
 use crate::analyser::types::DefinedSymbol;
-use crate::command_binding::CommandAllocationSite;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey, SymbolDef};
 
 /// A genuine selected source definer and its independently produced name.

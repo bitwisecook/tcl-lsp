@@ -18,6 +18,7 @@
 
 //! Immutable original native bytes, independently of display and cache state.
 
+use crate::command_binding::SourceOriginLexical;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use crate::var_resolve::ResolveContext;
 use std::sync::Arc;
@@ -390,7 +391,8 @@ pub(super) fn capture_word(
     state: &super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalProducedNameValue> {
-    use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
+    use crate::signature_scan::scope::SignatureSourceNameValue;
+    use tcl_names::word::SignatureSourceNameKey;
     let policy = state
         .source_variables
         .execution_name_policy?
@@ -412,7 +414,8 @@ fn original_written_variable_inputs(
     state: &super::ModuleCommandBindings,
     context: super::SourceExecutionContext<'_>,
 ) -> Option<Vec<Option<SignatureSourceNameInput>>> {
-    use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
+    use crate::signature_scan::scope::SignatureSourceNameValue;
+    use tcl_names::word::SignatureSourceNameKey;
     let variables = &state.source_variables;
     state.current_source_origin.as_ref().and_then(|origin| {
         let policy = variables.execution_name_policy?.native_recipe()?;
@@ -532,7 +535,7 @@ pub(super) fn original_variable_invocation(
 /// correspondence independently of compiler selection and declaration advice.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct OriginalWrittenSourceWords {
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
     words: Arc<[tcl_source::words::WordExpr]>,
     dialect: Option<tcl_native_model::InvocationDialect>,
@@ -555,7 +558,7 @@ impl OriginalWrittenSourceWords {
     }
 
     fn at_source(
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         words: &[tcl_source::words::WordExpr],
         offset: u32,
         config: tcl_lexer::LexerConfig,
@@ -563,7 +566,7 @@ impl OriginalWrittenSourceWords {
     ) -> Option<Self> {
         origin.original_lexical_command(words, offset, config)?;
         Some(Self {
-            site: super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(origin),
                 offset,
             },
@@ -573,7 +576,7 @@ impl OriginalWrittenSourceWords {
         })
     }
 
-    pub(super) fn site(&self) -> &super::CommandAllocationSite {
+    pub(super) fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
 
@@ -595,7 +598,7 @@ impl OriginalWrittenSourceWords {
 /// fields retain complete body bytes/channel and input, never lookup or entry.
 #[derive(Debug, Clone)]
 pub(crate) struct OriginalBodyWrittenWordOwner {
-    body: super::ExecutedScriptSource,
+    body: tcl_names::origin::ExecutedScriptSource,
     config: tcl_lexer::LexerConfig,
     input: crate::analyser::ResolvedAnalysisInput,
 }
@@ -666,7 +669,7 @@ impl super::SourceCommandBindings {
     /// The caller independently authenticates the original body and namespace.
     pub(crate) fn original_body_written_word_owner(
         &self,
-        body: &super::ExecutedScriptSource,
+        body: &tcl_names::origin::ExecutedScriptSource,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -701,7 +704,7 @@ impl super::SourceCommandBindings {
     /// projection authenticate this geometry without issuing a child entry.
     pub(crate) fn original_body_written_word_owner_at_parent(
         &self,
-        body: &super::ExecutedScriptSource,
+        body: &tcl_names::origin::ExecutedScriptSource,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
@@ -710,7 +713,7 @@ impl super::SourceCommandBindings {
         if self.root_origin.as_ref() == Some(&body.origin) {
             return self.original_body_written_word_owner(body, config, registry, input);
         }
-        let super::SourceOriginKind::Derived {
+        let tcl_names::origin::SourceOriginKind::Derived {
             parent: site,
             arguments,
             source,
@@ -936,7 +939,7 @@ impl<'a> OriginalSourceVariableCompilation<'a> {
     pub(crate) fn original_words(&self) -> &[tcl_source::words::WordExpr] {
         &self.original.words
     }
-    pub(crate) const fn site(&self) -> &super::CommandAllocationSite {
+    pub(crate) const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.original.site
     }
     pub(crate) const fn config(&self) -> tcl_lexer::LexerConfig {

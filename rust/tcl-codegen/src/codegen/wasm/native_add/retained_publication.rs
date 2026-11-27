@@ -19,6 +19,7 @@
 //! Inert source candidates for a body checked only after real publication and entry.
 //! This module issues no Native body, frame, integer or handler execution proof.
 
+use tcl_compiler::command_binding::SourceOriginLexical;
 use tcl_lexer::Span;
 use tcl_registry::{CommandRegistry, NativeLowering};
 use tcl_syntax::expr::{BinOp, ExprNode};

@@ -257,11 +257,20 @@ fn conditional_source_operands(
                 input: match origin {
                     OriginalRegistrySource::Conditional(metadata) => {
                         let head = metadata.original_head().name_input();
-                        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                            word, head.word_value_rules(), head.policy())
-                            .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
-                    },
-                    OriginalRegistrySource::Selected | OriginalRegistrySource::ConditionalNativeSource(_) | OriginalRegistrySource::Scoped(_) | OriginalRegistrySource::DefinitionMember(_) | OriginalRegistrySource::Vendor(_) | OriginalRegistrySource::SourceTransitions(_) | OriginalRegistrySource::ProducedPrefix(_) => None,
+                        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                            word,
+                            head.word_value_rules(),
+                            head.policy(),
+                        )
+                        .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord)
+                    }
+                    OriginalRegistrySource::Selected
+                    | OriginalRegistrySource::ConditionalNativeSource(_)
+                    | OriginalRegistrySource::Scoped(_)
+                    | OriginalRegistrySource::DefinitionMember(_)
+                    | OriginalRegistrySource::Vendor(_)
+                    | OriginalRegistrySource::SourceTransitions(_)
+                    | OriginalRegistrySource::ProducedPrefix(_) => None,
                 },
                 word: Some(word.clone()),
             })

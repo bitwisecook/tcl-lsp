@@ -21,15 +21,11 @@
 //! Attestations follow exact typed cell slots. Native namespace incarnations,
 //! retained allocations and array members never use reporting text as keys.
 
-use crate::{
-    command_binding::{SourceOriginId, SourceOriginKind},
-    place::{Place, PlaceKind},
-    var_resolve::{
-        ResolveContext, VariableCellKey, VariableCellTable, VariableProofRelocation,
-        canonical_binding_value_key,
-    },
-};
+use crate::var_resolve::{ResolveContext, VariableProofRelocation, canonical_binding_value_key};
 use std::sync::Arc;
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
+use tcl_names::place::{Place, PlaceKind};
+use tcl_names::variable::{VariableCellKey, VariableCellTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(crate) struct ContentsSourceProofs {
@@ -117,12 +113,12 @@ impl ResolveContext {
             || place
                 .index
                 .as_ref()
-                .is_some_and(|index| index.kind != crate::place::IndexKind::Literal);
+                .is_some_and(|index| index.kind != tcl_names::place::IndexKind::Literal);
         self.contents_source_proofs.sources.retain(|key, retained| {
             let affected = self
                 .contents_presence_slots
                 .get(key)
-                .is_none_or(|slot| crate::place::overlap(place, slot));
+                .is_none_or(|slot| tcl_names::place::overlap(place, slot));
             !affected
                 || (!place.observed && source.as_ref() == Some(retained) && (conditional || broad))
         });
@@ -139,19 +135,16 @@ impl ResolveContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        command_binding::{CommandAllocationSite, ExecutedScriptSource},
-        var_resolve::resolve_literal_place,
-    };
+    use crate::var_resolve::resolve_literal_place;
     use std::collections::BTreeMap;
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::origin::ExecutedScriptSource;
 
     #[test]
     fn native_namespace_contents_sources_cannot_be_replaced_by_rendered_names() {
-        use crate::{
-            command_binding::SourceNamespaceKey,
-            place::{CellGeneration, CellIdentity, CellOwner},
-        };
         use tcl_core_types::ByteNamespacePath;
+        use tcl_names::namespace::SourceNamespaceKey;
+        use tcl_names::place::{CellGeneration, CellIdentity, CellOwner};
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -166,7 +159,7 @@ mod tests {
             token: 1,
             path: ByteNamespacePath::from_segments([b"A".as_slice(), b":q".as_slice()]),
         });
-        let mut native = crate::place::scalar("x", namespace.display().unwrap(), false);
+        let mut native = tcl_names::place::scalar("x", namespace.display().unwrap(), false);
         native.cell = Some(CellIdentity {
             owner: CellOwner::NamespaceIdentity(Box::new(namespace)),
             name: "x".into(),
@@ -176,7 +169,8 @@ mod tests {
             execution: None,
         });
         let key = canonical_binding_value_key(&native).unwrap();
-        let forged = crate::place::scalar(key.compatibility_name(), crate::place::LOCAL_NS, false);
+        let forged =
+            tcl_names::place::scalar(key.compatibility_name(), tcl_names::place::LOCAL_NS, false);
         context.set_contents_write_source(Some(Arc::clone(&source)));
         context.record_contents_write(&native, 0, false);
         assert!(context.contents_have_source(&native, &source));

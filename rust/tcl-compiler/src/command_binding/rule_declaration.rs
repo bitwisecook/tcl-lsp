@@ -20,8 +20,9 @@
 
 use super::{
     ModuleCommandBindings, SourceCommandBindings, SourceCommandTarget, SourceExecutionContext,
-    SourceNativeInvocation, SourceOriginKind, prepare_source_native_invocation, source_binding,
+    SourceNativeInvocation, prepare_source_native_invocation, source_binding,
 };
+use tcl_names::origin::SourceOriginKind;
 
 /// A validated declaration alternative at its exact rule-load source site.
 /// This inventory grants neither installation, execution nor compiler admission.
@@ -32,7 +33,7 @@ pub struct SourceRuleDeclarationCandidate {
     /// Registry-validated declaration and original argument positions.
     pub declaration: tcl_registry::events::IrulesTopLevelDeclaration,
     /// Exact retained deferred body; this does not assert that it was entered.
-    pub body: Option<super::ExecutedScriptSource>,
+    pub body: Option<tcl_names::origin::ExecutedScriptSource>,
     /// Unenumerated handler alternatives remain possible at this registration.
     pub unknown: bool,
     /// Literal name a procedure declaration writes, when it is one.
@@ -48,7 +49,7 @@ impl SourceCommandBindings {
         offset: u32,
     ) -> Option<&[SourceRuleDeclarationCandidate]> {
         self.rule_declarations
-            .get(&super::CommandAllocationSite {
+            .get(&tcl_names::command::CommandAllocationSite {
                 source: super::Arc::clone(self.root_origin.as_ref()?),
                 offset,
             })
@@ -62,7 +63,7 @@ impl SourceCommandBindings {
         target: &SourceCommandTarget,
         declaration: (
             tcl_registry::events::IrulesTopLevelDeclaration,
-            Option<super::ExecutedScriptSource>,
+            Option<tcl_names::origin::ExecutedScriptSource>,
         ),
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         context: SourceExecutionContext<'_>,
@@ -96,7 +97,7 @@ impl SourceCommandBindings {
         };
         let candidates = self
             .rule_declarations
-            .entry(super::CommandAllocationSite {
+            .entry(tcl_names::command::CommandAllocationSite {
                 source: super::Arc::clone(source),
                 offset: segment.span.start(),
             })
@@ -412,7 +413,7 @@ pub(super) fn is_rule_loader_top_level(context: &SourceExecutionContext<'_>) -> 
             .is_some_and(tcl_dialect::DialectProfile::is_irules)
         && matches!(
             context.frame,
-            crate::var_resolve::VariableExecutionFrame::Global
+            tcl_names::variable::VariableExecutionFrame::Global
         )
 }
 

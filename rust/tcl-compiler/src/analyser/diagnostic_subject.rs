@@ -27,9 +27,10 @@ pub use callback::{
 use crate::command_binding::{
     OriginalMathFunctionOccurrence, SourceCommandSlotPresence, SourceInvocationBinding,
 };
-use crate::signature_scan::{scope::SignatureSourceNameKey, types::SignatureCommandInvocation};
+use crate::signature_scan::types::SignatureCommandInvocation;
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, SourceImage};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::{naming::NamePolicyProtocol, word_rules::WordValueRules};
 
 /// A genuine emitting source name and its independently retained lookup point.
@@ -259,7 +260,7 @@ mod tests {
         let original = subject.occurrence();
         assert_eq!(
             original.frame().layout(),
-            &crate::var_resolve::VariableExecutionFrame::Global
+            &tcl_names::variable::VariableExecutionFrame::Global
         );
         assert_eq!(
             original.expression_context().native_syntax,

@@ -270,7 +270,7 @@ impl OriginalSourceClassFactoryAttempt<'_> {
 /// Whole original call joined to its exact original conditional class factory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceConstructorCall {
-    site: super::super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     arguments: Vec<SourceAdviceWord>,
     class: Arc<OriginalSourceClassDeclaration>,
@@ -287,7 +287,7 @@ pub struct OriginalSourceConstructorCall {
 /// executes, remain the consumer's and the runtime's facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceClassProcCall {
-    site: super::super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     class: Arc<OriginalSourceClassDeclaration>,
     member: Box<[u8]>,
@@ -301,7 +301,7 @@ impl OriginalSourceClassProcCall {
     }
     /// Original occurrence, without a fabricated runtime lookup point.
     #[must_use]
-    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Canonical original class definer and naming operand of the qualifier.
@@ -345,7 +345,7 @@ impl OriginalSourceConstructorCall {
     }
     /// Original occurrence, without a fabricated runtime lookup point.
     #[must_use]
-    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Canonical original class definer and naming operand.
@@ -1169,7 +1169,7 @@ impl AdviceInvocationContext<'_> {
             obligations.push(SourceCommandTransitionObligation::UnknownEarlierMutation);
         }
         let receipt = OriginalSourceConstructorCall {
-            site: super::super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.origin),
                 offset: native[0].span().start(),
             },
@@ -1247,7 +1247,7 @@ impl AdviceInvocationContext<'_> {
             return false;
         };
         let receipt = OriginalSourceClassProcCall {
-            site: super::super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.origin),
                 offset: word.span().start(),
             },
@@ -1273,7 +1273,7 @@ impl OriginalSourceClassDeclaration {
         class: &ClassDef,
         selector: &SourceAdviceNameInput,
         context: &ContextRegistry,
-        before: Option<&super::super::CommandAllocationSite>,
+        before: Option<&tcl_names::command::CommandAllocationSite>,
     ) -> Option<OriginalSourceConstructorShape> {
         let bytes = selector.bytes();
         let word = std::str::from_utf8(bytes).ok()?;

@@ -140,7 +140,7 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
         else {
             continue;
         };
-        let root = super::scope::SignatureNamespaceScope::root(ctx.name_policy());
+        let root = tcl_names::namespace::SignatureNamespaceScope::root(ctx.name_policy());
         let factory = [&scope, &root].into_iter().find_map(|lookup| {
             factories.iter().find(|info| match &info.source_name {
                 Some(name) => match &cand.original_head {
@@ -623,7 +623,7 @@ mod tests {
             SignatureProc {
                 name: "Foo".to_string(),
                 source_name: None,
-                body_namespace: super::super::scope::SignatureNamespaceScope::Symbolic(
+                body_namespace: tcl_names::namespace::SignatureNamespaceScope::Symbolic(
                     "::".to_owned(),
                 ),
                 qualified_name: "::Foo".to_string(),

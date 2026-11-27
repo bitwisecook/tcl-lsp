@@ -23,9 +23,9 @@ use super::{
     OriginalSourceTransitionAdviceTape,
 };
 use crate::analyser::ResolvedAnalysisInput;
-use crate::command_binding::SourceOriginId;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, Span};
+use tcl_names::origin::SourceOriginId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalLogicalBodyWords {

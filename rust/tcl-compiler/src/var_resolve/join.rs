@@ -19,14 +19,14 @@
 //! Joining incoming binding states at a control-flow merge.
 
 use super::canonical_keys::binding_key_in_namespace;
-use super::cell_key::{VariableCellKey, VariableCellTable};
 use super::{
     ActivationObserverInventory, ContentsOrigin, ContentsPresence, ContentsWorld, ResolveContext,
     SourceReadConfiguration,
 };
-use crate::place;
-use crate::place::{CellGeneration, Place, PlaceKind};
 use std::collections::HashSet;
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, Place, PlaceKind};
+use tcl_names::variable::{VariableCellKey, VariableCellTable};
 
 impl ResolveContext {
     /// Join incoming binding states. A binding is precise only when all

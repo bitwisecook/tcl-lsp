@@ -122,7 +122,7 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot 
             let Ok(tail) = declaration.slot().simple.try_utf8() else {
                 continue;
             };
-            let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+            let scope = tcl_names::namespace::SignatureNamespaceScope::C(
                 declaration.slot().namespace.clone(),
             );
             if tail != name

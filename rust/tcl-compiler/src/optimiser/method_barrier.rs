@@ -301,7 +301,7 @@ fn proc_dispatch_facts(
             .body
             .namespace_context
             .as_deref()
-            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
         else {
             continue;
         };
@@ -516,18 +516,18 @@ fn classify_tokens(
     }
     for target in targets {
         match target.kind {
-            crate::command_binding::BindingKind::Class => {
+            tcl_names::command::BindingKind::Class => {
                 if let Some(component) = env.comp_of.get(&target.command) {
                     facts.comps.insert(*component);
                 } else {
                     facts.anywhere = true;
                 }
             }
-            crate::command_binding::BindingKind::Proc => {
+            tcl_names::command::BindingKind::Proc => {
                 record_procedure(target, env, facts, callees);
             }
             // A registry widget's method may run configured callbacks.
-            crate::command_binding::BindingKind::Instance { .. } => facts.anywhere = true,
+            tcl_names::command::BindingKind::Instance { .. } => facts.anywhere = true,
             _ if target.registry_backed => {
                 let metadata = env
                     .metadata
@@ -1021,8 +1021,8 @@ mod original_relation_tests {
         module: &IrModule,
         registry: &CommandRegistry,
     ) -> Option<(
-        crate::command_binding::CommandAllocation,
-        Vec<crate::command_binding::CommandAllocation>,
+        tcl_names::command::CommandAllocation,
+        Vec<tcl_names::command::CommandAllocation>,
     )> {
         let relation = module.class_relations.first()?;
         module

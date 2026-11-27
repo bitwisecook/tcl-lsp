@@ -17,10 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::{Builder, DeclarationFlowFrame, DeclarationFlowInventory, DeclarationFlowPurpose};
-use crate::command_binding::{CommandAllocationSite, SourceAnalysisOptions, SourceCommandBindings};
+use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
 use crate::ir::CommandTokens;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 struct Fixture {
     input: crate::analyser::ResolvedAnalysisInput,
@@ -145,7 +146,7 @@ impl Fixture {
         layouts: crate::command_binding::declaration_layout::DeclarationLayouts,
         points: Vec<crate::command_binding::SourceBindingPoint>,
         origin_points: std::collections::BTreeMap<
-            Arc<crate::command_binding::SourceOriginId>,
+            Arc<tcl_names::origin::SourceOriginId>,
             Vec<crate::command_binding::SourceBindingPoint>,
         >,
     ) -> DeclarationFlowInventory {
@@ -163,10 +164,10 @@ impl Fixture {
 
 fn trace_point_facets(
     fixture: &Fixture,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     points: &[crate::command_binding::SourceBindingPoint],
     origin_points: &std::collections::BTreeMap<
-        Arc<crate::command_binding::SourceOriginId>,
+        Arc<tcl_names::origin::SourceOriginId>,
         Vec<crate::command_binding::SourceBindingPoint>,
     >,
 ) {

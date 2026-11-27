@@ -1005,7 +1005,7 @@ mod tests {
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
         crate::signature_scan::scope::SignatureSourceCommand::object_in_context(
             policy,
-            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            &tcl_names::namespace::SignatureNamespaceScope::root(Some(policy)),
             written,
         )
     }
@@ -1071,9 +1071,9 @@ mod tests {
             crate::analyser::types::ScopeKind::Global,
             "::".to_owned(),
         );
-        root.naming_scope = Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-            Some(policy),
-        ));
+        root.naming_scope = Some(tcl_names::namespace::SignatureNamespaceScope::root(Some(
+            policy,
+        )));
         let mut child = crate::analyser::types::Scope::new(
             crate::analyser::types::ScopeKind::Namespace,
             name.to_owned(),

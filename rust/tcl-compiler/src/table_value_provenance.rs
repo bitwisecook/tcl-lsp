@@ -21,7 +21,6 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::compilation_unit::FunctionUnit;
 use crate::ir::CommandTokens;
-use crate::place::Place;
 use crate::registry_invocation::InvocationMetadataSelection;
 use crate::registry_invocation::normal_representation_invocation_with_metadata_context;
 use crate::registry_invocation::normal_transfer_invocation_with_metadata_context;
@@ -30,6 +29,7 @@ use crate::var_resolve::ContentsOrigin;
 use crate::var_resolve::ContentsPresence;
 use crate::var_resolve::ResolveContext;
 use std::collections::{BTreeMap, HashSet};
+use tcl_names::place::Place;
 use tcl_registry::{CommandRegistry, VarElementsEffect};
 use tcl_source::words::Provenance;
 use tcl_source::words::WordExpr;
@@ -106,7 +106,7 @@ pub(crate) fn table_values(
         if target
             .index
             .as_ref()
-            .is_some_and(|index| index.kind != crate::place::IndexKind::Literal)
+            .is_some_and(|index| index.kind != tcl_names::place::IndexKind::Literal)
             && keys.is_none()
         {
             let root = target.base();
@@ -119,7 +119,7 @@ pub(crate) fn table_values(
                 if target
                     .index
                     .as_ref()
-                    .is_some_and(|index| index.kind == crate::place::IndexKind::Literal)
+                    .is_some_and(|index| index.kind == tcl_names::place::IndexKind::Literal)
                     && member.index != target.index
                 {
                     continue;
@@ -355,7 +355,7 @@ impl<'a> Query<'a> {
                         self.registry,
                     );
                     if writes.iter().any(|write| {
-                        write.cell == target.cell && crate::place::overlap(write, target)
+                        write.cell == target.cell && tcl_names::place::overlap(write, target)
                     }) {
                         let tokens = points.source_tokens_at(block, index)?;
                         let source = tokens.source_binding.as_ref()?.source_origin()?;
@@ -388,7 +388,7 @@ impl<'a> Query<'a> {
                     .get(write.argument_offset + usize::from(values_at))?;
                 let dictionary = self.literal_dictionary(word)?;
                 let index = target.index.as_ref()?;
-                if index.kind != crate::place::IndexKind::Literal {
+                if index.kind != tcl_names::place::IndexKind::Literal {
                     return None;
                 }
                 Some(vec![dictionary.get(index.value.try_utf8().ok()?)?.clone()])
@@ -417,7 +417,7 @@ impl<'a> Query<'a> {
 
     fn authored_carrier(&self, tokens: &CommandTokens) -> bool {
         tokens.source_binding.as_ref().and_then(|binding| binding.source_origin()).is_some_and(|origin| {
-            matches!(origin.kind(), crate::command_binding::SourceOriginKind::Authored(text) if text.bytes() == self.source.as_bytes())
+            matches!(origin.kind(), tcl_names::origin::SourceOriginKind::Authored(text) if text.bytes() == self.source.as_bytes())
         })
     }
 

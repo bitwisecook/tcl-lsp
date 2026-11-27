@@ -21,6 +21,7 @@
 use super::{OriginalOperandSource, effective_operand_sources};
 use crate::analyser::{AnalysisResult, ProcDef, ResolvedAnalysisInput};
 use crate::command_binding::SourceCommandReference;
+use crate::command_binding::SourceOriginLexical;
 use crate::registry_invocation::EffectiveInvocationWord;
 use crate::signature_scan::formal_parameters::SignatureSourceFormalParameters;
 use crate::signature_scan::original_name::SourceDeclarationMetadata;

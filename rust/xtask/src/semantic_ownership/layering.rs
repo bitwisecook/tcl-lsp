@@ -31,6 +31,7 @@ const PROTECTED: &[&str] = &[
     "tcl-lsp-db",
     "tcl-bigip-schema",
     "tcl-source",
+    "tcl-names",
 ];
 
 #[derive(Deserialize)]
@@ -76,6 +77,15 @@ fn violations(packages: &[Package], policy: &BTreeMap<&str, &BTreeSet<String>>) 
                 "tcl-syntax",
             ]),
             "tcl-source" => Some(&["tcl-core-types", "tcl-dialect", "tcl-lexer", "tcl-syntax"]),
+            "tcl-names" => Some(&[
+                "tcl-core-types",
+                "tcl-dialect",
+                "tcl-lexer",
+                "tcl-native-model",
+                "tcl-registry",
+                "tcl-runtime-api",
+                "tcl-syntax",
+            ]),
             _ => None,
         };
         for dependency in &package.dependencies {

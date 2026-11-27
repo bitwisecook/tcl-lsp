@@ -63,7 +63,7 @@ pub(crate) fn counted_class_for_invocation<'a>(
     let definition = reference.definition()?;
     if definition.kind() != tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
         || !matches!(definition.allocation().site.source.kind(),
-            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+            tcl_names::origin::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
     {
         return None;
     }
@@ -145,7 +145,7 @@ pub(crate) fn positioned_class_at<'a>(
     let definition = reference.definition()?;
     (definition.kind() == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
         && matches!(definition.allocation().site.source.kind(),
-            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes()))
+            tcl_names::origin::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes()))
         .then_some(())?;
     let mut classes = analysis
         .original_class_declarations()
@@ -219,7 +219,7 @@ pub(crate) fn command_head_names_class(
     let declared = |definition: &tcl_compiler::command_binding::SourceCommandDefinition| {
         definition.kind() == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
             && matches!(definition.allocation().site.source.kind(),
-                tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+                tcl_names::origin::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
             && analysis
                 .original_class_declarations()
                 .filter(|record| record.declaration_site() == &definition.allocation().site)
@@ -273,7 +273,7 @@ pub(crate) fn class_for_invocation<'a>(
             return ControlFlow::Break(None);
         }
         if !matches!(definition.allocation().site.source.kind(),
-            tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+            tcl_names::origin::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
         {
             return ControlFlow::Break(None);
         }
@@ -488,12 +488,11 @@ pub(crate) fn method_selector_replacement(
         .get(1)
         .filter(|word| word.word_span().start() <= cursor && cursor <= word.word_span().end())
     {
-        let key =
-            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                word,
-                tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                policy,
-            )?;
+        let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+            word,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
+        )?;
         let input =
             tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key);
         let edits = crate::original_name_edit::original_name_input_edits(
@@ -828,9 +827,12 @@ mod tests {
                 config,
             )
             .unwrap();
-            let key = tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                &plan.commands[0].words[0], tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                method.original_name_input().policy()).unwrap();
+            let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                &plan.commands[0].words[0],
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                method.original_name_input().policy(),
+            )
+            .unwrap();
             assert_eq!(key.bytes(), method.original_name_input().bytes());
             bytes.push(key.bytes().to_vec());
         }
@@ -873,8 +875,12 @@ mod tests {
                 key.lexer_config(),
             )
             .unwrap();
-            let emitted = tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                &plan.commands[0].words[0], key.word_value_rules(), key.policy()).unwrap();
+            let emitted = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                &plan.commands[0].words[0],
+                key.word_value_rules(),
+                key.policy(),
+            )
+            .unwrap();
             assert_eq!(emitted.bytes(), method.original_name_input().bytes());
         }
     }

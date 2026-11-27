@@ -30,10 +30,10 @@ use tcl_compiler::analyser::types::{
     OriginalSourceSpecialMemberMetadata,
 };
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef};
-use tcl_compiler::command_binding::CommandAllocationSite;
 use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_compiler::signature_scan::scope::{SignatureSourceCommand, SignatureSourceNameInput};
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::command::CommandAllocationSite;
 
 mod member_census;
 mod readonly_references;

@@ -39,11 +39,10 @@ impl<'r> CodegenCtx<'r> {
     pub(super) fn resolution_namespace_context(
         &self,
     ) -> Option<tcl_runtime_api::CompiledNamespaceContext> {
-        let context = tcl_compiler::command_binding::SourceNamespaceKey::from_native_entry(
-            self.native_entry?,
-        )
-        .ok()?
-        .to_compiled_context()?;
+        let context =
+            tcl_names::namespace::SourceNamespaceKey::from_native_entry(self.native_entry?)
+                .ok()?
+                .to_compiled_context()?;
         (context.path() == &self.resolution_namespace.path).then_some(context)
     }
 

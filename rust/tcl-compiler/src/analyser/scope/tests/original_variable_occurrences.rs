@@ -251,7 +251,7 @@ fn original_write_name_advice_keeps_source_cards_and_authentic_local_frames() {
         assert!(
             matches!(
                 local.original_frame().map(|frame| frame.frame().layout()),
-                Some(crate::var_resolve::VariableExecutionFrame::Procedure { .. })
+                Some(tcl_names::variable::VariableExecutionFrame::Procedure { .. })
             ),
             "{profile}: original procedure owner"
         );
@@ -651,7 +651,7 @@ fn original_namespace_store_symbols_use_the_selected_activation_and_fallback() {
                 assert_eq!(simple.as_bytes(), b"x");
                 assert!(matches!(
                     frame.frame().layout(),
-                    crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                    tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
                 ));
             }
             SignatureSourceVariableSlot::Jim(_) => {

@@ -18,7 +18,6 @@
 
 //! The initial binding state of a registry baseline and its entry options.
 
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::source_analysis_entry::SourceAnalysisOptions;
 use super::super::trusted_packages::interpreter_provided_packages;
 use super::super::{
@@ -26,6 +25,7 @@ use super::super::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 #[cfg(test)]
 use tcl_registry::EffectiveRegistrySemantics;
@@ -249,7 +249,7 @@ impl ModuleCommandBindings {
             variables.namespace_cells = crate::variable_bindings::fresh_namespace_cells(registry);
         }
         state.source_variables = Arc::new(variables);
-        state.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
+        state.variable_frame = tcl_names::variable::VariableExecutionFrame::Global;
         if let Some(entry) = state.baseline.native_entry.clone() {
             state.install_runtime_entry(&entry);
         }

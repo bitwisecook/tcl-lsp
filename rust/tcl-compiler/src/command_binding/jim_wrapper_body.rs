@@ -20,13 +20,13 @@
 
 mod scope_body;
 
-use super::{
-    Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, ModuleCommandBindings,
-    SourceCommandBindings,
-};
+use super::{Arc, DeferredSourceBody, ModuleCommandBindings, SourceCommandBindings};
 use crate::analyser::ResolvedAnalysisInput;
-use crate::signature_scan::scope::SignatureSourceNameKey;
+use crate::command_binding::SourceOriginLexical;
 use tcl_lexer::{LexerConfig, NativeWord};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::CommandRegistry;
 use tcl_syntax::naming::{
     NamePolicyAuthority, NativeNameContext, NativeNameProtocol, NativeNamePurpose,
@@ -99,7 +99,7 @@ impl OriginalJimWrapperBody {
     pub(super) fn owns_source(
         &self,
         source: &ExecutedScriptSource,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
     ) -> bool {
         self.call.matches_source_context(
             self.body.image(),
@@ -116,11 +116,11 @@ impl OriginalJimWrapperBody {
 
     fn wrapper_namespace(
         published: &tcl_core_types::ByteCommandSlot,
-    ) -> Option<super::SourceNamespaceKey> {
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
         let namespace = NativeNameProtocol::Jim084
             .jim_procedure_namespace(published.simple.as_bytes())
             .ok()?;
-        super::SourceNamespaceKey::authored_jim_namespace(&namespace.into())
+        tcl_names::namespace::SourceNamespaceKey::authored_jim_namespace(&namespace.into())
     }
 
     fn capture(
@@ -297,7 +297,7 @@ impl SelectedWrapperWords {
         );
         if !matches!(
             source.mapping,
-            super::ExecutedScriptMapping::Contiguous { .. }
+            tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
         ) || source.origin != registration.source
         {
             return None;
@@ -306,7 +306,7 @@ impl SelectedWrapperWords {
             "jim-source-wrapper:{}",
             registration.variable_storage_identity()
         );
-        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: namespace.clone(),
             identity: super::source_activation_name(
                 Some(&registration.source),

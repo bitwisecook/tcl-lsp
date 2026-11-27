@@ -32,7 +32,7 @@ pub struct OriginalConditionalLambdaFormattingBody {
     input: crate::analyser::ResolvedAnalysisInput,
     parent: Arc<OriginalSourceCommandTransitionAdvice>,
     word: NativeWord,
-    origin: Arc<crate::command_binding::SourceOriginId>,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
     fields: Vec<crate::signature_scan::name_value::LogicalSourceListNameInput>,
     argument_count: tcl_registry::InvocationArgumentCount,
     advice: BTreeMap<u32, OriginalSourceCommandTransitionAdvice>,
@@ -180,7 +180,7 @@ impl AdviceInvocationContext<'_> {
         };
         let mut depth = 0usize;
         let mut ancestor = self.origin.as_ref();
-        while let crate::command_binding::SourceOriginKind::ConditionalField { parent, .. } =
+        while let tcl_names::origin::SourceOriginKind::ConditionalField { parent, .. } =
             ancestor.kind()
         {
             depth = depth.checked_add(1)?;
@@ -219,17 +219,15 @@ impl AdviceInvocationContext<'_> {
             // The existing original-body owner already retains unchanged text.
             return None;
         }
-        let crate::signature_scan::scope::SignatureNamespaceScope::C(namespace) =
-            crate::signature_scan::scope::SignatureNamespaceScope::from_logical_lambda_list(
-                &fields,
-            )?
+        let tcl_names::namespace::SignatureNamespaceScope::C(namespace) =
+            crate::signature_scan::scope::namespace_from_logical_lambda_list(&fields)?
         else {
             return None;
         };
         let image = tcl_lexer::SourceImage::document(fields.get(1)?.original_field().value());
-        let origin = Arc::new(crate::command_binding::SourceOriginId::from_kind(
-            crate::command_binding::SourceOriginKind::ConditionalField {
-                parent: crate::command_binding::CommandAllocationSite {
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::from_kind(
+            tcl_names::origin::SourceOriginKind::ConditionalField {
+                parent: tcl_names::command::CommandAllocationSite {
                     source: Arc::clone(self.origin),
                     offset: invocation.native.first()?.span().start(),
                 },
@@ -272,7 +270,7 @@ impl AdviceInvocationContext<'_> {
     fn collect_logical_lambda_phase(
         &self,
         graph: &AdviceGraph,
-        origin: &Arc<crate::command_binding::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         image: &tcl_lexer::SourceImage,
         namespace: tcl_core_types::ByteNamespacePath,
     ) -> Option<(AdviceGraph, OriginalSourceTransitionAdviceTape)> {
@@ -356,7 +354,7 @@ mod tests {
         let phase = phase.expect("actual configured Logical lambda field");
         assert_eq!(phase.image().try_text().unwrap(), "if 1 {puts hi}");
         assert!(
-            matches!(phase.origin.kind(), crate::command_binding::SourceOriginKind::ConditionalField { parent, argument: 0, field: 1, .. } if parent.offset == 0 && parent.source.source_image().bytes() == source.as_bytes())
+            matches!(phase.origin.kind(), tcl_names::origin::SourceOriginKind::ConditionalField { parent, argument: 0, field: 1, .. } if parent.offset == 0 && parent.source.source_image().bytes() == source.as_bytes())
         );
         let command = tcl_source::segment::segment_commands_with_offset_and_config(
             phase.image().try_text().unwrap(),

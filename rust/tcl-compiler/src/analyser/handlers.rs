@@ -203,8 +203,8 @@ impl Analyser {
     pub(super) fn declaration_namespace_scope(
         &self,
         path: &[usize],
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
-        use crate::signature_scan::scope::SignatureNamespaceScope;
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
+        use tcl_names::namespace::SignatureNamespaceScope;
         let policy = self.declaration_name_policy()?;
         let mut current = match self
             .source_analysis_entry

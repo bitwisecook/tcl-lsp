@@ -330,7 +330,7 @@ fn elim_target_vars(
     let origin = binding.source_origin()?;
     if !matches!(
         origin.kind(),
-        crate::command_binding::SourceOriginKind::Authored(_)
+        tcl_names::origin::SourceOriginKind::Authored(_)
     ) || origin.source_image() != &module.source
         || binding
             .original_lexer_config_for_tokens(tokens)?

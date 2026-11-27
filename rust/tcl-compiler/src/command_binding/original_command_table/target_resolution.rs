@@ -18,13 +18,12 @@
 
 //! The targets of an original name operand: occupied commands and resolved handlers.
 
-use super::super::{
-    BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandKey,
-    SourceNamespaceKey,
-};
+use super::super::{BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget};
 #[cfg(any(test, debug_assertions))]
 use super::OriginalGeometryTiming;
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 
 pub(in super::super) struct OriginalCommandTargetSelection {
     pub(in super::super) targets: BTreeSet<ResolvedCommandTarget>,

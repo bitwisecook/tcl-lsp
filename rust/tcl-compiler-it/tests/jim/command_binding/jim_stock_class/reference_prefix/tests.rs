@@ -31,7 +31,7 @@ fn global_incoming_values_cannot_donate_reference_freshness_through_the_memo() {
     for names in [&[][..], incoming.as_slice(), &[][..]] {
         let bindings = SourceCommandBindings::analyse_in_frame_with_options(
             source,
-            &tcl_compiler::var_resolve::VariableExecutionFrame::Global,
+            &tcl_names::variable::VariableExecutionFrame::Global,
             input.lexer_config(),
             registry,
             SourceAnalysisOptions {

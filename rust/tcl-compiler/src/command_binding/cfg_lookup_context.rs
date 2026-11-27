@@ -19,12 +19,13 @@
 //! Retain original CFG lookup holders independently of reporting procedure names.
 
 use super::{
-    Binding, BindingInvocationMetadata, BindingKind, BlockId, CfgFunction, CommandRegistry,
-    HashMap, MayBinding, ModuleCommandBindings, SourceNamespaceKey, nqn, source_binding,
-    source_binding_from_original_input,
+    Binding, BindingInvocationMetadata, BlockId, CfgFunction, CommandRegistry, HashMap, MayBinding,
+    ModuleCommandBindings, nqn, source_binding, source_binding_from_original_input,
 };
 use crate::ir::{CommandBindingSites, CommandTokens, ExecutionNamespace, Statement};
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::BindingKind;
+use tcl_names::namespace::SourceNamespaceKey;
 
 /// Whole original invocation grammar and its separately retained lookup holder.
 /// This supplies no variable activation, procedure publication or Native frame.
@@ -289,7 +290,7 @@ fn standalone_namespace(cfg: &CfgFunction) -> Option<ExecutionNamespace> {
 fn project_binding(
     state: &ModuleCommandBindings,
     proof: &super::SourceInvocationBinding,
-    slots: &[super::SourceCommandKey],
+    slots: &[tcl_names::command::SourceCommandKey],
 ) -> Binding {
     let alternatives = slots
         .iter()

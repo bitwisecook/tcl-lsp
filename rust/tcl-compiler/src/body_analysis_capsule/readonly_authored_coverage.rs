@@ -25,13 +25,11 @@
 //! keeps its own body ID, function, prepared CFG and Source SSA summary.
 
 use super::{CompilationUnit, ProcedureId};
-use crate::command_binding::{
-    CommandAllocation, CommandAllocationSite, RetainedSourceModuleBindings,
-    SourceInstalledProcedureBody,
-};
+use crate::command_binding::{RetainedSourceModuleBindings, SourceInstalledProcedureBody};
 use crate::compilation_unit::FunctionUnit;
 use crate::ir::{Module, Procedure, ProcedureBodyKind};
 use std::collections::{BTreeMap, BTreeSet};
+use tcl_names::command::{CommandAllocation, CommandAllocationSite};
 use tcl_registry::CommandRegistry;
 
 /// A source coverage relation, never an installed implementation selection.

@@ -20,6 +20,7 @@
 //! adapts rich positioned results to legacy head-only consumers; it never
 //! interprets an import, alias, rename, namespace path, or shadow itself.
 
+use crate::command_binding::SourceOriginLexical;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -408,7 +409,7 @@ impl CommandBindingRealm {
         config: tcl_lexer::LexerConfig,
     ) -> Option<(
         tcl_lexer::NativeWord,
-        crate::command_binding::CommandAllocationSite,
+        tcl_names::command::CommandAllocationSite,
     )> {
         self.bindings.original_written_head_at_span_in_source_with(
             image,
@@ -685,7 +686,7 @@ impl CommandBindingRealm {
     #[must_use]
     pub(crate) fn possible_entered_body_invocations(
         &self,
-        invocation: &crate::command_binding::CommandAllocationSite,
+        invocation: &tcl_names::command::CommandAllocationSite,
     ) -> Vec<SourceInvocationBinding> {
         self.bindings.possible_entered_body_invocations(invocation)
     }
@@ -736,7 +737,7 @@ impl CommandBindingRealm {
     pub fn executed_script_for_word(
         &self,
         span: tcl_lexer::Span,
-    ) -> Option<&crate::command_binding::ExecutedScriptSource> {
+    ) -> Option<&tcl_names::origin::ExecutedScriptSource> {
         self.bindings.executed_script_for_word(span).or_else(|| {
             let image = self.bindings.source_origin()?.source_image();
             let whole = tcl_lexer::word_span_at(image.bytes(), span);
@@ -751,7 +752,7 @@ impl CommandBindingRealm {
         &self,
         span: tcl_lexer::Span,
         ordinal: usize,
-    ) -> Option<(crate::command_binding::ExecutedScriptSource, Self)> {
+    ) -> Option<(tcl_names::origin::ExecutedScriptSource, Self)> {
         let script = self
             .bindings
             .executed_script_for_list_element(span, ordinal)?
@@ -779,7 +780,7 @@ impl CommandBindingRealm {
     pub fn head_words_at_origin<'a>(
         &'a self,
         written: &'a str,
-        source: &crate::command_binding::ExecutedScriptSource,
+        source: &tcl_names::origin::ExecutedScriptSource,
         offset: u32,
     ) -> HeadWords<'a> {
         let binding = self.bindings.invocation_at_origin(&source.origin, offset);

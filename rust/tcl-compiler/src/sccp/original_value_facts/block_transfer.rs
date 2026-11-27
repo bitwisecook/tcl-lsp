@@ -47,7 +47,7 @@ fn observed_store_keys(
     index: usize,
     statement: &Statement,
     registry: &CommandRegistry,
-) -> HashSet<crate::var_resolve::VariableCellKey> {
+) -> HashSet<tcl_names::variable::VariableCellKey> {
     let Some(points) = &ssa.point_contexts else {
         return HashSet::new();
     };

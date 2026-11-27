@@ -20,14 +20,15 @@
 
 use super::{
     OriginalDeclaredLogicalBodyContext, OriginalDeclaredSourceBodyFrame,
-    OriginalLogicalProcedureBody, SourceOriginId, SourceOriginalVariableFrame,
+    OriginalLogicalProcedureBody, SourceOriginalVariableFrame,
 };
 use crate::analyser::ResolvedAnalysisInput;
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceNameInput, SignatureSourceNameKey,
-};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Span};
+use tcl_names::namespace::SignatureNamespaceScope;
+use tcl_names::origin::SourceOriginId;
+use tcl_names::word::SignatureSourceNameKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LogicalVariableFrameRecipe {

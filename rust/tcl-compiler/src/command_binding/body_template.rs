@@ -20,9 +20,10 @@
 
 use super::{
     Arc, BTreeMap, CfgFunction, CommandRegistry, InvocationFacts, ModuleCommandBindings, Script,
-    SourceInvocationBinding, SourceOriginId, SourceOriginKind, Statement,
+    SourceInvocationBinding, Statement,
 };
 use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
 
 /// Actual lexical scope whose command allocations are relocated into a body template.
 #[derive(Debug, Clone, Copy)]
@@ -58,11 +59,11 @@ pub struct BodySourceProofs {
     /// Original evaluation-order proofs, keyed by exact invocation start.
     pub tokens: BTreeMap<u32, crate::ir::CommandTokens>,
     sites: BTreeMap<u32, crate::ir::CommandBindingSite>,
-    root_source: Option<Arc<super::ExecutedScriptSource>>,
+    root_source: Option<Arc<tcl_names::origin::ExecutedScriptSource>>,
     readonly_sources: bool,
     root_admission: Option<Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
-    statement_sources: BTreeMap<(u32, u32), Option<Arc<super::ExecutedScriptSource>>>,
-    script_sources: BTreeMap<Vec<(u32, u32)>, Option<Arc<super::ExecutedScriptSource>>>,
+    statement_sources: BTreeMap<(u32, u32), Option<Arc<tcl_names::origin::ExecutedScriptSource>>>,
+    script_sources: BTreeMap<Vec<(u32, u32)>, Option<Arc<tcl_names::origin::ExecutedScriptSource>>>,
     script_math: BTreeMap<Vec<(u32, u32)>, Option<Vec<super::SourceMathInvocation>>>,
     math_invocations: Vec<super::SourceMathInvocation>,
     script_preparations: BTreeMap<Vec<(u32, u32)>, Option<Vec<super::SourceExpressionPreparation>>>,
@@ -281,7 +282,7 @@ impl BodySourceProofs {
 
     fn restore_scoped_source(
         &self,
-        source: &mut Option<Arc<super::ExecutedScriptSource>>,
+        source: &mut Option<Arc<tcl_names::origin::ExecutedScriptSource>>,
         old_root_base: Option<u32>,
         actual_root_base: u32,
     ) -> bool {
@@ -391,9 +392,9 @@ fn script_source_key(script: &Script) -> Vec<(u32, u32)> {
 }
 
 fn retain_source_mapping<K: Ord>(
-    mappings: &mut BTreeMap<K, Option<Arc<super::ExecutedScriptSource>>>,
+    mappings: &mut BTreeMap<K, Option<Arc<tcl_names::origin::ExecutedScriptSource>>>,
     key: K,
-    source: Option<&Arc<super::ExecutedScriptSource>>,
+    source: Option<&Arc<tcl_names::origin::ExecutedScriptSource>>,
 ) {
     mappings
         .entry(key)
@@ -415,11 +416,11 @@ pub(super) fn normalize_script_source(
     {
         return None;
     }
-    let super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+    let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
         return None;
     };
     let base = base.checked_sub(scope.original_body_offset)?;
-    let normalized = super::ExecutedScriptSource::contiguous_image(
+    let normalized = tcl_names::origin::ExecutedScriptSource::contiguous_image(
         Arc::clone(origin),
         source.text.clone(),
         base,
@@ -837,7 +838,7 @@ pub(super) fn normalize_native_tokens(
 }
 
 fn relocate_allocation_site(
-    invocation: &mut super::CommandAllocationSite,
+    invocation: &mut tcl_names::command::CommandAllocationSite,
     scope: BodyProofScope<'_>,
     origin: &Arc<SourceOriginId>,
 ) {

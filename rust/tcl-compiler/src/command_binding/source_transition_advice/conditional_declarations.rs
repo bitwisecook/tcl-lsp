@@ -23,6 +23,7 @@ use super::{
     OriginalConditionalProcedureDeclarationMemo, OriginalSourceCommandTransitionAdvice,
     OriginalSourceProcedureDeclarationValues, OriginalSourceTransitionAdviceTape, source_procedure,
 };
+use crate::command_binding::SourceOriginLexical;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tcl_core_types::ByteNamespacePath;
@@ -224,7 +225,7 @@ pub(in super::super) struct OriginalConditionalProcedureDeclaration {
 /// Reborrow an immutable original source observation, never its withdrawn
 /// execution policy or frame. The ordinary layout/table admission is unchanged.
 pub(in super::super) fn original_conditional_procedure_declaration(
-    site: &super::super::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
     row: &super::super::declaration_layout::DeclarationLayoutObservation,
     owner: &Arc<super::super::OriginalSourceAnalysisOwner>,
@@ -243,7 +244,7 @@ pub(in super::super) fn original_conditional_procedure_declaration(
         || row.words.as_ref() != tokens.words()
         || row.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
         || !row.entry.owns_source(&site.source, site.offset)
-        || !matches!(&row.namespace, super::super::SourceNamespaceKey::Authored(namespace) if namespace == "::")
+        || !matches!(&row.namespace, tcl_names::namespace::SourceNamespaceKey::Authored(namespace) if namespace == "::")
         || baseline.registry_owner.as_ref()?.semantic_key() != registry.snapshot().semantic_key()
     {
         return None;

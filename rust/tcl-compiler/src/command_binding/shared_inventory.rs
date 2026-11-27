@@ -115,7 +115,7 @@ pub(super) struct InventoryIndexCache<T, I>(Mutex<Option<InventoryIndexSlot<T, I
 
 struct InventoryIndexSlot<T, I> {
     inventory: Weak<T>,
-    origin: Arc<super::SourceOriginId>,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
     index: Option<Arc<I>>,
 }
 
@@ -144,7 +144,7 @@ impl<T, I> InventoryIndexCache<T, I> {
     pub(super) fn get(
         &self,
         inventory: &SharedSourceInventory<T>,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         build: impl FnOnce(&T) -> I,
     ) -> Option<Arc<I>> {
         let mut slot = self.0.lock().expect("inventory index cache poisoned");
@@ -212,9 +212,9 @@ mod index_cache_tests {
 
     #[test]
     fn an_index_is_built_on_the_second_query_and_dropped_by_a_write() {
-        let origin = Arc::new(crate::command_binding::SourceOriginId::authored(
-            &Arc::from("set x 1"),
-        ));
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            "set x 1",
+        )));
         let mut inventory = SharedSourceInventory::from(vec![1_u32, 2]);
         let cache = InventoryIndexCache::<Vec<u32>, usize>::default();
         let index = |cache: &InventoryIndexCache<Vec<u32>, usize>,
@@ -236,9 +236,9 @@ mod index_cache_tests {
         assert_eq!(index(&cache.clone(), &inventory), None);
 
         // Another origin is another index.
-        let other = Arc::new(crate::command_binding::SourceOriginId::authored(
-            &Arc::from("set y 2"),
-        ));
+        let other = Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            "set y 2",
+        )));
         assert_eq!(cache.get(&inventory, &other, Vec::len), None);
     }
 }

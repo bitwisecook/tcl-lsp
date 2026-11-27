@@ -35,7 +35,7 @@ pub enum ExecutionNamespace {
     /// The selected frame's defining namespace is statically known.
     Exact(String),
     /// Retained native or reached source-allocation identity and exact geometry.
-    SourceContext(crate::command_binding::SourceNamespaceKey),
+    SourceContext(tcl_names::namespace::SourceNamespaceKey),
     /// A receiver- or caller-selected namespace is known only at runtime.
     RuntimeSelected,
 }
@@ -52,8 +52,8 @@ impl ExecutionNamespace {
     pub fn for_head_context(
         &self,
         head: &str,
-    ) -> Option<std::borrow::Cow<'_, crate::command_binding::SourceNamespaceKey>> {
-        use crate::command_binding::SourceNamespaceKey;
+    ) -> Option<std::borrow::Cow<'_, tcl_names::namespace::SourceNamespaceKey>> {
+        use tcl_names::namespace::SourceNamespaceKey;
         match self {
             Self::SourceContext(context) => Some(std::borrow::Cow::Borrowed(context)),
             Self::Exact(namespace) => Some(std::borrow::Cow::Owned(SourceNamespaceKey::authored(
@@ -76,7 +76,7 @@ impl ExecutionNamespace {
         &self,
         head: &str,
         tokens: Option<&CommandTokens>,
-    ) -> Option<std::borrow::Cow<'_, crate::command_binding::SourceNamespaceKey>> {
+    ) -> Option<std::borrow::Cow<'_, tcl_names::namespace::SourceNamespaceKey>> {
         let evaluated = tokens
             .and_then(|tokens| tokens.source_binding.as_ref())
             .and_then(crate::command_binding::SourceInvocationBinding::evaluated_command_word);
@@ -126,9 +126,9 @@ impl ExecutionNamespace {
 #[derive(Debug, Eq, Default)]
 pub struct Script {
     /// Actual namespace owner for this retained executable body.
-    pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
+    pub namespace_context: Option<Box<tcl_names::namespace::SourceNamespaceKey>>,
     /// Exact evaluated source instance. Absence means no source mapping proof.
-    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    pub executed_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     /// Original function occurrences, with reached proofs or conditional
     /// topology retaining an unmet actual binding-validation obligation.
     pub implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
@@ -305,11 +305,11 @@ pub struct CommandBindingSite {
     /// denotes a compatibility node with no source-state query.
     pub known_namespaces: Option<std::sync::Arc<[String]>>,
     /// Actual variable activation proved at this dispatch site.
-    pub variable_frame: Option<crate::var_resolve::VariableExecutionFrame>,
+    pub variable_frame: Option<tcl_names::variable::VariableExecutionFrame>,
     /// Complete shared variable binding snapshot, including aliases and generations.
     pub variable_context: Option<std::sync::Arc<crate::var_resolve::ResolveContext>>,
     /// Namespace cells allocated on every reaching path at this site.
-    pub existing_namespace_cells: Option<Vec<crate::var_resolve::VariableCellKey>>,
+    pub existing_namespace_cells: Option<Vec<tcl_names::variable::VariableCellKey>>,
     /// Original source words and exact nested/read proofs consumed by typed IR.
     /// Generated dependencies have no source carrier and retain `None`.
     pub source_tokens: Option<Box<CommandTokens>>,
@@ -388,7 +388,7 @@ impl Script {
         self.executed_source.as_ref().is_some_and(|source| {
             matches!(
                 source.origin.kind(),
-                crate::command_binding::SourceOriginKind::Authored(_)
+                tcl_names::origin::SourceOriginKind::Authored(_)
             )
         })
     }

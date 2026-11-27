@@ -18,6 +18,7 @@
 
 //! Conditional original factory and blocking declaration headers.
 use crate::analyser::{AnalysisResult, ClassDef, ProcDef, ResolvedAnalysisInput};
+use crate::command_binding::SourceOriginLexical;
 use crate::signature_scan::original_name::SourceDeclarationMetadata;
 use crate::signature_scan::scope::SignatureSourceCommand;
 use tcl_lexer::SourceImage;

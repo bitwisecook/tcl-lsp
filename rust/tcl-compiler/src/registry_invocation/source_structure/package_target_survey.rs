@@ -101,7 +101,7 @@ impl OriginalPackageIndexAdvertisement {
 #[derive(Debug)]
 pub struct OriginalPackageIndexRetainedBody {
     survey: OriginalPackageIndexSourceSurvey,
-    script: crate::command_binding::ExecutedScriptSource,
+    script: tcl_names::origin::ExecutedScriptSource,
     _parent_words: OriginalRegistryWords,
 }
 impl OriginalPackageIndexRetainedBody {
@@ -112,7 +112,7 @@ impl OriginalPackageIndexRetainedBody {
     }
     /// Exact interpreter-owned script carrier and mapping.
     #[must_use]
-    pub fn script(&self) -> &crate::command_binding::ExecutedScriptSource {
+    pub fn script(&self) -> &tcl_names::origin::ExecutedScriptSource {
         &self.script
     }
 }
@@ -408,7 +408,7 @@ impl OriginalPackageIndexSourceSurvey {
     /// once per nesting level. A derived origin selects its own bindings.
     fn retained_body_source(
         &self,
-        script: &crate::command_binding::ExecutedScriptSource,
+        script: &tcl_names::origin::ExecutedScriptSource,
     ) -> Option<std::sync::Arc<OriginalSourceRegistryContext>> {
         let image = script.origin.source_image();
         let config = self.source.input.lexer_config();

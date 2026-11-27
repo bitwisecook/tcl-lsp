@@ -21,12 +21,13 @@
 //! ensemble was created, and the remaining words follow that prefix.
 
 use super::{
-    AllocationIncarnation, Arc, BTreeMap, BTreeSet, BindingKind, CommandAllocation, MayBinding,
-    ModuleCommandBindings, SourceCommandBindings, SourceCommandKey, SourceCommandTarget,
-    SourceExecutionContext, SourceNamespaceKey, SourceOutcomes, boxed_source_branch,
+    Arc, BTreeMap, BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandBindings,
+    SourceCommandTarget, SourceExecutionContext, SourceOutcomes, boxed_source_branch,
     source_binding,
 };
 use crate::registry_invocation::EffectiveInvocationWord;
+use tcl_names::command::{AllocationIncarnation, BindingKind, CommandAllocation, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
 use tcl_registry::{EnsembleDispatchTable, EnsembleDispatchTarget};

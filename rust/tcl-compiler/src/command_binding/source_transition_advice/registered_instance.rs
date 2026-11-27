@@ -143,7 +143,7 @@ impl OriginalSourceRegisteredHandleBinding {
 /// The receipt retains conditional applicability rather than an entered target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceRegisteredInstanceWords {
-    site: super::super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     arguments: Vec<SourceAdviceWord>,
     instance: Arc<OriginalSourceRegisteredInstance>,
@@ -159,7 +159,7 @@ impl OriginalSourceRegisteredInstanceWords {
     }
     /// Original lexical occurrence, independent of runtime dispatch.
     #[must_use]
-    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Same exact factory source identity and current authored lineage.
@@ -751,7 +751,7 @@ impl AdviceInvocationContext<'_> {
             obligations.push(SourceCommandTransitionObligation::UnknownEarlierMutation);
         }
         let receipt = OriginalSourceRegisteredInstanceWords {
-            site: super::super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.origin),
                 offset: native.first().map_or(0, |word| word.span().start()),
             },

@@ -19,11 +19,12 @@
 //! Original default manufacture shape, independent of allocation completion.
 
 use super::{
-    BindingKind, CommandAllocationSite, SourceCommandDefinition, SourceCommandDefinitionKind,
-    SourceCommandTarget, SourceInvocationBinding, SourceMethodReceiver, SourceRuntimeReachability,
+    SourceCommandDefinition, SourceCommandDefinitionKind, SourceCommandTarget,
+    SourceInvocationBinding, SourceMethodReceiver, SourceRuntimeReachability,
 };
 use crate::ir::CommandTokens;
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 use tcl_registry::{CommandRegistry, definer::MemberVisibility};
 
 /// One actual original class invocation whose selected default manufacturer

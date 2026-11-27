@@ -19,6 +19,7 @@
 //! Proof-gated attachment of registry-owned caller-frame execution contracts.
 
 use super::Lowerer;
+use crate::command_binding::ExecutedScriptWords;
 use crate::execution_region::{EvaluatedBodyRegion, ExecutionRegionDependency, RegionSelection};
 use crate::ir::CommandTokens;
 use crate::ir::Script;
@@ -211,8 +212,8 @@ pub fn stock_body_provider_loader(
 }
 
 type BodyText = Option<(
-    crate::command_binding::ExecutedScriptSource,
-    Option<crate::command_binding::SourceNamespaceKey>,
+    tcl_names::origin::ExecutedScriptSource,
+    Option<tcl_names::namespace::SourceNamespaceKey>,
 )>;
 
 struct SelectedLifecycle {
@@ -269,8 +270,8 @@ fn direct_body_operand(
 fn lifecycle_site(
     seg: &SegmentedCommand,
     tokens: &CommandTokens,
-) -> Option<crate::command_binding::CommandAllocationSite> {
-    Some(crate::command_binding::CommandAllocationSite {
+) -> Option<tcl_names::command::CommandAllocationSite> {
+    Some(tcl_names::command::CommandAllocationSite {
         source: tokens.source_binding.as_ref()?.source_origin()?.clone(),
         offset: seg.span.start(),
     })
@@ -278,7 +279,7 @@ fn lifecycle_site(
 
 fn lifecycle_body_operand(
     bindings: &crate::command_binding::SourceCommandBindings,
-    site: &crate::command_binding::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
     phase: crate::command_binding::SourceBodyPhase,
     tokens: &CommandTokens,
     effective: &crate::registry_invocation::EffectiveCommandWords,
@@ -467,8 +468,8 @@ impl Lowerer<'_> {
 
     fn lower_possible_executed_body(
         &mut self,
-        source: crate::command_binding::ExecutedScriptSource,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        source: tcl_names::origin::ExecutedScriptSource,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Script {
         let previous = std::mem::replace(&mut self.suppress_proc_register, true);
         let script = self.lower_executed_script_in_context(source, namespace);
@@ -494,7 +495,7 @@ impl Lowerer<'_> {
             return None;
         };
         let parent = binding.invocation_site()?.clone();
-        let mut source = crate::command_binding::ExecutedScriptSource::from_word(
+        let mut source = tcl_names::origin::ExecutedScriptSource::from_word(
             parent.clone(),
             written,
             word,
@@ -1232,7 +1233,7 @@ mod tests {
         );
         assert!(matches!(
             first.frame(),
-            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+            tcl_names::variable::VariableExecutionFrame::Procedure { .. }
         ));
         let base = first.source().base() as usize;
         assert_eq!(
@@ -1270,7 +1271,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let bindings = crate::command_binding::SourceCommandBindings::analyse_in_frame_with_options(
             source,
-            &crate::var_resolve::VariableExecutionFrame::Procedure {
+            &tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: "::".to_owned(),
                 identity: "compiler-layout-test".to_owned(),
             },

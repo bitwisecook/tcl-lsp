@@ -18,7 +18,6 @@
 
 //! Conditional representation plans: naming scopes, body contexts, targets, loops and captures.
 
-use super::super::{CommandAllocationSite, ExecutedScriptMapping, ExecutedScriptSource};
 use super::{
     Builder, ConditionalRepresentationBodyContext, ConditionalRepresentationBodyInputs,
     ConditionalRepresentationLoopPlan, ConditionalRepresentationNaming,
@@ -29,6 +28,8 @@ use super::{
 use crate::ir::CommandTokens;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{ExecutedScriptMapping, ExecutedScriptSource};
 use tcl_registry::script_body_flow::ScriptBodyFlow;
 use tcl_source::words::WordExpr;
 
@@ -41,7 +42,7 @@ impl Builder<'_> {
         site: &CommandAllocationSite,
         conditional_flow: Option<&crate::registry_invocation::DeclarationInvocationFlow>,
     ) -> Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
     )> {
         use super::super::declaration_layout::OriginalDiagnosticFrameEntry;
@@ -64,7 +65,7 @@ impl Builder<'_> {
             self.config,
             Some(input.unit_profile()),
         )?;
-        if *frame != crate::var_resolve::VariableExecutionFrame::Global
+        if *frame != tcl_names::variable::VariableExecutionFrame::Global
             || source.mapping != (ExecutedScriptMapping::Contiguous { base: 0 })
             || source.text != *source.origin.source_image()
             || !Arc::ptr_eq(&source.origin, &seed.origin)
@@ -483,7 +484,7 @@ impl Builder<'_> {
     fn representation_schema_target(
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
-        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
         policy: tcl_syntax::naming::NamePolicyProtocol,
         relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
         append: Option<tcl_registry::value_transfer::ConditionalSourceListAppend>,
@@ -504,7 +505,7 @@ impl Builder<'_> {
     fn representation_source_target(
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
-        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
         policy: tcl_syntax::naming::NamePolicyProtocol,
         target: tcl_registry::value_transfer::TargetId,
     ) -> Option<ConditionalRepresentationTarget> {
@@ -835,7 +836,7 @@ impl Builder<'_> {
     fn representation_captures(
         tokens: &CommandTokens,
         words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
-        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<VecDeque<representation::CaptureSource>> {
         use crate::signature_scan::scope::SignatureSourceNameInput;

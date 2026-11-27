@@ -22,14 +22,14 @@ use std::sync::Arc;
 
 use tcl_lexer::{SourceImage, Span};
 
-use super::{
-    ModuleCommandBindings, SourceOriginId, SourceOriginKind, native_result::EvaluatedSourceValue,
-};
+use super::ModuleCommandBindings;
+use super::native_result::EvaluatedSourceValue;
 use crate::analyser::{Analyser, ResolvedAnalysisInput};
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use crate::realm::CommandBindingRealm;
 use crate::ssa::original_source_read_at_unit;
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
 use tcl_source::segment::SegmentedCommand;
 use tcl_source::segment::segment_commands_incremental;
 use tcl_source::segment::segment_commands_with_offset_and_config;

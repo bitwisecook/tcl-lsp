@@ -50,7 +50,7 @@ fn trusted_file_entry_retains_actual_loaded_declaration_identity() {
     assert!(allocation.matches_source_declaration(library, 0));
     assert!(!allocation.matches_source_declaration("proc helper {mode} {return WRONG}", 0));
     assert!(
-        matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Loaded {path, ..} if path.as_ref() == "library.tcl")
+        matches!(allocation.site.source.kind(), tcl_names::origin::SourceOriginKind::Loaded {path, ..} if path.as_ref() == "library.tcl")
     );
 }
 

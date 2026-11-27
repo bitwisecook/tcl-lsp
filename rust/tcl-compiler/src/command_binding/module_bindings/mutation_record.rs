@@ -21,16 +21,16 @@
 use super::super::mutation_summary::{
     PrecisionWrites, RebindingSubjects, builtin_shadowed_by_qualified_definition,
 };
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::{
-    BindingKind, ModuleCommandBindings, ModuleCommandMutations, ProcBindingTrustProjection,
-    SourceCommandKey, default_binding,
+    ModuleCommandBindings, ModuleCommandMutations, ProcBindingTrustProjection, default_binding,
 };
 use super::binding_walk::collect_binding_states;
 use super::{BindingWalkContext, RetainedBindingRoots};
 use crate::ir::Script;
 use crate::naming::normalise_qualified_name as nqn;
 use std::sync::Arc;
+use tcl_names::command::{BindingKind, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 impl ModuleCommandBindings {
@@ -47,7 +47,7 @@ impl ModuleCommandBindings {
     fn mark_receiver_frame_opacity(&mut self) {
         if matches!(
             self.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         ) {
             self.receiver_frame_opacity = true;
         }

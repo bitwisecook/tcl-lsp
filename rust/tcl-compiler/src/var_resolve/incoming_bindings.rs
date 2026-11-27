@@ -24,9 +24,9 @@ use super::original_bytes::resolve_evaluated_variable_input;
 use super::place_resolution::{resolve_literal_access, resolve_substitution_access};
 use super::scalar_binding::bind_cell_identity;
 use super::{ContentsOrigin, ContentsPresence, ResolveContext};
-use crate::place;
-use crate::place::{CellGeneration, CellIdentity, CellOwner, PlaceKind};
 use tcl_core_types::NameBytes;
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, PlaceKind};
 use tcl_registry::CommandRegistry;
 
 impl ResolveContext {

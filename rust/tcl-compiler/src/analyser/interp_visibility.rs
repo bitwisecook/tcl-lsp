@@ -21,15 +21,15 @@
 #[cfg(test)]
 use super::Analyser;
 use super::ResolvedAnalysisInput;
-use crate::signature_scan::scope::{
-    SignatureNamespaceScope, SignatureSourceNameInput, SignatureSourceNameKey,
-};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, NameBytes};
 #[cfg(test)]
 use tcl_lexer::Span;
 use tcl_lexer::{NativeWord, SourceImage};
+use tcl_names::namespace::SignatureNamespaceScope;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::naming::{
     NamePolicyProtocol, NativeNameContext, NativeNameProtocol, NativeNameQualification,
 };
@@ -454,7 +454,7 @@ impl ConditionalInterpreterVisibilitySubject {
                 body.source().origin.source_image() == image
                     && matches!(
                         body.source().mapping,
-                        crate::command_binding::ExecutedScriptMapping::Contiguous { .. }
+                        tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
                     )
             })
     }

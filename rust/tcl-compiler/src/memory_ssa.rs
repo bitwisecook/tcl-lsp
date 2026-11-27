@@ -90,7 +90,7 @@ pub struct MemoryLocation {
     pub name: String,
     /// Exact canonical storage identity when supplied by a proved cell.
     /// Presentation names cannot reconstruct this key.
-    pub storage_key: Option<crate::var_resolve::VariableCellKey>,
+    pub storage_key: Option<tcl_names::variable::VariableCellKey>,
     /// Location-specific context.
     pub qualifier: String,
 }
@@ -329,7 +329,7 @@ impl MemoryOp {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MemorySsaFunction {
     /// Reaching cell-content graph. Whole-function alias sets are only a may-exposure projection.
-    pub cell_state: Option<crate::state_ssa::StateSsa<crate::place::Place>>,
+    pub cell_state: Option<crate::state_ssa::StateSsa<tcl_names::place::Place>>,
     /// Alias sets covering this function's aliased variables.
     pub alias_sets: Vec<AliasSet>,
     /// Memory operations in emission order.
@@ -654,7 +654,7 @@ fn has_projected_boundary_effects(
                                 registry,
                                 tcl_registry::TraceOperation::Read,
                             );
-                            !place.observed && place.kind != crate::place::PlaceKind::Unknown
+                            !place.observed && place.kind != tcl_names::place::PlaceKind::Unknown
                         })
                 })
                 && !tokens.variable_accesses.iter().any(|access| {
@@ -1259,14 +1259,14 @@ pub(crate) fn build_memory_ssa_with_cfg_with_metadata_context(
     memory
 }
 
-fn memory_location_of_place(place: &crate::place::Place) -> MemoryLocation {
-    use crate::place::PlaceKind;
+fn memory_location_of_place(place: &tcl_names::place::Place) -> MemoryLocation {
+    use tcl_names::place::PlaceKind;
     let kind = match place.kind {
         PlaceKind::Unknown => MemoryLocationKind::Unknown,
         PlaceKind::UpvarAlias => MemoryLocationKind::Upvar,
         PlaceKind::InstanceVar => MemoryLocationKind::InstanceVar,
         PlaceKind::ArrayElem | PlaceKind::ArrayWhole => MemoryLocationKind::ArrayElement,
-        PlaceKind::Scalar | PlaceKind::DictPath if place.ns == crate::place::LOCAL_NS => {
+        PlaceKind::Scalar | PlaceKind::DictPath if place.ns == tcl_names::place::LOCAL_NS => {
             MemoryLocationKind::Local
         }
         PlaceKind::Scalar | PlaceKind::DictPath if place.ns == "::" => MemoryLocationKind::Global,

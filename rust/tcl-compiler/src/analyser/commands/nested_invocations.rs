@@ -717,7 +717,7 @@ pub(super) fn nested_source_prefixes(
             let mut prefixes = Vec::new();
             for (argument, appended) in schema.authored_source_command_prefix_arguments().unwrap_or_default() {
                 let Some(native_input) = words.original_argument_value_input(argument) else { continue; };
-                let Some(word) = native_input.original_word_key().map(crate::signature_scan::scope::SignatureSourceNameKey::original_word) else { continue; };
+                let Some(word) = native_input.original_word_key().map(tcl_names::word::SignatureSourceNameKey::original_word) else { continue; };
                 let original = match argument.checked_add(1).and_then(|ordinal| words.origins().get(ordinal)) {
                     Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) => tokens.source_binding.as_ref()
                         .and_then(|binding| binding.original_callback_prefix_in_context(&tokens, *written, &context)),

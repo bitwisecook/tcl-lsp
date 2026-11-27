@@ -44,7 +44,7 @@ fn destruction_reborrows_the_actual_cfg_metadata_owner() {
         .unwrap();
     assert_ne!(
         super::statement_destruction_places_at(statement, block, index, points, registry),
-        [] as [crate::place::Place; 0]
+        [] as [tcl_names::place::Place; 0]
     );
     assert_eq!(
         super::statement_destruction_places_with_continuation_with_metadata_context(
@@ -54,6 +54,6 @@ fn destruction_reborrows_the_actual_cfg_metadata_owner() {
             registry,
             None,
         ),
-        [] as [crate::place::Place; 0]
+        [] as [tcl_names::place::Place; 0]
     );
 }

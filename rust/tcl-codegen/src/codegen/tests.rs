@@ -58,16 +58,12 @@ fn fixed_preparation(
         NativeMathFunctionTable,
     };
     let source = "0 && abs(1)";
-    let origin = Arc::new(tcl_compiler::command_binding::SourceOriginId::authored(
-        &Arc::from(source),
-    ));
+    let origin = Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+        source,
+    )));
     let source = Arc::new(
-        tcl_compiler::command_binding::ExecutedScriptSource::contiguous(
-            Arc::clone(&origin),
-            source,
-            0,
-        )
-        .unwrap(),
+        tcl_names::origin::ExecutedScriptSource::contiguous(Arc::clone(&origin), source, 0)
+            .unwrap(),
     );
     let table = NativeMathFunctionPrerequisite {
         interpreter: NativeInterpreterIdentity {
@@ -102,8 +98,8 @@ fn fixed_preparation(
         panic!("actual closed fixed table must prepare expression");
     };
     tcl_compiler::command_binding::SourceExpressionPreparation {
-        namespace_key: tcl_compiler::command_binding::SourceNamespaceKey::authored("::"),
-        invocation: tcl_compiler::command_binding::CommandAllocationSite {
+        namespace_key: tcl_names::namespace::SourceNamespaceKey::authored("::"),
+        invocation: tcl_names::command::CommandAllocationSite {
             source: origin,
             offset: 0,
         },
@@ -148,7 +144,8 @@ fn preparation_guard_declines_a_different_native_engine() {
 
 #[test]
 fn script_preparation_retains_chunk_entry_guards_atomically() {
-    use tcl_compiler::command_binding::{ExecutedScriptSource, SourceCommandBindings};
+    use tcl_compiler::command_binding::SourceCommandBindings;
+    use tcl_names::origin::ExecutedScriptSource;
     use tcl_runtime_api::CommandBindingGuard;
 
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();

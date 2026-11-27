@@ -102,7 +102,7 @@ fn authored_stored_callback_selector(
     command: &tcl_source::segment::SegmentedCommand,
 ) -> Option<tcl_lexer::Span> {
     use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
-    use tcl_compiler::signature_scan::original_name::SignatureSourceNameKey;
+    use tcl_names::word::SignatureSourceNameKey;
 
     let prefix =
         source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, command)?;

@@ -19,8 +19,7 @@
 //! Recording declaration layouts during the walk: receiver catalogues, suffixes and operands.
 
 use super::super::{
-    CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
-    SourceLookupSnapshot,
+    ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceLookupSnapshot,
 };
 use super::variable_symbols::root_diagnostic_namespace;
 use super::{
@@ -28,8 +27,10 @@ use super::{
     OriginalLogicalDeclarationTargets, OriginalLogicalReceiverSourceBody,
     original_declaration_layouts,
 };
+use crate::command_binding::SourceOriginLexical;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 impl SourceCommandBindings {
     /// Called receivers retain a separate declaration preview for source roles.
@@ -144,7 +145,7 @@ impl SourceCommandBindings {
         &mut self,
         body: Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
         command: &Arc<crate::registry_invocation::OriginalSourceCommandProjection>,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         input: &crate::analyser::ResolvedAnalysisInput,
         config: tcl_lexer::LexerConfig,
     ) {
@@ -198,7 +199,7 @@ impl SourceCommandBindings {
         {
             return;
         }
-        let Some(source) = super::super::ExecutedScriptSource::contiguous_image(
+        let Some(source) = tcl_names::origin::ExecutedScriptSource::contiguous_image(
             Arc::clone(origin),
             tcl_lexer::SourceImage::from_bytes(bytes, origin.source_image().channel()),
             content.start(),
@@ -214,7 +215,7 @@ impl SourceCommandBindings {
                 body,
                 input: input.clone(),
                 source,
-                frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                frame: tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                     identity: super::super::source_activation_name(
                         Some(origin),
                         "logical-receiver-source-layout",
@@ -391,7 +392,7 @@ impl SourceCommandBindings {
             if self.root_origin.as_ref() != Some(origin) {
                 return;
             }
-            let Some(source) = super::super::ExecutedScriptSource::contiguous_image(
+            let Some(source) = tcl_names::origin::ExecutedScriptSource::contiguous_image(
                 Arc::clone(origin),
                 origin.source_image().clone(),
                 0,
@@ -493,7 +494,7 @@ impl SourceCommandBindings {
     pub(in super::super) fn attach_declaration_operand_layout(
         &self,
         mut binding: super::super::SourceInvocationBinding,
-        origin: Option<&Arc<super::super::SourceOriginId>>,
+        origin: Option<&Arc<tcl_names::origin::SourceOriginId>>,
         offset: u32,
     ) -> super::super::SourceInvocationBinding {
         binding.declaration_layout_observations = origin.and_then(|origin| {

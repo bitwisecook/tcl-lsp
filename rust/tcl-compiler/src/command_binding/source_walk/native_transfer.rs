@@ -19,7 +19,6 @@
 //! Declared effects a native handler transfers into the walked state: writes and outputs.
 
 use super::super::module_bindings::apply_declared_binding_transitions;
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::{
     ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
     command_publication, original_command_table, original_namespace_deletion,
@@ -27,6 +26,7 @@ use super::super::{
 };
 use super::outcomes::boxed_source_branch;
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::InvocationFacts;
 
 pub(in super::super) fn select_contents_write_source(state: &mut ModuleCommandBindings) {

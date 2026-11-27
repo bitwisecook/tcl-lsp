@@ -20,9 +20,9 @@
 
 use crate::analyser::ResolvedAnalysisInput;
 use crate::registry_invocation::source_structure::OriginalRegistryWords;
-use crate::signature_scan::scope::SignatureNamespaceScope;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Span};
+use tcl_names::namespace::SignatureNamespaceScope;
 
 /// The actual selected source call, unchanged list roster and body ancestry.
 /// Namespace, formals and argument topology retain separate source purposes;
@@ -88,7 +88,7 @@ impl OriginalLogicalLambdaBody {
             &lambda,
             tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
         )?;
-        let namespace = SignatureNamespaceScope::from_logical_lambda_list(&fields)?;
+        let namespace = crate::signature_scan::scope::namespace_from_logical_lambda_list(&fields)?;
         let formals = crate::signature_scan::formal_parameters::LogicalSourceFormalParameters::from_lambda_fields(
             &fields, crate::command_binding::source_input_dialect(input),
         ).map(Arc::new);
@@ -142,7 +142,8 @@ impl OriginalLogicalLambdaBody {
         if body != *self.body
             || body.original_container() != &self.lambda
             || body.content_span() != self.content
-            || SignatureNamespaceScope::from_logical_lambda_list(&self.fields).as_ref()
+            || crate::signature_scan::scope::namespace_from_logical_lambda_list(&self.fields)
+                .as_ref()
                 != Some(&self.namespace)
         {
             return None;
@@ -162,7 +163,7 @@ impl OriginalLogicalLambdaBody {
         &self,
         input: &ResolvedAnalysisInput,
     ) -> Option<(
-        Arc<crate::command_binding::SourceOriginId>,
+        Arc<tcl_names::origin::SourceOriginId>,
         u32,
         Span,
         SignatureNamespaceScope,

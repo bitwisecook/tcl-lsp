@@ -63,7 +63,7 @@ pub struct VarNameArgRoles {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalProcArgRoles {
     pub(super) name: tcl_compiler::signature_scan::scope::SignatureSourceCommand,
-    pub(super) site: Option<tcl_compiler::command_binding::CommandAllocationSite>,
+    pub(super) site: Option<tcl_names::command::CommandAllocationSite>,
     pub(super) write: Vec<u32>,
     pub(super) read: Vec<u32>,
     pub(super) command: Vec<u32>,
@@ -72,7 +72,7 @@ pub(super) struct OriginalProcArgRoles {
 impl OriginalProcArgRoles {
     pub(super) fn new(
         name: &tcl_compiler::signature_scan::scope::SignatureSourceCommand,
-        site: Option<&tcl_compiler::command_binding::CommandAllocationSite>,
+        site: Option<&tcl_names::command::CommandAllocationSite>,
         proc_def: &ProcDef,
     ) -> Self {
         Self {
@@ -276,7 +276,8 @@ impl VarNameArgRoles {
             return None;
         }
         if let Some(reference) = &invocation.resolved_command_reference {
-            use tcl_compiler::command_binding::{BindingKind, SourceCommandReferenceBinding};
+            use tcl_compiler::command_binding::SourceCommandReferenceBinding;
+            use tcl_names::command::BindingKind;
             let kind = match reference.binding() {
                 SourceCommandReferenceBinding::Direct { kind, .. }
                 | SourceCommandReferenceBinding::Imported { kind, .. } => kind,

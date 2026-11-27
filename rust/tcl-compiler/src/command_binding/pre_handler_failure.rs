@@ -21,12 +21,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use super::{
-    CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
-    SourceNamespaceKey, SourceOutcomes,
-};
+use super::{ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes};
 use crate::ir::CommandTokens;
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::variable::VariableExecutionFrame;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute;
 use tcl_source::words::Provenance;
@@ -71,7 +70,7 @@ pub(super) struct UnrepresentedEntry {
 }
 
 pub(super) type UnrepresentedEntries =
-    BTreeMap<Arc<super::SourceOriginId>, Vec<UnrepresentedEntry>>;
+    BTreeMap<Arc<tcl_names::origin::SourceOriginId>, Vec<UnrepresentedEntry>>;
 
 impl UnrepresentedEntry {
     fn may_share_namespace(&self, namespace: &SourceNamespaceKey) -> bool {
@@ -89,7 +88,7 @@ impl UnrepresentedEntry {
 impl SourceCommandBindings {
     pub(super) fn record_unrepresented_entry(
         &mut self,
-        origin: Option<&Arc<super::SourceOriginId>>,
+        origin: Option<&Arc<tcl_names::origin::SourceOriginId>>,
         namespace: Option<SourceNamespaceKey>,
         frame: Option<VariableExecutionFrame>,
     ) {
@@ -236,7 +235,7 @@ impl SourceCommandBindings {
 
     pub(super) fn retain_pre_handler_failure_namespace(
         &mut self,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         namespace: &SourceNamespaceKey,
     ) {
         self.unrepresented_entries.update_if_needed(

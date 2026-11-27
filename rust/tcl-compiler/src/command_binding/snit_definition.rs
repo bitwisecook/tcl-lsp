@@ -19,11 +19,12 @@
 //! Conditional provider-defined dispatcher installation, without object proofs.
 
 use super::{
-    Arc, BindingKind, ClassDefinitionReceipt, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandBindings, SourceCommandTarget, SourceExecutionContext,
-    SourceInvocationBinding, SourceNativeInvocation, SourceOutcomes, qualify_execution_name,
-    retained_script_operand, source_effective_words,
+    Arc, ClassDefinitionReceipt, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
+    SourceCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceInvocationBinding,
+    SourceNativeInvocation, SourceOutcomes, qualify_execution_name, retained_script_operand,
+    source_effective_words,
 };
+use tcl_names::command::BindingKind;
 use tcl_registry::definer::{DefinitionBodyGrammar, DefinitionDispatcher};
 
 impl SourceCommandBindings {

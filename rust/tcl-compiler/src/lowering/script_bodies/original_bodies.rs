@@ -43,8 +43,8 @@ impl<'r> Lowerer<'r> {
     #[inline(never)]
     fn selected_source_bindings_boxed_in_context(
         &self,
-        source: &crate::command_binding::ExecutedScriptSource,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        source: &tcl_names::origin::ExecutedScriptSource,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<Box<RetainedSourceBodyInventory>> {
         self.source_bindings
             .as_ref()?
@@ -56,8 +56,8 @@ impl<'r> Lowerer<'r> {
     /// presentation label is independent of command lookup and replay context.
     pub(in super::super) fn lower_executed_script_in_context(
         &mut self,
-        source: crate::command_binding::ExecutedScriptSource,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        source: tcl_names::origin::ExecutedScriptSource,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Script {
         #[cfg(any(test, debug_assertions))]
         let started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
@@ -268,8 +268,8 @@ impl<'r> Lowerer<'r> {
     /// context is unknown. Known contexts survive unsupported text/admission.
     pub(in super::super) fn lower_original_body(
         &mut self,
-        source: crate::command_binding::ExecutedScriptSource,
-        namespace: Option<&crate::command_binding::SourceNamespaceKey>,
+        source: tcl_names::origin::ExecutedScriptSource,
+        namespace: Option<&tcl_names::namespace::SourceNamespaceKey>,
     ) -> Script {
         if let Some(namespace) = namespace {
             return self.lower_executed_script_in_context(source, namespace);
@@ -287,8 +287,8 @@ impl<'r> Lowerer<'r> {
         &self,
         tokens: &CommandTokens,
         argument: usize,
-        source: &crate::command_binding::ExecutedScriptSource,
-    ) -> Option<crate::command_binding::SourceNamespaceKey> {
+        source: &tcl_names::origin::ExecutedScriptSource,
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
         let bindings = self.source_bindings.as_ref()?;
         bindings.executed_script_entry_namespace_key_at(
             tokens.source_binding.as_ref()?.invocation_site()?,
@@ -301,7 +301,7 @@ impl<'r> Lowerer<'r> {
     /// caller has no separate invocation/argument context receipt.
     pub(in super::super) fn lower_retained_script(
         &mut self,
-        source: crate::command_binding::ExecutedScriptSource,
+        source: tcl_names::origin::ExecutedScriptSource,
     ) -> Script {
         let namespace = self.source_bindings.as_ref().and_then(|bindings| {
             bindings
@@ -339,7 +339,7 @@ impl<'r> Lowerer<'r> {
             .and_then(|bindings| bindings.source_origin())
             .cloned()
             .and_then(|origin| {
-                crate::command_binding::ExecutedScriptSource::contiguous(origin, text, base)
+                tcl_names::origin::ExecutedScriptSource::contiguous(origin, text, base)
             })
             .map(std::sync::Arc::new);
         if let Some(source) = &script.executed_source {

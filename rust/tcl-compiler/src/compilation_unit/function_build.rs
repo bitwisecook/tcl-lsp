@@ -727,7 +727,7 @@ impl FunctionUnit {
             None,
         );
         entry_context.instance_vars = if facts.original_source {
-            crate::var_resolve::SharedSet::default()
+            tcl_names::variable::SharedSet::default()
         } else {
             method.instance_vars.iter().cloned().collect()
         };

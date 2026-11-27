@@ -22,17 +22,18 @@ use super::super::declaration_layout::{
     DeclarationLayoutIssuer, DeclarationLayoutObservation, OriginalDiagnosticFrameEntry,
     original_declaration_layouts,
 };
-use super::super::{
-    CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings, SourceLookupSnapshot,
-};
+use super::super::{SourceCommandBindings, SourceLookupSnapshot};
 use super::declared_body::declared_body;
 use super::procedure_header::declaration_tokens;
 use super::{
     DeclaredProcedureBody, NestedLayoutCommand, NestedLayoutSyntax, OriginalDeclarationLayout,
 };
+use crate::command_binding::{ExecutedScriptWords, SourceOriginLexical};
 use crate::registry_invocation::{EffectiveInvocationWord, effective_invocation_word};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 /// One lexical body under its complete immutable parent lookup worlds.
 /// The registry is fixed for this collector. Parent command words are replaced
@@ -218,7 +219,7 @@ impl OriginalDeclarationLayout {
         site: &CommandAllocationSite,
         tokens: &crate::ir::CommandTokens,
         snapshot: &Arc<SourceLookupSnapshot>,
-        namespace: &super::super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Self> {
@@ -841,13 +842,13 @@ pub(super) struct ScopeAliasOwnershipShare {
 struct ScopeAliasOwnershipKey {
     snapshot: usize,
     source: ExecutedScriptSource,
-    namespace: super::super::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
 }
 
 type RootBodyKey<'a> = (
     &'a ExecutedScriptSource,
-    &'a super::super::SourceNamespaceKey,
+    &'a tcl_names::namespace::SourceNamespaceKey,
     tcl_lexer::LexerConfig,
 );
 
@@ -986,7 +987,7 @@ fn original_nested_body(
     };
     let source =
         ExecutedScriptSource::from_word(site.clone(), written, word, &value, parent.config);
-    let super::super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+    let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
         return None;
     };
     let end = base.checked_add(u32::try_from(source.text.len()).ok()?)?;
@@ -1070,7 +1071,7 @@ pub(in super::super) fn retains_successor_layout(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
-    namespace: &super::super::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {

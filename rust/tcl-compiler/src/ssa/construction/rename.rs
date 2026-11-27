@@ -37,9 +37,10 @@ use crate::cfg;
 use crate::cfg::BlockId;
 use crate::ir::Statement;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
+use crate::var_resolve::{ResolveContext, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 pub(in super::super) fn record_destruction_predecessor(
@@ -307,7 +308,7 @@ impl<'a> RenameWalk<'a> {
                 .filter(|cell| linked.contains(cell))
                 .collect::<Vec<_>>()
         };
-        let unnamed = |places: &[crate::place::Place]| {
+        let unnamed = |places: &[tcl_names::place::Place]| {
             places
                 .iter()
                 .any(|place| crate::var_resolve::canonical_binding_value_key(place).is_none())

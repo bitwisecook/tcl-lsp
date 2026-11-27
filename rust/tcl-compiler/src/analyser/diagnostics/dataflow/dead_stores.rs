@@ -68,7 +68,7 @@ fn reportable_dead_assignment(
 /// code outside the module may read. A frame's own unqualified store, the
 /// global frame's `set g 1` included, answers to the module's reads alone.
 pub(super) fn written_namespace_storage(
-    cell_name: &crate::var_resolve::VariableCellKey,
+    cell_name: &tcl_names::variable::VariableCellKey,
     var: &str,
 ) -> bool {
     cell_name.namespace_membership_for_advice().is_some()
@@ -77,11 +77,11 @@ pub(super) fn written_namespace_storage(
 
 /// A cell of an object's own storage: every method body of the object reads
 /// it, so one body's reads alone never prove a store unused.
-pub(super) fn written_object_storage(cell_name: &crate::var_resolve::VariableCellKey) -> bool {
+pub(super) fn written_object_storage(cell_name: &tcl_names::variable::VariableCellKey) -> bool {
     matches!(
         cell_name.root(),
-        crate::var_resolve::VariableCellKey::Instance { .. }
-            | crate::var_resolve::VariableCellKey::AllocatedInstance { .. }
+        tcl_names::variable::VariableCellKey::Instance { .. }
+            | tcl_names::variable::VariableCellKey::AllocatedInstance { .. }
     )
 }
 
@@ -95,7 +95,7 @@ struct DeadStoreVisibility<'a> {
 fn dead_store_has_visible_or_synthetic_effects(
     fu: &crate::compilation_unit::FunctionUnit,
     definition: &crate::def_use::DefSite,
-    cell_name: &crate::var_resolve::VariableCellKey,
+    cell_name: &tcl_names::variable::VariableCellKey,
     var: &str,
     registry: &tcl_registry::CommandRegistry,
     visibility: &DeadStoreVisibility<'_>,
@@ -243,8 +243,8 @@ impl Analyser {
     /// — a false dead store when `a(k)` is in fact read.  Delegates to the
     /// shared [`crate::place_bridge::element_writes_observed_by_reads`] (also
     /// used by the optimiser's O109), which resolves each element write to a
-    /// [`Place`](crate::place::Place) and consults the over-approximating
-    /// [`overlap`](crate::place::overlap).  Scalars keep the precise name-level
+    /// [`Place`](tcl_names::place::Place) and consults the over-approximating
+    /// [`overlap`](tcl_names::place::overlap).  Scalars keep the precise name-level
     /// verdict (they don't fold), so a genuine `set x 1; set x 2; puts $x` dead
     /// store still fires.  Empty when no registry is bound (e.g. the bare
     /// `emit_cfg_ssa_diagnostics` test path).

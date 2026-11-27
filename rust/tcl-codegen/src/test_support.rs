@@ -108,7 +108,7 @@ pub(crate) fn captured_native_namespace_entry_with_owner(
         },
     );
     assert_eq!(
-        tcl_compiler::command_binding::SourceNamespaceKey::from_native_entry(&entry)
+        tcl_names::namespace::SourceNamespaceKey::from_native_entry(&entry)
             .unwrap()
             .display(),
         Some(namespace.to_owned()),

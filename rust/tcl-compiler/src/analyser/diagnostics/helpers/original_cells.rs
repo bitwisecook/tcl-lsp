@@ -58,8 +58,8 @@ pub(in super::super) fn collect_defined_vars(cfg: &crate::cfg::Function) -> Hash
 /// Exact cross-procedure cells used only for diagnostic suppression.
 #[derive(Default)]
 pub(in super::super) struct DiagnosticCellFacts {
-    pub known_defined: HashSet<crate::var_resolve::VariableCellKey>,
-    pub externally_read: HashSet<crate::var_resolve::VariableCellKey>,
+    pub known_defined: HashSet<tcl_names::variable::VariableCellKey>,
+    pub externally_read: HashSet<tcl_names::variable::VariableCellKey>,
 }
 
 /// Selected successful definitions at the original statement boundary.
@@ -69,7 +69,7 @@ pub(in super::super) fn original_definition_places(
     block: BlockId,
     index: usize,
     registry: &tcl_registry::CommandRegistry,
-) -> Vec<crate::place::Place> {
+) -> Vec<tcl_names::place::Place> {
     let Some(metadata) = fu.invocation_metadata_context(registry) else {
         return Vec::new();
     };
@@ -112,12 +112,12 @@ pub(in super::super) fn original_definition_places(
                 after.captured_contents_presence(place)
                     == crate::var_resolve::ContentsPresence::Defined
                     && place.cell.as_ref().is_some_and(|cell| {
-                        cell.generation != crate::place::CellGeneration::Unknown
+                        cell.generation != tcl_names::place::CellGeneration::Unknown
                             && after
                                 .generations
                                 .get(&crate::var_resolve::cell_key(place))
                                 .copied()
-                                .unwrap_or(crate::place::CellGeneration::Incoming)
+                                .unwrap_or(tcl_names::place::CellGeneration::Incoming)
                                 == cell.generation
                     })
             })
@@ -129,7 +129,7 @@ pub(in super::super) fn original_definition_places(
 pub(in super::super) fn original_read_cell(
     access: &crate::command_binding::SourceVariableAccess,
     registry: &tcl_registry::CommandRegistry,
-) -> Option<crate::var_resolve::VariableCellKey> {
+) -> Option<tcl_names::variable::VariableCellKey> {
     if access.context_residual() != crate::command_binding::SourceVariableReadResidual::Closed {
         return None;
     }
@@ -236,9 +236,9 @@ pub(in super::super) fn original_read_occurrence_at_span(
 pub(in super::super) fn original_read_cells_at(
     fu: &crate::ssa::SsaFunction,
     point: (BlockId, usize),
-    value_cell: &crate::var_resolve::VariableCellKey,
+    value_cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
-) -> Vec<crate::var_resolve::VariableCellKey> {
+) -> Vec<tcl_names::variable::VariableCellKey> {
     crate::ssa::SsaSourceView::at_statement(fu, point.0, point.1)
         .source_tokens()
         .into_iter()
@@ -255,7 +255,7 @@ pub(in super::super) fn original_read_cells_at(
 pub(in super::super) fn special_variable_definition(
     fu: &crate::compilation_unit::FunctionUnit,
     definition: &crate::def_use::DefSite,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<String> {
     let block = fu.cfg.block_id(&definition.block)?;
@@ -329,7 +329,7 @@ pub(in super::super) fn special_variable_definition_at_span(
 pub(in super::super) fn globals_written_by_procs(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-) -> HashSet<crate::var_resolve::VariableCellKey> {
+) -> HashSet<tcl_names::variable::VariableCellKey> {
     cu.procedures
         .values()
         .flat_map(|fu| {
@@ -346,7 +346,7 @@ pub(in super::super) fn globals_written_by_procs(
                         .then(|| original_definition_places(fu, block, index, registry))
                         .into_iter()
                         .flatten()
-                        .filter(crate::place::Place::is_global)
+                        .filter(tcl_names::place::Place::is_global)
                         .filter_map(|place| crate::var_resolve::canonical_place_key(&place))
                 })
             })
@@ -358,8 +358,8 @@ pub(in super::super) fn globals_written_by_procs(
 pub(in super::super) fn definition_has_cell_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     definition: &crate::def_use::DefSite,
-    value_cell: &crate::var_resolve::VariableCellKey,
-    facts: &HashSet<crate::var_resolve::VariableCellKey>,
+    value_cell: &tcl_names::variable::VariableCellKey,
+    facts: &HashSet<tcl_names::variable::VariableCellKey>,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     let Some(block) = fu.cfg.block_id(&definition.block) else {
@@ -382,8 +382,8 @@ pub(in super::super) fn definition_has_cell_fact(
 pub(in super::super) fn read_has_cell_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     point: (BlockId, usize),
-    value_cell: &crate::var_resolve::VariableCellKey,
-    facts: &HashSet<crate::var_resolve::VariableCellKey>,
+    value_cell: &tcl_names::variable::VariableCellKey,
+    facts: &HashSet<tcl_names::variable::VariableCellKey>,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, point.0, point.1);
@@ -412,7 +412,7 @@ pub(in super::super) fn original_argument_use_has_no_read(
     fu: &crate::compilation_unit::FunctionUnit,
     statement: &crate::ir::Statement,
     point: (BlockId, usize),
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     use crate::var_resolve::ContentsPresence;
@@ -440,7 +440,7 @@ pub(in super::super) fn original_argument_use_has_no_read(
 pub(in super::super) fn globals_read_by_procs(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-) -> HashSet<crate::var_resolve::VariableCellKey> {
+) -> HashSet<tcl_names::variable::VariableCellKey> {
     let mut cells = HashSet::new();
     for fu in cu.procedures.values() {
         for (&block, data) in &fu.ssa.blocks {

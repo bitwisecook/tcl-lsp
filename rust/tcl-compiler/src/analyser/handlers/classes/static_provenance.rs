@@ -553,7 +553,7 @@ impl Analyser {
             .and_then(|binding| binding.proved_execution_target())
             .is_some_and(|target| {
                 target.registry_backed
-                    && target.kind == crate::command_binding::BindingKind::Builtin
+                    && target.kind == tcl_names::command::BindingKind::Builtin
                     && target.prepended.is_empty()
                     && crate::naming::qualify("::", segment.name()) == target.command
             })
@@ -721,7 +721,7 @@ impl Analyser {
         let binding = tokens.source_binding.as_ref()?;
         let target = binding.proved_execution_target()?;
         if target.registry_backed
-            || target.kind != crate::command_binding::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || !target.prepended.is_empty()
         {
             return None;

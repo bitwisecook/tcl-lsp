@@ -18,15 +18,15 @@
 
 //! Source-only child ingress from one authentic current-interpreter load point.
 
-use super::{
-    CommandAllocationSite, OriginalSourceAnalysisOwner, SourceCommandBindings,
-    SourceLookupSnapshot, SourceNamespaceKey,
-};
+use super::{OriginalSourceAnalysisOwner, SourceCommandBindings, SourceLookupSnapshot};
 use crate::analyser::{AnalysisResult, ResolvedAnalysisInput};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use tcl_lexer::NativeWord;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::OriginalSourcePointOrigin;
 
 /// Opaque source-point owner. Its host must independently retain the current
 /// parent URI/path/publication. This receipt grants no loading or Native entry.
@@ -45,16 +45,6 @@ pub enum OriginalSourcePointObligation {
     FileReadAndDecode,
     /// The containing source frame/body remains conditionally applicable.
     ContainingBody,
-}
-
-/// Immutable origin identity issued only after complete parent-point comparison.
-/// The matching full entry owns state; this token alone grants no state access.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct OriginalSourcePointOrigin(Arc<SourcePointOriginToken>);
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct SourcePointOriginToken {
-    issued_key: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -165,7 +155,7 @@ impl OriginalSourcePointEntry {
     // The history token has exactly this entry's existing private issued-key Eq.
     // Matching it supplies neither a live payload nor permission to serve facts.
     pub(super) fn matches_origin_token(&self, origin: &OriginalSourcePointOrigin) -> bool {
-        self.key == origin.0.issued_key
+        origin.matches_issued_key(self.key)
     }
 
     /// Source association never establishes native loading or decoding.
@@ -179,9 +169,7 @@ impl OriginalSourcePointEntry {
     }
 
     pub(crate) fn source_origin(&self) -> OriginalSourcePointOrigin {
-        OriginalSourcePointOrigin(Arc::new(SourcePointOriginToken {
-            issued_key: self.key,
-        }))
+        OriginalSourcePointOrigin::from_issued_key(self.key)
     }
 
     /// Rejoin the actual retained analysis, not another byte-equal analysis.
@@ -414,7 +402,7 @@ impl OriginalSourcePointEntry {
     ) -> bool {
         state.baseline.source_point_entry.as_ref() == Some(self)
             && state.current_source_origin.as_ref().is_some_and(|origin| {
-                matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, .. }
+                matches!(origin.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, .. }
                     if parent == &self.source_origin())
             })
             && state.baseline.metadata_context.source_analysis_input() == Some(self.input())
@@ -499,10 +487,8 @@ impl OriginalSourcePointEntry {
         Some(state)
     }
 
-    pub(crate) fn namespace_scope(
-        &self,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
-        use crate::signature_scan::scope::SignatureNamespaceScope;
+    pub(crate) fn namespace_scope(&self) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
+        use tcl_names::namespace::SignatureNamespaceScope;
         match self.namespace() {
             SourceNamespaceKey::Authored(key) if self.input().has_logical_source_name_context() => {
                 Some(SignatureNamespaceScope::Symbolic(key.clone()))
@@ -528,7 +514,7 @@ impl OriginalSourcePointEntry {
         }
     }
 
-    pub(super) fn owns_ancestor_origin(&self, origin: &super::SourceOriginId) -> bool {
+    pub(super) fn owns_ancestor_origin(&self, origin: &tcl_names::origin::SourceOriginId) -> bool {
         let mut entry = Some(self);
         while let Some(point) = entry {
             if point.payload.site.source.as_ref() == origin {
@@ -583,10 +569,10 @@ impl OriginalSourcePointEntry {
 
     pub(super) fn original_region_plan(
         &self,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         config: tcl_lexer::LexerConfig,
     ) -> Option<tcl_lexer::NativeScriptWordsPlan> {
-        if !matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+        if !matches!(origin.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, source }
             if parent == &self.source_origin()
             && source == self.payload.site.source.source_image())
         {
@@ -606,11 +592,11 @@ impl OriginalSourcePointEntry {
     /// any other origin, inherits naming state only and receives no issuer.
     pub(super) fn issuing_continuation_state(
         &self,
-        origin: &super::SourceOriginId,
+        origin: &tcl_names::origin::SourceOriginId,
     ) -> Option<&super::ModuleCommandBindings> {
         let issuer = self.payload.region.as_ref()?.issuing_point();
         (issuer.payload.site == self.payload.site
-            && matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+            && matches!(origin.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, source }
                 if parent == &self.source_origin()
                 && source == self.payload.site.source.source_image()))
         .then_some(&issuer.payload.snapshot.state)
@@ -664,7 +650,7 @@ impl OriginalSourcePointEntry {
         &self.payload.input
     }
 
-    pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(crate) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.payload.snapshot.state.variable_frame
     }
 
@@ -679,14 +665,17 @@ impl SourceCommandBindings {
         let origin = self.root_origin.as_ref()?;
         if self.analyser_source_settings.as_ref() != Some(&point.payload.settings)
             || self.source_metadata_owner().source_analysis_input() != Some(point.input())
-            || !matches!(origin.kind(), super::SourceOriginKind::InheritedPoint { parent, .. } if parent == &point.source_origin())
+            || !matches!(origin.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, .. } if parent == &point.source_origin())
         {
             return None;
         }
         Some(point)
     }
 
-    pub(crate) fn matches_inherited_source_origin(&self, origin: &super::SourceOriginId) -> bool {
+    pub(crate) fn matches_inherited_source_origin(
+        &self,
+        origin: &tcl_names::origin::SourceOriginId,
+    ) -> bool {
         self.original_inherited_source_entry().is_some()
             && self.root_origin.as_deref() == Some(origin)
     }
@@ -738,9 +727,9 @@ impl SourceCommandBindings {
             || !state.command_observers.is_quiet()
             || matches!(
                 state.variable_frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Unknown
-                    | crate::var_resolve::VariableExecutionFrame::Selected { .. }
-                    | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                tcl_names::variable::VariableExecutionFrame::Unknown
+                    | tcl_names::variable::VariableExecutionFrame::Selected { .. }
+                    | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
             )
             || points.any(|point| point != first)
             || first

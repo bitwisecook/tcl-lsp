@@ -20,9 +20,10 @@
 
 use super::{Module, TopLevelKind};
 use crate::analyser::ResolvedAnalysisInput;
-use crate::command_binding::{SourceAnalysisEntry, SourceNamespaceKey};
+use crate::command_binding::SourceAnalysisEntry;
 use tcl_core_types::{ByteNamespacePath, ProcedureModuleId};
 use tcl_lexer::{LexerConfig, SourceImage};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
 /// Original opaque-byte target namespace. Its private constructor belongs to

@@ -51,7 +51,7 @@ fn conflicting_paths_and_opaque_effects_withdraw_root_kind() {
     array.join(&scalar);
     let root = resolve_literal_place("a", &array, false, registry);
     assert_eq!(array.root_contents_kind(&root), None);
-    scalar.record_contents_write(&crate::place::unknown_top(), 20, true);
+    scalar.record_contents_write(&tcl_names::place::unknown_top(), 20, true);
     let root = resolve_literal_place("a", &scalar, false, registry);
     assert_eq!(scalar.root_contents_kind(&root), None);
 }

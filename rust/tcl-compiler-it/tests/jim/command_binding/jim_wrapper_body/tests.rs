@@ -45,7 +45,7 @@ fn jim_wrapper_body_keeps_a_distinct_opaque_future_world() {
     assert!(futures[0].frame().namespace_identity().is_none());
     assert!(matches!(
         futures[0].frame().layout(),
-        tcl_compiler::var_resolve::VariableExecutionFrame::Procedure { namespace, .. } if namespace == "::"
+        tcl_names::variable::VariableExecutionFrame::Procedure { namespace, .. } if namespace == "::"
     ));
     let future = futures[0].invocation_at(offset).unwrap();
     assert_eq!(
@@ -67,12 +67,12 @@ fn jim_wrapper_namespace_follows_both_published_procedure_keys() {
     assert!(future.frame().namespace_identity().is_none());
     assert!(matches!(
         future.frame().layout(),
-        tcl_compiler::var_resolve::VariableExecutionFrame::Procedure { namespace, .. } if namespace == "::n::n::C m"
+        tcl_names::variable::VariableExecutionFrame::Procedure { namespace, .. } if namespace == "::n::n::C m"
     ));
     assert_eq!(future.source().try_text().unwrap(), "missing_jim_method");
     assert!(matches!(
         future.frame().layout(),
-        tcl_compiler::var_resolve::VariableExecutionFrame::Procedure { .. }
+        tcl_names::variable::VariableExecutionFrame::Procedure { .. }
     ));
 }
 

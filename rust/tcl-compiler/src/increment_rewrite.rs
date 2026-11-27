@@ -247,11 +247,11 @@ fn prove_observed_integer_conversion(
         || place.observed
         || place.dynamic
         || place.index.is_some()
-        || place.kind != crate::place::PlaceKind::Scalar
+        || place.kind != tcl_names::place::PlaceKind::Scalar
         || place
             .cell
             .as_ref()
-            .is_none_or(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+            .is_none_or(|cell| cell.generation == tcl_names::place::CellGeneration::Unknown)
         || before.invocation_dialect != Some(dialect)
         || !before.read_produces_value(place, registry)
         || setter.store_would_error(output)

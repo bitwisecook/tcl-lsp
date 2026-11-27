@@ -218,7 +218,7 @@ fn original_native_world_selects_policy_before_any_branch_and_never_reseeds_with
         );
         // A missing actual native row remains missing despite Registry
         // knowledge. No namespace geometry supplies that implementation.
-        let key = super::super::SourceCommandKey::slot(root.clone(), "proc".into());
+        let key = tcl_names::command::SourceCommandKey::slot(root.clone(), "proc".into());
         assert_eq!(
             state.original_bindings_for_key(&key),
             Some(std::collections::BTreeSet::from([
@@ -296,7 +296,7 @@ fn original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry
     let root = state.source_root_namespace_key().unwrap();
     assert_eq!(
         state.original_namespace_geometry(&root, policy),
-        Some(crate::signature_scan::scope::SignatureNamespaceScope::Jim(
+        Some(tcl_names::namespace::SignatureNamespaceScope::Jim(
             tcl_core_types::NameBytes::default()
         ))
     );
@@ -306,7 +306,7 @@ fn original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry
             .original_namespace_geometry(&absent_geometry, policy)
             .is_none()
     );
-    let key = super::super::SourceCommandKey::slot(root.clone(), "set".into());
+    let key = tcl_names::command::SourceCommandKey::slot(root.clone(), "set".into());
     let bindings = state.original_bindings_for_key(&key).unwrap();
     assert!(
         matches!(bindings.iter().next(), Some(super::super::MayBinding::Target(target))
@@ -390,8 +390,10 @@ fn native_lookup_cursor_keeps_ambiguous_paths_and_later_failures_separate() {
 
 #[test]
 fn mutable_native_source_paths_stop_at_original_local_hits() {
-    use super::super::{ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey};
+    use super::super::ModuleCommandBindings;
     use tcl_core_types::{ByteNamespacePath, NativeByteCommandSlot};
+    use tcl_names::command::SourceCommandKey;
+    use tcl_names::namespace::SourceNamespaceKey;
     for version in tcl_dialect::TclVersion::ALL {
         let mut snapshot = entry(NativeCommandImplementation::Opaque);
         select_fixture_native_point(&mut snapshot, version);
@@ -467,8 +469,9 @@ fn mutable_native_source_paths_stop_at_original_local_hits() {
 
 #[test]
 fn handler_namespace_queries_keep_original_context_and_declared_operands_separate() {
-    use super::super::{ModuleCommandBindings, SourceNamespaceKey};
+    use super::super::ModuleCommandBindings;
     use tcl_core_types::ByteNamespacePath;
+    use tcl_names::namespace::SourceNamespaceKey;
     let mut snapshot = entry(NativeCommandImplementation::Opaque);
     select_fixture_native_point(&mut snapshot, tcl_dialect::TclVersion::V8_6);
     for (token, path) in [(1, ["a:", "b"]), (2, ["a", ":b"])] {
@@ -506,10 +509,11 @@ fn handler_namespace_queries_keep_original_context_and_declared_operands_separat
 
 #[test]
 fn allocated_native_namespace_replacement_does_not_revive_old_context() {
-    use super::super::{
-        ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey, SourceOriginId,
-    };
+    use super::super::ModuleCommandBindings;
     use tcl_core_types::ByteNamespacePath;
+    use tcl_names::command::SourceCommandKey;
+    use tcl_names::namespace::SourceNamespaceKey;
+    use tcl_names::origin::SourceOriginId;
     use tcl_registry::{NamespaceTransitionTarget, TransitionSubject};
     let mut snapshot = entry(NativeCommandImplementation::Opaque);
     select_fixture_native_point(&mut snapshot, tcl_dialect::TclVersion::V8_6);
@@ -567,8 +571,10 @@ fn allocated_native_namespace_replacement_does_not_revive_old_context() {
 
 #[test]
 fn retained_deleted_current_context_keeps_lazy_global_fallback() {
-    use super::super::{ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey};
+    use super::super::ModuleCommandBindings;
     use tcl_core_types::ByteNamespacePath;
+    use tcl_names::command::SourceCommandKey;
+    use tcl_names::namespace::SourceNamespaceKey;
     use tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable;
     for version in tcl_dialect::TclVersion::ALL {
         let mut snapshot = entry(NativeCommandImplementation::Opaque);
@@ -1057,7 +1063,7 @@ fn actual_observer_table_closes_only_callback_uncertainty() {
         snapshot.commands.push(return_row);
         snapshot.variable_observers = presence;
         select_fixture_native_point(&mut snapshot, tcl_dialect::TclVersion::V8_5);
-        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "actual P".to_owned(),
         };
@@ -1132,7 +1138,7 @@ fn observer_effects_do_not_revoke_closed_compiler_admission() {
         snapshot.commands.push(return_row);
         snapshot.variable_observers = Presence::Present;
         select_fixture_native_point(&mut snapshot, version);
-        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "actual P".to_owned(),
         };

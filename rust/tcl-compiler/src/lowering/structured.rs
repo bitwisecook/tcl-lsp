@@ -22,6 +22,7 @@
 //! structured IR statement (`If`, `For`, `While`, `Foreach`, `Catch`,
 //! `Try`, `Switch`, `dict` subcommands).
 
+use crate::command_binding::ExecutedScriptWords;
 use std::borrow::Cow;
 
 use tcl_lexer::{Span, Token, TokenType};
@@ -54,7 +55,7 @@ struct SwitchPair {
     body_text: String,
     body_span: Option<Span>,
     body_arg_idx: Option<usize>,
-    body_source: Option<crate::command_binding::ExecutedScriptSource>,
+    body_source: Option<tcl_names::origin::ExecutedScriptSource>,
 }
 
 /// One element of a switch's braced case list.
@@ -1183,7 +1184,7 @@ impl Lowerer<'_> {
         &self,
         seg: &SegmentedCommand,
         argument: usize,
-    ) -> Option<crate::command_binding::ExecutedScriptSource> {
+    ) -> Option<tcl_names::origin::ExecutedScriptSource> {
         let bindings = self.source_bindings.as_ref()?;
         let origin = bindings.source_origin()?.clone();
         let tokens = self.cmd_tokens(seg);
@@ -1197,8 +1198,8 @@ impl Lowerer<'_> {
         else {
             return None;
         };
-        Some(crate::command_binding::ExecutedScriptSource::from_word(
-            crate::command_binding::CommandAllocationSite {
+        Some(tcl_names::origin::ExecutedScriptSource::from_word(
+            tcl_names::command::CommandAllocationSite {
                 source: origin,
                 offset: seg.span.start(),
             },
@@ -1269,7 +1270,7 @@ impl Lowerer<'_> {
                     .cloned()
                     .or_else(|| {
                         list_source.list_element(
-                            crate::command_binding::CommandAllocationSite {
+                            tcl_names::command::CommandAllocationSite {
                                 source: self
                                     .source_bindings
                                     .as_ref()
@@ -1690,8 +1691,8 @@ impl Lowerer<'_> {
         else {
             return super::over_depth_script(tok.span.start(), text.len());
         };
-        let script = crate::command_binding::ExecutedScriptSource::from_word(
-            crate::command_binding::CommandAllocationSite {
+        let script = tcl_names::origin::ExecutedScriptSource::from_word(
+            tcl_names::command::CommandAllocationSite {
                 source: origin,
                 offset: span.start(),
             },

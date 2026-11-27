@@ -346,7 +346,7 @@ impl OpaqueRegion {
 
 /// One Tcl variable cell named by source-faithful lowering.
 ///
-/// This is deliberately *not* a [`crate::place::Place`]: binding a name to a
+/// This is deliberately *not* a [`tcl_names::place::Place`]: binding a name to a
 /// place requires the scope declarations (`global`, `variable`, `upvar`,
 /// instance variables) that a `ResolveContext` carries, and the executable
 /// builder is handed a [`Script`] and a registry context only.  A cell

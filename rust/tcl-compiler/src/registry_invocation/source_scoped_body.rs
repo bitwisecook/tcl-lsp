@@ -23,9 +23,9 @@ use std::sync::Arc;
 use super::{OriginalConditionalRegistryMetadata, OriginalConditionalVendorRegistryMetadata};
 use crate::ir::CommandTokens;
 use crate::signature_scan::original_name::SourceOriginalNameOccurrence;
-use crate::signature_scan::scope::SignatureNamespaceScope;
 use crate::signature_scan::vendor_name::VendorSourceNameOccurrence;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, TokenType};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::model::{ContextRegistry, ResolvedContext};
 use tcl_registry::{ArgRole, RegistrySemanticKey};
 

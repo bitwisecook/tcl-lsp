@@ -32,10 +32,12 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use tcl_compiler::analyser::ResolvedAnalysisInput;
-use tcl_compiler::command_binding::{SourceAnalysisOptions, SourceNamespaceKey, SourceOriginId};
+use tcl_compiler::command_binding::SourceAnalysisOptions;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{Module, Procedure, ProcedureId, ReferenceImport, Script, Statement};
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::SourceOriginId;
 use tcl_registry::CommandRegistry;
 
 use super::InlineSpec;

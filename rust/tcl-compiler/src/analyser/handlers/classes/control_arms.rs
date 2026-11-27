@@ -20,6 +20,7 @@
 
 use super::super::super::state::Analyser;
 use super::{ControlArm, MAX_UNKNOWN_BODY_DEPTH};
+use crate::command_binding::SourceOriginLexical;
 use crate::lowering::structured::{braced_word_flags, quoted_word_flags};
 use crate::value_transfer::{WordForm, literal_selection};
 use tcl_lexer::{Span, TokenType};

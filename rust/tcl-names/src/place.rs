@@ -38,7 +38,7 @@
 //!   dict key, or runtime variable name (`$i` in `a($i)`, `X` in `set $X`).
 //!
 //! The `overlap` relation separates a dynamic *index* on a known base from a
-//! dynamic *alias/name*.  The resolution layer ([`crate::var_resolve`]) maps a
+//! dynamic *alias/name*.  The compiler's variable resolution layer maps a
 //! syntactic reference + scope context to a canonical place.
 
 use tcl_core_types::NameBytes;
@@ -132,15 +132,15 @@ pub enum CellOwner {
     /// A namespace variable table.
     Namespace(String),
     /// Exact retained namespace incarnation and component geometry.
-    NamespaceIdentity(Box<crate::command_binding::SourceNamespaceKey>),
+    NamespaceIdentity(Box<crate::namespace::SourceNamespaceKey>),
     /// A selected stack frame whose activation is not available locally.
     SelectedFrame(tcl_registry::FrameLevel),
     /// A retained raw wrapper or callable-owned static value.
-    RetainedSlot(Box<crate::raw_binding::RawBindingSlotId>),
+    RetainedSlot(Box<crate::variable::RawBindingSlotId>),
     /// Object instance storage without an allocation proof.
     Instance(String),
     /// Storage of one actual bounded object allocation, independent of its name.
-    AllocatedInstance(Box<crate::command_binding::SourceObjectAllocation>),
+    AllocatedInstance(Box<crate::variable::SourceObjectAllocation>),
 }
 
 /// The lifetime of an array or namespace cell.
@@ -380,9 +380,9 @@ fn retained_cell_overlap(p: &Place, q: &Place) -> Option<bool> {
                 (&p_cell.owner, &q_cell.owner)
         {
             return Some(if p.kind == PlaceKind::Unknown {
-                crate::var_resolve::namespace_contains(left, right)
+                crate::variable::namespace_contains(left, right)
             } else {
-                crate::var_resolve::namespace_contains(right, left)
+                crate::variable::namespace_contains(right, left)
             });
         }
         let selected = matches!(p_cell.owner, CellOwner::SelectedFrame(_))
@@ -737,31 +737,6 @@ mod tests {
         // upvar alias / instance var / unknown are not "global" scalars
         assert!(!upvar_alias("u", "::x", false).is_global());
         assert!(!unknown_top().is_global());
-    }
-
-    #[test]
-    fn worker_overlap_preserves_unknown_selection_and_initialisation_epochs() {
-        use crate::var_resolve::{ResolveContext, resolve_literal_place};
-        use tcl_registry::f5::WorkerExecution;
-        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-        let resolve = |worker, initialisation_epoch, connection| {
-            let mut context = ResolveContext::for_function("::event");
-            context.known_namespaces.insert("::static".to_owned());
-            context.execution = Some(WorkerExecution {
-                worker,
-                initialisation_epoch,
-                connection,
-            });
-            resolve_literal_place("::static::counter", &context, false, registry)
-        };
-        let first = resolve(Some(0), 1, Some(10));
-        assert!(overlap(&first, &resolve(Some(0), 1, Some(20))));
-        assert!(!overlap(&first, &resolve(Some(1), 1, Some(10))));
-        assert!(!overlap(&first, &resolve(Some(0), 2, Some(10))));
-        let unknown = resolve(None, 1, None);
-        assert!(overlap(&first, &unknown));
-        assert!(overlap(&unknown, &resolve(Some(1), 1, None)));
-        assert_ne!(first.cell, unknown.cell);
     }
 
     #[test]

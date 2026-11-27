@@ -22,14 +22,14 @@ use super::canonical_keys::{
     binding_key_in_namespace, canonical_binding_value_key, canonical_literal_variable_key,
     cell_key, physical_array_key,
 };
-use super::cell_key::VariableCellKey;
 use super::place_resolution::{resolve_literal_access, resolve_literal_place};
 use super::{
     ContentsOrigin, ContentsPresence, ContentsWorld, ResolveContext, RootContentsKind,
     contents_presence_after_write,
 };
-use crate::place;
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 impl ResolveContext {
@@ -172,7 +172,7 @@ impl ResolveContext {
         self.captured_cells
             .destroy(place, Some(RootContentsKind::Array));
         let Some(root) = physical_array_key(place) else {
-            self.record_contents_write(&crate::place::unknown_top(), 0, true);
+            self.record_contents_write(&tcl_names::place::unknown_top(), 0, true);
             return;
         };
         self.contents_unknown_arrays.insert(root.clone());
@@ -286,7 +286,7 @@ impl ResolveContext {
             CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {}
             CellOwner::AllocatedInstance(allocation)
                 if allocation.incarnation
-                    != crate::command_binding::AllocationIncarnation::RepeatedFresh => {}
+                    != tcl_names::command::AllocationIncarnation::RepeatedFresh => {}
             CellOwner::Activation(identity) => {
                 let mut occurrences = 0;
                 let mut frame = Some(&*self);

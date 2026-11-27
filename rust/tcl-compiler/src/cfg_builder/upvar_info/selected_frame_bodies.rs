@@ -40,7 +40,7 @@ pub(super) fn record_resolved_frame_body(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     execution_namespace: &ExecutionNamespace,
     info: &mut UpvarInfo,
     depth: u32,
@@ -85,7 +85,7 @@ fn record_readable_frame_body(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -137,7 +137,7 @@ pub(super) fn record_upframe_body_at_depth(
     source_body_is_braced: bool,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -477,7 +477,7 @@ fn record_nested_upframe_effects(
     script: &Script,
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
     depth: u32,
 ) {

@@ -24,6 +24,7 @@
 //! expression was computed at a dominating definition; the new
 //! occurrence can be replaced with the earlier result.
 
+use crate::command_binding::SourceOriginLexical;
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 

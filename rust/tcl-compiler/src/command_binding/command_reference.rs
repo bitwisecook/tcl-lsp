@@ -18,10 +18,8 @@
 
 //! Navigation projection of the called slot, independently of target execution.
 
-use super::{
-    BindingKind, CommandAllocation, CommandIdentity, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceInvocationBinding,
-};
+use super::{MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceInvocationBinding};
+use tcl_names::command::{BindingKind, CommandAllocation, CommandIdentity};
 
 /// Category proved by the selected source definition owner, independently of
 /// a document's assistance records and the shared class/instance binding kind.
@@ -99,7 +97,7 @@ pub struct SourceCommandReference {
     definition: Option<SourceCommandDefinition>,
     linked_definition: Option<SourceCommandDefinition>,
     called_implementation_allocation: Option<CommandAllocation>,
-    invocation_site: Option<super::CommandAllocationSite>,
+    invocation_site: Option<tcl_names::command::CommandAllocationSite>,
 }
 
 impl SourceCommandReference {
@@ -132,7 +130,7 @@ impl SourceCommandReference {
     /// The retained called command's typed incarnation, independent of its slot.
     pub fn command_ref(
         &self,
-        interner: &mut super::CommandRefInterner,
+        interner: &mut tcl_names::command::CommandRefInterner,
     ) -> tcl_core_types::Answer<tcl_core_types::CommandRef> {
         match &self.binding {
             SourceCommandReferenceBinding::Direct { identity, .. } => {
@@ -190,11 +188,14 @@ impl SourceCommandReference {
     /// Whether this readonly reference was issued at this exact original
     /// consuming lookup. Source coordinates and equal display cannot reissue it.
     #[must_use]
-    pub fn matches_original_invocation_site(&self, site: &super::CommandAllocationSite) -> bool {
+    pub fn matches_original_invocation_site(
+        &self,
+        site: &tcl_names::command::CommandAllocationSite,
+    ) -> bool {
         self.issued_at(site)
     }
 
-    pub(super) fn issued_at(&self, site: &super::CommandAllocationSite) -> bool {
+    pub(super) fn issued_at(&self, site: &tcl_names::command::CommandAllocationSite) -> bool {
         self.invocation_site.as_ref() == Some(site)
     }
 
@@ -348,7 +349,7 @@ impl SourceInvocationBinding {
             .invocation_site()
             .map_or(NamingProvenance::Analysis, |site| {
                 NamingProvenance::Source {
-                    instance: super::SourceOriginId::activation_key(&site.source),
+                    instance: tcl_names::origin::SourceOriginId::activation_key(&site.source),
                     offset: site.offset,
                 }
             });
@@ -425,8 +426,8 @@ impl ModuleCommandBindings {
     pub(super) fn original_reference_for_input(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::SourceNamespaceKey,
-        site: Option<super::CommandAllocationSite>,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
+        site: Option<tcl_names::command::CommandAllocationSite>,
     ) -> Option<SourceCommandReference> {
         let mut occupied = Vec::new();
         for key in self.original_command_keys_for_input(namespace, input)? {
@@ -456,9 +457,9 @@ impl ModuleCommandBindings {
     pub(crate) fn original_reference_for_lookup(
         &self,
         lookup: &super::OriginalCommandLookup,
-        site: Option<super::CommandAllocationSite>,
+        site: Option<tcl_names::command::CommandAllocationSite>,
     ) -> Option<SourceCommandReference> {
-        let mut selected: Option<super::SourceCommandKey> = None;
+        let mut selected: Option<tcl_names::command::SourceCommandKey> = None;
         for path in self.original_command_paths_for_slots(lookup.candidates(), lookup.policy())? {
             let mut reached = None;
             for key in path {
@@ -484,9 +485,9 @@ impl ModuleCommandBindings {
 
     pub(super) fn reference_for_command_key(
         &self,
-        slot: &super::SourceCommandKey,
+        slot: &tcl_names::command::SourceCommandKey,
         bindings: &std::collections::BTreeSet<MayBinding>,
-        invocation_site: Option<super::CommandAllocationSite>,
+        invocation_site: Option<tcl_names::command::CommandAllocationSite>,
         linked_definition: Option<SourceCommandDefinition>,
     ) -> Option<SourceCommandReference> {
         if bindings.len() != 1 {
@@ -543,7 +544,7 @@ impl ModuleCommandBindings {
 
     fn original_called_slot(
         &self,
-        key: &super::SourceCommandKey,
+        key: &tcl_names::command::SourceCommandKey,
     ) -> Option<(
         tcl_core_types::ByteCommandSlot,
         tcl_syntax::naming::NamePolicyProtocol,

@@ -19,23 +19,23 @@
 //! The binding observed at one invocation: defaults, joins, proved targets and source owners.
 
 use super::binding_projection::source_binding_projection;
-use super::command_identity::{AllocationIncarnation, CommandAllocationSite};
 use super::compiled_invocation::{CompiledExecutionResidual, NativeInlineRejection};
 use super::compiler_inventory::SourceRuntimeReachability;
-use super::executed_script_source::ExecutedScriptSource;
-use super::namespace_context::SourceNamespaceKey;
-use super::source_origin::{SourceOriginId, SourceOriginKind};
 use super::source_transition_advice::{
     OriginalLogicalSourceNameInput, OriginalSourceCommandTransitionAdvice,
 };
 use super::source_walk::{boxed_source_branch, join_evaluated_words};
 use super::{
-    BindingKind, DeferredImplementationId, OriginalSourceAnalysisOwner, ReceiverNamespaceContents,
+    DeferredImplementationId, OriginalSourceAnalysisOwner, ReceiverNamespaceContents,
     SourceCommandTarget, SourceConstructorEntry, SourceInvocationBinding, SourceLookupSnapshot,
     compiled_invocation,
 };
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::BindingKind;
+use tcl_names::command::{AllocationIncarnation, CommandAllocationSite};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId, SourceOriginKind};
 use tcl_registry::CommandRegistry;
 
 impl SourceConstructorEntry {
@@ -56,7 +56,7 @@ impl SourceConstructorEntry {
     }
     /// Actual receiver-method frame selected for this retained body entry.
     #[must_use]
-    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 }
@@ -443,7 +443,7 @@ impl Default for SourceInvocationBinding {
             normal_result_observations: None,
             rhs_read_store_observations: None,
             object_callback_effects: None,
-            variable_frame: crate::var_resolve::VariableExecutionFrame::default(),
+            variable_frame: tcl_names::variable::VariableExecutionFrame::default(),
             existing_namespace_cells: Vec::new(),
             namespace_cell_presence: crate::var_resolve::NamespaceCellPresence::default(),
             known_namespaces: Arc::from([]),
@@ -934,9 +934,9 @@ impl SourceInvocationBinding {
         let mut variables = self.variable_context.as_ref().clone();
         variables.join(&other.variable_context);
         if self.variable_frame != other.variable_frame {
-            self.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+            self.variable_frame = tcl_names::variable::VariableExecutionFrame::Unknown;
         }
-        if self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown {
+        if self.variable_frame == tcl_names::variable::VariableExecutionFrame::Unknown {
             variables = variables.in_frame(&self.variable_frame);
         }
         self.variable_context = Arc::new(variables);

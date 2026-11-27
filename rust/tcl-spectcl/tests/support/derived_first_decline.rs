@@ -210,7 +210,7 @@ fn report_statement(
                     (
                         place.observed,
                         place.dynamic,
-                        place.kind == tcl_compiler::place::PlaceKind::Unknown,
+                        place.kind == tcl_names::place::PlaceKind::Unknown,
                     )
                 })
                 .collect()

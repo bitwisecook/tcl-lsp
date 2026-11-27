@@ -65,9 +65,7 @@ impl LogicalSourceProcedureDeclaration {
     /// Actual complete-source definition site retained by this header owner.
     /// This authoring/navigation geometry grants no installation or editing.
     #[must_use]
-    pub fn original_definition_site(
-        &self,
-    ) -> Option<&crate::command_binding::CommandAllocationSite> {
+    pub fn original_definition_site(&self) -> Option<&tcl_names::command::CommandAllocationSite> {
         self.matches_source(&self.image, &self.input)
             .then_some(self.body.site())
     }

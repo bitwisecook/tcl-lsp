@@ -17,12 +17,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::place::{CellGeneration, CellIdentity, CellOwner, Index};
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, Index};
 
 #[test]
 fn identical_display_does_not_merge_opaque_root_or_index_storage() {
     let place = |name: &[u8], index: &[u8]| {
-        let mut place = crate::place::scalar("display", crate::place::LOCAL_NS, false);
+        let mut place = tcl_names::place::scalar("display", tcl_names::place::LOCAL_NS, false);
         place.cell = Some(CellIdentity {
             owner: CellOwner::Activation("same".to_owned()),
             name: name.into(),

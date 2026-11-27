@@ -19,13 +19,13 @@
 //! The flow-insensitive summary of command rebindings the optimiser's trust gate consumes.
 
 use super::{
-    BindingKind, ModuleCommandBindings, ModuleCommandMutations, ProcBindingTrustProjection,
-    default_binding,
+    ModuleCommandBindings, ModuleCommandMutations, ProcBindingTrustProjection, default_binding,
 };
 use crate::ir::Statement;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
 use std::hash::Hash;
+use tcl_names::command::BindingKind;
 use tcl_registry::{CommandRegistry, StateTransition, StateTransitionDomain};
 
 /// Whether every command-*binding* subject this scan saw could be named.

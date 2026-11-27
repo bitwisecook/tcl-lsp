@@ -21,8 +21,9 @@
 use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_compiler::command_binding::OriginalSourceClassInstanceWords;
 use tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata;
-use tcl_compiler::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 
 /// Complete source geometry retains either its conditional constructor receipt
 /// or the separate positioned current receiver. Neither is an editable member.

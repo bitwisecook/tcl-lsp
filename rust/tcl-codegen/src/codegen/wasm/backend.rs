@@ -731,7 +731,7 @@ mod owned_function_names;
 pub(super) enum WasmEmissionMode<'a> {
     /// The genuine host must compile one entire original script at entry.
     /// `None` explicitly refuses admission instead of evaluating empty text.
-    RuntimeChunk(Option<&'a tcl_compiler::command_binding::ExecutedScriptSource>),
+    RuntimeChunk(Option<&'a tcl_names::origin::ExecutedScriptSource>),
     /// Common proofs selected sealed-program native i64 addition with one
     /// registry-proved boxed output boundary.
     NativeI64Add(&'a WasmNativeI64AddSelection),

@@ -19,10 +19,12 @@
 //! Same-operation namespace retirement and independently closed fresh cleanup.
 
 use super::{
-    Arc, BTreeSet, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    SourceCommandKey, SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{
     InvocationFacts, NamespaceTransition, NamespaceTransitionTarget, StateTransition,
     TransitionSubject,
@@ -209,7 +211,7 @@ fn variables_are_empty(
     true
 }
 
-type DeletedCommand = (SourceCommandKey, super::CommandIdentity);
+type DeletedCommand = (SourceCommandKey, tcl_names::command::CommandIdentity);
 
 fn fresh_namespace_tree(
     state: &ModuleCommandBindings,
@@ -249,7 +251,7 @@ fn fresh_namespace_tree(
             || matches!(
                 namespace,
                 SourceNamespaceKey::Allocated {
-                    incarnation: super::AllocationIncarnation::RepeatedFresh,
+                    incarnation: tcl_names::command::AllocationIncarnation::RepeatedFresh,
                     ..
                 }
             )
@@ -294,7 +296,7 @@ fn intrinsic_namespace_commands(
                 .is_some()
             || identity.runtime.is_some()
             || identity.allocation.as_ref() != Some(allocation)
-            || allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+            || allocation.incarnation == tcl_names::command::AllocationIncarnation::RepeatedFresh
             || allocation.site.source != site.source
             || state
                 .objects

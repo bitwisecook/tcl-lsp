@@ -398,7 +398,7 @@ mod producer_context_tests {
         let mut wrong_origin = valid.declarations().next().unwrap().clone();
         assert!(wrong_origin.matches_producer_input(&current));
         let mut site = wrong_origin.declaration.site().clone();
-        site.source = std::sync::Arc::new(crate::command_binding::SourceOriginId::loaded_image(
+        site.source = std::sync::Arc::new(tcl_names::origin::SourceOriginId::loaded_image(
             "elsewhere.tcl".into(),
             "different owner".into(),
             wrong_origin.declaration.name_input().source_image().clone(),

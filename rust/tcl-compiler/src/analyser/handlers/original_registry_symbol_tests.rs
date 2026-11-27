@@ -33,7 +33,7 @@ fn original_registry_symbol_names_keep_opaque_inputs_without_command_identity_fr
     assert!(original.iter().all(|record| {
         record
             .original_namespace()
-            .is_some_and(crate::signature_scan::scope::SignatureNamespaceScope::is_root)
+            .is_some_and(tcl_names::namespace::SignatureNamespaceScope::is_root)
     }));
     assert_ne!(
         original[0].name_input().bytes(),

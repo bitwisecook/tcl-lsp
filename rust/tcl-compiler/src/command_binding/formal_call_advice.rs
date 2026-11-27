@@ -21,10 +21,9 @@
 //! Call allocation, native formal layout and symbolic incoming-value provenance
 //! remain separate from an actual activation or a closed caller set.
 
-use super::{
-    BindingKind, CommandAllocationSite, SourceCommandBindings, SourceConditionalBodyEntry,
-};
+use super::{SourceCommandBindings, SourceConditionalBodyEntry};
 use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+use tcl_names::command::{BindingKind, CommandAllocationSite};
 
 /// A literal candidate delivered by one original declaration call. Missing or
 /// external callers remain possible; the receipt is neither a parameter value
@@ -38,7 +37,7 @@ pub(crate) struct DeclarationFormalCallValue {
 impl DeclarationFormalCallValue {
     pub(crate) fn value_in_source(
         &self,
-        source: &std::sync::Arc<super::SourceOriginId>,
+        source: &std::sync::Arc<tcl_names::origin::SourceOriginId>,
     ) -> Option<&str> {
         if &self.call.source != source {
             return None;
@@ -59,7 +58,7 @@ pub(crate) struct DeclarationCallerAliasSurvey {
 }
 
 type DeclarationCallerAliasKey = (
-    super::CommandAllocation,
+    tcl_names::command::CommandAllocation,
     tcl_registry::RegistrySemanticKey,
     crate::registry_invocation::OwnedInvocationMetadataContext,
 );
@@ -82,7 +81,7 @@ pub(crate) struct DeclarationCallerAliasMemo {
 impl DeclarationCallerAliasMemo {
     fn get_or_survey(
         &self,
-        allocation: &super::CommandAllocation,
+        allocation: &tcl_names::command::CommandAllocation,
         registry: &tcl_registry::CommandRegistry,
         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
         survey: impl FnOnce() -> Option<DeclarationCallerAliasSurvey>,
@@ -177,7 +176,7 @@ impl SourceCommandBindings {
     /// body passes to a caller-alias operand. Independent of the invocation.
     fn declaration_caller_alias_survey(
         &self,
-        allocation: &super::CommandAllocation,
+        allocation: &tcl_names::command::CommandAllocation,
         registry: &tcl_registry::CommandRegistry,
         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
     ) -> Option<DeclarationCallerAliasSurvey> {

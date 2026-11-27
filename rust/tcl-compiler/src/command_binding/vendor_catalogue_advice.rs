@@ -18,11 +18,13 @@
 
 //! Conditional hosted catalogue coordinates use their own source policy.
 
-use super::{SourceCommandKey, SourceInvocationBinding, SourceNamespaceKey};
+use super::SourceInvocationBinding;
 use crate::ir::CommandTokens;
 use crate::signature_scan::vendor_name::VendorSourceNameInput;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 use tcl_syntax::naming::VendorSourceNamePurpose;
 
@@ -55,7 +57,7 @@ pub struct VendorCatalogueSourceCandidate {
     command: String,
     paths: Vec<Vec<NameBytes>>,
     obligations: Vec<VendorCatalogueSourceObligation>,
-    site: super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     snapshot: Option<std::sync::Arc<super::SourceLookupSnapshot>>,
     body_origin: Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>>,
     registry: RegistrySemanticKey,
@@ -323,7 +325,7 @@ impl SourceInvocationBinding {
         head: &VendorSourceNameInput,
         original: &[NativeWord],
         registry: &CommandRegistry,
-        site: &super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
     ) -> Option<VendorCatalogueSourceCandidate> {
         let command = std::str::from_utf8(vendor_candidate_option(
             "literal_command_head",
@@ -398,7 +400,8 @@ impl SourceInvocationBinding {
         original: &[NativeWord],
         snapshot: &std::sync::Arc<super::SourceLookupSnapshot>,
     ) -> Option<OriginalVendorSourceSlots> {
-        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use tcl_names::word::SignatureSourceNameKey;
         let state = &snapshot.state;
         if state.has_opaque_domain() || state.baseline.unknown_entry {
             return None;
@@ -437,7 +440,7 @@ impl SourceInvocationBinding {
         context: &tcl_registry::model::ContextRegistry,
         tokens: &CommandTokens,
         shape: &crate::registry_invocation::VendorRegistryInvocationShape,
-        site: &super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         body: &crate::registry_invocation::OriginalSourceScriptBodyOrigin,
     ) -> Option<VendorCatalogueSourceCandidate> {
         // A present source lookup must use its own classifier. Neither a
@@ -697,7 +700,7 @@ mod tests {
             .unwrap();
         let mut custom = original.clone();
         custom.registry_backed = false;
-        custom.kind = super::super::BindingKind::Proc;
+        custom.kind = tcl_names::command::BindingKind::Proc;
         for replacement in [
             super::super::MayBinding::Missing,
             super::super::MayBinding::Target(custom),

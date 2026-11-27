@@ -27,7 +27,7 @@ pub(crate) struct AuthoredSourceStructuredInvocation {
     unknown_residual: bool,
     registry: tcl_registry::RegistrySnapshot,
     realm: tcl_dialect::model::InvocationRealm,
-    namespace: crate::command_binding::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     original_words: Vec<tcl_lexer::NativeWord>,
 }
 impl AuthoredSourceStructuredInvocation {
@@ -142,7 +142,7 @@ impl AuthoredSourceGrammar {
             })
             .collect()
     }
-    pub(crate) fn source_namespace(&self) -> &crate::command_binding::SourceNamespaceKey {
+    pub(crate) fn source_namespace(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.source.namespace
     }
     pub(crate) fn with_source_schema<T>(
@@ -286,15 +286,16 @@ type AuthoredScriptScalarVariable = (
 fn authored_script_scalar_definition(
     source: &AuthoredSourceStructuredInvocation,
     tokens: &CommandTokens,
-    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     registry: &CommandRegistry,
 ) -> Result<Option<AuthoredScriptScalarVariable>, ()> {
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
     use crate::signature_scan::variable_symbol::{
         OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
         SignatureSourceVariableSymbol,
     };
+    use tcl_names::word::SignatureSourceNameKey;
     let form = source
         .with_source_schema(registry, |schema| {
             let facts = schema.facts();
@@ -361,7 +362,7 @@ fn authored_script_scalar_definition(
 
 fn authored_script_scalar_reference(
     word: &tcl_lexer::NativeWord,
-    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Result<Option<AuthoredScriptScalarVariable>, ()> {
     use crate::signature_scan::scope::SignatureSourceNameInput;

@@ -24,7 +24,7 @@
 //! attestations own copy chains. This query grants no actual activation, caller
 //! address, successful alias, completed store or concrete value.
 
-use super::{SourceCommandBindings, SourceOriginId, SourceVariableAccess};
+use super::{SourceCommandBindings, SourceVariableAccess};
 use crate::command_binding::conditional_body::SourceConditionalBodyEntry;
 use crate::ir::CommandTokens;
 use crate::registry_invocation::OwnedInvocationMetadataContext;
@@ -34,6 +34,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+use tcl_names::origin::SourceOriginId;
 use tcl_registry::CommandRegistry;
 use tcl_source::words::SourceSite;
 
@@ -55,7 +56,7 @@ enum FormalValueSource<'a> {
 }
 
 fn direct_formal_argument_value(
-    site: &super::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
     observation: &super::declaration_layout::DeclarationLayoutObservation,
     // The caller joins the exact source component; this parameter retains debug trace spans.
     source: &SourceSite,
@@ -147,7 +148,7 @@ fn direct_formal_argument_value(
 }
 
 fn original_formal_observation_binding(
-    site: &super::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
     observation: &super::declaration_layout::DeclarationLayoutObservation,
 ) -> super::SourceInvocationBinding {
     super::SourceInvocationBinding {
@@ -370,7 +371,7 @@ impl SourceCommandBindings {
 
     fn original_formal_alias_prefix_preserves_input(
         &self,
-        site: &super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         observation: &super::declaration_layout::DeclarationLayoutObservation,
         registry: &CommandRegistry,
     ) -> bool {
@@ -395,7 +396,7 @@ impl SourceCommandBindings {
 
     fn original_formal_prefix_report(
         &self,
-        site: &super::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         observation: &super::declaration_layout::DeclarationLayoutObservation,
         registry: &CommandRegistry,
     ) -> Option<Arc<super::declaration_flow::DeclarationFlowReport>> {
@@ -438,7 +439,7 @@ impl SourceCommandBindings {
     ) -> Vec<String> {
         fn direct(
             owner: &super::SourceVariableEvaluationOwner,
-            site: &super::CommandAllocationSite,
+            site: &tcl_names::command::CommandAllocationSite,
         ) -> bool {
             match owner {
                 super::SourceVariableEvaluationOwner::InvocationArguments {
@@ -450,7 +451,7 @@ impl SourceCommandBindings {
                 _ => false,
             }
         }
-        let site = super::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: Arc::clone(origin),
             offset: invocation,
         };
@@ -692,7 +693,7 @@ impl SourceCommandBindings {
         entry: &SourceConditionalBodyEntry,
         offset: u32,
     ) -> Option<CommandTokens> {
-        let site = super::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(&entry.source().origin),
             offset,
         };
@@ -819,7 +820,7 @@ mod tests {
 
     fn assert_original_formal_value_retained(
         inventory: &super::SourceCommandBindings,
-        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        origin: &std::sync::Arc<tcl_names::origin::SourceOriginId>,
         site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
@@ -841,7 +842,7 @@ mod tests {
 
     fn assert_changed_original_formal_input_refused(
         inventory: &super::SourceCommandBindings,
-        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        origin: &std::sync::Arc<tcl_names::origin::SourceOriginId>,
         site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
@@ -866,7 +867,7 @@ mod tests {
 
     fn assert_original_formal_value_refused(
         inventory: &super::SourceCommandBindings,
-        origin: &std::sync::Arc<super::super::SourceOriginId>,
+        origin: &std::sync::Arc<tcl_names::origin::SourceOriginId>,
         site: &tcl_source::words::SourceSite,
         spelling: &str,
         context: &tcl_registry::model::ContextRegistry,
@@ -988,7 +989,7 @@ mod tests {
             let mut inventory = super::SourceCommandBindings::analyse(text, config, registry);
             let origin = inventory.root_origin.as_ref().unwrap().clone();
             let offset = u32::try_from(text.find("upvar").unwrap()).unwrap();
-            let site = super::super::CommandAllocationSite {
+            let site = tcl_names::command::CommandAllocationSite {
                 source: origin.clone(),
                 offset,
             };
@@ -1071,7 +1072,7 @@ mod tests {
         let mut inventory = super::SourceCommandBindings::analyse(&text, config, registry);
         let origin = inventory.root_origin.as_ref().unwrap().clone();
         let offset = u32::try_from(text.rfind("upvar").unwrap()).unwrap();
-        let site = super::super::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: origin.clone(),
             offset,
         };
@@ -1154,7 +1155,7 @@ mod tests {
             let mut inventory = super::SourceCommandBindings::analyse(text, config, registry);
             let origin = inventory.root_origin.as_ref().unwrap().clone();
             let offset = u32::try_from(text.find("upvar").unwrap()).unwrap();
-            let site = super::super::CommandAllocationSite {
+            let site = tcl_names::command::CommandAllocationSite {
                 source: origin.clone(),
                 offset,
             };

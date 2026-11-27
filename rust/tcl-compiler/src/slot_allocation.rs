@@ -53,8 +53,9 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{self, BlockId, Terminator};
-use crate::place::{self, PlaceKind};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol};
+use tcl_names::place;
+use tcl_names::place::PlaceKind;
 
 /// An undirected interference graph over variable **names**: each name maps to
 /// the set of names whose live range overlaps its own.

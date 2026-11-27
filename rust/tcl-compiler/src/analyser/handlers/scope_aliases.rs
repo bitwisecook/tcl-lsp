@@ -98,7 +98,7 @@ impl Analyser {
         &self,
         operands: (Span, Span),
         scope_path: &[usize],
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         let input = self.resolved_analysis_input();
         let target_input = self.original_qualified_variable_input(operands.1, false)?;
         let current = if input.has_logical_source_name_context() {
@@ -335,9 +335,9 @@ impl Analyser {
                         original_target_namespace: self.original_variable_namespace_at(scope_path),
                         original_target_receiver: if self.head_identities.source_bindings_ref().original_variable_uses_global_frame_at_span(tok.span, self.file_lexer_config())
                         && self.original_variable_namespace_at(scope_path).is_some_and(|namespace| match namespace {
-                            crate::signature_scan::scope::SignatureNamespaceScope::C(path) => path.is_root(),
-                            crate::signature_scan::scope::SignatureNamespaceScope::Jim(object) => object.is_empty(),
-                            crate::signature_scan::scope::SignatureNamespaceScope::Symbolic(_) => false,
+                            tcl_names::namespace::SignatureNamespaceScope::C(path) => path.is_root(),
+                            tcl_names::namespace::SignatureNamespaceScope::Jim(object) => object.is_empty(),
+                            tcl_names::namespace::SignatureNamespaceScope::Symbolic(_) => false,
                         })
                     {
                         crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceVariableWithoutLink

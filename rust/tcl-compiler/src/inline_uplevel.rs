@@ -518,7 +518,7 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
                 .body
                 .namespace_context
                 .as_deref()
-                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+                .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
             else {
                 continue;
             };
@@ -594,7 +594,7 @@ fn try_inline_callsite(
         .source_binding
         .as_ref()?
         .proved_execution_target()?;
-    if target.kind != crate::command_binding::BindingKind::Proc {
+    if target.kind != tcl_names::command::BindingKind::Proc {
         return None;
     }
     let (id, procedure) = catalogue.source_procedure_for_target(target)?;
@@ -1191,8 +1191,9 @@ mod tests {
 
     #[test]
     fn rewriter_requires_the_retained_authored_implementation_allocation() {
-        use crate::command_binding::{AllocationIncarnation, SourceOriginId};
         use std::sync::Arc;
+        use tcl_names::command::AllocationIncarnation;
+        use tcl_names::origin::SourceOriginId;
 
         let registry = reg();
         let original = lower_to_ir(

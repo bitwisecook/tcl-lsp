@@ -19,10 +19,13 @@
 //! Descriptor-selected case bodies, with exact entered list-element provenance.
 
 use super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, ModuleCommandBindings, SourceCommandBindings,
-    SourceExecutionContext, SourceNativeInvocation, SourceOutcomes, boxed_source_branch,
-    compiled_invocation, evaluated_script_realm, opaque_source_invocation,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation, SourceOutcomes, boxed_source_branch, compiled_invocation,
+    evaluated_script_realm, opaque_source_invocation,
 };
+use crate::command_binding::ExecutedScriptWords;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 impl SourceCommandBindings {
     pub(super) fn walk_case_bodies(

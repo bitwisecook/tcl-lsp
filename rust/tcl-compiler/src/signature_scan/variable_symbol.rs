@@ -18,8 +18,9 @@
 
 //! Original source variable symbol geometry, independently of live cells.
 
-use super::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use super::scope::SignatureSourceNameInput;
 use tcl_core_types::{ByteNamespacePath, NameBytes};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameProtocol, NativeVariableRootGeometry};
 
 /// Namespace variable identity for source navigation. This is naming geometry;
@@ -1342,7 +1343,7 @@ mod tests {
         )
         .unwrap();
         SignatureSourceNameInput::OriginalWord(
-            super::super::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 &plan.commands[0].words[0],
                 WordValueRules::from_config(&config),
                 dialect.authored_name_policy().unwrap(),

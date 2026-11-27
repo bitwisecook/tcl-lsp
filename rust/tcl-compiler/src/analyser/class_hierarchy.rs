@@ -828,7 +828,7 @@ pub fn resolve_class_lookup<S: std::hash::BuildHasher>(
 #[must_use]
 pub fn resolve_written_class_name_in_context<S: std::hash::BuildHasher>(
     name: &str,
-    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     classes: &HashMap<String, ClassDef, S>,
 ) -> Option<String> {
@@ -844,7 +844,7 @@ pub fn resolve_written_class_name_in_context<S: std::hash::BuildHasher>(
 #[must_use]
 pub fn resolve_written_class_name_in_scope<S: std::hash::BuildHasher>(
     name: &str,
-    namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     classes: &HashMap<String, ClassDef, S>,
 ) -> Option<String> {
     let policies: HashSet<_> = classes
@@ -873,7 +873,7 @@ pub fn resolve_written_class_name_in_scope<S: std::hash::BuildHasher>(
 pub fn source_namespace_at(
     scope: &super::types::Scope,
     offset: u32,
-) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+) -> Option<&tcl_names::namespace::SignatureNamespaceScope> {
     let mut children = scope.children.iter().filter(|child| {
         child
             .body_span
@@ -908,7 +908,7 @@ pub fn resolve_written_class_name<S: std::hash::BuildHasher>(
     for policy in policies {
         if let Some(key) = resolve_written_class_name_in_context(
             name,
-            &crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy)),
+            &tcl_names::namespace::SignatureNamespaceScope::root(Some(policy)),
             policy,
             classes,
         ) {

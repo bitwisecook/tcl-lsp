@@ -405,8 +405,8 @@ fn assert_original_child_compilation(body: &str) {
         original,
         tcl_registry::native_compilation::NativeCompilationSelection::Unknown
     );
-    let namespace = super::super::SourceNamespaceKey::from_native_entry(&entry).unwrap();
-    let frame = crate::var_resolve::VariableExecutionFrame::Global
+    let namespace = tcl_names::namespace::SourceNamespaceKey::from_native_entry(&entry).unwrap();
+    let frame = tcl_names::variable::VariableExecutionFrame::Global
         .with_namespace_identity(namespace.clone());
     let context = original_child_context(compilation, config, &registry, offset, &frame);
 
@@ -415,9 +415,9 @@ fn assert_original_child_compilation(body: &str) {
         let mut inventory = analysed.clone();
         let mut late = analysed.final_state.as_ref().clone();
         if !same_source {
-            late.current_source_origin = Some(Arc::new(super::super::SourceOriginId::authored(
-                &Arc::from(format!("{source}\n")),
-            )));
+            late.current_source_origin = Some(Arc::new(
+                tcl_names::origin::SourceOriginId::authored(&Arc::from(format!("{source}\n"))),
+            ));
             inventory
                 .root_origin
                 .clone_from(&late.current_source_origin);
@@ -448,7 +448,7 @@ fn assert_original_child_compilation(body: &str) {
             // An actual new compilation of the enclosing command with a
             // missing parent slot cannot borrow the old child's recipe.
             let mut reentry = analysed.final_state.as_ref().clone();
-            reentry.remove(super::super::SourceCommandKey::slot(
+            reentry.remove(tcl_names::command::SourceCommandKey::slot(
                 namespace.clone(),
                 "if".into(),
             ));
@@ -486,7 +486,7 @@ fn assert_authored_child_context_is_unknown(
         context.invocation_offset,
         &mut state,
         &SourceExecutionContext {
-            frame: &crate::var_resolve::VariableExecutionFrame::Global,
+            frame: &tcl_names::variable::VariableExecutionFrame::Global,
             namespace_key: None,
             ..context
         },
@@ -504,7 +504,7 @@ fn original_child_context<'a>(
     config: tcl_lexer::LexerConfig,
     registry: &'a tcl_registry::CommandRegistry,
     offset: u32,
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
         original_logical_body: None,

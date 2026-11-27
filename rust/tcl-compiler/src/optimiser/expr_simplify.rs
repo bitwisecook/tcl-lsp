@@ -55,6 +55,7 @@
 //! `if` / `while` / `for` conditions — those go through
 //! `branch_folding::optimise_branch_proc_calls` only.
 
+use crate::command_binding::SourceOriginLexical;
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};

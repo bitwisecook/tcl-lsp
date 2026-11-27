@@ -58,7 +58,7 @@ fn namespace_analysis(
     let profile = tcl_registry::model::ingress::resolve_environment(name).analyser_profile();
     let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-    let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+    let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::".to_owned(),
         identity: "namespace-preparation".to_owned(),
     };
@@ -112,9 +112,9 @@ fn original_structured_preparation_retains_native_recipe_and_exact_source_owner(
                 "{name}/{source}"
             );
             let relocated = CommandAllocationSite {
-                source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(format!(
-                    "{source}\n"
-                )))),
+                source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+                    format!("{source}\n"),
+                ))),
                 offset: 0,
             };
             assert!(inventory.structured_compilation_at(&relocated).is_none());
@@ -299,9 +299,9 @@ fn assert_original_switch_preflight(name: &str, row: &str) {
         "{name}/{case}"
     );
     let relocated = CommandAllocationSite {
-        source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(format!(
-            "{source}\n"
-        )))),
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            format!("{source}\n"),
+        ))),
         offset: 0,
     };
     assert!(inventory.switch_compilation_at(&relocated).is_none());
@@ -395,9 +395,9 @@ fn original_namespace_binding_preparation_keeps_declined_prefix_geometry() {
         assert!(
             inventory
                 .namespace_binding_preparation_at(&CommandAllocationSite {
-                    source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(format!(
-                        "{source}\n"
-                    )))),
+                    source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+                        format!("{source}\n")
+                    ))),
                     offset: 0,
                 })
                 .is_none()

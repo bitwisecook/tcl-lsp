@@ -30,7 +30,7 @@ fn synthetic_forwarding_use(
     fu: &FunctionUnit,
     use_site: &crate::def_use::UseSite,
     index: usize,
-    cell_name: &crate::var_resolve::VariableCellKey,
+    cell_name: &tcl_names::variable::VariableCellKey,
 ) -> bool {
     fu.ssa
         .blocks
@@ -301,7 +301,7 @@ fn load_forwarding_escaping<'a>(
 fn forwarding_literal(
     fu: &crate::compilation_unit::FunctionUnit,
     def_stmt: &Statement,
-    cell_name: &crate::var_resolve::VariableCellKey,
+    cell_name: &tcl_names::variable::VariableCellKey,
     version: crate::ssa::Version,
     policy: FoldPolicy,
 ) -> Option<(DiagCode, String)> {

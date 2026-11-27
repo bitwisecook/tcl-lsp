@@ -18,17 +18,19 @@
 
 //! One command-binding transition applied to the may-state and the table updates it performs.
 
-use super::super::command_identity::{
-    AllocationIncarnation, CommandAllocation, CommandAllocationSite, CommandIdentity, CommandToken,
-};
-use super::super::namespace_context::{CommandKeyQuery, SourceNamespaceKey};
+use super::super::namespace_context::CommandKeyQuery;
 use super::super::{
-    BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandKey,
-    command_publication, is_repeated_fresh_binding, namespace_slots, original_command_table,
+    CommandToken, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, command_publication,
+    is_repeated_fresh_binding, namespace_slots, original_command_table,
 };
 use crate::alias::is_current_interpreter;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::{
+    AllocationIncarnation, BindingKind, CommandAllocation, CommandAllocationSite, CommandIdentity,
+    SourceCommandKey,
+};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, TransitionSubject};
 
 impl ModuleCommandBindings {

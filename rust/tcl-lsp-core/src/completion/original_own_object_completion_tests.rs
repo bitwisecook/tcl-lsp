@@ -59,7 +59,7 @@ fn original_own_object_completion_keeps_allocations_and_opaque_routes_after_repo
                 class.name_input().lexer_config(),
             )
             .unwrap();
-            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 &plan.commands[0].words[0],
                 class.name_input().word_value_rules(),
                 policy,

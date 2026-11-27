@@ -95,7 +95,7 @@ fn logical_namespace_cell_continuation_keeps_the_independent_storage_facet() {
         Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace);
     assert!(!logical_cell_is_local(&worker, &state, context));
     let mut foreign = access.clone();
-    foreign.cell.as_mut().unwrap().owner = crate::place::CellOwner::Namespace("::other".into());
+    foreign.cell.as_mut().unwrap().owner = tcl_names::place::CellOwner::Namespace("::other".into());
     assert!(!logical_cell_is_local(&foreign, &state, context));
     // A same-display Native coordinate supplies no authored correspondence.
     let native = SourceNamespaceKey::Native(
@@ -111,10 +111,10 @@ fn logical_namespace_cell_continuation_keeps_the_independent_storage_facet() {
     assert_eq!(native.display(), namespace.display());
     let mut native_access = access.clone();
     native_access.cell.as_mut().unwrap().owner =
-        crate::place::CellOwner::NamespaceIdentity(Box::new(native));
+        tcl_names::place::CellOwner::NamespaceIdentity(Box::new(native));
     assert!(!logical_cell_is_local(&native_access, &state, context));
     let mut recreated = access.clone();
-    recreated.cell.as_mut().unwrap().generation = crate::place::CellGeneration::After(17);
+    recreated.cell.as_mut().unwrap().generation = tcl_names::place::CellGeneration::After(17);
     assert!(!logical_cell_is_local(&recreated, &state, context));
     let mut physical = access.clone();
     physical.cell.as_mut().unwrap().interpreter = Some("retained interpreter".into());
@@ -811,7 +811,7 @@ fn logical_original_store_transfer_refuses_observers_foreign_and_missing_owners(
         }
         let mut foreign = state.clone();
         foreign.current_source_origin =
-            Some(Arc::new(super::super::SourceOriginId::authored_image(
+            Some(Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                 tcl_lexer::SourceImage::document("set foreign _hi"),
             )));
         assert!(transfer(tokens.words(), target, 0, &mut foreign, context).is_none());
@@ -839,13 +839,13 @@ fn logical_original_store_transfer_refuses_observers_foreign_and_missing_owners(
             tcl_registry::TraceOperation::Write,
         );
         selected_cell.cell.as_mut().unwrap().owner =
-            crate::place::CellOwner::Namespace("::other".into());
+            tcl_names::place::CellOwner::Namespace("::other".into());
         Arc::make_mut(&mut foreign_cell.source_variables)
             .alias_bindings
             .insert("suffix", selected_cell);
         assert!(transfer(tokens.words(), target, 0, &mut foreign_cell, context).is_none());
         let mut foreign_frame = state.clone();
-        foreign_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+        foreign_frame.variable_frame = tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".into(),
             identity: "other-activation".into(),
         };

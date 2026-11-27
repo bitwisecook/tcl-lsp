@@ -307,7 +307,7 @@ impl Analyser {
         &self,
         span: Span,
         input: crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        namespace: Option<tcl_names::namespace::SignatureNamespaceScope>,
         purpose: crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose,
         receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
         declaration: bool,
@@ -451,7 +451,7 @@ impl Analyser {
         &self,
         span: Span,
         input: crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
         receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
         declaration: bool,
         site: crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
@@ -528,7 +528,7 @@ impl Analyser {
                 .head_identities
                 .original_written_word_at_span_in_source(&image, span, config)
                 .and_then(|(word, _)| {
-                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                    tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
                         &word, self.word_rules(), policy,
                     )
                 })

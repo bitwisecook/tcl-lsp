@@ -552,7 +552,7 @@ fn require_assignment_name_coverage(
     function: &tcl_compiler::compilation_unit::FunctionUnit,
     native_name: &[u8],
 ) -> Result<(), String> {
-    use tcl_compiler::var_resolve::VariableCellKey;
+    use tcl_names::variable::VariableCellKey;
     // Missing locations cannot certify future-name coverage, even when a
     // separate source-symbol projection is unavailable.
     if function

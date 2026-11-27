@@ -136,7 +136,7 @@ mod tests {
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
                 &image,
-                &crate::var_resolve::VariableExecutionFrame::Unknown,
+                &tcl_names::variable::VariableExecutionFrame::Unknown,
                 config,
                 registry,
                 crate::command_binding::SourceAnalysisOptions::for_logical_source(input).unwrap(),
@@ -521,7 +521,7 @@ mod tests {
         assert!(
             super::super::read_places_at(statement, block, index, &points, registry)
                 .iter()
-                .any(|place| place.kind == crate::place::PlaceKind::Unknown)
+                .any(|place| place.kind == tcl_names::place::PlaceKind::Unknown)
         );
         let ssa = crate::ssa::build_ssa_with_config(&withdrawn, registry, config);
         assert!(ssa.has_opaque_native_accesses());
@@ -544,7 +544,7 @@ mod tests {
             operation,
             crate::state_ssa::StateOp::Clobber(_)
         ) && operation.location().kind
-            == crate::place::PlaceKind::Unknown));
+            == tcl_names::place::PlaceKind::Unknown));
     }
     #[test]
     fn original_return_argument_source_is_retained_while_unpositioned_payload_stays_unknown() {

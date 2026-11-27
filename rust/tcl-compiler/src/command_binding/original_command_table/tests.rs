@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::signature_scan::scope::SignatureSourceNameKey;
+use tcl_names::word::SignatureSourceNameKey;
 
 #[test]
 fn original_initial_table_selects_the_registered_handler() {
@@ -169,7 +169,7 @@ fn closed_original_lookup_retains_missing_holder_absence_without_a_slot() {
             .unwrap();
         assert_ne!(
             paths,
-            [] as [std::vec::Vec<crate::command_binding::namespace_context::SourceCommandKey>; 0]
+            [] as [std::vec::Vec<tcl_names::command::SourceCommandKey>; 0]
         );
         assert!(paths.iter().all(Vec::is_empty));
         let selected = state
@@ -741,7 +741,7 @@ fn original_mutation_selector_stops_at_the_first_occupied_cell() {
     ] {
         let (mut state, config, policy) = catalogue_state(version);
         let root = state.source_root_namespace_key().unwrap();
-        let own = super::super::SourceNamespaceKey::authored("::oo");
+        let own = tcl_names::namespace::SourceNamespaceKey::authored("::oo");
         let input = catalogue_input("proc", config, policy);
         let root_key = state
             .original_command_paths_for_input(&root, &input)

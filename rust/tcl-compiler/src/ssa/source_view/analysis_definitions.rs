@@ -486,7 +486,7 @@ struct LogicalAnalysisDefinitionContext<'a> {
     pub(super) input: &'a crate::analyser::ResolvedAnalysisInput,
     retained: &'a crate::command_binding::RetainedSourceModuleBindings,
     positioned: &'a crate::command_binding::SourceCommandBindings,
-    origin: &'a std::sync::Arc<crate::command_binding::SourceOriginId>,
+    origin: &'a std::sync::Arc<tcl_names::origin::SourceOriginId>,
 }
 
 fn logical_analysis_definitions(

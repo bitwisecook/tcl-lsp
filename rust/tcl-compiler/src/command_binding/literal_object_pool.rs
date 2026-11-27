@@ -28,8 +28,10 @@
 
 use super::{
     Arc, ModuleCommandBindings, SourceAnalysisOptions, SourceExecutionContext,
-    SourceNativeInvocation, SourceOriginId,
+    SourceNativeInvocation,
 };
+use crate::command_binding::ExecutedScriptWords;
+use tcl_names::origin::SourceOriginId;
 
 /// Authored fresh-pool provenance or a same-capture empty native world.
 /// No unenumerated host/object effects have withdrawn the original effect proof.
@@ -65,7 +67,10 @@ impl SourceOrdinaryLiteralPool {
             return None;
         }
         let entry = state.current_source_origin.as_ref()?;
-        if !matches!(entry.kind(), super::SourceOriginKind::Authored(_)) {
+        if !matches!(
+            entry.kind(),
+            tcl_names::origin::SourceOriginKind::Authored(_)
+        ) {
             return None;
         }
         let origin = Self::entry_origin(state, options)?;
@@ -302,7 +307,7 @@ impl SourceOrdinaryLiteralObject {
             return None;
         }
         let origin = state.current_source_origin.as_ref()?;
-        super::ExecutedScriptSource::literal_word_base(
+        tcl_names::origin::ExecutedScriptSource::literal_word_base(
             super::executed_script_source::source_text(origin)?,
             word,
             value,
@@ -389,7 +394,7 @@ impl SourceOrdinaryLiteralObject {
         }
         let value = native.invocation.arguments().literal_at(argument)?;
         let origin = state.current_source_origin.as_ref()?;
-        super::ExecutedScriptSource::literal_word_base(
+        tcl_names::origin::ExecutedScriptSource::literal_word_base(
             super::executed_script_source::source_text(origin)?,
             word,
             value,

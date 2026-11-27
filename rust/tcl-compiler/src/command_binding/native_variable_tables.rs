@@ -18,8 +18,9 @@
 
 //! Independently captured namespace table allocation facts, without values.
 
-use super::SourceNamespaceKey;
-use crate::var_resolve::{ResolveContext, VariableCellKey};
+use crate::var_resolve::ResolveContext;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::variable::VariableCellKey;
 use tcl_runtime_api::NativeCompilationEntry;
 
 pub(super) fn install(variables: &mut ResolveContext, entry: &NativeCompilationEntry) {
@@ -101,8 +102,9 @@ fn jim_global_table(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::place::{self, CellOwner, Index};
     use crate::var_resolve::{ContentsPresence, ContentsWorld, VariableFrameKind};
+    use tcl_names::place;
+    use tcl_names::place::{CellOwner, Index};
     use tcl_runtime_api::native_compilation::NativeNamespaceVariableTable;
 
     fn fixture() -> (

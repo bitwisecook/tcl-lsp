@@ -19,17 +19,16 @@
 //! Namespace transitions of the may-state and the command resolution they change.
 
 use super::super::binding_projection::command_holder;
-use super::super::command_identity::CommandToken;
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::{
-    BindingKind, EnsembleManagement, ImportedCommandBinding, MayBinding, ModuleCommandBindings,
-    NamespaceResolutionProjection, ResolvedCommandTarget, SourceCommandKey, namespace_slots,
-    original_command_table, original_namespace_binding, original_namespace_path,
-    source_command_world,
+    CommandToken, EnsembleManagement, ImportedCommandBinding, MayBinding, ModuleCommandBindings,
+    NamespaceResolutionProjection, ResolvedCommandTarget, namespace_slots, original_command_table,
+    original_namespace_binding, original_namespace_path, source_command_world,
 };
 use crate::naming::normalise_qualified_name as nqn;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::{BindingKind, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{NamespaceTransition, TransitionSubject};
 
 fn is_default_namespace_unknown_handler(

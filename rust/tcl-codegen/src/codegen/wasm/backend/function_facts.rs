@@ -23,7 +23,7 @@ use super::FunctionFacts;
 use std::collections::{HashMap, HashSet};
 use tcl_compiler::backend_registry::SelectionFacts;
 use tcl_compiler::command_binding::{
-    Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
+    Binding, CommandBinding, ModuleCommandMutations, analyse_command_binding,
 };
 use tcl_compiler::common_aot_plan::{
     original_direct_expression_body_operations, semantic_operation_binding_is_trusted,
@@ -36,6 +36,7 @@ use tcl_compiler::registry_invocation::{
     resolve_command_tokens_with_metadata_context,
 };
 use tcl_lexer::Span;
+use tcl_names::command::BindingKind;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::{CommandRegistry, SemanticOperationId, TclType};
 use tcl_syntax::expr::{BinOp, ExprNode};

@@ -4573,6 +4573,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-names",
  "tcl-native-model",
  "tcl-registry",
  "tcl-runtime-api",
@@ -4603,6 +4604,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-names",
  "tcl-native-model",
  "tcl-regex",
  "tcl-registry",
@@ -4626,6 +4628,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-engine-tclvm",
  "tcl-lexer",
+ "tcl-names",
  "tcl-registry",
  "tcl-source",
  "tcl-spectcl",
@@ -4736,6 +4739,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-names",
  "tcl-native-model",
  "tcl-registry",
  "tcl-source",
@@ -4874,6 +4878,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
+ "tcl-names",
  "tcl-native-model",
  "tcl-platform",
  "tcl-regex",
@@ -4943,6 +4948,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-lsp-db",
+ "tcl-names",
  "tcl-native-model",
  "tcl-registry",
  "tcl-source",
@@ -4983,6 +4989,20 @@ dependencies = [
  "tcl-syntax",
  "tcl-version",
  "tokio",
+]
+
+[[package]]
+name = "tcl-names"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -5187,6 +5207,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-names",
  "tcl-native-model",
  "tcl-pkg-model",
  "tcl-registry",

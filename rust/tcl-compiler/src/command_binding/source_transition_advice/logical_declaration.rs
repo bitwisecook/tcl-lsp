@@ -79,7 +79,7 @@ impl crate::command_binding::SourceCommandBindings {
             .flatten();
         let command = schema.canonical_command.to_owned();
         Some(OriginalSourceCommandTransitionAdvice {
-            site: crate::command_binding::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.root_origin.as_ref()?),
                 offset: original.first()?.span().start(),
             },

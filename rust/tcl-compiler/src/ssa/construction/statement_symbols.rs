@@ -25,9 +25,10 @@ use super::phi_placement::authored_scalar_source_variable;
 use super::{RenameWalk, SsaVariableIdentity};
 use crate::cfg::BlockId;
 use crate::ir::Statement;
-use crate::var_resolve::{ResolveContext, VariableCellKey, canonical_variable_key};
+use crate::var_resolve::{ResolveContext, canonical_variable_key};
 use crate::variable_bindings::PointResolveContexts;
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 fn definition_source_name(

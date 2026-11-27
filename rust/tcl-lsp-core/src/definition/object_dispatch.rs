@@ -201,7 +201,7 @@ fn object_dispatch_mask_at_command(
     current: &crate::original_context::CurrentSourceContext<'_>,
     cursor: u32,
 ) -> ExternalObjectDispatchMask {
-    use tcl_compiler::command_binding::SourceOriginKind;
+    use tcl_names::origin::SourceOriginKind;
     let Some(head) = command.argv.first() else {
         return ExternalObjectDispatchMask::Unavailable;
     };

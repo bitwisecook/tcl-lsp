@@ -36,7 +36,7 @@ pub(super) fn collect_upvar_targets_inner(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
 ) -> UpvarInfo {
     let mut info = UpvarInfo::default();
     walk_script(body, params, registry, bindings, namespace, &mut info);
@@ -48,7 +48,7 @@ pub(super) fn walk_script(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     for stmt in &script.statements {
@@ -77,7 +77,7 @@ fn record_original_child_frame_effects(
     params: &[String],
     registry: &CommandRegistry,
     bindings: UpvarBindings<'_>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     let mut pending = vec![(tokens.clone(), 0_u32)];
@@ -165,7 +165,7 @@ fn walk_stmt(
     params: &[String],
     registry: &CommandRegistry,
     bindings: Option<UpvarBindings<'_>>,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     info: &mut UpvarInfo,
 ) {
     if let Some(bindings) = bindings
@@ -388,7 +388,7 @@ fn walk_stmt(
                     params,
                     registry,
                     bindings,
-                    &crate::command_binding::SourceNamespaceKey::authored(body_namespace),
+                    &tcl_names::namespace::SourceNamespaceKey::authored(body_namespace),
                     info,
                 );
             } else {

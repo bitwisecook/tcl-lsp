@@ -19,9 +19,10 @@
 //! Operand layout selected by an actual compiler registration.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
+    Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
     SourceInvocationBinding, SourceNativeCompilationDependency,
 };
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_compilation::{
     NativeCompilationOperandLayout, NativeCompilationSpec, NativeCompilationWordShape,
 };

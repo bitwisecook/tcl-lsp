@@ -389,7 +389,7 @@ pub(super) fn try_o103_proc_fold(
     // A conditional declaration can supply a result when entered under its
     // captured command world. A source edit needs the actual selected target.
     let target = binding.proved_execution_target()?;
-    if target.kind != crate::command_binding::BindingKind::Proc || target.registry_backed {
+    if target.kind != tcl_names::command::BindingKind::Proc || target.registry_backed {
         return None;
     }
     let qname = target.command.clone();

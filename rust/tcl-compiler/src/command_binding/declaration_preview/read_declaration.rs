@@ -18,16 +18,19 @@
 
 //! The declaration a procedure read resolves against: Logical declarations and native recipes.
 
+use super::super::SourceCommandBindings;
 use super::super::declaration_layout::{
     DeclarationLayoutObservation, original_declaration_layouts,
 };
-use super::super::{CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings};
 use super::LogicalProcedureDeclaration;
 use super::procedure_header::{declaration_tokens, original_declaration_operand_input};
+use crate::command_binding::ExecutedScriptWords;
 use crate::registry_invocation::{
     EffectiveInvocationWord, RegistryInvocationResolution, effective_invocation_word,
     effective_words_for_target,
 };
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 impl LogicalProcedureDeclaration {
     pub(crate) fn qualified_name(&self) -> Option<&str> {
@@ -45,7 +48,7 @@ impl LogicalProcedureDeclaration {
     pub(crate) fn source(&self) -> &ExecutedScriptSource {
         &self.body.source
     }
-    pub(crate) fn namespace(&self) -> &super::super::SourceNamespaceKey {
+    pub(crate) fn namespace(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.body.namespace
     }
 }
@@ -63,13 +66,13 @@ pub(crate) struct OriginalProcedureReadDeclaration {
 pub(super) enum ProcedureReadSource {
     Contiguous(ExecutedScriptSource),
     OriginalBraced {
-        producer: crate::signature_scan::scope::SignatureSourceNameKey,
+        producer: tcl_names::word::SignatureSourceNameKey,
         correspondence: tcl_syntax::backslash::NativeBracedWordSourceMap,
     },
     /// Whole original source geometry under the selected configuration. This
     /// variant is confined to the tagged operand-layout carrier below.
     ConfiguredSourceWord {
-        producer: crate::signature_scan::scope::SignatureSourceNameKey,
+        producer: tcl_names::word::SignatureSourceNameKey,
         correspondence: tcl_syntax::backslash::NativeBracedWordSourceMap,
     },
 }
@@ -208,7 +211,7 @@ impl SourceCommandBindings {
         procedure: &crate::ir::Procedure,
         registry: &tcl_registry::CommandRegistry,
         input: &crate::analyser::ResolvedAnalysisInput,
-    ) -> Option<super::super::SourceCommandKey> {
+    ) -> Option<tcl_names::command::SourceCommandKey> {
         let declaration = self.original_logical_procedure_declaration_at(
             procedure.declaration_site.as_ref()?,
             registry,
@@ -374,7 +377,7 @@ fn native_procedure_read_recipe(
 }
 
 fn original_braced_procedure_read_source(
-    producer: crate::signature_scan::scope::SignatureSourceNameKey,
+    producer: tcl_names::word::SignatureSourceNameKey,
     words: &[tcl_registry::InvocationWord<'_>],
     body_at: usize,
     site: &CommandAllocationSite,

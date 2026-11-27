@@ -29,7 +29,7 @@ pub(in super::super) struct VariableLinkTarget {
     pub(in super::super) target_span: Span,
     pub(in super::super) local_span: Span,
     pub(in super::super) original_target_namespace:
-        Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        Option<tcl_names::namespace::SignatureNamespaceScope>,
     pub(in super::super) original_target_receiver:
         crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
 }
@@ -247,7 +247,7 @@ impl Analyser {
         &mut self,
         local_span: Span,
         target_span: Span,
-        original_target_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        original_target_namespace: Option<tcl_names::namespace::SignatureNamespaceScope>,
         original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
         self.result
@@ -464,7 +464,7 @@ impl Analyser {
     pub(in super::super) fn original_variable_namespace_at(
         &self,
         scope_path: &[usize],
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         scope_at(&self.result.global_scope, scope_path)?
             .naming_scope
             .clone()
@@ -472,10 +472,10 @@ impl Analyser {
 
     pub(in super::super) fn original_variable_root_namespace(
         &self,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
-        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-            Some(self.declaration_name_policy()?),
-        ))
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
+        Some(tcl_names::namespace::SignatureNamespaceScope::root(Some(
+            self.declaration_name_policy()?,
+        )))
     }
 
     pub(super) fn original_static_variable_operand_input(

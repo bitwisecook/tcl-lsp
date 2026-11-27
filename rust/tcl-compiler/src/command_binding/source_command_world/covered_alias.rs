@@ -18,16 +18,17 @@
 
 //! An alias transition the original command world covers at one invocation.
 
-use super::super::{CommandAllocationSite, ModuleCommandBindings};
+use super::super::ModuleCommandBindings;
 use super::{OriginalCommandPublication, OriginalCommandPublicationKind};
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::{CommandBindingTransition, TransitionSubject};
 
 /// Complete modeled alias binding effect for an original caller scan. This
 /// carries source inventory coverage only, never handler entry or completion.
 pub(crate) struct OriginalCoveredAliasTransition {
     _publication: OriginalCommandPublication,
-    _target: super::super::CommandAllocation,
+    _target: tcl_names::command::CommandAllocation,
 }
 
 impl super::super::SourceInvocationBinding {
@@ -165,7 +166,10 @@ fn original_covered_alias_target(
     module: &crate::ir::Module,
     retained: &super::super::RetainedSourceModuleBindings,
     site: &CommandAllocationSite,
-) -> Option<(OriginalCommandPublication, super::super::CommandAllocation)> {
+) -> Option<(
+    OriginalCommandPublication,
+    tcl_names::command::CommandAllocation,
+)> {
     let root = state.source_root_namespace_key()?;
     let key = state.original_command_key_for_slot(publication.slot(), publication.policy())?;
     let bindings = state.original_bindings_for_key(&key)?;
@@ -179,7 +183,7 @@ fn original_covered_alias_target(
     if previous != std::collections::BTreeSet::from([super::super::MayBinding::Missing]) {
         return None;
     }
-    if alias.kind != super::super::BindingKind::Alias
+    if alias.kind != tcl_names::command::BindingKind::Alias
         || !publication.has_implementation_allocation(alias.implementation_allocation.as_ref()?)
     {
         return None;
@@ -196,7 +200,7 @@ fn original_covered_alias_target(
     let allocation = first_target.implementation_allocation.as_ref()?;
     if allocation.site.source != site.source
         || selection.targets.iter().any(|target| {
-            target.kind != super::super::BindingKind::Proc
+            target.kind != tcl_names::command::BindingKind::Proc
                 || target.registry_backed
                 || !target.terminal
                 || target.implementation_allocation.as_ref() != Some(allocation)

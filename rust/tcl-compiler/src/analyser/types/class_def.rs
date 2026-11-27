@@ -83,9 +83,9 @@ impl SourceNameAmbiguity {
 /// context; a cloned declaration alone cannot establish that correspondence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalCountedBodyMethod {
-    pub(in super::super) name: crate::signature_scan::scope::SignatureSourceNameKey,
+    pub(in super::super) name: tcl_names::word::SignatureSourceNameKey,
     pub(in super::super) worker_word: tcl_lexer::NativeWord,
-    pub(in super::super) site: crate::command_binding::CommandAllocationSite,
+    pub(in super::super) site: tcl_names::command::CommandAllocationSite,
     pub(in super::super) side: MemberSide,
     pub(in super::super) parameters: Option<tcl_lexer::NativeWord>,
     pub(in super::super) body: Option<tcl_lexer::NativeWord>,
@@ -94,9 +94,7 @@ pub struct OriginalCountedBodyMethod {
 impl OriginalCountedBodyMethod {
     /// Exact original static naming units.
     #[must_use]
-    pub const fn original_name_input(
-        &self,
-    ) -> &crate::signature_scan::scope::SignatureSourceNameKey {
+    pub const fn original_name_input(&self) -> &tcl_names::word::SignatureSourceNameKey {
         &self.name
     }
     /// Actual original naming operand, never an edit recipe for a derived value.
@@ -106,7 +104,7 @@ impl OriginalCountedBodyMethod {
     }
     /// Whole original declaring command site.
     #[must_use]
-    pub const fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Source declaration side selected by the definition grammar.

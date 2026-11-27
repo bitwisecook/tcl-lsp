@@ -80,7 +80,7 @@ impl Lowerer<'_> {
                 installed.namespace_key.clone(),
             );
             let already_named = installed.allocation.incarnation
-                == crate::command_binding::AllocationIncarnation::First
+                == tcl_names::command::AllocationIncarnation::First
                 && installed.allocation.site.source == installed.source.origin
                 && named.iter().any(|(source, namespace, offset, params)| {
                     source == &installed.source
@@ -173,7 +173,7 @@ impl Lowerer<'_> {
             card.reporting_label(),
             card.parameters_text().map(str::to_owned),
             card.namespace()
-                .and_then(crate::command_binding::SourceNamespaceKey::display),
+                .and_then(tcl_names::namespace::SourceNamespaceKey::display),
         )
         else {
             return;
@@ -271,7 +271,7 @@ impl Lowerer<'_> {
             });
         self.readonly_logical_body = previous;
         body.namespace_context = Some(Box::new(
-            crate::command_binding::SourceNamespaceKey::authored(namespace),
+            tcl_names::namespace::SourceNamespaceKey::authored(namespace),
         ));
         let card = std::sync::Arc::new(
             card.as_ref()

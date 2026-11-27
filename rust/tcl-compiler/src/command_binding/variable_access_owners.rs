@@ -23,12 +23,11 @@
 //! This index lists, per root-origin invocation offset, the accesses each
 //! projection selects, in inventory order.
 
-use super::{
-    CommandAllocationSite, SourceCommandBindings, SourceOriginId, SourceVariableAccess,
-    SourceVariableEvaluationOwner,
-};
+use super::{SourceCommandBindings, SourceVariableAccess, SourceVariableEvaluationOwner};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 type Accesses = BTreeMap<u32, Vec<SourceVariableAccess>>;
 type AccessAt = (u32, usize);

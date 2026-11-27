@@ -103,7 +103,8 @@ impl OriginalNativeCompilerFormals {
         incoming: &[String],
     ) -> Option<Arc<OriginalNativeCompilerFormalScope>> {
         let origin = state.current_source_origin.as_ref()?;
-        let namespace = super::SourceNamespaceKey::from_native_entry(&self.entry).ok()?;
+        let namespace =
+            tcl_names::namespace::SourceNamespaceKey::from_native_entry(&self.entry).ok()?;
         if !self.is_live()
             || context.compilation().mode
                 != tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject
@@ -120,7 +121,7 @@ impl OriginalNativeCompilerFormals {
             || context.namespace_identity() != namespace
             || !matches!(
                 context.frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                tcl_names::variable::VariableExecutionFrame::Procedure { .. }
             )
             || state.variable_frame != *context.frame
         {
@@ -145,9 +146,9 @@ impl OriginalNativeCompilerFormals {
 #[doc(hidden)]
 pub struct OriginalNativeCompilerFormalScope {
     owner: Arc<OriginalNativeCompilerFormals>,
-    origin: Arc<super::SourceOriginId>,
-    frame: crate::var_resolve::VariableExecutionFrame,
-    namespace: super::SourceNamespaceKey,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
+    frame: tcl_names::variable::VariableExecutionFrame,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
 }
 impl PartialEq for OriginalNativeCompilerFormalScope {
     fn eq(&self, other: &Self) -> bool {
@@ -169,7 +170,7 @@ impl Hash for OriginalNativeCompilerFormalScope {
 impl OriginalNativeCompilerFormalScope {
     pub(super) fn parameters_for_entry(
         &self,
-        chunk: &super::CommandAllocationSite,
+        chunk: &tcl_names::command::CommandAllocationSite,
         length: usize,
         state: &super::ModuleCommandBindings,
         context: super::SourceExecutionContext<'_>,
@@ -192,8 +193,8 @@ impl OriginalNativeCompilerFormalScope {
 
     pub(crate) fn owns_source(
         &self,
-        site: &super::CommandAllocationSite,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        site: &tcl_names::command::CommandAllocationSite,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         config: tcl_lexer::LexerConfig,
     ) -> bool {
         self.is_live()

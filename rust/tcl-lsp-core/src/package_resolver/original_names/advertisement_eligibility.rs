@@ -21,8 +21,8 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use tcl_compiler::analyser::ResolvedAnalysisInput;
-use tcl_compiler::signature_scan::scope::SignatureSourceNameKey;
 use tcl_lexer::{ExecutablePart, LexerConfig, NativeWord, SourceImage, Span, WordKind};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::model::binding::PackageTransition;
 use tcl_registry::state_transition::CommandBindingTransition;
 use tcl_registry::{InvocationWord, InvocationWords, StateTransition};

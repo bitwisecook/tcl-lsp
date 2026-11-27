@@ -27,7 +27,7 @@ fn caller_ssa_read_key_uses_typed_activation_identity() {
     // Implementation contract: naming.variable.invocation-caller-ssa-frame
     // docs/design/analysis/name-resolution-proofs/variable-invocation-caller-ssa-frame.md
     let context = ResolveContext::default().in_frame(
-        &crate::var_resolve::VariableExecutionFrame::Procedure {
+        &tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "caller".to_owned(),
         },
@@ -51,7 +51,7 @@ fn caller_ssa_read_key_uses_typed_activation_identity() {
         invocation_read_key_in_context(
             foreign.clone(),
             &ResolveContext::default()
-                .in_frame(&crate::var_resolve::VariableExecutionFrame::Global)
+                .in_frame(&tcl_names::variable::VariableExecutionFrame::Global)
         )
         .is_none()
     );
@@ -61,7 +61,7 @@ fn caller_ssa_read_key_uses_typed_activation_identity() {
         Some(written)
     );
     let shared = VariableCellKey::Namespace {
-        identity: crate::command_binding::SourceNamespaceKey::authored("::"),
+        identity: tcl_names::namespace::SourceNamespaceKey::authored("::"),
         simple: "shared".into(),
     };
     assert_eq!(

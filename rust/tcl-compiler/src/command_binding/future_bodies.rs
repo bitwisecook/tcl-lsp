@@ -19,11 +19,13 @@
 //! Future script inventories kept separate from reached document dispatch.
 
 use super::{
-    Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, InvocationFacts,
-    ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceInvocationBinding,
-    SourceNativeInvocation, evaluated_script_realm, retained_script_operand,
+    Arc, DeferredSourceBody, InvocationFacts, ModuleCommandBindings, SourceCommandBindings,
+    SourceExecutionContext, SourceInvocationBinding, SourceNativeInvocation,
+    evaluated_script_realm, retained_script_operand,
 };
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
+use tcl_names::variable::VariableExecutionFrame;
 use tcl_registry::CommandRegistry;
 use tcl_registry::body_execution::DeferredBodyFrame;
 
@@ -139,7 +141,9 @@ impl SourceCommandBindings {
         let offset = tokens.words().first()?.source().span.start();
         let mut selected = None;
         for future in self.future_body_inventories() {
-            let super::ExecutedScriptMapping::Contiguous { base } = future.source.mapping else {
+            let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } =
+                future.source.mapping
+            else {
                 continue;
             };
             let end = base.checked_add(u32::try_from(future.source.text.len()).ok()?)?;
@@ -419,7 +423,7 @@ mod tests {
             *site == offset
                 && (binding.unknown
                     || binding.targets.iter().any(|target| {
-                        target.kind == super::super::BindingKind::Proc
+                        target.kind == tcl_names::command::BindingKind::Proc
                             && target.command == "::helper"
                     }))
         }));

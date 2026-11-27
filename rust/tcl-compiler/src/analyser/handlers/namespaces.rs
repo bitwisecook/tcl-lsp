@@ -19,6 +19,7 @@
 //! `namespace eval`, `path`, `import`, `export`, `forget` and `unknown`.
 
 use super::super::state::Analyser;
+use crate::signature_scan::scope::SignatureNamespaceChild;
 use tcl_dialect::model::{SpecSurface, surface_admits};
 use tcl_lexer::{Token, TokenType};
 
@@ -894,7 +895,7 @@ impl Analyser {
     fn conditional_source_namespace_scope(
         &self,
         scope_path: &[usize],
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         use crate::signature_scan::scope::SignatureSourceNameInput;
         let policy = self.declaration_name_policy()?;
         let image = tcl_lexer::SourceImage::document(&self.source);

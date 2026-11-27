@@ -196,7 +196,7 @@ pub enum CfgStatePosition {
 /// Describes whether a state write can affect a state read.
 ///
 /// State domains define their own policy. A cell domain can use structured
-/// [`crate::place::Place`] overlap, while a command/trace world can use region
+/// [`tcl_names::place::Place`] overlap, while a command/trace world can use region
 /// and interpreter wildcards. The direction is explicit because a domain may
 /// have an asymmetric read/write relation, even though the adapters here are
 /// symmetric.
@@ -693,7 +693,7 @@ impl<L> StateSsaBuilder<L> {
 /// Domain adapters that exercise the generic substrate without encoding any
 /// command recognition or backend-specific policy.
 pub mod adapters {
-    use crate::place::{Place, overlap, unknown_top};
+    use tcl_names::place::{Place, overlap, unknown_top};
 
     use super::StateOverlap;
 
@@ -1341,7 +1341,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::cfg::BlockId;
-    use crate::place::{Index, LOCAL_NS, array_elem, array_whole, scalar};
+    use tcl_names::place::{Index, LOCAL_NS, array_elem, array_whole, scalar};
     use tcl_source::words::NodeId;
 
     use super::adapters::{

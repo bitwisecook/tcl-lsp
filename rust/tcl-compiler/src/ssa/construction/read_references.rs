@@ -27,9 +27,10 @@ use super::phi_placement::authored_scalar_source_variable;
 use crate::cfg::BlockId;
 use crate::ir::Statement;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions};
-use crate::var_resolve::{ContentsOrigin, ResolveContext, VariableCellKey};
+use crate::var_resolve::{ContentsOrigin, ResolveContext};
 use crate::variable_bindings::PointResolveContexts;
 use std::collections::{HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 use tcl_source::words::SourceSite;
 use tcl_source::words::WordExpr;
@@ -107,7 +108,7 @@ fn is_callable_storage(key: &VariableCellKey) -> bool {
     matches!(
         key,
         VariableCellKey::RetainedSlot(slot)
-            if matches!(slot.as_ref(), crate::raw_binding::RawBindingSlotId::Callable { .. })
+            if matches!(slot.as_ref(), tcl_names::variable::RawBindingSlotId::Callable { .. })
     )
 }
 

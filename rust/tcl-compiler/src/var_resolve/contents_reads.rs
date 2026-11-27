@@ -25,8 +25,8 @@ use super::place_resolution::{resolve_literal_access, resolve_substitution_acces
 use super::{
     ContentsOrigin, ContentsPresence, ResolveContext, RootContentsKind, VariableReadCompletion,
 };
-use crate::place;
-use crate::place::{CellGeneration, CellOwner, IndexKind, Place, PlaceKind};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, IndexKind, Place, PlaceKind};
 use tcl_registry::CommandRegistry;
 use tcl_registry::native_dictionary::NativeDictionaryDialect;
 

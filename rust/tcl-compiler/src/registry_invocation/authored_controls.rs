@@ -298,7 +298,8 @@ impl AuthoredSourceInvocation {
         String,
         bool,
     )> {
-        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use tcl_names::word::SignatureSourceNameKey;
         let AuthoredSourceOwner::Body(scope, tokens) = &self.owner else {
             return None;
         };

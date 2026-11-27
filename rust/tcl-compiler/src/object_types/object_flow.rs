@@ -364,7 +364,7 @@ fn scan_flow_statement(
                 .tokens
                 .and_then(|tokens| tokens.source_binding.as_ref())
                 .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
-                .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+                .filter(|target| target.kind == tcl_names::command::BindingKind::Proc)
                 && let Some((id, _)) = index.module.source_procedure_for_target(target)
                 && let Some(params) = proc_params.get(&id)
                 && let Some(effective) = ctx
@@ -472,7 +472,7 @@ fn scan_assign_edges(
     // Return flow follows the retained implementation token, independently
     // of its written spelling or present command slot.
     if let Some(class) = target
-        .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+        .filter(|target| target.kind == tcl_names::command::BindingKind::Proc)
         .and_then(|target| returns.module.source_procedure_for_target(target))
         .and_then(|(id, _)| returns.procs.get(&id))
     {

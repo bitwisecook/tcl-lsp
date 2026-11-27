@@ -18,11 +18,12 @@
 
 //! Original definition operands survive retirement of their created class.
 
+use super::definition_method_references::SourceDefinitionMethodReferencePhase;
 use super::{
-    AllocationIncarnation, Arc, BTreeMap, CommandAllocation, CommandAllocationSite,
-    SourceCommandBindings, SourceCommandTarget, SourceDefinitionMethodReference, SourceOriginId,
-    definition_method_references::SourceDefinitionMethodReferencePhase,
+    Arc, BTreeMap, SourceCommandBindings, SourceCommandTarget, SourceDefinitionMethodReference,
 };
+use tcl_names::command::{AllocationIncarnation, CommandAllocation, CommandAllocationSite};
+use tcl_names::origin::SourceOriginId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DefinitionMethodReferenceCoverage {

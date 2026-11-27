@@ -21,7 +21,7 @@
 use super::{
     Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceOutcomes,
 };
-use crate::place::Place;
+use tcl_names::place::Place;
 use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::{
     TraceOperation, completion::CompletionCode,
@@ -259,7 +259,7 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        use crate::place::PlaceKind;
+        use tcl_names::place::PlaceKind;
         let arguments = native.invocation.arguments();
         if !facts.native_compilation.is_some_and(|spec| {
             spec.grammar == tcl_registry::native_compilation::NativeCompilationGrammar::Constant
@@ -1205,7 +1205,7 @@ fn observer_name_arguments(
         receiver
             .index
             .as_ref()
-            .filter(|index| index.kind == crate::place::IndexKind::Literal)
+            .filter(|index| index.kind == tcl_names::place::IndexKind::Literal)
             .and_then(|index| index.value.try_utf8().ok())
             .map_or(Dynamic, |index| Literal(index.to_owned()))
     };
@@ -1355,7 +1355,7 @@ mod tests {
             .flat_map(|command| &command.words)
             .find(|word| usize::try_from(word.span().start()).unwrap() == receiver_offset)?;
         let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 word,
                 tcl_syntax::word_rules::WordValueRules::from_config(&config),
                 context.execution_name_policy?.native_recipe()?,

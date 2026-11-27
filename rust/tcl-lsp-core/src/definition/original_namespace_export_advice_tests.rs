@@ -62,9 +62,7 @@ fn original_document_export_observability_keeps_opaque_namespace_and_policy() {
         .next()
         .unwrap()
         .name();
-    let scope = tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
-        name.slot().namespace.clone(),
-    );
+    let scope = tcl_names::namespace::SignatureNamespaceScope::C(name.slot().namespace.clone());
     assert!(scope.display().is_none());
     assert!(super::namespace_exports_observable(
         &analysis,

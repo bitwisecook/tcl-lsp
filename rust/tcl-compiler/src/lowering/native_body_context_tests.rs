@@ -19,9 +19,10 @@
 //! Original body namespaces, including constructed paths whose displays collide.
 
 use super::*;
-use crate::command_binding::{ExecutedScriptSource, SourceNamespaceKey, SourceOriginId};
 use crate::interprocedural::test_body_identity::fixture_id;
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
 
 fn native_module(source: &str) -> (tcl_vm::Vm, Module) {
     let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");

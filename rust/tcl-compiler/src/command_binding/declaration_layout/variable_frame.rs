@@ -52,7 +52,7 @@ impl SourceOriginalVariableFrame {
         (origin.source_image() == body.image()).then_some(())?;
         let text = body.image().try_text().ok()?.get(span.as_range())?;
         Some(Self {
-            source: super::super::ExecutedScriptSource::contiguous_image(
+            source: tcl_names::origin::ExecutedScriptSource::contiguous_image(
                 Arc::clone(origin),
                 tcl_lexer::SourceImage::document(text),
                 span.start(),
@@ -97,7 +97,7 @@ impl SourceOriginalVariableFrame {
         let site = procedure.declaration_site.as_ref()?;
         Some(Self {
             source,
-            frame: crate::var_resolve::VariableExecutionFrame::Procedure {
+            frame: tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: namespace.display()?,
                 identity: super::super::source_activation_name(
                     Some(&site.source),
@@ -118,23 +118,23 @@ impl SourceOriginalVariableFrame {
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Self> {
         let (origin, offset, body, namespace) = receipt.frame_source(input)?;
-        let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = namespace else {
+        let tcl_names::namespace::SignatureNamespaceScope::C(path) = namespace else {
             return None;
         };
-        let namespace = super::super::SourceNamespaceKey::authored_path(&path)?;
+        let namespace = tcl_names::namespace::SourceNamespaceKey::authored_path(&path)?;
         let text = origin
             .source_image()
             .try_text()
             .ok()?
             .get(body.as_range())?;
-        let source = super::super::ExecutedScriptSource::contiguous_image(
+        let source = tcl_names::origin::ExecutedScriptSource::contiguous_image(
             Arc::clone(&origin),
             tcl_lexer::SourceImage::document(text),
             body.start(),
         )?;
         Some(Self {
             source,
-            frame: crate::var_resolve::VariableExecutionFrame::Procedure {
+            frame: tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: namespace.display()?,
                 identity: super::super::source_activation_name(
                     Some(&origin),
@@ -170,12 +170,12 @@ impl SourceOriginalVariableFrame {
         }
         let body = card.scope().scope_body().content_span();
         let text = image.try_text().ok()?.get(body.as_range())?;
-        let source = super::super::ExecutedScriptSource::contiguous_image(
+        let source = tcl_names::origin::ExecutedScriptSource::contiguous_image(
             Arc::clone(&card.site().source),
             tcl_lexer::SourceImage::document(text),
             body.start(),
         )?;
-        let namespace = super::super::SourceNamespaceKey::authored(
+        let namespace = tcl_names::namespace::SourceNamespaceKey::authored(
             tcl_syntax::naming::checked_namespace_path_key(card.scope().namespace_recipe())?,
         );
         Some(Self {
@@ -223,16 +223,16 @@ impl SourceOriginalVariableFrame {
         let text = image.try_text().ok()?.get(body.as_range())?;
         let namespace = tcl_syntax::naming::checked_namespace_path_key(scope.namespace_recipe())?;
         Some(Self {
-            source: super::super::ExecutedScriptSource::contiguous_image(
+            source: tcl_names::origin::ExecutedScriptSource::contiguous_image(
                 Arc::clone(origin),
                 tcl_lexer::SourceImage::document(text),
                 body.start(),
             )?,
-            frame: crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+            frame: tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
                 namespace,
                 identity: format!(
                     "logical-namespace-source:{}:{}",
-                    super::super::SourceOriginId::activation_key(origin),
+                    tcl_names::origin::SourceOriginId::activation_key(origin),
                     body.start()
                 ),
             },
@@ -276,13 +276,13 @@ impl SourceOriginalVariableFrame {
     /// Conditional procedure, method or lambda layout selected by its source
     /// body recipe. This supplies no entered activation or physical local table.
     #[must_use]
-    pub const fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub const fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 
     /// Complete retained source owner and its truthful body mapping.
     #[must_use]
-    pub const fn source(&self) -> &super::super::ExecutedScriptSource {
+    pub const fn source(&self) -> &tcl_names::origin::ExecutedScriptSource {
         &self.source
     }
 

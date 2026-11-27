@@ -23,15 +23,13 @@ use super::{
     OriginalSourceCataloguePurpose, OriginalSourceClassDeclaration,
     OriginalSourceCommandTransitionAdvice,
 };
-use crate::{
-    registry_invocation::{OriginalSourceScriptBody, source_structure::OriginalRegistrySource},
-    signature_scan::scope::{
-        SignatureNamespaceScope, SignatureSourceLookup, SignatureSourceNameInput,
-    },
-};
+use crate::registry_invocation::OriginalSourceScriptBody;
+use crate::registry_invocation::source_structure::OriginalRegistrySource;
+use crate::signature_scan::scope::{SignatureSourceLookup, SignatureSourceNameInput};
 use std::{cell::RefCell, sync::Arc};
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::NativeWord;
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::model::ContextRegistry;
 use tcl_syntax::naming::NativeNameProtocol;
 
@@ -134,7 +132,7 @@ impl OriginalSourceClassRelationProvider {
 
     pub(crate) fn contains_definition_site(
         &self,
-        site: &crate::command_binding::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
     ) -> bool {
         let content = self.body.content_span();
         site.source == self.parent.site().source
@@ -903,7 +901,7 @@ mod tests {
                 assert!(input.has_logical_source_name_context());
                 let original = name.original_word_key().unwrap().original_word();
                 assert!(
-                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                         original,
                         tcl_syntax::word_rules::WordValueRules::from_config(&original.config()),
                         name.policy(),

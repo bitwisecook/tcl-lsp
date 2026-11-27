@@ -23,8 +23,10 @@
 //! that containment first, so a query visits the enclosing sites only. It is
 //! derived from one undetached inventory and never outlives it.
 
-use super::{CommandAllocationSite, SourceCommandBindings, SourceOriginId, declaration_layout};
+use super::{SourceCommandBindings, declaration_layout};
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 type LayoutRows = Vec<declaration_layout::DeclarationLayoutObservation>;
 

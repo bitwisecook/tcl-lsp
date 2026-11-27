@@ -24,7 +24,7 @@ fn source_memos_do_not_change_identity_or_retain_dead_allocations() {
     let first = SourceOriginId::authored(&text);
     let equal = SourceOriginId::authored(&text);
     assert_eq!(first, equal);
-    assert!(!Arc::ptr_eq(&first.kind, &equal.kind));
+    assert!(!Arc::ptr_eq(first.shared_kind(), equal.shared_kind()));
     let memo = first.original_lexical_projection();
     let clone = first.clone();
     assert!(Arc::ptr_eq(&memo, &clone.original_lexical_projection()));
@@ -40,7 +40,7 @@ fn source_memos_do_not_change_identity_or_retain_dead_allocations() {
     assert!(first.original_lexical_command(&[], 0, config).is_none());
     assert_eq!(hash(&first), before);
     assert_eq!(first, equal);
-    let owner = Arc::downgrade(&first.kind);
+    let owner = Arc::downgrade(first.shared_kind());
     let memo_lifetime = Arc::downgrade(&memo);
     drop(memo);
     drop(first);

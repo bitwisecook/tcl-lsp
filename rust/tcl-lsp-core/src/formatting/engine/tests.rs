@@ -1144,13 +1144,12 @@ fn original_list_arg(
     let policy = tcl_native_model::InvocationDialect::of_profile(profile)
         .authored_name_policy()
         .unwrap();
-    let key =
-        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-            word,
-            WordValueRules::from_config(&lexer_config),
-            policy,
-        )
-        .unwrap();
+    let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+        word,
+        WordValueRules::from_config(&lexer_config),
+        policy,
+    )
+    .unwrap();
     let map = SourceMap::new(source);
     let tokens = Lexer::with_config(source, lexer_config)
         .tokenise_all()

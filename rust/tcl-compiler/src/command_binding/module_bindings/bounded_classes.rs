@@ -19,14 +19,14 @@
 //! Bounded class constructions: recorded definitions, constructors and manufacture slots.
 
 use super::super::binding_projection::source_binding;
-use super::super::command_identity::CommandIdentity;
 use super::super::source_walk::source_effective_words;
 use super::super::{
-    BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandTarget,
+    MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandTarget,
     SourceExecutionContext, deferred_method,
 };
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::{BindingKind, CommandIdentity};
 use tcl_registry::{CommandRegistry, StateTransition};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

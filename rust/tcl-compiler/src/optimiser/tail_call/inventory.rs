@@ -22,10 +22,11 @@
 //! obtained from positioned source lookup, never from a qualified display name.
 
 use super::super::PassContext;
-use crate::command_binding::{CommandAllocation, SourceCommandDefinitionKind};
+use crate::command_binding::SourceCommandDefinitionKind;
 use crate::ir::{CommandTokens, Procedure, Script, Statement};
 use std::collections::{BTreeMap, BTreeSet};
 use tcl_lexer::{ExecutablePart, NativeWord, SourceImage, Span};
+use tcl_names::command::CommandAllocation;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
 
 #[derive(Clone)]

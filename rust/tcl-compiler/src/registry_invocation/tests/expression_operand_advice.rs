@@ -48,7 +48,7 @@ fn original_expression_context_keeps_logical_input_and_written_operands() {
         assert!(advice.lookup_closed);
         assert!(matches!(
             advice.frame,
-            crate::var_resolve::VariableExecutionFrame::Unknown
+            tcl_names::variable::VariableExecutionFrame::Unknown
         ));
         assert_eq!(
             source.get(
@@ -160,7 +160,7 @@ fn original_expression_context_keeps_availability_and_terminal_point_refusals() 
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
                 &image,
-                &crate::var_resolve::VariableExecutionFrame::Unknown,
+                &tcl_names::variable::VariableExecutionFrame::Unknown,
                 config,
                 &registry,
                 options,

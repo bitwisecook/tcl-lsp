@@ -1134,10 +1134,10 @@ impl CompilerTraversal<'_> {
                     enclosing: self.chunk.clone(),
                     table: Arc::clone(&self.snapshot.table),
                     parent: Arc::clone(parent),
-                    script: super::super::ExecutedScriptSource {
+                    script: tcl_names::origin::ExecutedScriptSource {
                         text: source,
                         origin: Arc::clone(&self.chunk.source),
-                        mapping: super::super::ExecutedScriptMapping::Contiguous {
+                        mapping: tcl_names::origin::ExecutedScriptMapping::Contiguous {
                             base: span.start(),
                         },
                     },

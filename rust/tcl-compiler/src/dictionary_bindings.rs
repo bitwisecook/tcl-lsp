@@ -18,10 +18,10 @@
 
 //! Dictionary scope entry and completion-sensitive physical-cell writeback.
 
-use crate::place::{Place, PlaceKind};
 use crate::var_resolve::{
     ContentsPresence, ResolveContext, VariableProofRelocation, resolve_literal_access,
 };
+use tcl_names::place::{Place, PlaceKind};
 use tcl_registry::dictionary_scope::{
     DictionaryMissingKey, DictionaryScopeBindings, DictionaryScopePlan,
 };
@@ -33,7 +33,7 @@ use tcl_registry::{CommandRegistry, InvocationArguments};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DictionaryScopeId {
     /// Typed source instance and wrapper offset.
-    pub site: crate::command_binding::CommandAllocationSite,
+    pub site: tcl_names::command::CommandAllocationSite,
     /// Actual selected activation; global frames are distinguished by source site.
     pub activation: Option<String>,
 }
@@ -62,7 +62,7 @@ pub fn scope_id(
     let region = tokens.evaluated_body()?;
     let original = &region.scope.as_ref()?.invocation;
     Some(DictionaryScopeId {
-        site: crate::command_binding::CommandAllocationSite {
+        site: tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(original.source_binding.as_ref()?.source_origin()?),
             offset: region.source.span.start(),
         },
@@ -235,7 +235,7 @@ pub(crate) fn original_dictionary_scope_may_footprint(
         }
     };
     let clobbers = match names {
-        None => vec![crate::place::unknown_top()],
+        None => vec![tcl_names::place::unknown_top()],
         Some(names) => names
             .into_iter()
             .map(|name| {
@@ -247,7 +247,7 @@ pub(crate) fn original_dictionary_scope_may_footprint(
                     tcl_registry::TraceOperation::Write,
                 );
                 if target.dynamic || target.observed || target.kind == PlaceKind::Unknown {
-                    crate::place::unknown_top()
+                    tcl_names::place::unknown_top()
                 } else {
                     target
                 }
@@ -363,11 +363,11 @@ fn apply_entry_bindings(
 ) -> Option<DictionaryScopeEffects> {
     let mut effects = activation.entry_effects.clone();
     let Some(bindings) = &activation.bindings else {
-        state.record_contents_write(&crate::place::unknown_top(), source, true);
+        state.record_contents_write(&tcl_names::place::unknown_top(), source, true);
         if state.dynamic_traces || !state.traced.is_empty() {
             state.widen();
         }
-        effects.clobbers.push(crate::place::unknown_top());
+        effects.clobbers.push(tcl_names::place::unknown_top());
         return Some(effects);
     };
     for (key, name) in bindings {
@@ -392,7 +392,7 @@ fn apply_entry_bindings(
             },
         );
         if target.observed || target.kind == PlaceKind::Unknown {
-            effects.clobbers.push(crate::place::unknown_top());
+            effects.clobbers.push(tcl_names::place::unknown_top());
             state.widen();
             continue;
         }
@@ -610,7 +610,7 @@ pub fn transfer_scope_marker(
     };
     let source = tokens.evaluated_body().unwrap().source.span.start();
     let Some(id) = scope_id(tokens, state) else {
-        state.record_contents_write(&crate::place::unknown_top(), source, true);
+        state.record_contents_write(&tcl_names::place::unknown_top(), source, true);
         return true;
     };
     match marker {
@@ -635,7 +635,7 @@ pub fn transfer_scope_marker(
                 }
                 DictionaryScopeEntry::Invalid | DictionaryScopeEntry::Unknown => {
                     state.dictionary_scopes.remove(&id);
-                    state.record_contents_write(&crate::place::unknown_top(), source, true);
+                    state.record_contents_write(&tcl_names::place::unknown_top(), source, true);
                 }
             }
         }
@@ -643,7 +643,7 @@ pub fn transfer_scope_marker(
             if let Some(activation) = state.dictionary_scopes.remove(&id) {
                 finish_dictionary_scope(state, &activation, route, registry, source);
             } else {
-                state.record_contents_write(&crate::place::unknown_top(), source, true);
+                state.record_contents_write(&tcl_names::place::unknown_top(), source, true);
             }
         }
         _ => {}
@@ -695,7 +695,7 @@ pub fn scope_marker_effects(
                 DictionaryScopeEntry::Entered(activation) => activation.entry_effects,
                 DictionaryScopeEntry::Invalid => DictionaryScopeEffects::default(),
                 DictionaryScopeEntry::Unknown => DictionaryScopeEffects {
-                    clobbers: vec![crate::place::unknown_top()],
+                    clobbers: vec![tcl_names::place::unknown_top()],
                     ..DictionaryScopeEffects::default()
                 },
             },
@@ -706,7 +706,7 @@ pub fn scope_marker_effects(
         .cloned()
     else {
         return Some(DictionaryScopeEffects {
-            clobbers: vec![crate::place::unknown_top()],
+            clobbers: vec![tcl_names::place::unknown_top()],
             ..DictionaryScopeEffects::default()
         });
     };
@@ -762,7 +762,7 @@ fn writeback_effects(
     match finish_dictionary_scope(state, activation, route, registry, source) {
         DictionaryScopeFinish::Written(writes) => effects.writes = writes,
         DictionaryScopeFinish::Skipped | DictionaryScopeFinish::Invalid => {}
-        DictionaryScopeFinish::Unknown => effects.clobbers.push(crate::place::unknown_top()),
+        DictionaryScopeFinish::Unknown => effects.clobbers.push(tcl_names::place::unknown_top()),
     }
     effects
 }
@@ -812,7 +812,7 @@ mod tests {
             let footprint =
                 original_dictionary_scope_may_footprint(&state, &phase, arguments, registry)
                     .unwrap();
-            assert_eq!(footprint.clobbers, vec![crate::place::unknown_top()]);
+            assert_eq!(footprint.clobbers, vec![tcl_names::place::unknown_top()]);
             assert_eq!(state, before);
             assert!(matches!(
                 enter_dictionary_scope(&mut state, phase.plan(), arguments, registry, 10),
@@ -960,8 +960,8 @@ mod tests {
             registry,
         );
         let id = DictionaryScopeId {
-            site: crate::command_binding::CommandAllocationSite {
-                source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+            site: tcl_names::command::CommandAllocationSite {
+                source: std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored(
                     &"dict-body".into(),
                 )),
                 offset: 10,

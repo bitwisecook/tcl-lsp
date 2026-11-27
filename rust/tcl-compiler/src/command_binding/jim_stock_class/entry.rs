@@ -111,7 +111,7 @@ impl OriginalJimStockMethodEntry {
     pub(in crate::command_binding) fn first_command_presence(
         &self,
         name: &SignatureSourceNameInput,
-        namespace: &super::super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> super::super::SourceCommandSlotPresence {
         use super::super::SourceCommandSlotPresence as Presence;
         if !self.has_reference_free_prefix()

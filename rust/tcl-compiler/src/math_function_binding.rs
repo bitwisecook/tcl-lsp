@@ -72,7 +72,7 @@ impl ResolvedMathFunctionCall<'_> {
 #[derive(Clone, Copy)]
 pub struct ExpressionMathBindings<'a> {
     proofs: &'a [crate::command_binding::SourceMathInvocation],
-    source: Option<&'a crate::command_binding::ExecutedScriptSource>,
+    source: Option<&'a tcl_names::origin::ExecutedScriptSource>,
     base: Option<u32>,
     preparations: &'a [crate::command_binding::SourceExpressionPreparation],
     reads: &'a [crate::command_binding::SourceVariableAccess],
@@ -137,7 +137,7 @@ impl<'a> ExpressionMathBindings<'a> {
     #[must_use]
     pub const fn for_origin(
         proofs: &'a [crate::command_binding::SourceMathInvocation],
-        source: Option<&'a crate::command_binding::ExecutedScriptSource>,
+        source: Option<&'a tcl_names::origin::ExecutedScriptSource>,
         base: Option<u32>,
     ) -> Self {
         Self {
@@ -633,7 +633,7 @@ fn proves_intrinsic(proof: &crate::command_binding::SourceMathInvocation, functi
     if let Some(binding) = &reached.command_binding {
         return binding.proved_target().is_some_and(|target| {
             target.registry_backed
-                && target.kind == crate::command_binding::BindingKind::Builtin
+                && target.kind == tcl_names::command::BindingKind::Builtin
                 && target.command == identity
                 && target.prepended.is_empty()
         });
@@ -656,7 +656,7 @@ fn resolved_call<'a>(
     }
     if let Some(binding) = &reached.command_binding {
         let target = binding.proved_target()?;
-        if !target.registry_backed || target.kind != crate::command_binding::BindingKind::Builtin {
+        if !target.registry_backed || target.kind != tcl_names::command::BindingKind::Builtin {
             return None;
         }
         // Frozen bytes establish argv contents, but an alias may retain a
@@ -695,10 +695,9 @@ fn resolved_call<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command_binding::{
-        ExecutedScriptSource, SourceImplicitMathInvocation, SourceOriginId,
-    };
+    use crate::command_binding::SourceImplicitMathInvocation;
     use std::sync::Arc;
+    use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
     use tcl_runtime_api::native_compilation::{
         NativeInterpreterIdentity, NativeMathFunctionBinding, NativeMathFunctionPrerequisite,
         NativeMathFunctionTable,

@@ -152,7 +152,8 @@ fn original_trace_subject_inputs(
     prefix: &[u8],
     label: &[u8],
 ) -> (ResolveContext, OriginalVariableInvocation) {
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
+    use tcl_names::word::SignatureSourceNameKey;
     let dialect = tcl_native_model::InvocationDialect::of_point(
         tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
     );
@@ -194,7 +195,7 @@ fn original_trace_subject_inputs(
     state.execution_name_policy = Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
         policy,
     ));
-    let root = crate::command_binding::SourceNamespaceKey::authored("::");
+    let root = tcl_names::namespace::SourceNamespaceKey::authored("::");
     state.retain_namespace_world(root.clone(), [root], Some(policy.recipe()));
     (
         state,
@@ -352,7 +353,8 @@ fn original_trace_subject_keeps_cstring_purpose_separate_from_counted_runtime_lo
 #[test]
 fn original_trace_subject_roles_do_not_read_or_overwrite_value_contents() {
     // Implementation contract: naming.variable.trace-source-receiver-purpose (docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md).
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
+    use tcl_names::word::SignatureSourceNameKey;
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
         let (mut state, _) = original_trace_inputs(profile, b"watch", b"# value effects");
@@ -566,8 +568,9 @@ fn valid_trace_registration_closes_only_the_selected_native_address_protocol() {
 // Implementation contract: naming.variable.byte-cell-correspondence
 // docs/design/analysis/name-resolution-proofs/variable.byte-cell-correspondence.md
 fn original_alias_operands_ignore_display_and_preserve_runtime_units() {
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
     use tcl_lexer::{LexerConfig, SourceImage, Span};
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::naming::{ExecutionNamePolicy, NamePolicyProtocol};
     use tcl_syntax::word_rules::WordValueRules;
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -596,7 +599,7 @@ fn original_alias_operands_ignore_display_and_preserve_runtime_units() {
             let mut state = ResolveContext::for_function("::p");
             state.invocation_dialect = Some(dialect);
             state.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
-            let root = crate::command_binding::SourceNamespaceKey::authored("::");
+            let root = tcl_names::namespace::SourceNamespaceKey::authored("::");
             state.retain_namespace_world(root.clone(), [root.clone()], Some(policy.recipe()));
             // The logical transition facet cannot select either cell.
             let subject = tcl_registry::TransitionSubject::LocatedLiteral {
@@ -664,8 +667,9 @@ fn original_absolute_alias_operands(
     config: tcl_lexer::LexerConfig,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> OriginalVariableInvocation {
-    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+    use crate::signature_scan::scope::SignatureSourceNameInput;
     use tcl_lexer::Span;
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::word_rules::WordValueRules;
     let parsed = tcl_lexer::native_script_words_in(
         source.clone(),
@@ -727,7 +731,7 @@ fn original_absolute_zero_alias_uses_retained_root_without_a_caller_frame() {
         let mut state = ResolveContext::for_function("::p");
         state.invocation_dialect = Some(dialect);
         state.execution_name_policy = Some(ExecutionNamePolicy::NativeRecipe(policy));
-        let root = crate::command_binding::SourceNamespaceKey::authored("::");
+        let root = tcl_names::namespace::SourceNamespaceKey::authored("::");
         state.retain_namespace_world(root.clone(), [root.clone()], Some(policy.recipe()));
         assert!(state.caller.is_none());
         assert!(
@@ -1063,7 +1067,7 @@ fn caller_reference_distinguishes_defined_unknown_contents_from_absence() {
         tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
     ));
     parent.define_unknown_contents("parameter", registry);
-    let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+    let frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::".to_owned(),
         identity: "reference-call".to_owned(),
     };
@@ -1130,7 +1134,7 @@ fn actual_caller_increment_preserves_the_shared_namespace_contents() {
         "{set_facts:#?}: {root:#?}"
     );
     let mut child =
-        root.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+        root.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "bump@1".to_owned(),
         });
@@ -1488,13 +1492,13 @@ fn actual_parent_frame_frames_select_bound_cells_and_literal_values() {
     let mut global = ResolveContext::for_function("::top");
     global.define_literal("seed", "GLOBAL", &registry);
     let mut parent_frame =
-        global.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+        global.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::N".to_owned(),
             identity: "parent_frame@1".to_owned(),
         });
     parent_frame.define_literal("seed", "CALLER", &registry);
     let mut child_frame =
-        parent_frame.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+        parent_frame.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::N".to_owned(),
             identity: "child_frame@1".to_owned(),
         });
@@ -1530,7 +1534,7 @@ fn actual_parent_frame_frames_select_bound_cells_and_literal_values() {
             .selected_frame_context(FrameLevel::Relative(3))
             .is_none()
     );
-    let lexical = global.in_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+    let lexical = global.in_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::N".to_owned(),
         identity: "definition-only".to_owned(),
     });
@@ -1551,7 +1555,7 @@ fn namespace_aliases_persist_and_deleted_targets_do_not_rebind_in_c_tcl() {
         .extend(["::N".to_owned(), "::Target".to_owned()]);
     parent.define_literal("::Target::x", "OLD", registry);
     let mut child = parent.enter_called_frame(
-        &crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+        &tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
             namespace: "::N".to_owned(),
             identity: "namespace-eval@1".to_owned(),
         },
@@ -1570,7 +1574,7 @@ fn namespace_aliases_persist_and_deleted_targets_do_not_rebind_in_c_tcl() {
     let restored = crate::var_resolve::restore_execution_frame(&parent, &child);
     assert_eq!(restored.literal_value("::N::link", registry), Some("OLD"));
     let mut child = restored.enter_called_frame(
-        &crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+        &tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
             namespace: "::N".to_owned(),
             identity: "namespace-eval@2".to_owned(),
         },
@@ -1598,13 +1602,13 @@ fn namespace_aliases_persist_and_deleted_targets_do_not_rebind_in_c_tcl() {
 fn actual_namespace_activation_contributes_to_numeric_frame_depth() {
     let global = ResolveContext::for_function("::top");
     let namespace = global.enter_called_frame(
-        &crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+        &tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
             namespace: "::N".to_owned(),
             identity: "namespace-eval@1".to_owned(),
         },
     );
     let procedure =
-        namespace.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+        namespace.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::N".to_owned(),
             identity: "call@1".to_owned(),
         });
@@ -1657,7 +1661,7 @@ fn actual_parent_frame_retains_outward_alias_and_contents_effects() {
     parent_frame.define_literal("x", "OLD", &registry);
     link(&mut parent_frame, "x", "alias");
     let child_frame =
-        parent_frame.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+        parent_frame.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "call@1".to_owned(),
         });
@@ -1718,7 +1722,7 @@ fn global_declarations_do_not_override_c_namespace_lookup() {
         assert!(!state.alias_bindings.contains_key("x"));
         assert_eq!(
             cell_key(&resolve_literal_place("x", &state, false, &registry)),
-            crate::var_resolve::VariableCellKey::Authored("::N::x".into())
+            tcl_names::variable::VariableCellKey::Authored("::N::x".into())
         );
     }
 }
@@ -1747,7 +1751,7 @@ fn namespace_alias_destination_does_not_retarget_a_same_named_global() {
     assert!(!state.namespace_alias_bindings.contains_key("::link"));
     assert_eq!(
         cell_key(&resolve_literal_place("::link", &state, false, &registry)),
-        crate::var_resolve::VariableCellKey::Authored("::link".into())
+        tcl_names::variable::VariableCellKey::Authored("::link".into())
     );
     assert_eq!(
         cell_key(&resolve_literal_place(
@@ -1756,7 +1760,7 @@ fn namespace_alias_destination_does_not_retarget_a_same_named_global() {
             false,
             &registry
         )),
-        crate::var_resolve::VariableCellKey::Authored("::Target::x".into())
+        tcl_names::variable::VariableCellKey::Authored("::Target::x".into())
     );
 }
 #[test]

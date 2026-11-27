@@ -18,7 +18,8 @@
 
 //! Semantic equality excludes only derived query caches.
 
-use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
+use super::{Arc, SourceCommandBindings, SourceInvocationBinding};
+use tcl_names::command::CommandAllocationSite;
 
 #[test]
 fn cfg_replay_retains_actual_entry_without_later_world_mutations() {
@@ -379,14 +380,14 @@ fn original_snapshot_equality_retains_source_frame_alias_epoch_and_native_contex
     let mut epoch = state.clone();
     Arc::make_mut(&mut epoch.source_variables).original_contents_epoch = None;
     let mut frame = state.clone();
-    frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+    frame.variable_frame = tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: "::other".into(),
         identity: "other-activation".into(),
     };
     let mut source = state.clone();
-    source.current_source_origin = Some(Arc::new(super::SourceOriginId::authored(&Arc::from(
-        "set result NO",
-    ))));
+    source.current_source_origin = Some(Arc::new(tcl_names::origin::SourceOriginId::authored(
+        &Arc::from("set result NO"),
+    )));
     let mut native = state.clone();
     let baseline = Arc::make_mut(&mut native.baseline);
     baseline.native_compilation.loop_depth += 1;

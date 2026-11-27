@@ -24,7 +24,7 @@ use super::word_types::{lowered_expression_result_type, value_word_type};
 use super::{WordTypingCtx, return_type_for_command};
 use crate::ir::Statement;
 use crate::types::{Elements, TypeKind, TypeLattice, TypeShape, shape_join};
-use crate::var_resolve::VariableCellTable;
+use tcl_names::variable::VariableCellTable;
 use tcl_registry::{TclType, VarWriteTyping};
 
 /// How one statement types the variable(s) it defines.

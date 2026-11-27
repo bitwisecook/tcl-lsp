@@ -19,11 +19,12 @@
 //! Quiet original operations on the independently selected Logical source model.
 
 use super::{
-    Arc, BindingKind, CommandBindingTransition, MayBinding, ModuleCommandBindings,
-    SourceCommandTarget, SourceExecutionContext, SourceNamespaceKey, SourceOutcomes,
-    StateTransition, apply_may_binding_transition, apply_namespace_transition,
-    source_binding_projection,
+    Arc, CommandBindingTransition, MayBinding, ModuleCommandBindings, SourceCommandTarget,
+    SourceExecutionContext, SourceOutcomes, StateTransition, apply_may_binding_transition,
+    apply_namespace_transition, source_binding_projection,
 };
+use tcl_names::command::BindingKind;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{
     ArgRole, InvocationFacts, SemanticOperationId, StateTransitions,
     hooks::{AnalyserHookId, LoweringHookId},
@@ -536,7 +537,7 @@ fn scalar_write_continuation(
             );
             if write.dynamic
                 || write.observed
-                || write.kind != crate::place::PlaceKind::Scalar
+                || write.kind != tcl_names::place::PlaceKind::Scalar
                 || write.index.is_some()
                 || !logical_cell_is_local(&write, state, context)
                 || state.source_variables.root_contents_kind(&write)
@@ -659,7 +660,7 @@ fn empty_dictionary_scope_continuation(
         || write.observed
         || read.dynamic
         || read.observed
-        || write.kind != crate::place::PlaceKind::Scalar
+        || write.kind != tcl_names::place::PlaceKind::Scalar
         || write.index.is_some()
         || !logical_cell_is_local(&write, state, context)
         || !logical_cell_is_local(&read, state, context)
@@ -723,7 +724,7 @@ fn scalar_store(
     );
     if access.dynamic
         || access.observed
-        || access.kind != crate::place::PlaceKind::Scalar
+        || access.kind != tcl_names::place::PlaceKind::Scalar
         || access.index.is_some()
         || !(if hosted {
             hosted_cell_is_local(&access, state, context)
@@ -748,11 +749,11 @@ fn scalar_store(
 /// Check an authored continuation's cell coordinate, independently of the
 /// storage-domain facet. This never selects a physical namespace or store.
 pub(super) fn logical_cell_is_local(
-    access: &crate::place::Place,
+    access: &tcl_names::place::Place,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    use crate::place::CellOwner;
+    use tcl_names::place::CellOwner;
     use tcl_registry::f5::VariableStorageDomain;
     if super::logical_definition::logical_entry(state, context).is_none() {
         return false;
@@ -770,7 +771,7 @@ pub(super) fn logical_cell_is_local(
         || variables.execution_name_policy.is_some()
         || cell.interpreter.is_some()
         || cell.execution.is_some()
-        || cell.generation == crate::place::CellGeneration::Unknown
+        || cell.generation == tcl_names::place::CellGeneration::Unknown
         || cell.generation
             != variables
                 .generations
@@ -798,11 +799,11 @@ pub(super) fn logical_cell_is_local(
 /// [`logical_cell_is_local`] in a hosted rule's advisory walk: only the
 /// handler's own event-frame activation cell, under the authored simulation.
 pub(super) fn hosted_cell_is_local(
-    access: &crate::place::Place,
+    access: &tcl_names::place::Place,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    use crate::place::CellOwner;
+    use tcl_names::place::CellOwner;
     if super::logical_definition::hosted_entry(state, context).is_none() {
         return false;
     }
@@ -818,7 +819,7 @@ pub(super) fn hosted_cell_is_local(
         || cell.interpreter.is_some()
         || cell.execution.is_some()
         || cell.storage_domain.is_some()
-        || cell.generation == crate::place::CellGeneration::Unknown
+        || cell.generation == tcl_names::place::CellGeneration::Unknown
         || cell.generation
             != variables
                 .generations
@@ -981,7 +982,7 @@ fn retain_logical_alias_prefix(
         return None;
     };
     let input = super::logical_definition::logical_entry(state, context)?.clone();
-    let site = super::CommandAllocationSite {
+    let site = tcl_names::command::CommandAllocationSite {
         source: Arc::clone(state.current_source_origin.as_ref()?),
         offset,
     };

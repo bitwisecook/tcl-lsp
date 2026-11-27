@@ -143,7 +143,7 @@ pub(crate) fn original_invocation_has_execution_trace(
         return true;
     };
     let crate::command_binding::SourceCommandReferenceBinding::Direct {
-        kind: crate::command_binding::BindingKind::Builtin,
+        kind: tcl_names::command::BindingKind::Builtin,
         identity,
     } = reference.binding()
     else {
@@ -409,7 +409,7 @@ mod tests {
         assert!(!binding.original_fresh_procedure_unobserved_for_tokens(tokens, &generation));
         let mut wrong_frame = tokens.clone();
         wrong_frame.source_binding.as_mut().unwrap().variable_frame =
-            crate::var_resolve::VariableExecutionFrame::Unknown;
+            tcl_names::variable::VariableExecutionFrame::Unknown;
         assert!(
             !wrong_frame
                 .source_binding
@@ -896,7 +896,7 @@ mod tests {
         assert!(!binding.original_unobserved_native_dispatch_for_tokens(tokens, &other_generation));
         let mut wrong_frame = tokens.clone();
         wrong_frame.source_binding.as_mut().unwrap().variable_frame =
-            crate::var_resolve::VariableExecutionFrame::Unknown;
+            tcl_names::variable::VariableExecutionFrame::Unknown;
         assert!(
             !wrong_frame
                 .source_binding

@@ -19,11 +19,7 @@
 //! Expression operands: operators, function calls, implicit math and expression truth.
 
 use super::super::binding_projection::source_binding;
-use super::super::command_identity::CommandAllocationSite;
-use super::super::executed_script_source::ExecutedScriptSource;
 use super::super::invocation_binding::SourceObserverExecution;
-use super::super::namespace_context::SourceNamespaceKey;
-use super::super::source_origin::{MaterialisedSourceKind, SourceOriginId};
 use super::super::variable_access::SourceVariableEvaluationOwner;
 use super::super::{
     FixedMathObservation, ModuleCommandBindings, SourceCommandBindings, SourceCommandTarget,
@@ -35,6 +31,10 @@ use super::body_flow::{authored_braced_operand, frozen_script_operands};
 use super::outcomes::opaque_source_invocation;
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::ExecutedScriptSource;
+use tcl_names::origin::{MaterialisedSourceKind, SourceOriginId};
 use tcl_registry::CommandRegistry;
 
 /// Reached implicit expression dispatch, sampled after its argument evaluations.

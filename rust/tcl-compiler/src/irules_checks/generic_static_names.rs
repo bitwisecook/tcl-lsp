@@ -193,12 +193,12 @@ pub fn find_generic_static_name_warnings(
 }
 
 fn check_generic_static(
-    place: &crate::place::Place,
-    key: &crate::var_resolve::VariableCellKey,
+    place: &tcl_names::place::Place,
+    key: &tcl_names::variable::VariableCellKey,
     source_name: &str,
     span: Span,
     compiled: &[regex::Regex],
-    seen: &mut HashSet<crate::var_resolve::VariableCellKey>,
+    seen: &mut HashSet<tcl_names::variable::VariableCellKey>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
     let root = key.root().clone();
@@ -209,7 +209,7 @@ fn check_generic_static(
         return;
     };
     let pattern_name = if let Some(index) = &place.index {
-        if index.kind != crate::place::IndexKind::Literal {
+        if index.kind != tcl_names::place::IndexKind::Literal {
             return;
         }
         let Ok(element) = index.value.try_utf8() else {

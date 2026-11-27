@@ -19,9 +19,10 @@
 //! A compiled private name and its independently selected late handler.
 
 use super::{
-    CommandAllocationSite, CompiledExecutionCertainty, ModuleCommandBindings, SourceCommandTarget,
+    CompiledExecutionCertainty, ModuleCommandBindings, SourceCommandTarget,
     SourceInvocationBinding, SourceNativeCompilationDependency,
 };
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_compilation::NativeCompilerImplementationLookup;
 
 /// Native compilation captures a command name rather than its implementation.
@@ -367,12 +368,9 @@ pub(super) mod tests {
             .named_invocation()
             .expect("argument replacement preserves captured name");
         assert_eq!(named.captured_name(), "::helper");
-        assert!(
-            named
-                .proved_target()
-                .is_some_and(|target| target.kind == super::super::BindingKind::Proc
-                    && target.implementation_allocation.is_some())
-        );
+        assert!(named.proved_target().is_some_and(|target| target.kind
+            == tcl_names::command::BindingKind::Proc
+            && target.implementation_allocation.is_some()));
         assert!(!named.may_be_absent);
 
         let removed = analyse_native_named("info body [rename ::helper {}]", &entry);
@@ -390,7 +388,9 @@ pub(super) mod tests {
 
     #[test]
     fn named_native_worker_missing_root_cannot_fall_back_to_authored_table() {
-        use super::super::{ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey};
+        use super::super::ModuleCommandBindings;
+        use tcl_names::command::SourceCommandKey;
+        use tcl_names::namespace::SourceNamespaceKey;
         let mut entry = native_entry();
         entry.namespaces.retain(|namespace| namespace.token != 0);
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -485,7 +485,7 @@ pub(super) mod tests {
         else {
             panic!("original set must carry its genuine registry implementation");
         };
-        let expected_token = super::super::RuntimeCommandTokenIdentity {
+        let expected_token = tcl_names::command::RuntimeCommandTokenIdentity {
             interpreter: entry.interpreter,
             token: original.token,
         };
@@ -517,7 +517,7 @@ pub(super) mod tests {
             .proved_execution_target()
             .expect("original set survives rename");
         assert_eq!(target.registry_identity(), Some(identity.as_str()));
-        assert_eq!(target.kind, super::super::BindingKind::Builtin);
+        assert_eq!(target.kind, tcl_names::command::BindingKind::Builtin);
         assert_eq!(
             target
                 .identity

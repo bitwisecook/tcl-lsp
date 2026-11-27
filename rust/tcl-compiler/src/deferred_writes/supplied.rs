@@ -75,7 +75,7 @@ struct SourceScan<'a> {
     registry: &'a CommandRegistry,
     procedures: OnceCell<HashMap<crate::ir::ProcedureId, GlobalWriteInfo>>,
     original_frame_declarations:
-        OnceCell<std::collections::HashSet<&'a crate::command_binding::CommandAllocationSite>>,
+        OnceCell<std::collections::HashSet<&'a tcl_names::command::CommandAllocationSite>>,
     out: DeferredWrites,
     /// A statement raised [`DeferredWrites::any`] without an original site.
     unsited: bool,
@@ -131,7 +131,7 @@ impl SourceScan<'_> {
     /// this scan reads among the module's procedures.
     fn scans_retained_procedure_at(
         &self,
-        site: &crate::command_binding::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
     ) -> bool {
         self.module.procedures.iter().any(|(id, procedure)| {
             self.module.procedure_ids.owns(*id)

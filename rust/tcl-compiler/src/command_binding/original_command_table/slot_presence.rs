@@ -18,13 +18,13 @@
 
 //! Whether an original slot is present, and the bindings view of its key.
 
-use super::super::{
-    BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
-};
+use super::super::{BTreeSet, MayBinding, ModuleCommandBindings};
 #[cfg(any(test, debug_assertions))]
 use super::{BaselineLookupTiming, OriginalGeometryTiming};
 use super::{OriginalLookupSlot, RegistryMetadataSlotIndex, original_registry_metadata_slot};
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::SourceCommandKey;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 
 impl ModuleCommandBindings {
     /// Readonly pre-fallback presence for a genuine original name. Known

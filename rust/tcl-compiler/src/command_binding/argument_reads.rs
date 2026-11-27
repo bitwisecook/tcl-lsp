@@ -19,14 +19,15 @@
 //! Actual selected substitution addresses frozen with original argv words.
 
 use super::{Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext};
-use crate::{place::Place, var_resolve::ResolveContext};
+use crate::var_resolve::ResolveContext;
+use tcl_names::place::Place;
 
 pub(super) struct FrozenSourceArgumentRead {
     place: Place,
     context: Arc<ResolveContext>,
     source: tcl_source::words::SourceSite,
     spelling: String,
-    origin: Arc<super::SourceOriginId>,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
     pub(super) expression: Option<Arc<super::read_store_schedule::CapturedExpressionRead>>,
 }
 

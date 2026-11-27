@@ -162,7 +162,7 @@ fn logical_receiver_catalogues_retain_parent_member_and_vector_without_native_co
         .expect("actual source-only receiver frame");
     assert!(matches!(
         frame.frame().layout(),
-        crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
     ));
     assert_eq!(frame.source().try_text().unwrap(), "set local $arg");
     assert!(
@@ -256,7 +256,7 @@ fn original_tokens_in_image_with_config(
     );
     let bindings = super::SourceCommandBindings::analyse_image_in_frame_with_options(
         image,
-        &crate::var_resolve::VariableExecutionFrame::Global,
+        &tcl_names::variable::VariableExecutionFrame::Global,
         config,
         registry,
         super::super::SourceAnalysisOptions {
@@ -552,7 +552,7 @@ fn replaced_declaration_handler_withdraws_original_layout_advice() {
 
 #[test]
 fn original_lookup_completeness_keeps_unknown_absent_and_namespace_alternatives() {
-    use crate::var_resolve::VariableExecutionFrame;
+    use tcl_names::variable::VariableExecutionFrame;
     let source = "proc p {} {expr {3.5}}";
     let (_, tokens) = original_tokens(source, "expr {3.5}", source.find("expr").unwrap());
     let binding = tokens.source_binding.as_ref().unwrap();
@@ -593,7 +593,7 @@ fn original_lookup_completeness_keeps_unknown_absent_and_namespace_alternatives(
     }
     let mut state = original.state.clone();
     state.variable_frame = VariableExecutionFrame::NamespaceIdentity {
-        namespace: super::super::SourceNamespaceKey::Authored("::other".into()),
+        namespace: tcl_names::namespace::SourceNamespaceKey::Authored("::other".into()),
         frame: Box::new(state.variable_frame),
     };
     advice.snapshot = std::sync::Arc::new(super::super::SourceLookupSnapshot::in_realm(
@@ -1107,7 +1107,7 @@ fn original_destruction_operand_keys_follow_the_retained_alias_point() {
         let keys = binding
             .declaration_variable_argument_keys(&tokens, &[0], registry)
             .unwrap_or_else(|| panic!("{dialect}: original destruction operand"));
-        let [crate::var_resolve::VariableCellKey::Activation { simple, .. }] = keys.as_slice()
+        let [tcl_names::variable::VariableCellKey::Activation { simple, .. }] = keys.as_slice()
         else {
             panic!("{dialect}: independently owned activation key");
         };
@@ -1264,7 +1264,7 @@ fn source_callee_layout_is_distinct_from_registry_metadata() {
         panic!("one original source declaration");
     };
     assert!(!callee.registry_backed);
-    assert_eq!(callee.kind, super::super::BindingKind::Proc);
+    assert_eq!(callee.kind, tcl_names::command::BindingKind::Proc);
     assert!(callee.implementation_allocation.is_some());
     let mut changed = tokens;
     changed.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));

@@ -155,7 +155,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             .body
             .namespace_context
             .as_deref()
-            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
         else {
             continue;
         };
@@ -520,7 +520,7 @@ fn render_propagation_word(value: &str, config: tcl_lexer::LexerConfig) -> Optio
 /// stronger question and get an answer where the map has none.
 fn sccp_value_literal(
     fu: &FunctionUnit,
-    var_name: &crate::var_resolve::VariableCellKey,
+    var_name: &tcl_names::variable::VariableCellKey,
     version: crate::ssa::Version,
     policy: FoldPolicy,
 ) -> Option<String> {

@@ -277,11 +277,11 @@ fn conditional_root_source_scope_uses_its_original_parent_and_input() {
                     .unwrap();
                 }
                 1 => {
-                    *frame = crate::var_resolve::VariableExecutionFrame::Namespace(
+                    *frame = tcl_names::variable::VariableExecutionFrame::Namespace(
                         "::foreign".to_owned(),
                     );
                 }
-                2 => *namespace = super::super::super::SourceNamespaceKey::authored("::foreign"),
+                2 => *namespace = tcl_names::namespace::SourceNamespaceKey::authored("::foreign"),
                 _ => config.expand_syntax = !config.expand_syntax,
             }
             row.entry = Arc::new(entry);
@@ -310,7 +310,7 @@ fn conditional_root_source_scope_uses_its_original_parent_and_input() {
         );
     }
     let mut foreign = site.clone();
-    foreign.source = Arc::new(super::super::super::SourceOriginId::authored_image(
+    foreign.source = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
         image.clone(),
     ));
     assert!(

@@ -19,6 +19,7 @@
 //! Conditional transfer queries over one unchanged original Logical source world.
 
 use crate::command_binding::OriginalInvocationSourcePurpose;
+use crate::command_binding::{ExecutedScriptWords, SourceOriginLexical};
 use crate::ir::{CommandTokens, Module, Procedure, Script, Statement};
 use crate::registry_invocation::{
     EffectiveCommandWords, InvocationMetadataContext, ResolvedStatementInvocation,
@@ -102,10 +103,7 @@ pub(crate) struct OriginalSummaryExpression {
 
 /// Whether `body` runs any of its commands in another frame: an `uplevel`
 /// body, or a block evaluated in another namespace.
-fn runs_another_frame(
-    body: &Script,
-    namespace: &crate::command_binding::SourceNamespaceKey,
-) -> bool {
+fn runs_another_frame(body: &Script, namespace: &tcl_names::namespace::SourceNamespaceKey) -> bool {
     let Some(namespace) = namespace.display() else {
         return true;
     };
@@ -127,7 +125,7 @@ fn runs_another_frame(
 /// The frame of a release unit's procedure body and the namespace it runs in.
 struct AuthoredFrame {
     frame: crate::command_binding::SourceOriginalVariableFrame,
-    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    namespace: tcl_names::namespace::SignatureNamespaceScope,
 }
 
 pub(super) struct SourceSummaryContext<'a> {
@@ -427,7 +425,7 @@ impl<'a> SourceSummaryContext<'a> {
                 procedure,
                 self.module.source_metadata_input.as_ref()?,
             )?,
-            namespace: crate::signature_scan::scope::SignatureNamespaceScope::C(
+            namespace: tcl_names::namespace::SignatureNamespaceScope::C(
                 namespace.source_artifact_path()?,
             ),
         })
@@ -937,7 +935,7 @@ impl<'a> SourceSummaryContext<'a> {
             return None;
         }
         let source = &parent.source_binding.as_ref()?.invocation_site()?.source;
-        let base = crate::command_binding::ExecutedScriptSource::literal_word_base(
+        let base = tcl_names::origin::ExecutedScriptSource::literal_word_base(
             source.source_image().try_text().ok()?,
             word,
             script,

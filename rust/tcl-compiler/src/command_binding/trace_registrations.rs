@@ -455,8 +455,8 @@ mod tests {
 
     #[test]
     fn equal_text_reports_and_unknown_state_supply_no_cell_identity() {
-        use crate::command_binding::SourceNamespaceKey;
-        use crate::var_resolve::{VariableCellKey, VariableCellSet};
+        use tcl_names::namespace::SourceNamespaceKey;
+        use tcl_names::variable::{VariableCellKey, VariableCellSet};
         let protected = names(&["x"]);
         let left = VariableCellKey::Namespace {
             identity: SourceNamespaceKey::authored("::left"),

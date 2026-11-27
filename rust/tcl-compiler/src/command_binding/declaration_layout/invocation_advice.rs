@@ -18,10 +18,7 @@
 
 //! Declaration advice at one invocation: call layouts, read occurrences, operands and alias frames.
 
-use super::super::{
-    CommandAllocationSite, OriginalCompilationLookupAdvice, SourceCommandBindings,
-    SourceLookupSnapshot,
-};
+use super::super::{OriginalCompilationLookupAdvice, SourceCommandBindings, SourceLookupSnapshot};
 use super::variable_symbols::original_local_primary_is_byte_unique;
 use super::{
     DeclarationReadOccurrenceAdvice, DeclarationVariableOperandAdvice,
@@ -29,6 +26,7 @@ use super::{
     OriginalDiagnosticFrameEntry, original_declaration_layouts,
 };
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 impl OriginalDeclarationCallLayoutAdvice {
     pub(crate) fn targets(&self) -> &[super::super::SourceCommandTarget] {
@@ -236,7 +234,7 @@ impl super::super::SourceInvocationBinding {
                 return None;
             };
             if !target.registry_backed
-                || target.kind != super::super::BindingKind::Builtin
+                || target.kind != tcl_names::command::BindingKind::Builtin
                 || !target.prepended.is_empty()
             {
                 return None;
@@ -273,7 +271,7 @@ impl super::super::SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         arguments: &[usize],
         registry: &tcl_registry::CommandRegistry,
-    ) -> Option<Vec<crate::var_resolve::VariableCellKey>> {
+    ) -> Option<Vec<tcl_names::variable::VariableCellKey>> {
         self.declaration_operand_layout_advice(tokens)?;
         let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
         let mut unanimous = None;
@@ -425,8 +423,8 @@ impl super::super::SourceInvocationBinding {
         if observations.clone().any(|observation| {
             !matches!(
                 observation.entry.frame().layout(),
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                    | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                    | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
             )
         }) {
             return None;
@@ -602,7 +600,7 @@ impl super::super::SourceInvocationBinding {
             &super::super::SourceInvocationBinding,
             &crate::ir::CommandTokens,
             &Arc<super::super::SourceLookupSnapshot>,
-            &super::super::SourceNamespaceKey,
+            &tcl_names::namespace::SourceNamespaceKey,
             tcl_lexer::LexerConfig,
         ) -> Option<OriginalCompilationLookupAdvice>,
     ) -> Option<OriginalCompilationLookupAdvice> {
@@ -655,7 +653,7 @@ fn original_body_parameter_source_layout(
     binding: &super::super::SourceInvocationBinding,
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,
-    namespace: &super::super::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     config: tcl_lexer::LexerConfig,
 ) -> Option<OriginalCompilationLookupAdvice> {
     let rows = original_declaration_layouts(binding.declaration_layout_observations.as_deref()?)?;

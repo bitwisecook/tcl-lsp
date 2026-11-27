@@ -377,15 +377,35 @@ mod tests {
             .name()
             .policy();
         let config = consumer.body_lexer_config.unwrap();
-        let actual = suggestions.iter().map(|item| {
-            let image = SourceImage::document(&item.insert_text);
-            let plan = tcl_lexer::native_script_words_in(image,tcl_lexer::Span::new(0,u32::try_from(item.insert_text.len()).unwrap()),config).unwrap();
-            assert_eq!(plan.commands.len(),1); assert_eq!(plan.commands[0].words.len(),1);
-            let key = tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                &plan.commands[0].words[0], tcl_syntax::word_rules::WordValueRules::from_config(&config),policy).unwrap();
-            tcl_compiler::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
-                &tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(tcl_core_types::ByteNamespacePath::root()),&key).unwrap().slot().clone()
-        }).collect::<Vec<_>>();
+        let actual = suggestions
+            .iter()
+            .map(|item| {
+                let image = SourceImage::document(&item.insert_text);
+                let plan = tcl_lexer::native_script_words_in(
+                    image,
+                    tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                assert_eq!(plan.commands.len(), 1);
+                assert_eq!(plan.commands[0].words.len(), 1);
+                let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                    &plan.commands[0].words[0],
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    policy,
+                )
+                .unwrap();
+                tcl_compiler::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+                    &tcl_names::namespace::SignatureNamespaceScope::C(
+                        tcl_core_types::ByteNamespacePath::root(),
+                    ),
+                    &key,
+                )
+                .unwrap()
+                .slot()
+                .clone()
+            })
+            .collect::<Vec<_>>();
         assert!(expected.iter().all(|slot| actual.contains(slot)));
         assert_ne!(actual[0], actual[1]);
         assert_eq!(

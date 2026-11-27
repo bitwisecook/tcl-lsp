@@ -22,10 +22,13 @@ use super::{
     AdviceGraph, AdviceInvocationContext, AdviceNamingPolicy, OriginalSourceCataloguePurpose,
     OriginalSourceTransitionSeed, SourceAdviceQuery,
 };
-use crate::command_binding::{CommandAllocationSite, SourceNamespaceKey};
+#[cfg(test)]
+use crate::command_binding::SourceOriginLexical;
 use std::cell::{Cell, RefCell};
 use std::sync::{Arc, atomic::AtomicUsize};
 use tcl_lexer::NativeWord;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::model::ContextRegistry;
 
 /// Derived source-only lookup seed, never a Native/runtime command table.
@@ -318,7 +321,7 @@ fn normal_source_variable_effects_bounded(facts: &tcl_registry::InvocationFacts)
 fn normal_source_variable_point_is_closed(
     point: &crate::command_binding::SourceBindingPoint,
     native: &[NativeWord],
-    origin: &Arc<crate::command_binding::SourceOriginId>,
+    origin: &Arc<tcl_names::origin::SourceOriginId>,
     operands: &crate::variable_bindings::OriginalVariableInvocation,
     registry: &tcl_registry::CommandRegistry,
     canonical: &str,
@@ -370,7 +373,7 @@ fn normal_source_variable_point_is_closed(
     );
     !(receiver.dynamic
         || receiver.observed
-        || receiver.kind != crate::place::PlaceKind::Scalar
+        || receiver.kind != tcl_names::place::PlaceKind::Scalar
         || receiver.index.is_some()
         || state
             .source_variables
@@ -975,11 +978,11 @@ mod nested_source_point_controls {
             words.head_source().unwrap().word().unwrap().clone(),
             words.original_argument_word(0).unwrap().clone(),
         ];
-        let site = crate::command_binding::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(&seed.origin),
             offset,
         };
-        let namespace = crate::command_binding::SourceNamespaceKey::authored("::");
+        let namespace = tcl_names::namespace::SourceNamespaceKey::authored("::");
         super::reset_source_point_body_walks();
         let graph = seed.source_point_graph(
             input.borrowed_context_registry(),
@@ -1016,11 +1019,11 @@ mod nested_source_point_controls {
             words.head_source().unwrap().word().unwrap().clone(),
             words.original_argument_word(0).unwrap().clone(),
         ];
-        let site = crate::command_binding::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(&seed.origin),
             offset,
         };
-        let namespace = crate::command_binding::SourceNamespaceKey::authored("::");
+        let namespace = tcl_names::namespace::SourceNamespaceKey::authored("::");
         super::reset_source_point_body_walks();
         let outcome = seed.source_point_graph_outcome(
             input.borrowed_context_registry(),

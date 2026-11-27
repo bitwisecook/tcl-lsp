@@ -34,8 +34,8 @@ pub(crate) struct OriginalExpressionOperandAdvice {
     pub(crate) expression_base: u32,
     pub(crate) expression_text: String,
     pub(crate) lookup_closed: bool,
-    pub(crate) frame: crate::var_resolve::VariableExecutionFrame,
-    pub(crate) namespace_key: crate::command_binding::SourceNamespaceKey,
+    pub(crate) frame: tcl_names::variable::VariableExecutionFrame,
+    pub(crate) namespace_key: tcl_names::namespace::SourceNamespaceKey,
     pub(crate) span: tcl_lexer::Span,
 }
 
@@ -67,8 +67,8 @@ pub(crate) struct OriginalExpressionContextAdvice {
     pub(crate) written: usize,
     pub(crate) lookup_closed: bool,
     pool: tcl_registry::conditional_expression::ConditionalExpressionPoolState,
-    pub(super) frame: crate::var_resolve::VariableExecutionFrame,
-    pub(super) namespace_key: crate::command_binding::SourceNamespaceKey,
+    pub(super) frame: tcl_names::variable::VariableExecutionFrame,
+    pub(super) namespace_key: tcl_names::namespace::SourceNamespaceKey,
 }
 
 /// Literal native bytes and logical source text borrow the same original

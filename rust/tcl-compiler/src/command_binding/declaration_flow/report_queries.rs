@@ -18,9 +18,9 @@
 
 //! The questions a finished declaration-flow report answers for diagnostics.
 
-use super::super::CommandAllocationSite;
 use super::{DeclarationFlowFrame, DeclarationFlowReport};
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
 
 pub(super) fn original_procedure_entry_matches(
     frame: &super::super::declaration_layout::OriginalDiagnosticFrameEntry,
@@ -31,7 +31,7 @@ pub(super) fn original_procedure_entry_matches(
         return false;
     };
     entry.allocation().site.offset == procedure.span.start()
-        && matches!(entry.source().origin.kind(), super::super::SourceOriginKind::Authored(source) if source == image)
+        && matches!(entry.source().origin.kind(), tcl_names::origin::SourceOriginKind::Authored(source) if source == image)
         && entry.source().base() == procedure.body_offset
         && entry.source().try_text().ok() == procedure.body_source.as_deref()
         && entry.matches_parameters(

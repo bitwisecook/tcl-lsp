@@ -19,11 +19,11 @@
 //! Stable keys and compatibility names for bound places: cell keys, binding-value keys and namespace-variable identities.
 
 use super::ResolveContext;
-use super::cell_key::{VariableCellKey, VariableCellKeyQuery, VariableNamespaceQuery};
 use super::place_resolution::{resolve_literal_place, resolve_place, resolve_place_value};
-use crate::place;
-use crate::place::{CellGeneration, CellIdentity, CellOwner, Place, PlaceKind};
 use tcl_core_types::NameBytes;
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner, Place, PlaceKind};
+use tcl_names::variable::{VariableCellKey, VariableCellKeyQuery, VariableNamespaceQuery};
 use tcl_registry::CommandRegistry;
 
 /// Stable name for a root's contents and lifetime state.
@@ -196,10 +196,10 @@ fn retained_namespace_variable_root(cell: &CellIdentity) -> Option<(&CellOwner, 
             Some((&cell.owner, &cell.name))
         }
         CellOwner::RetainedSlot(slot) => match slot.as_ref() {
-            crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+            tcl_names::variable::RawBindingSlotId::Variable(cell) => {
                 retained_namespace_variable_root(cell)
             }
-            crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+            tcl_names::variable::RawBindingSlotId::Callable { .. } => None,
         },
         _ => None,
     }
@@ -224,7 +224,7 @@ pub fn root_namespace_variable_simple_name(place: &Place) -> Option<&str> {
             let (owner, name) = retained_namespace_variable_root(cell)?;
             let root = match owner {
                 CellOwner::NamespaceIdentity(namespace) => match namespace.as_ref() {
-                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                    tcl_names::namespace::SourceNamespaceKey::Authored(namespace) => {
                         namespace == "::"
                     }
                     _ => namespace

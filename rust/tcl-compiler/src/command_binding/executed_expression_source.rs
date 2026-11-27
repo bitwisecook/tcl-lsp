@@ -18,12 +18,13 @@
 
 //! Evaluated native expression bytes and piecewise original operand origins.
 
-use super::{
-    CommandAllocationSite, ExecutedScriptMapping, ExecutedScriptSource, MaterialisedSourceKind,
-    SourceOriginId,
-};
+use crate::command_binding::ExecutedScriptWords;
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, Span};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{
+    ExecutedScriptMapping, ExecutedScriptSource, MaterialisedSourceKind, SourceOriginId,
+};
 use tcl_source::words::Provenance;
 use tcl_source::words::SourceSite;
 use tcl_source::words::WordExpr;

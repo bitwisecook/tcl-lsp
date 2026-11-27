@@ -18,13 +18,14 @@
 
 //! Shared original source interpretation and its complete reuse boundary.
 
+use crate::command_binding::SourceOriginLexical;
 use std::sync::Arc;
 
 use super::{
     ModuleCommandBindings, SourceAnalysisEntry, SourceAnalysisOptions, SourceCommandBindings,
 };
 use crate::ir::{Module, Procedure, TopLevelKind};
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::variable::VariableExecutionFrame;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
 impl SourceCommandBindings {
@@ -57,7 +58,7 @@ pub struct RetainedSourceModuleBindings {
     grammar: tcl_lexer::LexerConfig,
     namespace: String,
     native_namespace: Option<tcl_core_types::ByteNamespacePath>,
-    namespace_context: Option<super::SourceNamespaceKey>,
+    namespace_context: Option<tcl_names::namespace::SourceNamespaceKey>,
     kind: TopLevelKind,
     registry: RegistrySemanticKey,
     observed: ModuleCommandBindings,
@@ -103,7 +104,7 @@ impl RetainedSourceModuleBindings {
     pub(crate) fn names_only_a_declared_command(
         &self,
         name: &str,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> bool {
         self.observed.names_only_a_declared_command(name, namespace)
     }
@@ -229,7 +230,7 @@ impl RetainedSourceModuleBindings {
 struct OriginalProcedureSource {
     body_kind: crate::ir::ProcedureBodyKind,
     publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
-    declaration_site: Option<super::CommandAllocationSite>,
+    declaration_site: Option<tcl_names::command::CommandAllocationSite>,
     name: String,
     qualified_name: String,
     parameters: Vec<String>,
@@ -237,8 +238,8 @@ struct OriginalProcedureSource {
     declaration: tcl_lexer::Span,
     body_offset: u32,
     body_text: Option<String>,
-    namespace: Option<Box<super::SourceNamespaceKey>>,
-    body_source: Option<Arc<super::ExecutedScriptSource>>,
+    namespace: Option<Box<tcl_names::namespace::SourceNamespaceKey>>,
+    body_source: Option<Arc<tcl_names::origin::ExecutedScriptSource>>,
     statements: Vec<tcl_lexer::Span>,
 }
 
@@ -529,7 +530,7 @@ impl RetainedSourceModuleBindings {
         &self,
         module: &Module,
         registry: &CommandRegistry,
-    ) -> Option<&super::SourceNamespaceKey> {
+    ) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         (self.source == module.own_source()
             && self.entry == module.source_entry
             && self.entry.metadata_context.source_analysis_input()
@@ -612,7 +613,7 @@ impl RetainedSourceModuleBindings {
             || !positioned
                 .original_analysis_owner()
                 .is_some_and(|owner| owner.matches(positioned, input))
-            || !matches!(root.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+            || !matches!(root.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, source }
                 if parent == &point.source_origin() && source == &module.source)
             || !module.procedure_ids.owns(id)
             || body.body_kind != crate::ir::ProcedureBodyKind::OriginalDeclaration
@@ -677,7 +678,7 @@ impl RetainedSourceModuleBindings {
             || !positioned
                 .original_analysis_owner()
                 .is_some_and(|owner| owner.matches(positioned, input))
-            || !matches!(root.kind(), super::SourceOriginKind::InheritedPoint { parent, source }
+            || !matches!(root.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, source }
                 if parent == &point.source_origin() && source == &module.source)
             || !module.procedure_ids.owns(id)
             || body.body_kind != crate::ir::ProcedureBodyKind::Installed
@@ -830,7 +831,7 @@ impl RetainedSourceModuleBindings {
         module: &Module,
         body: crate::ir::ProcedureId,
         registry: &CommandRegistry,
-    ) -> Option<super::SourceCommandKey> {
+    ) -> Option<tcl_names::command::SourceCommandKey> {
         if !module.procedure_ids.owns(body) {
             return None;
         }
@@ -847,7 +848,7 @@ impl RetainedSourceModuleBindings {
             Arc::ptr_eq(&site.source, positioned.root_origin.as_ref()?).then_some(())?;
             if let Some(card) = module.original_logical_declaration_body_units.get(&id) {
                 card.matches_procedure(module, procedure).then_some(())?;
-                Some(super::SourceCommandKey::authored(
+                Some(tcl_names::command::SourceCommandKey::authored(
                     tcl_syntax::naming::authored_source_command_spelling(
                         card.summary_coordinate(),
                     )?,
@@ -1156,7 +1157,7 @@ pub(crate) fn source_analysis_frame(
         };
         let Ok(namespace_key) = entry
             .retained_namespace_context(selected.token)
-            .map(super::SourceNamespaceKey::Native)
+            .map(tcl_names::namespace::SourceNamespaceKey::Native)
         else {
             return VariableExecutionFrame::Unknown;
         };
@@ -1454,7 +1455,7 @@ mod tests {
                 2 => procedure.body_source = Some("return OTHER".into()),
                 3 => {
                     procedure.body.namespace_context = Some(Box::new(
-                        super::super::SourceNamespaceKey::authored("::other"),
+                        tcl_names::namespace::SourceNamespaceKey::authored("::other"),
                     ));
                 }
                 _ => procedure.publication = None,
@@ -1633,7 +1634,7 @@ mod tests {
                             .unwrap(),
                     );
                     snapshot.state.current_source_origin =
-                        Some(Arc::new(super::super::SourceOriginId::authored_image(
+                        Some(Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                             tcl_lexer::SourceImage::native(module.source.bytes()),
                         )));
                 }
@@ -1777,8 +1778,9 @@ mod tests {
                 ]));
             },
             |module| {
-                module.top_level_namespace_context =
-                    Some(super::super::SourceNamespaceKey::authored("::Different"));
+                module.top_level_namespace_context = Some(
+                    tcl_names::namespace::SourceNamespaceKey::authored("::Different"),
+                );
             },
             |module| module.top_level_kind = TopLevelKind::ProcedureBody,
             |module| module.source_entry.unknown_entry = !module.source_entry.unknown_entry,
@@ -1839,7 +1841,7 @@ mod tests {
             |module| module.top_level_namespace = "::Other".to_owned(),
             |module| {
                 module.top_level_namespace_context = Some(
-                    super::super::SourceNamespaceKey::authored("::DifferentTypedNamespace"),
+                    tcl_names::namespace::SourceNamespaceKey::authored("::DifferentTypedNamespace"),
                 );
             },
             |module| module.top_level_kind = TopLevelKind::ProcedureBody,

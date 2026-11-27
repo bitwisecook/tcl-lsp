@@ -31,7 +31,7 @@ impl SourceCommandBindings {
     /// own source origin, restoring the caller's origin on every outcome.
     fn walk_module_script(
         &mut self,
-        script: &super::ExecutedScriptSource,
+        script: &tcl_names::origin::ExecutedScriptSource,
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
         compilation: Option<tcl_registry::native_compilation::NativeCompilationContext>,
@@ -114,10 +114,9 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let namespace = context
-            .namespace_key
-            .cloned()
-            .unwrap_or_else(|| super::SourceNamespaceKey::authored(context.namespace));
+        let namespace = context.namespace_key.cloned().unwrap_or_else(|| {
+            tcl_names::namespace::SourceNamespaceKey::authored(context.namespace)
+        });
         let rooted = tcl_registry::rooted_command_descriptor_label(head);
         let mut loaders = state
             .baseline
@@ -258,8 +257,8 @@ mod tests {
             matches!(
                 body.source_origin
                     .as_deref()
-                    .map(super::super::SourceOriginId::kind),
-                Some(super::super::SourceOriginKind::Loaded { .. })
+                    .map(tcl_names::origin::SourceOriginId::kind),
+                Some(tcl_names::origin::SourceOriginKind::Loaded { .. })
             )
         }));
     }
@@ -278,7 +277,7 @@ mod tests {
             .expect("actual loaded procedure allocation");
         assert!(matches!(
             definition.allocation().site.source.kind(),
-            super::super::SourceOriginKind::Loaded { .. }
+            tcl_names::origin::SourceOriginKind::Loaded { .. }
         ));
         assert_eq!(definition.allocation().command, "::greet");
     }

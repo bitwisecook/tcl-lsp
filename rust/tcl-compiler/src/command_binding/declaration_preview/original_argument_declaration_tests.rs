@@ -64,7 +64,7 @@ fn logical_called_procedure_requires_its_current_source_allocation() {
         .implementation_allocation
         .as_mut()
         .unwrap()
-        .incarnation = super::super::AllocationIncarnation::Second;
+        .incarnation = tcl_names::command::AllocationIncarnation::Second;
     assert!(
         bindings
             .logical_called_procedure_body(&changed, &point.state, registry)
@@ -75,7 +75,7 @@ fn logical_called_procedure_requires_its_current_source_allocation() {
         .implementation_allocation
         .as_mut()
         .unwrap()
-        .namespace = super::super::SourceNamespaceKey::authored("::other");
+        .namespace = tcl_names::namespace::SourceNamespaceKey::authored("::other");
     assert!(
         bindings
             .logical_called_procedure_body(&changed, &point.state, registry)
@@ -127,7 +127,7 @@ fn logical_evaluated_declaration_body_retains_derived_source_without_native_rece
     assert_eq!(recipe.source().try_text().unwrap(), "return original");
     assert_eq!(
         recipe.source().mapping,
-        super::super::ExecutedScriptMapping::Materialised
+        tcl_names::origin::ExecutedScriptMapping::Materialised
     );
     assert_ne!(recipe.source().origin, site.source);
     assert_eq!(recipe.source().base(), 0);
@@ -377,7 +377,7 @@ fn conditional_header_receipt_keeps_withdrawn_layout_and_original_mutation_debt(
     );
     assert_eq!(
         geometry.snapshot.state.variable_frame,
-        crate::var_resolve::VariableExecutionFrame::Unknown
+        tcl_names::variable::VariableExecutionFrame::Unknown
     );
     let row =
         original_declaration_layouts(binding.declaration_layout_observations.as_deref().unwrap())

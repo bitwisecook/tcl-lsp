@@ -70,7 +70,7 @@ pub struct DeferredWrites {
     /// solve proves such a statement's block never runs may leave it out
     /// ([`Self::any_beyond`]). Empty when [`Self::any`] has a contribution no
     /// site names.
-    pub any_sites: std::collections::BTreeSet<crate::command_binding::CommandAllocationSite>,
+    pub any_sites: std::collections::BTreeSet<tcl_names::command::CommandAllocationSite>,
     /// The literal names a callback script reads, kept as [`Self::names`]
     /// keeps them. A store the code that registers the callback makes to one
     /// is observed when the callback runs (`after 0 {puts $x}`; `update`).
@@ -97,7 +97,7 @@ impl DeferredWrites {
     #[must_use]
     pub fn any_beyond(
         &self,
-        excluded: impl Fn(&crate::command_binding::CommandAllocationSite) -> bool,
+        excluded: impl Fn(&tcl_names::command::CommandAllocationSite) -> bool,
     ) -> bool {
         self.any && (self.any_sites.is_empty() || self.any_sites.iter().any(|site| !excluded(site)))
     }
@@ -142,7 +142,7 @@ pub struct Module {
     /// Full allocation/source identity groups their retention limits; neither
     /// the tag nor the body unit installs a callable or licenses compilation.
     pub installed_procedure_body_units:
-        std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
+        std::collections::BTreeMap<ProcedureId, tcl_names::command::CommandAllocation>,
     /// Installed lowerings carried by readonly authored units of
     /// [`Self::body_units`], each still tagged in
     /// [`Self::installed_procedure_body_units`] under its own body ID.
@@ -152,7 +152,7 @@ pub struct Module {
     /// of current installation or actual entry. Allocation, original source
     /// and namespace context retain their identity independently of the ID.
     pub original_declaration_body_units:
-        std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
+        std::collections::BTreeMap<ProcedureId, tcl_names::command::CommandAllocation>,
     /// Native-name source headers and read-flow cards retain original bodies
     /// without implementation allocation, publication or an entered frame.
     pub original_native_declaration_body_units: std::collections::BTreeMap<
@@ -204,7 +204,7 @@ pub struct Module {
     pub top_level_namespace: String,
     /// Exact analysis namespace identity. Printed names never reconstruct native
     /// component boundaries or select an actual namespace incarnation.
-    pub top_level_namespace_context: Option<crate::command_binding::SourceNamespaceKey>,
+    pub top_level_namespace_context: Option<tcl_names::namespace::SourceNamespaceKey>,
     /// The dialect this module was lowered for (`"tcl8.6"`, `"f5-irules"`, …),
     /// `None` for an unnamed/permissive compile.
     ///
@@ -509,7 +509,7 @@ impl Module {
     #[doc(hidden)]
     pub fn native_source_procedure_bodies_for_compilation_at_declaration<'a>(
         &'a self,
-        site: &'a crate::command_binding::CommandAllocationSite,
+        site: &'a tcl_names::command::CommandAllocationSite,
         span: Span,
     ) -> impl Iterator<Item = (&'a ProcedureId, &'a Procedure)> {
         self.procedures
@@ -560,7 +560,7 @@ impl Module {
         &self,
         target: &crate::command_binding::SourceCommandTarget,
     ) -> Option<(ProcedureId, &Procedure)> {
-        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+        if target.registry_backed || target.kind != tcl_names::command::BindingKind::Proc {
             return None;
         }
         let allocation = target.implementation_allocation.as_ref()?;
@@ -606,7 +606,7 @@ impl Module {
         &self,
         target: &crate::command_binding::SourceCommandTarget,
     ) -> Option<(ProcedureId, &Procedure)> {
-        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+        if target.registry_backed || target.kind != tcl_names::command::BindingKind::Proc {
             return None;
         }
         let allocation = target.implementation_allocation.as_ref()?;
@@ -628,7 +628,7 @@ impl Module {
         &self,
         target: &crate::command_binding::SourceCommandTarget,
     ) -> Option<(ProcedureId, &Procedure)> {
-        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+        if target.registry_backed || target.kind != tcl_names::command::BindingKind::Proc {
             return None;
         }
         let allocation = target.implementation_allocation.as_ref()?;
@@ -640,7 +640,7 @@ impl Module {
 
     pub(crate) fn source_procedure_for_allocation(
         &self,
-        allocation: &crate::command_binding::CommandAllocation,
+        allocation: &tcl_names::command::CommandAllocation,
     ) -> Option<(ProcedureId, &Procedure)> {
         let mut matching =
             self.procedures
@@ -863,7 +863,7 @@ impl Module {
                     )
                 },
                 |context| match context {
-                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                    tcl_names::namespace::SourceNamespaceKey::Authored(namespace) => {
                         ExecutionNamespace::exact(namespace)
                     }
                     _ => ExecutionNamespace::SourceContext(context.clone()),

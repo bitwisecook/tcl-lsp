@@ -17,8 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::command_binding::{SourceAnalysisOptions, SourceNamespaceKey};
-use crate::var_resolve::{ResolveContext, VariableExecutionFrame};
+use crate::command_binding::SourceAnalysisOptions;
+use crate::var_resolve::ResolveContext;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::variable::VariableExecutionFrame;
 
 fn native_bindings(source: &str) -> (tcl_vm::Vm, SourceCommandBindings) {
     let owner = tcl_registry::model::ingress::static_context_for("tcl8.6");

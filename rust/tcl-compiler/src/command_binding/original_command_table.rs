@@ -21,10 +21,12 @@
 //! existing selected operation transfer, never by a publication-side replay.
 
 use super::{
-    BTreeSet, BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
-    SourceCommandKey, SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
+    BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceExecutionContext,
+    SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, SourceCommandKey};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{
     CommandBindingDefinitionKind, CommandBindingTransition, InvocationFacts, StateTransition,
     TransitionSubject,

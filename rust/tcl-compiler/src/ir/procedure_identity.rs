@@ -145,7 +145,7 @@ impl ProcedureInventory {
     /// Match all bodies from this original allocating instruction.
     pub fn at_declaration<'a>(
         &'a self,
-        site: &crate::command_binding::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
     ) -> impl Iterator<Item = (&'a ProcedureId, &'a Procedure)> + use<'a> {
         let site = site.clone();
         self.0

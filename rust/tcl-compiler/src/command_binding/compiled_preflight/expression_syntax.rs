@@ -82,7 +82,7 @@ fn exact_child(child: &SourceExpressionSyntaxChild, site: &CommandAllocationSite
             &child.child.script.origin,
             &child.preparation.compilation_site.source,
         )
-        || !matches!(child.child.script.mapping, super::super::ExecutedScriptMapping::Contiguous { base } if base == site.offset)
+        || !matches!(child.child.script.mapping, tcl_names::origin::ExecutedScriptMapping::Contiguous { base } if base == site.offset)
         || child.child.script.base() != site.offset
         || image.bytes().get(program.span.as_range()) != Some(program.source.as_slice())
         || child.child.script.text.channel() != image.channel()
@@ -283,10 +283,10 @@ impl CompilerTraversal<'_> {
                     enclosing: self.chunk.clone(),
                     table: Arc::clone(&self.snapshot.table),
                     parent: Arc::clone(&parent.admission),
-                    script: super::super::ExecutedScriptSource {
+                    script: tcl_names::origin::ExecutedScriptSource {
                         text: source,
                         origin: Arc::clone(&self.chunk.source),
-                        mapping: super::super::ExecutedScriptMapping::Contiguous { base },
+                        mapping: tcl_names::origin::ExecutedScriptMapping::Contiguous { base },
                     },
                     compilation: context.compilation(),
                     parent_namespace_key: context.namespace_identity(),

@@ -19,7 +19,7 @@
 //! Original alias-name templates, independently of executed variable links.
 
 use super::AnalysisResult;
-use crate::command_binding::{ExecutedScriptMapping, SourceOriginalVariableFrame};
+use crate::command_binding::SourceOriginalVariableFrame;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use crate::signature_scan::variable_symbol::{
     OriginalVariableAliasAdvice, OriginalVariableAliasReceipt, OriginalVariableAliasTemplate,
@@ -27,6 +27,7 @@ use crate::signature_scan::variable_symbol::{
 };
 use std::collections::{HashMap, HashSet};
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::origin::ExecutedScriptMapping;
 
 struct SourceAliasAnchor {
     span: Span,
@@ -297,7 +298,7 @@ impl AnalysisResult {
                 }
                 let local_input = if input.has_logical_source_name_context() {
                     realm.original_written_word_at_span_in_source(image, local, config)
-                        .and_then(|(word, _)| crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                        .and_then(|(word, _)| tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
                             &word, rules, alias.target().policy(),
                         ))
                         .map(SignatureSourceNameInput::OriginalWord)

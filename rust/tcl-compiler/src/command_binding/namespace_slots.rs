@@ -18,12 +18,11 @@
 
 //! Source table operations over retained namespace geometry and incarnations.
 
-use super::{
-    AllocationIncarnation, Arc, BTreeSet, CommandAllocationSite, ModuleCommandBindings,
-    NamespaceKeyQuery, SourceCommandKey, SourceNamespaceKey,
-};
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use super::{Arc, BTreeSet, ModuleCommandBindings, NamespaceKeyQuery};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::ByteNamespacePath;
+use tcl_names::command::{AllocationIncarnation, CommandAllocationSite, SourceCommandKey};
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 use tcl_registry::NamespaceTransitionTarget;
 use tcl_syntax::naming::NativeNameContext;
 
@@ -38,7 +37,9 @@ pub(super) enum PublicationPurpose {
 
 /// The command token a one-binding row names: its target's own token or its
 /// imported origin.
-fn sole_token(bindings: &BTreeSet<super::MayBinding>) -> Option<&super::CommandIdentity> {
+fn sole_token(
+    bindings: &BTreeSet<super::MayBinding>,
+) -> Option<&tcl_names::command::CommandIdentity> {
     if bindings.len() != 1 {
         return None;
     }

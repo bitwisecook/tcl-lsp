@@ -44,7 +44,7 @@ pub(crate) fn source_expression_from_invocation(
     invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     profile: Option<&tcl_dialect::DialectProfile>,
     span: Span,
-    parent: Option<crate::command_binding::CommandAllocationSite>,
+    parent: Option<tcl_names::command::CommandAllocationSite>,
 ) -> Option<LiftedSourceExpression> {
     source_expression_from_invocation_parsed(invocation, span, parent, |text| {
         tcl_syntax::expr::parser::parse_expr_for_profile(text, profile)
@@ -55,7 +55,7 @@ pub(crate) fn source_expression_from_invocation_with_syntax_context(
     invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     parser: tcl_syntax::expr::parser::ExprParseContext,
     span: Span,
-    parent: Option<crate::command_binding::CommandAllocationSite>,
+    parent: Option<tcl_names::command::CommandAllocationSite>,
 ) -> Option<LiftedSourceExpression> {
     source_expression_from_invocation_parsed(invocation, span, parent, |text| {
         tcl_syntax::expr::parser::parse_expr_with_syntax_context(text, &parser)
@@ -65,7 +65,7 @@ pub(crate) fn source_expression_from_invocation_with_syntax_context(
 pub(crate) fn source_expression_from_invocation_parsed(
     invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     span: Span,
-    parent: Option<crate::command_binding::CommandAllocationSite>,
+    parent: Option<tcl_names::command::CommandAllocationSite>,
     parse: impl Fn(&str) -> crate::expr_ast::ExprNode,
 ) -> Option<LiftedSourceExpression> {
     if invocation.facts.operation
@@ -148,10 +148,8 @@ pub(crate) fn lifted_representation_expressions_with_metadata_context(
         .collect()
 }
 
-fn expression_parent(
-    tokens: &CommandTokens,
-) -> Option<crate::command_binding::CommandAllocationSite> {
-    Some(crate::command_binding::CommandAllocationSite {
+fn expression_parent(tokens: &CommandTokens) -> Option<tcl_names::command::CommandAllocationSite> {
+    Some(tcl_names::command::CommandAllocationSite {
         source: std::sync::Arc::clone(tokens.source_binding.as_ref()?.source_origin()?),
         offset: tokens.argv.first()?.start(),
     })

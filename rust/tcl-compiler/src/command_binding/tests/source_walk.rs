@@ -19,6 +19,7 @@
 //! Source interpretation: origins, derived scripts, lambdas, abrupt completions and imports.
 
 use super::*;
+use tcl_names::origin::SourceOriginKind;
 
 #[test]
 fn literal_procedure_returns_preserve_later_dispatch_points() {
@@ -114,47 +115,6 @@ fn whole_source_head_cache_preserves_proof_and_invalidates_on_point_changes() {
             .is_empty()
     );
     assert!(bindings.invocation_unpositioned("set").unknown);
-}
-
-#[test]
-fn cached_source_origin_fingerprints_do_not_replace_semantic_identity() {
-    let mut left = SourceOriginId::authored(&Arc::from("proc p {} {return LEFT}"));
-    let mut right = SourceOriginId::authored(&Arc::from("proc p {} {return RIGHT}"));
-    left.fingerprint = 7;
-    right.fingerprint = 7;
-    assert_ne!(left, right);
-    assert_ne!(left.cmp(&right), std::cmp::Ordering::Equal);
-    let mut identical = SourceOriginId::authored(&Arc::from("proc p {} {return LEFT}"));
-    identical.fingerprint = 7;
-    assert_eq!(left, identical);
-}
-
-#[test]
-fn activation_source_ids_check_full_equality_and_keep_equal_live_clones() {
-    let left = Arc::new(SourceOriginId::authored(&Arc::from("left")));
-    let right = Arc::new(SourceOriginId::authored(&Arc::from("right")));
-    let mut interner = SourceOriginInterner::default();
-    let collision_key = interner.intern(&left.kind, 7);
-    assert_ne!(collision_key, interner.intern(&right.kind, 7));
-    let retained_payload = Arc::clone(&left.kind);
-    assert_eq!(collision_key, interner.intern(&retained_payload, 7));
-    let first = SourceOriginId::activation_key(&left);
-    assert_ne!(first, SourceOriginId::activation_key(&right));
-    let clone = Arc::new(left.as_ref().clone());
-    assert_eq!(first, SourceOriginId::activation_key(&clone));
-    drop(left);
-    let equal = Arc::new(clone.as_ref().clone());
-    assert_eq!(first, SourceOriginId::activation_key(&equal));
-    let derived = Arc::new(SourceOriginId::derived(
-        CommandAllocationSite {
-            source: Arc::clone(&equal),
-            offset: 0,
-        },
-        vec![1],
-        &Arc::from("left"),
-        MaterialisedSourceKind::Script,
-    ));
-    assert_ne!(first, SourceOriginId::activation_key(&derived));
 }
 
 #[test]

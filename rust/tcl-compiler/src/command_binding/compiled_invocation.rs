@@ -18,11 +18,15 @@
 
 //! Native opcode selection is independent of the invocation's later live lookup.
 
-use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget, SourceInvocationBinding,
-};
 #[cfg(test)]
-use super::{BTreeSet, BindingKind, MayBinding};
+use super::BTreeSet;
+#[cfg(test)]
+use super::MayBinding;
+use super::{Arc, ModuleCommandBindings, SourceCommandTarget, SourceInvocationBinding};
+use crate::command_binding::SourceOriginLexical;
+#[cfg(test)]
+use tcl_names::command::BindingKind;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::native_compilation::{
     NativeCompilationContext, NativeCompilationGuard, NativeCompilationMode,
     NativeCompilationSelection, NativeCompilationWordShape,
@@ -98,7 +102,7 @@ impl CompiledInvocationSelection {
         &self,
         head: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
         state: &ModuleCommandBindings,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<&SourceCommandTarget> {
         let target = self.stable_handler.as_ref()?;
         let after = super::source_binding_from_original_input(state, head?, namespace)?;
@@ -766,7 +770,7 @@ pub(super) fn successful_handler_transfer(
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Option<HandlerSourceTransfer> {
     if !target.registry_backed {
-        return (target.kind == super::BindingKind::Proc
+        return (target.kind == tcl_names::command::BindingKind::Proc
             && target.implementation_allocation.is_some())
         .then_some(HandlerSourceTransfer::UserProcedureCall);
     }

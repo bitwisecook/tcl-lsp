@@ -21,20 +21,21 @@
 use super::binding_projection::{
     CommandTargetLookup, source_binding_from_original_input_in, source_binding_projection_in,
 };
-use super::command_identity::CommandAllocationSite;
 use super::conditional_body::{SourceConditionalBodyEntry, SourceDeclaredReceiverBodyEntry};
-use super::namespace_context::SourceNamespaceKey;
 #[cfg(any(test, debug_assertions))]
 use super::root_owner_work;
 use super::{
-    BindingKind, ModuleCommandBindings, OriginalCompilationLookupAdvice, SourceCommandTarget,
+    ModuleCommandBindings, OriginalCompilationLookupAdvice, SourceCommandTarget,
     SourceInvocationBinding, SourceLookupSnapshot, literal_object_pool, original_compiler_effects,
     source_analysis_entry,
 };
 #[cfg(debug_assertions)]
 use super::{RBS_OPERAND_TRACE_ACTIVE, RbsOperandTraceScope};
+use crate::command_binding::SourceOriginLexical;
 use std::hash::Hash;
 use std::sync::{Arc, OnceLock};
+use tcl_names::command::{BindingKind, CommandAllocationSite};
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::CommandRegistry;
 
 impl OriginalCompilationLookupAdvice {
@@ -160,7 +161,7 @@ impl OriginalCompilationLookupAdvice {
     pub(super) fn closed_body_parameter_source_parts(
         &self,
         owns_source: bool,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         namespace: Option<&SourceNamespaceKey>,
     ) -> bool {
         let state = &self.snapshot.state;
@@ -204,7 +205,7 @@ impl OriginalCompilationLookupAdvice {
         Some(original.native_words().to_vec())
     }
 
-    pub(crate) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(crate) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.snapshot.state.variable_frame
     }
     pub(crate) fn namespace(&self) -> &SourceNamespaceKey {
@@ -641,7 +642,7 @@ fn original_site_layout_advice(
         || (!logical_source
             && matches!(
                 snapshot.state.variable_frame,
-                crate::var_resolve::VariableExecutionFrame::Unknown
+                tcl_names::variable::VariableExecutionFrame::Unknown
             ))
     {
         return trace_rbs_operand_option("site.origin_or_frame", None);
@@ -776,11 +777,11 @@ pub(super) fn original_static_layout_projection(
             if original_standalone_document_naming(snapshot, head, policy) {
                 // Authored naming and the original Document grammar are separate
                 // axes. This key supplies source layout, not Native object units.
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
-                head, rules, policy,
-            )
+                tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
+                    head, rules, policy,
+                )
             } else {
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                     head, rules, policy,
                 )
             },

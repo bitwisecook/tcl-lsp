@@ -331,7 +331,7 @@ impl AnalysisResult {
     pub fn procedures_for_original_name<'a>(
         &'a self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        namespace: &tcl_names::namespace::SignatureNamespaceScope,
     ) -> Vec<&'a ProcDef> {
         let Some(lookup) = crate::signature_scan::scope::SignatureSourceLookup::from_input(
             namespace.clone(),
@@ -352,7 +352,7 @@ impl AnalysisResult {
     pub fn original_namespace_scope_at(
         &self,
         offset: u32,
-    ) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<&tcl_names::namespace::SignatureNamespaceScope> {
         super::super::scope::original_namespace_scope_at(&self.global_scope, offset)
     }
 }

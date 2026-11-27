@@ -23,14 +23,16 @@
 //! entered frames retain their independent identities; this never publishes compiler
 //! admission, successful dispatch, an entered body, or closed runtime effects.
 
+use crate::command_binding::SourceOriginLexical;
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::{
-    CommandAllocationSite, OriginalCompilationLookupAdvice, SourceCommandBindings,
-    SourceConditionalBodyEntry, SourceLookupSnapshot,
+    OriginalCompilationLookupAdvice, SourceCommandBindings, SourceConditionalBodyEntry,
+    SourceLookupSnapshot,
 };
+use tcl_names::command::CommandAllocationSite;
 
 mod invocation_advice;
 mod layout_recording;
@@ -55,21 +57,21 @@ pub(super) enum OriginalDiagnosticFrameEntry {
     LogicalReceiver(Arc<OriginalLogicalReceiverSourceBody>),
     DeclaredProcedure(Arc<super::declaration_preview::DeclaredProcedureBody>),
     RootScript {
-        source: super::ExecutedScriptSource,
-        frame: crate::var_resolve::VariableExecutionFrame,
-        namespace: super::SourceNamespaceKey,
+        source: tcl_names::origin::ExecutedScriptSource,
+        frame: tcl_names::variable::VariableExecutionFrame,
+        namespace: tcl_names::namespace::SourceNamespaceKey,
     },
     ScriptActivation {
-        source: super::ExecutedScriptSource,
-        frame: crate::var_resolve::VariableExecutionFrame,
-        namespace: super::SourceNamespaceKey,
+        source: tcl_names::origin::ExecutedScriptSource,
+        frame: tcl_names::variable::VariableExecutionFrame,
+        namespace: tcl_names::namespace::SourceNamespaceKey,
         config: tcl_lexer::LexerConfig,
     },
     /// A conditional Logical source frame, with no entered Native activation.
     LogicalScriptActivation {
-        source: super::ExecutedScriptSource,
-        frame: crate::var_resolve::VariableExecutionFrame,
-        namespace: super::SourceNamespaceKey,
+        source: tcl_names::origin::ExecutedScriptSource,
+        frame: tcl_names::variable::VariableExecutionFrame,
+        namespace: tcl_names::namespace::SourceNamespaceKey,
         config: tcl_lexer::LexerConfig,
     },
 }
@@ -151,8 +153,8 @@ impl OriginalCompilationLookupAdvice {
 pub(super) struct OriginalLogicalReceiverSourceBody {
     body: Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
     input: crate::analyser::ResolvedAnalysisInput,
-    source: super::ExecutedScriptSource,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    source: tcl_names::origin::ExecutedScriptSource,
+    frame: tcl_names::variable::VariableExecutionFrame,
 }
 
 impl OriginalDiagnosticFrameEntry {
@@ -172,7 +174,7 @@ impl OriginalDiagnosticFrameEntry {
         SourceCommandBindings::context_owns_frame(context, self.frame(), namespace)
     }
 
-    pub(super) fn source(&self) -> &super::ExecutedScriptSource {
+    pub(super) fn source(&self) -> &tcl_names::origin::ExecutedScriptSource {
         match self {
             Self::Body(body) => body.source(),
             Self::DeclaredReceiver(body) => body.source(),
@@ -184,7 +186,7 @@ impl OriginalDiagnosticFrameEntry {
         }
     }
 
-    pub(super) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(super) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         match self {
             Self::Body(body) => body.frame(),
             Self::DeclaredReceiver(body) => body.preview_frame(),
@@ -222,7 +224,11 @@ impl OriginalDiagnosticFrameEntry {
         }
     }
 
-    pub(super) fn owns_source(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
+    pub(super) fn owns_source(
+        &self,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
+        offset: u32,
+    ) -> bool {
         let source = self.source();
         &source.origin == origin
             && offset >= source.base()
@@ -232,12 +238,16 @@ impl OriginalDiagnosticFrameEntry {
     /// A readonly insertion cursor immediately before an unchanged body's
     /// closer belongs to that body's naming frame. Source occurrences remain
     /// half-open; materialised body values cannot borrow this end affinity.
-    fn owns_source_cursor(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
+    fn owns_source_cursor(
+        &self,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
+        offset: u32,
+    ) -> bool {
         if self.owns_source(origin, offset) {
             return true;
         }
         let source = self.source();
-        let super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
             return false;
         };
         let Some(end) = u32::try_from(source.text.len())
@@ -263,7 +273,7 @@ impl OriginalDiagnosticFrameEntry {
     pub(super) fn owns_frame(
         &self,
         bindings: &SourceCommandBindings,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
     ) -> bool {
         match self {
             Self::Body(body) => bindings.original_body_owns_frame(body, frame),
@@ -289,7 +299,7 @@ pub(super) struct DeclarationLayoutObservation {
     pub(super) issuer: DeclarationLayoutIssuer,
     pub(super) config: tcl_lexer::LexerConfig,
     pub(super) words: Arc<[tcl_source::words::WordExpr]>,
-    pub(super) namespace: super::SourceNamespaceKey,
+    pub(super) namespace: tcl_names::namespace::SourceNamespaceKey,
     pub(super) entry: Arc<OriginalDiagnosticFrameEntry>,
     pub(super) snapshot: Arc<SourceLookupSnapshot>,
 }
@@ -426,8 +436,8 @@ pub(super) type DeclarationLayouts =
 /// declaration identity, not an entered activation or a physical local table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceOriginalVariableFrame {
-    source: super::ExecutedScriptSource,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    source: tcl_names::origin::ExecutedScriptSource,
+    frame: tcl_names::variable::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
     logical_lambda: Option<Arc<super::OriginalLogicalLambdaBody>>,
 }

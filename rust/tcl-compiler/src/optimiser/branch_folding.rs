@@ -810,11 +810,11 @@ mod tests {
     fn compilation_unit(source: &str, mut fu: FunctionUnit) -> CompilationUnit {
         // These hand-built branches explicitly refer to this authored input.
         // Production obtains the same ownership from the script/CFG builders.
-        let origin = std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+        let origin = std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored(
             &std::sync::Arc::from(source),
         ));
         let authored = std::sync::Arc::new(
-            crate::command_binding::ExecutedScriptSource::contiguous(origin, source, 0)
+            tcl_names::origin::ExecutedScriptSource::contiguous(origin, source, 0)
                 .expect("whole authored fixture"),
         );
         fu.cfg.executed_source = Some(std::sync::Arc::clone(&authored));

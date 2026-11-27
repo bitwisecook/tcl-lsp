@@ -22,13 +22,11 @@
 //! Its selected Registry operation, current occupied slot and original source
 //! point are retained independently of receiver absence and store completion.
 
-use super::{
-    Arc, BindingKind, CommandAllocationSite, CommandIdentity, MayBinding, SourceCommandKey,
-    SourceInvocationBinding, SourceLookupSnapshot, SourceNamespaceKey,
-};
-use crate::signature_scan::scope::SignatureNamespaceScope;
+use super::{Arc, MayBinding, SourceInvocationBinding, SourceLookupSnapshot};
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::LexerConfig;
+use tcl_names::command::{BindingKind, CommandAllocationSite, CommandIdentity, SourceCommandKey};
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 use tcl_registry::{CommandRegistry, InvocationWord, InvocationWords, SemanticOperationId};
 use tcl_syntax::naming::NamePolicyProtocol;
 
@@ -137,7 +135,7 @@ impl SourceLookupSnapshot {
             || state.source_step_observed()
             || matches!(
                 state.variable_frame,
-                crate::var_resolve::VariableExecutionFrame::Unknown
+                tcl_names::variable::VariableExecutionFrame::Unknown
             )
             || state.baseline.registry_snapshot.as_ref()
                 != Some(&registry.snapshot().semantic_key())
@@ -294,7 +292,7 @@ mod tests {
             },
             Some(config),
         );
-        let origin = Arc::new(super::super::SourceOriginId::authored_image(
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             tcl_lexer::SourceImage::document("list VALUE"),
         ));
         state.current_source_origin = Some(Arc::clone(&origin));
@@ -333,7 +331,7 @@ mod tests {
                     .is_none()
             );
             let foreign = CommandAllocationSite {
-                source: Arc::new(super::super::SourceOriginId::authored_image(
+                source: Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                     tcl_lexer::SourceImage::document("list OTHER"),
                 )),
                 offset: 0,

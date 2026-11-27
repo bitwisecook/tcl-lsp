@@ -47,7 +47,7 @@ use tcl_registry::{CommandRegistry, Traits};
 use crate::compilation_unit::FunctionUnit;
 use crate::ir::Statement;
 use crate::registry_invocation::InvocationMetadataSelection;
-use crate::var_resolve::{VariableCellKey, VariableCellSet, VariableCellTable};
+use tcl_names::variable::{VariableCellKey, VariableCellSet, VariableCellTable};
 
 /// A resolved cross-event cell; namespace cells and flow locals never alias.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -181,7 +181,7 @@ impl ConnectionScope {
     pub fn observes_cross_event_place(
         &self,
         handler: &crate::ir::ProcedureId,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
     ) -> bool {
         cell_from_place(place).is_some_and(|cell| {
             self.cross_event_cells
@@ -574,13 +574,13 @@ fn statement_clobbers(
     crate::memory_ssa::is_clobber_with_metadata_context(statement, commands, context.context())
 }
 
-pub(crate) fn cell_from_place(place: &crate::place::Place) -> Option<EventCell> {
+pub(crate) fn cell_from_place(place: &tcl_names::place::Place) -> Option<EventCell> {
     if place.dynamic {
         return None;
     }
     let root = if place.is_global() {
         EventCell::Namespace(crate::var_resolve::cell_key(place))
-    } else if place.ns == crate::place::LOCAL_NS {
+    } else if place.ns == tcl_names::place::LOCAL_NS {
         // A resolved native root never re-enters through its reporting label.
         // Places without cell identity belong to the explicit authored model.
         EventCell::Connection(place.cell.as_ref().map_or_else(
@@ -611,7 +611,7 @@ fn labels_at(
     block: crate::cfg::BlockId,
     index: usize,
     key: &VariableCellKey,
-    place: &crate::place::Place,
+    place: &tcl_names::place::Place,
 ) -> HashSet<String> {
     let mut labels: HashSet<String> = fu
         .ssa
@@ -621,7 +621,7 @@ fn labels_at(
         .filter(|(_, symbol)| fu.ssa.cell_key(**symbol) == Some(key))
         .map(|(name, _)| name.clone())
         .collect();
-    if place.ns == crate::place::LOCAL_NS {
+    if place.ns == tcl_names::place::LOCAL_NS {
         labels.insert(place.name.clone());
     }
     match key.root() {
@@ -629,7 +629,7 @@ fn labels_at(
             labels.insert(name.clone());
         }
         VariableCellKey::Namespace {
-            identity: crate::command_binding::SourceNamespaceKey::Authored(_),
+            identity: tcl_names::namespace::SourceNamespaceKey::Authored(_),
             ..
         } => {
             labels.insert(crate::naming::qualify(&place.ns, &place.name));
@@ -896,10 +896,8 @@ mod tests {
 
     #[test]
     fn cross_event_namespace_cells_keep_native_incarnations_separate() {
-        use crate::{
-            command_binding::SourceNamespaceKey,
-            place::{CellGeneration, CellIdentity, CellOwner},
-        };
+        use tcl_names::namespace::SourceNamespaceKey;
+        use tcl_names::place::{CellGeneration, CellIdentity, CellOwner};
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -909,7 +907,7 @@ mod tests {
             interpreter: 0,
         };
         let native = |token| {
-            let mut place = crate::place::scalar("x", "::static", false);
+            let mut place = tcl_names::place::scalar("x", "::static", false);
             place.cell = Some(CellIdentity {
                 owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(
                     NativeNamespaceContext {
@@ -928,7 +926,7 @@ mod tests {
         };
         let original = cell_from_place(&native(1)).unwrap();
         let recreated = cell_from_place(&native(2)).unwrap();
-        let authored = cell_from_place(&crate::place::scalar("x", "::static", false)).unwrap();
+        let authored = cell_from_place(&tcl_names::place::scalar("x", "::static", false)).unwrap();
         assert_ne!(original, recreated);
         assert_ne!(original, authored);
         let definitions = HashMap::from([(original.clone(), VariableCellSet::default())]);
@@ -990,12 +988,10 @@ mod tests {
         );
         assert!(scope.observes_cross_event_place(&handler, &native(1)));
         assert!(!scope.observes_cross_event_place(&handler, &native(2)));
-        assert!(
-            !scope.observes_cross_event_place(
-                &handler,
-                &crate::place::scalar("x", "::static", false)
-            )
-        );
+        assert!(!scope.observes_cross_event_place(
+            &handler,
+            &tcl_names::place::scalar("x", "::static", false)
+        ));
         assert!(!scope.observes_cross_event_place(&other, &native(1)));
     }
 
@@ -1494,7 +1490,7 @@ mod tests {
 
     #[test]
     fn cross_event_labels_follow_exact_native_operation_symbols() {
-        use crate::command_binding::SourceNamespaceKey;
+        use tcl_names::namespace::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -1538,7 +1534,7 @@ mod tests {
             ..Default::default()
         };
         fu.ssa.relocate_variable_proofs(&relocation);
-        let place = crate::place::scalar("x", "::static", false);
+        let place = tcl_names::place::scalar("x", "::static", false);
         assert_eq!(
             labels_at(&fu, block, index, &selected, &place),
             HashSet::from(["static::x".to_owned()])
@@ -1561,10 +1557,11 @@ mod tests {
     fn cross_event_cells_keep_native_bytes_and_supplied_execution_context() {
         // Implementation contract: naming.variable.event-cell-execution-isolation
         // docs/design/analysis/name-resolution-proofs/variable-event-cell-execution-isolation.md
-        use crate::place::{CellGeneration, CellIdentity, CellOwner};
+        use tcl_names::place::{CellGeneration, CellIdentity, CellOwner};
         use tcl_registry::f5::WorkerExecution;
         let local = |bytes: &[u8], execution| {
-            let mut place = crate::place::scalar("SAME_REPORT", crate::place::LOCAL_NS, false);
+            let mut place =
+                tcl_names::place::scalar("SAME_REPORT", tcl_names::place::LOCAL_NS, false);
             place.cell = Some(CellIdentity {
                 owner: CellOwner::Activation("authored handler".into()),
                 name: bytes.into(),

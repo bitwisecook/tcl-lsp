@@ -18,9 +18,11 @@
 
 //! Readonly native naming values with original fragment/list producer lineage.
 
-use super::original_name::SignatureSourceNameKey;
+#[cfg(test)]
+use crate::signature_scan::scope::SignatureNamespaceChild;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::{
     naming::{NamePolicyProtocol, NativeNameProtocol},
     word_rules::WordValueRules,
@@ -75,7 +77,7 @@ enum SourceNameValueOrigin {
         parent: Box<SignatureSourceNameValue>,
         ordinal: usize,
         root: Box<crate::var_resolve::OriginalNameValueRead>,
-        receiver: crate::place::Place,
+        receiver: tcl_names::place::Place,
     },
     StoredVariableTracePrefix {
         parents: Vec<SignatureSourceNameInput>,
@@ -686,7 +688,7 @@ impl SignatureSourceNameValue {
     /// these historical bytes keep their independent contents currency.
     pub(crate) fn from_dictionary_variable_element(
         root: &crate::var_resolve::OriginalNameValueRead,
-        receiver: &crate::place::Place,
+        receiver: &tcl_names::place::Place,
         ordinal: usize,
     ) -> Option<Self> {
         let parent = Self::from_original_produced_value(root.value());
@@ -869,7 +871,7 @@ impl LogicalSourceListNameInput {
 #[derive(Debug, Clone)]
 pub struct OriginalLogicalListField {
     lambda: std::sync::Arc<crate::command_binding::OriginalLogicalLambdaBody>,
-    source: std::sync::Arc<crate::command_binding::SourceOriginId>,
+    source: std::sync::Arc<tcl_names::origin::SourceOriginId>,
     path: [usize; 3],
     field: tcl_syntax::word_rules::OriginalSourceListElement,
     span: Span,
@@ -1503,7 +1505,6 @@ mod variable_operand_root_tests {
 mod logical_list_name_tests {
     use super::*;
     use crate::signature_scan::original_name::OriginalSourceNamePurpose;
-    use crate::signature_scan::scope::SignatureNamespaceScope;
 
     fn inputs(source: &str) -> (Vec<LogicalSourceListNameInput>, NativeWord) {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
@@ -1536,7 +1537,7 @@ mod logical_list_name_tests {
     fn logical_lambda_namespace_requires_complete_original_field_roster() {
         let (omitted, original) = inputs("apply {{} {return}}");
         assert!(
-            SignatureNamespaceScope::from_logical_lambda_list(&omitted)
+            crate::signature_scan::scope::namespace_from_logical_lambda_list(&omitted)
                 .unwrap()
                 .is_root()
         );
@@ -1546,7 +1547,8 @@ mod logical_list_name_tests {
                 .all(|field| field.original_field().original_word() == &original)
         );
         let (explicit, original) = inputs("apply {{} {return} sub}");
-        let namespace = SignatureNamespaceScope::from_logical_lambda_list(&explicit).unwrap();
+        let namespace =
+            crate::signature_scan::scope::namespace_from_logical_lambda_list(&explicit).unwrap();
         assert!(!namespace.is_root());
         assert_eq!(
             namespace
@@ -1559,14 +1561,19 @@ mod logical_list_name_tests {
             explicit[2].original_field().original_word().config(),
             original.config()
         );
-        assert!(SignatureNamespaceScope::from_logical_lambda_list(&explicit[..2]).is_none());
+        assert!(
+            crate::signature_scan::scope::namespace_from_logical_lambda_list(&explicit[..2])
+                .is_none()
+        );
         let mut reordered = explicit.clone();
         reordered.swap(0, 1);
-        assert!(SignatureNamespaceScope::from_logical_lambda_list(&reordered).is_none());
+        assert!(
+            crate::signature_scan::scope::namespace_from_logical_lambda_list(&reordered).is_none()
+        );
         let (foreign, _) = inputs("apply {{} {return} sub}");
         let mut mixed = explicit.clone();
         mixed[2] = foreign[2].clone();
-        assert!(SignatureNamespaceScope::from_logical_lambda_list(&mixed).is_none());
+        assert!(crate::signature_scan::scope::namespace_from_logical_lambda_list(&mixed).is_none());
         for source in [
             "apply {{} {return} sub extra}",
             "apply {{}}",
@@ -1574,7 +1581,7 @@ mod logical_list_name_tests {
         ] {
             let (fields, _) = inputs(source);
             assert!(
-                SignatureNamespaceScope::from_logical_lambda_list(&fields).is_none(),
+                crate::signature_scan::scope::namespace_from_logical_lambda_list(&fields).is_none(),
                 "{source}"
             );
         }
@@ -1681,15 +1688,13 @@ mod logical_formal_field_tests {
                     .is_none()
             );
             assert!(
-                crate::signature_scan::scope::SignatureNamespaceScope::root(Some(field.policy()))
+                tcl_names::namespace::SignatureNamespaceScope::root(Some(field.policy()))
                     .child_from_input(&name)
                     .is_none()
             );
             assert!(
                 crate::signature_scan::scope::SignatureSourceLookup::from_input(
-                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(
-                        field.policy()
-                    )),
+                    tcl_names::namespace::SignatureNamespaceScope::root(Some(field.policy())),
                     &name,
                 )
                 .is_none()
@@ -1699,10 +1704,9 @@ mod logical_formal_field_tests {
                 tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
             ).is_none());
             let mut foreign_allocation = field.clone();
-            foreign_allocation.source =
-                Arc::new(crate::command_binding::SourceOriginId::authored_image(
-                    owner.lambda().image().clone(),
-                ));
+            foreign_allocation.source = Arc::new(
+                tcl_names::origin::SourceOriginId::authored_image(owner.lambda().image().clone()),
+            );
             assert_eq!(foreign_allocation.source, field.source);
             assert!(!Arc::ptr_eq(&foreign_allocation.source, &field.source));
             assert_ne!(foreign_allocation, field);

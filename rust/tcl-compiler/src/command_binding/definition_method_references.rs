@@ -18,13 +18,13 @@
 
 //! Original method-name operands at an accepted native definition phase.
 
-use super::{
-    AllocationIncarnation, BindingKind, CommandAllocationSite, ExecutedScriptSource,
-    SourceCommandTarget, SourceMethodReceiver, SourceReceiverMethodEntry,
-    executed_script_source::source_text,
-};
+use super::executed_script_source::source_text;
+use super::{SourceCommandTarget, SourceMethodReceiver, SourceReceiverMethodEntry};
+use crate::command_binding::ExecutedScriptWords;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LexerConfig, Span};
+use tcl_names::command::{AllocationIncarnation, BindingKind, CommandAllocationSite};
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_source::words::WordExpr;
 use tcl_source::words::WordPart;
 

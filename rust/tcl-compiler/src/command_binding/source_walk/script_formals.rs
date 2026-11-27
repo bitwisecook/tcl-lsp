@@ -26,11 +26,11 @@
 //! from the caller's word, so the caller's source carries the commands the
 //! script runs and their positions.
 
-use super::super::command_identity::CommandAllocationSite;
-use super::super::executed_script_source::ExecutedScriptSource;
-use super::super::source_origin::SourceOriginId;
 use super::super::{DeferredSourceBody, SourceCommandBindings};
+use crate::command_binding::ExecutedScriptWords;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
 
 /// One formal bound from a braced literal at the call that entered its body.
 #[derive(Debug, Clone)]
@@ -44,7 +44,7 @@ pub(in super::super) struct ScriptFormalSource {
     argument: usize,
     word: tcl_source::words::WordExpr,
     /// The calling activation, which `uplevel 1` in the entered body selects.
-    caller_frame: crate::var_resolve::VariableExecutionFrame,
+    caller_frame: tcl_names::variable::VariableExecutionFrame,
 }
 
 /// The formals of `body` bound from braced literals in `written` (the call's
@@ -56,7 +56,7 @@ pub(super) fn script_formal_sources(
     body: &DeferredSourceBody,
     prepended: usize,
     grammar: tcl_dialect::ParameterGrammar,
-    caller_frame: &crate::var_resolve::VariableExecutionFrame,
+    caller_frame: &tcl_names::variable::VariableExecutionFrame,
 ) -> Vec<ScriptFormalSource> {
     use tcl_syntax::formal_params::FormalArgumentBinding as Binding;
     let Some(origin) = body.source_origin.as_ref() else {
@@ -118,7 +118,7 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
     ) -> Option<(
         ExecutedScriptSource,
-        crate::var_resolve::VariableExecutionFrame,
+        tcl_names::variable::VariableExecutionFrame,
     )> {
         let origin = origin?;
         let (spelling, _) = word?.sole_variable_substitution()?;

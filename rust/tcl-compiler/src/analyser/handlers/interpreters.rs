@@ -260,7 +260,7 @@ impl Analyser {
                 .as_ref()
                 .map(|snapshot| snapshot.reporting_domain(domain.clone()));
             child.naming_scope = visibility.as_ref().map(|_| {
-                crate::signature_scan::scope::SignatureNamespaceScope::C(
+                tcl_names::namespace::SignatureNamespaceScope::C(
                     tcl_core_types::ByteNamespacePath::root(),
                 )
             });

@@ -21,7 +21,7 @@
 use crate::cfg::BlockId;
 
 /// Exact cell guarded by a condition and its dominated successor region.
-pub(in super::super) type ExistenceGuard = (crate::var_resolve::VariableCellKey, BlockId);
+pub(in super::super) type ExistenceGuard = (tcl_names::variable::VariableCellKey, BlockId);
 
 /// Collect `(cell, guard_block)` pairs for every
 /// `[info exists X]` / `[array exists X]` branch condition in `fu`.
@@ -114,7 +114,7 @@ pub(in super::super) fn original_condition_read_is_guarded(
     fu: &crate::compilation_unit::FunctionUnit,
     block: BlockId,
     span: tcl_lexer::Span,
-    cell: &crate::var_resolve::VariableCellKey,
+    cell: &tcl_names::variable::VariableCellKey,
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     let Some(crate::cfg::Terminator::Branch {

@@ -19,7 +19,6 @@
 //! A native target: its handler contract, body admission and the frame of the body it selects.
 
 use super::super::binding_projection::source_binding_from_original_input;
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::source_origin::source_activation_name;
 use super::super::{
     ModuleCommandBindings, PreparedSourceNativeBody, SourceCommandBindings, SourceExecutionContext,
@@ -33,6 +32,7 @@ use super::native_transfer::transfer_native_completion_outputs;
 use super::outcomes::{boxed_source_completion_receipt, opaque_source_invocation};
 use super::target_walk::PreparedSourceNativeInvocation;
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::{InvocationFacts, StateTransition};
 
 fn procedure_body_admission_refusal(
@@ -80,7 +80,7 @@ pub(super) fn is_implicit_stock_stdout_write(
     facts: &InvocationFacts,
 ) -> bool {
     native.target.registry_backed
-        && native.target.kind == super::super::BindingKind::Builtin
+        && native.target.kind == tcl_names::command::BindingKind::Builtin
         && native.target.implementation_generation == 0
         && native.target.prepended.is_empty()
         && facts.operation
@@ -100,7 +100,7 @@ fn delegates_to_stock_operand_walk(
     use tcl_registry::script_body_flow::{ScriptBodyFlow, script_body_flow};
     use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
     if !native.target.registry_backed
-        || native.target.kind != super::super::BindingKind::Builtin
+        || native.target.kind != tcl_names::command::BindingKind::Builtin
         || native.target.implementation_generation != 0
         || !native.target.prepended.is_empty()
     {
@@ -303,7 +303,7 @@ fn apply_selected_native_frame_effect(
             tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }
                 if level.is_global_frame() =>
             {
-                selection.frame = crate::var_resolve::VariableExecutionFrame::Global;
+                selection.frame = tcl_names::variable::VariableExecutionFrame::Global;
                 selection.variables = state
                     .source_variables
                     .selected_frame_context(level)
@@ -322,7 +322,7 @@ fn apply_selected_native_frame_effect(
                         .unwrap_or_else(|| SourceNamespaceKey::authored(&selected.namespace));
                     selection.variables = Some(Arc::new(selected));
                 }
-                selection.frame = crate::var_resolve::VariableExecutionFrame::Selected {
+                selection.frame = tcl_names::variable::VariableExecutionFrame::Selected {
                     selector: level,
                     namespace: selection
                         .variables
@@ -338,7 +338,7 @@ fn apply_selected_native_frame_effect(
                 );
             }
             tcl_registry::frame_effect::FrameArgumentResolution::Unknown => {
-                selection.frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+                selection.frame = tcl_names::variable::VariableExecutionFrame::Unknown;
             }
         }
     }
@@ -419,7 +419,7 @@ fn select_native_frame(
         .unwrap_or_else(|| namespace.to_owned());
     let namespace_activation = ensures_namespace || facts.existing_namespace_script.is_some();
     let frame = if namespace_activation {
-        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+        tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
             namespace: body_namespace.clone(),
             identity: source_activation_name(
                 state.current_source_origin.as_ref(),
@@ -440,8 +440,8 @@ fn select_native_frame(
     apply_selected_native_frame_effect(&mut selection, invocation, facts, state)?;
     if matches!(
         selection.frame.layout(),
-        crate::var_resolve::VariableExecutionFrame::Unknown
-            | crate::var_resolve::VariableExecutionFrame::Selected {
+        tcl_names::variable::VariableExecutionFrame::Unknown
+            | tcl_names::variable::VariableExecutionFrame::Selected {
                 namespace: None,
                 ..
             }
@@ -457,7 +457,7 @@ fn select_native_frame(
 #[inline(never)]
 fn install_selected_native_frame(
     state: &mut ModuleCommandBindings,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     namespace_key: &SourceNamespaceKey,
     namespace_activation: bool,
     selected_variables: Option<Arc<crate::var_resolve::ResolveContext>>,

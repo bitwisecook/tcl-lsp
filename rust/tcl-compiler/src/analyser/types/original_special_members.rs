@@ -19,8 +19,8 @@
 //! Nameless lifecycle source declarations, separate from named method routes.
 
 use super::{MemberSide, MethodDef};
-use crate::command_binding::CommandAllocationSite;
 use tcl_lexer::NativeWord;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::definer::DefinitionSpecialMemberKind;
 
 /// An independently selected constructor/destructor declaration. Whole source

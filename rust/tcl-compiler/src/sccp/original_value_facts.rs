@@ -161,7 +161,7 @@ struct AnalysisExpressionInput<'a> {
     expression: &'a ExprNode,
     base: Option<u32>,
     uses: &'a HashMap<Symbol, crate::ssa::Version>,
-    origin: Option<&'a crate::command_binding::ExecutedScriptSource>,
+    origin: Option<&'a tcl_names::origin::ExecutedScriptSource>,
     source: SsaSourceView<'a>,
 }
 

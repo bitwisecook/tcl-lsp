@@ -19,7 +19,6 @@
 //! Lifecycle bodies: their phases, iteration and the coverage recorded at each phase entry.
 
 use super::super::binding_projection::PointWalkEntry;
-use super::super::command_identity::CommandAllocationSite;
 use super::super::invocation_binding::SourceObserverExecution;
 use super::super::trusted_packages::TrustedPackageLoader;
 use super::super::{
@@ -31,6 +30,7 @@ use super::super::{
 use super::outcomes::boxed_source_branch;
 use std::hash::Hash;
 use std::sync::{Arc, OnceLock};
+use tcl_names::command::CommandAllocationSite;
 
 /// Execution phase selected by a registry-owned caller-frame lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

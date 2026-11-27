@@ -18,7 +18,9 @@
 
 //! Conditional declaration entry, independently of actual script execution.
 
-use super::{Arc, CommandAllocation, ExecutedScriptSource, SourceCommandBindings};
+use super::{Arc, SourceCommandBindings};
+use tcl_names::command::CommandAllocation;
+use tcl_names::origin::ExecutedScriptSource;
 
 /// Command lookup of a member body whose current namespace is the runtime
 /// receiver's private namespace: that namespace, then `path`, then global.
@@ -35,19 +37,19 @@ pub(crate) struct SourceReceiverNamespace {
 /// recipe and formals do not allocate a method implementation or receiver.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceDeclaredReceiverBodyEntry {
-    declaration: super::CommandAllocationSite,
+    declaration: tcl_names::command::CommandAllocationSite,
     source: ExecutedScriptSource,
-    declaration_namespace: super::SourceNamespaceKey,
+    declaration_namespace: tcl_names::namespace::SourceNamespaceKey,
     receiver_namespace: Option<SourceReceiverNamespace>,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
-    preview_frame: crate::var_resolve::VariableExecutionFrame,
+    preview_frame: tcl_names::variable::VariableExecutionFrame,
 }
 
 impl SourceDeclaredReceiverBodyEntry {
     /// Exact original declaration allocation that owns this receiver-body scope.
     #[must_use]
-    pub fn declaration(&self) -> &super::CommandAllocationSite {
+    pub fn declaration(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.declaration
     }
 
@@ -75,7 +77,7 @@ impl SourceDeclaredReceiverBodyEntry {
                 .all(|formal| names.contains(&formal.name.as_str()))
     }
 
-    pub(super) fn preview_frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(super) fn preview_frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.preview_frame
     }
 
@@ -86,7 +88,7 @@ impl SourceDeclaredReceiverBodyEntry {
     /// Original declaration context, independently of the unknown namespace
     /// of a future runtime receiver. This supplies no receiver or method entry.
     #[must_use]
-    pub fn declaration_namespace_context(&self) -> &super::SourceNamespaceKey {
+    pub fn declaration_namespace_context(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.declaration_namespace
     }
 }
@@ -96,9 +98,9 @@ impl SourceDeclaredReceiverBodyEntry {
 /// allocated caller cell, value or absence of observers.
 #[derive(Debug, Clone)]
 pub struct SourceCallerFrameInvocationTemplate {
-    call: super::CommandAllocationSite,
-    frame: Option<crate::var_resolve::VariableExecutionFrame>,
-    namespace_context: Option<super::SourceNamespaceKey>,
+    call: tcl_names::command::CommandAllocationSite,
+    frame: Option<tcl_names::variable::VariableExecutionFrame>,
+    namespace_context: Option<tcl_names::namespace::SourceNamespaceKey>,
     declared_receiver: Option<Arc<SourceDeclaredReceiverBodyEntry>>,
     procedure: Option<super::SourceCommandReference>,
     declared_procedure: Option<super::SourceCommandDefinition>,
@@ -110,7 +112,7 @@ impl SourceCallerFrameInvocationTemplate {
     /// Original call allocation; an unpositioned or final-name lookup cannot
     /// construct this receipt.
     #[must_use]
-    pub fn call(&self) -> &super::CommandAllocationSite {
+    pub fn call(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.call
     }
 
@@ -118,14 +120,14 @@ impl SourceCallerFrameInvocationTemplate {
     /// supplies no physical caller cells. Declaration-only receiver scopes
     /// supply no method frame or allocated receiver through this getter.
     #[must_use]
-    pub fn frame(&self) -> Option<&crate::var_resolve::VariableExecutionFrame> {
+    pub fn frame(&self) -> Option<&tcl_names::variable::VariableExecutionFrame> {
         self.frame.as_ref()
     }
 
     /// Original procedure or retained actual caller namespace. An unentered
     /// receiver declaration exposes only its separate declaration context.
     #[must_use]
-    pub fn namespace_context(&self) -> Option<&super::SourceNamespaceKey> {
+    pub fn namespace_context(&self) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         self.namespace_context.as_ref()
     }
 
@@ -248,10 +250,10 @@ fn original_literal_parameter_arguments(
 pub(crate) struct SourceConditionalBodyEntry {
     allocation: CommandAllocation,
     source: ExecutedScriptSource,
-    namespace_key: super::SourceNamespaceKey,
+    namespace_key: tcl_names::namespace::SourceNamespaceKey,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
 }
 
 impl SourceConditionalBodyEntry {
@@ -263,14 +265,14 @@ impl SourceConditionalBodyEntry {
         &self.source
     }
 
-    pub(super) fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub(super) fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         &self.frame
     }
 
-    pub(crate) fn namespace_context(&self) -> Option<&super::SourceNamespaceKey> {
+    pub(crate) fn namespace_context(&self) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         matches!(
             self.frame.layout(),
-            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+            tcl_names::variable::VariableExecutionFrame::Procedure { .. }
         )
         .then_some(&self.namespace_key)
     }
@@ -285,7 +287,11 @@ impl SourceConditionalBodyEntry {
         self.original_parameters.as_ref()
     }
 
-    pub(crate) fn owns_source(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
+    pub(crate) fn owns_source(
+        &self,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
+        offset: u32,
+    ) -> bool {
         &self.source.origin == origin
             && offset >= self.source.base()
             && u64::from(offset) < u64::from(self.source.base()) + self.source.text.len() as u64
@@ -311,7 +317,7 @@ impl SourceCommandBindings {
     pub(super) fn original_body_owns_frame(
         &self,
         entry: &SourceConditionalBodyEntry,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
     ) -> bool {
         frame == entry.frame()
             || self
@@ -355,8 +361,8 @@ impl SourceCommandBindings {
 
     pub(super) fn context_owns_frame(
         context: &crate::var_resolve::ResolveContext,
-        frame: &crate::var_resolve::VariableExecutionFrame,
-        namespace: Option<&super::SourceNamespaceKey>,
+        frame: &tcl_names::variable::VariableExecutionFrame,
+        namespace: Option<&tcl_names::namespace::SourceNamespaceKey>,
     ) -> bool {
         let expected = expected_frame_ownership(frame, namespace);
         context.activation == expected.activation
@@ -438,7 +444,7 @@ impl SourceCommandBindings {
         let target = advice.targets().first()?;
         if advice.targets().iter().any(|candidate| candidate != target)
             || target.implementation_allocation.as_ref()?.incarnation
-                == super::AllocationIncarnation::RepeatedFresh
+                == tcl_names::command::AllocationIncarnation::RepeatedFresh
         {
             return None;
         }
@@ -452,7 +458,7 @@ impl SourceCommandBindings {
             &parameters,
             advice.dialect(),
         )?;
-        let call = super::CommandAllocationSite {
+        let call = tcl_names::command::CommandAllocationSite {
             source: Arc::clone(origin),
             offset,
         };
@@ -485,8 +491,8 @@ impl SourceCommandBindings {
         }
         if matches!(
             binding.variable_frame,
-            crate::var_resolve::VariableExecutionFrame::Unknown
-                | crate::var_resolve::VariableExecutionFrame::Selected { .. }
+            tcl_names::variable::VariableExecutionFrame::Unknown
+                | tcl_names::variable::VariableExecutionFrame::Selected { .. }
         ) || binding.variable_context.dynamic_bindings
         {
             return None;
@@ -521,14 +527,14 @@ impl SourceCommandBindings {
             )
         } else {
             let target = binding.proved_execution_target()?;
-            if target.registry_backed || target.kind != super::BindingKind::Proc {
+            if target.registry_backed || target.kind != tcl_names::command::BindingKind::Proc {
                 return None;
             }
             if state.source_execution_observed(Some(target.identity.as_ref()?)) {
                 return None;
             }
             let allocation = target.implementation_allocation.as_ref()?;
-            if allocation.incarnation == super::AllocationIncarnation::RepeatedFresh {
+            if allocation.incarnation == tcl_names::command::AllocationIncarnation::RepeatedFresh {
                 return None;
             }
             let reference = binding.evaluated_command_reference()?;
@@ -558,7 +564,9 @@ impl SourceCommandBindings {
                     (self.final_state.baseline.native_entry.is_none()
                         && binding.variable_context.namespace_known)
                         .then(|| {
-                            super::SourceNamespaceKey::authored(&binding.variable_context.namespace)
+                            tcl_names::namespace::SourceNamespaceKey::authored(
+                                &binding.variable_context.namespace,
+                            )
                         })
                 }),
             frame: Some(binding.variable_frame),
@@ -572,7 +580,7 @@ impl SourceCommandBindings {
 
     fn caller_template_parameters(
         &self,
-        allocation: &super::CommandAllocation,
+        allocation: &tcl_names::command::CommandAllocation,
     ) -> Option<Vec<tcl_syntax::formal_params::FormalParameter>> {
         let mut bodies = self
             .deferred
@@ -594,7 +602,7 @@ impl SourceCommandBindings {
         read_offset: u32,
     ) -> Option<super::SourceInvocationBinding> {
         let joined = self.invocation_at_source(head, offset);
-        if joined.variable_frame != crate::var_resolve::VariableExecutionFrame::Unknown {
+        if joined.variable_frame != tcl_names::variable::VariableExecutionFrame::Unknown {
             return Some(joined);
         }
         let call = joined.invocation_site()?;
@@ -610,7 +618,7 @@ impl SourceCommandBindings {
         let target = joined.proved_execution_target()?;
         let state = &joined.lookup_state.as_ref()?.state;
         if target.registry_backed
-            || target.kind != super::BindingKind::Proc
+            || target.kind != tcl_names::command::BindingKind::Proc
             || scoped.proved_execution_target() != Some(target)
             || joined.entered_execution_observer.observed()
             || state.source_step_observed()
@@ -690,7 +698,7 @@ impl SourceCommandBindings {
             observed = true;
             if !matches!(
                 frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                tcl_names::variable::VariableExecutionFrame::Procedure { .. }
             ) {
                 return false;
             }
@@ -703,7 +711,7 @@ impl SourceCommandBindings {
     #[cfg(test)]
     pub(crate) fn has_actual_procedure_entry_at(
         &self,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> bool {
         self.conditional_body_entry_at(origin, offset)
@@ -716,8 +724,8 @@ impl SourceCommandBindings {
     pub(crate) fn declared_script_namespace_context(
         &self,
         source: &ExecutedScriptSource,
-    ) -> Option<super::SourceNamespaceKey> {
-        let super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
+        let tcl_names::origin::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
             return None;
         };
         let start = usize::try_from(base).ok()?;
@@ -743,7 +751,7 @@ impl SourceCommandBindings {
     /// methods retain only their independently allocated local-frame recipe.
     pub(crate) fn conditional_body_entry_at(
         &self,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> Option<Arc<SourceConditionalBodyEntry>> {
         let mut selected: Option<SourceConditionalBodyEntry> = None;
@@ -768,7 +776,7 @@ impl SourceCommandBindings {
                 parameters: body.parameters.clone(),
                 original_parameters: body.original_parameters.clone(),
                 frame: if body.receiver_method {
-                    crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                    tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                         identity: super::source_activation_name(
                             body.source_origin.as_ref(),
                             &body.identity,
@@ -776,7 +784,7 @@ impl SourceCommandBindings {
                         ),
                     }
                 } else {
-                    crate::var_resolve::VariableExecutionFrame::Procedure {
+                    tcl_names::variable::VariableExecutionFrame::Procedure {
                         namespace: body.namespace.clone(),
                         identity: super::source_activation_name(
                             body.source_origin.as_ref(),
@@ -802,7 +810,7 @@ impl SourceCommandBindings {
     /// owner even when no implementation or receiver has been allocated.
     pub(crate) fn declared_receiver_body_entry_at(
         &self,
-        origin: &Arc<super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         offset: u32,
     ) -> Option<Arc<SourceDeclaredReceiverBodyEntry>> {
         #[cfg(any(test, debug_assertions))]
@@ -834,7 +842,7 @@ impl SourceCommandBindings {
                 receiver_namespace: body.receiver_namespace,
                 parameters: body.parameters.clone(),
                 original_parameters: body.original_parameters.clone(),
-                preview_frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                preview_frame: tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                     identity: super::source_activation_name(
                         body.source_origin.as_ref(),
                         &body.identity,
@@ -934,7 +942,7 @@ mod original_body_frame_tests {
         assert!(bindings.compiled_script_namespace_context(&child).is_none());
         assert_eq!(
             bindings.declared_script_namespace_context(&child),
-            Some(super::super::SourceNamespaceKey::authored("::"))
+            Some(tcl_names::namespace::SourceNamespaceKey::authored("::"))
         );
         let mut changed = child.clone();
         changed.text =
@@ -945,7 +953,7 @@ mod original_body_frame_tests {
                 .is_none()
         );
         let materialised = super::ExecutedScriptSource::materialised(
-            super::super::CommandAllocationSite {
+            tcl_names::command::CommandAllocationSite {
                 source: origin,
                 offset: base,
             },
@@ -1088,7 +1096,7 @@ mod original_body_frame_tests {
         assert!(bindings.original_body_owns_context(&declaration, &p.variable_context));
         let mut wrong_namespace = p.variable_context.as_ref().clone();
         wrong_namespace.namespace_identity = Some(
-            crate::command_binding::SourceNamespaceKey::authored("::foreign"),
+            tcl_names::namespace::SourceNamespaceKey::authored("::foreign"),
         );
         assert!(!bindings.original_body_owns_context(&declaration, &wrong_namespace));
         assert!(!bindings.original_body_owns_frame(&declaration, &q.variable_frame));
@@ -1116,7 +1124,7 @@ mod original_body_frame_tests {
         );
         assert!(!bindings.original_body_owns_frame(
             &declaration,
-            &crate::var_resolve::VariableExecutionFrame::Global
+            &tcl_names::variable::VariableExecutionFrame::Global
         ));
     }
 }
@@ -1128,19 +1136,19 @@ struct FrameOwnership {
     activation: Option<String>,
     frame_kind: crate::var_resolve::VariableFrameKind,
     selected_frame: Option<tcl_registry::FrameLevel>,
-    namespace_identity: Option<super::SourceNamespaceKey>,
+    namespace_identity: Option<tcl_names::namespace::SourceNamespaceKey>,
     namespace_known: bool,
     namespace: String,
 }
 
 type FrameOwnershipKey = (
-    crate::var_resolve::VariableExecutionFrame,
-    Option<super::SourceNamespaceKey>,
+    tcl_names::variable::VariableExecutionFrame,
+    Option<tcl_names::namespace::SourceNamespaceKey>,
 );
 
 fn expected_frame_ownership(
-    frame: &crate::var_resolve::VariableExecutionFrame,
-    namespace: Option<&super::SourceNamespaceKey>,
+    frame: &tcl_names::variable::VariableExecutionFrame,
+    namespace: Option<&tcl_names::namespace::SourceNamespaceKey>,
 ) -> std::rc::Rc<FrameOwnership> {
     const LIMIT: usize = 4096;
     thread_local! {

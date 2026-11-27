@@ -19,10 +19,10 @@
 //! Independently attested loader transfer before unresolved callback widening.
 
 use super::{
-    Arc, BTreeMap, InvocationFacts, ModuleCommandBindings, SourceCommandKey,
-    SourceExecutionContext, SourceNativeInvocation, SourceOutcomes, StateTransition,
-    TrustedPackageLoader,
+    Arc, BTreeMap, InvocationFacts, ModuleCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation, SourceOutcomes, StateTransition, TrustedPackageLoader,
 };
+use tcl_names::command::SourceCommandKey;
 use tcl_registry::model::binding::PackageTransition;
 
 /// A complete selected provider transfer in the original source model.
@@ -108,7 +108,7 @@ impl OriginalTrustedPackageTransfer {
         variables.known_namespaces = selected
             .namespaces
             .iter()
-            .filter_map(super::SourceNamespaceKey::advisory_key)
+            .filter_map(tcl_names::namespace::SourceNamespaceKey::advisory_key)
             .collect();
         // Installed provider state is independent of incoming variable values.
         // It supplies neither a captured variable receiver nor a literal value.

@@ -42,7 +42,7 @@ impl super::ModuleCommandBindings {
     fn original_name_lookup_paths(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
         use tcl_syntax::naming::{
             CommandLookupBase, NativeNameContext, NativeNameProtocol, NativeNameQualification,
@@ -122,7 +122,7 @@ impl super::ModuleCommandBindings {
     fn original_name_selection(
         &self,
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
         visiting: &mut std::collections::HashSet<tcl_core_types::ByteCommandSlot>,
     ) -> Option<OriginalNameSelection> {
         let policy = input.policy();
@@ -357,7 +357,7 @@ impl SourceInvocationBinding {
                     let matches = |target: &super::ResolvedCommandTarget| {
                         target.terminal
                             && target.registry_backed
-                            && target.kind == super::BindingKind::Builtin
+                            && target.kind == tcl_names::command::BindingKind::Builtin
                             && target.prepended.is_empty()
                             && registry
                                 .get(&target.command)

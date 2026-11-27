@@ -412,7 +412,7 @@ pub(super) fn global_frame_summaries(
             .body
             .namespace_context
             .as_deref()
-            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+            .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key);
         let entered = procedure
             .body
             .namespace_context
@@ -1291,7 +1291,7 @@ fn source_substitutions(
 fn statement_command_namespace<'a>(
     stmt: &Statement,
     namespace: &'a ExecutionNamespace,
-) -> Option<std::borrow::Cow<'a, crate::command_binding::SourceNamespaceKey>> {
+) -> Option<std::borrow::Cow<'a, tcl_names::namespace::SourceNamespaceKey>> {
     match stmt {
         Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
             namespace.for_head_context(command)

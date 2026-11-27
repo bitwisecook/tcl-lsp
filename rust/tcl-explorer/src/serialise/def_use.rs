@@ -42,7 +42,7 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
                 let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
                 let report_label = |symbol| {
                     snap.unit.def_use.cell_key(&snap.unit.ssa, symbol)
-                        .map(tcl_compiler::var_resolve::VariableCellKey::compatibility_name)
+                        .map(tcl_names::variable::VariableCellKey::compatibility_name)
                         .or_else(|| {
                             (snap.unit.ssa.cell_key(symbol).is_none()
                                 && snap.unit.def_use.source_variable_symbol(&snap.unit.ssa, symbol).is_some())

@@ -44,7 +44,7 @@ impl DeferredSourceBody {
 pub(super) fn seed_deferred_inputs(
     branch: &mut ModuleCommandBindings,
     root: &DeferredSourceBody,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     registry: &CommandRegistry,
 ) {
     #[cfg(any(test, debug_assertions))]
@@ -99,8 +99,8 @@ fn deferred_source_frame(
     root: &DeferredSourceBody,
     branch: &mut ModuleCommandBindings,
     parent: &crate::var_resolve::ResolveContext,
-) -> crate::var_resolve::VariableExecutionFrame {
-    use crate::var_resolve::VariableExecutionFrame;
+) -> tcl_names::variable::VariableExecutionFrame {
+    use tcl_names::variable::VariableExecutionFrame;
     let frame = if root.receiver_method {
         VariableExecutionFrame::ReceiverMethod {
             identity: source_activation_name(
@@ -523,7 +523,7 @@ impl SourceCommandBindings {
     pub(super) fn retain_deferred_outcomes(
         &mut self,
         root: &DeferredSourceBody,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         outcomes: SourceOutcomes,
     ) {
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;

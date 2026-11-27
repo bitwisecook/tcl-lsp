@@ -20,9 +20,9 @@
 
 use super::super::{Analyser, ResolvedAnalysisInput};
 use super::SourceInterpreterVisibilitySnapshot;
-use crate::signature_scan::scope::SignatureNamespaceScope;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage, Token};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::StateTransition;
 
 impl Analyser {
@@ -183,7 +183,7 @@ impl OriginalInterpreterSourceLoad {
                 body.source().origin.source_image() == image
                     && matches!(
                         body.source().mapping,
-                        crate::command_binding::ExecutedScriptMapping::Contiguous { .. }
+                        tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
                     )
             })
             && self.path.image() == image

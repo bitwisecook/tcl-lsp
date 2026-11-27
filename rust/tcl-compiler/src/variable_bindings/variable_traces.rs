@@ -19,9 +19,9 @@
 //! Variable-trace registrations: whether one is closed, and applying a trace transition to the retained observers.
 
 use super::OriginalVariableInvocation;
-use crate::place;
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::{ResolveContext, cell_key, resolve_literal_place, trace_key};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use tcl_registry::{CommandRegistry, StateTransition, TraceTarget, TraceTransition};
 
 /// A selected variable-trace registration never invokes its stored prefix.
@@ -262,7 +262,7 @@ fn retain_possible_trace_registration(
 
 fn update_trace_registration(
     state: &mut ResolveContext,
-    key: &crate::var_resolve::VariableCellKey,
+    key: &tcl_names::variable::VariableCellKey,
     registration: Option<(
         Vec<tcl_registry::TraceOperation>,
         crate::var_resolve::VariableTracePrefix,

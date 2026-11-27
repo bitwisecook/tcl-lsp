@@ -36,7 +36,7 @@ fn normal_result_type<S: std::hash::BuildHasher>(
         .source_binding
         .as_ref()
         .and_then(crate::command_binding::SourceInvocationBinding::proved_handler_target)
-        && target.kind == crate::command_binding::BindingKind::Proc
+        && target.kind == tcl_names::command::BindingKind::Proc
         && let Some(allocation) = &target.implementation_allocation
         && let Some(result) = ctx
             .normal_results

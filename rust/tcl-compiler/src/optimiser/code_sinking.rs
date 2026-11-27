@@ -52,6 +52,7 @@
 //! and [`Statement::AssignExpr`] whose expression has no
 //! command substitution.
 
+use crate::command_binding::SourceOriginLexical;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};

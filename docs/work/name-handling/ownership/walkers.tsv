@@ -189,6 +189,7 @@ rust/tcl-compiler/src/optimiser/structure_elimination.rs	source-walk	walk_script
 rust/tcl-compiler/src/optimiser/structure_elimination.rs	source-walk	walk_statement:walk_statement	-	1
 rust/tcl-compiler/src/optimiser/tail_call.rs	source-reader	original_return_command:native_script_words_in_with_purpose	-	1
 rust/tcl-compiler/src/optimiser/tail_call/inventory.rs	source-reader	original_script:segment_commands_image_with_offset_and_config	-	1
+rust/tcl-names/src/word.rs	source-reader	logical_source_literal_extent:native_script_words_in	-	1
 rust/tcl-source/src/spectcl.rs	source-reader	pack_word_source_matches:native_script_words_in	-	1
 rust/tcl-compiler/src/place_bridge.rs	source-reader	nested_script_commands:native_script_words_in_with_purpose	-	1
 rust/tcl-compiler/src/realm/original_tokens.rs	source-reader	retained_original_tokens:segment_commands_with_offset_and_config	-	1
@@ -248,7 +249,6 @@ rust/tcl-compiler/src/signature_scan/command_prefix.rs	source-reader	list_quoted
 rust/tcl-compiler/src/signature_scan/ctx.rs	source-reader	original_command_words:native_script_words_in	-	1
 rust/tcl-compiler/src/signature_scan/factory.rs	source-reader	is_factory_body:segment_commands_with_offset_and_config	-	1
 rust/tcl-compiler/src/signature_scan/factory.rs	source-reader	is_selected_factory_body:segment_commands_with_offset_and_config	-	1
-rust/tcl-compiler/src/signature_scan/original_name.rs	source-reader	logical_source_literal_extent:native_script_words_in	-	1
 rust/tcl-compiler/src/signature_scan/walker.rs	source-reader	scan:segment_commands_with_offset_and_config	-	1
 rust/tcl-compiler/src/signature_scan/walker.rs	source-reader	scan:segment_commands_with_recovery_and_config	-	1
 rust/tcl-compiler/src/signature_scan/walker.rs	source-reader	scan_factory_candidates:segment_commands_with_offset_and_config	-	1

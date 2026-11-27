@@ -18,12 +18,13 @@
 
 //! Captured, staged teardown of a proved distinct-array allocation.
 
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
-use crate::raw_binding::{RawBindingContents, RawBindingSlot, RawBindingSlotId};
+use crate::raw_binding::{RawBindingContents, RawBindingSlot};
 use crate::var_resolve::{
     ContentsWorld, ResolveContext, RootContentsKind, VariableObserverProjection,
     canonical_binding_value_key, cell_key, trace_key,
 };
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
+use tcl_names::variable::RawBindingSlotId;
 use tcl_native_model::native_variable_destruction::VariableDestructionProtocol;
 use tcl_registry::{CommandRegistry, TraceOperation};
 
@@ -119,7 +120,7 @@ impl ResolveContext {
             .map(|(key, _)| {
                 let mut member = root.clone();
                 member.kind = PlaceKind::ArrayElem;
-                member.index = Some(crate::place::Index::literal(key));
+                member.index = Some(tcl_names::place::Index::literal(key));
                 member
             })
             .collect::<Vec<_>>();
@@ -185,7 +186,7 @@ impl ResolveContext {
                 || candidate
                     .index
                     .as_ref()
-                    .is_none_or(|index| index.kind != crate::place::IndexKind::Literal)
+                    .is_none_or(|index| index.kind != tcl_names::place::IndexKind::Literal)
             {
                 return ArrayContentsInventory::Unknown;
             }
@@ -299,7 +300,8 @@ impl ResolveContext {
             if receiver.cell != root.cell || receiver.index.is_none() {
                 continue;
             }
-            if receiver.dynamic || receiver.index.as_ref()?.kind != crate::place::IndexKind::Literal
+            if receiver.dynamic
+                || receiver.index.as_ref()?.kind != tcl_names::place::IndexKind::Literal
             {
                 return None;
             }
@@ -447,8 +449,8 @@ mod tests {
 
     #[test]
     fn array_entry_facts_keep_original_namespace_incarnations() {
-        use crate::command_binding::SourceNamespaceKey;
         use crate::var_resolve::{ContentsPresence, cell_key};
+        use tcl_names::namespace::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };

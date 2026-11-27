@@ -20,6 +20,7 @@
 
 use super::super::original_name_value::OriginalWordSourcePurpose;
 use super::{OriginalDeclarationWordSource, original_declaration_layouts};
+use crate::command_binding::SourceOriginLexical;
 
 impl super::super::OriginalCompilationLookupAdvice {
     /// Metadata of this sealed original declaration, including raw preview
@@ -90,11 +91,11 @@ impl super::super::OriginalCompilationLookupAdvice {
             && state.command_observers.is_quiet()
             && matches!(
                 &self.namespace,
-                super::super::SourceNamespaceKey::Authored(_)
+                tcl_names::namespace::SourceNamespaceKey::Authored(_)
             )
             && state.namespaces.contains(&self.namespace)
             && self.targets.iter().all(|target| {
-                target.kind == super::super::BindingKind::Builtin
+                target.kind == tcl_names::command::BindingKind::Builtin
                     && target.registry_backed
                     && target.prepended.is_empty()
                     && target.implementation_generation == 0

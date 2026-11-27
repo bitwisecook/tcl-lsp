@@ -20,8 +20,9 @@
 //! that also entered the body from its callers.
 
 use super::{SourceBindingPoint, SourceCommandBindings, SourceVariableAccess};
-use crate::var_resolve::{ResolveContext, VariableExecutionFrame};
+use crate::var_resolve::ResolveContext;
 use std::sync::Arc;
+use tcl_names::variable::VariableExecutionFrame;
 
 /// The frame a declared-body view keeps inside the body it covers.
 #[derive(Debug, Clone, PartialEq, Eq)]

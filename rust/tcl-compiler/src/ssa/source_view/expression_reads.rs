@@ -36,7 +36,7 @@ pub struct SsaIncomingSlotRead {
     /// Literal ordinary slot selected in every retained activation.
     pub slot: String,
     /// Distinct physical incoming cells; none is collapsed into another owner.
-    pub cells: Vec<crate::place::CellIdentity>,
+    pub cells: Vec<tcl_names::place::CellIdentity>,
 }
 
 impl<'a> SsaSourceView<'a> {
@@ -171,7 +171,7 @@ impl<'a> SsaSourceView<'a> {
         node: &crate::expr_ast::ExprNode,
         expr_base: Option<u32>,
         registry: &CommandRegistry,
-    ) -> Option<crate::place::Place> {
+    ) -> Option<tcl_names::place::Place> {
         let access = self.expression_variable_access(node, expr_base)?;
         Some(source_read_place(access, registry))
     }
@@ -194,12 +194,12 @@ impl<'a> SsaSourceView<'a> {
         let place = source_read_place(access, registry);
         !place.observed
             && !place.dynamic
-            && place.kind == crate::place::PlaceKind::Scalar
+            && place.kind == tcl_names::place::PlaceKind::Scalar
             && place.index.is_none()
             && place.name == slot
             && place.cell.as_ref().is_some_and(|cell| {
                 cell.name == slot
-                    && matches!(&cell.owner, crate::place::CellOwner::Activation(identity)
+                    && matches!(&cell.owner, tcl_names::place::CellOwner::Activation(identity)
                         if access.variable_context.activation.as_ref() == Some(identity))
             })
     }

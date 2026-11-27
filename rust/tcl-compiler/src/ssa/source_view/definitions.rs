@@ -20,7 +20,7 @@
 
 use super::super::{Symbol, supplied_ssa_metadata};
 use super::{OriginalSourceSsaDefinitionName, SsaSourceView};
-use crate::var_resolve::VariableCellKey;
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 /// Source name of one selected SSA value definition. This pairs an actual
@@ -62,7 +62,7 @@ impl OriginalSsaDefinitionName {
 #[derive(Debug, Clone)]
 pub struct OriginalFreshScalarVariableProposal {
     pub(in super::super) slot: crate::var_resolve::FreshScalarVariableSlot,
-    site: crate::command_binding::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     pub(in super::super) config: tcl_lexer::LexerConfig,
 }
 
@@ -79,7 +79,7 @@ impl OriginalFreshScalarVariableProposal {
     }
     /// Genuine original invocation at which absence was checked.
     #[must_use]
-    pub fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Independently selected native naming purpose.
@@ -122,8 +122,8 @@ fn trace_original_definition_place(
     tokens: &crate::ir::CommandTokens,
     context: &crate::var_resolve::ResolveContext,
     written: usize,
-    place: &crate::place::Place,
-    key: &crate::var_resolve::VariableCellKey,
+    place: &tcl_names::place::Place,
+    key: &tcl_names::variable::VariableCellKey,
 ) {
     if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
         let selected = crate::var_resolve::canonical_binding_value_key(place);
@@ -142,9 +142,11 @@ fn trace_original_definition_place(
             selected.as_ref() == Some(key),
             place.cell.as_ref().map(|cell| cell.generation)
         );
-        if let (Some(selected), crate::var_resolve::VariableCellKey::Namespace { identity, simple }) =
-            (selected.as_ref(), key.root())
-            && let crate::var_resolve::VariableCellKey::Namespace {
+        if let (
+            Some(selected),
+            tcl_names::variable::VariableCellKey::Namespace { identity, simple },
+        ) = (selected.as_ref(), key.root())
+            && let tcl_names::variable::VariableCellKey::Namespace {
                 identity: selected_identity,
                 simple: selected_simple,
             } = selected.root()
@@ -156,9 +158,9 @@ fn trace_original_definition_place(
                 simple.as_bytes(),
                 matches!(
                     selected,
-                    crate::var_resolve::VariableCellKey::Lifetime { .. }
+                    tcl_names::variable::VariableCellKey::Lifetime { .. }
                 ),
-                matches!(key, crate::var_resolve::VariableCellKey::Lifetime { .. }),
+                matches!(key, tcl_names::variable::VariableCellKey::Lifetime { .. }),
             );
         }
     }
@@ -229,9 +231,9 @@ impl SsaSourceView<'_> {
                     .is_some(),
                 before.execution_name_policy.is_some(),
                 match self.ssa.cell_key(symbol)?.root() {
-                    crate::var_resolve::VariableCellKey::Activation { .. } => "activation",
-                    crate::var_resolve::VariableCellKey::Namespace { .. } => "namespace",
-                    crate::var_resolve::VariableCellKey::Authored(_) => "authored",
+                    tcl_names::variable::VariableCellKey::Activation { .. } => "activation",
+                    tcl_names::variable::VariableCellKey::Namespace { .. } => "namespace",
+                    tcl_names::variable::VariableCellKey::Authored(_) => "authored",
                     _ => "other",
                 }
             );

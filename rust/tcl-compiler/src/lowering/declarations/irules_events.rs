@@ -340,7 +340,7 @@ impl Lowerer<'_> {
         }
         let dialect =
             Self::trace_report_event_option(self.invocation_dialect, "standalone-dialect")?;
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             word,
             dialect.word_values,
             dialect.authored_name_policy()?,

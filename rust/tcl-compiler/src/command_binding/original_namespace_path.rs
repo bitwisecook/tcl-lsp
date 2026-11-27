@@ -18,8 +18,9 @@
 
 //! Whole original list operands select only existing namespace identities.
 
-use super::{ModuleCommandBindings, SourceNamespaceKey};
+use super::ModuleCommandBindings;
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::namespace::SourceNamespaceKey;
 
 /// All list elements must resolve before the caller installs a path.
 /// This allocates no namespace and supplies no runtime token or storage.
@@ -184,7 +185,8 @@ mod tests {
     fn original_namespace_path_requires_current_original_policy_and_unique_incarnations() {
         // naming.namespace.original-counted-path-transfer
         // docs/design/analysis/name-resolution-proofs/namespace-original-counted-path-transfer.md
-        use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use tcl_names::word::SignatureSourceNameKey;
         let source = "namespace eval A {}; namespace path {::A}";
         let bindings = analyse(source, TclVersion::V8_6);
         let state = &bindings.final_state;
@@ -210,14 +212,15 @@ mod tests {
         );
         let selected = super::select(state, &root, &input).unwrap();
         assert_eq!(selected.len(), 1);
-        let super::super::SourceNamespaceKey::Allocated { site, path, .. } = &selected[0] else {
+        let tcl_names::namespace::SourceNamespaceKey::Allocated { site, path, .. } = &selected[0]
+        else {
             panic!("actual source allocation");
         };
         let mut ambiguous = (**state).clone();
         std::sync::Arc::make_mut(&mut ambiguous.namespaces).insert(
-            super::super::SourceNamespaceKey::Allocated {
+            tcl_names::namespace::SourceNamespaceKey::Allocated {
                 site: site.clone(),
-                incarnation: super::super::AllocationIncarnation::Second,
+                incarnation: tcl_names::command::AllocationIncarnation::Second,
                 path: path.clone(),
             },
         );

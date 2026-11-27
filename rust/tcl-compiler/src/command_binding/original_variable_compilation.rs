@@ -22,11 +22,10 @@ use super::{
     ModuleCommandBindings, SourceExecutionContext,
     original_name_value::OriginalSourceVariableCompilation,
 };
-use crate::{
-    place::Place,
-    signature_scan::{scope::SignatureSourceNameInput, variable_name::SignatureSourceVariableRoot},
-    var_resolve::ResolveContext,
-};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use crate::signature_scan::variable_name::SignatureSourceVariableRoot;
+use crate::var_resolve::ResolveContext;
+use tcl_names::place::Place;
 use tcl_registry::{
     CommandRegistry, TraceOperation,
     native_compilation::{
@@ -78,7 +77,10 @@ fn original_source_model_substitution_access(
     if site.provenance != tcl_source::words::Provenance::Source
         || &state.variable_frame != context.frame
         || state.source_variables.namespace != context.namespace
-        || !matches!(origin.kind(), super::SourceOriginKind::Authored(_))
+        || !matches!(
+            origin.kind(),
+            tcl_names::origin::SourceOriginKind::Authored(_)
+        )
         || origin.source_image().channel() != tcl_lexer::SourceChannel::Document
         || arena.image() != origin.source_image()
         || arena.config() != context.config
@@ -110,8 +112,8 @@ fn written_at_site(image: &tcl_lexer::SourceImage, site: tcl_lexer::Span, spelli
 #[derive(Clone)]
 pub(crate) struct OriginalSourceLexicalCompilation {
     image: tcl_lexer::SourceImage,
-    origin: std::sync::Arc<super::SourceOriginId>,
-    execution_frame: crate::var_resolve::VariableExecutionFrame,
+    origin: std::sync::Arc<tcl_names::origin::SourceOriginId>,
+    execution_frame: tcl_names::variable::VariableExecutionFrame,
     config: tcl_lexer::LexerConfig,
     compilation: NativeCompilationContext,
     protocol: Option<NativeCompiledVariableProtocol>,
@@ -140,7 +142,7 @@ impl OriginalSourceLexicalCompilation {
             .filter(|inventory| {
                 protocol.is_some_and(|protocol| {
                     inventory.owns(
-                        &super::CommandAllocationSite {
+                        &tcl_names::command::CommandAllocationSite {
                             source: std::sync::Arc::clone(origin),
                             offset: context.invocation_offset,
                         },
@@ -228,11 +230,11 @@ impl OriginalSourceLexicalCompilation {
                 element.policy() != root.policy() || !element.is_current(context)
             })
         {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         let input = SignatureSourceNameInput::OriginalVariableRoot(root.clone());
         if !input.is_current(context) {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         if self.compilation.mode == NativeCompilationMode::Direct {
             return match element {
@@ -245,13 +247,13 @@ impl OriginalSourceLexicalCompilation {
             };
         }
         if self.compilation.mode != NativeCompilationMode::BytecodeObject {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         let Some(protocol) = self.protocol else {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         };
         let Some(environment) = environment(self.compilation) else {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         };
         let lookup =
             protocol.substitution_lookup(root.bytes(), !root.is_separate_array_root(), environment);
@@ -280,7 +282,7 @@ impl OriginalSourceLexicalCompilation {
             );
         };
         if !locals.owns(
-            &super::CommandAllocationSite {
+            &tcl_names::command::CommandAllocationSite {
                 source: std::sync::Arc::clone(&self.origin),
                 offset: root.part_span().start(),
             },
@@ -289,7 +291,7 @@ impl OriginalSourceLexicalCompilation {
             self.compilation,
             protocol,
         ) {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         let Some(primary) = OriginalCompiledVariablePrimary::from_inventory(
             locals,
@@ -297,7 +299,7 @@ impl OriginalSourceLexicalCompilation {
             self.compilation,
             protocol,
         ) else {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         };
         crate::var_resolve::resolve_original_compiled_primary(
             &primary,
@@ -387,10 +389,10 @@ impl OriginalCompiledVariableOperand {
                 self.word.config().escapes != policy.string_protocol().escape_syntax()
             })
         {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         let mut result = match &self.purpose {
-            OriginalVariableOperandPurpose::Unavailable => return crate::place::unknown_top(),
+            OriginalVariableOperandPurpose::Unavailable => return tcl_names::place::unknown_top(),
             OriginalVariableOperandPurpose::Runtime(input) => {
                 return crate::var_resolve::resolve_original_name_input(
                     input,
@@ -408,7 +410,7 @@ impl OriginalCompiledVariableOperand {
                 primary,
             } => {
                 if whole_array && index.is_some() {
-                    return crate::place::unknown_top();
+                    return tcl_names::place::unknown_top();
                 }
                 match primary {
                     Some(primary) => crate::var_resolve::resolve_original_compiled_primary(
@@ -430,8 +432,8 @@ impl OriginalCompiledVariableOperand {
                 }
             }
         };
-        if whole_array && result.kind != crate::place::PlaceKind::Unknown {
-            result.kind = crate::place::PlaceKind::ArrayWhole;
+        if whole_array && result.kind != tcl_names::place::PlaceKind::Unknown {
+            result.kind = tcl_names::place::PlaceKind::ArrayWhole;
             result = crate::var_resolve::project_access(result, context, operation);
         }
         result
@@ -627,7 +629,7 @@ pub(crate) fn resolve_original_compiler_variable_operand(
     operation: TraceOperation,
 ) -> Place {
     original_compiler_variable_operand(compilation, written, context)
-        .map_or_else(crate::place::unknown_top, |operand| {
+        .map_or_else(tcl_names::place::unknown_top, |operand| {
             operand.resolve(context, registry, false, operation)
         })
 }
@@ -649,7 +651,7 @@ impl OriginalCompiledNamespaceLocal {
             && context.execution_name_policy == Some(self.policy))
         .then_some(())?;
         let slot = crate::var_resolve::original_compiled_local_destination(&self.primary, context);
-        (slot.kind != crate::place::PlaceKind::Unknown).then_some(slot)
+        (slot.kind != tcl_names::place::PlaceKind::Unknown).then_some(slot)
     }
 }
 
@@ -714,7 +716,7 @@ mod ordered_primary_tests {
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         super::super::SourceCommandBindings::analyse_image_in_frame_with_options(
             &tcl_lexer::SourceImage::native(source),
-            &crate::var_resolve::VariableExecutionFrame::Global,
+            &tcl_names::variable::VariableExecutionFrame::Global,
             config,
             registry,
             super::super::SourceAnalysisOptions {
@@ -828,7 +830,7 @@ mod ordered_primary_tests {
                 TraceOperation::Read
             )
             .kind,
-            crate::place::PlaceKind::Unknown
+            tcl_names::place::PlaceKind::Unknown
         );
     }
 }
@@ -871,9 +873,10 @@ mod logical_substitution_tests {
         };
         let mut state =
             ModuleCommandBindings::initial_with_options(registry, options, Some(config));
-        state.current_source_origin = Some(Arc::new(super::super::SourceOriginId::authored_image(
-            tcl_lexer::SourceImage::document(source),
-        )));
+        state.current_source_origin =
+            Some(Arc::new(tcl_names::origin::SourceOriginId::authored_image(
+                tcl_lexer::SourceImage::document(source),
+            )));
         // Chosen symbolic incoming storage; this is no executed Tcl store.
         Arc::make_mut(&mut state.source_variables)
             .bind_literal_incoming("scalar", "TARGET", registry);
@@ -897,8 +900,8 @@ mod logical_substitution_tests {
             .expect("authentic original variable component");
         let arena = super::super::original_variable_arena(Some(&original), &state, config)
             .expect("original whole image and arena");
-        let namespace = super::super::SourceNamespaceKey::authored("::");
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let namespace = tcl_names::namespace::SourceNamespaceKey::authored("::");
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let selected = super::super::root_source_execution_context(
             &frame,
             "::",
@@ -1081,7 +1084,7 @@ mod logical_substitution_tests {
                 );
                 let original_origin = state.current_source_origin.clone();
                 state.current_source_origin =
-                    Some(Arc::new(super::super::SourceOriginId::authored_image(
+                    Some(Arc::new(tcl_names::origin::SourceOriginId::authored_image(
                         tcl_lexer::SourceImage::document("consume $other"),
                     )));
                 assert!(
@@ -1093,11 +1096,12 @@ mod logical_substitution_tests {
                     )
                     .is_none()
                 );
-                state.current_source_origin = Some(Arc::new(super::super::SourceOriginId::loaded(
-                    Arc::from("captured.tcl"),
-                    Arc::from("captured-source"),
-                    &Arc::from("consume $scalar"),
-                )));
+                state.current_source_origin =
+                    Some(Arc::new(tcl_names::origin::SourceOriginId::loaded(
+                        Arc::from("captured.tcl"),
+                        Arc::from("captured-source"),
+                        &Arc::from("consume $scalar"),
+                    )));
                 assert!(
                     logical_original_substitution_access(
                         Some(original),
@@ -1109,7 +1113,7 @@ mod logical_substitution_tests {
                 );
                 state.current_source_origin = original_origin;
                 let original_frame = state.variable_frame.clone();
-                state.variable_frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                state.variable_frame = tcl_names::variable::VariableExecutionFrame::Procedure {
                     namespace: "::".to_owned(),
                     identity: "other-symbolic-entry".to_owned(),
                 };

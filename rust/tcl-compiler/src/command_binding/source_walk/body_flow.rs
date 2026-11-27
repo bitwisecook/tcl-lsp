@@ -18,9 +18,6 @@
 
 //! Body operands of a native handler: sequences, loops, conditionals and materialised scripts.
 
-use super::super::command_identity::CommandAllocationSite;
-use super::super::executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
-use super::super::source_origin::{MaterialisedSourceKind, SourceOriginId};
 use super::super::variable_access::SourceVariableEvaluationOwner;
 use super::super::{
     ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext, SourceLoopOperands,
@@ -31,7 +28,12 @@ use super::execution_context::source_loop_context_boxed;
 use super::expression_walk::source_operand_truth;
 use super::outcomes::{boxed_source_branch, opaque_source_invocation};
 use super::target_walk::resolve_source_invocation_facts;
+use crate::command_binding::{ExecutedScriptWords, SourceOriginLexical};
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{
+    ExecutedScriptMapping, ExecutedScriptSource, MaterialisedSourceKind, SourceOriginId,
+};
 use tcl_registry::CommandRegistry;
 
 impl<'a> SourceNativeInvocation<'a> {
@@ -752,7 +754,7 @@ impl SourceCommandBindings {
             .filter(|_| {
                 matches!(
                     context.frame,
-                    crate::var_resolve::VariableExecutionFrame::Selected {
+                    tcl_names::variable::VariableExecutionFrame::Selected {
                         selector: tcl_registry::FrameLevel::Relative(1),
                         ..
                     }

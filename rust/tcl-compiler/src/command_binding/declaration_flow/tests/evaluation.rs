@@ -61,7 +61,7 @@ fn original_declaration_flow_cache_retains_full_inventory_and_query_identity() {
     };
     let mut foreign_source = source.clone();
     foreign_source.text = tcl_lexer::SourceImage::native(source.text.bytes());
-    foreign_source.origin = Arc::new(super::super::super::SourceOriginId::authored_image(
+    foreign_source.origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
         foreign_source.text.clone(),
     ));
     changed.entry = Arc::new(DeclarationFlowFrame::Existing(
@@ -204,7 +204,7 @@ fn declaration_substitution_keeps_exact_original_component_ranges() {
         assert_eq!(parts.len(), 1, "{command}");
         let (spelling, span) = parts[0];
         let site = CommandAllocationSite {
-            source: Arc::new(super::super::super::SourceOriginId::authored(&Arc::from(
+            source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
                 source.as_str(),
             ))),
             offset: base,
@@ -458,7 +458,7 @@ fn conditional_reachability_preserves_terminal_and_unavailable_paths() {
             "{source}"
         );
         let other = CommandAllocationSite {
-            source: Arc::new(super::super::super::SourceOriginId::authored(
+            source: Arc::new(tcl_names::origin::SourceOriginId::authored(
                 &"puts AFTER".into(),
             )),
             offset: 0,
@@ -617,9 +617,7 @@ fn authored_read_occurrences_preserve_unknown_runtime_and_array_effects() {
     assert_eq!(result.invocation_may_be_reached(&site), None);
     assert!(!result.local_store_may_be_unread(&site, "x"));
     assert!(!result.owns_invocation(&CommandAllocationSite {
-        source: Arc::new(super::super::super::SourceOriginId::authored(
-            &source.into()
-        )),
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&source.into())),
         offset: 1,
     }));
 }

@@ -19,10 +19,12 @@
 //! Actual post-argv variable reads, independently of lexical body containment.
 
 use super::{
-    Arc, CommandAllocationSite, Hash, InvocationFacts, ModuleCommandBindings,
-    SourceCommandBindings, SourceExecutionContext, SourceInvocationBinding, SourceOriginId,
-    SourceOutcomes, SourceVariableAccess, SourceVariableEvaluationOwner,
+    Arc, Hash, InvocationFacts, ModuleCommandBindings, SourceCommandBindings,
+    SourceExecutionContext, SourceInvocationBinding, SourceOutcomes, SourceVariableAccess,
+    SourceVariableEvaluationOwner,
 };
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 /// Unenumerated read effects in an actual invocation's execution subtree.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -38,7 +40,7 @@ pub enum SourceVariableReadResidual {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceInvocationVariableRead {
     /// Selected physical address, including any bounded unknown-address envelope.
-    pub place: crate::place::Place,
+    pub place: tcl_names::place::Place,
     /// Variable world at that read, before its own observer callback.
     pub variable_context: Arc<crate::var_resolve::ResolveContext>,
     context_fingerprint: u64,
@@ -284,7 +286,7 @@ impl SourceCommandBindings {
             .collect();
         let bounded = facts.arg_roles_complete
             && native_reads.iter().all(|read| {
-                !read.place.observed && read.place.kind != crate::place::PlaceKind::Unknown
+                !read.place.observed && read.place.kind != tcl_names::place::PlaceKind::Unknown
             });
         self.extend_invocation_reads(
             context.variable_read_owner,

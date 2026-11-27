@@ -18,9 +18,11 @@
 
 //! Original argv syntax is independent of dispatch and compiler visitation.
 
-use super::{Arc, CommandAllocationSite, SourceCommandBindings, SourceInvocationBinding};
+use super::{Arc, SourceCommandBindings, SourceInvocationBinding};
+use crate::command_binding::SourceOriginLexical;
 use crate::ir::CommandTokens;
 use tcl_lexer::LexerConfig;
+use tcl_names::command::CommandAllocationSite;
 
 /// A sealed vector from an actual kernel-segmented command, or one of its
 /// complete checked argv substitutions. No lookup world, descriptor, variable
@@ -297,7 +299,7 @@ impl SourceInvocationBinding {
                 return None;
             };
             if advice.has_unclosed_source_coverage()
-                || target.kind != super::BindingKind::Builtin
+                || target.kind != tcl_names::command::BindingKind::Builtin
                 || !target.registry_backed
                 || !target.prepended.is_empty()
                 || target.implementation_generation != 0
@@ -334,7 +336,7 @@ fn direct_original_root_argument_row(
         || row.config != syntax.config
         || !Arc::ptr_eq(&source.origin, &syntax.owner.source)
         || state.current_source_origin.as_ref() != Some(&syntax.owner.source)
-        || frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global
+        || frame.layout() != &tcl_names::variable::VariableExecutionFrame::Global
         || frame != &state.variable_frame
         || namespace != &row.namespace
         || state.baseline.metadata_context.source_analysis_input() != Some(original)
@@ -562,7 +564,7 @@ mod purpose_controls {
         let image = tcl_lexer::SourceImage::document(source);
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_purpose(
             &image,
-            &crate::var_resolve::VariableExecutionFrame::Global,
+            &tcl_names::variable::VariableExecutionFrame::Global,
             config,
             registry,
             entry.options(),

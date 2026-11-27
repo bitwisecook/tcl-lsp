@@ -445,7 +445,7 @@ mod tests {
                 binding
                     .targets
                     .iter()
-                    .all(|target| { target.kind != crate::command_binding::BindingKind::Class })
+                    .all(|target| { target.kind != tcl_names::command::BindingKind::Class })
             );
         }
         let source = format!("{declaration}Counter create mine");

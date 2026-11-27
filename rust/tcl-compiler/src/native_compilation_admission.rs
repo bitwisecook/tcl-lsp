@@ -24,7 +24,8 @@
 
 use std::sync::Arc;
 
-use crate::command_binding::{ExecutedScriptSource, SourceNativeCompilationFailure};
+use crate::command_binding::SourceNativeCompilationFailure;
+use tcl_names::origin::ExecutedScriptSource;
 
 /// Original compilation obligation, independent of a target instruction set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -149,7 +150,8 @@ pub fn script_requires_admission(script: &crate::ir::Script) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command_binding::{CommandAllocationSite, ExecutedScriptMapping, SourceOriginId};
+    use tcl_names::command::CommandAllocationSite;
+    use tcl_names::origin::{ExecutedScriptMapping, SourceOriginId};
 
     #[test]
     fn materialised_source_keeps_its_identity_at_both_entry_protocols() {

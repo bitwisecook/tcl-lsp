@@ -436,9 +436,8 @@ fn consumed_command_names_navigate_without_becoming_execution_heads() {
 #[test]
 fn retained_loaded_indirect_definition_does_not_use_a_local_qname_decoy() {
     use std::sync::Arc;
-    use tcl_compiler::command_binding::{
-        SourceAnalysisEntry, SourceOriginKind, TrustedSourceModuleLoader,
-    };
+    use tcl_compiler::command_binding::{SourceAnalysisEntry, TrustedSourceModuleLoader};
+    use tcl_names::origin::SourceOriginKind;
     let source = "proc greet {} { return local }\nsource provider.tcl\nset cmd greet\n$cmd\n";
     let entry = Arc::new(SourceAnalysisEntry {
         trusted_source_modules: vec![TrustedSourceModuleLoader::new(
@@ -526,7 +525,7 @@ fn indirect_alias_wrapper_does_not_borrow_a_displaced_class_definition() {
     assert!(matches!(
         reference.binding(),
         tcl_compiler::command_binding::SourceCommandReferenceBinding::Direct {
-            kind: tcl_compiler::command_binding::BindingKind::Alias,
+            kind: tcl_names::command::BindingKind::Alias,
             ..
         }
     ));

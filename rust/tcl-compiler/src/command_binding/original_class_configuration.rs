@@ -19,14 +19,13 @@
 //! Original class configuration targets at their independently retained point.
 
 use super::{
-    BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings, OriginalCommandLookup,
-    SourceCommandBindings, SourceCommandDefinition, SourceCommandDefinitionKind,
-    SourceCommandReferenceBinding,
+    MayBinding, ModuleCommandBindings, OriginalCommandLookup, SourceCommandBindings,
+    SourceCommandDefinition, SourceCommandDefinitionKind, SourceCommandReferenceBinding,
 };
-use crate::signature_scan::{
-    original_name::SourceOriginalNameOccurrence,
-    scope::{SignatureSourceNameInput, SignatureSourceNameKey},
-};
+use crate::signature_scan::original_name::SourceOriginalNameOccurrence;
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite};
+use tcl_names::word::SignatureSourceNameKey;
 
 /// Target of one original class configuration. The original operand and
 /// lookup point remain independent of the optional local class allocation.
@@ -38,7 +37,7 @@ pub struct OriginalSourceClassConfigurationTarget {
     input: SignatureSourceNameInput,
     lookup: OriginalCommandLookup,
     local_definition: Option<SourceCommandDefinition>,
-    local_allocation: Option<super::CommandAllocation>,
+    local_allocation: Option<tcl_names::command::CommandAllocation>,
     external_candidate: bool,
     registry_identity: String,
     layer: tcl_registry::ObjectDispatchLayer,
@@ -74,7 +73,7 @@ impl OriginalSourceClassConfigurationTarget {
     /// Exact allocation occupying the operand's own slot. This independently
     /// joins original class metadata; the allocation alone proves no class role.
     #[must_use]
-    pub const fn local_allocation(&self) -> Option<&super::CommandAllocation> {
+    pub const fn local_allocation(&self) -> Option<&tcl_names::command::CommandAllocation> {
         self.local_allocation.as_ref()
     }
     /// Every original path lacked a local occupied command. A workspace may
@@ -102,7 +101,7 @@ pub struct OriginalSourceObjectConfigurationTarget {
     written: usize,
     input: Option<SignatureSourceNameInput>,
     instance: super::SourceObjectInstanceProof,
-    naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    naming_scope: Option<tcl_names::namespace::SignatureNamespaceScope>,
     registry_identity: String,
 }
 
@@ -134,7 +133,7 @@ impl OriginalSourceObjectConfigurationTarget {
     #[must_use]
     pub const fn original_naming_scope(
         &self,
-    ) -> Option<&crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<&tcl_names::namespace::SignatureNamespaceScope> {
         self.naming_scope.as_ref()
     }
     pub(crate) fn registry_identity(&self) -> &str {
@@ -467,7 +466,7 @@ impl ModuleCommandBindings {
     pub(super) fn original_named_instance_for_operand(
         &self,
         input: &SignatureSourceNameInput,
-        current: &super::SourceNamespaceKey,
+        current: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<&super::SourceObjectInstanceProof> {
         let paths = self.original_command_paths_for_input(current, input)?;
         let mut unanimous = None;
@@ -521,11 +520,11 @@ impl ModuleCommandBindings {
     fn original_local_class_for_operand(
         &self,
         input: &SignatureSourceNameInput,
-        current: &super::SourceNamespaceKey,
+        current: &tcl_names::namespace::SourceNamespaceKey,
         site: &CommandAllocationSite,
     ) -> Option<(
         Option<SourceCommandDefinition>,
-        Option<super::CommandAllocation>,
+        Option<tcl_names::command::CommandAllocation>,
         bool,
     )> {
         let paths = self.original_command_paths_for_input(current, input)?;

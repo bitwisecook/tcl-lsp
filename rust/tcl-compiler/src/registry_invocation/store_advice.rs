@@ -22,10 +22,10 @@
 //! stores unchanged. It is not a dead-store elimination or replay contract.
 
 use super::InvocationMetadataContext;
-use crate::command_binding::CommandAllocationSite;
 use crate::ir::CommandTokens;
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::ContentsOrigin;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use tcl_registry::CommandRegistry;
 use tcl_source::words::WordExpr;
 
@@ -50,7 +50,7 @@ impl ConditionalDeclaredLocalOverwriteAdvice {
     pub(crate) fn owns_source(&self, source: &tcl_lexer::SourceImage) -> bool {
         self.first.source == self.next.source
             && self.first.offset < self.next.offset
-            && matches!(self.first.source.kind(), crate::command_binding::SourceOriginKind::Authored(image) if image == source)
+            && matches!(self.first.source.kind(), tcl_names::origin::SourceOriginKind::Authored(image) if image == source)
     }
 }
 

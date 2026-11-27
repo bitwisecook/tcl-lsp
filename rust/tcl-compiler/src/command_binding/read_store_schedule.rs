@@ -19,13 +19,15 @@
 //! Actual sole-expression reads paired with their later captured native stores.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings,
-    SourceExecutionContext, SourceExpressionPreparation, SourceInvocationBinding,
-    SourceNativeInvocation, SourceOriginId, SourceVariableEvaluationOwner,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    SourceExpressionPreparation, SourceInvocationBinding, SourceNativeInvocation,
+    SourceVariableEvaluationOwner,
 };
-use crate::place::Place;
 use crate::var_resolve::ResolveContext;
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
+use tcl_names::place::Place;
 use tcl_source::words::SourceSite;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -141,11 +143,11 @@ impl CapturedExpressionRead {
         if place.observed
             || place.dynamic
             || place.index.is_some()
-            || place.kind != crate::place::PlaceKind::Scalar
+            || place.kind != tcl_names::place::PlaceKind::Scalar
             || place
                 .cell
                 .as_ref()
-                .is_none_or(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+                .is_none_or(|cell| cell.generation == tcl_names::place::CellGeneration::Unknown)
             || !before.read_produces_value(&place, context.registry)
             || !before.contents_native_string_access_closed_at(&place, context.registry)
             || !state.ordinary_literal_pool.as_ref().is_some_and(
@@ -396,7 +398,7 @@ mod tests {
                 .place_in_context(context, environment.commands())
                 .cell
                 .as_ref()
-                .is_none_or(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+                .is_none_or(|cell| cell.generation == tcl_names::place::CellGeneration::Unknown)
         }));
     }
 

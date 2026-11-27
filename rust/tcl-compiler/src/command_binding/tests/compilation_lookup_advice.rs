@@ -33,7 +33,7 @@ fn logical_command_layout_keeps_unknown_physical_frames_separate() {
     let image = tcl_lexer::SourceImage::document("proc subject {} {return VALUE}");
     let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
         &image,
-        &crate::var_resolve::VariableExecutionFrame::Unknown,
+        &tcl_names::variable::VariableExecutionFrame::Unknown,
         config,
         context.commands(),
         SourceAnalysisOptions::for_logical_source(&input).unwrap(),
@@ -43,7 +43,7 @@ fn logical_command_layout_keeps_unknown_physical_frames_separate() {
     assert_eq!(point.state.logical_source_name_advice_input(), Some(&input));
     assert_eq!(
         point.state.variable_frame,
-        crate::var_resolve::VariableExecutionFrame::Unknown
+        tcl_names::variable::VariableExecutionFrame::Unknown
     );
     let segment =
         tcl_source::segment::segment_commands_image_with_offset_and_config(&image, 0, config)
@@ -65,7 +65,7 @@ fn logical_command_layout_keeps_unknown_physical_frames_separate() {
     .expect("conditional original Logical layout");
     assert_eq!(
         selected.frame(),
-        &crate::var_resolve::VariableExecutionFrame::Unknown
+        &tcl_names::variable::VariableExecutionFrame::Unknown
     );
     assert!(selected.targets.iter().all(|target| target.registry_backed));
     assert!(snapshot.state.baseline.native_entry.is_none());

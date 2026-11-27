@@ -19,10 +19,11 @@
 //! Complete unobserved intrinsic command moves at their actual occupied cells.
 
 use super::{
-    Arc, BTreeSet, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    ResolvedCommandTarget, SourceCommandKey, SourceExecutionContext, SourceNativeInvocation,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
+    SourceExecutionContext, SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite, SourceCommandKey};
 use tcl_registry::{CommandBindingTransition, InvocationFacts, StateTransition};
 
 /// Independent intrinsic move premises, captured before the operation. A
@@ -222,7 +223,7 @@ impl OriginalCommandMove {
     /// owners.
     fn deletion_runs_no_cleanup(
         state: &ModuleCommandBindings,
-        current: &super::SourceNamespaceKey,
+        current: &tcl_names::namespace::SourceNamespaceKey,
         source: &SourceCommandKey,
         binding: &MayBinding,
         target: &ResolvedCommandTarget,
@@ -313,7 +314,7 @@ impl OriginalCommandMove {
         let identity = target.token.as_ref()?;
         if identity.runtime.is_some()
             || identity.allocation.as_ref().is_some_and(|allocation| {
-                allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+                allocation.incarnation == tcl_names::command::AllocationIncarnation::RepeatedFresh
             })
         {
             return None;

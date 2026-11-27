@@ -527,7 +527,7 @@ fn normal_return_type_receipts_do_not_follow_a_reused_proc_name() {
                 .top_level
                 .retained_source_tokens_for_statement(statement)?;
             let target = tokens.source_binding.as_ref()?.proved_execution_target()?;
-            (target.kind == crate::command_binding::BindingKind::Proc).then(|| {
+            (target.kind == tcl_names::command::BindingKind::Proc).then(|| {
                 facts
                     .normal_procedure_result(target)
                     .and_then(crate::types::TypeLattice::tcl_type)

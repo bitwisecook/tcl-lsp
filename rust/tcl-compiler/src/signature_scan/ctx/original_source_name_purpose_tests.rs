@@ -133,7 +133,7 @@ fn original_logical_scanner_and_analyser_select_the_same_complete_word_owner() {
     assert_eq!(scan.source_image(), word.image());
     assert_eq!(scan.lexer_config(), word.config());
     assert!(
-        crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             word, ctx.rules, policy,
         )
         .is_none()

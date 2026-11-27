@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::signature_scan::scope::SignatureNamespaceChild;
 use tcl_core_types::{ByteNamespacePath, NameBytes};
 
 fn analyse(source: &str, version: tcl_dialect::TclVersion) -> SourceCommandBindings {

@@ -73,13 +73,12 @@ fn original_method_completion_replaces_the_complete_grouped_selector() {
     )
     .unwrap();
     let word = &plan.commands.last().unwrap().words[1];
-    let key =
-        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-            word,
-            tcl_syntax::word_rules::WordValueRules::from_config(&config),
-            wanted.original_name_input().policy(),
-        )
-        .unwrap();
+    let key = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+        word,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        wanted.original_name_input().policy(),
+    )
+    .unwrap();
     assert_eq!(key.bytes(), wanted.original_name_input().bytes());
 }
 

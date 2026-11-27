@@ -42,6 +42,7 @@
 //! under the same name as the analyser's delegate, recognising only
 //! `[…]` and `${…}`.
 
+use crate::command_binding::SourceOriginLexical;
 use tcl_lexer::Span;
 
 /// Extend a span through trailing closing delimiters (`]`, `}`,

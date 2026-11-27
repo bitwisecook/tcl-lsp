@@ -105,7 +105,7 @@ pub(super) fn caller_safe_factory_invocation(
     // An actual class target lacking the default owner cannot be repaired
     // through its reporting name or an ordinary TclOO default grammar.
     if binding.proved_target().is_some_and(|target| {
-        target.kind == crate::command_binding::BindingKind::Class || !target.registry_backed
+        target.kind == tcl_names::command::BindingKind::Class || !target.registry_backed
     }) {
         return false;
     }

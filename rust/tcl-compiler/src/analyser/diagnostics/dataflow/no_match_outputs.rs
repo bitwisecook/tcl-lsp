@@ -366,7 +366,9 @@ fn record_no_match_outputs(
             logical
                 .then(|| {
                     fu.ssa
-                        .cell_symbol(&crate::var_resolve::VariableCellKey::Authored(name.clone()))
+                        .cell_symbol(&tcl_names::variable::VariableCellKey::Authored(
+                            name.clone(),
+                        ))
                 })
                 .flatten()
         });

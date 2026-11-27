@@ -18,13 +18,15 @@
 
 //! `VariableProofRelocation`: alpha-renaming proved allocations and source sites, and relocating a whole `ResolveContext` through it.
 
-use super::cell_key::{VariableCellKey, VariableCellKeyQuery, VariableCellTable};
 use super::{
     ContentsOrigin, PendingNamespaceRetirement, PossibleVariableTraceRegistration, ResolveContext,
-    VariableExecutionFrame,
 };
-use crate::place::{CellGeneration, CellOwner, Place};
+use crate::raw_binding::RawBindingSlotRelocation;
 use std::collections::HashMap;
+use tcl_names::place::{CellGeneration, CellOwner, Place};
+use tcl_names::variable::{
+    VariableCellKey, VariableCellKeyQuery, VariableCellTable, VariableExecutionFrame,
+};
 
 /// Exact alpha-renaming of proved activation allocations and source write sites.
 /// Unmapped external identities remain unchanged and therefore retain cache dependencies.
@@ -39,8 +41,8 @@ pub struct VariableProofRelocation {
     pub storage_keys: HashMap<VariableCellKey, VariableCellKey>,
     /// Exact source instances mapped by an authorised body-template owner.
     pub source_origins: std::collections::BTreeMap<
-        std::sync::Arc<crate::command_binding::SourceOriginId>,
-        std::sync::Arc<crate::command_binding::SourceOriginId>,
+        std::sync::Arc<tcl_names::origin::SourceOriginId>,
+        std::sync::Arc<tcl_names::origin::SourceOriginId>,
     >,
 }
 
@@ -84,8 +86,8 @@ impl VariableProofRelocation {
     #[must_use]
     pub fn source_origin(
         &self,
-        source: &std::sync::Arc<crate::command_binding::SourceOriginId>,
-    ) -> std::sync::Arc<crate::command_binding::SourceOriginId> {
+        source: &std::sync::Arc<tcl_names::origin::SourceOriginId>,
+    ) -> std::sync::Arc<tcl_names::origin::SourceOriginId> {
         self.source_origins
             .get(source)
             .cloned()
@@ -185,9 +187,10 @@ impl VariableProofRelocation {
     #[must_use]
     pub fn namespace_key(
         &self,
-        key: &crate::command_binding::SourceNamespaceKey,
-    ) -> crate::command_binding::SourceNamespaceKey {
-        use crate::command_binding::{CommandAllocationSite, SourceNamespaceKey};
+        key: &tcl_names::namespace::SourceNamespaceKey,
+    ) -> tcl_names::namespace::SourceNamespaceKey {
+        use tcl_names::command::CommandAllocationSite;
+        use tcl_names::namespace::SourceNamespaceKey;
         match key {
             SourceNamespaceKey::Allocated {
                 site,

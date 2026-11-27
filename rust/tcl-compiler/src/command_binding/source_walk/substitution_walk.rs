@@ -230,7 +230,7 @@ impl SourceCommandBindings {
         arena: Option<&tcl_lexer::ExecutablePartArena>,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
-    ) -> Option<crate::place::Place> {
+    ) -> Option<tcl_names::place::Place> {
         original_variable_compilation::logical_original_substitution_access(
             original, arena, state, context,
         )
@@ -305,7 +305,7 @@ impl SourceCommandBindings {
             );
             let access = logical.unwrap_or_else(|| {
                 root.as_ref().zip(lexical.as_ref()).map_or_else(
-                    crate::place::unknown_top,
+                    tcl_names::place::unknown_top,
                     |(root, lexical)| {
                         lexical.resolve_root(
                             root,
@@ -523,7 +523,7 @@ impl SourceCommandBindings {
             state, context,
         );
         let access = root.as_ref().zip(lexical.as_ref()).map_or_else(
-            crate::place::unknown_top,
+            tcl_names::place::unknown_top,
             |(root, lexical)| {
                 lexical.resolve_root(
                     root,

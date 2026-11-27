@@ -20,9 +20,11 @@
 
 use super::*;
 use crate::analyser::ResolvedAnalysisInput;
-use crate::command_binding::{ExecutedScriptSource, SourceAnalysisEntry, SourceNamespaceKey};
+use crate::command_binding::SourceAnalysisEntry;
 use crate::registry_invocation::{InvocationMetadataContext, OwnedInvocationMetadataContext};
 use std::sync::Arc;
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::ExecutedScriptSource;
 
 struct Fixture {
     context: Arc<tcl_registry::model::ContextRegistry>,
@@ -319,9 +321,9 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
     changed_channel.text = tcl_lexer::SourceImage::document(fixture.body.try_text().unwrap());
     assert_missing_body_geometry(&fixture, &changed_channel, config);
     let foreign_source = ExecutedScriptSource::contiguous(
-        Arc::new(crate::command_binding::SourceOriginId::authored(
-            &Arc::from("set result VALUE"),
-        )),
+        Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            "set result VALUE",
+        ))),
         "set result VALUE",
         0,
     )
@@ -559,7 +561,7 @@ fn original_derived_body_geometry_retains_the_exact_parent_word_and_namespace() 
         let (fixture, parent) = folded_fixture(environment);
         assert!(matches!(
             fixture.body.origin.kind(),
-            crate::command_binding::SourceOriginKind::Derived { .. }
+            tcl_names::origin::SourceOriginKind::Derived { .. }
         ));
         assert_ne!(fixture.bindings.source_origin(), Some(&fixture.body.origin));
         assert!(
@@ -738,7 +740,7 @@ fn original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_
     changed_text.text = tcl_lexer::SourceImage::native(b"set result OTHER".as_slice());
     let wrong_ordinal =
         ExecutedScriptSource::materialised(site.clone(), vec![2], fixture.body.try_text().unwrap());
-    let shifted_parent = crate::command_binding::CommandAllocationSite {
+    let shifted_parent = tcl_names::command::CommandAllocationSite {
         offset: site.offset + 1,
         ..site.clone()
     };
@@ -747,10 +749,10 @@ fn original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_
         vec![1],
         fixture.body.try_text().unwrap(),
     );
-    let foreign_parent = crate::command_binding::CommandAllocationSite {
-        source: Arc::new(crate::command_binding::SourceOriginId::authored(
-            &Arc::from("if {$condition} {set result OTHER}"),
-        )),
+    let foreign_parent = tcl_names::command::CommandAllocationSite {
+        source: Arc::new(tcl_names::origin::SourceOriginId::authored(&Arc::from(
+            "if {$condition} {set result OTHER}",
+        ))),
         offset: site.offset,
     };
     let foreign_source = ExecutedScriptSource::materialised(

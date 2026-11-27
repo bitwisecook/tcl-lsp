@@ -260,7 +260,7 @@ fn variable_in_document_root(
     config: tcl_lexer::LexerConfig,
     reference: u32,
 ) -> bool {
-    use tcl_compiler::var_resolve::VariableExecutionFrame;
+    use tcl_names::variable::VariableExecutionFrame;
 
     let logical_root = analysis
         .logical_variable_scope_advice(image, config, reference)
@@ -277,13 +277,14 @@ fn variable_in_document_root(
                 || {
                     // Native source retains body frames separately from the
                     // document root. Require its retained outermost namespace.
-                    analysis.original_namespace_scope_at(reference).is_some_and(
-                        tcl_compiler::signature_scan::scope::SignatureNamespaceScope::is_root,
-                    ) && !analysis.global_scope.children.iter().any(|child| {
-                        child.body_span.is_some_and(|span| {
-                            span.start() <= reference && reference <= span.end()
+                    analysis
+                        .original_namespace_scope_at(reference)
+                        .is_some_and(tcl_names::namespace::SignatureNamespaceScope::is_root)
+                        && !analysis.global_scope.children.iter().any(|child| {
+                            child.body_span.is_some_and(|span| {
+                                span.start() <= reference && reference <= span.end()
+                            })
                         })
-                    })
                 },
                 |frame| matches!(frame.frame(), VariableExecutionFrame::Global),
             )

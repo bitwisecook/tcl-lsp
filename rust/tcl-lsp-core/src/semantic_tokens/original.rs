@@ -27,8 +27,8 @@ pub(super) use embedded_language::{insert_format_overrides, insert_pattern_overr
 use super::{ArgOverride, ScriptCtx, TokenKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::signature_scan::scope::SignatureSourceNameKey;
 use tcl_lexer::{SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_source::segment::SegmentedCommand;
 
 #[derive(Default)]

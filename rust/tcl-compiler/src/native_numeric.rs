@@ -587,7 +587,7 @@ impl crate::var_resolve::ResolveContext {
     /// deliberately does not request a second read or rerun its observers.
     pub(crate) fn selected_contents_numeric_hooks_closed(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
     ) -> bool {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound {
             return false;
@@ -616,7 +616,7 @@ impl crate::var_resolve::ResolveContext {
 
     pub(crate) fn contents_stock_literal_object_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::command_binding::SourceStockLiteralObject> {
         self.read_produces_value(place, registry).then_some(())?;
@@ -631,7 +631,7 @@ impl crate::var_resolve::ResolveContext {
     /// purpose query does not establish a numeric intrep or concrete value.
     pub(crate) fn contents_integer_increment_conversion_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<SourceIntegerConvertibleContents> {
         // The sealed closed domain records all producer alternatives. Their
@@ -653,7 +653,7 @@ impl crate::var_resolve::ResolveContext {
     /// neither Integer cache subtype nor Increment acceptance or a value.
     pub(crate) fn contents_integer_number_branch_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound
@@ -696,7 +696,7 @@ impl crate::var_resolve::ResolveContext {
     #[must_use]
     pub fn contents_native_string_access_closed_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound {
@@ -715,7 +715,7 @@ impl crate::var_resolve::ResolveContext {
 
     pub(crate) fn contents_native_string_result_input_closed_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         self.contents_native_string_access_receipt_at(place, registry)
@@ -728,7 +728,7 @@ impl crate::var_resolve::ResolveContext {
 
     pub(crate) fn contents_native_string_access_receipt_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<&Arc<crate::command_binding::SourceNativeStringAccess>> {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound
@@ -750,7 +750,7 @@ impl crate::var_resolve::ResolveContext {
     #[must_use]
     pub fn contents_native_numeric_category_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<tcl_registry::TclType> {
         self.contents_already_native_numeric_at(place, registry)
@@ -786,7 +786,7 @@ impl crate::var_resolve::ResolveContext {
 
     pub(crate) fn contents_native_numeric_shape_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<SourceNativeNumericShape> {
         self.contents_already_native_numeric_at(place, registry)
@@ -804,7 +804,7 @@ impl crate::var_resolve::ResolveContext {
     #[must_use]
     pub fn contents_already_native_numeric_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         if self.binding_identity != crate::var_resolve::BindingIdentity::Bound
@@ -872,7 +872,7 @@ impl crate::var_resolve::ResolveContext {
     /// receipts are retired because other cells may share that index object.
     pub(crate) fn invalidate_numeric_index_representations(
         &mut self,
-        indices: &[crate::place::Place],
+        indices: &[tcl_names::place::Place],
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
         if indices.is_empty() {
@@ -931,9 +931,9 @@ impl crate::var_resolve::ResolveContext {
         if self.representation_epoch != Some(receipt.epoch)
             || place.observed
             || place.dynamic
-            || place.kind != crate::place::PlaceKind::Scalar
+            || place.kind != tcl_names::place::PlaceKind::Scalar
             || place.index.is_some()
-            || !matches!(&cell.owner, crate::place::CellOwner::Activation(owner) if self.activation.as_ref() == Some(owner))
+            || !matches!(&cell.owner, tcl_names::place::CellOwner::Activation(owner) if self.activation.as_ref() == Some(owner))
             || self.contents_presence(&place) != crate::var_resolve::ContentsPresence::Defined
             || self.contents_origin(&place) != crate::var_resolve::ContentsOrigin::Incoming
         {
@@ -951,7 +951,7 @@ impl crate::var_resolve::ResolveContext {
     #[must_use]
     pub fn contents_native_numeric_at(
         &self,
-        place: &crate::place::Place,
+        place: &tcl_names::place::Place,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Arc<SourceNativeNumericObject>> {
         use crate::var_resolve::{BindingIdentity, ContentsOrigin, ContentsPresence};
@@ -959,13 +959,13 @@ impl crate::var_resolve::ResolveContext {
         if self.binding_identity != BindingIdentity::Bound
             || place.observed
             || place.dynamic
-            || place.kind != crate::place::PlaceKind::Scalar
+            || place.kind != tcl_names::place::PlaceKind::Scalar
             || place.index.is_some()
             || self.dynamic_bindings
             || self.dynamic_traces
             || self.contents_presence(place) != ContentsPresence::Defined
             || self.store_would_error(place)
-            || cell.generation == crate::place::CellGeneration::Unknown
+            || cell.generation == tcl_names::place::CellGeneration::Unknown
             || cell.generation
                 != self
                     .generations
@@ -1041,7 +1041,7 @@ pub(crate) struct SourceIntegerContentsRead {
     recipe: tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol,
     contents: ExactValue<String>,
     number: TclValue,
-    cells: Vec<crate::place::CellIdentity>,
+    cells: Vec<tcl_names::place::CellIdentity>,
 }
 
 impl SourceIntegerContentsRead {

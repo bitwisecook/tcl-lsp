@@ -71,17 +71,21 @@ fn ssa_block_construction() {
 #[test]
 fn array_relationships_use_physical_kinds_instead_of_key_text() {
     let mut elements = ArrayElems::default();
-    elements.note(crate::place::scalar("literal(parenthesis)", "::", false));
+    elements.note(tcl_names::place::scalar(
+        "literal(parenthesis)",
+        "::",
+        false,
+    ));
     assert!(elements.elements.is_empty());
-    let element = crate::place::array_elem(
+    let element = tcl_names::place::array_elem(
         "a",
-        crate::place::Index::literal("key"),
+        tcl_names::place::Index::literal("key"),
         "::N(parenthesis)",
         false,
     );
     let element_key = crate::var_resolve::canonical_binding_value_key(&element).unwrap();
     let mut root = element.clone();
-    root.kind = crate::place::PlaceKind::ArrayWhole;
+    root.kind = tcl_names::place::PlaceKind::ArrayWhole;
     root.index = None;
     let root_key = crate::var_resolve::canonical_binding_value_key(&root).unwrap();
     elements.note(element);

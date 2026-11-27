@@ -18,13 +18,12 @@
 
 //! The binding a recorded point or a retained lookup state projects for a command word.
 
-use super::command_identity::CommandAllocationSite;
 use super::compiled_invocation::{CompiledExecutionResidual, NativeInlineRejection};
 use super::compiler_inventory::SourceRuntimeReachability;
 use super::invocation_binding::{
     OriginalArgumentCompletion, SourceCompilerNameClosure, SourceObserverExecution,
 };
-use super::namespace_context::{NamespaceKeyQuery, SourceNamespaceKey};
+use super::namespace_context::NamespaceKeyQuery;
 use super::{
     MayBinding, ModuleCommandBindings, PointBindingMemo, ReceiverNamespaceContents,
     SourceBindingPoint, SourceCommandTarget, SourceInvocationBinding, SourceLookupSnapshot,
@@ -32,6 +31,8 @@ use super::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::SourceNamespaceKey;
 
 impl Clone for PointBindingMemo {
     fn clone(&self) -> Self {

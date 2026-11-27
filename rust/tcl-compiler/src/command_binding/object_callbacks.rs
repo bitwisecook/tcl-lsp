@@ -19,10 +19,12 @@
 //! Current object-method effects, independently of native handler selection.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandBindings,
-    SourceExecutionContext, SourceInvocationBinding, SourceNativeInvocation, SourceOriginId,
+    Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    SourceInvocationBinding, SourceNativeInvocation,
 };
 use std::collections::BTreeMap;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 use tcl_registry::{
     InvocationArguments, InvocationFacts,
     list_object_methods::{NativeListMethod, NativeListObjectProtocol},

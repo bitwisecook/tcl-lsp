@@ -19,10 +19,11 @@
 //! Exact namespace script delegation and enclosing handler completion.
 
 use super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
-    SourceNamespaceKey, SourceNativeInvocation,
+    Arc, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext, SourceNativeInvocation,
 };
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 
 /// Exact original script handed to the common namespace body walker. This
 /// receipt owns correspondence and Ensure geometry, without completion.
@@ -32,7 +33,7 @@ struct OriginalNamespaceBodyDelegation {
     words: Vec<tcl_source::words::WordExpr>,
     config: tcl_lexer::LexerConfig,
     handler: SourceCommandTarget,
-    body: super::ExecutedScriptSource,
+    body: tcl_names::origin::ExecutedScriptSource,
     argument: usize,
     namespace_scope: SignatureNamespaceScope,
 }
@@ -42,8 +43,8 @@ struct OriginalNamespaceBodyDelegation {
 pub(super) struct OriginalNamespaceBody {
     delegation: OriginalNamespaceBodyDelegation,
     namespace: SourceNamespaceKey,
-    entered: crate::var_resolve::VariableExecutionFrame,
-    parent: crate::var_resolve::VariableExecutionFrame,
+    entered: tcl_names::variable::VariableExecutionFrame,
+    parent: tcl_names::variable::VariableExecutionFrame,
 }
 
 /// A quiet world whose original command and namespace tables are complete:
@@ -83,7 +84,7 @@ fn admits_delegation(
             == tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::NamespaceEval)
         && facts.analyser_hook == Some(AnalyserHookId::NamespaceEval)
         && native.target.registry_backed
-        && native.target.kind == super::BindingKind::Builtin
+        && native.target.kind == tcl_names::command::BindingKind::Builtin
         && native.target.implementation_generation == 0
         && native.target.runtime_implementation_generation.is_none()
         && native.target.prepended.is_empty()
@@ -484,7 +485,7 @@ mod tests {
             let state = &point.lookup_state.as_ref().unwrap().state;
             assert!(matches!(
                 state.variable_frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::Global
+                tcl_names::variable::VariableExecutionFrame::Global
             ));
             assert_eq!(
                 state.source_variables.namespace_identity,
@@ -504,12 +505,12 @@ mod tests {
                 .invocation_at_source("proc", u32::try_from(source.find("proc").unwrap()).unwrap());
             assert_eq!(
                 child.variable_context.namespace_identity,
-                Some(super::super::SourceNamespaceKey::authored("::A")),
+                Some(tcl_names::namespace::SourceNamespaceKey::authored("::A")),
                 "{version:?}"
             );
             assert!(matches!(
                 child.variable_frame.layout(),
-                crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
             ));
             let parent = bindings.invocation_at_source(
                 "set",

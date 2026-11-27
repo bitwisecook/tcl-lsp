@@ -300,20 +300,19 @@ mod tests {
             let input = operands
                 .input(0, &binding.variable_context)
                 .unwrap_or_else(|| panic!("{name}: counted original export pattern"));
-            let native =
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    &tcl_lexer::native_script_words_in(
-                        tcl_lexer::SourceImage::document(source),
-                        tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
-                        config,
-                    )
-                    .unwrap()
-                    .commands[0]
-                        .words[2],
-                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                    input.policy(),
+            let native = tcl_names::word::SignatureSourceNameKey::from_original_native_word(
+                &tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::document(source),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    config,
                 )
-                .unwrap();
+                .unwrap()
+                .commands[0]
+                    .words[2],
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                input.policy(),
+            )
+            .unwrap();
             assert_eq!(input.bytes(), native.bytes(), "{name}");
             assert!(
                 bindings.original_completed_command_world().is_some(),

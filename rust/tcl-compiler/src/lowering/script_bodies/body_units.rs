@@ -45,7 +45,7 @@ impl Lowerer<'_> {
             qualified_name: qualified,
             publication: None,
             declaration_site: body.executed_source.as_ref().map(|source| {
-                crate::command_binding::CommandAllocationSite {
+                tcl_names::command::CommandAllocationSite {
                     source: std::sync::Arc::clone(&source.origin),
                     offset: source.base(),
                 }

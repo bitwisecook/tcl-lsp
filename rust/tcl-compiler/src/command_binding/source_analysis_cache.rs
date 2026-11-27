@@ -23,7 +23,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use super::{SourceAnalysisEntry, SourceAnalysisOptions, SourceCommandBindings};
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::variable::VariableExecutionFrame;
 
 const MAX_ENTRIES: usize = 16;
 const MAX_SOURCE_BYTES: usize = 64 * 1024;
@@ -125,7 +125,7 @@ struct SourcePointHistoryKey {
     purpose: tcl_lexer::SourceSegmentationPurpose,
     frame: VariableExecutionFrame,
     registry: tcl_registry::RegistrySemanticKey,
-    point: Option<super::OriginalSourcePointOrigin>,
+    point: Option<tcl_names::origin::OriginalSourcePointOrigin>,
     entry: SourceAnalysisEntry,
 }
 impl SourcePointHistoryKey {
@@ -264,7 +264,7 @@ enum CacheEntry {
         history: SourcePointHistoryKey,
         lease: std::sync::Weak<SourcePointCacheLease>,
         // Intentional bounded keepalive of source identity only, never state.
-        _activation_origin: Option<Arc<super::SourceOriginId>>,
+        _activation_origin: Option<Arc<tcl_names::origin::SourceOriginId>>,
     },
 }
 impl CacheEntry {
@@ -839,7 +839,7 @@ mod tests {
         let point = source_point_for_cache();
         let probe = point.cache_retirement_probe();
         let (key, bindings) = source_point_bindings(&point, "set child RETIRE");
-        let kind = Arc::downgrade(&bindings.root_origin.as_ref().unwrap().kind);
+        let kind = Arc::downgrade(bindings.root_origin.as_ref().unwrap().shared_kind());
         let lease = Arc::downgrade(bindings.source_point_cache_lease.as_ref().unwrap());
         assert!(probe.is_live());
         drop(bindings);

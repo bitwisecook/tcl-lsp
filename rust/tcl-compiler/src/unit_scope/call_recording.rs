@@ -76,7 +76,7 @@ pub(super) fn unseen_code_is_scanned_host(
         .and_then(|tokens| tokens.source_binding.as_ref())
         .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
         .is_some_and(|target| {
-            target.kind == crate::command_binding::BindingKind::Proc
+            target.kind == tcl_names::command::BindingKind::Proc
                 && !target.registry_backed
                 && target.implementation_allocation.is_some()
         })
@@ -197,7 +197,7 @@ fn record_normal_user_procedure_call(
         record_unenumerable_targets(out, ctx);
     }
     for target in &callee.targets {
-        if target.kind == crate::command_binding::BindingKind::Proc
+        if target.kind == tcl_names::command::BindingKind::Proc
             && (ctx.module.source_procedure_for_target(target).is_some()
                 || ctx.known.contains(&target.command))
         {
@@ -244,7 +244,7 @@ fn record_source_target(
     target: &crate::command_binding::SourceCommandTarget,
 ) {
     let local = ctx.module.source_procedure_for_target(target);
-    if target.kind == crate::command_binding::BindingKind::Proc
+    if target.kind == tcl_names::command::BindingKind::Proc
         && (local.is_some() || ctx.known.contains(&target.command))
     {
         match args {

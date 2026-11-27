@@ -99,7 +99,7 @@ impl OriginalSourceCommandTransitionAdvice {
 
     /// Actual lexical source occurrence; not a fabricated dispatch point.
     #[must_use]
-    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Current call's complete unchanged original vector.

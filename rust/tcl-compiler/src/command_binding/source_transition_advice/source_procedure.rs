@@ -134,7 +134,7 @@ impl OriginalSourceProcedureCall {
         (self.inherited_entry.as_ref() == Some(point)).then_some(())?;
         let origin = bindings.root_origin.as_ref()?;
         if !child.matches_original_source_image(origin.source_image(), input.lexer_config())
-            || !matches!(origin.kind(), crate::command_binding::SourceOriginKind::InheritedPoint { parent, .. } if parent == &point.source_origin())
+            || !matches!(origin.kind(), tcl_names::origin::SourceOriginKind::InheritedPoint { parent, .. } if parent == &point.source_origin())
             || !point.matches_ancestor_analysis(parent)
         {
             return None;
@@ -202,7 +202,7 @@ impl OriginalSourceProcedureCall {
 
     pub(in crate::command_binding) fn caller_command_site(
         &self,
-    ) -> Option<&crate::command_binding::CommandAllocationSite> {
+    ) -> Option<&tcl_names::command::CommandAllocationSite> {
         let body = self.caller.as_ref()?;
         let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
             advice,

@@ -165,8 +165,8 @@ pub(super) fn scan_normal_visible_writes(
             place.cell.as_ref().is_some_and(|cell| {
                 matches!(
                     cell.owner,
-                    crate::place::CellOwner::Namespace(_)
-                        | crate::place::CellOwner::NamespaceIdentity(_)
+                    tcl_names::place::CellOwner::Namespace(_)
+                        | tcl_names::place::CellOwner::NamespaceIdentity(_)
                 )
             })
         });
@@ -215,8 +215,8 @@ pub(super) fn scan_normal_visible_reads(
         } else if matches!(
             owner,
             Some(
-                crate::place::CellOwner::Namespace(_)
-                    | crate::place::CellOwner::NamespaceIdentity(_)
+                tcl_names::place::CellOwner::Namespace(_)
+                    | tcl_names::place::CellOwner::NamespaceIdentity(_)
             )
         ) {
             facts.mark_impure();
@@ -562,7 +562,7 @@ pub(super) fn scan_original_variable_read_effects(
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
-    use crate::place::CellOwner;
+    use tcl_names::place::CellOwner;
     let unknown_read = |facts: &mut LocalFacts| {
         facts.mark_impure();
         facts.effect_reads |= EffectRegion::GLOBAL_STATE | EffectRegion::UNKNOWN_STATE;

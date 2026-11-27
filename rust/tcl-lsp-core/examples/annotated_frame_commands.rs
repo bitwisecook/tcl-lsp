@@ -25,13 +25,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
-use tcl_compiler::command_binding::{
-    BindingKind, SourceInvocationBinding, SourceRuntimeReachability,
-};
+use tcl_compiler::command_binding::{SourceInvocationBinding, SourceRuntimeReachability};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_dialect::TclVersion;
 use tcl_lexer::{LexerConfig, LineIndex};
+use tcl_names::command::BindingKind;
 use tcl_registry::CommandRegistry;
 use tcl_test_support::{Tclsh, required_tclshs, run_script_file};
 
@@ -142,7 +141,7 @@ fn command_records(
     for call in &module.future_call_sites {
         if matches!(
             call.source.mapping,
-            tcl_compiler::command_binding::ExecutedScriptMapping::Contiguous { .. }
+            tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
         ) && call.source.origin.source_image() == &image
         {
             retain_capture(

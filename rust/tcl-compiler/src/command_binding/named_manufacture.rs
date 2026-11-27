@@ -19,10 +19,11 @@
 //! Original named instance cells at the actual constructor boundary.
 
 use super::{
-    Arc, BTreeSet, BindingKind, MayBinding, ModuleCommandBindings, SourceCommandKey,
-    SourceExecutionContext, SourceObjectInstanceProof,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, SourceExecutionContext,
+    SourceObjectInstanceProof,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, SourceCommandKey};
 
 /// Genuine original name and a fresh current command cell. This pre-operation
 /// selection grants no constructor completion or native object allocation.
@@ -37,7 +38,7 @@ pub(super) struct OriginalNamedManufacture {
 /// liveness or physical native object authority.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct OriginalObjectCommandNameResult {
-    allocation: super::SourceObjectAllocation,
+    allocation: tcl_names::variable::SourceObjectAllocation,
     requested: SignatureSourceNameInput,
     slot: tcl_core_types::ByteCommandSlot,
     policy: tcl_syntax::naming::NamePolicyProtocol,

@@ -49,11 +49,11 @@ fn opaque_native_call_retains_unknown_accesses_without_invented_named_definition
     let mut context = crate::var_resolve::ResolveContext::for_function("::f");
     assert_eq!(
         crate::place_bridge::read_places(&native, &context, registry),
-        [crate::place::unknown_top()]
+        [tcl_names::place::unknown_top()]
     );
     assert_eq!(
         crate::place_bridge::statement_mutation_places(&native, &context, registry),
-        [crate::place::unknown_top()]
+        [tcl_names::place::unknown_top()]
     );
     assert!(!context.dynamic_bindings);
     crate::variable_bindings::transfer_statement(&mut context, &native, registry);
@@ -803,15 +803,15 @@ fn self_referential_aliased_write_reads_incoming_version() {
 
 #[test]
 fn canonical_memory_keys_preserve_native_incarnation_and_member_lifetime() {
-    use crate::command_binding::SourceNamespaceKey;
-    use crate::place::{CellGeneration, CellOwner};
+    use tcl_names::namespace::SourceNamespaceKey;
+    use tcl_names::place::{CellGeneration, CellOwner};
     use tcl_runtime_api::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
     let interpreter = NativeInterpreterIdentity {
         owner: NativeInterpreterIdentity::fresh_owner(),
         interpreter: 0,
     };
-    let mut first = crate::place::scalar("x", "::same", false);
-    first.cell = Some(crate::place::CellIdentity {
+    let mut first = tcl_names::place::scalar("x", "::same", false);
+    first.cell = Some(tcl_names::place::CellIdentity {
         owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(
             NativeNamespaceContext {
                 interpreter,

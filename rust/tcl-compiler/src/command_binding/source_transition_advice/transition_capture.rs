@@ -23,9 +23,10 @@ use super::{
     AdviceNamingPolicy, OriginalLogicalSourceNameInput, OriginalSourceCommandTransition,
     SourceAdviceNameInput, SourceAdviceWord,
 };
-use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use std::sync::Arc;
 use tcl_lexer::NativeWord;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::{CommandBindingTransition, StateTransition, TransitionSubject};
 
 pub(super) fn original_words(
@@ -311,7 +312,7 @@ pub(super) fn trace_jim_alias_guard(command: &str, stage: &'static str, value: b
 }
 
 pub(super) fn capture_transition(
-    origin: &Arc<super::super::SourceOriginId>,
+    origin: &Arc<tcl_names::origin::SourceOriginId>,
     native: &[NativeWord],
     command: &str,
     arguments: &[SourceAdviceWord],
@@ -351,7 +352,7 @@ pub(super) fn capture_transition(
         .flatten()
         .collect();
     Some(Arc::new(OriginalSourceCommandTransition {
-        site: super::super::CommandAllocationSite {
+        site: tcl_names::command::CommandAllocationSite {
             source: Arc::clone(origin),
             offset: native.first()?.span().start(),
         },

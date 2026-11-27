@@ -55,15 +55,15 @@ impl Lowerer<'_> {
         }
         let key = self.native_entry.as_ref().map_or_else(
             || {
-                Some(crate::command_binding::SourceNamespaceKey::authored(
+                Some(tcl_names::namespace::SourceNamespaceKey::authored(
                     tcl_syntax::naming::root_unrooted_key(namespace),
                 ))
             },
-            |entry| crate::command_binding::SourceNamespaceKey::from_native_entry(entry).ok(),
+            |entry| tcl_names::namespace::SourceNamespaceKey::from_native_entry(entry).ok(),
         );
         let display = key
             .as_ref()
-            .and_then(crate::command_binding::SourceNamespaceKey::display)
+            .and_then(tcl_names::namespace::SourceNamespaceKey::display)
             .unwrap_or_else(|| tcl_syntax::naming::root_unrooted_key(namespace));
         self.module.top_level_namespace_context = key;
         display
@@ -72,7 +72,7 @@ impl Lowerer<'_> {
     pub(super) fn source_entry_frame(
         &self,
         namespace: &str,
-    ) -> crate::var_resolve::VariableExecutionFrame {
+    ) -> tcl_names::variable::VariableExecutionFrame {
         if self.nest_depth == 1
             && let Some(entry) = &self.source_point_entry
         {

@@ -20,6 +20,7 @@
 
 use super::super::state::Analyser;
 use super::{DispatchSite, original_document_source_image};
+use crate::command_binding::SourceOriginLexical;
 use std::sync::Arc;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::ArgRole;
@@ -201,7 +202,7 @@ impl Analyser {
             &segment,
         );
         self.head_identities.stamp_original_tokens(&mut tokens);
-        let site = crate::command_binding::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(
                 self.head_identities.source_bindings_ref().source_origin()?,
             ),
@@ -253,7 +254,7 @@ impl Analyser {
         };
         // This site retains the complete lexical source vector only. A
         // reached invocation, selected role and installation are independent.
-        let site = crate::command_binding::CommandAllocationSite {
+        let site = tcl_names::command::CommandAllocationSite {
             source: std::sync::Arc::clone(origin),
             offset: head.group().span.start(),
         };

@@ -21,8 +21,9 @@
 use super::super::construction::represented_contents_origins;
 use super::super::{SsaReadReference, Symbol, ValueKey, Version};
 use super::SsaSourceView;
-use crate::var_resolve::{ContentsOrigin, VariableCellKey, canonical_variable_key};
+use crate::var_resolve::{ContentsOrigin, canonical_variable_key};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 impl<'a> SsaSourceView<'a> {
@@ -216,7 +217,7 @@ impl<'a> SsaSourceView<'a> {
                         site.offset, captured.is_some(),
                         crate::var_resolve::canonical_binding_value_key(place).as_ref() == Some(key),
                         place.dynamic, if captured.is_some() { after.captured_contents_presence(place) } else { after.contents_presence(place) },
-                        place.cell.as_ref().is_some_and(|cell| cell.generation != crate::place::CellGeneration::Unknown
+                        place.cell.as_ref().is_some_and(|cell| cell.generation != tcl_names::place::CellGeneration::Unknown
                             && after.generations.get(&crate::var_resolve::cell_key(place)).copied().unwrap_or_default() == cell.generation),
                         after.contents_have_source(place, &site.source),
                         after.contents_origin(place) == crate::var_resolve::ContentsOrigin::WrittenAt(site.offset));
@@ -230,12 +231,12 @@ impl<'a> SsaSourceView<'a> {
                         after.contents_presence(place)
                     } == crate::var_resolve::ContentsPresence::Defined
                     && place.cell.as_ref().is_some_and(|cell| {
-                        !matches!(cell.generation, crate::place::CellGeneration::Unknown)
+                        !matches!(cell.generation, tcl_names::place::CellGeneration::Unknown)
                             && after
                                 .generations
                                 .get(&crate::var_resolve::cell_key(place))
                                 .copied()
-                                .unwrap_or(crate::place::CellGeneration::Incoming)
+                                .unwrap_or(tcl_names::place::CellGeneration::Incoming)
                                 == cell.generation
                     })
                     && after.contents_have_source(place, &site.source)

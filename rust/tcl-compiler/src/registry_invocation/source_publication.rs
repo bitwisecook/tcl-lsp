@@ -28,7 +28,7 @@ use tcl_registry::model::ContextRegistry;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceCommandPublication {
     words: OriginalRegistryWords,
-    site: Option<crate::command_binding::CommandAllocationSite>,
+    site: Option<tcl_names::command::CommandAllocationSite>,
     naming: tcl_registry::AuthoredSourceCommandPublication,
     original: NativeWord,
     input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
@@ -38,7 +38,7 @@ impl OriginalSourceCommandPublication {
     pub(super) fn capture(
         words: OriginalRegistryWords,
         context: &ContextRegistry,
-        invocation_site: impl FnOnce() -> Option<crate::command_binding::CommandAllocationSite>,
+        invocation_site: impl FnOnce() -> Option<tcl_names::command::CommandAllocationSite>,
     ) -> Option<Self> {
         // naming.source.original-command-name-publications
         // docs/design/analysis/name-resolution-proofs/original-command-name-publications.md
@@ -74,7 +74,7 @@ impl OriginalSourceCommandPublication {
         })
     }
     /// Reached original invocation, when independently present in the issuing realm.
-    pub(crate) fn invocation_site(&self) -> Option<&crate::command_binding::CommandAllocationSite> {
+    pub(crate) fn invocation_site(&self) -> Option<&tcl_names::command::CommandAllocationSite> {
         self.site.as_ref()
     }
     /// Same selected immutable source argv and its conditional applicability.

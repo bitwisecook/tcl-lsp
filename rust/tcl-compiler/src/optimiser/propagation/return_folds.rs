@@ -24,6 +24,7 @@ use super::command_substitution_folds::{
     fold_retained_builtin, retained_call_at, retained_o115, retained_substitution_calls,
 };
 use super::render_propagation_word;
+use crate::command_binding::SourceOriginLexical;
 use crate::ir::{CommandTokens, Statement};
 use tcl_core_types::DiagCode;
 use tcl_syntax::naming::whole_scalar_variable_reference_name;

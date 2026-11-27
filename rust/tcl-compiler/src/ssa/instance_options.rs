@@ -315,7 +315,7 @@ pub(super) fn original_global_root_frame(
 ) -> Option<()> {
     let binding = tokens.source_binding.as_ref()?;
     binding.original_source_advice_purpose(tokens, metadata, registry)?;
-    if binding.variable_frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global {
+    if binding.variable_frame.layout() != &tcl_names::variable::VariableExecutionFrame::Global {
         return None;
     }
     let namespace = binding.variable_context.namespace_identity.as_ref()?;

@@ -83,7 +83,7 @@ impl ModuleCommandBindings {
         !entry.class_delegate
             && entry.receiver == SourceMethodReceiver::Class
             && entry.exported
-            && receiver.kind == super::super::BindingKind::Class
+            && receiver.kind == tcl_names::command::BindingKind::Class
             && receiver.prepended.is_empty()
             && entry.declaring_class.as_ref() == Some(receiver)
             && !self.opaque_domain
@@ -196,7 +196,7 @@ impl ModuleCommandBindings {
             .find_map(|slot| self.bindings.get(&slot))?;
         if raw.len() != 1
             || !matches!(raw.iter().next(), Some(super::super::MayBinding::Target(target))
-            if target.kind == super::super::BindingKind::Class && target.terminal
+            if target.kind == tcl_names::command::BindingKind::Class && target.terminal
                 && target.prepended.is_empty() && target.token.as_ref() == Some(identity))
         {
             return None;
@@ -268,7 +268,7 @@ impl ModuleCommandBindings {
         let mut seen = Vec::new();
         let mut stock: Option<super::super::SourceCommandTarget> = None;
         while let Some(current) = pending.pop() {
-            if current.kind != super::super::BindingKind::Class
+            if current.kind != tcl_names::command::BindingKind::Class
                 || current.registry_backed
                 || !current.prepended.is_empty()
                 || self.tainted_object_dispatch.contains("*")
@@ -563,7 +563,8 @@ impl ModuleCommandBindings {
                 entry.declaring_class = Some(created.clone());
                 if entry.class_delegate {
                     let allocation = created.identity.as_ref()?.allocation.as_ref()?;
-                    if allocation.incarnation == super::super::AllocationIncarnation::RepeatedFresh
+                    if allocation.incarnation
+                        == tcl_names::command::AllocationIncarnation::RepeatedFresh
                     {
                         return None;
                     }

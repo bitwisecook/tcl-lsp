@@ -141,7 +141,7 @@ impl OriginalSourceClassHandleBinding {
 /// This retains conditional source advice, never dispatch or object lifetime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceClassInstanceWords {
-    site: super::super::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     original: Arc<[NativeWord]>,
     arguments: Vec<SourceAdviceWord>,
     instance: Arc<OriginalSourceClassInstance>,
@@ -152,7 +152,7 @@ pub struct OriginalSourceClassInstanceWords {
 impl OriginalSourceClassInstanceWords {
     /// Actual source occurrence, without an invented native invocation point.
     #[must_use]
-    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
     /// Whole written receiver vector, including its head and expansion syntax.
@@ -552,7 +552,7 @@ impl AdviceInvocationContext<'_> {
             obligations.push(SourceCommandTransitionObligation::UnknownEarlierMutation);
         }
         let receipt = OriginalSourceClassInstanceWords {
-            site: super::super::CommandAllocationSite {
+            site: tcl_names::command::CommandAllocationSite {
                 source: Arc::clone(self.origin),
                 offset: native[0].span().start(),
             },

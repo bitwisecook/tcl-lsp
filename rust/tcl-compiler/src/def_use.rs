@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ssa::{SsaFunction, Symbol, UseClass, Version};
-use crate::var_resolve::VariableCellKey;
+use tcl_names::variable::VariableCellKey;
 
 /// How a variable definition was produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn distinct_native_key_data_does_not_become_a_presentation_lookup() {
-        use crate::command_binding::SourceNamespaceKey;
+        use tcl_names::namespace::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };

@@ -25,8 +25,8 @@ use super::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ScopeKind};
-use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
 use tcl_lexer::{LineIndex, SourceImage};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameProtocol};
 
 struct Node {
@@ -437,7 +437,7 @@ fn extend_class_source_members(
                 .filter(|key| key.source_image() == image && key.lexer_config() == config)
                 .map_or(
                     original.span(),
-                    tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::span,
+                    tcl_names::word::SignatureSourceNameKey::span,
                 );
             let selection = span_to_range(source, index, name_span);
             let parameters = format_param_list(&method.params);
@@ -534,9 +534,9 @@ fn extend_write_outline<'a>(
         if advice.original_frame().is_some_and(|frame| {
             !matches!(
                 frame.frame().layout(),
-                tcl_compiler::var_resolve::VariableExecutionFrame::Global
-                    | tcl_compiler::var_resolve::VariableExecutionFrame::Namespace(_)
-                    | tcl_compiler::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                tcl_names::variable::VariableExecutionFrame::Global
+                    | tcl_names::variable::VariableExecutionFrame::Namespace(_)
+                    | tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
             )
         }) {
             continue;

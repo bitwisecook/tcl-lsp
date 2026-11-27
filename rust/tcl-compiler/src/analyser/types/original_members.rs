@@ -23,13 +23,10 @@
 //! proves neither execution of that walker nor a live native method table.
 
 use super::{MemberSide, MethodDef};
-use crate::{
-    command_binding::CommandAllocationSite,
-    signature_scan::{
-        original_name::SourceOriginalNameOccurrence, scope::SignatureSourceNameInput,
-    },
-};
+use crate::signature_scan::original_name::SourceOriginalNameOccurrence;
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
+use tcl_names::command::CommandAllocationSite;
 use tcl_syntax::naming::NamePolicyProtocol;
 
 /// Original member declaration syntax and its independently produced name.

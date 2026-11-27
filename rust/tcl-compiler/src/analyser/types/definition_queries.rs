@@ -188,7 +188,7 @@ impl AnalysisResult {
         let allocation = definition.allocation();
         if matches!(
             allocation.site.source.kind(),
-            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+            tcl_names::origin::SourceOriginKind::InheritedPoint { .. }
         ) {
             if allocation.site.source.source_image().bytes() != source.as_bytes()
                 || !self.matches_inherited_declaration_origin(&allocation.site.source)
@@ -204,7 +204,7 @@ impl AnalysisResult {
                 .all(|record| record == first)
                 .then_some(first.metadata());
         }
-        if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        if !matches!(allocation.site.source.kind(), tcl_names::origin::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
         {
             return None;
         }
@@ -237,7 +237,7 @@ impl AnalysisResult {
         let allocation = definition.allocation();
         if matches!(
             allocation.site.source.kind(),
-            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+            tcl_names::origin::SourceOriginKind::InheritedPoint { .. }
         ) {
             if allocation.site.source.source_image().bytes() != source.as_bytes()
                 || !self.matches_inherited_declaration_origin(&allocation.site.source)
@@ -253,7 +253,7 @@ impl AnalysisResult {
                 .all(|record| record == first)
                 .then_some(first.metadata());
         }
-        if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        if !matches!(allocation.site.source.kind(), tcl_names::origin::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
         {
             return None;
         }
@@ -278,7 +278,7 @@ impl AnalysisResult {
 
     fn matches_inherited_declaration_origin(
         &self,
-        origin: &crate::command_binding::SourceOriginId,
+        origin: &tcl_names::origin::SourceOriginId,
     ) -> bool {
         let Some(input) = self.resolved_input.as_ref() else {
             return false;
@@ -298,7 +298,7 @@ impl AnalysisResult {
     ) -> Option<Vec<Span>> {
         let allocation = definition.allocation();
         if !matches!(allocation.site.source.kind(),
-            crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+            tcl_names::origin::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
         {
             return None;
         }
@@ -365,7 +365,7 @@ impl AnalysisResult {
             if !retained.all(|alternative| alternative == definition) {
                 return None;
             }
-            let crate::command_binding::SourceOriginKind::Authored(source) =
+            let tcl_names::origin::SourceOriginKind::Authored(source) =
                 definition.allocation().site.source.kind()
             else {
                 return None;

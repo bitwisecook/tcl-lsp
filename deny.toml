@@ -118,6 +118,7 @@ external-default-features = "allow"
 # gate checks workspace edges with this same policy before the full deny audit.
 deny = [
     { name = "tcl-source", wrappers = ["bpf-tcl-ir", "tcl-cli", "tcl-codegen", "tcl-compiler", "tcl-compiler-it", "tcl-diagram", "tcl-explorer", "tcl-irule-test", "tcl-irules", "tcl-lsp-core", "tcl-lsp-db", "tcl-lsp-server", "tcl-mcp", "tcl-spec-studio", "tcl-spectcl", "tcl-sslictcl", "tcl-vm-it", "xtask"] },
+    { name = "tcl-names", wrappers = ["tcl-codegen", "tcl-compiler", "tcl-compiler-it", "tcl-explorer", "tcl-lsp-core", "tcl-lsp-server", "tcl-spectcl"] },
     { name = "tcl-bigip-schema", wrappers = ["tcl-bigip", "tcl-bigip-query", "xtask"] },
     { name = "tcl-lsp-db", wrappers = ["tcl-lsp-db-it", "tcl-lsp-server"] },
     { name = "tcl-lsp-core", wrappers = [

@@ -51,7 +51,7 @@ enum CallbackRegistrationSource {
 impl OriginalSourceCallbackRegistration {
     /// Actual installer site, independently of captured operand producer sites.
     #[must_use]
-    pub fn site(&self) -> &super::super::CommandAllocationSite {
+    pub fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         match &self.source {
             CallbackRegistrationSource::Command(command) => command.site(),
             CallbackRegistrationSource::Instance(instance) => instance.site(),

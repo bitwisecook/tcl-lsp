@@ -18,10 +18,10 @@
 
 //! Actual backend factory roles, independent of source transfer completion.
 
-use super::{
-    BindingKind, MayBinding, ModuleCommandBindings, SourceCommandTarget, SourceNamespaceKey,
-};
+use super::{MayBinding, ModuleCommandBindings, SourceCommandTarget};
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::BindingKind;
+use tcl_names::namespace::SourceNamespaceKey;
 use tcl_registry::native_tcloo_bootstrap::{
     NativeClassFactoryConstructor, NativeClassFactoryRecipe,
 };
@@ -518,7 +518,7 @@ mod tests {
             panic!("one original word")
         };
         SignatureSourceNameInput::OriginalWord(
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                 word,
                 tcl_syntax::word_rules::WordValueRules::from_config(&config),
                 entry.command_name_policy().unwrap(),

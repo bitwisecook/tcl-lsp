@@ -72,6 +72,7 @@ programmed-packs = ["dep:tcl-spec-hooks"]
 # a library dependency: `hooks.rs` reaches the engine only through
 # `tcl_spec_hooks::tclvm_host`, and that stays the one place naming an engine.
 [dev-dependencies]
+tcl-names = { path = "../tcl-names" }
 tcl-sslictcl = { path = "../tcl-sslictcl" }
 # This crate's own tests run with `programmed-packs` on.
 tcl-spectcl = { path = ".", features = ["programmed-packs"] }

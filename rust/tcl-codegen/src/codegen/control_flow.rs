@@ -21,6 +21,7 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
+use tcl_compiler::command_binding::ExecutedScriptWords;
 use tcl_lexer::Span;
 
 use tcl_compiler::expr_ast::{BinOp, ExprNode};
@@ -218,7 +219,7 @@ impl CodegenCtx<'_> {
         if !matches!(word, tcl_source::words::WordExpr::BracedLiteral { .. }) {
             return None;
         }
-        tcl_compiler::command_binding::ExecutedScriptSource::literal_word_base(
+        tcl_names::origin::ExecutedScriptSource::literal_word_base(
             self.source_unicode().ok()?,
             word,
             body,

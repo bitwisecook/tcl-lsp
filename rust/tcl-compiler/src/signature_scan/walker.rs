@@ -71,7 +71,7 @@ use tcl_source::segment::segment_commands_with_recovery_and_config;
 pub(super) fn scan_in_context(
     source: &str,
     body_token: Option<Token>,
-    namespace: &super::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     conditional: bool,
     known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
@@ -856,7 +856,7 @@ fn handle_catch(
 pub(super) fn scan_factory_candidates_in_context(
     body_text: &str,
     body_tok: Token,
-    namespace: &super::scope::SignatureNamespaceScope,
+    namespace: &tcl_names::namespace::SignatureNamespaceScope,
     ctx: &mut ScanCtx,
 ) {
     let label = namespace.display().unwrap_or_default();

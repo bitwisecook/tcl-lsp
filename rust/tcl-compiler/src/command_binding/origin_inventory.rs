@@ -18,10 +18,9 @@
 
 //! Exact point inventories for evaluated script source instances.
 
-use super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, SourceBindingPoint, SourceCommandBindings,
-    SourceInvocationBinding, SourceOriginId,
-};
+use super::{Arc, SourceBindingPoint, SourceCommandBindings, SourceInvocationBinding};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
 
 /// Purpose retained by the original source binding or module entry. Execution
 /// means a supplied Native entry owns the request, including unsupported naming
@@ -56,14 +55,14 @@ impl OriginalInvocationSourcePurpose {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct EnteredScriptObservation {
     pub source: ExecutedScriptSource,
-    pub frame: Option<crate::var_resolve::VariableExecutionFrame>,
-    pub namespace: Option<super::SourceNamespaceKey>,
+    pub frame: Option<tcl_names::variable::VariableExecutionFrame>,
+    pub namespace: Option<tcl_names::namespace::SourceNamespaceKey>,
     pub receiver_context:
         Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
     /// Namespace of the invoking command for a body that runs in that same
     /// frame but whose entry is conditional (a loop that may not iterate).
     /// It names where the body would run, never that it ran.
-    pub conditional_namespace: Option<super::SourceNamespaceKey>,
+    pub conditional_namespace: Option<tcl_names::namespace::SourceNamespaceKey>,
 }
 
 impl SourceInvocationBinding {
@@ -109,7 +108,7 @@ impl SourceInvocationBinding {
         // A site the walk never entered knows its frame only from the
         // declaration advice, which states the declared body's own frame.
         let frame_from_advice = declaration.is_some()
-            && self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown;
+            && self.variable_frame == tcl_names::variable::VariableExecutionFrame::Unknown;
         if state.current_source_origin.as_ref() != Some(&self.invocation_site()?.source)
             || (state.variable_frame != self.variable_frame && !frame_from_advice)
         {
@@ -296,8 +295,12 @@ impl SourceInvocationBinding {
     /// Whether this point belongs to original authored document bytes.
     #[must_use]
     pub fn is_authored_source(&self) -> bool {
-        self.source_origin()
-            .is_some_and(|origin| matches!(origin.kind(), super::SourceOriginKind::Authored(_)))
+        self.source_origin().is_some_and(|origin| {
+            matches!(
+                origin.kind(),
+                tcl_names::origin::SourceOriginKind::Authored(_)
+            )
+        })
     }
 }
 
@@ -430,7 +433,7 @@ impl SourceCommandBindings {
                             .unobserved_native_dispatch(),
                         object_callback_effects: self
                             .object_callback_effects
-                            .get(&super::CommandAllocationSite {
+                            .get(&tcl_names::command::CommandAllocationSite {
                                 source: Arc::clone(origin),
                                 offset: *site,
                             })
@@ -466,7 +469,7 @@ impl SourceCommandBindings {
                         unobserved: table.is_some(),
                         object_callback_effects: self
                             .object_callback_effects
-                            .get(&super::CommandAllocationSite {
+                            .get(&tcl_names::command::CommandAllocationSite {
                                 source: Arc::clone(origin),
                                 offset: *site,
                             })
@@ -520,7 +523,7 @@ impl SourceCommandBindings {
             if !observations.iter().all(|other| other == expression)
                 || !matches!(
                     expression.source().mapping,
-                    super::ExecutedScriptMapping::Contiguous { .. }
+                    tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
                 )
             {
                 continue;
@@ -564,7 +567,7 @@ impl SourceCommandBindings {
         let start = script.base() as usize;
         if !matches!(
             script.mapping,
-            super::ExecutedScriptMapping::Contiguous { .. }
+            tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
         ) || script
             .origin
             .source_image()
@@ -666,7 +669,7 @@ impl SourceCommandBindings {
     pub fn selected_source_in_context(
         &self,
         script: &ExecutedScriptSource,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<Self> {
         let mut selected = self.selected_source(script)?;
         selected.retain_pre_handler_failure_namespace(&script.origin, namespace);
@@ -812,7 +815,7 @@ impl SourceCommandBindings {
         invocation: &CommandAllocationSite,
         argument: usize,
         source: &ExecutedScriptSource,
-    ) -> Option<&super::SourceNamespaceKey> {
+    ) -> Option<&tcl_names::namespace::SourceNamespaceKey> {
         let observations = self.entered_scripts.get(invocation)?.get(&argument)?;
         let first = observations.first()?;
         let frame = first.frame.as_ref()?;
@@ -837,7 +840,7 @@ impl SourceCommandBindings {
         invocation: &CommandAllocationSite,
         argument: usize,
         source: &ExecutedScriptSource,
-    ) -> Option<super::SourceNamespaceKey> {
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
         self.executed_script_entry_namespace_context_at(invocation, argument, source)
             .cloned()
     }
@@ -848,9 +851,9 @@ impl SourceCommandBindings {
     pub(crate) fn executed_script_namespace_context(
         &self,
         source: &ExecutedScriptSource,
-    ) -> Option<super::SourceNamespaceKey> {
-        use crate::var_resolve::VariableExecutionFrame;
-        let frame_key = |frame: &crate::var_resolve::VariableExecutionFrame| {
+    ) -> Option<tcl_names::namespace::SourceNamespaceKey> {
+        use tcl_names::variable::VariableExecutionFrame;
+        let frame_key = |frame: &tcl_names::variable::VariableExecutionFrame| {
             if let Some(key) = frame.namespace_identity() {
                 return Some(key.clone());
             }
@@ -858,15 +861,17 @@ impl SourceCommandBindings {
                 return None;
             }
             match frame.layout() {
-                VariableExecutionFrame::Global => Some(super::SourceNamespaceKey::authored("::")),
+                VariableExecutionFrame::Global => {
+                    Some(tcl_names::namespace::SourceNamespaceKey::authored("::"))
+                }
                 VariableExecutionFrame::Namespace(namespace)
                 | VariableExecutionFrame::NamespaceActivation { namespace, .. }
-                | VariableExecutionFrame::Procedure { namespace, .. } => {
-                    Some(super::SourceNamespaceKey::authored(namespace))
-                }
-                VariableExecutionFrame::Selected { namespace, .. } => {
-                    namespace.as_ref().map(super::SourceNamespaceKey::authored)
-                }
+                | VariableExecutionFrame::Procedure { namespace, .. } => Some(
+                    tcl_names::namespace::SourceNamespaceKey::authored(namespace),
+                ),
+                VariableExecutionFrame::Selected { namespace, .. } => namespace
+                    .as_ref()
+                    .map(tcl_names::namespace::SourceNamespaceKey::authored),
                 _ => None,
             }
         };
@@ -970,10 +975,10 @@ impl SourceCommandBindings {
             let Some(script) = self.executed_script_for_word(span) else {
                 continue;
             };
-            let super::SourceOriginKind::Derived {
+            let tcl_names::origin::SourceOriginKind::Derived {
                 parent,
                 arguments,
-                kind: super::MaterialisedSourceKind::Script,
+                kind: tcl_names::origin::MaterialisedSourceKind::Script,
                 ..
             } = script.origin.kind()
             else {
@@ -1086,9 +1091,9 @@ impl SourceCommandBindings {
         // A complete source-root script also has an exact retained carrier,
         // even when Direct entry does not create a compiler boundary record.
         match root.kind() {
-            super::SourceOriginKind::Authored(text)
-            | super::SourceOriginKind::Loaded { source: text, .. }
-            | super::SourceOriginKind::Derived { source: text, .. }
+            tcl_names::origin::SourceOriginKind::Authored(text)
+            | tcl_names::origin::SourceOriginKind::Loaded { source: text, .. }
+            | tcl_names::origin::SourceOriginKind::Derived { source: text, .. }
                 if text.bytes() == original.text.bytes() =>
             {
                 ExecutedScriptSource::contiguous_image(Arc::clone(root), original.text.clone(), 0)
@@ -1118,8 +1123,8 @@ impl SourceCommandBindings {
         invocation: CommandAllocationSite,
         argument: usize,
         script: ExecutedScriptSource,
-        frame: Option<&crate::var_resolve::VariableExecutionFrame>,
-        namespace: Option<&super::SourceNamespaceKey>,
+        frame: Option<&tcl_names::variable::VariableExecutionFrame>,
+        namespace: Option<&tcl_names::namespace::SourceNamespaceKey>,
     ) {
         let scripts = self
             .entered_scripts
@@ -1146,7 +1151,7 @@ impl SourceCommandBindings {
         invocation: CommandAllocationSite,
         argument: usize,
         script: ExecutedScriptSource,
-        namespace: Option<&super::SourceNamespaceKey>,
+        namespace: Option<&tcl_names::namespace::SourceNamespaceKey>,
     ) {
         let scripts = self
             .entered_scripts
@@ -1171,7 +1176,7 @@ impl SourceCommandBindings {
         invocation: &CommandAllocationSite,
         argument: usize,
         source: &ExecutedScriptSource,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         context: Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
     ) {
         let Some(context) = context else {
@@ -1321,7 +1326,7 @@ mod tests {
         assert_eq!(
             bindings
                 .executed_script_entry_namespace_context_at(site, 2, body)
-                .and_then(super::super::SourceNamespaceKey::display)
+                .and_then(tcl_names::namespace::SourceNamespaceKey::display)
                 .as_deref(),
             Some(":::")
         );
@@ -1517,7 +1522,7 @@ mod tests {
                 .expression_preparations
                 .shares_storage(&selected.expression_preparations)
         );
-        let unrelated = super::super::SourceNamespaceKey::authored("::unrelated");
+        let unrelated = tcl_names::namespace::SourceNamespaceKey::authored("::unrelated");
         let absent = analysis
             .selected_source_in_context(&script, &unrelated)
             .unwrap();
@@ -1559,7 +1564,7 @@ mod tests {
                 vec![original.clone()]
             );
         }
-        let unrelated = super::super::SourceNamespaceKey::authored("::unrelated");
+        let unrelated = tcl_names::namespace::SourceNamespaceKey::authored("::unrelated");
         assert_eq!(
             analysis
                 .selected_source_in_context(&script, &unrelated)
@@ -1601,7 +1606,7 @@ mod tests {
     #[test]
     fn unknown_selected_namespace_preserves_only_absolute_command_lookup() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let frame = crate::var_resolve::VariableExecutionFrame::Selected {
+        let frame = tcl_names::variable::VariableExecutionFrame::Selected {
             selector: tcl_registry::FrameLevel::Relative(1),
             namespace: None,
         };
@@ -1661,7 +1666,7 @@ mod tests {
         assert_eq!(script.text.try_text().unwrap(), "set x VALUE");
         assert!(matches!(
             script.mapping,
-            super::super::ExecutedScriptMapping::Materialised
+            tcl_names::origin::ExecutedScriptMapping::Materialised
         ));
         let selected = analysis.selected_source(script).unwrap();
         assert!(
@@ -1739,7 +1744,7 @@ mod original_math_body_purpose_tests {
                         ..Default::default()
                     },
                 );
-                let parent = super::super::CommandAllocationSite {
+                let parent = tcl_names::command::CommandAllocationSite {
                     source: Arc::clone(bindings.source_origin().unwrap()),
                     offset: 0,
                 };
@@ -1748,7 +1753,7 @@ mod original_math_body_purpose_tests {
                     .expect("genuine original eval operand");
                 assert!(matches!(
                     body.mapping,
-                    super::super::ExecutedScriptMapping::Contiguous { .. }
+                    tcl_names::origin::ExecutedScriptMapping::Contiguous { .. }
                 ));
                 let calls = bindings.math_invocations_for_script(registry, body);
                 assert_eq!(
@@ -1762,7 +1767,7 @@ mod original_math_body_purpose_tests {
                     config
                 ));
                 assert!(
-                    super::super::ExecutedScriptSource::contiguous(
+                    tcl_names::origin::ExecutedScriptSource::contiguous(
                         Arc::clone(&body.origin),
                         "expr {abs(-4)}",
                         body.base()

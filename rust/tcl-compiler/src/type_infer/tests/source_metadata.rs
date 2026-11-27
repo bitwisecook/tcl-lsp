@@ -351,8 +351,8 @@ fn original_type_consumers_keep_positive_normal_results_and_refuse_missing_forei
 
 #[test]
 fn positional_type_facts_retain_native_cell_keys_without_display_lookup() {
-    use crate::command_binding::SourceNamespaceKey;
     use crate::var_resolve::VariableProofRelocation;
+    use tcl_names::namespace::SourceNamespaceKey;
     use tcl_runtime_api::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
 
     let registry = registry();

@@ -222,7 +222,8 @@ fn lookup(name: &str) -> TrustedCommandLookup {
 
 #[cfg(test)]
 mod tests {
-    use crate::command_binding::{BindingKind, SourceCommandBindings};
+    use crate::command_binding::SourceCommandBindings;
+    use tcl_names::command::BindingKind;
     use tcl_registry::definer::DefinitionDispatcher;
 
     fn bindings(source: &str, selected: bool) -> SourceCommandBindings {

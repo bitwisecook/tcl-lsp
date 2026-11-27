@@ -18,18 +18,18 @@
 
 //! Conditional self-method source templates, separately from entered dispatch.
 
-use super::{CommandAllocationSite, SourceDeclaredReceiverBodyEntry};
+use super::SourceDeclaredReceiverBodyEntry;
 use crate::analyser::types::{
     MemberSide, OriginalLexicalMemberContext, OriginalSourceMethodMetadata,
 };
 use crate::analyser::{AnalysisResult, Scope, ScopeKind};
 use crate::registry_invocation::InvocationWordOrigin;
 use crate::registry_invocation::source_structure::{OriginalRegistryWords, source_registry_words};
-use crate::signature_scan::{
-    formal_parameters::SignatureSourceFormalParameters, scope::SignatureSourceNameKey,
-};
+use crate::signature_scan::formal_parameters::SignatureSourceFormalParameters;
 use std::sync::Arc;
 use tcl_lexer::{NativeWord, SourceImage};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::word_rules::WordValueRules;
 type SourceClassMetadata =
     crate::signature_scan::original_name::SourceDeclarationMetadata<crate::analyser::ClassDef>;

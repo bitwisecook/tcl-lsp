@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::var_resolve::VariableCellKey;
 use tcl_dialect::model::{Family, SurfaceLayer};
+use tcl_names::variable::VariableCellKey;
 
 #[test]
 fn http_targets_map_to_http_state_region() {
@@ -649,9 +649,9 @@ fn static_namespace_effects_share_regions_across_spellings_and_aliases() {
 fn native_effect_namespace(
     token: u64,
     segments: &[&str],
-) -> crate::command_binding::SourceNamespaceKey {
+) -> tcl_names::namespace::SourceNamespaceKey {
     use tcl_runtime_api::native_compilation::{NativeInterpreterIdentity, NativeNamespaceContext};
-    crate::command_binding::SourceNamespaceKey::Native(NativeNamespaceContext {
+    tcl_names::namespace::SourceNamespaceKey::Native(NativeNamespaceContext {
         interpreter: NativeInterpreterIdentity {
             owner: 31,
             interpreter: 7,
@@ -698,7 +698,7 @@ fn namespace_place_storage_scope_requires_the_selected_domain_before_static_repo
         namespace_storage_scope_for_place(&displayed, registry.profile()),
         StorageScope::Namespace
     );
-    let unknown = crate::place::unknown_top();
+    let unknown = tcl_names::place::unknown_top();
     assert_eq!(
         namespace_storage_scope_for_place(&unknown, registry.profile()),
         StorageScope::Unknown
@@ -708,7 +708,7 @@ fn namespace_place_storage_scope_requires_the_selected_domain_before_static_repo
 /// The static storage policy applies to its own namespace incarnation only.
 fn assert_static_policy_scope(
     context: &mut crate::var_resolve::ResolveContext,
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     registry: &CommandRegistry,
 ) {
     context.authored_tmm_static = Some(
@@ -823,7 +823,7 @@ fn native_variable_scope_uses_geometry_and_actual_storage_domain() {
 
 #[test]
 fn native_namespace_scope_distinguishes_current_global_and_original_alias_cells() {
-    use crate::var_resolve::VariableCellKey;
+    use tcl_names::variable::VariableCellKey;
 
     for (dialect, version, fallback) in [
         ("tcl8.4", tcl_dialect::TclVersion::V8_4, true),
@@ -926,7 +926,7 @@ fn jim_namespace_scope_keeps_activation_locals_and_original_variable_links_separ
     );
     assert_eq!(
         original.cell.as_ref().unwrap().owner,
-        crate::place::CellOwner::NamespaceIdentity(Box::new(root.clone())),
+        tcl_names::place::CellOwner::NamespaceIdentity(Box::new(root.clone())),
         "Jim's stored key is root-flat; the namespace owner is independent",
     );
     context.alias_bindings.insert("counter", original);

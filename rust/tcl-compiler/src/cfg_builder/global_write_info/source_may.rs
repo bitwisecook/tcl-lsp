@@ -23,7 +23,7 @@ use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct OriginalSourceCallMayWrites {
-    source: std::sync::Arc<crate::command_binding::SourceOriginId>,
+    source: std::sync::Arc<tcl_names::origin::SourceOriginId>,
     input: crate::analyser::ResolvedAnalysisInput,
     original: CommandTokens,
     emitted: Statement,

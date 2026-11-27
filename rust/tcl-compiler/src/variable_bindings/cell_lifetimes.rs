@@ -19,10 +19,10 @@
 //! Establishing a written cell's lifetime and destroying roots, captured cells and retained destructions.
 
 use super::OriginalVariableInvocation;
-use crate::place::{CellGeneration, Place, PlaceKind};
 use crate::var_resolve::{
     ResolveContext, cell_key, resolve_literal_access, resolve_literal_place, trace_key,
 };
+use tcl_names::place::{CellGeneration, Place, PlaceKind};
 use tcl_registry::{CommandRegistry, Traits};
 
 pub(super) fn establish_written_lifetime(state: &mut ResolveContext, target: &Place, offset: u32) {

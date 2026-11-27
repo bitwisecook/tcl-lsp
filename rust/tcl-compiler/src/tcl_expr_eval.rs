@@ -216,7 +216,7 @@ pub enum NativeOperandObjectIdentity {
         /// Exact original read extent.
         read: tcl_source::words::SourceSite,
         /// Every actual physical alternative at this read.
-        cells: Vec<crate::place::CellIdentity>,
+        cells: Vec<tcl_names::place::CellIdentity>,
     },
 }
 

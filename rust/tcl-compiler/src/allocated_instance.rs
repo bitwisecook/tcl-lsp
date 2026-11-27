@@ -18,15 +18,13 @@
 
 //! Physical storage of an actual bounded object allocation.
 
-use crate::{
-    command_binding::{AllocationIncarnation, CommandAllocationSite, SourceObjectAllocation},
-    place::{CellGeneration, CellIdentity, CellOwner},
-    var_resolve::{
-        ContentsPresence, ResolveContext, VariableCellKey, VariableFrameKind,
-        VariableProofRelocation,
-    },
+use crate::var_resolve::{
+    ContentsPresence, ResolveContext, VariableFrameKind, VariableProofRelocation,
 };
 use std::collections::HashSet;
+use tcl_names::command::{AllocationIncarnation, CommandAllocationSite};
+use tcl_names::place::{CellGeneration, CellIdentity, CellOwner};
+use tcl_names::variable::{SourceObjectAllocation, VariableCellKey};
 use tcl_registry::CommandRegistry;
 
 /// Own-provider candidates retained at one actual entered instance activation.
@@ -38,7 +36,7 @@ pub(crate) struct OriginalReceiverVariableCandidates {
     policy: tcl_syntax::naming::NamePolicyProtocol,
     candidates: Vec<(
         crate::signature_scan::scope::SignatureSourceNameInput,
-        crate::place::Place,
+        tcl_names::place::Place,
     )>,
 }
 
@@ -64,7 +62,7 @@ impl OriginalReceiverVariableCandidates {
         supplied: &[u8],
         purpose: tcl_syntax::naming::NativeOoVariableResolverPurpose,
         context: &ResolveContext,
-    ) -> Option<crate::place::Place> {
+    ) -> Option<tcl_names::place::Place> {
         if context.activation.as_ref() != Some(&self.activation)
             || context.frame_kind != VariableFrameKind::Local
             || context.dynamic_bindings
@@ -73,7 +71,7 @@ impl OriginalReceiverVariableCandidates {
                 .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
                 != Some(self.policy)
         {
-            return Some(crate::place::unknown_top());
+            return Some(tcl_names::place::unknown_top());
         }
         if purpose == tcl_syntax::naming::NativeOoVariableResolverPurpose::RuntimeRoot
             && supplied.contains(&0)
@@ -83,7 +81,7 @@ impl OriginalReceiverVariableCandidates {
             // CPP entry might already be linked even though the subsequent
             // CString resolver would not match it. Without that complete table
             // receipt neither a local nor object address is established.
-            return Some(crate::place::unknown_top());
+            return Some(tcl_names::place::unknown_top());
         }
         let mut agreed = None;
         for (input, target) in &self.candidates {
@@ -95,20 +93,20 @@ impl OriginalReceiverVariableCandidates {
             ) {
                 Ok(false) => continue,
                 Ok(true) => {}
-                Err(_) => return Some(crate::place::unknown_top()),
+                Err(_) => return Some(tcl_names::place::unknown_top()),
             }
             let mut selected = target.clone();
             let key = crate::var_resolve::cell_key(&selected);
             let cell = selected.cell.as_mut()?;
             if cell.interpreter != context.interpreter || cell.execution != context.execution {
-                return Some(crate::place::unknown_top());
+                return Some(tcl_names::place::unknown_top());
             }
             cell.generation = context.generations.get(&key).copied().unwrap_or_default();
             if agreed
                 .as_ref()
                 .is_some_and(|previous| previous != &selected)
             {
-                return Some(crate::place::unknown_top());
+                return Some(tcl_names::place::unknown_top());
             }
             agreed = Some(selected);
         }
@@ -265,9 +263,9 @@ impl ResolveContext {
             {
                 return Outcome::Unknown;
             }
-            let mut slot = crate::place::scalar(
+            let mut slot = tcl_names::place::scalar(
                 simple.try_utf8().unwrap_or_default(),
-                crate::place::LOCAL_NS,
+                tcl_names::place::LOCAL_NS,
                 false,
             );
             slot.cell = Some(CellIdentity {
@@ -311,10 +309,10 @@ impl ResolveContext {
         &self,
         allocation: &SourceObjectAllocation,
         simple: tcl_core_types::NameBytes,
-    ) -> crate::place::Place {
-        let mut target = crate::place::scalar(
+    ) -> tcl_names::place::Place {
+        let mut target = tcl_names::place::scalar(
             simple.try_utf8().unwrap_or_default(),
-            crate::place::LOCAL_NS,
+            tcl_names::place::LOCAL_NS,
             false,
         );
         target.cell = Some(CellIdentity {
@@ -441,7 +439,7 @@ impl ResolveContext {
                     return AllocatedInstanceLinkOutcome::Unknown;
                 }
             }
-            let mut target = crate::place::scalar(name, crate::place::LOCAL_NS, false);
+            let mut target = tcl_names::place::scalar(name, tcl_names::place::LOCAL_NS, false);
             target.cell = Some(CellIdentity {
                 owner: CellOwner::AllocatedInstance(Box::new(allocation.clone())),
                 name: name.into(),
@@ -482,14 +480,12 @@ impl ResolveContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        command_binding::SourceOriginId,
-        var_resolve::{
-            VariableExecutionFrame, canonical_binding_value_key, resolve_literal_place,
-            restore_execution_frame,
-        },
+    use crate::var_resolve::{
+        canonical_binding_value_key, resolve_literal_place, restore_execution_frame,
     };
     use std::{collections::BTreeMap, sync::Arc};
+    use tcl_names::origin::SourceOriginId;
+    use tcl_names::variable::VariableExecutionFrame;
 
     fn fixture() -> (ResolveContext, SourceObjectAllocation) {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -538,7 +534,7 @@ mod tests {
         traced.traced.insert(crate::var_resolve::cell_key(&x));
         assert!(resolve_literal_place("x", &traced, false, registry).observed);
         let mut unknown_write = state.clone();
-        unknown_write.record_contents_write(&crate::place::unknown_top(), 0, true);
+        unknown_write.record_contents_write(&tcl_names::place::unknown_top(), 0, true);
         assert!(
             !unknown_write
                 .closed_observer_allocations
@@ -602,7 +598,7 @@ mod tests {
             assert!(state.literal_contents_at(&target, registry).is_none());
             assert_eq!(
                 resolve_literal_place("value", &state, false, registry).kind,
-                crate::place::PlaceKind::Unknown
+                tcl_names::place::PlaceKind::Unknown
             );
         }
         let (mut state, mut repeated) = fixture();
@@ -716,7 +712,7 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (mut state, allocation) = fixture();
         let original = resolve_literal_place("v", &state, false, registry);
-        let identity = crate::raw_binding::RawBindingSlotId::Variable(Box::new(
+        let identity = tcl_names::variable::RawBindingSlotId::Variable(Box::new(
             original.cell.clone().unwrap(),
         ));
         let key = state

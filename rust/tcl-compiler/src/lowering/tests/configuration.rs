@@ -50,7 +50,7 @@ fn runtime_procedure_target_retains_its_actual_activation() {
         .expect("positioned runtime procedure invocation");
     assert_eq!(
         binding.variable_frame,
-        crate::var_resolve::VariableExecutionFrame::Procedure {
+        tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: "::".to_owned(),
             identity: "::top".to_owned(),
         }

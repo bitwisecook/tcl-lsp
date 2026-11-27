@@ -323,7 +323,7 @@ fn original_method_has_outward_write(
                     if writes.is_empty()
                         || writes.iter().any(|place| {
                             place.dynamic || place.observed || place.cell.as_ref().is_none_or(|cell|
-                            !matches!(&cell.owner, crate::place::CellOwner::Activation(identity)
+                            !matches!(&cell.owner, tcl_names::place::CellOwner::Activation(identity)
                                 if context.activation.as_ref() == Some(identity)))
                         })
                     {

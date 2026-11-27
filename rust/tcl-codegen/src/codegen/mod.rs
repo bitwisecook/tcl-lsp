@@ -79,7 +79,7 @@ mod splice_emission;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct NativeOperationOrigin {
     start: usize,
-    source: tcl_compiler::command_binding::CommandAllocationSite,
+    source: tcl_names::command::CommandAllocationSite,
     operation: tcl_registry::SemanticOperationId,
     guard: tcl_runtime_api::CommandBindingGuard,
     compiler_prerequisite: Option<
@@ -356,10 +356,9 @@ pub struct CodegenCtx<'r> {
     active_expression_preparation:
         Option<std::sync::Arc<tcl_registry::runtime_expr_validation::PreparedExpressionWitness>>,
     /// One-shot source ownership supplied by the CFG statement emitter.
-    pending_math_source:
-        Option<std::sync::Arc<tcl_compiler::command_binding::ExecutedScriptSource>>,
+    pending_math_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     /// Source/base scoped to the expression currently being emitted.
-    math_source: Option<std::sync::Arc<tcl_compiler::command_binding::ExecutedScriptSource>>,
+    math_source: Option<std::sync::Arc<tcl_names::origin::ExecutedScriptSource>>,
     math_expression_base: Option<u32>,
     /// Actual fixed-function entry consumed by successful constant folding.
     math_table_prerequisite:

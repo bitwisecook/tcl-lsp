@@ -21,13 +21,15 @@
 //! visibility, result, purity and nominal completion candidates.
 
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, MethodDef};
+use tcl_compiler::command_binding::ExecutedScriptWords;
 use tcl_compiler::command_binding::{
-    SourceCommandTarget, SourceDefinitionMethodReference, SourceMethodReceiver, SourceOriginKind,
+    SourceCommandTarget, SourceDefinitionMethodReference, SourceMethodReceiver,
     SourceReceiverMethodEntry,
 };
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{SourceMap, Span};
+use tcl_names::origin::SourceOriginKind;
 use tcl_source::segment::SegmentedCommand;
 
 /// Original class and member selected by a retained temporal receiver receipt.
@@ -102,7 +104,7 @@ pub(crate) fn class_command_at(
     !binding.unknown
         && !binding.may_be_absent
         && matches!(binding.targets.as_slice(), [target]
-            if target.kind == tcl_compiler::command_binding::BindingKind::Class)
+            if target.kind == tcl_names::command::BindingKind::Class)
 }
 
 /// Original instance class at the authentic post-argument command head,
@@ -196,7 +198,7 @@ fn original_method<'a>(
 pub(crate) fn original_own_method_metadata<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
-    allocation: &tcl_compiler::command_binding::SourceObjectAllocation,
+    allocation: &tcl_names::variable::SourceObjectAllocation,
     entry: &SourceReceiverMethodEntry,
 ) -> Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata> {
     if entry.declaring_object() != Some(allocation)
@@ -204,7 +206,7 @@ pub(crate) fn original_own_method_metadata<'a>(
             if bytes.as_ref() == source.as_bytes())
         || !matches!(
             entry.frame(),
-            tcl_compiler::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         )
     {
         return None;
@@ -239,7 +241,7 @@ fn original_method_in_class<'a>(
     if !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
         || !matches!(
             entry.frame(),
-            tcl_compiler::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         )
     {
         return None;
@@ -383,7 +385,7 @@ pub(crate) fn method_at_command<'a>(
 /// the declaring document's own analysis owns the metadata.
 #[derive(Debug, Clone)]
 pub(crate) struct ForeignReceiverMethod {
-    pub(crate) declaration: tcl_compiler::command_binding::CommandAllocationSite,
+    pub(crate) declaration: tcl_names::command::CommandAllocationSite,
     pub(crate) name_span: Span,
     pub(crate) side: tcl_compiler::analyser::types::MemberSide,
     pub(crate) selector: Span,
@@ -443,7 +445,7 @@ pub(crate) fn foreign_method_at_command(
             if bytes.as_ref() != source.as_bytes())
         || !matches!(
             entry.frame(),
-            tcl_compiler::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+            tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
         )
     {
         return None;
@@ -525,13 +527,12 @@ pub(crate) fn captured_methods_at_command<'a>(
                 .original_word_key()
                 .and_then(|key| key.display())
                 .and_then(|name| {
-                    let base =
-                        tcl_compiler::command_binding::ExecutedScriptSource::literal_word_base(
-                            source,
-                            prefix.selector(),
-                            name,
-                            config,
-                        )?;
+                    let base = tcl_names::origin::ExecutedScriptSource::literal_word_base(
+                        source,
+                        prefix.selector(),
+                        name,
+                        config,
+                    )?;
                     Some(Span::new(
                         base,
                         base.checked_add(u32::try_from(name.len()).ok()?)?,

@@ -18,12 +18,9 @@
 
 //! Entering a called procedure body or a lambda: frame, namespace, formals and parameter binding.
 
-use super::super::command_identity::CommandAllocationSite;
-use super::super::executed_script_source::ExecutedScriptSource;
-use super::super::namespace_context::SourceNamespaceKey;
 use super::super::source_origin::{source_activation_name, source_called_body_activation_name};
 use super::super::{
-    BindingKind, DeferredSourceBody, MayBinding, ModuleCommandBindings, SourceCommandBindings,
+    DeferredSourceBody, MayBinding, ModuleCommandBindings, SourceCommandBindings,
     SourceCommandTarget, SourceExecutionContext, SourceNativeInvocation, SourceOutcomes,
     native_result, object_instance, original_receiver_body_context, receiver_self,
     source_representation,
@@ -31,8 +28,12 @@ use super::super::{
 use super::body_flow::evaluated_script_realm;
 use super::execution_context::SourceBodyEntryPurpose;
 use super::outcomes::opaque_source_invocation;
+use crate::command_binding::ExecutedScriptWords;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use tcl_names::command::{BindingKind, CommandAllocationSite};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::ExecutedScriptSource;
 use tcl_registry::CommandRegistry;
 
 /// Keep formal value representation and object identity from the same call operands.
@@ -172,7 +173,7 @@ fn entered_receiver_body_context(
     body: &DeferredSourceBody,
     target: &SourceCommandTarget,
     receiver: Option<receiver_self::CalledBodyReceiver>,
-    frame: &crate::var_resolve::VariableExecutionFrame,
+    frame: &tcl_names::variable::VariableExecutionFrame,
     called: &crate::var_resolve::ResolveContext,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>> {
@@ -190,8 +191,8 @@ fn source_lambda_frame(
     namespace: &str,
     namespace_key: &SourceNamespaceKey,
     site: u32,
-) -> crate::var_resolve::VariableExecutionFrame {
-    crate::var_resolve::VariableExecutionFrame::Procedure {
+) -> tcl_names::variable::VariableExecutionFrame {
+    tcl_names::variable::VariableExecutionFrame::Procedure {
         namespace: namespace.to_owned(),
         identity: source_activation_name(state.current_source_origin.as_ref(), "lambda", site),
     }
@@ -203,11 +204,11 @@ fn called_body_frame(
     identity: String,
     namespace: &str,
     namespace_key: &SourceNamespaceKey,
-) -> crate::var_resolve::VariableExecutionFrame {
+) -> tcl_names::variable::VariableExecutionFrame {
     let frame = if body.receiver_method {
-        crate::var_resolve::VariableExecutionFrame::ReceiverMethod { identity }
+        tcl_names::variable::VariableExecutionFrame::ReceiverMethod { identity }
     } else {
-        crate::var_resolve::VariableExecutionFrame::Procedure {
+        tcl_names::variable::VariableExecutionFrame::Procedure {
             namespace: namespace.to_owned(),
             identity,
         }
@@ -359,7 +360,7 @@ impl SourceCommandBindings {
         &mut self,
         body: &DeferredSourceBody,
         entry: SourceBodyEntryPurpose,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: &tcl_names::variable::VariableExecutionFrame,
         namespace: Option<&SourceNamespaceKey>,
         receiver_context: Option<Arc<original_receiver_body_context::OriginalReceiverBodyContext>>,
     ) {
@@ -498,7 +499,7 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &ModuleCommandBindings,
         script: &ExecutedScriptSource,
-        frame: Option<&crate::var_resolve::VariableExecutionFrame>,
+        frame: Option<&tcl_names::variable::VariableExecutionFrame>,
         namespace: Option<&SourceNamespaceKey>,
     ) {
         let parent = CommandAllocationSite {

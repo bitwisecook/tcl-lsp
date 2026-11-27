@@ -22,8 +22,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use super::{ModuleCommandBindings, SourceExecutionContext};
-use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{ExecutablePart, NativeWord, SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::native_compilation::{
     NativeCompilationContext, NativeOriginalCompilerNameEffects,
 };
@@ -57,16 +58,16 @@ impl Clone for SourceCompilerNameEffectsCache {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ScriptProofKey {
     script: ScriptVisit,
-    origin: Arc<super::SourceOriginId>,
-    namespace: super::SourceNamespaceKey,
+    origin: Arc<tcl_names::origin::SourceOriginId>,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     registry: tcl_registry::RegistrySemanticKey,
     realm: tcl_dialect::model::InvocationRealm,
 }
 
 struct ProofScope<'a> {
     memo: Option<&'a SourceCompilerNameEffectsCache>,
-    origin: &'a Arc<super::SourceOriginId>,
-    namespace: super::SourceNamespaceKey,
+    origin: &'a Arc<tcl_names::origin::SourceOriginId>,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     registry: tcl_registry::RegistrySemanticKey,
     realm: tcl_dialect::model::InvocationRealm,
 }
@@ -116,7 +117,7 @@ pub(super) fn preserves_visits(
     visits: Vec<NativeControlPreparationStep>,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-    origin: &Arc<super::SourceOriginId>,
+    origin: &Arc<tcl_names::origin::SourceOriginId>,
 ) -> bool {
     let mut roots = Vec::new();
     if !append_visits(words, visits, &mut roots, state, context.compilation()) {
@@ -635,9 +636,9 @@ mod tests {
 
     fn proof_context<'a>(
         registry: &'a tcl_registry::CommandRegistry,
-        namespace: &'a super::super::SourceNamespaceKey,
+        namespace: &'a tcl_names::namespace::SourceNamespaceKey,
         snapshot: &'a super::super::NativeCompilationSnapshot,
-        frame: &'a crate::var_resolve::VariableExecutionFrame,
+        frame: &'a tcl_names::variable::VariableExecutionFrame,
     ) -> SourceExecutionContext<'a> {
         let mut context = super::super::root_source_execution_context(
             frame,
@@ -674,14 +675,14 @@ mod tests {
             "}".repeat(depth)
         );
         let original = words(&source, dialect);
-        let origin = Arc::new(super::super::SourceOriginId::authored_image(
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             original[0].image().clone(),
         ));
         let mut current = state("set checkpoint READY", dialect);
         current.current_source_origin = Some(Arc::clone(&origin));
         let snapshot = current.native_compilation_snapshot();
         let namespace = current.source_root_namespace_key().unwrap();
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let context = proof_context(registry, &namespace, &snapshot, &frame);
         let protocol = dialect.native_source_string_protocol().unwrap();
         let captured = NativeCompilerWords::capture(&original, protocol).unwrap();
@@ -746,14 +747,14 @@ mod tests {
             tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let original = words("if 1 {$unknown}", dialect);
-        let origin = Arc::new(super::super::SourceOriginId::authored_image(
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             original[0].image().clone(),
         ));
         let mut current = state("set checkpoint READY", dialect);
         current.current_source_origin = Some(Arc::clone(&origin));
         let snapshot = current.native_compilation_snapshot();
         let namespace = current.source_root_namespace_key().unwrap();
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let context = proof_context(registry, &namespace, &snapshot, &frame);
         let captured = NativeCompilerWords::capture(
             &original,
@@ -793,13 +794,13 @@ mod tests {
             ..context
         };
         assert_eq!(check(&captured, changed, &origin), (false, 4));
-        let other_origin = Arc::new(super::super::SourceOriginId::loaded_image(
+        let other_origin = Arc::new(tcl_names::origin::SourceOriginId::loaded_image(
             Arc::from("other.tcl"),
             Arc::from("source-contract"),
             original[0].image().clone(),
         ));
         assert_eq!(check(&captured, context, &other_origin), (false, 5));
-        let other_namespace = super::super::SourceNamespaceKey::authored("::other");
+        let other_namespace = tcl_names::namespace::SourceNamespaceKey::authored("::other");
         changed = SourceExecutionContext {
             namespace_key: Some(&other_namespace),
             ..context
@@ -823,7 +824,7 @@ mod tests {
         .unwrap();
         assert_eq!(check(&alternate, context, &origin), (false, 7));
         let good = words("if 1 {set checkpoint READY}", dialect);
-        let good_origin = Arc::new(super::super::SourceOriginId::authored_image(
+        let good_origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             good[0].image().clone(),
         ));
         let good =
@@ -851,14 +852,14 @@ mod tests {
             tcl_native_model::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let original = words("if 1 {expr {Pi()}}", dialect);
-        let origin = Arc::new(super::super::SourceOriginId::authored_image(
+        let origin = Arc::new(tcl_names::origin::SourceOriginId::authored_image(
             original[0].image().clone(),
         ));
         let mut current = state("set checkpoint READY", dialect);
         current.current_source_origin = Some(Arc::clone(&origin));
         let snapshot = current.native_compilation_snapshot();
         let namespace = current.source_root_namespace_key().unwrap();
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let context = proof_context(registry, &namespace, &snapshot, &frame);
         let captured = NativeCompilerWords::capture(
             &original,

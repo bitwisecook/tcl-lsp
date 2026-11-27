@@ -38,10 +38,12 @@
 //!
 //! [`SignatureScanResult`]: super::types::SignatureScanResult
 
+use crate::signature_scan::scope::SignatureNamespaceChild;
 use tcl_lexer::Token;
 
-use super::scope::{SignatureNamespaceScope, SignatureSourceCommand};
+use super::scope::SignatureSourceCommand;
 use super::types::{SignatureProc, SignatureScanResult};
+use tcl_names::namespace::SignatureNamespaceScope;
 
 /// A factory-wrapper call captured during the first scan pass.
 ///
@@ -67,8 +69,8 @@ pub(super) struct FactoryCandidate {
     /// Effective rooted constructed namespace key at the call site.
     pub(super) ns_prefix: String,
     pub(super) namespace_scope: Option<SignatureNamespaceScope>,
-    pub(super) original_head: Option<super::scope::SignatureSourceNameKey>,
-    pub(super) original_name: Option<super::scope::SignatureSourceNameKey>,
+    pub(super) original_head: Option<tcl_names::word::SignatureSourceNameKey>,
+    pub(super) original_name: Option<tcl_names::word::SignatureSourceNameKey>,
 }
 
 /// First-pass record of a proc body, used to identify factory
@@ -423,7 +425,7 @@ impl ScanCtx<'_> {
     pub(super) fn original_name_key(
         &self,
         span: tcl_lexer::Span,
-    ) -> Option<super::scope::SignatureSourceNameKey> {
+    ) -> Option<tcl_names::word::SignatureSourceNameKey> {
         self.source_name_purpose()?
             .key(self.original_name_word(span)?, self.rules)
     }
@@ -501,7 +503,7 @@ impl ScanCtx<'_> {
         &self,
         namespace: &SignatureNamespaceScope,
         written: &str,
-        original: Option<&super::scope::SignatureSourceNameKey>,
+        original: Option<&tcl_names::word::SignatureSourceNameKey>,
     ) -> Option<(
         String,
         String,

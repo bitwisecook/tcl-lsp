@@ -19,12 +19,13 @@
 //! Completion receipts of a native handler and whether it leaves the command world closed.
 
 use super::super::{
-    BindingKind, MayBinding, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
+    MayBinding, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
     SourceNativeInvocation, SourceOutcomes, original_alias_creation, original_command_mutation,
     original_namespace_binding, original_namespace_deletion,
 };
 use super::outcomes::boxed_source_completion_receipt;
 use std::collections::BTreeSet;
+use tcl_names::command::BindingKind;
 use tcl_registry::InvocationFacts;
 
 pub(super) struct CapturedNativeCompletionReceipts {

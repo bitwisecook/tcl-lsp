@@ -300,7 +300,7 @@ fn copy_pair(
     let place = source.read_word_place(word, ctx.registry)?;
     if matches!(
         place.kind,
-        crate::place::PlaceKind::ArrayElem | crate::place::PlaceKind::ArrayWhole
+        tcl_names::place::PlaceKind::ArrayElem | tcl_names::place::PlaceKind::ArrayWhole
     ) {
         return None;
     }

@@ -120,7 +120,7 @@ pub(super) fn inline_procedures(
             .body
             .namespace_context
             .as_deref()
-            .and_then(tcl_compiler::command_binding::SourceNamespaceKey::advisory_key)
+            .and_then(tcl_names::namespace::SourceNamespaceKey::advisory_key)
         else {
             continue;
         };

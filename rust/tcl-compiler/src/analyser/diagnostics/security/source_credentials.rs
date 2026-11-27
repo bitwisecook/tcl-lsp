@@ -23,6 +23,7 @@ use crate::analyser::diagnostic_registry::{
 };
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{Diagnostic, Severity};
+use crate::command_binding::SourceOriginLexical;
 use tcl_core_types::DiagCode;
 use tcl_registry::AuthoredSourceCredentialPosition;
 

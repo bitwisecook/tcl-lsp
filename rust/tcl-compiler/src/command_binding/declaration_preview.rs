@@ -26,12 +26,12 @@ use super::declaration_layout::original_declaration_layouts;
 use super::declaration_layout::{
     DeclarationLayoutIssuer, DeclarationLayoutObservation, OriginalDiagnosticFrameEntry,
 };
-use super::{
-    CommandAllocationSite, ExecutedScriptSource, SourceCommandBindings, SourceLookupSnapshot,
-};
+use super::{SourceCommandBindings, SourceLookupSnapshot};
 use crate::registry_invocation::EffectiveInvocationWord;
 #[cfg(test)]
 use crate::registry_invocation::effective_invocation_word;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 pub(super) mod logical_body_entry;
 mod source_cut_body;
@@ -43,24 +43,24 @@ pub(crate) use source_cut_body::OriginalSourceCutBodyRows;
 pub(super) struct DeclaredProcedureBody {
     declaration: CommandAllocationSite,
     candidate: super::SourceCommandTarget,
-    slot: super::SourceCommandKey,
+    slot: tcl_names::command::SourceCommandKey,
     pub(super) source: ExecutedScriptSource,
-    pub(super) namespace: super::SourceNamespaceKey,
+    pub(super) namespace: tcl_names::namespace::SourceNamespaceKey,
     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     logical_name: Option<String>,
     logical_parameters_text: Option<String>,
     logical_parameters_word: Option<tcl_lexer::NativeWord>,
     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
-    pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+    pub(super) frame: tcl_names::variable::VariableExecutionFrame,
     authored_original_body_word: Option<tcl_lexer::NativeWord>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 struct OriginalLogicalProcedureStaticFacet {
     input: crate::analyser::ResolvedAnalysisInput,
-    source: Arc<super::SourceOriginId>,
-    frame: crate::var_resolve::VariableExecutionFrame,
-    namespace: super::SourceNamespaceKey,
+    source: Arc<tcl_names::origin::SourceOriginId>,
+    frame: tcl_names::variable::VariableExecutionFrame,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     variables: Arc<crate::var_resolve::ResolveContext>,
     config: tcl_lexer::LexerConfig,
     original: Vec<tcl_lexer::NativeWord>,
@@ -85,7 +85,7 @@ enum OriginalAuthoredDeclarationSourceObligation {
 pub(crate) struct OriginalAuthoredProcedureSourceGeometry {
     header: crate::ir::CommandTokens,
     declaration: super::source_transition_advice::OriginalConditionalProcedureDeclaration,
-    namespace: super::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     name: String,
     parameters_text: String,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
@@ -99,7 +99,7 @@ impl OriginalAuthoredProcedureSourceGeometry {
     pub(crate) fn body_word(&self) -> &tcl_lexer::NativeWord {
         &self.body_word
     }
-    pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
+    pub(crate) fn namespace(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.namespace
     }
     pub(crate) fn name(&self) -> &str {
@@ -229,7 +229,8 @@ impl super::SourceInvocationBinding {
             let parameters_text = std::str::from_utf8(&parameters_text).ok()?.to_owned();
             let parameters =
                 super::logical_definition::static_formals(&parameters_text, config.list_parse)?;
-            let namespace = super::SourceNamespaceKey::authored_path(&declaration.namespace)?;
+            let namespace =
+                tcl_names::namespace::SourceNamespaceKey::authored_path(&declaration.namespace)?;
             let body_word = declaration.body.original_container().clone();
             let geometry = OriginalAuthoredProcedureSourceGeometry {
                 header: tokens.clone(),
@@ -262,11 +263,11 @@ pub(super) struct DeclaredProcedureHeader {
     pub(super) name_input: crate::signature_scan::scope::SignatureSourceNameInput,
     pub(super) declaration: CommandAllocationSite,
     candidate: super::SourceCommandTarget,
-    slot: super::SourceCommandKey,
-    pub(super) namespace: super::SourceNamespaceKey,
+    slot: tcl_names::command::SourceCommandKey,
+    pub(super) namespace: tcl_names::namespace::SourceNamespaceKey,
     pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
-    pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+    pub(super) frame: tcl_names::variable::VariableExecutionFrame,
     written: usize,
     value: String,
 }

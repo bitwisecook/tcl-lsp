@@ -25,6 +25,7 @@ use super::{
     LiftedCall, LiftedCallCollection, MAX_SUBSTITUTION_DEPTH, collect_command_words,
     collect_surface_text_with_surface, lift, push_substitution,
 };
+use crate::command_binding::SourceOriginLexical;
 use crate::ir::CommandTokens;
 use tcl_lexer::Span;
 use tcl_source::words::Provenance;
@@ -640,7 +641,7 @@ enum OriginalExpressionInventoryPurpose<'a> {
 fn collect_original_braced_expression_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
-    site: &crate::command_binding::CommandAllocationSite,
+    site: &tcl_names::command::CommandAllocationSite,
     roles: &[(usize, tcl_registry::ArgRole)],
     traits: tcl_registry::Traits,
     profile: &tcl_dialect::DialectProfile,

@@ -18,19 +18,20 @@
 
 //! Trusted package loaders, the `package` transitions and the liveness of a provider's surface.
 
+use super::CommandToken;
 use super::binding_projection::{command_holder, source_binding};
-use super::command_identity::CommandToken;
-use super::executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
 #[cfg(any(test, debug_assertions))]
 use super::original_command_table;
-use super::source_origin::{SourceOriginId, SourceOriginKind};
 use super::{
-    BindingKind, MayBinding, ModuleCommandBindings, PackageProvision, ResolvedCommandTarget,
+    MayBinding, ModuleCommandBindings, PackageProvision, ResolvedCommandTarget,
     trusted_package_transfer,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_names::command::BindingKind;
+use tcl_names::origin::{ExecutedScriptMapping, ExecutedScriptSource};
+use tcl_names::origin::{SourceOriginId, SourceOriginKind};
 use tcl_registry::{CommandRegistry, StateTransition, TransitionSubject};
 
 /// A selected standard-distribution loader contract supplied by the driver.
@@ -272,7 +273,7 @@ impl ModuleCommandBindings {
                 observer_places.push(
                     subject
                         .argument_index()
-                        .map_or_else(crate::place::unknown_top, |index| {
+                        .map_or_else(tcl_names::place::unknown_top, |index| {
                             operands.trace_subject_access(index, &self.source_variables, registry)
                         }),
                 );
@@ -284,8 +285,8 @@ impl ModuleCommandBindings {
 
     pub(super) fn record_provider_write_places(
         &mut self,
-        places: &[crate::place::Place],
-        observer_places: &[crate::place::Place],
+        places: &[tcl_names::place::Place],
+        observer_places: &[tcl_names::place::Place],
         registry: &CommandRegistry,
     ) {
         if places.is_empty() {
@@ -308,7 +309,7 @@ impl ModuleCommandBindings {
         if places.iter().any(|place| {
             dependencies
                 .iter()
-                .any(|dependency| crate::place::overlap(place, dependency))
+                .any(|dependency| tcl_names::place::overlap(place, dependency))
         }) {
             Arc::make_mut(&mut self.revoked_loaders)
                 .extend(self.baseline.trusted_loaders.keys().cloned());
@@ -330,7 +331,7 @@ impl ModuleCommandBindings {
                 .any(|dependency| {
                     places
                         .iter()
-                        .any(|place| crate::place::overlap(place, &dependency))
+                        .any(|place| tcl_names::place::overlap(place, &dependency))
                 })
         {
             self.loader_handler_unknown = true;
@@ -348,9 +349,9 @@ impl ModuleCommandBindings {
                 .collect::<Vec<_>>();
             let affected = places.iter().any(|place| {
                 if place.dynamic
-                    || place.kind == crate::place::PlaceKind::UpvarAlias
-                    || (place.kind == crate::place::PlaceKind::Unknown
-                        && place.ns == crate::place::LOCAL_NS)
+                    || place.kind == tcl_names::place::PlaceKind::UpvarAlias
+                    || (place.kind == tcl_names::place::PlaceKind::Unknown
+                        && place.ns == tcl_names::place::LOCAL_NS)
                 {
                     return true;
                 }
@@ -358,7 +359,7 @@ impl ModuleCommandBindings {
                 if !loader.state_dependency_namespaces.iter().any(|namespace| {
                     let dependency = tcl_syntax::naming::key_segments(namespace);
                     actual.starts_with(&dependency)
-                        || (place.kind == crate::place::PlaceKind::Unknown
+                        || (place.kind == tcl_names::place::PlaceKind::Unknown
                             && dependency.starts_with(&actual))
                 }) {
                     return false;

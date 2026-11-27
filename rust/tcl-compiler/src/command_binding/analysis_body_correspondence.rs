@@ -18,10 +18,9 @@
 
 //! Source correspondence for analysis data without an execution licence.
 
-use super::{
-    Arc, BodyProofScope, ModuleCommandBindings, Script, SourceInvocationBinding, SourceOriginId,
-};
+use super::{Arc, BodyProofScope, ModuleCommandBindings, Script, SourceInvocationBinding};
 use crate::registry_invocation::{OwnedInvocationMetadataContext, RegistryInvocationShape};
+use tcl_names::origin::SourceOriginId;
 use tcl_registry::{
     CommandRegistry,
     world_effect::{CallbackKinds, WorldStateDomain},
@@ -30,7 +29,7 @@ use tcl_registry::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OriginalRegistryDependency {
     offset: u32,
-    namespace: super::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     dialect: tcl_native_model::InvocationDialect,
     realm: tcl_dialect::model::InvocationRealm,
     targets: Vec<super::SourceCommandTarget>,
@@ -74,7 +73,7 @@ struct NativeSourceSchemaDependency {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AuthoredSourceSchemaDependency {
     offset: u32,
-    namespace: super::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     dialect: tcl_native_model::InvocationDialect,
     realm: tcl_dialect::model::InvocationRealm,
     targets: Vec<super::SourceCommandTarget>,
@@ -180,7 +179,7 @@ impl ModuleCommandBindings {
         }
         let source = body.executed_source.as_ref()?;
         if source.try_text().ok()? != scope.body_source
-            || !matches!(source.origin.kind(), super::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
+            || !matches!(source.origin.kind(), tcl_names::origin::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
             || self.current_source_origin.as_ref() != Some(&source.origin)
         {
             return None;
@@ -634,7 +633,7 @@ fn original_registry_dependency(
     let site = proof.invocation_site()?;
     let end =
         u64::from(scope.executable_body_offset) + u64::try_from(scope.body_source.len()).ok()?;
-    if !matches!(site.source.kind(), super::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
+    if !matches!(site.source.kind(), tcl_names::origin::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
         || site.offset < scope.executable_body_offset
         || end <= u64::from(site.offset)
     {
@@ -884,7 +883,7 @@ fn original_native_source_registry_dependency(
     let site = proof.invocation_site()?;
     let end =
         u64::from(scope.executable_body_offset) + u64::try_from(scope.body_source.len()).ok()?;
-    if !matches!(site.source.kind(), super::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
+    if !matches!(site.source.kind(), tcl_names::origin::SourceOriginKind::Authored(image) if image.bytes() == scope.source.as_bytes())
         || site.offset < scope.executable_body_offset
         || end <= u64::from(site.offset)
     {

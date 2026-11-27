@@ -18,15 +18,15 @@
 
 //! The catalogue and advice candidates an original name may select.
 
-use super::super::{
-    BindingKind, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
-};
+use super::super::{MayBinding, ModuleCommandBindings};
 #[cfg(any(test, debug_assertions))]
 use super::OriginalGeometryTiming;
 use super::{
     AdviceRows, RegistryAdviceSlotIndex, original_registry_metadata_slot, registry_metadata_slot_is,
 };
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, SourceCommandKey};
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 
 enum CatalogueCandidate<'a> {
     Absent,
@@ -607,7 +607,7 @@ impl ModuleCommandBindings {
                     for target in implementations {
                         if !target.terminal
                             || !target.registry_backed
-                            || target.kind == super::super::BindingKind::Alias
+                            || target.kind == tcl_names::command::BindingKind::Alias
                             || !target.prepended.is_empty()
                         {
                             return None;

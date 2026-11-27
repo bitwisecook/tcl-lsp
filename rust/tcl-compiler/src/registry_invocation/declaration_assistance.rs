@@ -23,6 +23,7 @@ use super::{
     RegistryInvocationResolution, effective_invocation_word, effective_words_for_target,
     frozen_argument_words, resolve_registry_words_in_realm,
 };
+use crate::signature_scan::scope::SignatureNamespaceChild;
 
 /// A declaration name and its original written argument. This is source
 /// navigation advice, never a successful alias, physical cell or editable
@@ -517,9 +518,9 @@ impl OriginalSourceVariableAliasOperands {
         analysis: &crate::analyser::AnalysisResult,
         operands: (tcl_lexer::Span, tcl_lexer::Span),
         target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        current: &tcl_names::namespace::SignatureNamespaceScope,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         let original = super::source_structure::source_registry_words_at(
             source,
             analysis,
@@ -546,9 +547,9 @@ impl OriginalSourceVariableAliasOperands {
         input: &crate::analyser::ResolvedAnalysisInput,
         operands: (tcl_lexer::Span, tcl_lexer::Span),
         target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        current: &tcl_names::namespace::SignatureNamespaceScope,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         self.target_namespace_scope_for_words(
             original,
             input,
@@ -565,9 +566,9 @@ impl OriginalSourceVariableAliasOperands {
         input: &crate::analyser::ResolvedAnalysisInput,
         operands: (tcl_lexer::Span, tcl_lexer::Span),
         target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        current: &tcl_names::namespace::SignatureNamespaceScope,
         selection: AliasNamespacePurpose,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         use tcl_registry::VariableAliasTarget as Target;
         let (purpose, logical_declaration) = match selection {
             AliasNamespacePurpose::Recorded(purpose) => (purpose, false),
@@ -629,7 +630,7 @@ impl OriginalSourceVariableAliasOperands {
             }
             let namespace = match &alias.target {
                 Target::Global { .. } => {
-                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy))
+                    tcl_names::namespace::SignatureNamespaceScope::root(Some(policy))
                 }
                 Target::CurrentNamespace { .. } => current.clone(),
                 Target::Namespace { namespace, .. } => {
@@ -650,7 +651,7 @@ impl OriginalSourceVariableAliasOperands {
                     {
                         return None;
                     }
-                    crate::signature_scan::scope::SignatureNamespaceScope::root(Some(policy))
+                    tcl_names::namespace::SignatureNamespaceScope::root(Some(policy))
                 }
             };
             if selected.as_ref().is_some_and(|prior| prior != &namespace) {
@@ -816,7 +817,7 @@ impl OriginalLogicalAliasDeclaration {
         input: &crate::analyser::ResolvedAnalysisInput,
         target: &crate::signature_scan::scope::SignatureSourceNameInput,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
-    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+    ) -> Option<tcl_names::namespace::SignatureNamespaceScope> {
         if input != &self.input {
             return None;
         }
@@ -839,9 +840,9 @@ impl OriginalLogicalAliasDeclaration {
             {
                 return None;
             }
-            return Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-                Some(policy),
-            ));
+            return Some(tcl_names::namespace::SignatureNamespaceScope::root(Some(
+                policy,
+            )));
         }
         self.source.target_namespace_scope_for_words(
             &self.source.words,
@@ -887,12 +888,12 @@ fn logical_alias_frame(
     scope.map_or(tcl_registry::VariableAliasFrame::Unknown, |scope| {
         if let Some(frame) = scope.alias_frame() {
             match frame.frame().layout() {
-                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. } => {
+                tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. } => {
                     tcl_registry::VariableAliasFrame::Procedure
                 }
-                crate::var_resolve::VariableExecutionFrame::Namespace(_)
-                | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. } => {
+                tcl_names::variable::VariableExecutionFrame::Namespace(_)
+                | tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. } => {
                     tcl_registry::VariableAliasFrame::Namespace
                 }
                 _ => tcl_registry::VariableAliasFrame::Unknown,
@@ -1280,7 +1281,7 @@ mod original_alias_source_schema_tests {
             .expect("genuine independent original namespace source frame");
         assert!(matches!(
             scope.alias_frame().unwrap().frame().layout(),
-            crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+            tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
         ));
         assert_eq!(dialect.variable_lookup_policy, None);
         assert_eq!(
@@ -1297,7 +1298,7 @@ mod original_alias_source_schema_tests {
         analysis: &crate::analyser::AnalysisResult,
         operands: (tcl_lexer::Span, tcl_lexer::Span),
         target_input: &crate::signature_scan::scope::SignatureSourceNameInput,
-        current: &crate::signature_scan::scope::SignatureNamespaceScope,
+        current: &tcl_names::namespace::SignatureNamespaceScope,
         purpose: crate::signature_scan::original_name::OriginalSourceNamePurpose,
     ) {
         let (local, target) = operands;
@@ -1494,7 +1495,7 @@ mod original_alias_source_schema_tests {
                 purpose,
             )
             .expect("actual selected written namespace operand");
-        let crate::signature_scan::scope::SignatureNamespaceScope::C(path) = &selected else {
+        let tcl_names::namespace::SignatureNamespaceScope::C(path) = &selected else {
             panic!("selected C source namespace geometry");
         };
         assert_eq!(

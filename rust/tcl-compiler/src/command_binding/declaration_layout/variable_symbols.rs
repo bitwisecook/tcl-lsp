@@ -28,16 +28,16 @@ fn original_alias_place_matches(
     row: &DeclarationLayoutObservation,
     input: &crate::signature_scan::scope::SignatureSourceNameInput,
     alias: &crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt,
-    place: &crate::place::Place,
+    place: &tcl_names::place::Place,
 ) -> bool {
     use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
     let Some(cell) = place.cell.as_ref() else {
         return false;
     };
-    let crate::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
+    let tcl_names::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
         return false;
     };
-    if place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+    if place.dynamic || place.kind == tcl_names::place::PlaceKind::Unknown {
         return false;
     }
 
@@ -48,7 +48,7 @@ fn original_alias_place_matches(
                     .snapshot
                     .state
                     .original_namespace_geometry(owner, input.policy())
-                    == Some(crate::signature_scan::scope::SignatureNamespaceScope::C(
+                    == Some(tcl_names::namespace::SignatureNamespaceScope::C(
                         namespace.clone(),
                     ))
         }
@@ -170,9 +170,9 @@ fn original_alias_template_rows_match<'a>(
         }
         if requires_qualified_target() {
             let namespace = if absolute_root() {
-                Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-                    Some(input.policy()),
-                ))
+                Some(tcl_names::namespace::SignatureNamespaceScope::root(Some(
+                    input.policy(),
+                )))
             } else {
                 row.snapshot
                     .state
@@ -202,7 +202,7 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         tcl_core_types::NameBytes,
     )> {
         if !matches!(
@@ -249,11 +249,11 @@ impl SourceCommandBindings {
                     registry,
                     tcl_registry::TraceOperation::Read,
                 );
-                if place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
+                if place.dynamic || place.kind == tcl_names::place::PlaceKind::Unknown {
                     return None;
                 }
                 let cell = place.cell.as_ref()?;
-                let crate::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
+                let tcl_names::place::CellOwner::NamespaceIdentity(owner) = &cell.owner else {
                     return None;
                 };
                 let value = (
@@ -372,8 +372,8 @@ impl SourceCommandBindings {
                     );
                 }
                 if place.dynamic
-                    || place.kind == crate::place::PlaceKind::Unknown
-                    || !matches!(&cell.owner, crate::place::CellOwner::Activation(activation) if context.activation.as_ref() == Some(activation))
+                    || place.kind == tcl_names::place::PlaceKind::Unknown
+                    || !matches!(&cell.owner, tcl_names::place::CellOwner::Activation(activation) if context.activation.as_ref() == Some(activation))
                     || cell.name != simple
                 {
                     return None;
@@ -414,7 +414,7 @@ impl SourceCommandBindings {
                 continue;
             }
             if rows.clone().any(|row| {
-                row.entry.frame().layout() != &crate::var_resolve::VariableExecutionFrame::Global
+                row.entry.frame().layout() != &tcl_names::variable::VariableExecutionFrame::Global
             }) {
                 return false;
             }
@@ -675,8 +675,8 @@ impl SourceCommandBindings {
                 || &row.entry.source().origin != origin
                 || !matches!(
                     row.entry.frame().layout(),
-                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                    tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                        | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
                 )
             {
                 continue;
@@ -798,14 +798,14 @@ impl SourceCommandBindings {
                 for row in observations {
                     if row.entry.owns_source_cursor(origin, offset) {
                         let layout = match row.entry.frame().layout() {
-                            crate::var_resolve::VariableExecutionFrame::Global => "global",
-                            crate::var_resolve::VariableExecutionFrame::Procedure { .. } => {
+                            tcl_names::variable::VariableExecutionFrame::Global => "global",
+                            tcl_names::variable::VariableExecutionFrame::Procedure { .. } => {
                                 "procedure"
                             }
-                            crate::var_resolve::VariableExecutionFrame::ReceiverMethod {
+                            tcl_names::variable::VariableExecutionFrame::ReceiverMethod {
                                 ..
                             } => "receiver",
-                            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                            tcl_names::variable::VariableExecutionFrame::NamespaceActivation {
                                 ..
                             } => "namespace-activation",
                             _ => "other",
@@ -836,9 +836,9 @@ impl SourceCommandBindings {
                 || !first.entry.owns_source_cursor(origin, offset)
                 || !matches!(
                     first.entry.frame().layout(),
-                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-                        | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                    tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                        | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
+                        | tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
                 )
             {
                 continue;
@@ -906,9 +906,9 @@ impl SourceCommandBindings {
                 })
                 || !matches!(
                     first.entry.frame().layout(),
-                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-                        | crate::var_resolve::VariableExecutionFrame::NamespaceActivation { .. }
+                    tcl_names::variable::VariableExecutionFrame::Procedure { .. }
+                        | tcl_names::variable::VariableExecutionFrame::ReceiverMethod { .. }
+                        | tcl_names::variable::VariableExecutionFrame::NamespaceActivation { .. }
                 )
             {
                 continue;
@@ -935,10 +935,10 @@ impl SourceCommandBindings {
 
 pub(in super::super) fn root_diagnostic_namespace(
     state: &ModuleCommandBindings,
-    current: &super::super::SourceNamespaceKey,
-) -> Option<super::super::SourceNamespaceKey> {
+    current: &tcl_names::namespace::SourceNamespaceKey,
+) -> Option<tcl_names::namespace::SourceNamespaceKey> {
     let root = state.source_root_namespace_key()?;
-    if state.variable_frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global
+    if state.variable_frame.layout() != &tcl_names::variable::VariableExecutionFrame::Global
         || current != &root
         || state
             .variable_frame

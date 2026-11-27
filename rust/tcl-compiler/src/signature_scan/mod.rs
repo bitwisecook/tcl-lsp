@@ -166,7 +166,7 @@ fn extract_signatures_in(
                 .map(|h| (*h).to_owned()),
         )
         .collect();
-    let root = scope::SignatureNamespaceScope::root(ctx.name_policy());
+    let root = tcl_names::namespace::SignatureNamespaceScope::root(ctx.name_policy());
     walker::scan_in_context(source, None, &root, false, &known_commands, &mut ctx);
     factory::resolve_factory_defs(&mut ctx);
     ctx.result
@@ -436,8 +436,8 @@ mod tests {
 
     #[test]
     fn reported_colon_tail_preserves_selected_slot_and_body_scope() {
-        use scope::SignatureNamespaceScope;
         use tcl_core_types::ByteNamespacePath;
+        use tcl_names::namespace::SignatureNamespaceScope;
         let source = "namespace eval N {proc :f {} {return [namespace current]}}";
         for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let result = for_engine(engine, source);
@@ -472,8 +472,8 @@ mod tests {
 
     #[test]
     fn equal_reports_keep_distinct_original_declaration_slots() {
-        use scope::SignatureNamespaceScope;
         use tcl_core_types::ByteNamespacePath;
+        use tcl_names::namespace::SignatureNamespaceScope;
         let source = "namespace eval a: {namespace eval b {proc p {} {return FIRST}}}; namespace eval a {namespace eval :b {proc p {} {return SECOND}}}";
         for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let result = for_engine(engine, source);
@@ -725,7 +725,7 @@ p\uD801";
             .collect::<Vec<_>>();
         assert_eq!(calls.len(), 2);
         result.procs.clear();
-        let root = scope::SignatureNamespaceScope::root(Some(calls[0].policy()));
+        let root = tcl_names::namespace::SignatureNamespaceScope::root(Some(calls[0].policy()));
         let first = result.procedures_for_original_name(&calls[0], &root);
         let second = result.procedures_for_original_name(&calls[1], &root);
         assert_eq!(first.len(), 1);
@@ -787,7 +787,7 @@ p\uD801";
         )
         .unwrap();
         let lookup = SignatureSourceLookup::from_input(
-            scope::SignatureNamespaceScope::root(Some(line.policy())),
+            tcl_names::namespace::SignatureNamespaceScope::root(Some(line.policy())),
             &SignatureSourceNameInput::OriginalValue(line),
         )
         .unwrap();

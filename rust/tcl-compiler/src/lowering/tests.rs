@@ -78,7 +78,7 @@ pub(super) fn assert_runtime_opaque_call(
     assert!(
         mutations
             .iter()
-            .any(|place| place.kind == crate::place::PlaceKind::Unknown)
+            .any(|place| place.kind == tcl_names::place::PlaceKind::Unknown)
             || tokens.evaluated_body().is_some()
             || crate::registry_invocation::normal_transfer_invocation(registry, None, tokens)
                 .is_none(),

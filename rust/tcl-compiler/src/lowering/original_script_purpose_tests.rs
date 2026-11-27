@@ -210,7 +210,7 @@ fn original_materialised_zero_base_body_keeps_its_selected_point_owner() {
     assert_eq!(original.base(), 0);
     assert_eq!(
         original.mapping,
-        crate::command_binding::ExecutedScriptMapping::Materialised
+        tcl_names::origin::ExecutedScriptMapping::Materialised
     );
     let body = original.try_text().unwrap();
     assert_eq!(body, "\u{feff}unknown");
@@ -243,14 +243,14 @@ fn original_materialised_zero_base_body_keeps_its_selected_point_owner() {
     assert_eq!(lowerer.metadata_input.as_ref(), Some(&input));
 
     // Equal derived text under another original parent has no retained point.
-    let foreign_parent = crate::command_binding::CommandAllocationSite {
-        source: std::sync::Arc::new(crate::command_binding::SourceOriginId::authored(
+    let foreign_parent = tcl_names::command::CommandAllocationSite {
+        source: std::sync::Arc::new(tcl_names::origin::SourceOriginId::authored(
             &std::sync::Arc::from("eval $other"),
         )),
         offset: 0,
     };
     let foreign =
-        crate::command_binding::ExecutedScriptSource::materialised(foreign_parent, vec![0], body);
+        tcl_names::origin::ExecutedScriptSource::materialised(foreign_parent, vec![0], body);
     let foreign_bindings = identities
         .source_bindings_ref()
         .selected_source(&foreign)

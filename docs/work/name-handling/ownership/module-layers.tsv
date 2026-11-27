@@ -5,16 +5,6 @@
 # mode: reporting
 # module	crate	rank
 site_claims	tcl-binding	6
-command_binding::BindingKind	tcl-names	2
-command_binding::command_identity	tcl-names	2
-command_binding::executed_script_source	tcl-names	2
-command_binding::namespace_context	tcl-names	2
-command_binding::source_origin	tcl-names	2
-place	tcl-names	2
-signature_scan::original_name::SignatureSourceNameKey	tcl-names	2
-signature_scan::scope	tcl-names	2
-var_resolve::VariableExecutionFrame	tcl-names	2
-var_resolve::cell_key	tcl-names	2
 analyses::ConstValue	tcl-values	3
 analyses::LatticeKind	tcl-values	3
 analyses::LatticeValue	tcl-values	3

@@ -54,6 +54,7 @@
 //! evaluation order, so the commit state moves exactly as the runtime converts.
 //! In `foo [bar [baz $x]]` the reads of `baz` land before `bar`'s.
 
+use crate::command_binding::SourceOriginLexical;
 use tcl_lexer::Span;
 
 use tcl_registry::model::DocumentCommandSurface;

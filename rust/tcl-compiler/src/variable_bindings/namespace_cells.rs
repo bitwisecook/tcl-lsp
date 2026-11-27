@@ -33,9 +33,9 @@ use super::source_places::{
     uncertain_variable_output_addresses_with_original_operands_impl, variable_operand_access_impl,
 };
 use super::variable_traces::apply_trace_with_original;
-use crate::place;
-use crate::place::{CellGeneration, Place, PlaceKind};
 use crate::var_resolve::{ResolveContext, cell_key, project_access};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, Place, PlaceKind};
 use tcl_registry::native_rmw::NativeRmwDialect;
 use tcl_registry::{
     CommandRegistry, NamespaceTransition, NamespaceTransitionTarget, StateTransition,
@@ -529,12 +529,12 @@ pub fn fresh_namespace_cells(
         // the root namespace table; the interpreter creates one variable.
         .flat_map(|variable| {
             [
-                crate::var_resolve::VariableCellKey::Authored(tcl_syntax::naming::qualify(
+                tcl_names::variable::VariableCellKey::Authored(tcl_syntax::naming::qualify(
                     "::",
                     variable.name,
                 )),
-                crate::var_resolve::VariableCellKey::Namespace {
-                    identity: crate::command_binding::SourceNamespaceKey::authored("::"),
+                tcl_names::variable::VariableCellKey::Namespace {
+                    identity: tcl_names::namespace::SourceNamespaceKey::authored("::"),
                     simple: tcl_core_types::NameBytes::from(variable.name.as_bytes()),
                 },
             ]
@@ -542,8 +542,8 @@ pub fn fresh_namespace_cells(
         .collect();
     crate::var_resolve::NamespaceCellPresence {
         present,
-        possible: crate::var_resolve::VariableCellSet::default(),
+        possible: tcl_names::variable::VariableCellSet::default(),
         closed: true,
-        closed_namespaces: crate::var_resolve::VariableNamespaceSet::default(),
+        closed_namespaces: tcl_names::variable::VariableNamespaceSet::default(),
     }
 }

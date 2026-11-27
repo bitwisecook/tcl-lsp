@@ -19,7 +19,6 @@
 //! One source command: its argument evaluation, the point it records and its target selection.
 
 use super::super::binding_projection::PointWalkEntry;
-use super::super::command_identity::CommandAllocationSite;
 use super::super::invocation_binding::SourceObserverExecution;
 #[cfg(any(test, debug_assertions))]
 use super::super::root_owner_work;
@@ -40,6 +39,7 @@ use super::outcomes::{
     opaque_source_invocation, publish_source_branch,
 };
 use std::sync::{Arc, OnceLock};
+use tcl_names::command::CommandAllocationSite;
 
 /// Build source word carriers in a leaf frame rather than retaining their
 /// inline construction temporary through recursive command substitution.

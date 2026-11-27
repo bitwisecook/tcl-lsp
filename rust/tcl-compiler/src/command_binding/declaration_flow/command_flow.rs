@@ -18,7 +18,6 @@
 
 //! The flow graph of a script: command nodes and their handler, lifecycle, branch and loop flow.
 
-use super::super::{CommandAllocationSite, ExecutedScriptMapping};
 use super::events::Event;
 use super::{
     Builder, ConditionTargets, ConditionalRepresentationLoopNodes,
@@ -27,6 +26,8 @@ use super::{
 };
 use crate::ir::CommandTokens;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptMapping;
 use tcl_registry::body_execution::BodyOperand;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
 
@@ -101,7 +102,7 @@ impl Builder<'_> {
         &mut self,
         image: &tcl_lexer::SourceImage,
         base: u32,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         purpose: tcl_lexer::SourceSegmentationPurpose,
         entry: usize,
         exits: Exits,
@@ -153,7 +154,7 @@ impl Builder<'_> {
         &mut self,
         image: &tcl_lexer::SourceImage,
         base: u32,
-        origin: &Arc<super::super::SourceOriginId>,
+        origin: &Arc<tcl_names::origin::SourceOriginId>,
         segments: &[tcl_source::segment::SegmentedCommand],
     ) {
         if let DeclarationFlowFrame::Read(read) = self.entry {

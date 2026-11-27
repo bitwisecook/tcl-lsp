@@ -18,16 +18,17 @@
 
 //! Procedure declaration headers: operands, formal names and parameter topology.
 
+use super::super::SourceCommandBindings;
 use super::super::declaration_layout::{
     DeclarationLayoutObservation, original_declaration_layouts,
 };
-use super::super::{CommandAllocationSite, SourceCommandBindings};
 use super::declared_body::{declared_body, declared_procedure_frame};
 use super::{DeclaredProcedureHeader, ProcedureOperands};
 use crate::registry_invocation::{
     EffectiveInvocationWord, RegistryInvocationResolution, effective_invocation_word,
     effective_words_for_target,
 };
+use tcl_names::command::CommandAllocationSite;
 
 impl SourceCommandBindings {
     /// Conditional Native source formal names only. This selects no namespace
@@ -237,9 +238,8 @@ pub(super) fn original_declaration_operand_input(
     index: usize,
 ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
     use crate::registry_invocation::InvocationWordOrigin;
-    use crate::signature_scan::scope::{
-        SignatureSourceNameInput, SignatureSourceNameKey, SignatureSourceNameValue,
-    };
+    use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameValue};
+    use tcl_names::word::SignatureSourceNameKey;
     let variables = &observation.snapshot.state.source_variables;
     let policy = variables.execution_name_policy?.native_recipe()?;
     let origin = effective.origins.get(index)?;

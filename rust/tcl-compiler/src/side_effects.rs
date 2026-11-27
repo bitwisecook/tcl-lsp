@@ -362,7 +362,7 @@ fn resolved_variable_scope(
         let place = crate::var_resolve::resolve_place(name, context, false, registry);
         let scope = if place.dynamic {
             StorageScope::Unknown
-        } else if place.ns == crate::place::LOCAL_NS {
+        } else if place.ns == tcl_names::place::LOCAL_NS {
             StorageScope::ProcLocal
         } else {
             StorageScope::Unknown
@@ -376,7 +376,7 @@ fn resolved_variable_scope(
 /// Classify a resolved namespace place; display supplies neither cell nor worker ownership.
 #[must_use]
 pub(crate) fn namespace_storage_scope_for_place(
-    place: &crate::place::Place,
+    place: &tcl_names::place::Place,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> StorageScope {
     let Some(canonical) = crate::var_resolve::canonical_place_key(place) else {
@@ -386,8 +386,8 @@ pub(crate) fn namespace_storage_scope_for_place(
 }
 
 fn canonical_namespace_storage_scope(
-    place: &crate::place::Place,
-    canonical: &crate::var_resolve::VariableCellKey,
+    place: &tcl_names::place::Place,
+    canonical: &tcl_names::variable::VariableCellKey,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> (StorageScope, Option<String>) {
     // Authored source keeps the descriptive iRules policy: it names the
@@ -401,7 +401,7 @@ fn canonical_namespace_storage_scope(
         Some((namespace == "::", Some(namespace.to_owned()), worker))
     };
     let namespace = if let Some(identity) = canonical.namespace_identity() {
-        if let crate::command_binding::SourceNamespaceKey::Authored(namespace) = identity {
+        if let tcl_names::namespace::SourceNamespaceKey::Authored(namespace) = identity {
             authored(namespace)
         } else {
             let root = identity
@@ -415,9 +415,9 @@ fn canonical_namespace_storage_scope(
         }
     } else {
         match canonical.root() {
-            crate::var_resolve::VariableCellKey::Authored(_) => {
+            tcl_names::variable::VariableCellKey::Authored(_) => {
                 match place.cell.as_ref().map(|cell| &cell.owner) {
-                    Some(crate::place::CellOwner::Namespace(namespace)) => authored(namespace),
+                    Some(tcl_names::place::CellOwner::Namespace(namespace)) => authored(namespace),
                     // A resolved legacy symbolic place has no native cell.
                     None => authored(&place.ns),
                     _ => None,

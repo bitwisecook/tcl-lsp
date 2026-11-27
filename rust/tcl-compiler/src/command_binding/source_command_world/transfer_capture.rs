@@ -19,15 +19,17 @@
 //! Capturing a command transfer before its handler and finishing it into publications.
 
 use super::super::{
-    Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandDefinition,
-    SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
+    Arc, ModuleCommandBindings, SourceCommandDefinition, SourceExecutionContext,
+    SourceNativeInvocation,
 };
 use super::{
     NamespaceGeometry, OriginalAliasTarget, OriginalCommandPublication,
     OriginalCommandPublicationKind, OriginalSourceCommandWorld, SourceWorldAliasOperands,
 };
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::{SignatureNamespaceChild, SignatureSourceNameInput};
 use tcl_core_types::ByteCommandSlot;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::namespace::{SignatureNamespaceScope, SourceNamespaceKey};
 use tcl_registry::state_transition::EnsembleManagementOperation;
 use tcl_registry::{
     CommandBindingDefinitionKind, CommandBindingTransition, EnsembleCommandName, InvocationFacts,
@@ -691,7 +693,7 @@ fn emitted_allocation(
     state: &ModuleCommandBindings,
     site: &CommandAllocationSite,
     kind: OriginalCommandPublicationKind,
-) -> Option<super::super::CommandAllocation> {
+) -> Option<tcl_names::command::CommandAllocation> {
     let mut allocations = state.bindings.values().filter_map(|bindings| {
         if bindings.len() != 1 {
             return None;
@@ -705,16 +707,16 @@ fn emitted_allocation(
                 (kind, target.kind),
                 (
                     OriginalCommandPublicationKind::Alias,
-                    super::super::BindingKind::Alias
+                    tcl_names::command::BindingKind::Alias
                 ) | (
                     OriginalCommandPublicationKind::Procedure,
-                    super::super::BindingKind::Proc
+                    tcl_names::command::BindingKind::Proc
                 ) | (
                     OriginalCommandPublicationKind::Object,
-                    super::super::BindingKind::Class
+                    tcl_names::command::BindingKind::Class
                 ) | (
                     OriginalCommandPublicationKind::Command,
-                    super::super::BindingKind::Command
+                    tcl_names::command::BindingKind::Command
                 )
             ))
         .then(|| allocation.clone())

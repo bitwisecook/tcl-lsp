@@ -130,7 +130,7 @@ impl VendorSourceNameInput {
 /// runtime lookup. A name role or declaration is not inferred from this site.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VendorSourceNameOccurrence {
-    site: crate::command_binding::CommandAllocationSite,
+    site: tcl_names::command::CommandAllocationSite,
     input: VendorSourceNameInput,
     original_words: std::sync::Arc<[NativeWord]>,
     body_origin: Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>>,
@@ -138,7 +138,7 @@ pub struct VendorSourceNameOccurrence {
 
 impl VendorSourceNameOccurrence {
     pub(crate) fn new(
-        site: &crate::command_binding::CommandAllocationSite,
+        site: &tcl_names::command::CommandAllocationSite,
         original: &NativeWord,
         policy: VendorSourceNamePolicy,
         original_words: std::sync::Arc<[NativeWord]>,
@@ -201,7 +201,7 @@ impl VendorSourceNameOccurrence {
 
     /// Genuine pre-walk original command layout, without reached invocation.
     #[must_use]
-    pub const fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+    pub const fn site(&self) -> &tcl_names::command::CommandAllocationSite {
         &self.site
     }
 

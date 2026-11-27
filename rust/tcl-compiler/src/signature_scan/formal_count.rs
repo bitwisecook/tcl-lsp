@@ -19,10 +19,10 @@
 //! Retained formal count contracts and body-free descriptive projections.
 
 use super::formal_parameters::SignatureSourceFormalParameters;
-use super::scope::SignatureSourceNameKey;
 use super::types::ParamDef;
 use std::sync::Arc;
 use tcl_dialect::ParameterGrammar;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_native_model::InvocationDialect;
 use tcl_registry::Arity;
 

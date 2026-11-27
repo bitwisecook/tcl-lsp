@@ -551,9 +551,7 @@ fn native_source_read_has_root_frame(
                 && context
                     .namespace_identity
                     .as_ref()
-                    .and_then(
-                        tcl_compiler::command_binding::SourceNamespaceKey::source_artifact_path,
-                    )
+                    .and_then(tcl_names::namespace::SourceNamespaceKey::source_artifact_path)
                     .is_some_and(|path| path.is_root())
         })
 }

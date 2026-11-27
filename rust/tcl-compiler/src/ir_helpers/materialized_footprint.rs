@@ -440,7 +440,7 @@ fn selected_name_ownership(
     words: &[CommandWord],
     context: &FootprintContext<'_>,
     state: &ModuleCommandBindings,
-    holder: &crate::command_binding::SourceNamespaceKey,
+    holder: &tcl_names::namespace::SourceNamespaceKey,
     purpose: crate::script_binds::Ownership,
 ) -> VariableWriteEffects {
     use tcl_registry::source_name_ownership::{SourceNameOwnershipPurpose, SourceRolePurpose};
@@ -505,7 +505,7 @@ fn reevaluated_reads(
     words: &[CommandWord],
     context: &FootprintContext<'_>,
     state: &mut ModuleCommandBindings,
-    holder: &crate::command_binding::SourceNamespaceKey,
+    holder: &tcl_names::namespace::SourceNamespaceKey,
     out: &mut VariableWriteEffects,
     depth: WalkDepth,
 ) {
@@ -573,7 +573,7 @@ fn immediate_values(
     words: &[CommandWord],
     context: &FootprintContext<'_>,
     state: &ModuleCommandBindings,
-    holder: &crate::command_binding::SourceNamespaceKey,
+    holder: &tcl_names::namespace::SourceNamespaceKey,
 ) -> (
     Vec<String>,
     Vec<String>,

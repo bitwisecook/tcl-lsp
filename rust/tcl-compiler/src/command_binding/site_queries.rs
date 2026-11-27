@@ -19,13 +19,13 @@
 //! Queries at a source site of a completed interpretation: binding, namespaces, absence and phase.
 
 use super::binding_projection::source_binding;
-use super::command_identity::CommandAllocationSite;
 use super::compiled_invocation::CompiledExecutionResidual;
 use super::source_analysis_entry::SourceAnalysisOptions;
 use super::source_walk::{SourceBodyPhase, SourceBodyPhaseReachability};
 use super::trusted_packages::TrustedPackageLoader;
 use super::{SourceBindingPoint, SourceCommandBindings, SourceInvocationBinding};
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 use tcl_registry::CommandRegistry;
 
 impl SourceCommandBindings {
@@ -213,7 +213,7 @@ impl SourceCommandBindings {
             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
             expression_parser: self.final_state.baseline.expression_parser,
         };
-        let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
+        let fallback = tcl_names::variable::VariableExecutionFrame::Namespace(namespace.to_owned());
         let frame = self
             .points
             .iter()
@@ -339,7 +339,7 @@ impl SourceCommandBindings {
     /// dispatch carries that provider. A provided version alone is insufficient.
     pub(crate) fn package_factory_is_proved_at(
         &self,
-        site: Option<&super::CommandAllocationSite>,
+        site: Option<&tcl_names::command::CommandAllocationSite>,
         descriptor: &tcl_registry::CommandSpec,
     ) -> bool {
         let Some(package) = descriptor.owning_package() else {

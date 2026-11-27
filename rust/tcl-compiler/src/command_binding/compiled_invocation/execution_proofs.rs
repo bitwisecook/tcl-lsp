@@ -18,12 +18,13 @@
 
 //! What a compiled invocation proves about execution: handler path, lookup, targets and joins.
 
-use super::super::{Arc, BindingKind, MayBinding, SourceCommandTarget, SourceInvocationBinding};
+use super::super::{Arc, MayBinding, SourceCommandTarget, SourceInvocationBinding};
 use super::target_selection::implementation_dependency;
 use super::{
     CompiledExecutionCertainty, CompiledExecutionResidual, NativeInlineRejection,
     SourceCompiledInvocationProof, SourceNativeCompilerAdmission,
 };
+use tcl_names::command::BindingKind;
 use tcl_registry::native_compilation::{NativeCompilationGuard, NativeCompilationSelection};
 
 impl SourceInvocationBinding {

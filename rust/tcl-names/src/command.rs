@@ -16,12 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command identity: the token that survives slot movement and the allocation that created it.
+//! Command identity: the token that survives slot movement, the allocation
+//! that created it, the command-table key and the binding lattice element.
 
-use super::namespace_context::SourceNamespaceKey;
-use super::source_origin::{SourceOriginId, SourceOriginKind};
+use crate::namespace::SourceNamespaceKey;
+use crate::origin::{SourceOriginId, SourceOriginKind};
 use std::hash::Hash;
 use std::sync::Arc;
+use tcl_core_types::NameBytes;
 
 /// Object identity survives movement of its command-table slot. Imports keep
 /// this identity; interpreter aliases perform target-name lookup instead.
@@ -46,8 +48,6 @@ pub struct RuntimeCommandTokenIdentity {
     /// Non-reused command token within the interpreter.
     pub token: u64,
 }
-
-pub(super) type CommandToken = CommandIdentity;
 
 /// An allocation instruction in one authored or materialised source instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -93,7 +93,7 @@ pub struct CommandAllocation {
     /// Presentation of the evaluated output slot, without lookup authority.
     pub command: String,
     /// Exact originally selected slot; never recovered from the reporting name.
-    pub slot: super::SourceCommandKey,
+    pub slot: SourceCommandKey,
     /// Exact namespace owning the allocation, independent of its presentation.
     pub namespace: SourceNamespaceKey,
 }
@@ -198,7 +198,7 @@ impl CommandIdentity {
                 return Answer::unknown(UnknownReason::RepeatedAllocation);
             }
         };
-        let super::SourceCommandKey::Slot { namespace, simple } = &allocation.slot else {
+        let SourceCommandKey::Slot { namespace, simple } = &allocation.slot else {
             return Answer::unknown(UnknownReason::UnavailableContext);
         };
         let instance = SourceOriginId::activation_key(&allocation.site.source);
@@ -216,5 +216,123 @@ impl CommandIdentity {
             NamingProvenance::Source { instance, offset },
             NamingAuthority::Navigation,
         )
+    }
+}
+
+/// Primary command-table key. A written source spelling cannot impersonate an
+/// actual native slot, even when it equals that slot's display spelling.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[doc(hidden)]
+pub enum SourceCommandKey {
+    /// Symbolic command key in an authored document's namespace model.
+    Authored(String),
+    /// Exact counted simple key in a retained or allocated namespace table.
+    Slot {
+        /// Namespace incarnation, independent of its printed full name.
+        namespace: SourceNamespaceKey,
+        /// Already selected native simple-name bytes.
+        simple: NameBytes,
+    },
+}
+
+impl SourceCommandKey {
+    #[must_use]
+    pub fn authored(key: impl Into<String>) -> Self {
+        Self::Authored(key.into())
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn slot(namespace: SourceNamespaceKey, simple: NameBytes) -> Self {
+        Self::Slot { namespace, simple }
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn holder(&self) -> std::borrow::Cow<'_, SourceNamespaceKey> {
+        match self {
+            Self::Slot { namespace, .. } => std::borrow::Cow::Borrowed(namespace),
+            Self::Authored(text) => {
+                let (holder, _) = tcl_syntax::naming::key_holder_and_tail(text);
+                std::borrow::Cow::Owned(SourceNamespaceKey::authored(if holder.is_empty() {
+                    "::"
+                } else {
+                    holder
+                }))
+            }
+        }
+    }
+
+    /// Symbolic document spelling only. Native slots require an independent
+    /// callable-spelling receipt rather than a rendered path.
+    #[must_use]
+    pub fn authored_spelling(&self) -> Option<&str> {
+        match self {
+            Self::Authored(text) => Some(text),
+            Self::Slot { .. } => None,
+        }
+    }
+}
+
+impl From<String> for SourceCommandKey {
+    fn from(value: String) -> Self {
+        Self::authored(value)
+    }
+}
+impl From<&str> for SourceCommandKey {
+    fn from(value: &str) -> Self {
+        Self::authored(value)
+    }
+}
+
+/// The lattice element a command name resolves to.
+///
+/// Height-3 join lattice: [`BindingKind::Bottom`] (⊥) is the identity,
+/// a concrete binding joined with itself is unchanged, and two
+/// *different* bindings rise to [`BindingKind::Unknown`] (⊤).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BindingKind {
+    /// ⊥ — identity for join (no contribution yet).
+    Bottom,
+    /// The original core/registry command, unperturbed.
+    Builtin,
+    /// A user procedure (`target` = its canonical qname).
+    Proc,
+    /// A concrete registry-described command whose narrower identity is not
+    /// relevant to this lattice.
+    Command,
+    /// A `TclOO`/snit/itcl class or instance command created by a
+    /// registry-described definer (`target` = its canonical qname).
+    /// Distinct from [`Self::Proc`] so `NAME destroy` — the universal
+    /// object method — is only modelled as a deletion for names that
+    /// actually denote objects.
+    Class,
+    /// An instance of a registry object class (a Tk widget's path), created
+    /// by the constructor command `factory`. A call through it dispatches
+    /// that class's declared instance methods; it is never a `TclOO` class,
+    /// and its methods include no `destroy` deletion.
+    Instance {
+        /// The constructor's canonical registry command.
+        factory: &'static str,
+    },
+    /// An `interp alias` (`target` = the alias target name).
+    Alias,
+    /// Renamed/deleted-away or never-defined → dispatches to `unknown`.
+    Opaque,
+    /// ⊤ — conflicting bindings at a merge, or dynamic mutation.
+    Unknown,
+}
+
+impl BindingKind {
+    /// The binding a registry definition installs before any instance
+    /// refinement: an instance is first published as an object command.
+    #[must_use]
+    pub const fn of_definition(kind: tcl_registry::CommandBindingDefinitionKind) -> Self {
+        match kind {
+            tcl_registry::CommandBindingDefinitionKind::Procedure => Self::Proc,
+            tcl_registry::CommandBindingDefinitionKind::Object
+            | tcl_registry::CommandBindingDefinitionKind::Instance => Self::Class,
+            tcl_registry::CommandBindingDefinitionKind::Command => Self::Command,
+        }
     }
 }

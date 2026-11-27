@@ -22,7 +22,7 @@ use super::{
     Arc, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
     SourceInvocationBinding, SourceObjectInstanceProof, SourceOutcomes,
 };
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::variable::VariableExecutionFrame;
 use tcl_registry::definer::{BuiltinObjectMethodOperation, MethodReach, TCLOO_GRAMMAR};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -191,10 +191,10 @@ impl ModuleCommandBindings {
     pub(super) fn receiver_native_lookup_paths(
         &self,
         head: &str,
-        namespace: &super::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) -> Option<
         Result<
-            Vec<Vec<super::SourceCommandKey>>,
+            Vec<Vec<tcl_names::command::SourceCommandKey>>,
             tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable,
         >,
     > {
@@ -576,7 +576,7 @@ impl SourceInvocationBinding {
                 !selected.unknown && !selected.may_be_absent && selected.targets.len() == 1
             })
             .and_then(|selected| selected.targets.into_iter().next())
-            .filter(|target| target.kind == super::BindingKind::Proc);
+            .filter(|target| target.kind == tcl_names::command::BindingKind::Proc);
         // The resolved implementation is a projection of a retained table.
         Some((input, proved.map(|target| target.command)))
     }
@@ -1017,7 +1017,7 @@ mod tests {
             let y = crate::var_resolve::resolve_literal_place("y", context, false, registry);
             assert!(matches!(
                 x.cell.as_ref().map(|cell| &cell.owner),
-                Some(crate::place::CellOwner::Activation(_))
+                Some(tcl_names::place::CellOwner::Activation(_))
             ));
             assert_eq!(
                 context.contents_presence(&x),
@@ -1026,7 +1026,7 @@ mod tests {
             assert_eq!(
                 matches!(
                     y.cell.as_ref().map(|cell| &cell.owner),
-                    Some(crate::place::CellOwner::AllocatedInstance(_))
+                    Some(tcl_names::place::CellOwner::AllocatedInstance(_))
                 ),
                 instance_y
             );
@@ -1141,7 +1141,7 @@ mod tests {
         let place = crate::var_resolve::resolve_literal_place("x", context, false, &registry);
         assert!(!matches!(
             place.cell.as_ref().map(|cell| &cell.owner),
-            Some(crate::place::CellOwner::AllocatedInstance(_))
+            Some(tcl_names::place::CellOwner::AllocatedInstance(_))
         ));
         assert_eq!(
             context.activation_contents_world,
@@ -1394,7 +1394,7 @@ mod tests {
         assert_eq!(helper[0].holder().native_context().unwrap().token, 9);
         assert!(matches!(
             &helper[0],
-            super::super::SourceCommandKey::Slot { simple, .. }
+            tcl_names::command::SourceCommandKey::Slot { simple, .. }
                 if simple.as_bytes() == b"self"
         ));
         // A genuine global callback on the same live receiver must not borrow

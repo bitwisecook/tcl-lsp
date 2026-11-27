@@ -327,7 +327,7 @@ fn render_container_literal(
 
 fn logical_word_edit(
     source: &SourceImage,
-    key: &tcl_compiler::signature_scan::scope::SignatureSourceNameKey,
+    key: &tcl_names::word::SignatureSourceNameKey,
     wanted: &[u8],
 ) -> Option<OriginalNameSourceEdit> {
     let word = key.original_word();
@@ -595,7 +595,7 @@ pub fn original_name_input_edit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_compiler::signature_scan::scope::SignatureSourceNameKey;
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::word_rules::WordValueRules;
 
     fn input(source: &SourceImage) -> SignatureSourceNameInput {
@@ -830,7 +830,7 @@ mod tests {
 #[cfg(test)]
 mod original_edit_presentation_tests {
     use super::*;
-    use tcl_compiler::signature_scan::scope::SignatureSourceNameKey;
+    use tcl_names::word::SignatureSourceNameKey;
     use tcl_syntax::word_rules::WordValueRules;
 
     #[test]

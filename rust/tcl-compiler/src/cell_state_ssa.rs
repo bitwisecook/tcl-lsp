@@ -24,13 +24,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{BlockId, Function};
-use crate::place::{Place, overlap};
 use crate::place_bridge::{read_places_at, terminator_read_places_at};
 use crate::state_ssa::{
     CfgStatePosition, StateClobber, StateDef, StateOp, StatePhi, StateSite, StateSsa,
     StateSsaError, StateUse, StateVersion,
 };
 use crate::variable_bindings::PointResolveContexts;
+use tcl_names::place::{Place, overlap};
 
 #[derive(Debug, Clone)]
 struct Access {
@@ -157,7 +157,7 @@ fn collect_terminator_accesses(
     let mut clobbers =
         unrepresented_read_clobbers(points, (block, usize::MAX), registry, represented_writes);
     if reads.iter().chain(&clobbers).any(|place| place.observed) {
-        clobbers.push(crate::place::unknown_top());
+        clobbers.push(tcl_names::place::unknown_top());
     }
     clobbers
         .into_iter()
@@ -213,7 +213,7 @@ fn collect_statement_accesses(
         .iter()
         .chain(&nested)
         .any(|place| place.observed)
-        .then(crate::place::unknown_top);
+        .then(tcl_names::place::unknown_top);
     let mut selected: Vec<_> = nested
         .into_iter()
         .chain(scoped_clobbers)
@@ -239,7 +239,7 @@ fn collect_statement_accesses(
                 .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         ) && after.dynamic_bindings)
     {
-        selected.push((crate::place::unknown_top(), true, true));
+        selected.push((tcl_names::place::unknown_top(), true, true));
     }
     selected
         .into_iter()
@@ -316,16 +316,16 @@ fn unrepresented_read_clobbers(
                     }
                 }
             }
-            None => nested_clobbers.push(crate::place::unknown_top()),
+            None => nested_clobbers.push(tcl_names::place::unknown_top()),
         }
     }
 
     if points.source_arguments_unknown_at(point.0, point.1, registry)
         && !nested_clobbers
             .iter()
-            .any(|place| place.kind == crate::place::PlaceKind::Unknown)
+            .any(|place| place.kind == tcl_names::place::PlaceKind::Unknown)
     {
-        nested_clobbers.push(crate::place::unknown_top());
+        nested_clobbers.push(tcl_names::place::unknown_top());
     }
     nested_clobbers
 }
@@ -472,7 +472,7 @@ fn materialise(
     let mut operations = Vec::new();
     for (&(source, target), &version) in abrupt {
         operations.push(StateOp::Clobber(StateClobber {
-            location: crate::place::unknown_top(),
+            location: tcl_names::place::unknown_top(),
             version,
             site: StateSite::edge(source, target, CfgStatePosition::Terminator { ordinal: 0 }),
         }));
@@ -561,10 +561,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(accesses.len(), 2);
-        assert_eq!(accesses[0].location, crate::place::unknown_top());
+        assert_eq!(accesses[0].location, tcl_names::place::unknown_top());
         assert!(!accesses[0].writes);
         assert!(!accesses[0].clobber);
-        assert_eq!(accesses[1].location, crate::place::unknown_top());
+        assert_eq!(accesses[1].location, tcl_names::place::unknown_top());
         assert!(accesses[1].writes);
         assert!(accesses[1].clobber);
         let cells = build_cell_state_ssa(&cfg, &points, registry).unwrap();
@@ -774,7 +774,7 @@ mod tests {
             &cfg, context, registry,
         );
         let cells = build_cell_state_ssa(&cfg, &points, registry).unwrap();
-        assert!(cells.operations().iter().any(|operation|matches!(operation,StateOp::Clobber(clobber) if clobber.location.kind==crate::place::PlaceKind::Unknown && overlap(&clobber.location,&unrelated))));
+        assert!(cells.operations().iter().any(|operation|matches!(operation,StateOp::Clobber(clobber) if clobber.location.kind==tcl_names::place::PlaceKind::Unknown && overlap(&clobber.location,&unrelated))));
         assert!(
             cells
                 .operations()
@@ -786,7 +786,7 @@ mod tests {
             .iter()
             .position(|operation| {
                 matches!(operation, StateOp::Clobber(clobber)
-                if clobber.location.kind == crate::place::PlaceKind::Unknown)
+                if clobber.location.kind == tcl_names::place::PlaceKind::Unknown)
             })
             .unwrap();
         let read_index = cells.operations().iter().position(|operation| {
@@ -812,7 +812,7 @@ mod tests {
             Some(StateOp::Clobber(_))
         ));
         assert!(terminator_cells.operations().iter().any(|operation| matches!(operation,
-            StateOp::Clobber(clobber) if clobber.location.kind == crate::place::PlaceKind::Unknown && overlap(&clobber.location, &unrelated))));
+            StateOp::Clobber(clobber) if clobber.location.kind == tcl_names::place::PlaceKind::Unknown && overlap(&clobber.location, &unrelated))));
     }
 
     fn assign(value: &str) -> Statement {

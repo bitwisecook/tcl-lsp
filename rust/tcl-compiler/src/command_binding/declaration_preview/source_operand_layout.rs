@@ -21,7 +21,7 @@
 use super::super::declaration_layout::{
     DeclarationLayoutObservation, original_declaration_layouts,
 };
-use super::super::{CommandAllocationSite, SourceCommandBindings, SourceLookupSnapshot};
+use super::super::{SourceCommandBindings, SourceLookupSnapshot};
 use super::nested_layouts::retains_successor_layout;
 use super::procedure_header::{
     declaration_tokens, original_declaration_operand_input, procedure_declaration_header,
@@ -33,12 +33,14 @@ use super::{
     DeclaredProcedureHeader, OriginalDeclarationSourceOperandAttachment,
     OriginalDeclarationSourceOperandCache, ProcedureOperands,
 };
+use crate::command_binding::SourceOriginLexical;
 use crate::registry_invocation::{
     EffectiveInvocationWord, RegistryInvocationResolution, effective_invocation_word,
     effective_words_for_target,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use tcl_names::command::CommandAllocationSite;
 
 impl PartialEq for OriginalDeclarationSourceOperandAttachment {
     fn eq(&self, other: &Self) -> bool {

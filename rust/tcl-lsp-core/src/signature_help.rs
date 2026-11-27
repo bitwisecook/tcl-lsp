@@ -415,7 +415,7 @@ fn signature_command_name(
 ) -> Option<String> {
     let policy = tcl_native_model::InvocationDialect::of_profile(profile).authored_name_policy();
     let name_key = policy.and_then(|policy| {
-        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+        tcl_names::word::SignatureSourceNameKey::from_original_native_word(
             head,
             tcl_syntax::word_rules::WordValueRules::from_config(&local_config),
             policy,

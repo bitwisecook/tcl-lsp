@@ -12,7 +12,7 @@ analyser::types	irules_checks	3
 analyser::types	object_types	1
 analyser::types	realm	4
 analyser::types	registry_invocation	37
-analyser::types	signature_scan	102
+analyser::types	signature_scan	110
 analyser::types	source_graph::current_analysis	3
 analyser::types	unit_scope	2
 body_analysis_capsule	optimiser	4
@@ -37,13 +37,10 @@ command_binding	tcl_expr_eval	38
 command_binding	value_transfer	1
 command_binding	value_transfer::queries	2
 command_binding	var_escape	2
-command_binding::executed_script_source	registry_invocation	2
-command_binding::namespace_context	ir	1
-command_binding::source_origin	registry_invocation	1
 compilation_unit	analyser	6
 compiler_checks	irules_checks	13
 const_subst	value_transfer	1
-contents_source	var_resolve	5
+contents_source	var_resolve	3
 declared_frame_effects	ir	1
 def_use	ssa::source_view	1
 dynamic_names	value_transfer::queries	4
@@ -56,7 +53,7 @@ ir	execution_region	3
 ir	native_compilation_admission	1
 ir	registry_invocation	5
 ir	signature_scan	1
-ir	var_resolve	6
+ir	var_resolve	5
 ir_helpers	ssa	1
 ir_helpers	value_transfer::queries	1
 ir_helpers	var_escape	2
@@ -73,9 +70,6 @@ object_types	analyser	2
 object_types	analyser::types::AnalysisResult	13
 optimiser	analyser	2
 optimiser::elimination	analyser	1
-place	command_binding	1
-place	raw_binding	1
-place	var_resolve	2
 place_bridge	memory_ssa	1
 realm	analyser	1
 registry_invocation	analyser	16
@@ -97,9 +91,6 @@ sccp	value_transfer::queries	1
 script_binds	analyser::types::AnalysisResult	1
 signature_scan	analyser	2
 signature_scan	analyser::types::AnalysisResult	2
-signature_scan::scope	analyser::types	1
-signature_scan::scope	command_binding	2
-signature_scan::scope	signature_scan	1
 source_graph	analyser::types::AnalysisResult	1
 ssa	compilation_unit	2
 ssa	taint	2
@@ -113,7 +104,5 @@ value_transfer	compilation_unit	1
 value_transfer	interprocedural	28
 value_transfer	shimmer	1
 var_refs	analyser::types::AnalysisResult	1
-var_resolve::cell_key	command_binding	1
-var_resolve::cell_key	raw_binding	12
 word_subst	lowering_hooks	1
 word_subst	value_shapes	1

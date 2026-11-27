@@ -91,7 +91,7 @@ fn original_native_procedure_argument_tokens(
     let image = tcl_lexer::SourceImage::document(source);
     let bindings = super::super::super::SourceCommandBindings::analyse_image_in_frame_with_options(
         &image,
-        &crate::var_resolve::VariableExecutionFrame::Global,
+        &tcl_names::variable::VariableExecutionFrame::Global,
         config,
         context.commands(),
         options,
@@ -285,7 +285,7 @@ fn original_logical_procedure_roles_keep_declaration_layout_separate_from_alloca
             [] as [crate::command_binding::SourceCommandTarget; 0]
         );
         assert!(declared.iter().all(|target| !target.registry_backed
-            && target.kind == super::super::super::BindingKind::Proc
+            && target.kind == tcl_names::command::BindingKind::Proc
             && target.implementation_allocation.is_none()));
         assert!(
             binding

@@ -20,9 +20,10 @@
 
 use super::super::Analyser;
 use super::{SourceCommandOrigin, SourceInterpreterVisibilitySnapshot, SourceVisibleSlot};
-use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
+use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::ByteCommandSlot;
 use tcl_lexer::{NativeWord, Token};
+use tcl_names::namespace::SignatureNamespaceScope;
 use tcl_registry::{StateTransition, TransitionSubject};
 use tcl_syntax::naming::NativeNameContext;
 

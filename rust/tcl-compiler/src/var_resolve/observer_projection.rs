@@ -19,10 +19,10 @@
 //! The trace callbacks an access observes: registration keys and the ordered projection of known callbacks.
 
 use super::canonical_keys::cell_key;
-use super::cell_key::VariableCellKey;
 use super::{ActivationObserverInventory, ResolveContext, VariableTracePrefix};
-use crate::place;
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
+use tcl_names::place;
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
+use tcl_names::variable::VariableCellKey;
 use tcl_registry::CommandRegistry;
 
 /// Registration address of a trace; array elements retain their own indices.

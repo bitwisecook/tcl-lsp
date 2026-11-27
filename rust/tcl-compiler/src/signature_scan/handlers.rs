@@ -402,7 +402,7 @@ pub(super) fn handle_namespace_forget_in_context(
     argv: &[Token],
     ns_prefix: &str,
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
-    namespace: Option<&super::scope::SignatureNamespaceScope>,
+    namespace: Option<&tcl_names::namespace::SignatureNamespaceScope>,
     option_end: usize,
     result: &mut SignatureScanResult,
 ) {
@@ -453,7 +453,7 @@ pub(super) fn handle_namespace_import_in_context(
     argv: &[Token],
     ns_prefix: &str,
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
-    namespace: Option<&super::scope::SignatureNamespaceScope>,
+    namespace: Option<&tcl_names::namespace::SignatureNamespaceScope>,
     option_end: usize,
     result: &mut SignatureScanResult,
 ) {
@@ -504,7 +504,7 @@ fn selected_namespace_pattern(
     current: &str,
     written: &str,
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
-    namespace: Option<&super::scope::SignatureNamespaceScope>,
+    namespace: Option<&tcl_names::namespace::SignatureNamespaceScope>,
     purpose: tcl_syntax::naming::NativeNamePurpose,
 ) -> Option<tcl_syntax::naming::NativeNamespacePatternParts> {
     let policy = policy?;

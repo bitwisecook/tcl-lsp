@@ -26,8 +26,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::place::{CellGeneration, CellOwner, Place, PlaceKind};
 use crate::var_resolve::{RootContentsKind, VariableProofRelocation};
+use tcl_names::place::{CellGeneration, CellOwner, Place, PlaceKind};
 
 /// Identity of one reached, currently active capture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -104,7 +104,7 @@ impl CapturedCellArena {
             || receiver
                 .index
                 .as_ref()
-                .is_some_and(|index| index.kind != crate::place::IndexKind::Literal)
+                .is_some_and(|index| index.kind != tcl_names::place::IndexKind::Literal)
         {
             return None;
         }
@@ -173,20 +173,20 @@ impl CapturedCellArena {
                 continue;
             }
             if target.kind == PlaceKind::Unknown {
-                if crate::place::overlap(target, &lease.receiver) {
+                if tcl_names::place::overlap(target, &lease.receiver) {
                     lease.state = CapturedCellState::Unknown;
                 }
                 continue;
             }
             let same_root = target.cell == lease.receiver.cell;
             if !same_root {
-                if crate::place::overlap(target, &lease.receiver) {
+                if tcl_names::place::overlap(target, &lease.receiver) {
                     lease.state = CapturedCellState::Unknown;
                 }
                 continue;
             }
             if let Some(index) = &target.index {
-                if index.kind != crate::place::IndexKind::Literal {
+                if index.kind != tcl_names::place::IndexKind::Literal {
                     if lease.receiver.index.is_some() {
                         lease.state = CapturedCellState::Unknown;
                     }
@@ -227,7 +227,7 @@ impl CapturedCellArena {
     /// presentation text cannot retire a different native namespace incarnation.
     pub fn delete_namespace_identity(
         &mut self,
-        namespace: &crate::command_binding::SourceNamespaceKey,
+        namespace: &tcl_names::namespace::SourceNamespaceKey,
     ) {
         for lease in self.leases.values_mut() {
             if lease.state != CapturedCellState::Unknown
@@ -244,7 +244,7 @@ impl CapturedCellArena {
     /// descendants are not members of this retirement receipt.
     pub fn delete_namespace_incarnations(
         &mut self,
-        namespaces: &crate::var_resolve::VariableNamespaceSet,
+        namespaces: &tcl_names::variable::VariableNamespaceSet,
     ) {
         for lease in self.leases.values_mut() {
             if matches!(
@@ -378,7 +378,7 @@ mod tests {
             resolve_literal_access("a(k)", &parent, false, &registry, TraceOperation::Read);
         let id = parent.captured_cells.capture(&element).unwrap();
         let mut child =
-            parent.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+            parent.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: "::".to_owned(),
                 identity: "callback".to_owned(),
             });
@@ -416,7 +416,7 @@ mod tests {
     }
     #[test]
     fn namespace_retirement_preserves_colliding_paths_and_recreated_owners() {
-        use crate::command_binding::SourceNamespaceKey;
+        use tcl_names::namespace::SourceNamespaceKey;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -468,8 +468,8 @@ mod tests {
 
     #[test]
     fn deferred_namespace_retirement_uses_only_original_incarnations() {
-        use crate::command_binding::SourceNamespaceKey;
-        use crate::var_resolve::VariableNamespaceSet;
+        use tcl_names::namespace::SourceNamespaceKey;
+        use tcl_names::variable::VariableNamespaceSet;
         use tcl_runtime_api::native_compilation::{
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
@@ -535,7 +535,7 @@ mod tests {
         let receiver = resolve_literal_access("x", &first, false, &registry, TraceOperation::Read);
         assert!(first.capture_protected_cell(&receiver).is_some());
         let mut repeated =
-            first.enter_called_frame(&crate::var_resolve::VariableExecutionFrame::Procedure {
+            first.enter_called_frame(&tcl_names::variable::VariableExecutionFrame::Procedure {
                 namespace: "::".to_owned(),
                 identity: "::recursive".to_owned(),
             });

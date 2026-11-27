@@ -18,13 +18,12 @@
 
 //! Original captured words in the independently retained Logical alias model.
 
-use super::{
-    Arc, BTreeMap, CommandAllocationSite, ModuleCommandBindings, ResolvedCommandTarget,
-    SourceOriginId,
-};
+use super::{Arc, BTreeMap, ModuleCommandBindings, ResolvedCommandTarget};
 use crate::analyser::ResolvedAnalysisInput;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::SourceOriginId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct LogicalAliasPrefix {
@@ -202,14 +201,23 @@ impl LogicalCapturedCommandPrefix {
             return false;
         };
         input.has_logical_source_name_context()
-            && tcl_native_model::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy() == Some(policy)
+            && tcl_native_model::InvocationDialect::of_profile(input.unit_profile())
+                .authored_name_policy()
+                == Some(policy)
             && inputs.iter().all(|input| {
-                let Some(key) = input.original_word_key() else { return false; };
+                let Some(key) = input.original_word_key() else {
+                    return false;
+                };
                 let word = key.original_word();
-                word.image() == image && word.config() == config
-                    && crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
-                        word, tcl_syntax::word_rules::WordValueRules::from_config(&config), policy,
-                    ).as_ref() == Some(key)
+                word.image() == image
+                    && word.config() == config
+                    && tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
+                        word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                        policy,
+                    )
+                    .as_ref()
+                        == Some(key)
             })
             && &self.input == input
             && config == input.lexer_config()

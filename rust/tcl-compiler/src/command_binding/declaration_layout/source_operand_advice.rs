@@ -245,7 +245,7 @@ impl super::super::SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
     )> {
         self.original_standalone_script_scope(tokens, registry, false)
@@ -269,8 +269,10 @@ impl super::super::SourceInvocationBinding {
             site.offset,
             config,
         )?;
-        let key = crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
-            original.first()?, tcl_syntax::word_rules::WordValueRules::from_config(&config), policy,
+        let key = tcl_names::word::SignatureSourceNameKey::from_original_logical_source_word(
+            original.first()?,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            policy,
         )?;
         let head =
             crate::signature_scan::original_name::SourceOriginalNameOccurrence::new(site, key)?;
@@ -283,7 +285,7 @@ impl super::super::SourceInvocationBinding {
         registry: &tcl_registry::CommandRegistry,
         catalogue_only: bool,
     ) -> Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
     )> {
         if tokens.synthetic.is_some() || tokens.source_binding.as_ref() != Some(self) {
@@ -335,7 +337,7 @@ impl super::super::SourceInvocationBinding {
                 || source.base() != 0
                 || source.text.bytes() != site.source.source_image().bytes()
                 || !row.entry.owns_source(&site.source, site.offset)
-                || frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global
+                || frame.layout() != &tcl_names::variable::VariableExecutionFrame::Global
                 || namespace != &row.namespace
                 || state.current_source_origin.as_ref() != Some(&site.source)
                 || !baseline.metadata_context.is_standalone()

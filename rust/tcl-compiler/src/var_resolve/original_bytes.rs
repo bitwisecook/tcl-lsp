@@ -38,7 +38,7 @@ pub(crate) fn resolve_original_name_input(
     operation: TraceOperation,
 ) -> Place {
     if !input.is_current(context) {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     resolve_evaluated_variable_input(
         NativeVariableInputForm::Combined(input.bytes()),
@@ -62,7 +62,7 @@ pub(crate) fn resolve_original_element_inputs(
         || !root.is_current(context)
         || !element.is_current(context)
     {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     resolve_evaluated_variable_input(
         NativeVariableInputForm::Separate {
@@ -92,7 +92,7 @@ pub fn resolve_evaluated_variable_input(
         .execution_name_policy
         .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
     else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     let protocol = policy.recipe();
     if context.invocation_dialect.and_then(|dialect| {
@@ -107,7 +107,7 @@ pub fn resolve_evaluated_variable_input(
             .is_some_and(|selected| selected != protocol)
         || context.observed_variable_storage_unavailable()
     {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     let selected = match input {
         NativeVariableInputForm::Combined(bytes) => protocol.combined_variable_input(bytes),
@@ -126,7 +126,7 @@ pub fn resolve_evaluated_variable_input(
             };
             if parsed {
                 if element.is_some() {
-                    return crate::place::unknown_top();
+                    return tcl_names::place::unknown_top();
                 }
                 protocol.combined_variable_input(root)
             } else {
@@ -140,13 +140,13 @@ pub fn resolve_evaluated_variable_input(
     }
     if let Some(element) = selected.element() {
         if whole_array || place.index.is_some() {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         place.kind = PlaceKind::ArrayElem;
         place.index = Some(Index::literal(element.selected()));
     } else if whole_array {
         if place.index.is_some() {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         place.kind = PlaceKind::ArrayWhole;
     }
@@ -178,7 +178,7 @@ pub(crate) fn resolve_original_alias_destination_bytes(
         .execution_name_policy
         .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
     else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     let parsed = policy.recipe().combined_variable_input(bytes);
     if !policy.recipe().is_jim084()
@@ -187,7 +187,7 @@ pub(crate) fn resolve_original_alias_destination_bytes(
                 != tcl_syntax::naming::NativeNameQualification::Unqualified)
     {
         let Some(namespace) = direct.namespace_identity.as_ref() else {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         };
         return resolve_original_namespace_variable_bytes(
             bytes, namespace, &direct, registry, true,
@@ -208,7 +208,7 @@ pub(crate) fn resolve_original_alias_destination_bytes(
 /// combined-name parser and index projection remain the runtime naming owner.
 pub(crate) fn resolve_original_namespace_variable_bytes(
     bytes: &[u8],
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     context: &ResolveContext,
     registry: &CommandRegistry,
     destination: bool,
@@ -217,7 +217,7 @@ pub(crate) fn resolve_original_namespace_variable_bytes(
         .execution_name_policy
         .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
     else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     let protocol = policy.recipe();
     if context.invocation_dialect.and_then(|dialect| {
@@ -230,7 +230,7 @@ pub(crate) fn resolve_original_namespace_variable_bytes(
         || !context.namespace_identities.contains(namespace)
         || context.observed_variable_storage_unavailable()
     {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     let parsed = protocol.combined_variable_input(bytes);
     let mut bound = context.namespace_place_bytes_in_identity(
@@ -246,7 +246,7 @@ pub(crate) fn resolve_original_namespace_variable_bytes(
     let key = cell_key(&bound);
     if !destination {
         if context.unknown_bindings.contains(&key) {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         if let Some(raw) = context.raw_bindings.bindings.get(&key) {
             bound = context.raw_bindings.resolve(raw, context, registry);
@@ -266,7 +266,7 @@ pub(crate) fn resolve_original_namespace_variable_bytes(
     }
     if let Some(index) = parsed.element() {
         if bound.index.is_some() {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         bound.kind = PlaceKind::ArrayElem;
         bound.index = Some(Index::literal(index.selected()));
@@ -292,7 +292,7 @@ pub(crate) fn resolve_original_compiled_variable(
 ) -> Place {
     use tcl_syntax::naming::NativeCompiledVariableLookup;
     if !compiled_policy_matches(compiler, context) {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     if lookup == NativeCompiledVariableLookup::DynamicName {
         return resolve_evaluated_variable_input(
@@ -307,7 +307,7 @@ pub(crate) fn resolve_original_compiled_variable(
         );
     }
     let Some(primary) = original_compiled_variable_primary(name, lookup, compiler, context) else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     resolve_compiled_local_primary(primary.as_bytes(), index, context, registry, operation)
 }
@@ -344,7 +344,7 @@ pub(crate) fn resolve_original_compiled_primary(
     operation: TraceOperation,
 ) -> Place {
     if !compiled_policy_matches(primary.compiler(), context) {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     resolve_compiled_local_primary(primary.bytes(), index, context, registry, operation)
 }
@@ -357,14 +357,14 @@ fn resolve_compiled_local_primary(
     operation: TraceOperation,
 ) -> Place {
     let Some(activation) = context.activation.as_ref() else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     if context.dynamic_bindings {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
-    let mut bound = crate::place::scalar(
+    let mut bound = tcl_names::place::scalar(
         std::str::from_utf8(primary).unwrap_or_default(),
-        crate::place::LOCAL_NS,
+        tcl_names::place::LOCAL_NS,
         false,
     );
     bound.cell = Some(CellIdentity {
@@ -381,7 +381,7 @@ fn resolve_compiled_local_primary(
     if context.unknown_bindings.contains(&key)
         || authored.is_some_and(|name| context.unknown_bindings.contains(name))
     {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     // These are explicitly authored declaration/link records. Their local
     // spelling is queried only after the independent compiler selected this
@@ -424,7 +424,7 @@ fn resolve_compiled_local_primary(
     }
     if let Some(index) = index {
         if bound.index.is_some() || bound.kind == PlaceKind::Unknown {
-            return crate::place::unknown_top();
+            return tcl_names::place::unknown_top();
         }
         bound.kind = PlaceKind::ArrayElem;
         bound.index = Some(Index::literal(index));
@@ -440,14 +440,14 @@ pub(crate) fn original_compiled_local_destination(
     context: &ResolveContext,
 ) -> Place {
     let Some(activation) = context.activation.as_ref() else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     if context.selected_frame.is_some() {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
-    let mut slot = crate::place::scalar(
+    let mut slot = tcl_names::place::scalar(
         primary.try_utf8().unwrap_or_default(),
-        crate::place::LOCAL_NS,
+        tcl_names::place::LOCAL_NS,
         false,
     );
     slot.cell = Some(CellIdentity {
@@ -494,7 +494,7 @@ pub(super) fn exact_root(
             Some(bound)
         } else {
             if context.unknown_bindings.contains(text) || context.dynamic_bindings {
-                return crate::place::unknown_top();
+                return tcl_names::place::unknown_top();
             }
             None
         }
@@ -521,7 +521,7 @@ pub(super) fn exact_root(
     }
     let key = cell_key(&bound);
     if context.unknown_bindings.contains(&key) {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     if let Some(raw) = context.raw_bindings.bindings.get(&key) {
         return context.raw_bindings.resolve(raw, context, registry);
@@ -570,7 +570,7 @@ fn exact_unbound_root(
         NativeVariableRootGeometry::JimAbsolute(_)
         | NativeVariableRootGeometry::CNamespace { .. } => {
             let Some(namespace) = context.namespace_identity.as_ref() else {
-                return crate::place::unknown_top();
+                return tcl_names::place::unknown_top();
             };
             exact_namespace_root(root, namespace, context, protocol)
         }
@@ -578,20 +578,20 @@ fn exact_unbound_root(
             if context.namespace_scope() && !protocol.is_jim084() || context.global_frame() =>
         {
             let Some(namespace) = context.namespace_identity.as_ref() else {
-                return crate::place::unknown_top();
+                return tcl_names::place::unknown_top();
             };
             exact_namespace_root(simple.as_bytes(), namespace, context, protocol)
         }
         NativeVariableRootGeometry::Local(simple) => {
             if context.dynamic_bindings {
-                return crate::place::unknown_top();
+                return tcl_names::place::unknown_top();
             }
             let Some(activation) = context.activation.as_ref() else {
-                return crate::place::unknown_top();
+                return tcl_names::place::unknown_top();
             };
-            let mut bound = crate::place::scalar(
+            let mut bound = tcl_names::place::scalar(
                 simple.try_utf8().unwrap_or_default(),
-                crate::place::LOCAL_NS,
+                tcl_names::place::LOCAL_NS,
                 false,
             );
             bound.cell = Some(CellIdentity {
@@ -609,7 +609,7 @@ fn exact_unbound_root(
 
 fn exact_namespace_root(
     root: &[u8],
-    namespace: &crate::command_binding::SourceNamespaceKey,
+    namespace: &tcl_names::namespace::SourceNamespaceKey,
     context: &ResolveContext,
     protocol: NativeNameProtocol,
 ) -> Place {
@@ -626,7 +626,7 @@ fn exact_namespace_root(
         .invocation_dialect
         .and_then(|dialect| dialect.namespace_var_global_fallback)
     else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     if !fallback
         || context
@@ -637,12 +637,12 @@ fn exact_namespace_root(
         return current;
     }
     let Some(global_namespace) = context.root_namespace_identity() else {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     };
     let global =
         context.namespace_place_bytes_in_identity(root, &global_namespace, false, protocol);
     if global.kind == PlaceKind::Unknown {
-        return crate::place::unknown_top();
+        return tcl_names::place::unknown_top();
     }
     if cell_key(&current) == cell_key(&global) {
         return current;
@@ -660,14 +660,14 @@ fn exact_namespace_root(
     {
         return current;
     }
-    crate::place::unknown_top()
+    tcl_names::place::unknown_top()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command_binding::SourceNamespaceKey;
     use tcl_dialect::TclVersion;
+    use tcl_names::namespace::SourceNamespaceKey;
     use tcl_syntax::naming::{ExecutionNamePolicy, NamePolicyProtocol};
 
     fn context(version: TclVersion) -> ResolveContext {
@@ -911,7 +911,7 @@ mod tests {
                 false,
                 NativeNameProtocol::C(version),
             );
-            let mut local = crate::place::scalar("counter", crate::place::LOCAL_NS, false);
+            let mut local = tcl_names::place::scalar("counter", tcl_names::place::LOCAL_NS, false);
             bind_cell_identity(&mut local, &context);
             context
                 .alias_bindings

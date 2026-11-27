@@ -18,12 +18,12 @@
 
 //! Original Logical word values, independently of static words and Native reads.
 
-use super::{
-    Arc, ModuleCommandBindings, SourceExecutionContext, SourceNamespaceKey, SourceOriginId,
-};
+use super::{Arc, ModuleCommandBindings, SourceExecutionContext};
 use crate::analyser::ResolvedAnalysisInput;
 use crate::var_resolve::{ContentsOrigin, ResolveContext};
 use tcl_lexer::{ExecutablePart, NativeWord};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::SourceOriginId;
 use tcl_source::words::SourceSite;
 
 /// A current source value retains its original word and stored read provenance.
@@ -31,7 +31,7 @@ use tcl_source::words::SourceSite;
 pub(super) struct LogicalOriginalWordValue {
     input: ResolvedAnalysisInput,
     source: Arc<SourceOriginId>,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     namespace: SourceNamespaceKey,
     variables: Arc<ResolveContext>,
     word: NativeWord,
@@ -85,7 +85,7 @@ impl LogicalOriginalWordValue {
                     )?;
                 if access.dynamic
                     || access.observed
-                    || access.kind != crate::place::PlaceKind::Scalar
+                    || access.kind != tcl_names::place::PlaceKind::Scalar
                     || access.index.is_some()
                     || !super::logical_operation::logical_cell_is_local(&access, state, context)
                     || !state.source_variables.contents_have_source(&access, source)
@@ -164,7 +164,7 @@ mod tests {
         let registry = current.commands();
         let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
         let image = tcl_lexer::SourceImage::document(source);
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let frame = tcl_names::variable::VariableExecutionFrame::Global;
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
             &image,
             &frame,

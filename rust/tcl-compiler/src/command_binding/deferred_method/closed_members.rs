@@ -18,10 +18,10 @@
 
 //! Which members of a class definition are closed: forwards, inherited members and method blocks.
 
-use super::super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, ModuleCommandBindings,
-    SourceExecutionContext, source_effective_words,
-};
+use super::super::{Arc, ModuleCommandBindings, SourceExecutionContext, source_effective_words};
+use crate::command_binding::ExecutedScriptWords;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 pub(in super::super) fn closed_definition_member(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,

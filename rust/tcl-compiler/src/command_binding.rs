@@ -42,6 +42,12 @@ use std::collections::HashSet;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
+use tcl_names::command::{
+    AllocationIncarnation, BindingKind, CommandAllocation, CommandAllocationSite, CommandIdentity,
+    SourceCommandKey,
+};
+use tcl_names::namespace::SourceNamespaceKey;
+use tcl_names::origin::{ExecutedScriptSource, SourceOriginId};
 
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
@@ -253,7 +259,7 @@ pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
 mod source_file;
 mod substitution_template;
 pub use executed_expression_source::ExecutedExpressionSource;
-pub use executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
+pub use executed_script_source::ExecutedScriptWords;
 mod analysis_body_correspondence;
 pub(crate) use analysis_body_correspondence::AnalyticalBodyCorrespondence;
 mod allocation_relocation;
@@ -378,23 +384,18 @@ pub use source_analysis_entry::{
     native_entry_options,
 };
 pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
-pub use source_point_entry::{
-    OriginalSourcePointEntry, OriginalSourcePointObligation, OriginalSourcePointOrigin,
-};
+pub use source_point_entry::{OriginalSourcePointEntry, OriginalSourcePointObligation};
 mod source_loop;
 mod source_representation;
 pub use deferred_method::{
     SourceMethodReceiver, SourceReceiverMethodEntries, SourceReceiverMethodEntry,
 };
-pub use object_instance::{SourceObjectAllocation, SourceObjectInstanceProof};
+pub use object_instance::SourceObjectInstanceProof;
 mod cfg_lookup_context;
 mod namespace_context;
 use cfg_lookup_context::CfgLookupContexts;
 mod namespace_slots;
 pub(crate) use namespace_context::NamespaceKeyQuery;
-#[doc(hidden)]
-pub use namespace_context::SourceCommandKey;
-pub use namespace_context::SourceNamespaceKey;
 use namespace_context::{
     CommandKeyQuery, SourceCommandTable, SourceNamespaceMap, SourceNamespaceSet,
 };
@@ -408,58 +409,6 @@ pub use compiled_invocation::{
     NativeCompilerTargets, NativeInlineRejection, SourceCompiledInvocationProof,
     SourceNativeNamespaceBindingPreparation, SourceNativeStructuredPreparation,
 };
-
-/// The lattice element a command name resolves to.
-///
-/// Height-3 join lattice: [`BindingKind::Bottom`] (⊥) is the identity,
-/// a concrete binding joined with itself is unchanged, and two
-/// *different* bindings rise to [`BindingKind::Unknown`] (⊤).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BindingKind {
-    /// ⊥ — identity for join (no contribution yet).
-    Bottom,
-    /// The original core/registry command, unperturbed.
-    Builtin,
-    /// A user procedure (`target` = its canonical qname).
-    Proc,
-    /// A concrete registry-described command whose narrower identity is not
-    /// relevant to this lattice.
-    Command,
-    /// A `TclOO`/snit/itcl class or instance command created by a
-    /// registry-described definer (`target` = its canonical qname).
-    /// Distinct from [`Self::Proc`] so `NAME destroy` — the universal
-    /// object method — is only modelled as a deletion for names that
-    /// actually denote objects.
-    Class,
-    /// An instance of a registry object class (a Tk widget's path), created
-    /// by the constructor command `factory`. A call through it dispatches
-    /// that class's declared instance methods; it is never a `TclOO` class,
-    /// and its methods include no `destroy` deletion.
-    Instance {
-        /// The constructor's canonical registry command.
-        factory: &'static str,
-    },
-    /// An `interp alias` (`target` = the alias target name).
-    Alias,
-    /// Renamed/deleted-away or never-defined → dispatches to `unknown`.
-    Opaque,
-    /// ⊤ — conflicting bindings at a merge, or dynamic mutation.
-    Unknown,
-}
-
-impl BindingKind {
-    /// The binding a registry definition installs before any instance
-    /// refinement: an instance is first published as an object command.
-    #[must_use]
-    pub const fn of_definition(kind: tcl_registry::CommandBindingDefinitionKind) -> Self {
-        match kind {
-            tcl_registry::CommandBindingDefinitionKind::Procedure => Self::Proc,
-            tcl_registry::CommandBindingDefinitionKind::Object
-            | tcl_registry::CommandBindingDefinitionKind::Instance => Self::Class,
-            tcl_registry::CommandBindingDefinitionKind::Command => Self::Command,
-        }
-    }
-}
 
 /// A command-name binding: its [`BindingKind`] plus an optional target
 /// (the proc qname for [`BindingKind::Proc`], the alias target for
@@ -646,7 +595,7 @@ pub struct SourceConstructorEntry {
     declaration: CommandAllocationSite,
     body: ExecutedScriptSource,
     formals: Vec<(String, Option<String>)>,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
 }
 
 /// What a runtime receiver's private namespace may hold beyond the commands
@@ -741,9 +690,9 @@ pub struct SourceInvocationBinding {
     rhs_read_store_observations: Option<Arc<[SourceReadStoreObservation]>>,
     object_callback_effects: Option<object_callbacks::ObjectCallbackEffects>,
     /// Actual variable activation selected for this invocation.
-    pub variable_frame: crate::var_resolve::VariableExecutionFrame,
+    pub variable_frame: tcl_names::variable::VariableExecutionFrame,
     /// Namespace cells allocated on every reaching execution path.
-    pub existing_namespace_cells: Vec<crate::var_resolve::VariableCellKey>,
+    pub existing_namespace_cells: Vec<tcl_names::variable::VariableCellKey>,
     /// Complete allocation knowledge, retaining possible cells and closure.
     pub namespace_cell_presence: crate::var_resolve::NamespaceCellPresence,
     /// Namespace objects proved to exist on every path to this dispatch.
@@ -839,7 +788,6 @@ mod binding_restoration;
 #[cfg(test)]
 mod binding_value_fixpoint_probe;
 mod cfg_lattice;
-mod command_identity;
 mod command_world_tables;
 mod compilation_lookup_advice;
 mod deferred_entries;
@@ -864,11 +812,7 @@ pub use cfg_lattice::analyse_command_binding;
 use cfg_lattice::cfg_entry_state;
 #[cfg(test)]
 use cfg_lattice::unavailable_cfg_entry;
-use command_identity::CommandToken;
-pub use command_identity::{
-    AllocationIncarnation, CommandAllocation, CommandAllocationSite, CommandIdentity,
-    CommandRefInterner, RuntimeCommandTokenIdentity,
-};
+type CommandToken = tcl_names::command::CommandIdentity;
 #[cfg(test)]
 use compilation_lookup_advice::original_static_layout_projection;
 use compilation_lookup_advice::{
@@ -902,9 +846,8 @@ pub use mutation_summary::{
     scan_module_command_mutations_with_bindings,
 };
 use source_analysis_driver::root_source_execution_context;
-#[cfg(test)]
-use source_origin::SourceOriginInterner;
-pub use source_origin::{MaterialisedSourceKind, SourceOriginId, SourceOriginKind};
+pub use source_origin::SourceOriginLexical;
+use source_origin::SourceOriginProjection;
 use source_origin::{source_activation_name, source_called_body_activation_name};
 use source_walk::{
     PreparedSourceNativeInvocation, SourceBodyEntryPurpose, SourceConditionalHandlerNormal,
@@ -985,7 +928,7 @@ struct DeferredSourceBody {
     event: Option<String>,
     receiver_method: bool,
     receiver_namespace: Option<conditional_body::SourceReceiverNamespace>,
-    future_frame: Option<crate::var_resolve::VariableExecutionFrame>,
+    future_frame: Option<tcl_names::variable::VariableExecutionFrame>,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     original_parameters: Option<formal_topology::OriginalFormalTopology>,
     statics: Option<crate::raw_binding::CapturedStaticBindings>,
@@ -1003,7 +946,7 @@ struct DeferredImplementationId {
 struct SourceDeferredOutcome {
     implementation: DeferredImplementationId,
     namespace_key: SourceNamespaceKey,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     realm: tcl_dialect::model::InvocationRealm,
     route: tcl_registry::completion_route::InvocationCompletionRoute,
     state: Arc<ModuleCommandBindings>,
@@ -1019,7 +962,7 @@ struct SourcePhasePoint {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceLifecycleCoverage {
     declaration_preview: bool,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     namespace: SourceNamespaceKey,
     entered: Option<[bool; 3]>,
 }
@@ -1046,7 +989,7 @@ pub struct SourceVariableAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SelectedSourceVariablePlace {
     context: Arc<crate::var_resolve::ResolveContext>,
-    place: Option<Arc<crate::place::Place>>,
+    place: Option<Arc<tcl_names::place::Place>>,
 }
 
 /// Positioned source projection of the executable command-binding kernel.
@@ -1071,7 +1014,7 @@ type OriginVariableAccesses = BTreeMap<Arc<SourceOriginId>, SourceVariableAccess
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FixedMathObservation {
     declaration_preview: bool,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     namespace: SourceNamespaceKey,
     prerequisite: Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
 }
@@ -1279,7 +1222,7 @@ pub struct SourceExecutionContext<'a> {
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
     depth: u32,
-    frame: &'a crate::var_resolve::VariableExecutionFrame,
+    frame: &'a tcl_names::variable::VariableExecutionFrame,
     invocation_offset: u32,
     variable_read_owner: Option<&'a SourceVariableEvaluationOwner>,
     original_written_projection: Option<&'a named_arguments::OriginalNamedWords>,
@@ -1353,7 +1296,7 @@ struct PreparedSourceArguments {
 struct SourceNativeFrameSelection {
     namespace: String,
     namespace_key: SourceNamespaceKey,
-    frame: crate::var_resolve::VariableExecutionFrame,
+    frame: tcl_names::variable::VariableExecutionFrame,
     variables: Option<Arc<crate::var_resolve::ResolveContext>>,
     namespace_activation: bool,
 }
@@ -1361,7 +1304,7 @@ struct SourceNativeFrameSelection {
 struct PreparedSourceNativeBody {
     selection: SourceNativeFrameSelection,
     parent_variables: Arc<crate::var_resolve::ResolveContext>,
-    parent_frame: crate::var_resolve::VariableExecutionFrame,
+    parent_frame: tcl_names::variable::VariableExecutionFrame,
     flow: tcl_registry::script_body_flow::ScriptBodyFlow,
 }
 
@@ -1486,7 +1429,7 @@ pub struct ModuleCommandBindings {
     command_observers: Arc<command_observers::SourceCommandObservers>,
     #[doc(hidden)]
     pub source_variables: Arc<crate::var_resolve::ResolveContext>,
-    variable_frame: crate::var_resolve::VariableExecutionFrame,
+    variable_frame: tcl_names::variable::VariableExecutionFrame,
     /// Sparse flow-sensitive binding state. Analysis forks this state for
     /// every executable root, while most roots leave the command table
     /// unchanged. Copy-on-write keeps those forks allocation-cheap and

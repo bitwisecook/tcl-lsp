@@ -389,3 +389,82 @@ item 77's own:
 - **M1:** *Identity with 274* (renamed from *Identity moves in with 274*; the old anchor still works): under D-D as revised, the identity types stay in `tcl-core-types`, and `tcl-names` owns the source-key descriptors that intern to them, so it stays in layer 4a and a `tcl-names` edit does not rebuild the workspace. 248 moves the keys as they are.
 - **M2:** facts keyed by identity, never display text; 274's grep runs over every crate.
 - **M3:** *The issuer*: derived from a `tcl-db` input; `NEXT_SCOPE` deleted.
+
+## As built (item 248, 27 November 2026)
+
+`rust/tcl-names` holds the keys, moved without a representation change. The
+consumers in `tcl-compiler`, `tcl-codegen`, `tcl-lsp-core`, `tcl-lsp-server`,
+`tcl-explorer`, `tcl-compiler-it` and `tcl-spectcl` import them from
+`tcl_names` directly; nothing re-exports them, and `retired_api_gate` rejects
+the old `tcl_compiler::` paths (`tcl_compiler::place`, and the moved names
+under `command_binding`, `var_resolve`, `raw_binding` and
+`signature_scan::scope` / `original_name`). The departures from the design:
+
+- **Modules.** `command`, `namespace`, `origin`, `variable` and `word` are as
+  designed, with one addition: `place` keeps the whole `Place` model (its
+  constructors, `overlap` and `places_read_to_form`) as its own module rather
+  than inside `variable`, so `place::scalar(…)` reads as before. `variable`
+  holds `cell_key`'s keys and tables together with `VariableExecutionFrame`,
+  `RawBindingSlotId`, `CallableStorageIdentity` and
+  `SourceObjectAllocation`, and `namespace_contains` came with them.
+- **Command tables stay in binding.** `SourceCommandTable`,
+  `SourceNamespaceMap`, `SourceNamespaceSet` and their `CommandKeyQuery` /
+  `NamespaceKeyQuery` text queries are binding state, not keys: the command
+  table memoises derived rows in a `OnceLock`. They stay in
+  `command_binding/namespace_context.rs`, which now holds only them and the
+  `SourceInvocationBinding` root-namespace method. The ledger's
+  `command_binding::namespace_context` row was wrong and is gone, as are the
+  rows for `source_origin` and `executed_script_source`, whose residue is
+  binding.
+- **Dependencies.** `tcl-names` names no `tcl-source`: the only constructor
+  that read a `WordExpr` (`from_word`) needs the effective invocation word and
+  stays in binding. Since item 117a, `InvocationDialect` lives in
+  `tcl-native-model`, so that is a dependency too. The full set is
+  `tcl-core-types`, `tcl-dialect`, `tcl-lexer`, `tcl-native-model`,
+  `tcl-registry`, `tcl-runtime-api` and `tcl-syntax`; `crate-layer` and
+  `deny.toml` enforce it.
+- **Methods that reach binding** became extension traits in the compiler, so
+  call sites keep their method syntax with one import:
+  `command_binding::SourceOriginLexical` (`original_lexical_command`,
+  `original_script_words_in`), a private `SourceOriginProjection` for the
+  projection memo, `command_binding::ExecutedScriptWords` (`from_word`,
+  `literal_word_base`), `signature_scan::scope::SignatureNamespaceChild`
+  (`child_from_key`, `child_from_input`) and
+  `raw_binding::RawBindingSlotRelocation` (`relocated`).
+  `SignatureNamespaceScope::from_logical_lambda_list` became the free
+  function `signature_scan::scope::namespace_from_logical_lambda_list`. The
+  activation-name helpers stay in `command_binding/source_origin.rs`.
+- **Visibility.** Constructors the compiler called inside one crate are now
+  `#[doc(hidden)] pub`: `SourceOriginId::{derived, derived_image, from_kind,
+  activation_key}` and the new `shared_kind` (the projection memo's key),
+  `OriginalSourcePointOrigin::{from_issued_key, matches_issued_key}` (the
+  source-point entry still issues the key), `SourceCommandKey::{slot,
+  holder}`, `SourceNamespaceKey::{is_root, is_descendant_of}`,
+  `SignatureNamespaceScope::{root, context_for_policy, child}`,
+  `ExecutedScriptSource::from_original_word_value`, `origin::folds_to`,
+  `VariableCellKey::{incoming_root_global, is_native_error_storage}`,
+  `IncomingRootGlobalCell` and
+  `SignatureSourceNameKey::from_original_logical_source_word`. The
+  `SourceOriginId` fields stay private.
+- **Process state.** The `SourceOriginId` interner moved with the type, and
+  its `memos.tsv` row points at `rust/tcl-names/src/origin.rs`; the
+  projection memo stays in binding. `walker-ownership` and `memo-type` scan
+  `tcl-names`.
+- **Tests.** The key tests moved with their modules (`place`, `variable`,
+  `word`). The two `SourceOriginId` fingerprint and interner tests moved from
+  `command_binding/tests/source_walk.rs` into `origin.rs`, where the private
+  fields they set are visible, and the collision half of
+  `full_source_identity_breaks_fingerprint_collisions_without_merging_roots`
+  joined them. The binding half
+  (`full_source_identity_selects_equal_roots_without_merging_foreign_ones`)
+  no longer forces a fingerprint collision; it checks that equal roots
+  select and a foreign root does not, which the private-field write only
+  made harder to reach. `place`'s worker-overlap test needs
+  `resolve_literal_place` and moved to `var_resolve/tests.rs`.
+- **The ledger.** `module-back-edges.tsv` has no row out of or into a moved
+  type. `analyser::types → signature_scan` rose from 102 to 110 because
+  `signature_scan::scope` is no longer listed as `tcl-names`: its remaining
+  items (`SignatureSourceLookup`, the name inputs) are binding.
+
+The measurements are in the
+[build-cost record](../../../work/build-test-cost/current-state.md#item-248-step-3a-tcl-names-before--after).

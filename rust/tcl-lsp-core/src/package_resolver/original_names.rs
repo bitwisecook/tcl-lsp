@@ -29,14 +29,11 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tcl_compiler::{
-    command_binding::SourceInvocationBinding,
-    signature_scan::scope::{
-        SignatureSourceCommand, SignatureSourceNameKey, SignatureSourceNameValue,
-    },
-};
+use tcl_compiler::command_binding::SourceInvocationBinding;
+use tcl_compiler::signature_scan::scope::{SignatureSourceCommand, SignatureSourceNameValue};
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_syntax::{naming::NamePolicyProtocol, word_rules::WordValueRules};
 
 /// Package advice identity with an explicit source/metadata boundary.

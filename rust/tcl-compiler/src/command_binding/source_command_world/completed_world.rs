@@ -22,6 +22,7 @@ use super::super::{Arc, ModuleCommandBindings, SourceCommandBindings, SourceComm
 use super::{
     OriginalClassInstanceMethodRoster, OriginalCommandPublication, OriginalCommandPublicationKind,
 };
+use crate::command_binding::SourceOriginLexical;
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::ByteCommandSlot;
 use tcl_syntax::naming::NamePolicyProtocol;
@@ -30,7 +31,7 @@ use tcl_syntax::naming::NamePolicyProtocol;
 /// never issue this receipt; it grants no physical interpreter execution.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OriginalCompletedCommandWorld {
-    pub(super) source: Arc<super::super::SourceOriginId>,
+    pub(super) source: Arc<tcl_names::origin::SourceOriginId>,
     config: tcl_lexer::LexerConfig,
     pub(super) state: Arc<ModuleCommandBindings>,
 }
@@ -163,8 +164,8 @@ impl OriginalCompletedCommandWorld {
         &self,
         class: &SourceCommandDefinition,
     ) -> Option<(
-        super::super::CommandAllocation,
-        Vec<super::super::CommandAllocation>,
+        tcl_names::command::CommandAllocation,
+        Vec<tcl_names::command::CommandAllocation>,
     )> {
         let mut actual = self.state.bindings.values().filter_map(|targets| {
             if targets.len() != 1 {
@@ -178,7 +179,7 @@ impl OriginalCompletedCommandWorld {
         });
         let target = actual.next()?;
         if actual.any(|other| other != target)
-            || target.kind != super::super::BindingKind::Class
+            || target.kind != tcl_names::command::BindingKind::Class
             || !target.terminal
             || !target.prepended.is_empty()
             || self.state.tainted_object_dispatch.contains("*")
@@ -333,7 +334,7 @@ impl OriginalCompletedCommandWorld {
         &self,
         class: &SourceCommandDefinition,
         raw: &super::super::ResolvedCommandTarget,
-        identity: &super::super::CommandIdentity,
+        identity: &tcl_names::command::CommandIdentity,
     ) {
         if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
@@ -421,7 +422,7 @@ impl OriginalCompletedCommandWorld {
         let identity = raw.token.as_ref()?;
         #[cfg(debug_assertions)]
         self.trace_roster_target(class, raw, identity);
-        if raw.kind != super::super::BindingKind::Class
+        if raw.kind != tcl_names::command::BindingKind::Class
             || !raw.terminal
             || raw.registry_backed
             || !raw.prepended.is_empty()
@@ -484,8 +485,8 @@ impl OriginalCompletedCommandWorld {
         method: &crate::ir::MethodDef,
     ) -> Option<(String, String)> {
         let source = method.body.executed_source.as_deref()?;
-        let matches = |declaration: &super::super::CommandAllocationSite,
-                       body: &super::super::ExecutedScriptSource,
+        let matches = |declaration: &tcl_names::command::CommandAllocationSite,
+                       body: &tcl_names::origin::ExecutedScriptSource,
                        formals: &[(String, Option<String>)]| {
             method
                 .span
@@ -593,8 +594,8 @@ impl SourceCommandBindings {
         registry: &tcl_registry::CommandRegistry,
         relation: &crate::ir::ClassRelation,
     ) -> Option<(
-        super::super::CommandAllocation,
-        Vec<super::super::CommandAllocation>,
+        tcl_names::command::CommandAllocation,
+        Vec<tcl_names::command::CommandAllocation>,
     )> {
         let retained = module.retained_source_bindings.as_deref()?;
         let positioned = retained.positioned_for_module(module, registry)?;

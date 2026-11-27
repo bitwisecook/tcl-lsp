@@ -19,6 +19,7 @@
 //! The recorded original words of an invocation: lexer configuration, written names and head input.
 
 use super::{OriginalHeadInputDecline, OriginalRecordedNamePurpose, OriginalWordSourcePurpose};
+use crate::command_binding::SourceOriginLexical;
 #[cfg(test)]
 use crate::command_binding::original_name_value::trace_original_word_config;
 use crate::signature_scan::scope::SignatureSourceNameInput;
@@ -41,7 +42,7 @@ pub(in super::super) fn original_static_command_head_input(
         .source_variables
         .execution_name_policy?
         .native_recipe()?;
-    crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+    tcl_names::word::SignatureSourceNameKey::from_original_native_word(
         native.first()?,
         tcl_syntax::word_rules::WordValueRules::from_config(&config),
         policy,
@@ -85,7 +86,7 @@ pub(in super::super) fn original_command_head_input(
         }
         let original = native.get(ordinal)?;
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&context.config);
-        let input = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(original, rules, policy)
+        let input = tcl_names::word::SignatureSourceNameKey::from_original_native_word(original, rules, policy)
             .map(SignatureSourceNameInput::OriginalWord)
             .or_else(|| crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(original, rules, policy)
                 .map(SignatureSourceNameInput::OriginalValue))
@@ -187,7 +188,7 @@ impl super::super::SourceInvocationBinding {
     pub(crate) fn original_argument_source(
         &self,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<&super::super::SourceOriginId> {
+    ) -> Option<&tcl_names::origin::SourceOriginId> {
         self.original_argument_lexer_config(tokens)?;
         let source = if let Some(original) = &self.original_written_words {
             &original.site.source
@@ -644,7 +645,8 @@ impl super::super::SourceInvocationBinding {
         native: &[tcl_lexer::NativeWord],
         purpose: &OriginalRecordedNamePurpose,
     ) -> Option<SignatureSourceNameInput> {
-        use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
+        use crate::signature_scan::scope::SignatureSourceNameValue;
+        use tcl_names::word::SignatureSourceNameKey;
         let word = native.get(written)?;
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
         match purpose {

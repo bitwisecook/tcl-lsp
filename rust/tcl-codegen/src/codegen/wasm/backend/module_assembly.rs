@@ -196,7 +196,7 @@ fn table_install(
 /// Host admission executes the whole source before any compiled effects,
 /// exports or procedure-table installation can bypass its compiler entry.
 pub(super) fn codegen_runtime_chunk(
-    chunk: Option<&tcl_compiler::command_binding::ExecutedScriptSource>,
+    chunk: Option<&tcl_names::origin::ExecutedScriptSource>,
     data_base: i64,
     standalone: bool,
     init: bool,

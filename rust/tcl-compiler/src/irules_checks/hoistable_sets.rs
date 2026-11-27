@@ -97,7 +97,7 @@ pub fn find_hoistable_set_warnings(
             if name.is_empty()
                 || value.is_empty()
                 || place.observed
-                || place.kind != crate::place::PlaceKind::Scalar
+                || place.kind != tcl_names::place::PlaceKind::Scalar
                 || write_counts.get(&cell) != Some(&1)
             {
                 continue;

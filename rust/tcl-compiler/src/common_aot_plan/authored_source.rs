@@ -33,7 +33,7 @@ use tcl_syntax::naming::{NamePolicyAuthority, NativeNameContext, NativeVariableR
 #[derive(Debug, Clone, PartialEq)]
 pub struct OriginalAuthoredStorageTemplate {
     name: NameBytes,
-    namespace: crate::command_binding::SourceNamespaceKey,
+    namespace: tcl_names::namespace::SourceNamespaceKey,
     literal: String,
     contents_type: TypeLattice,
 }
@@ -47,7 +47,7 @@ impl OriginalAuthoredStorageTemplate {
 
     /// Retained source lookup scope, without an allocated namespace or cell.
     #[must_use]
-    pub const fn namespace(&self) -> &crate::command_binding::SourceNamespaceKey {
+    pub const fn namespace(&self) -> &tcl_names::namespace::SourceNamespaceKey {
         &self.namespace
     }
 

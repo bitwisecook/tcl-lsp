@@ -21,8 +21,9 @@
 //! The receipt references an existing symbolic version only. It supplies no
 //! represented read, physical address, successful evaluation or executable edit.
 
-use super::{CommandAllocationSite, SourceInvocationBinding, SourceVariableEvaluationOwner};
+use super::{SourceInvocationBinding, SourceVariableEvaluationOwner};
 use crate::ir::CommandTokens;
+use tcl_names::command::CommandAllocationSite;
 use tcl_source::words::Provenance;
 use tcl_source::words::WordExpr;
 

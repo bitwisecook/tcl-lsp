@@ -19,10 +19,11 @@
 //! Fresh stock factory transfers, separate from source declaration advice.
 
 use super::{
-    Arc, BTreeSet, BindingKind, CommandAllocationSite, MayBinding, ModuleCommandBindings,
-    SourceCommandKey, SourceExecutionContext, SourceNativeInvocation,
+    Arc, BTreeSet, MayBinding, ModuleCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
+use tcl_names::command::{BindingKind, CommandAllocationSite, SourceCommandKey};
 use tcl_registry::{
     CommandBindingDefinitionKind, CommandBindingTransition, InvocationFacts, ObjectDispatchKind,
     ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
@@ -40,7 +41,7 @@ pub(super) struct OriginalClassFactoryTransfer {
     inputs: Vec<SignatureSourceNameInput>,
     name: SignatureSourceNameInput,
     destination: SourceCommandKey,
-    body: super::ExecutedScriptSource,
+    body: tcl_names::origin::ExecutedScriptSource,
 }
 
 impl OriginalClassFactoryTransfer {
@@ -204,7 +205,7 @@ impl OriginalClassFactoryTransfer {
             || identity.runtime.is_some()
             || allocation.site != self.site
             || identity.allocation.as_ref() != Some(allocation)
-            || allocation.incarnation == super::AllocationIncarnation::RepeatedFresh
+            || allocation.incarnation == tcl_names::command::AllocationIncarnation::RepeatedFresh
             || state
                 .objects
                 .get(identity)
@@ -299,7 +300,7 @@ fn fresh_destination(
 
 fn closed_declarations(
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
-    body: &super::ExecutedScriptSource,
+    body: &tcl_names::origin::ExecutedScriptSource,
     policy: tcl_syntax::naming::NamePolicyProtocol,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
@@ -373,7 +374,7 @@ fn closed_declarations(
                 .iter()
                 .skip(1)
                 .map(|word| {
-                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    tcl_names::word::SignatureSourceNameKey::from_original_native_word(
                         word,
                         tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
                         policy,

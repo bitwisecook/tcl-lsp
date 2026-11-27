@@ -19,11 +19,13 @@
 //! Lexical receiver bodies of proved native class declarations.
 
 use super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, InvocationFacts, ModuleCommandBindings,
-    SourceCommandBindings, SourceExecutionContext, SourceNativeInvocation,
+    Arc, InvocationFacts, ModuleCommandBindings, SourceCommandBindings, SourceExecutionContext,
+    SourceNativeInvocation,
 };
 use crate::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
+use tcl_names::command::CommandAllocationSite;
+use tcl_names::origin::ExecutedScriptSource;
 
 mod class_definitions;
 mod closed_members;
@@ -63,7 +65,7 @@ pub struct SourceReceiverMethodEntry {
     receiver: SourceMethodReceiver,
     exported: bool,
     declaring_class: Option<super::SourceCommandTarget>,
-    declaring_object: Option<super::SourceObjectAllocation>,
+    declaring_object: Option<tcl_names::variable::SourceObjectAllocation>,
     object_body_context: Option<super::SourceCommandTarget>,
     class_delegate: bool,
     delegate_allocation: Option<Arc<SourceClassDelegateAllocation>>,
@@ -154,7 +156,7 @@ impl SourceReceiverMethodEntry {
     }
     /// Actual own-object implementation owner, independent of its class.
     #[must_use]
-    pub fn declaring_object(&self) -> Option<&super::SourceObjectAllocation> {
+    pub fn declaring_object(&self) -> Option<&tcl_names::variable::SourceObjectAllocation> {
         self.declaring_object.as_ref()
     }
     pub(super) fn body_context_provider(&self) -> Option<&super::SourceCommandTarget> {
@@ -195,7 +197,7 @@ impl SourceReceiverMethodEntry {
     }
     /// Original receiver-method activation.
     #[must_use]
-    pub fn frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
+    pub fn frame(&self) -> &tcl_names::variable::VariableExecutionFrame {
         self.entry.frame()
     }
 }

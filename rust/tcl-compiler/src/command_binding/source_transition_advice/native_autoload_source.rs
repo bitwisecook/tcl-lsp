@@ -23,11 +23,11 @@ use super::{
     OriginalSourceCommandTransitionAdvice, OriginalSourceTransitionAdviceTape, SourceAdviceWord,
 };
 use crate::analyser::AnalysisResult;
-use crate::signature_scan::scope::SignatureSourceNameKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 use tcl_lexer::NativeWord;
+use tcl_names::word::SignatureSourceNameKey;
 use tcl_registry::world_effect::CallbackKinds;
 use tcl_registry::{CommandRegistry, InvocationFacts};
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext};
@@ -104,7 +104,7 @@ pub(super) struct NativeAutoloadHorizon {
     arity_debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
     prefixes: Vec<NativeAutoloadPrefix>,
     body: Arc<crate::registry_invocation::OriginalSourceScriptBody>,
-    declaration_path: Vec<crate::command_binding::CommandAllocationSite>,
+    declaration_path: Vec<tcl_names::command::CommandAllocationSite>,
     registry: tcl_registry::RegistrySemanticKey,
     obligations: Vec<OriginalNativeDeferredAutoloadObligation>,
 }

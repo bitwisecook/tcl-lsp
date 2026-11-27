@@ -64,7 +64,7 @@ fn original_source_procedure_candidates_share_slots_and_reindex_currency() {
     for invocation in &caller.command_invocations {
         let input = invocation.original_name_input.as_ref().unwrap();
         let lookup = tcl_compiler::signature_scan::scope::SignatureSourceLookup::from_input(
-            tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+            tcl_names::namespace::SignatureNamespaceScope::C(
                 tcl_core_types::ByteNamespacePath::root(),
             ),
             input,
@@ -118,7 +118,7 @@ fn original_source_class_candidates_share_current_slots_and_canonical_navigation
     for invocation in &caller.command_invocations {
         let input = invocation.original_name_input.as_ref().unwrap();
         let lookup = tcl_compiler::signature_scan::scope::SignatureSourceLookup::from_input(
-            tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+            tcl_names::namespace::SignatureNamespaceScope::C(
                 tcl_core_types::ByteNamespacePath::root(),
             ),
             input,

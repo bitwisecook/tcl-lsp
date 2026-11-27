@@ -30,6 +30,6 @@ fn actual_unavailable_cfg_entry_cannot_reconstruct_source_config_on_rebuild() {
     assert_eq!(rebuilt.source_variables.read_lexer_config(&registry), None);
     let child = rebuilt
         .source_variables
-        .in_frame(&crate::var_resolve::VariableExecutionFrame::Global);
+        .in_frame(&tcl_names::variable::VariableExecutionFrame::Global);
     assert_eq!(child.read_lexer_config(&registry), None);
 }

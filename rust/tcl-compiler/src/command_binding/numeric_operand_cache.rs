@@ -20,13 +20,15 @@
 //! effects, completion and frozen numeric operands remain independent proofs.
 
 use super::{Arc, ModuleCommandBindings, SourceExecutionContext, SourceOutcomes};
-use crate::{native_numeric::SourceNativeNumericShape, place::Place, var_resolve::ResolveContext};
+use crate::native_numeric::SourceNativeNumericShape;
+use crate::var_resolve::ResolveContext;
+use tcl_names::place::Place;
 use tcl_registry::native_numeric_conversion::NativeOperandNumericCacheProduction;
 
 pub(super) struct CapturedNumericOperandCache {
     place: Place,
     origin: crate::var_resolve::ContentsOrigin,
-    source: Option<Arc<super::SourceOriginId>>,
+    source: Option<Arc<tcl_names::origin::SourceOriginId>>,
     shape: SourceNativeNumericShape,
 }
 

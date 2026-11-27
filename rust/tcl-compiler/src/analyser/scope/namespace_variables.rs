@@ -449,7 +449,7 @@ impl Analyser {
         qualified: String,
         span: Span,
         original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
-        original_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+        original_namespace: Option<tcl_names::namespace::SignatureNamespaceScope>,
     ) {
         if let Some(last) = self
             .result

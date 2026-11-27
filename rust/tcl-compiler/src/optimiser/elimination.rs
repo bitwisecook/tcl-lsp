@@ -459,7 +459,7 @@ impl<'a> RaiseProof<'a> {
         block: crate::cfg::BlockId,
         idx: usize,
         stmt: &Statement,
-        def: &(crate::var_resolve::VariableCellKey, u32),
+        def: &(tcl_names::variable::VariableCellKey, u32),
     ) -> bool {
         if !self.metadata_available {
             return false;
@@ -968,7 +968,7 @@ struct DseEntry {
     span: tcl_lexer::Span,
     code: DiagCode,
     msg: &'static str,
-    key: (crate::var_resolve::VariableCellKey, u32),
+    key: (tcl_names::variable::VariableCellKey, u32),
     block: String,
     statement_index: i32,
 }
@@ -1007,7 +1007,7 @@ fn emit_dead_stores_and_unused(
     purity: PurityCtx<'_>,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
     proc_index: &crate::interprocedural::ProcIndex,
-) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+) -> HashSet<(tcl_names::variable::VariableCellKey, u32)> {
     // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
     // so no assignment in this function is provably dead.  Deleting one would
     // change what the program prints, so the
@@ -1238,14 +1238,14 @@ fn dead_store_writes_observed(
     fu: &FunctionUnit,
     block: crate::cfg::BlockId,
     index: usize,
-    writes: &[crate::place::Place],
+    writes: &[tcl_names::place::Place],
     contexts: &crate::variable_bindings::PointResolveContexts,
     registry: &CommandRegistry,
 ) -> bool {
     writes.iter().any(|written| {
         written.dynamic
             || written.observed
-            || written.kind == crate::place::PlaceKind::Unknown
+            || written.kind == tcl_names::place::PlaceKind::Unknown
             || crate::place_bridge::write_observed_by_unknown_access(
                 &fu.cfg, block, index, written, contexts, registry,
             )
@@ -1258,16 +1258,16 @@ fn dead_store_name_observed(
     var: &str,
     module_traced: Option<&std::collections::BTreeSet<String>>,
     is_top_level: bool,
-    writes: &[crate::place::Place],
+    writes: &[tcl_names::place::Place],
 ) -> bool {
     // The SSA name is decoded literal naming data, not a `$` reference.
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let base = crate::naming::split_element_ref(var).map_or(var, |(root, _)| root);
     writes.iter().any(|written| {
-        written.kind == crate::place::PlaceKind::UpvarAlias
-            || written.kind == crate::place::PlaceKind::InstanceVar
-            || (!is_top_level && written.ns != crate::place::LOCAL_NS)
+        written.kind == tcl_names::place::PlaceKind::UpvarAlias
+            || written.kind == tcl_names::place::PlaceKind::InstanceVar
+            || (!is_top_level && written.ns != tcl_names::place::LOCAL_NS)
     }) || module_traced.is_some_and(|names| {
         crate::command_binding::trace_registrations::name_may_be_observed(
             names,
@@ -1452,9 +1452,9 @@ fn emit_dse_entries(
     fu: &FunctionUnit,
     is_top_level: bool,
     mut entries: Vec<DseEntry>,
-) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+) -> HashSet<(tcl_names::variable::VariableCellKey, u32)> {
     entries.sort_by_key(|e| e.span.start());
-    let mut removed: HashSet<(crate::var_resolve::VariableCellKey, u32)> = HashSet::new();
+    let mut removed: HashSet<(tcl_names::variable::VariableCellKey, u32)> = HashSet::new();
     for e in entries {
         let Some(rewrite_span) = original_statement_rewrite_span(ctx, e.span) else {
             continue;
@@ -1488,7 +1488,7 @@ fn emit_adce(
     unit: &CompilationUnit,
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
-    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    baseline: &HashSet<(tcl_names::variable::VariableCellKey, u32)>,
     purity: PurityCtx<'_>,
     top_level: bool,
     execution_namespace: Option<&crate::ir::ExecutionNamespace>,
@@ -1526,7 +1526,7 @@ fn observed_store_definitions(
     fu: &FunctionUnit,
     top_level: bool,
     registry: &CommandRegistry,
-) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+) -> HashSet<(tcl_names::variable::VariableCellKey, u32)> {
     let fallback_contexts;
     let contexts = if let Some(contexts) = &fu.ssa.point_contexts {
         contexts
@@ -1565,17 +1565,17 @@ fn observed_store_definitions(
         .collect()
 }
 
-type ConsumerMap = HashMap<(crate::var_resolve::VariableCellKey, u32), Vec<(String, usize)>>;
+type ConsumerMap = HashMap<(tcl_names::variable::VariableCellKey, u32), Vec<(String, usize)>>;
 
 fn build_adce_consumers(
     fu: &FunctionUnit,
 ) -> (
     ConsumerMap,
-    HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    HashSet<(tcl_names::variable::VariableCellKey, u32)>,
 ) {
     use crate::def_use::UseKind;
     let mut consumer_stmt_keys: ConsumerMap = HashMap::new();
-    let mut keep_forever: HashSet<(crate::var_resolve::VariableCellKey, u32)> = HashSet::new();
+    let mut keep_forever: HashSet<(tcl_names::variable::VariableCellKey, u32)> = HashSet::new();
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
             continue;
@@ -1609,7 +1609,7 @@ fn build_adce_consumers(
     (consumer_stmt_keys, keep_forever)
 }
 
-type StmtDefsMap = HashMap<(String, usize), Vec<(crate::var_resolve::VariableCellKey, u32)>>;
+type StmtDefsMap = HashMap<(String, usize), Vec<(tcl_names::variable::VariableCellKey, u32)>>;
 
 fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
     let mut out: StmtDefsMap = HashMap::new();
@@ -1630,13 +1630,13 @@ fn build_stmt_to_defs(fu: &FunctionUnit) -> StmtDefsMap {
 
 fn run_adce_fixpoint(
     fu: &FunctionUnit,
-    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    baseline: &HashSet<(tcl_names::variable::VariableCellKey, u32)>,
     consumer_stmt_keys: &ConsumerMap,
-    keep_forever: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    keep_forever: &HashSet<(tcl_names::variable::VariableCellKey, u32)>,
     stmt_to_defs: &StmtDefsMap,
     effect: EffectCtx<'_>,
     raise_proof: &RaiseProof<'_>,
-) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
+) -> HashSet<(tcl_names::variable::VariableCellKey, u32)> {
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     let mut removed = baseline.clone();
     loop {
@@ -1690,9 +1690,9 @@ fn run_adce_fixpoint(
             }
             let all_removed = consumers.iter().all(|pair: &(String, usize)| {
                 stmt_to_defs.get(pair).is_some_and(
-                    |defs: &Vec<(crate::var_resolve::VariableCellKey, u32)>| {
+                    |defs: &Vec<(tcl_names::variable::VariableCellKey, u32)>| {
                         defs.iter()
-                            .all(|d: &(crate::var_resolve::VariableCellKey, u32)| {
+                            .all(|d: &(tcl_names::variable::VariableCellKey, u32)| {
                                 removed.contains(d)
                             })
                     },
@@ -1713,8 +1713,8 @@ fn run_adce_fixpoint(
 fn emit_adce_reports(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
-    baseline: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
-    removed: &HashSet<(crate::var_resolve::VariableCellKey, u32)>,
+    baseline: &HashSet<(tcl_names::variable::VariableCellKey, u32)>,
+    removed: &HashSet<(tcl_names::variable::VariableCellKey, u32)>,
 ) {
     let mut new_reports: Vec<tcl_lexer::Span> = Vec::new();
     for key in removed.difference(baseline) {

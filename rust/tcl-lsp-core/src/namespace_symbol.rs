@@ -103,13 +103,13 @@ use tcl_lexer::Span;
 /// This is source assistance, without namespace existence or lifetime proof.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalNamespaceSymbol {
-    scope: tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    scope: tcl_names::namespace::SignatureNamespaceScope,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 }
 
 impl OriginalNamespaceSymbol {
     pub(crate) fn from_retained(
-        scope: tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+        scope: tcl_names::namespace::SignatureNamespaceScope,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Self {
         Self { scope, policy }
@@ -140,10 +140,10 @@ impl OriginalNamespaceSymbol {
         )?;
         let scope = match proposed {
             tcl_syntax::naming::NativeNamespaceRenameTarget::C(path) => {
-                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(path)
+                tcl_names::namespace::SignatureNamespaceScope::C(path)
             }
             tcl_syntax::naming::NativeNamespaceRenameTarget::Jim(value) => {
-                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(value)
+                tcl_names::namespace::SignatureNamespaceScope::Jim(value)
             }
         };
         Some(Self {
@@ -154,7 +154,7 @@ impl OriginalNamespaceSymbol {
 
     /// Exact retained namespace components; this grants no namespace existence.
     #[must_use]
-    pub fn scope(&self) -> &tcl_compiler::signature_scan::scope::SignatureNamespaceScope {
+    pub fn scope(&self) -> &tcl_names::namespace::SignatureNamespaceScope {
         &self.scope
     }
     /// Independently selected naming recipe and provider policy.
@@ -472,7 +472,7 @@ pub fn retained_namespace_for_report(
     analysis: &AnalysisResult,
     cell: &str,
 ) -> Option<(
-    tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    tcl_names::namespace::SignatureNamespaceScope,
     tcl_syntax::naming::NamePolicyProtocol,
 )> {
     retained_namespace_from_refs(analysis.namespace_refs.iter(), cell)
@@ -484,7 +484,7 @@ pub fn retained_namespace_from_refs<'a>(
     references: impl IntoIterator<Item = &'a tcl_compiler::analyser::types::NamespaceRef>,
     cell: &str,
 ) -> Option<(
-    tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    tcl_names::namespace::SignatureNamespaceScope,
     tcl_syntax::naming::NamePolicyProtocol,
 )> {
     let mut selected = None;
@@ -514,11 +514,11 @@ pub fn retained_namespace_from_refs<'a>(
                 }
             }
             scope = match scope {
-                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(path) => {
+                tcl_names::namespace::SignatureNamespaceScope::C(path) => {
                     let Some(parent) = path.parent() else { break };
-                    tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(parent)
+                    tcl_names::namespace::SignatureNamespaceScope::C(parent)
                 }
-                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(value) => {
+                tcl_names::namespace::SignatureNamespaceScope::Jim(value) => {
                     if value.as_bytes().is_empty() || value.as_bytes().contains(&0) {
                         break;
                     }
@@ -526,9 +526,9 @@ pub fn retained_namespace_from_refs<'a>(
                     if parent == value.as_bytes() {
                         break;
                     }
-                    tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Jim(parent.into())
+                    tcl_names::namespace::SignatureNamespaceScope::Jim(parent.into())
                 }
-                tcl_compiler::signature_scan::scope::SignatureNamespaceScope::Symbolic(_) => break,
+                tcl_names::namespace::SignatureNamespaceScope::Symbolic(_) => break,
             };
         }
     }
@@ -629,7 +629,7 @@ pub fn namespace_strictly_contains(parent: &str, child: &str) -> bool {
 pub fn namespace_implicit_parent_span_in(
     source: &str,
     reference: &tcl_compiler::analyser::types::NamespaceRef,
-    wanted: &tcl_compiler::signature_scan::scope::SignatureNamespaceScope,
+    wanted: &tcl_names::namespace::SignatureNamespaceScope,
 ) -> Option<Span> {
     if reference.source_namespace.as_ref() == Some(wanted) {
         return None;

@@ -809,7 +809,7 @@ impl<'a> LatticeDriver<'a> {
     /// The interpreter's error cells can receive unrepresented writes.
     pub(crate) fn is_native_error_storage(
         &self,
-        key: &crate::var_resolve::VariableCellKey,
+        key: &tcl_names::variable::VariableCellKey,
     ) -> bool {
         let dialect = self.policy.invocation_dialect.unwrap_or_else(|| {
             tcl_native_model::InvocationDialect::of_profile(

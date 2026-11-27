@@ -27,7 +27,7 @@ use tcl_lexer::{Span, Token, TokenType};
 struct ApplyLambdaSourceFacts {
     body_ns: String,
     original_namespace: Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         Option<std::sync::Arc<super::super::interp_visibility::OriginalInterpreterSourceDomain>>,
     )>,
     logical_formals: Option<(Vec<ParamDef>, Vec<Span>)>,
@@ -44,7 +44,7 @@ struct ApplyLambdaBody {
     body_ns: String,
     scope_name: String,
     original_namespace: Option<(
-        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_names::namespace::SignatureNamespaceScope,
         Option<std::sync::Arc<super::super::interp_visibility::OriginalInterpreterSourceDomain>>,
     )>,
     logical_namespace_source:
@@ -77,9 +77,7 @@ impl Analyser {
                 self.result.namespace_refs.push(
                     super::super::types::NamespaceRef::from_original(
                         self.declaration_name_policy().map(|policy| {
-                            crate::signature_scan::scope::SignatureNamespaceScope::root(Some(
-                                policy,
-                            ))
+                            tcl_names::namespace::SignatureNamespaceScope::root(Some(policy))
                         }),
                         self.declaration_name_policy(),
                         ns_text,
@@ -420,9 +418,9 @@ impl Analyser {
                 self.result
                     .namespace_refs
                     .push(super::super::types::NamespaceRef::from_original(
-                        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
-                            Some(field.policy()),
-                        )),
+                        Some(tcl_names::namespace::SignatureNamespaceScope::root(Some(
+                            field.policy(),
+                        ))),
                         Some(field.policy()),
                         field.original_field().value(),
                         span,

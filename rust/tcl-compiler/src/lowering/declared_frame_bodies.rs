@@ -20,7 +20,7 @@
 
 use super::{IrulesExecutionContext, Lowerer, Procedure};
 use crate::ir::{ProcedureBodyKind, Script};
-use crate::var_resolve::VariableExecutionFrame;
+use tcl_names::variable::VariableExecutionFrame;
 
 impl Lowerer<'_> {
     /// Lower again, in its own declared frame, the body of every named

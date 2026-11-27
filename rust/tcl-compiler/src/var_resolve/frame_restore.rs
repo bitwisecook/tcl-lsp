@@ -20,9 +20,9 @@
 
 use super::ResolveContext;
 use super::canonical_keys::cell_key;
-use super::cell_key::VariableCellKey;
-use crate::place::PlaceKind;
 use std::collections::HashSet;
+use tcl_names::place::PlaceKind;
+use tcl_names::variable::VariableCellKey;
 
 /// Restore the caller activation while retaining effects on outward namespace storage.
 #[must_use]

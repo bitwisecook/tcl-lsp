@@ -120,7 +120,7 @@ mod tests {
 
     struct OriginalWorker {
         identity: String,
-        token: crate::command_binding::RuntimeCommandTokenIdentity,
+        token: tcl_names::command::RuntimeCommandTokenIdentity,
         generation: u64,
     }
 
@@ -132,7 +132,7 @@ mod tests {
             .proved_handler_target()
             .expect("the original native worker remains proved after its callback rename");
         assert!(target.registry_backed);
-        assert_eq!(target.kind, crate::command_binding::BindingKind::Builtin);
+        assert_eq!(target.kind, tcl_names::command::BindingKind::Builtin);
         assert_eq!(target.command, expected.identity);
         assert_eq!(
             target
@@ -174,7 +174,7 @@ mod tests {
         };
         let original_worker = OriginalWorker {
             identity: identity.clone(),
-            token: crate::command_binding::RuntimeCommandTokenIdentity {
+            token: tcl_names::command::RuntimeCommandTokenIdentity {
                 interpreter: entry.interpreter,
                 token: worker.token,
             },
