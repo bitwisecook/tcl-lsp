@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-## Current goal: benchmark, survey, compiler tests and runtime gaps
+## Benchmark, test boundaries and runtime repairs
 
 - BPF signed division's public regression passes on the combined in-tree
   eBPF VM and native CPU-v4 SDIV/SMOD implementation. All 13 signed-arithmetic,
@@ -27,9 +27,10 @@
   [CI](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051).
   Large cold/restart scans time out after 600 seconds; source navigation gives
   no valid samples. Their rows are explicitly unavailable, while source
-  formatting now accepts 20/20 samples. Tcllib's runners have twice shut down
-  before upload (exit 143); its isolated retry is the outstanding baseline
-  obligation. The owner chose scripts/CI scope with unavailable phase
+  formatting now accepts 20/20 samples. Tcllib's three runners shut down
+  before upload (exit 143); its row is infrastructure-unavailable, with no
+  elapsed-time claim or target inferred. A healthy-runner remeasurement is
+  explicit follow-up evidence, not a fabricated baseline value. The owner chose scripts/CI scope with unavailable phase
   interfaces and unbuilt artefacts recorded explicitly. All 15 harness tests
   and Python lint checks pass. No release latency was measured in this agent
   worktree.
@@ -63,7 +64,8 @@
   bytes, import a child trace into a fresh parent command-log frontier, log
   an eval-list's synchronous procedure-entry error, and implement Jim source
   metadata through the existing value owner. The complete `tcl-vm-it::it_5`
-  comparison is 792 passed / 16 failed before, 798 passed / 10 failed after:
+  repair comparison (`cd3ef9f1b`) is 792 passed / 16 failed before,
+  798 passed / 10 failed after:
   zero new failures and all six strengthened tests fixed. The ten remaining
   failures are unchanged. Logs: `/tmp/vm-five-gaps-full-baseline-work.log`,
   `/tmp/vm-five-gaps-full-after-work.log`,
@@ -84,9 +86,23 @@ The complete `make rust-check` passes on the combined tree
 (`/tmp/goal-rust-check-final-work.log`): workspace and standalone-runtime
 all-target Clippy, four offline-X.509 tests, all 50 drift gates, all 353 core
 command backing declarations, source data and header/ownership checks.
-Workspace formatting and whitespace checks pass. `make prep-pr` is next;
-its full result is still outstanding under the `work` development-push
-exception. No PR or merge is authorised.
+Workspace formatting and whitespace checks pass. The full `make prep-pr`
+remains incomplete: the Node 26.13.1 / npm 12.2.3, single-build-job attempt
+reached its 1,200-second limit during the cold Rust generator build, before
+smoke tests (`/tmp/goal-prep-pr-final-work.log`). No smoke pass is claimed.
+The earlier attempts stopped at npm's unwritable default cache
+(`/tmp/goal-prep-pr-work.log`, resolved with a workspace cache) and before
+parallel-build disk exhaustion (`/tmp/goal-prep-pr-retry-work.log`); no ENOSPC
+occurred. Older build units were pruned with the repository helper.
+
+Node 26 frontend typechecks, report/studio lint, report asset drift and all
+18 installer cases plus the release-installer smoke pass separately
+(`/tmp/goal-node26-typechecks-work.log`); VS Code Prettier also passes
+(`/tmp/goal-node26-checks-work.log`). The extension compile target's Rust
+prompt-generation prerequisite was not bypassed; its complete gate remains
+outstanding. Before a PR, complete `make prep-pr` on a warm or larger runner
+and address the separately recorded deep-suite failures. These development
+pushes use the explicit `work` exception.
 
 The runtime's formal-usage adapter now reads the registry activation protocol's
 variadic word. The focused public Tclsh-vector test passes for all five
@@ -139,14 +155,10 @@ by the complete current run. No implementation obligations remain for 498.
 
 ## Development push validation
 
-The identity/answer change is rebased onto the latest remote `work`, preserving
-the registry and conformance additions. The four documentation conflicts retain
-both owners' entries, definitions and validation records. Workspace formatting
-and whitespace checks pass on the combined tree. Full Rust gates,
-`prep-pr` and deep tests have not been rerun on this combined tree; the passing
-results below apply to their independently validated inputs. Run the full gates
-on the combined tree before a PR. This development push uses the explicit
-`work` exception and does not authorise a merge.
+The current combined tree's full Rust gate passes. The incomplete pre-PR
+smoke/generation gate and independent passing frontend checks are recorded
+above. Existing failure sets retain their exact validation logs; none is
+presented as a complete CI pass. PR-stage gates remain required.
 
 ## Items 77 and 78 validation
 

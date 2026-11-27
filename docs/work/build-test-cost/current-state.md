@@ -49,8 +49,15 @@ accept 0/1 after their separate 600-second limits; its editor queries and
 open-document memory measurement are not reached. After-edit latency includes
 complete versioned diagnostics before the definition response.
 
-The Tcllib case is being retried after its runner shut down before upload.
-Its end-to-end row is unavailable until that case returns a result.
+Tcllib 2.0 was fetched and verified on each of three case attempts, but all
+three runners ([first](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051/job/140505452380),
+[second](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051/job/140515600845),
+[third](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051/job/140524045196))
+shut down with exit 143 before artifact upload. Its end-to-end
+row is **infrastructure-unavailable**, with no accepted sample, elapsed-time
+claim or target inferred. The combined artifact explicitly lists Tcllib as
+a missing case; it preserves all four measured cases. Re-run that case on a
+healthy benchmark runner to establish its end-to-end target.
 
 Whole-process open-document RSS is 355,300 KiB (small) and 319,884 KiB
 (source), with one document open. The artifact also records their arithmetic
