@@ -196,6 +196,7 @@
 5	bpf-tcl::capability	test	bpf-tcl	capability
 5	bpf-tcl::loader_lifecycle	test	bpf-tcl	loader_lifecycle
 5	bpf-tcl::profiles	test	bpf-tcl	profiles
+5	bpf-tcl::signed_arith	test	bpf-tcl	signed_arith
 5	bpf-tcl::socket_filter	test	bpf-tcl	socket_filter
 5	bpf-tcl::xdp	test	bpf-tcl	xdp
 5	tcl-bigip-query::integration	test	tcl-bigip-query	integration
