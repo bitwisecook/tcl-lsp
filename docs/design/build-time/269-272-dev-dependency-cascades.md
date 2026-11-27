@@ -641,9 +641,8 @@ public `CompileService` seam). What changed in them:
   completion codes and result bytes, which the tclsh and jimsh captures
   record, stay.
 - `native_limit_error_tests` now drives the limit through `interp limit`
-  on a child, and compares `-errorinfo` with tclsh 8.6.18 and 9.0.4. The VM
-  omits tclsh's last frame (`invoked from within "c eval budget_loop"`);
-  the test checks the frames both report.
+  on a child, and checks the final `invoked from within "c eval budget_loop"`
+  frame recorded by tclsh 8.5–9.1.
 - 4 tests were deleted as pure implementation detail:
   `exec::native_list_index_tests::original_objects::original_index_list_and_returned_child_have_independent_real_owners`
   (reference counts of a private call),
@@ -662,10 +661,9 @@ pass, having failed only on object headers. Left: 575 tests in 130 files,
 which name private types (`NativeOperationScope`, `Command`, `BinOp`,
 `OriginalNameConsumerScope` and others) and need rewriting by hand.
 
-**Known VM gap (found in batch 1).** An exceeded `interp limit` reports one
-frame fewer in `-errorinfo` than tclsh 8.6.18 and 9.0.4: the last
-`invoked from within "c eval budget_loop"`. `exec::native_limit_error_tests`
-checks the frames both report.
+The child-limit error transfers its trace to a fresh parent command-log
+frontier, retaining the final child invocation frame. Native observations are
+in [TclOO defaults and nested error frames](../../../evidence/tcl/tcloo-defaults-and-nested-error-frames.md).
 
 **Batch 2, `exec` (26 November 2026).** 25 tests in 7 files.
 - Moved to `tcl-vm-it` against the public API: `native_scalar` (1),
@@ -801,8 +799,8 @@ reach a compiler drop from 381 to 358.
   `cmd_namespace::native_jim_helpers::tests::installed_namespace_helpers_retain_actual_static_sources_and_one_filename`
   (object type, reference count and a shared filename object). The source
   location is visible in jimsh through `info source` (`nshelper.tcl 32` for
-  `namespace which`); the VM refuses Jim's `info source`
-  ("selected Jim info handler is unavailable").
+  `namespace which`). The VM implements Jim's `info source`; public source
+  metadata tests cover annotation, defaults and source-string copying.
 - The test-only `next_original_pair` lost its last caller and is removed.
 
 **Batch 8, `command` (27 November 2026).** 50 tests in 10 files: 38 move to
@@ -842,11 +840,10 @@ deleted. Tests that reach a compiler drop from 358 to 308.
   `build_lambda_proc`'s re-export, `CoroSystem::parked_lambda_registrations`
   and `Frame::lambda_registration`.
 
-**Known VM gap (found in batch 8).** Under 8.4, a procedure error raised
-through `eval` of a list keeps tclsh 8.4.20's `invoked from within "p"` frame
-above `("eval" body line 1)`; the VM omits it.
+C Tcl 8.4 list evaluation routes synchronous procedure-entry errors through
+its object-vector error logger before adding the eval body frame.
 `command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions`
-checks the frames both report for its non-UTF-8 name.
+checks the native invocation frame for the non-UTF-8 name too.
 
 **Batch 9, `cmd_oo` reflection, byte names, frames and role reports (27 November 2026).**
 8 tests in 4 files: 7 move to `tcl-vm-it` under their old module paths and 1
@@ -905,11 +902,9 @@ to 233, all in `interp`.
   `#[cfg(test)]` imports, `destruction::teardown` and `teardown_checked`, and
   `oo_cleanup::withdraw_cleanup_fixture_name_world`.
 
-**Known VM gap (found in batch 10).** `oo::define C renamemethod absent 42`
-fails with `method does not exist`; tclsh 8.6.18 and 9.0.4 say
-`method absent does not exist`.
+`oo::define C renamemethod absent 42` reports `method absent does not exist`.
 `cmd_oo::native_method_cache::rename_tests::original_vm_rename_missing_source_does_not_reach_destination_string`
-checks the code and the message's shape.
+checks the complete error and the unchanged method list.
 
 **Batch 11, the first `interp` files (27 November 2026).** 12 tests in 3
 files (`jim_local`, `native_introspection`, `family_b_tests::variables`) move
@@ -973,11 +968,10 @@ reach a compiler drop from 221 to 161.
   - `interp::native_cache_tests`: `operation_sites_keep_raw_imported_compilers_and_replay_failed_prerequisites` and `ensemble_operation_checks_configuration_and_independent_worker_binding` (hand-built operation sites), `imported_compiler_failure_retains_raw_registration_before_any_body_store` (a prerequisite with a forged token), `first_array_callback_revalidates_replay_before_final_array_publication` (the literal-pool replay environment)
 - Parity: no new failure in the lib and `it_5` suites.
 
-**Known VM gap (found in batch 12).** `info class superclasses ::C` for a
-class made by `oo::class create C` gives an empty list; tclsh 8.6.18, 9.0.4
-and 9.1.0 give `::oo::object`.
+A class made by `oo::class create C` retains `::oo::object` as its default
+superclass, matching C Tcl 8.6–9.1.
 `interp::native_cache_tests::nested_info_compilation_retains_original_maps_and_late_worker_binding`
-compares the calls after the handler is replaced.
+checks that initial report and calls after the handler is replaced.
 
 **Batch 13, `interp` N (27 November 2026).** 62 tests in 16 files: 44 move to
 `tcl-vm-it` under their old module paths and 18 are deleted. Tests that reach

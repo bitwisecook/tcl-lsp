@@ -785,7 +785,10 @@ pub(super) fn rename_method(
         // Find the original source before any destination String getter, as the
         // selected C worker does. This Weak observation adds no entered owner.
         let Some(source) = OriginalMethodRenameSource::capture(&vm.oo, class, target, &from) else {
-            return err("method does not exist");
+            let mut message = b"method ".to_vec();
+            message.extend_from_slice(&method_report_bytes(vm, &from));
+            message.extend_from_slice(b" does not exist");
+            return err(message);
         };
         let to = match native_method_key_for_target(vm, to, Some((class, target))) {
             Ok(key) => key,

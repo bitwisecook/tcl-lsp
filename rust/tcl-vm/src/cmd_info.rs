@@ -620,6 +620,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Some(v) if !v.to_str().is_empty() => ok(v),
                 _ => err("no library has been specified for Tcl"),
             },
+            "source" => native_jim::source(vm, rest),
             "script"
                 if vm.actual_native_string_protocol()
                     == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) =>

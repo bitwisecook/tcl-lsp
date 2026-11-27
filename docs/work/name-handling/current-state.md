@@ -24,10 +24,28 @@
   scope and record unavailable phase interfaces and unbuilt artefacts explicitly.
   All 9 harness tests and Python lint checks pass. No release latency has been
   measured in this agent worktree.
-- Item 267's public-API rewrite and the five VM-vs-interpreter repairs remain
-  open. The exact Tcl 8.4–9.1 sources and pinned Jim oracle have been fetched;
-  all six oracles have built successfully. Direct probes confirm the requested
-  superclass, rename-error and error-frame observations, and Jim source metadata.
+- Item 267's public-API rewrite remains open. The five VM regressions were
+  reproduced before editing (`/tmp/vm-five-gaps-baseline-work.log`). Repairs
+  retain the default object superclass, report the missing method's original
+  bytes, import a child trace into a fresh parent command-log frontier, log
+  an eval-list's synchronous procedure-entry error, and implement Jim source
+  metadata through the existing value owner. The complete `tcl-vm-it::it_5`
+  comparison is 792 passed / 16 failed before, 798 passed / 10 failed after:
+  zero new failures and all six strengthened tests fixed. The ten remaining
+  failures are unchanged. Logs: `/tmp/vm-five-gaps-full-baseline-work.log`,
+  `/tmp/vm-five-gaps-full-after-work.log`,
+  `/tmp/vm-five-gaps-failset-compare-work.log`. The full-suite comparison uses
+  the same strengthened tests and pinned interpreter paths on both sides.
+  Focused Clippy (`tcl-vm`, `tcl-vm-it`, all targets, warnings denied) passes
+  (`/tmp/vm-five-gaps-clippy-work.log`). The evidence check passes all 1,772 files
+  (`/tmp/vm-gap-evidence-check-work.log`).
+  Exact Tcl 8.4–9.1 and pinned Jim oracles are built. Their scripts and results
+  are [TclOO/error frames](../../../evidence/tcl/tcloo-defaults-and-nested-error-frames.md),
+  [Jim source metadata](../../../evidence/tcl/jim-source-metadata-round-trip.md)
+  and [Jim copy/line width](../../../evidence/tcl/jim-source-metadata-copy-and-line-width.md).
+  The limit regression checks the final frame; C Tcl 8.5's first command frame
+  is `while {1} {incr x}`, while the VM's command-by-command polling reports
+  `incr x`. That independent polling difference remains explicit.
 
 Focused Clippy for `bpf-tcl-codegen`, `bpf-tcl` and `xtask` passes with warnings
 denied (`/tmp/goal-survey-bpf-clippy-work.log`). Workspace formatting and

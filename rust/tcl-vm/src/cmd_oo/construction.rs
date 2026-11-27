@@ -304,9 +304,11 @@ pub(super) fn make_class_bytes(
     } else {
         Vec::new()
     };
+    let supers = vm.oo.object_root.into_iter().collect();
     vm.oo.classes.insert(
         class_id,
         Class {
+            supers,
             mixins,
             configurable,
             ..Class::default()

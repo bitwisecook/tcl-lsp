@@ -14,7 +14,8 @@ benchmark runner; no agent-worktree latency is a baseline. Runner results are
 pending. [The first full-SHA run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45983317368)
 failed before measuring: the release build denied five dead-code warnings from
 the debug-only `root_owner_work` module. Its module gate now matches every
-consumer (`test` or `debug_assertions`); a fresh runner execution is required. This section is the single baseline read by item 90's measurement
+consumer (`test` or `debug_assertions`). [The retry at `0fc1b7863`](https://github.com/bitwisecook/tcl-lsp/actions/runs/45984888240)
+is building the release binaries; its measurements remain pending. This section is the single baseline read by item 90's measurement
 record and item 483; neither restates a separate budget.
 
 Owner decision, 27 November 2026: the harness stays scripts/CI-only. Rows for

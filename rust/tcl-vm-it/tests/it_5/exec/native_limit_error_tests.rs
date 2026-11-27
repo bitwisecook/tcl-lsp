@@ -42,9 +42,12 @@ fn an_exceeded_limit_publishes_its_result_before_the_error_frames() {
             b"command count limit exceeded",
             "{profile}"
         );
-        // tclsh 8.6.18 and 9.0.4 report these frames, then a last
-        // `invoked from within "c eval budget_loop"` the VM does not add.
         let info = fields[2].string_bytes();
+        assert!(
+            info.ends_with(b"\n    invoked from within\n\"c eval budget_loop\""),
+            "{profile}: {}",
+            String::from_utf8_lossy(&info)
+        );
         assert!(
             info.starts_with(b"command count limit exceeded\n    while executing\n\"incr x\"\n    (procedure \"budget_loop\" line 1)\n    invoked from within\n\"budget_loop\""),
             "{profile}: {}",

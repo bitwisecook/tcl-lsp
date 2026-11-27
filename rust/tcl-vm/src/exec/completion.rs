@@ -650,6 +650,17 @@ impl Vm {
         // activation's own proc frame (innermost first) — the compiled
         // analogue of C's `CmdFrame` trace.
         if c.code == Code::Error {
+            if let Some((head, arguments)) = act
+                .control
+                .as_ref()
+                .and_then(|control| control.original_object_invocation())
+                .and_then(<[Value]>::split_first)
+            {
+                // Procedure entry can fail before pushing a child activation.
+                // The original object-vector evaluator still owns this log.
+                let completion = std::mem::replace(c, crate::interp::ok(Value::empty()));
+                *c = self.log_original_object_vector_completion(head, arguments, completion);
+            }
             let message = c.result.string_bytes();
             self.apply_activation_error_context(act, acts, &message);
         }

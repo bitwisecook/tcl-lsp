@@ -22,9 +22,6 @@ use crate::prelude::*;
 
 #[test]
 fn nested_info_compilation_retains_original_maps_and_late_worker_binding() {
-    // tclsh 8.6.18, 9.0.4 and 9.1.0 give `::oo::object REPLACED REPLACED`; the
-    // VM's first call gives an empty list, so only the calls after the
-    // replacement are compared.
     let script = "oo::class create C
         proc p {} {info class superclasses ::C}
         set r [list [p]]
@@ -33,7 +30,7 @@ fn nested_info_compilation_retains_original_maps_and_late_worker_binding() {
         lappend r [p]
         namespace ensemble configure ::oo::InfoClass -prefixes [expr {![namespace ensemble configure ::oo::InfoClass -prefixes]}]
         lappend r [p]
-        lrange $r 1 end";
+        set r";
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
         let completion = crate::fixture::eval(&mut vm, script);
@@ -45,7 +42,7 @@ fn nested_info_compilation_retains_original_maps_and_late_worker_binding() {
         );
         assert_eq!(
             completion.result.to_str().as_ref(),
-            "REPLACED REPLACED",
+            "::oo::object REPLACED REPLACED",
             "{engine}"
         );
     }

@@ -205,6 +205,46 @@ fn choices(
     reached
 }
 
+/// Jim copies the counted source string before adopting its filename object.
+pub(super) fn source(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
+    let context = match vm.native_jim_object_context() {
+        Ok(context) => context,
+        Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
+    };
+    let reached: Result<Value, tcl_syntax::value::ValueError> = (|| match arguments {
+        [source] => {
+            let info = source.pin_native_jim_source_info(&context)?;
+            Ok(Value::native_list_constructor(
+                vec![info.filename, Value::int(i64::from(info.line))],
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            ))
+        }
+        [source, filename, line] => {
+            let line = ValueOps::as_int(vm, line)?;
+            let bytes = ValueOps::native_string_bytes(vm, source)?;
+            let result = Value::new_native_string_bytes(bytes);
+            result.install_native_jim_source(
+                crate::value::NativeJimSourceInfo {
+                    filename: filename.clone(),
+                    line: tcl_syntax::number::native_int32_low_bits(line),
+                },
+                &context,
+            )?;
+            Ok(result)
+        }
+        _ => unreachable!("Jim info dispatch validates source argument counts"),
+    })();
+    match reached {
+        Ok(result) => {
+            context.publish_result(&result);
+            ok(result)
+        }
+        Err(error) => {
+            crate::command::completion_from_cmd_error(vm, tcl_cmd_core::CmdError::from(error))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

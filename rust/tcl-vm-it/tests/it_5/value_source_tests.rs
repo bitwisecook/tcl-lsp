@@ -83,3 +83,31 @@ fn original_source_length_and_concat_channels_match_all_native_providers() {
     }
     assert_eq!(compared, 18);
 }
+
+#[test]
+fn jim_info_source_preserves_annotation_and_default_metadata() {
+    let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jim"));
+    let completion = crate::fixture::eval(
+        &mut vm,
+        "set value [info source {puts hi} f.tcl 12]; list $value [info source $value] [info source [list a b]]",
+    );
+    assert_eq!(completion.code, Code::Ok, "{completion:?}");
+    assert_eq!(
+        completion.result.string_bytes().as_ref(),
+        b"{puts hi} {f.tcl 12} {{} 1}"
+    );
+}
+
+#[test]
+fn jim_info_source_copies_the_string_before_adopting_metadata() {
+    let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jim"));
+    let completion = crate::fixture::eval(
+        &mut vm,
+        "set original [list a b]; set tagged [info source $original f.tcl 4294967295]; list [info source $original] [info source $tagged] $tagged [catch {info source $original f.tcl bad} message] $message",
+    );
+    assert_eq!(completion.code, Code::Ok, "{completion:?}");
+    assert_eq!(
+        completion.result.string_bytes().as_ref(),
+        b"{{} 1} {f.tcl -1} {a b} 1 {expected integer but got \"bad\"}"
+    );
+}

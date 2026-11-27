@@ -641,6 +641,9 @@ impl Vm {
             if let Err(error) = restored {
                 return crate::command::completion_from_tcl_error(self, error);
             }
+            // TclTransferResult imports the child's trace, then the caller
+            // owns a fresh command-log frontier in the parent interpreter.
+            self.forget_error_logged();
         }
         completion
     }

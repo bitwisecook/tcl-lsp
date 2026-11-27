@@ -403,6 +403,13 @@ impl ControlState {
         state
     }
 
+    pub(crate) fn original_object_invocation(&self) -> Option<&[Value]> {
+        match &self.kind {
+            ControlKind::ObjectEval { words, .. } => Some(words),
+            _ => None,
+        }
+    }
+
     pub(crate) fn take_object_context(
         &mut self,
     ) -> Option<(&'static str, Option<crate::interp::SelectedFrameRestore>)> {

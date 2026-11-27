@@ -457,6 +457,15 @@ impl Vm {
             &[],
             tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
         );
+        self.log_original_object_vector_completion(original_head, argv, completion)
+    }
+
+    pub(crate) fn log_original_object_vector_completion(
+        &mut self,
+        original_head: &Value,
+        argv: &[Value],
+        completion: Completion<Value>,
+    ) -> Completion<Value> {
         if completion.code != Code::Error || self.execution_refusal.is_some() {
             return completion;
         }

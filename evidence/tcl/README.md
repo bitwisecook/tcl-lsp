@@ -37,3 +37,9 @@ python3 scripts/dev/extract-tcl-evidence.py evidence/tcl/<file>.md -o script.tcl
 [Procedure loop-completion conversion order](procedure-loop-completion-order.md) distinguishes direct loop-control errors from codes exposed by `return -code` on C Tcl 8.4–9.1.
 
 [Channel modes and option values](channel-mode-and-option-values.md) records empty creation and event masks, direction-dependent translation checks and direction-independent EOF-character refusals on C Tcl 8.4–9.1.
+
+[TclOO defaults and nested error frames](tcloo-defaults-and-nested-error-frames.md) records fresh superclass, absent-method and nested error reports on C Tcl 8.4–9.1.
+
+[Jim source metadata round trip](jim-source-metadata-round-trip.md) records annotation and default metadata on pinned Jim.
+
+[Jim source copy and line width](jim-source-metadata-copy-and-line-width.md) records copying, wide line narrowing and invalid integer errors.

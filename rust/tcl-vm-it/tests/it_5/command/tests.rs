@@ -109,18 +109,7 @@ fn c84_procedure_parse_failures_match_7_native_original_object_completions() {
             "{row}"
         );
         let info = crate::fixture::call(&mut vm, "set", &[Value::string("::errorInfo")]).result;
-        // tclsh 8.4.20 keeps `invoked from within "p"` above an `eval`
-        // frame; the VM omits it, so a name invoked through `eval` checks the
-        // frames both report.
-        let mut expected = decode(fields[6]);
-        if std::str::from_utf8(&decode(fields[3])).is_err() {
-            let frame = b"\n    invoked from within\n";
-            let last = expected
-                .windows(frame.len())
-                .rposition(|part| part == frame)
-                .unwrap();
-            expected.truncate(last);
-        }
+        let expected = decode(fields[6]);
         assert!(
             info.string_bytes().starts_with(&expected),
             "{row}: {}",

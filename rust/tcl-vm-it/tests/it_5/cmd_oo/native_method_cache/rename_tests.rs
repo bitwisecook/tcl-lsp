@@ -28,15 +28,13 @@ fn text(vm: &mut Vm, script: &str) -> String {
 
 #[test]
 fn original_vm_rename_missing_source_does_not_reach_destination_string() {
-    // tclsh 8.6.18 and 9.0.4 say `method absent does not exist`; the VM
-    // leaves out the name.
     let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("tcl9.0"));
     assert_eq!(
         text(
             &mut vm,
-            "oo::class create R {method m {} {return MOVED}}; list [catch {oo::define R renamemethod absent 42} x] [string match {method*does not exist} $x] [info class methods R]",
+            "oo::class create R {method m {} {return MOVED}}; list [catch {oo::define R renamemethod absent 42} x] $x [info class methods R]",
         ),
-        "1 1 m"
+        "1 {method absent does not exist} m"
     );
 }
 
