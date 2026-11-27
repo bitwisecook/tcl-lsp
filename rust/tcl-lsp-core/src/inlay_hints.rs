@@ -594,6 +594,8 @@ fn clock_short(c: char) -> Option<&'static str> {
         'A' => "weekday",
         'b' => "mon",
         'D' | 'x' => "date",
+        'X' => "time",
+        'c' => "datetime",
         'j' => "yday",
         'u' | 'w' => "wday#",
         'z' | 'Z' => "tz",

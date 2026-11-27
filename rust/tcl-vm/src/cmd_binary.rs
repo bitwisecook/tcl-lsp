@@ -805,10 +805,12 @@ fn binary_format_with_invocation(
                         syntax,
                         numeric,
                     };
+                    let formats = binary_formats(ops.vm);
                     let reached = tcl_cmd_core::binary::format_values_using(
                         &mut ops,
                         grammar.extent(&fmt_bytes),
                         args,
+                        formats,
                         &mut |field| binary_bad_field(grammar, field),
                     );
                     if let Err(error) = &reached {
@@ -823,6 +825,14 @@ fn binary_format_with_invocation(
         Ok(completion) => completion,
         Err(error) => crate::command::completion_from_tcl_error(vm, error),
     }
+}
+
+/// The selected release's `binary` field letters.
+fn binary_formats(vm: &Vm) -> tcl_dialect::BinaryFormats {
+    vm.kernel_release_policy()
+        .map_or_else(tcl_dialect::BinaryFormats::default, |policy| {
+            policy.binary.formats
+        })
 }
 
 fn binary_bad_field(
@@ -1034,6 +1044,7 @@ fn binary_scan_with_invocation(
                     // Preserve the actual data getter before the format String getter.
                     let data = original.binary_bytes(vm, data_v, conversion, None)?;
                     let fmt = original.binary_string(vm, fmt_v)?;
+                    let formats = binary_formats(vm);
                     let vm = std::cell::RefCell::new(vm);
                     let mut assigned = 0;
                     let reached = tcl_cmd_core::binary::scan_values_using(
@@ -1088,6 +1099,7 @@ fn binary_scan_with_invocation(
                             assigned += 1;
                             Ok(())
                         },
+                        formats,
                         &mut |field| {
                             crate::command::completion_from_cmd_error(
                                 &mut vm.borrow_mut(),

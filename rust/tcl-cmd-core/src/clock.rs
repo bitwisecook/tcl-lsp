@@ -39,7 +39,7 @@
     clippy::similar_names
 )]
 
-use tcl_dialect::TclVersion;
+use tcl_dialect::{ClockFormatGrammar, ClockGrammar, ClockUnits};
 use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
@@ -166,11 +166,14 @@ pub fn dispatch<O, V>(
     args: &[V],
     now: &Now,
     local_offset: &dyn Fn(i64) -> i32,
-    release: TclVersion,
+    grammar: ClockGrammar,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
 {
+    if grammar.format == ClockFormatGrammar::Strftime84 {
+        return strftime84::dispatch(ops, args, now, local_offset);
+    }
     let Some((sub, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("clock subcommand ?arg ...?"));
     };
@@ -194,8 +197,8 @@ where
         "milliseconds" => nullary(ops, rest, "milliseconds", now.millis),
         "microseconds" => nullary(ops, rest, "microseconds", now.micros),
         "clicks" => clicks(ops, rest, now),
-        "format" => format(ops, rest, now, local_offset),
-        "add" => add(ops, rest, now, local_offset, release),
+        "format" => format(ops, rest, now, local_offset, grammar.format),
+        "add" => add(ops, rest, now, local_offset, grammar.units),
         // Unreachable: `CLOCK_SUBS` has exactly the seven arms here.
         _ => scan(ops, rest, now, local_offset),
     }
@@ -428,6 +431,7 @@ fn format<O, V>(
     rest: &[V],
     now: &Now,
     local_offset: &dyn Fn(i64) -> i32,
+    grammar: ClockFormatGrammar,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
@@ -440,7 +444,7 @@ where
         .checked_add(i64::from(offset))
         .ok_or_else(overflow)?;
     let civil = Civil::from_secs(local);
-    Ok(ops.new_str(&render(&civil, fmt, offset, clockval)))
+    Ok(ops.new_str(&render(&civil, fmt, offset, clockval, grammar)))
 }
 
 /// `clock add`'s units, in C's table order (`week` beside `weeks` so `week`
@@ -452,13 +456,13 @@ const UNITS: OptionTable = OptionTable::abbreviating(
     ],
 );
 
-/// `word` as `release`'s `clock add` reads a unit. 9.0's C `clock add` takes
+/// `word` as the release's `clock add` reads a unit. 9.0's C `clock add` takes
 /// any unique prefix of [`UNITS`]; 8.5 and 8.6's script `clock add` takes only
 /// each unit's singular or plural word and has no `weekdays` (measured: tclsh
 /// 8.5.19 and 8.6.18 refuse `d`, `mo`, `weekdays` with `CLOCK badUnit`; 9.0.4
-/// and 9.1.0 accept them).
-fn unit_under(word: &str, release: TclVersion) -> Result<Unit, CmdError> {
-    if release >= TclVersion::V9_0 {
+/// and 9.1.0 accept them). 8.4 has no `clock add`; its surface never asks.
+fn unit_under(word: &str, units: ClockUnits) -> Result<Unit, CmdError> {
+    if units == ClockUnits::Tcl9 {
         return Ok(Unit::from_index(UNITS.index_of_cmd(word.as_bytes())?));
     }
     let unit = match word {
@@ -524,7 +528,7 @@ fn add<O, V>(
     rest: &[V],
     now: &Now,
     local_offset: &dyn Fn(i64) -> i32,
-    release: TclVersion,
+    units: ClockUnits,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V>,
@@ -535,7 +539,7 @@ where
         let Ok(count) = ops.as_int(&rest[i]) else {
             continue;
         };
-        let unit = unit_under(&ops.try_as_str(&rest[i + 1])?, release)?;
+        let unit = unit_under(&ops.try_as_str(&rest[i + 1])?, units)?;
         if !(-unit.max_count()..=unit.max_count()).contains(&count) {
             return Err(overflow());
         }
@@ -965,9 +969,13 @@ fn fmt_offset(offset: i32) -> String {
     format!("{sign}{:02}{:02}", a / 3600, (a % 3600) / 60)
 }
 
+mod conversions;
+use conversions::{composite, locale_conversion, modifies};
+
 /// Render a [`Civil`] through a strftime-style format. Unknown specifiers pass
 /// through verbatim (`%F` → `%F`), matching Tcl's `clock format`.
-fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
+fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64, grammar: ClockFormatGrammar) -> String {
+    let tcl85 = grammar == ClockFormatGrammar::Tcl85;
     let wd = WEEKDAYS[c.weekday as usize];
     let mon = MONTHS[(c.month - 1) as usize];
     let mut out = String::with_capacity(fmt.len() + 16);
@@ -988,10 +996,16 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
                 // conversion rather than rendering it literally.
                 break;
             };
-            if !modified.is_ascii() || !is_specifier(modified as u8) {
+            let supported = is_specifier(u8::try_from(modified).unwrap_or(0))
+                || (tcl85 && modifier == 'E' && modified == 'E');
+            if !supported || !modifies(grammar, modifier, modified) {
                 out.push('%');
                 out.push(modifier);
                 out.push(modified);
+                continue;
+            }
+            if tcl85 && let Some(text) = locale_conversion(c, modifier, modified) {
+                out.push_str(&text);
                 continue;
             }
             spec = modified;
@@ -1014,17 +1028,10 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
             'n' => out.push('\n'),
             'p' => out.push_str(if c.hour < 12 { "AM" } else { "PM" }),
             'R' => out.push_str(&format!("{:02}:{:02}", c.hour, c.min)),
-            'r' => out.push_str(&format!(
-                "{:02}:{:02}:{:02} {}",
-                hour12(c.hour),
-                c.min,
-                c.sec,
-                if c.hour < 12 { "AM" } else { "PM" }
-            )),
             's' => out.push_str(&epoch.to_string()),
             'S' => out.push_str(&format!("{:02}", c.sec)),
             't' => out.push('\t'),
-            'T' => out.push_str(&format!("{:02}:{:02}:{:02}", c.hour, c.min, c.sec)),
+            'T' | 'X' => out.push_str(&format!("{:02}:{:02}:{:02}", c.hour, c.min, c.sec)),
             'u' => out.push_str(&(if c.weekday == 0 { 7 } else { c.weekday }).to_string()),
             'w' => out.push_str(&c.weekday.to_string()),
             'y' => out.push_str(&format!("{:02}", c.year.rem_euclid(100))),
@@ -1037,8 +1044,7 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
                     out.push_str(&fmt_offset(offset));
                 }
             }
-            // Tcl's `%D`/`%x` use a **4-digit** year (not POSIX's 2-digit).
-            'D' | 'x' => out.push_str(&format!("{:02}/{:02}/{}", c.month, c.day, c.year)),
+            'c' | 'D' | 'r' | 'x' => out.push_str(&composite(c, spec, tcl85)),
             '%' => out.push('%'),
             // Unknown specifier: emit it verbatim (Tcl's behaviour).
             other => {
@@ -1049,6 +1055,8 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
     }
     out
 }
+
+mod strftime84;
 
 /// One clock format conversion recognised by the shared renderer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1073,6 +1081,7 @@ pub fn is_specifier(letter: u8) -> bool {
         b'a' | b'A'
             | b'b'
             | b'B'
+            | b'c'
             | b'C'
             | b'd'
             | b'D'
@@ -1095,6 +1104,7 @@ pub fn is_specifier(letter: u8) -> bool {
             | b'u'
             | b'w'
             | b'x'
+            | b'X'
             | b'y'
             | b'Y'
             | b'z'
@@ -1168,27 +1178,76 @@ mod tests {
         }
     }
 
+    /// tclsh 8.4.20 (glibc `strftime`) against 8.5.19 to 9.1.0 at
+    /// 1972-09-27T00:00:00Z.
+    #[test]
+    fn locale_modifiers_follow_the_release_format_grammar() {
+        let c = Civil::from_secs(86_400_000);
+        let both = |fmt: &str| {
+            [ClockFormatGrammar::Strftime84, ClockFormatGrammar::Tcl85]
+                .map(|grammar| render(&c, fmt, 0, 86_400_000, grammar))
+        };
+        for (fmt, tcl84, tcl85) in [
+            ("%Ez", "+0000", "%Ez"),
+            ("%Oz", "+0000", "%Oz"),
+            ("%OC", "19", "%OC"),
+            ("%EC", "19", "19"),
+            ("%EE", "%EE", "C.E."),
+            ("%Ea", "%Ea", "%Ea"),
+            ("%OY", "%OY", "%OY"),
+            ("%Ou", "3", "03"),
+            ("%Ok", " 0", "00"),
+            ("%Oe", "27", "27"),
+            ("%Ex", "09/27/72", "09/27/1972"),
+            ("%D", "09/27/72", "09/27/1972"),
+            ("%EX", "00:00:00", "00:00:00"),
+            (
+                "%Ec",
+                "Wed Sep 27 00:00:00 1972",
+                "Wed Sep 27 00:00:00 1972",
+            ),
+            ("%r", "12:00:00 AM", "12:00:00 am"),
+        ] {
+            assert_eq!(both(fmt), [tcl84, tcl85], "{fmt}");
+        }
+    }
+
     #[test]
     fn render_matches_tclsh_specifiers() {
         let c = Civil::from_secs(1_700_000_000);
         assert_eq!(
-            render(&c, "%Y-%m-%d %H:%M:%S", 0, 1_700_000_000),
+            render(
+                &c,
+                "%Y-%m-%d %H:%M:%S",
+                0,
+                1_700_000_000,
+                ClockFormatGrammar::Tcl85
+            ),
             "2023-11-14 22:13:20"
         );
         assert_eq!(
-            render(&c, "%a %A %b %B %p", 0, 0),
+            render(&c, "%a %A %b %B %p", 0, 0, ClockFormatGrammar::Tcl85),
             "Tue Tuesday Nov November PM"
         );
         assert_eq!(
-            render(&c, "%j %u %w %e %I %z %%", 0, 0),
+            render(&c, "%j %u %w %e %I %z %%", 0, 0, ClockFormatGrammar::Tcl85),
             "318 2 2 14 10 +0000 %"
         );
-        assert_eq!(render(&c, "%T %R %D", 0, 0), "22:13:20 22:13 11/14/2023");
-        assert_eq!(render(&c, "%s", 0, 1_700_000_000), "1700000000");
-        assert_eq!(render(&c, "%EY %OS", 0, 0), "2023 20");
-        assert_eq!(render(&c, "%E", 0, 0), "");
+        assert_eq!(
+            render(&c, "%T %R %D", 0, 0, ClockFormatGrammar::Tcl85),
+            "22:13:20 22:13 11/14/2023"
+        );
+        assert_eq!(
+            render(&c, "%s", 0, 1_700_000_000, ClockFormatGrammar::Tcl85),
+            "1700000000"
+        );
+        assert_eq!(
+            render(&c, "%EY %OS", 0, 0, ClockFormatGrammar::Tcl85),
+            "2023 20"
+        );
+        assert_eq!(render(&c, "%E", 0, 0, ClockFormatGrammar::Tcl85), "");
         // Unknown specifier passes through verbatim (Tcl does not support %F).
-        assert_eq!(render(&c, "%F", 0, 0), "%F");
+        assert_eq!(render(&c, "%F", 0, 0, ClockFormatGrammar::Tcl85), "%F");
     }
 
     #[test]
@@ -1303,20 +1362,25 @@ mod tests {
     /// and 8.6.18 take only the singular and plural words.
     #[test]
     fn units_read_as_each_release_reads_them() {
+        use tcl_dialect::TclVersion;
+        let units = |release: TclVersion| release.release_policy().clock.units;
         for word in ["d", "mo", "y", "weekdays", "weekday", "days"] {
-            assert!(unit_under(word, TclVersion::V9_0).is_ok(), "{word}");
+            assert!(unit_under(word, units(TclVersion::V9_0)).is_ok(), "{word}");
         }
-        let ambiguous = unit_under("w", TclVersion::V9_1).expect_err("w is ambiguous");
+        let ambiguous = unit_under("w", units(TclVersion::V9_1)).expect_err("w is ambiguous");
         assert_eq!(
             ambiguous.error_code().unwrap(),
             Some("TCL LOOKUP INDEX unit w")
         );
         for release in [TclVersion::V8_5, TclVersion::V8_6] {
             for word in ["day", "days", "month", "weeks", "second"] {
-                assert!(unit_under(word, release).is_ok(), "{word} {release:?}");
+                assert!(
+                    unit_under(word, units(release)).is_ok(),
+                    "{word} {release:?}"
+                );
             }
             for word in ["d", "mo", "weekdays", "w"] {
-                let error = unit_under(word, release).expect_err(word);
+                let error = unit_under(word, units(release)).expect_err(word);
                 assert_eq!(
                     error.message().unwrap(),
                     format!(

@@ -15,6 +15,16 @@ const RELEASE_POLICIES: &[ReleasePolicyFacts] = &[
             counted_scalar_tokens: false,
             reserves_array_base: false,
         },
+        scan: crate::ScanGrammar {
+            int_width: crate::ScanIntWidth::Wrap32Narrow,
+        },
+        clock: crate::ClockGrammar {
+            units: crate::ClockUnits::None,
+            format: crate::ClockFormatGrammar::Strftime84,
+        },
+        binary: crate::BinaryGrammar {
+            formats: crate::BinaryFormats::Tcl84,
+        },
     },
     ReleasePolicyFacts {
         numbers: crate::NumberSyntax::Tcl85,
@@ -30,6 +40,16 @@ const RELEASE_POLICIES: &[ReleasePolicyFacts] = &[
             borrow_frame_slots: false,
             counted_scalar_tokens: true,
             reserves_array_base: true,
+        },
+        scan: crate::ScanGrammar {
+            int_width: crate::ScanIntWidth::Full,
+        },
+        clock: crate::ClockGrammar {
+            units: crate::ClockUnits::Tcl8,
+            format: crate::ClockFormatGrammar::Tcl85,
+        },
+        binary: crate::BinaryGrammar {
+            formats: crate::BinaryFormats::Tcl85,
         },
     },
     ReleasePolicyFacts {
@@ -47,6 +67,16 @@ const RELEASE_POLICIES: &[ReleasePolicyFacts] = &[
             counted_scalar_tokens: true,
             reserves_array_base: true,
         },
+        scan: crate::ScanGrammar {
+            int_width: crate::ScanIntWidth::Full,
+        },
+        clock: crate::ClockGrammar {
+            units: crate::ClockUnits::Tcl8,
+            format: crate::ClockFormatGrammar::Tcl85,
+        },
+        binary: crate::BinaryGrammar {
+            formats: crate::BinaryFormats::Tcl85,
+        },
     },
     ReleasePolicyFacts {
         numbers: crate::NumberSyntax::Tcl90,
@@ -63,6 +93,16 @@ const RELEASE_POLICIES: &[ReleasePolicyFacts] = &[
             counted_scalar_tokens: true,
             reserves_array_base: true,
         },
+        scan: crate::ScanGrammar {
+            int_width: crate::ScanIntWidth::Saturate32,
+        },
+        clock: crate::ClockGrammar {
+            units: crate::ClockUnits::Tcl9,
+            format: crate::ClockFormatGrammar::Tcl85,
+        },
+        binary: crate::BinaryGrammar {
+            formats: crate::BinaryFormats::Tcl85,
+        },
     },
     ReleasePolicyFacts {
         numbers: crate::NumberSyntax::Tcl90,
@@ -78,6 +118,16 @@ const RELEASE_POLICIES: &[ReleasePolicyFacts] = &[
             borrow_frame_slots: true,
             counted_scalar_tokens: true,
             reserves_array_base: true,
+        },
+        scan: crate::ScanGrammar {
+            int_width: crate::ScanIntWidth::Saturate32,
+        },
+        clock: crate::ClockGrammar {
+            units: crate::ClockUnits::Tcl9,
+            format: crate::ClockFormatGrammar::Tcl85,
+        },
+        binary: crate::BinaryGrammar {
+            formats: crate::BinaryFormats::Tcl85,
         },
     },
 ];

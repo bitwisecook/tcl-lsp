@@ -47,6 +47,11 @@ pub use expression_arguments::ExpressionArguments;
 
 mod arithmetic;
 pub mod build_info;
+mod command_grammar;
+pub use command_grammar::{
+    BinaryFormats, BinaryGrammar, ClockFormatGrammar, ClockGrammar, ClockUnits, ScanGrammar,
+    ScanIntWidth,
+};
 mod expr_number;
 mod grammar;
 mod library;

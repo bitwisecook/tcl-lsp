@@ -377,8 +377,8 @@ fn clock_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         micros: i64::try_from(host.clock().now_micros()).unwrap_or(i64::MAX),
     };
     let offset = move |ts: i64| host.clock().local_offset_secs(ts);
-    let release = interp.runtime_version();
-    match core_clock::dispatch(interp, &argv[1..], &now, &offset, release) {
+    let grammar = interp.runtime_version().release_policy().clock;
+    match core_clock::dispatch(interp, &argv[1..], &now, &offset, grammar) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok

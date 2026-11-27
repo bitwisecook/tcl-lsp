@@ -50,6 +50,13 @@ const OBSERVATIONS: &[&str] = &[
     "compiled-borrowed-frame-slots",
     "compiled-counted-scalar-tokens",
     "compiled-array-base-reservation",
+    "scan-int-narrow",
+    "scan-int-wide",
+    "clock-add",
+    "clock-add-unit-prefix",
+    "clock-format-ez",
+    "clock-scan-format",
+    "binary-format-m",
 ];
 
 type Observations = BTreeMap<String, String>;
@@ -286,7 +293,50 @@ fn render_policy(rows: &Observations, text: &mut String) -> Result<()> {
     ] {
         writeln!(text, "{field}: {},", boolean(rows, key)?)?;
     }
-    writeln!(text, "}}, }},")?;
+    writeln!(text, "}},")?;
+    render_kernel_grammars(rows, text)?;
+    writeln!(text, "}},")?;
+    Ok(())
+}
+
+fn render_kernel_grammars(rows: &Observations, text: &mut String) -> Result<()> {
+    let int_width = match (
+        value(rows, "scan-int-narrow")?,
+        value(rows, "scan-int-wide")?,
+    ) {
+        ("-1", "8589934591") => "Wrap32Narrow",
+        ("4294967295", "8589934591") => "Full",
+        ("-1", "2147483647") => "Saturate32",
+        _ => bail!("unmodelled scan integer width"),
+    };
+    let units = match (
+        boolean(rows, "clock-add")?,
+        boolean(rows, "clock-add-unit-prefix")?,
+    ) {
+        (false, false) => "None",
+        (true, false) => "Tcl8",
+        (true, true) => "Tcl9",
+        (false, true) => bail!("unmodelled clock units"),
+    };
+    let format = match (
+        value(rows, "clock-format-ez")?,
+        boolean(rows, "clock-scan-format")?,
+    ) {
+        ("+0000", false) => "Strftime84",
+        ("%Ez", true) => "Tcl85",
+        _ => bail!("unmodelled clock format grammar"),
+    };
+    let formats = if boolean(rows, "binary-format-m")? {
+        "Tcl85"
+    } else {
+        "Tcl84"
+    };
+    writeln!(
+        text,
+        "scan: crate::ScanGrammar {{ int_width: crate::ScanIntWidth::{int_width} }}, \
+         clock: crate::ClockGrammar {{ units: crate::ClockUnits::{units}, format: crate::ClockFormatGrammar::{format} }}, \
+         binary: crate::BinaryGrammar {{ formats: crate::BinaryFormats::{formats} }},"
+    )?;
     Ok(())
 }
 
