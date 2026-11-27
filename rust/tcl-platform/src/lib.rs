@@ -462,6 +462,18 @@ pub trait StdIo {
     fn flush_stdout(&self) {}
     /// Flush buffered standard error (`flush stderr`). Defaults to a no-op.
     fn flush_stderr(&self) {}
+    /// Append one line of standard input, through its newline, to `out`,
+    /// returning the bytes read (`0` at the end of input). Defaults to a host
+    /// with no input, always at its end.
+    fn read_stdin_line(&self, _out: &mut Vec<u8>) -> Result<usize, HostError> {
+        Ok(0)
+    }
+    /// Append up to `limit` bytes of standard input (all of it for `None`) to
+    /// `out`, blocking until they arrive or the input ends; returns the bytes
+    /// read. Defaults to a host with no input.
+    fn read_stdin(&self, _out: &mut Vec<u8>, _limit: Option<usize>) -> Result<usize, HostError> {
+        Ok(0)
+    }
 }
 
 /// Current native environment bytes, independently supplied by the host.

@@ -85,4 +85,7 @@ from the offset under the caller's `REG_NOTBOL`, and `r14` matches tclsh
 Past the end, `-indices` reports the caller's offset as C does
 (`regexp -start 10 -indices -inline {\A} abc` is `{10 9}`). The folder no
 longer declines the restart forms and folds `r14`'s `regsub -all {\A.} abc X`
-to `XXX`. W210 on `switch -matchvar` in procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
+to `XXX`. Tcl 8.4's `regexp` (not `regsub`) keeps `REG_NOTBOL` for the whole
+call once the offset is positive, so `^` never matches at a restart there,
+even after a newline; `TclVersion::regexp_restart_after_newline_is_bol`
+holds that fact. W210 on `switch -matchvar` in procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

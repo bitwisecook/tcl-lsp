@@ -23,7 +23,7 @@ use super::regexp_command::{
 };
 use super::{
     NO_MATCH, RegMatch, RegexEngine, RegexError, RegexFlags, RegexpResult, compile_error,
-    completed_matches, decode_utf8, notbol_at, resolve_start_original,
+    completed_matches, decode_utf8, regexp_notbol_at, resolve_start_original,
 };
 use crate::index::NativeIndexOps;
 use tcl_dialect::TclVersion;
@@ -577,7 +577,7 @@ pub(super) fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, E
             &mut compiled.borrow_mut(),
             &characters,
             offset,
-            notbol_at(&characters, offset),
+            regexp_notbol_at(&characters, offset, version),
         );
         let matches = completed_matches(matches).map_err(RegexpExecutionError::Regex)?;
         let Some(matches) = matches else {

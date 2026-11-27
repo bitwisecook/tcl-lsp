@@ -78,6 +78,30 @@ fn start_end_is_the_string_length() {
     matches_original(START_END, "{3 2}\nc\naaa", &versions);
 }
 
+/// `^` at a restart offset just past a newline: 8.4's `regexp` suppresses
+/// it at every positive offset, 8.5 on only where the previous character is
+/// not a newline; `regsub` reads the previous character on every release.
+const RESTART_AFTER_NEWLINE: &str = r#"puts [list \
+    [regexp -start 3 -line -inline {^.} "ab\ncd"] \
+    [regexp -all -inline -line {^.|\n} "a\nb"] \
+    [regsub -start 3 -line {^.} "ab\ncd" X]]"#;
+
+#[test]
+fn regexp_restart_after_a_newline_follows_the_release() {
+    matches_original(
+        RESTART_AFTER_NEWLINE,
+        "{} {a {\n}} {ab\nXd}",
+        &[TclVersion::V8_4],
+    );
+    let versions = [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ];
+    matches_original(RESTART_AFTER_NEWLINE, "c {a {\n} b} {ab\nXd}", &versions);
+}
+
 /// tcllib 2.0's `string::token::text` / `chomp` over the `string::token::shell`
 /// lexer, inlined so the witness runs where no tcllib tree is fetched (CI).
 const TOKEN_LEXER: &str = r#"proc chomp {map sv text rv} {
