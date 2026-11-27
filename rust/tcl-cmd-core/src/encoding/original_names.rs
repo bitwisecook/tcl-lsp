@@ -150,35 +150,22 @@ impl NativeSourceFileProtocol {
             return ValueError::CommandProtocolUnavailable("source filesystem errno unavailable")
                 .into();
         }
-        let reason = if self == Self::Jim && *error == HostError::NotFound {
-            "No such file or directory".to_owned()
-        } else {
-            error.reason()
+        let context = [b"couldn't read file \"".as_slice(), path, b"\""].concat();
+        let version = match self {
+            Self::CSystem(version) | Self::CUtf8(version) => version,
+            Self::Jim => {
+                let reason = if *error == HostError::NotFound {
+                    "No such file or directory".to_owned()
+                } else {
+                    error.reason()
+                };
+                let message = [context.as_slice(), b": ", reason.as_bytes()].concat();
+                let mut details = CmdError::new_bytes(message).into_byte_details();
+                details.error_code = crate::CmdErrorCodeUpdate::Unchanged;
+                return CmdError::from_byte_details(details);
+            }
         };
-        let message = [
-            b"couldn't read file \"".as_slice(),
-            path,
-            b"\": ",
-            reason.as_bytes(),
-        ]
-        .concat();
-        if self == Self::Jim {
-            let mut details = CmdError::new_bytes(message).into_byte_details();
-            details.error_code = crate::CmdErrorCodeUpdate::Unchanged;
-            return CmdError::from_byte_details(details);
-        }
-        let errno = match error {
-            HostError::NotFound => b"ENOENT".as_slice(),
-            HostError::Permission => b"EACCES".as_slice(),
-            HostError::AlreadyExists => b"EEXIST".as_slice(),
-            HostError::WouldBlock => b"EAGAIN".as_slice(),
-            HostError::Io(_) | HostError::Unsupported => return CmdError::new_bytes(message),
-        };
-        let mut code = b"POSIX ".to_vec();
-        tcl_syntax::list::append_list_element(&mut code, errno, false);
-        code.push(b' ');
-        tcl_syntax::list::append_list_element(&mut code, reason.as_bytes(), false);
-        CmdError::with_error_code_bytes(message, code)
+        CmdError::host(context, error, version)
     }
 }
 

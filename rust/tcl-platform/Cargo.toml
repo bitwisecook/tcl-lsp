@@ -41,5 +41,9 @@ repository.workspace = true
 authors.workspace = true
 description = "Host-capability seam (Filesystem/Clock/Env/StdIo/Sockets/Process traits + Host aggregate) for Tcl runtimes"
 
+# Errno numbers for Tcl's POSIX error identity (`posix.rs`).
+[target.'cfg(any(unix, target_os = "wasi"))'.dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true

@@ -162,7 +162,13 @@ pub fn exec<O: ValueOps>(
         }));
     }
     let part_refs: Vec<&str> = words[skip..].iter().map(String::as_str).collect();
-    let output = process.run(&part_refs, stderr)?;
+    let output = process.run(&part_refs, stderr).map_err(|error| {
+        CmdError::host(
+            format!("couldn't execute \"{}\"", part_refs[0]),
+            &error,
+            release,
+        )
+    })?;
     let (failure, error_code) = child_failure(output.pid, output.exit);
     let mut result = output.stdout;
     let raised = if !output.stderr.is_empty() {

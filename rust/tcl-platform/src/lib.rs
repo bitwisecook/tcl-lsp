@@ -44,6 +44,7 @@ pub mod file_uri;
 pub mod integer_formatter;
 pub mod native_list_sort;
 pub mod numeric_environment;
+pub mod posix;
 pub use integer_formatter::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
@@ -112,6 +113,8 @@ pub enum HostError {
     AlreadyExists,
     /// A non-blocking operation would block.
     WouldBlock,
+    /// Any other errno the host reported.
+    Posix(posix::Posix),
     /// Any other I/O error, with a rendered reason string.
     Io(String),
 }
@@ -121,14 +124,48 @@ impl HostError {
     /// `no such file or directory`.
     #[must_use]
     pub fn reason(&self) -> String {
+        self.reason_in(posix::Table::LATEST)
+    }
+
+    /// [`HostError::reason`] as the release that reads `table` words it.
+    #[must_use]
+    pub fn reason_in(&self, table: posix::Table) -> String {
         match self {
             HostError::Unsupported => "operation not supported".to_string(),
-            HostError::NotFound => "no such file or directory".to_string(),
-            HostError::Permission => "permission denied".to_string(),
-            HostError::AlreadyExists => "file already exists".to_string(),
-            HostError::WouldBlock => "operation would block".to_string(),
             HostError::Io(msg) => msg.clone(),
+            _ => self
+                .posix()
+                .map_or_else(String::new, |p| p.message(table).into_owned()),
         }
+    }
+
+    /// The host error a failed I/O call stands for, its errno kept.
+    #[must_use]
+    pub fn from_io(error: &std::io::Error) -> Self {
+        let Some(posix) = posix::Posix::from_io(error) else {
+            return HostError::Io(error.to_string());
+        };
+        match posix.name() {
+            Some("ENOENT") => HostError::NotFound,
+            Some("EACCES") => HostError::Permission,
+            Some("EEXIST") => HostError::AlreadyExists,
+            Some("EAGAIN") => HostError::WouldBlock,
+            _ => HostError::Posix(posix),
+        }
+    }
+
+    /// The errno `Tcl_PosixError` reports for this failure, when it has one.
+    #[must_use]
+    pub fn posix(&self) -> Option<posix::Posix> {
+        let id = match self {
+            HostError::NotFound => "ENOENT",
+            HostError::Permission => "EACCES",
+            HostError::AlreadyExists => "EEXIST",
+            HostError::WouldBlock => "EAGAIN",
+            HostError::Posix(posix) => return Some(posix.clone()),
+            HostError::Unsupported | HostError::Io(_) => return None,
+        };
+        posix::Posix::named(id)
     }
 }
 

@@ -895,3 +895,86 @@ catch {c1 x} r o; set ::errorInfo",
         "x\n    while executing\n\"vret $n\"\n    (procedure \"c1\" line 1)\n    invoked from within\n\"c1 x\"",
     );
 }
+
+/// A path `open` is refused with EACCES, and the access that is refused: a
+/// mode-000 file, or for a user no mode refuses, a procfs file root may not
+/// write.
+#[cfg(unix)]
+fn denied_path(dir: &std::path::Path) -> Option<(String, &'static str)> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let file = dir.join("denied");
+    std::fs::write(&file, "").expect("write the denied file");
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000))
+        .expect("drop the denied file's permissions");
+    if std::fs::File::open(&file).is_err() {
+        return Some((file.display().to_string(), "r"));
+    }
+    let procfs = "/proc/sys/kernel/random/uuid";
+    let refused = std::fs::OpenOptions::new().write(true).open(procfs);
+    refused
+        .is_err_and(|e| e.kind() == std::io::ErrorKind::PermissionDenied)
+        .then(|| (procfs.to_owned(), "w"))
+}
+
+/// `open` fails as `Tcl_PosixError` reports it: `-errorcode {POSIX <ID>
+/// <message>}`, worded from the release's `tclPosixStr.c` (EISDIR changed
+/// text in 9.0), so `try … trap {POSIX ENOENT}` matches. Checked against the
+/// release's `tclsh` too wherever one is installed.
+#[cfg(unix)]
+#[test]
+fn open_failures_carry_the_posix_error_code() {
+    let dir = std::env::temp_dir().join(format!("tclvm-open-posix-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("d")).expect("create the directory case");
+    let (denied, denied_mode) = denied_path(&dir).expect("a path open is refused with EACCES");
+    let d = dir.join("d").display().to_string();
+    let missing = dir.join("missing/x").display().to_string();
+    let src = format!(
+        "set r {{}}
+foreach {{p m}} [list {{{missing}}} r {{{denied}}} {denied_mode} {{{d}}} w] {{
+    catch {{open $p $m}} msg
+    lappend r $msg $::errorCode
+}}
+join $r \\n"
+    );
+    let expected = |eisdir: &str| {
+        format!(
+            "couldn't open \"{missing}\": no such file or directory
+POSIX ENOENT {{no such file or directory}}
+couldn't open \"{denied}\": permission denied
+POSIX EACCES {{permission denied}}
+couldn't open \"{d}\": {eisdir}
+POSIX EISDIR {{{eisdir}}}"
+        )
+    };
+    let releases = [
+        (TclVersion::V8_4, "illegal operation on a directory"),
+        (TclVersion::V8_5, "illegal operation on a directory"),
+        (TclVersion::V8_6, "illegal operation on a directory"),
+        (TclVersion::V9_0, "is a directory"),
+        (TclVersion::V9_1, "is a directory"),
+    ];
+    for (version, eisdir) in releases {
+        assert_eq!(result_for(version, &src), expected(eisdir), "{version:?}");
+        if let Some(tclsh) = tcl_test_support::witness_tclsh(version) {
+            let script = dir.join(format!("open-{version:?}.tcl"));
+            std::fs::write(&script, format!("puts -nonewline [eval {{{src}}}]"))
+                .expect("write the tclsh script");
+            let out = std::process::Command::new(&tclsh.path)
+                .arg(&script)
+                .output()
+                .expect("run tclsh");
+            assert_eq!(
+                String::from_utf8_lossy(&out.stdout),
+                expected(eisdir),
+                "tclsh {version:?}"
+            );
+        }
+    }
+    let trap = "try {open /nonexistent/x} trap {POSIX ENOENT} {} {set t trapped}";
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1],
+        trap,
+        "trapped",
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

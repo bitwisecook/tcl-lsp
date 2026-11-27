@@ -36,6 +36,7 @@ use tcl_cmd_core::channel::{
 };
 use tcl_runtime_api::Completion;
 
+use crate::command::err_with_code;
 use crate::error::TclError;
 use crate::expr::{
     OriginalNumericCommandContext, original_numeric_command_ops, with_original_numeric_command,
@@ -194,7 +195,7 @@ fn cmd_open_in_original(
                 });
                 ok(Value::string(id))
             }
-            Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
+            Err(e) => os_error(&format!("couldn't open \"{name}\""), &e, version),
         }
     } else {
         let mut opts = OpenOptions::new();
@@ -225,16 +226,22 @@ fn cmd_open_in_original(
                 });
                 ok(Value::string(id))
             }
-            Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
+            Err(e) => os_error(&format!("couldn't open \"{name}\""), &e, version),
         }
     })
 }
 
-fn io_reason(e: &std::io::Error) -> String {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => "no such file or directory".to_string(),
-        std::io::ErrorKind::PermissionDenied => "permission denied".to_string(),
-        _ => e.to_string(),
+/// `Tcl_PosixError` for a failed channel call: `<context>: <message>` with
+/// `-errorcode {POSIX <ID> <message>}`.
+pub(crate) fn os_error(
+    context: &str,
+    error: &std::io::Error,
+    release: tcl_dialect::TclVersion,
+) -> Completion<Value> {
+    let error = CmdError::host(context, &tcl_platform::HostError::from_io(error), release);
+    match error.error_code_bytes() {
+        Some(code) => err_with_code(error.message_bytes(), code),
+        None => err(error.message_bytes()),
     }
 }
 
@@ -325,6 +332,7 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             None => ok(Value::string("")),
         };
     }
+    let release = vm.runtime_version();
     let line = match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => {
             if *pos >= data.len() {
@@ -346,7 +354,7 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ..
         }) => match read_file_line(file, eof) {
             Ok(line) => line,
-            Err(e) => return err(format!("error reading \"{id}\": {}", io_reason(&e))),
+            Err(e) => return os_error(&format!("error reading \"{id}\""), &e, release),
         },
         Some(Channel::Write { .. }) => return not_readable(&id),
         None => return err(format!("can not find channel named \"{id}\"")),
@@ -653,6 +661,7 @@ fn cmd_read_in_original(
     if is_std(&id) {
         return Ok(ok(Value::string("")));
     }
+    let release = vm.runtime_version();
     Ok(match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => {
             let start = (*pos).min(data.len());
@@ -681,7 +690,7 @@ fn cmd_read_in_original(
                     }
                     ok(Value::string(String::from_utf8_lossy(bytes).into_owned()))
                 }
-                Err(e) => err(format!("error reading \"{id}\": {}", io_reason(&e))),
+                Err(e) => os_error(&format!("error reading \"{id}\""), &e, release),
             }
         }
         None => err(format!("can not find channel named \"{id}\"")),
@@ -987,10 +996,11 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
         )));
     };
     let encoded = encode_output(text, newline, config);
+    let release = vm.runtime_version();
     match id {
         "stdout" => vm
             .write_output_bytes(&encoded.bytes)
-            .map_err(|error| write_error(id, &error))?,
+            .map_err(|error| write_error(id, &error, release))?,
         "stderr" => {
             vm.host().stdio().write_stderr(&encoded.bytes);
             vm.host().stdio().flush_stderr();
@@ -998,7 +1008,7 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
         _ => match vm.channel_mut(id) {
             Some(Channel::Write { file, .. }) => file
                 .write_all(&encoded.bytes)
-                .map_err(|error| write_error(id, &error))?,
+                .map_err(|error| write_error(id, &error, release))?,
             Some(Channel::Read { .. }) => {
                 return Err(CmdError::new(format!(
                     "channel \"{id}\" wasn't opened for writing"
@@ -1017,8 +1027,12 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
     Ok(())
 }
 
-fn write_error(id: &str, error: &std::io::Error) -> CmdError {
-    CmdError::new(format!("error writing \"{id}\": {error}"))
+fn write_error(id: &str, error: &std::io::Error, release: tcl_dialect::TclVersion) -> CmdError {
+    CmdError::host(
+        format!("error writing \"{id}\""),
+        &tcl_platform::HostError::from_io(error),
+        release,
+    )
 }
 
 #[cfg(test)]

@@ -27,8 +27,9 @@
 
 use std::borrow::Cow;
 
+use tcl_cmd_core::CmdError;
 use tcl_cmd_core::path::{self, PathReading};
-use tcl_platform::Filesystem;
+use tcl_platform::{Filesystem, HostError, Metadata};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -161,7 +162,7 @@ fn cmd_exec(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_pwd(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
     match vm.host().env().cwd() {
         Ok(p) => ok(Value::string(p)),
-        Err(e) => err(format!("error getting working directory name: {e}")),
+        Err(e) => host_error(vm, "error getting working directory name", &e),
     }
 }
 
@@ -179,9 +180,11 @@ fn cmd_cd(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match env.chdir(&dir) {
         Ok(()) => ok(Value::empty()),
-        Err(e) => err(format!(
-            "couldn't change working directory to \"{dir}\": {e}"
-        )),
+        Err(e) => host_error(
+            vm,
+            &format!("couldn't change working directory to \"{dir}\""),
+            &e,
+        ),
     }
 }
 
@@ -403,13 +406,9 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         "isfile" => bool_query(vm, rest, |fs, p| fs.metadata(p).is_ok_and(|m| m.is_file)),
         "size" => match rest {
-            [p] => match vm
-                .host()
-                .filesystem()
-                .and_then(|fs| fs.metadata(&s(p)).ok())
-            {
-                Some(m) => ok(Value::int(i64::try_from(m.len).unwrap_or(i64::MAX))),
-                None => err(format!("could not read \"{}\": no such file", s(p))),
+            [p] => match file_metadata(vm, &s(p)) {
+                Ok(m) => ok(Value::int(i64::try_from(m.len).unwrap_or(i64::MAX))),
+                Err(e) => e,
             },
             _ => crate::command::native_wrong_arguments_message(
                 vm,
@@ -417,7 +416,10 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ),
         },
         "mtime" => match rest {
-            [p] => file_mtime(vm.host().filesystem(), &s(p)),
+            [p] => match file_metadata(vm, &s(p)) {
+                Ok(m) => ok(Value::int(m.mtime_secs)),
+                Err(e) => e,
+            },
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"file mtime name ?time?\"",
@@ -430,7 +432,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             for p in rest {
                 if let Err(e) = fs.create_dir_all(&s(p)) {
-                    return err(format!("can't create directory \"{}\": {e}", s(p)));
+                    return host_error(vm, &format!("can't create directory \"{}\"", s(p)), &e);
                 }
             }
             ok(Value::empty())
@@ -487,13 +489,20 @@ fn bool_query(
     }
 }
 
-fn file_mtime(fs: Option<&dyn Filesystem>, path: &str) -> Completion<Value> {
-    match fs.and_then(|fs| fs.metadata(path).ok()) {
-        Some(m) => ok(Value::int(m.mtime_secs)),
-        None => err(format!(
-            "could not read \"{path}\": no such file or directory"
-        )),
-    }
+/// `Tcl_PosixError` for a failed host call.
+fn host_error(vm: &mut Vm, context: &str, error: &HostError) -> Completion<Value> {
+    let release = vm.runtime_version();
+    vm.cmd_error(CmdError::host(context, error, release))
+}
+
+/// The `stat` behind `file size` / `file mtime`, failing as C's
+/// `could not read "<path>": <message>`.
+fn file_metadata(vm: &mut Vm, path: &str) -> Result<Metadata, Completion<Value>> {
+    let stat = vm
+        .host()
+        .filesystem()
+        .map_or(Err(HostError::NotFound), |fs| fs.metadata(path));
+    stat.map_err(|e| host_error(vm, &format!("could not read \"{path}\""), &e))
 }
 
 /// A directory and one of its entries joined on the shared path core, the
