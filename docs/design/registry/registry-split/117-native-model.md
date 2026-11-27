@@ -292,6 +292,87 @@ compiler or analysis crate.
   | `tcl-registry`'s own compile time | after 117a and the registry split together |
   | VM benchmarks (the `tcl-vm` bench suite) | a pure move must not change them; `InvocationDialect`'s inherent methods stay inlinable in their own crate |
 
+## As built: 117a, first part (27 November 2026)
+
+**Landed.** `rust/tcl-native-model` exists, beside `tcl-runtime-api`. Its
+only workspace dependencies are the six foundation crates the design names
+(`tcl-test-support` as a dev-dependency), and `cargo xtask crate-layer`
+rejects any other edge from it. It holds:
+
+- `invocation_dialect`: `InvocationDialect`, every `impl` block that was in
+  `invocation_words.rs`, its policy enums, and `TemplateParseErrors` (from
+  `substitution`, because the engines and a dialect selector return it);
+- the 47 `native_*` modules whose production code named nothing in the core,
+  plus `logical_core_simulation`, moved whole with their unit tests, their
+  `tests/data` fixtures and the Jim namespace helper bodies;
+- the runtime-protocol halves of `source_file`, `native_ensemble`,
+  `native_command_literal` and the clock bootstrap selectors
+  (`native_clock`), in modules of the same name, with the selection over
+  words and specs left in the core.
+
+The engines' `tcl_registry::native_` sites fall from 1,120 to 496 (169
+files). [`native-model.tsv`](../../../work/name-handling/ownership/native-model.tsv)
+lists every module and split item with its destination; 62 rows are
+`pending`.
+
+**Departures from the design.**
+
+1. *Extension traits.* Sixteen core modules carry `impl InvocationDialect`
+   selectors over types that stay in the core (`native_dictionary`,
+   `native_package`, `native_rmw`, `special_vars`, `completion` and others).
+   They are extension traits in those modules, as the orphan-rule risk
+   foresaw, named in the ledger. A caller imports the trait. Moving each
+   selector down with its types is the remaining split work.
+2. *Inversions.* `catch_positional_arity` returns `Arity` and
+   `NativeVariableTraceProtocol::callback_compilation` returns
+   `NativeCompilationContext`, both spec vocabulary still in the core. They
+   are free functions in the core: `catch_invocation::catch_positional_arity`
+   and `native_compilation::trace_callback_compilation`.
+3. *No `deny.toml` wrappers entry.* A wrappers layer marks an analysis layer
+   that consumers enter through listed crates; making the native model one
+   turned `tcl-pkg`'s existing dev-dependency on the registry into an upward
+   dev-edge in `module-layers`. The contract that matters, that the crate
+   never depends on the registry, is the crate-layer gate's foundation-owner
+   check instead.
+4. *Shared Jim bodies.* `native_jim_lookup` and the core's
+   `native_scripted_distribution` both read the `namespace info` and
+   `namespace ensemble` bodies. The bodies moved with `native_jim_lookup`,
+   which exports them as `JIM_NAMESPACE_INFO_BODY` and
+   `JIM_NAMESPACE_ENSEMBLE_BODY`; the dictionary and ensemble bodies stay in
+   the registry's `native_scripts`.
+
+**Tests.** The moved modules' 105 unit tests run in `tcl-native-model`.
+They resolve profiles from the compiled environment catalogue through a
+`cfg(test)` module that mirrors the registry ingress's profile choice.
+Two tests asserted registry behaviour through a native module (the `array
+default` compile recipe and Jim command admission); they moved to the
+registry's `it_4` harness, rewritten against its public API. The
+`InvocationDialect` tests in `invocation_words/tests.rs` moved with the
+type. No assertion was dropped. The registry failset (lib and every
+integration harness) and the `tcl-vm` and `runtime/rust` failsets match
+their baselines; the `tcl-codegen`, `tcl-compiler`, `tcl-lsp-core` and
+`tcl-spectcl` failsets did not run (disk exhaustion, then the owner's
+minimal-check direction for the split), and wait for the end-of-stage pass.
+
+**Rebuild cost.** From `Cargo.lock`, every dependency kind:
+
+| Edit | local packages rebuilt |
+|---|---|
+| `tcl-registry` (before and after) | 39 |
+| `tcl-native-model` | 40: itself and the registry's cone |
+
+An edit to the native model still rebuilds everything the registry does,
+as the design expects: the engines and the compiler keep their registry
+edge until item 291. `cargo check -p tcl-registry --lib`, warm dev target,
+after touching one file: 12.4 s for a registry edit, 14.9 s for a native-model
+edit (2.5 s of it the new crate).
+
+**Open.** The done-when is not met: 496 engine sites remain, almost all in
+the compile recipes (`native_compilation` and the 40 modules that read
+it, the compile vocabulary of work-list step 5) and the coupled modules the
+engines name most (`native_procedure`, `native_package`,
+`native_scripted_distribution`, `native_dictionary`, `native_rmw`).
+
 ## Risks
 
 - **Orphan rules.** A selector written as an inherent `impl
