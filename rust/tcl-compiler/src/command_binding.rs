@@ -1467,6 +1467,10 @@ pub struct ModuleCommandBindings {
     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
     /// The original stock process sink is still free of Tcl callbacks.
     stock_tclsh_stdout: bool,
+    /// A native may have run a channel handler the walk did not follow.
+    /// Command lookups keep the document's command world; a proof that no
+    /// unseen code ran since entry does not hold.
+    unmodelled_reentry: bool,
     allocation_counts: Arc<BTreeMap<(CommandAllocationSite, SourceCommandKey), u8>>,
     namespace_allocation_counts:
         Arc<BTreeMap<(CommandAllocationSite, tcl_core_types::ByteNamespacePath), u8>>,

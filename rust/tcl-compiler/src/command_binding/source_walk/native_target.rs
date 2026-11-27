@@ -142,23 +142,43 @@ pub(super) fn delegates_stock_script_effects(
         || original_delegated_script::has_delegated_literal_script(native, facts, state, context)
 }
 
+/// How a native whose body the walk did not select may re-enter Tcl before
+/// it completes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NativeReentry {
+    None,
+    /// Host I/O can run a channel's transform or reflected-channel handler.
+    /// Those handlers are installed by visible commands whose own walk
+    /// accounts for them, so command lookups keep the document's command
+    /// world, as they do at a procedure's entry; only proofs that no unseen
+    /// code ran across this point withdraw.
+    ChannelHandler,
+    /// Callbacks or scripts this walk did not follow: the command world is
+    /// unknown afterwards.
+    Unwalked,
+}
+
 fn unmodelled_native_reentry(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
     state: &ModuleCommandBindings,
     incoming: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-) -> bool {
+) -> NativeReentry {
     use tcl_registry::resolved_invocation::SourceCallbackRetention;
     use tcl_registry::side_effects::SideEffectTarget;
     use tcl_registry::world_effect::WorldStateDomain;
     if is_implicit_stock_stdout_write(native, facts) {
-        return !state.stock_tclsh_stdout;
+        return if state.stock_tclsh_stdout {
+            NativeReentry::None
+        } else {
+            NativeReentry::Unwalked
+        };
     }
     if state.stock_tclsh_stdout && delegates_stock_script_effects(native, facts, incoming, context)
     {
         // This fallback did not walk the script's potential callbacks.
-        return true;
+        return NativeReentry::Unwalked;
     }
     if native
         .invocation
@@ -167,7 +187,18 @@ fn unmodelled_native_reentry(
         .and_then(|dialect| dialect.tcl_version)
         .is_none_or(|version| version < tcl_dialect::TclVersion::V9_0)
     {
-        return false;
+        return NativeReentry::None;
+    }
+    if facts
+        .state_transitions
+        .declared()
+        .is_none_or(|transitions| transitions.facts().is_empty())
+        && (facts
+            .traits
+            .contains(tcl_registry::Traits::CREATES_DYNAMIC_BARRIER)
+            || facts.source_callback_retention() != SourceCallbackRetention::Absent)
+    {
+        return NativeReentry::Unwalked;
     }
     let host_io = facts.effects.accesses().iter().any(|access| {
         matches!(
@@ -175,15 +206,11 @@ fn unmodelled_native_reentry(
             WorldStateDomain::LegacyExternal(SideEffectTarget::FileIo | SideEffectTarget::Process)
         )
     });
-    host_io
-        || (facts
-            .state_transitions
-            .declared()
-            .is_none_or(|transitions| transitions.facts().is_empty())
-            && (facts
-                .traits
-                .contains(tcl_registry::Traits::CREATES_DYNAMIC_BARRIER)
-                || facts.source_callback_retention() != SourceCallbackRetention::Absent))
+    if host_io {
+        NativeReentry::ChannelHandler
+    } else {
+        NativeReentry::None
+    }
 }
 
 #[inline(never)]
@@ -753,13 +780,19 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let prepared = match prepare_selected_native_body(native, state, context, facts, route) {
             Ok(prepared) => prepared,
-            Err(route) if unmodelled_native_reentry(native, facts, state, incoming, *context) => {
-                // Channel observers, notifier callbacks, and selected callback
+            Err(route) => {
+                // Channel handlers, notifier callbacks, and selected callback
                 // operands can re-enter Tcl before any returned completion.
-                state.mark_opaque_binding_mutation();
-                return SourceOutcomes::invocation(state, route);
+                match unmodelled_native_reentry(native, facts, state, incoming, *context) {
+                    NativeReentry::Unwalked => {
+                        state.mark_opaque_binding_mutation();
+                        return SourceOutcomes::invocation(state, route);
+                    }
+                    NativeReentry::ChannelHandler => state.mark_unmodelled_reentry(),
+                    NativeReentry::None => {}
+                }
+                return SourceOutcomes::native_invocation(incoming, state, route);
             }
-            Err(route) => return SourceOutcomes::native_invocation(incoming, state, route),
         };
         let body_context = source_body_context_boxed(
             context,

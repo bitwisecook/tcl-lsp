@@ -191,6 +191,7 @@ impl SourceInvocationBinding {
             .state
             .source_execution_observed(target.identity.as_ref())
             || snapshot.state.source_step_observed()
+            || snapshot.state.unmodelled_reentry()
         {
             return false;
         }
