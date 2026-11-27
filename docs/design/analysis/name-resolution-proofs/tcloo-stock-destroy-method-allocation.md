@@ -141,7 +141,7 @@ static const DeclaredClassMethod objMethods[] = {
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/cmd_oo/native_method_info_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_method_info_tests.rs), `cmd_oo::native_method_info_tests::stock_destroy_allocation_controls_reflection_and_dispatch` (linked): Selected C8.6/9.0/9.1 stock root method allocation is visible in class/object rosters; deleting that same root method removes both and makes object destroy miss dispatch. This binding claims no Rust execution or broader TclOO parity.
+- [rust/tcl-vm-it/tests/it_5/cmd_oo/native_method_info_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_oo/native_method_info_tests.rs), `cmd_oo::native_method_info_tests::stock_destroy_allocation_controls_reflection_and_dispatch` (linked): Selected C8.6/9.0/9.1 stock root method allocation is visible in class/object rosters; deleting that same root method removes both and makes object destroy miss dispatch. This binding claims no Rust execution or broader TclOO parity.
 
 ## Evidence
 

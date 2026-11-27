@@ -847,3 +847,22 @@ through `eval` of a list keeps tclsh 8.4.20's `invoked from within "p"` frame
 above `("eval" body line 1)`; the VM omits it.
 `command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions`
 checks the frames both report for its non-UTF-8 name.
+
+**Batch 9, `cmd_oo` reflection, byte names, frames and role reports (27 November 2026).**
+8 tests in 4 files: 7 move to `tcl-vm-it` under their old module paths and 1
+is deleted. Tests that reach a compiler drop from 308 to 300.
+- `native_method_info_tests` calls `info object methods` and
+  `info class methods` through `info`; `native_byte_name_tests` creates
+  classes with `oo::class create` and calls byte-named objects through `eval`
+  of a list; `original_call_argv_tests` reads the frame's words through
+  `Introspect::level_argv` and the call frames through `info errorstack`;
+  `native_method_report_tests` records `self method` from a procedure and
+  compares with tclsh 8.6.18 and 9.0.4.
+- Cut from rows: the declared variable's object identity and the private
+  method-key table (`native_byte_name_tests`), word and error-stack object
+  identity (now bytes), and the report objects' identity and roles (now the
+  role names a script sees).
+- Deleted, with no script-visible behaviour:
+  `cmd_oo::native_method_report_tests::original_foundation_value_report_refuses_missing_and_unsupported_owners`
+  (it removes the interpreter's private report table and reads the refusal
+  that follows).

@@ -16,44 +16,51 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
+//! The words a `TclOO` constructor, method, `next` and destructor frame report, and `info errorstack`.
+
+use crate::prelude::*;
 use std::cell::RefCell;
-struct Observe(Rc<RefCell<Vec<Vec<usize>>>>);
-impl crate::command::NativeCommand for Observe {
+use tcl_runtime_api::Introspect;
+
+type Frames = Rc<RefCell<Vec<Vec<Vec<u8>>>>>;
+
+struct Observe(Frames);
+impl tcl_vm::NativeCommand for Observe {
     fn invoke(&self, vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
-        let words = vm.frame_argv(vm.current_level()).expect("active OO frame");
-        self.0
-            .borrow_mut()
-            .push(words.iter().map(Value::native_object_identity).collect());
-        ok(Value::empty())
+        let level = Introspect::level(vm);
+        let words = vm.level_argv(level).unwrap().unwrap_or_else(Value::empty);
+        self.0.borrow_mut().push(words_of(vm, &words));
+        Completion::new(Code::Ok, Value::empty(), Value::empty())
     }
 }
-fn instance(version: tcl_dialect::TclVersion, setup: &str) -> (Vm, Rc<RefCell<Vec<Vec<usize>>>>) {
-    let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-    let mut vm = Vm::with_native_core(
-        Box::new(std::io::sink()),
-        Rc::new(crate::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs {
-            package_path: Vec::new(),
-            default_library: None,
-        },
-    )
-    .expect("selected actual C constructor");
-    vm.set_compiler(Box::new(
-        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
+fn words_of(vm: &Vm, list: &Value) -> Vec<Vec<u8>> {
+    list.as_list()
+        .unwrap()
+        .iter()
+        .map(|word| crate::fixture::bytes(vm, word))
+        .collect()
+}
+fn instance(version: tcl_dialect::TclVersion, setup: &str) -> (Vm, Frames) {
+    let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(
+        version.dialect_profile_name(),
     ));
     let observed = Rc::new(RefCell::new(Vec::new()));
-    vm.register_command_in_slot(
-        tcl_runtime_api::CommandSlot {
-            namespace: tcl_core_types::ROOT_NS,
-            simple: NameBytes::from(b"observe_original".as_slice()),
-        },
-        Command::Native(Rc::new(Observe(Rc::clone(&observed)))),
-    );
-    let result = vm.eval_source(setup).unwrap();
+    vm.register_native_command("observe_original", Rc::new(Observe(Rc::clone(&observed))));
+    let result = crate::fixture::eval(&mut vm, setup);
     assert_eq!(result.code, Code::Ok, "{:?}", result.result.string_bytes());
     (vm, observed)
+}
+fn calls(vm: &mut Vm) -> Vec<Vec<Vec<u8>>> {
+    let stack = crate::fixture::call(vm, "info", &[Value::string("errorstack")]).result;
+    stack
+        .as_list()
+        .unwrap()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .filter(|pair| pair[0].string_bytes().as_ref() == b"CALL")
+        .map(|pair| words_of(vm, &pair[1]))
+        .collect()
 }
 #[test]
 fn constructor_and_method_frames_borrow_original_dispatch_children() {
@@ -69,8 +76,7 @@ fn constructor_and_method_frames_borrow_original_dispatch_children() {
                 "oo::class create C {method m {x} {observe_original; error FAILURE}}; C create o"
             };
             let (mut vm, observed) = instance(version, setup);
-            let head =
-                Value::new_native_string_bytes(if constructor { &b"C"[..] } else { &b"o"[..] });
+            let head = if constructor { "C" } else { "o" };
             let argument = Value::native_list_constructor(
                 vec![Value::string("ORIGINAL")],
                 tcl_syntax::native_string::NativeStringProtocol::C(version),
@@ -80,33 +86,20 @@ fn constructor_and_method_frames_borrow_original_dispatch_children() {
             } else {
                 vec![Value::string("m"), argument]
             };
-            let expected: Vec<_> = std::iter::once(&head)
-                .chain(&arguments)
-                .map(Value::native_object_identity)
+            let expected: Vec<_> = std::iter::once(head.as_bytes().to_vec())
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|word| crate::fixture::bytes(&vm, word)),
+                )
                 .collect();
-            let result = vm.invoke_host_original_object_vector(&head, &arguments);
+            let result = crate::fixture::call(&mut vm, head, &arguments);
             assert_eq!(result.code, Code::Error);
             assert_eq!(
                 observed.borrow().as_slice(),
                 std::slice::from_ref(&expected)
             );
-            let stack = vm.error_stack_value();
-            let flat = stack.as_list().unwrap();
-            let calls: Vec<_> = flat
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .filter(|pair| pair[0].string_bytes().as_ref() == b"CALL")
-                .map(|pair| {
-                    pair[1]
-                        .as_list()
-                        .unwrap()
-                        .iter()
-                        .map(Value::native_object_identity)
-                        .collect::<Vec<_>>()
-                })
-                .collect();
-            assert_eq!(calls, vec![expected]);
+            assert_eq!(calls(&mut vm), vec![expected]);
         }
     }
 }
@@ -126,11 +119,7 @@ fn next_nextto_and_destructor_frames_use_native_invocation_vectors() {
                 vec![Value::string("ORIGINAL")],
                 tcl_syntax::native_string::NativeStringProtocol::C(version),
             );
-            let identity = argument.native_object_identity();
-            let result = vm.invoke_host_original_object_vector(
-                &Value::string("o"),
-                &[Value::string("m"), argument],
-            );
+            let result = crate::fixture::call(&mut vm, "o", &[Value::string("m"), argument]);
             assert_eq!(result.code, Code::Error);
             let observed = observed.borrow();
             assert_eq!(observed.len(), 1);
@@ -138,25 +127,15 @@ fn next_nextto_and_destructor_frames_use_native_invocation_vectors() {
                 observed[0].len(),
                 if next.starts_with("nextto") { 3 } else { 2 }
             );
-            assert_eq!(observed[0].last(), Some(&identity));
+            assert_eq!(observed[0].last().unwrap(), b"ORIGINAL");
         }
         let (mut vm, observed) = instance(
             version,
             "oo::class create C {destructor {observe_original; error FAILURE}}; C create o",
         );
-        let result =
-            vm.invoke_host_original_object_vector(&Value::string("o"), &[Value::string("destroy")]);
+        let result = crate::fixture::call(&mut vm, "o", &[Value::string("destroy")]);
         assert_eq!(result.code, Code::Error);
-        assert_eq!(observed.borrow().as_slice(), &[Vec::<usize>::new()]);
-        let stack = vm.error_stack_value();
-        assert!(
-            stack
-                .as_list()
-                .unwrap()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .all(|pair| pair[0].string_bytes().as_ref() != b"CALL")
-        );
+        assert_eq!(observed.borrow().as_slice(), &[Vec::<Vec<u8>>::new()]);
+        assert_eq!(calls(&mut vm), Vec::<Vec<Vec<u8>>>::new());
     }
 }

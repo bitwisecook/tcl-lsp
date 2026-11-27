@@ -817,13 +817,7 @@ impl OoState {
 mod native_eval_tests;
 
 #[cfg(test)]
-mod native_byte_name_tests;
-
-#[cfg(test)]
 mod original_bootstrap_namespace_tests;
-
-#[cfg(test)]
-mod original_call_argv_tests;
 
 mod native_properties;
 
@@ -837,12 +831,6 @@ pub(crate) fn native_bootstrap_inventory(
 
 #[cfg(test)]
 mod native_info_option_tests;
-
-#[cfg(test)]
-mod native_method_info_tests;
-
-#[cfg(test)]
-mod native_method_report_tests;
 
 #[cfg(test)]
 mod original_method_retirement_tests;

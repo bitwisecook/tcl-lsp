@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original counted method options, local scope and target lookup boundaries.
-use super::*;
-use tcl_syntax::value::ValueOps;
+//! `info object methods` and `info class methods` options, scopes and the stock `destroy` method, compared with tclsh.
+
+use crate::prelude::*;
 
 fn captured(rows: &str, label: &str) -> (i64, Vec<u8>) {
     let mut fields = rows
@@ -165,8 +165,8 @@ fn stock_destroy_allocation_controls_reflection_and_dispatch() {
     // Native proof: naming.tcloo.stock-destroy-method-allocation
     // docs/design/analysis/name-resolution-proofs/tcloo-stock-destroy-method-allocation.md
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let profile = tcl_vm::test_support::profile(engine);
+        let mut vm = crate::fixture::interpreter(profile);
         let before = vm.eval_source(
             "oo::class create C {}; C create O; list [info class methods C -all] [info object methods O -all]",
         ).unwrap();
@@ -198,34 +198,35 @@ fn method_info_matches_original_counted_option_and_scope_controls() {
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1/stdout.tsv"
             ),
         ),
     ] {
-        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let profile = tcl_vm::test_support::profile(engine);
+        let mut vm = crate::fixture::interpreter(profile);
         assert_eq!(vm.eval_source("oo::class create B {method inherited {} {}; export inherited}; oo::class create C {superclass B; method Public {} {}; export Public; method hidden {} {}; unexport hidden}; C create O; oo::objdefine O {method OPub {} {}; export OPub; method ohide {} {}; unexport ohide}").unwrap().code, Code::Ok);
         if engine != "tcl8.6" {
             assert_eq!(vm.eval_source("oo::define C private method Secret {} {}; oo::objdefine O private method OSecret {} {}").unwrap().code, Code::Ok);
         }
         for (kind, category, target) in [
-            (InfoOoEnsembleKind::Object, "object", b"O".as_slice()),
-            (InfoOoEnsembleKind::Class, "class", b"C".as_slice()),
+            ("object", "object", b"O".as_slice()),
+            ("class", "class", b"C".as_slice()),
         ] {
             for &(case, options, missing) in CASES {
                 let mut args = vec![
+                    Value::string(kind),
                     Value::string("methods"),
                     Value::new_native_string_bytes(if missing { b"::missing" } else { target }),
                 ];
@@ -234,10 +235,7 @@ fn method_info_matches_original_counted_option_and_scope_controls() {
                         .iter()
                         .map(|bytes| Value::new_native_string_bytes(*bytes)),
                 );
-                let completion = match kind {
-                    InfoOoEnsembleKind::Object => info_object(&mut vm, &args),
-                    InfoOoEnsembleKind::Class => info_class(&mut vm, &args),
-                };
+                let completion = crate::fixture::call(&mut vm, "info", &args);
                 let label = format!("DIRECT_{category}_{case}");
                 let (code, expected) = captured(rows, &label);
                 assert_eq!(completion.code.as_int(), code, "{engine}/{label}");

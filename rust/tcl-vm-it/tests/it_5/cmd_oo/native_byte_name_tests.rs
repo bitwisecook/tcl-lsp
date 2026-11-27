@@ -16,8 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
-use tcl_core_types::ROOT_NS;
+//! `TclOO` class, object, method and variable names with raw bytes.
+
+use crate::prelude::*;
+
+/// Invoke `words` as one command through `eval` of a list, so a command
+/// name need not be UTF-8.
+fn invoke(vm: &mut Vm, words: Vec<Value>) -> Completion<Value> {
+    crate::fixture::call(vm, "eval", &[Value::list(words)])
+}
+
+fn make_class(vm: &mut Vm, name: &[u8]) -> Completion<Value> {
+    crate::fixture::call(
+        vm,
+        "oo::class",
+        &[
+            Value::string("create"),
+            Value::from_native_string_bytes(name),
+        ],
+    )
+}
 
 #[test]
 fn declared_variables_retain_original_values_and_counted_object_fields() {
@@ -26,18 +44,19 @@ fn declared_variables_retain_original_values_and_counted_object_fields() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-        let mut vm = crate::native_fixture::interpreter(profile);
-        let root = vm_class_root(&vm);
-        assert_eq!(make_class_bytes(&mut vm, b"C", None, root).code, Code::Ok);
+        let profile = tcl_vm::test_support::profile(version.dialect_profile_name());
+        let mut vm = crate::fixture::interpreter(profile);
+        assert_eq!(make_class(&mut vm, b"C").code, Code::Ok);
         let class = Value::string("C");
         let original = Value::from_native_string_bytes(b"a\0z".as_slice());
-        let declaration = vm.invoke_command(
+        let declaration = crate::fixture::call(
+            &mut vm,
             "oo::define",
             &[class.clone(), Value::string("variable"), original.clone()],
         );
         assert_eq!(declaration.code, Code::Ok);
-        let listed = vm.invoke_command(
+        let listed = crate::fixture::call(
+            &mut vm,
             "info",
             &[
                 Value::string("class"),
@@ -48,15 +67,12 @@ fn declared_variables_retain_original_values_and_counted_object_fields() {
         assert_eq!(listed.code, Code::Ok);
         let listed = listed.result.as_list().unwrap();
         assert_eq!(listed.len(), 1);
-        assert_eq!(
-            listed[0].native_object_identity(),
-            original.native_object_identity()
-        );
         assert_eq!(listed[0].string_bytes().as_ref(), b"a\0z");
         let mut body = b"set {".to_vec();
         body.extend_from_slice(b"a\0z");
         body.extend_from_slice(b"} HIT; return [info object vars [self]]");
-        let definition = vm.invoke_command(
+        let definition = crate::fixture::call(
+            &mut vm,
             "oo::define",
             &[
                 class.clone(),
@@ -68,11 +84,10 @@ fn declared_variables_retain_original_values_and_counted_object_fields() {
         );
         assert_eq!(definition.code, Code::Ok);
         assert_eq!(
-            vm.invoke_command("C", &[Value::string("create"), Value::string("o")])
-                .code,
+            crate::fixture::call(&mut vm, "C", &[Value::string("create"), Value::string("o")]).code,
             Code::Ok
         );
-        let fields = vm.invoke_command("o", &[Value::string("write")]);
+        let fields = crate::fixture::call(&mut vm, "o", &[Value::string("write")]);
         assert_eq!(
             fields.code,
             Code::Ok,
@@ -83,7 +98,8 @@ fn declared_variables_retain_original_values_and_counted_object_fields() {
         let fields = fields.result.as_list().unwrap();
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].string_bytes().as_ref(), b"a\0z");
-        let rejected = vm.invoke_command(
+        let rejected = crate::fixture::call(
+            &mut vm,
             "oo::define",
             &[
                 class.clone(),
@@ -92,7 +108,8 @@ fn declared_variables_retain_original_values_and_counted_object_fields() {
             ],
         );
         assert_eq!(rejected.code, Code::Error);
-        let retained = vm.invoke_command(
+        let retained = crate::fixture::call(
+            &mut vm,
             "info",
             &[Value::string("class"), Value::string("variables"), class],
         );
@@ -107,11 +124,10 @@ fn native_object_and_method_keys_keep_independent_extents_and_original_usage() {
         tcl_dialect::TclVersion::V9_0,
         tcl_dialect::TclVersion::V9_1,
     ] {
-        let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let profile = tcl_vm::test_support::profile(version.dialect_profile_name());
+        let mut vm = crate::fixture::interpreter(profile);
         let class = Value::from_native_string_bytes(b"C\xff".as_slice());
-        let metaclass = vm_class_root(&vm);
-        let created = make_class_bytes(&mut vm, b"C\xff", None, metaclass);
+        let created = make_class(&mut vm, b"C\xff");
         assert_eq!(created.code, Code::Ok, "{}", profile.name);
         assert_eq!(created.result.string_bytes().as_ref(), b"::C\xff");
         for method in [
@@ -120,31 +136,23 @@ fn native_object_and_method_keys_keep_independent_extents_and_original_usage() {
             b"a\xc0\x80z".as_slice(),
         ] {
             let original = Value::from_native_string_bytes(method);
-            let defined = vm.invoke_command(
-                "oo::define",
-                &[
+            let defined = invoke(
+                &mut vm,
+                vec![
+                    Value::string("oo::define"),
                     class.clone(),
                     Value::string("method"),
-                    original.clone(),
+                    original,
                     Value::empty(),
                     Value::string("return HIT"),
                 ],
             );
             assert_eq!(defined.code, Code::Ok, "{} {method:?}", profile.name);
-            let key = vm
-                .oo
-                .method_keys
-                .get(method)
-                .expect("exact counted method key");
-            assert_eq!(vm.oo.method_name_bytes(key), method);
         }
         let object = Value::from_native_string_bytes(b"O\xff".as_slice());
-        let created = vm.invoke_command_value_at(
-            ROOT_NS,
-            &class,
-            &[Value::string("create"), object.clone()],
-            &[],
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        let created = invoke(
+            &mut vm,
+            vec![class.clone(), Value::string("create"), object.clone()],
         );
         assert_eq!(created.code, Code::Ok);
         assert_eq!(created.result.string_bytes().as_ref(), b"::O\xff");
@@ -153,23 +161,14 @@ fn native_object_and_method_keys_keep_independent_extents_and_original_usage() {
             b"a\xffz".as_slice(),
             b"a\xc0\x80z".as_slice(),
         ] {
-            let hit = vm.invoke_command_value_at(
-                ROOT_NS,
-                &object,
-                &[Value::from_native_string_bytes(method)],
-                &[],
-                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+            let hit = invoke(
+                &mut vm,
+                vec![object.clone(), Value::from_native_string_bytes(method)],
             );
             assert_eq!(hit.code, Code::Ok, "{} {method:?}", profile.name);
             assert_eq!(hit.result.string_bytes().as_ref(), b"HIT");
         }
-        let miss = vm.invoke_command_value_at(
-            ROOT_NS,
-            &object,
-            &[Value::string("a")],
-            &[],
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-        );
+        let miss = invoke(&mut vm, vec![object.clone(), Value::string("a")]);
         assert_eq!(miss.code, Code::Error);
         assert_counted_object_usage(&mut vm, &class);
     }
@@ -177,22 +176,13 @@ fn native_object_and_method_keys_keep_independent_extents_and_original_usage() {
 
 fn assert_counted_object_usage(vm: &mut Vm, class: &Value) {
     let raw_name = Value::from_native_string_bytes(b"N\0z".as_slice());
-    let created = vm.invoke_command_value_at(
-        ROOT_NS,
-        class,
-        &[Value::string("create"), raw_name.clone()],
-        &[],
-        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+    let created = invoke(
+        vm,
+        vec![class.clone(), Value::string("create"), raw_name.clone()],
     );
     assert_eq!(created.code, Code::Ok);
     assert_eq!(created.result.string_bytes().as_ref(), b"::N");
-    let invocation = vm.invoke_command_value_at(
-        ROOT_NS,
-        &raw_name,
-        &[],
-        &[],
-        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-    );
+    let invocation = invoke(vm, vec![raw_name.clone()]);
     assert_eq!(invocation.code, Code::Error);
     // C9 uses native list quoting for usage; the original input remains counted.
     assert_eq!(raw_name.string_bytes().as_ref(), b"N\0z");
@@ -204,8 +194,4 @@ fn assert_counted_object_usage(vm: &mut Vm, class: &Value) {
             .windows(3)
             .any(|part| part == b"N\0z")
     );
-}
-
-fn vm_class_root(vm: &Vm) -> OoId {
-    vm.oo.class_root.expect("native TclOO root")
 }
