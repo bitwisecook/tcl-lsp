@@ -19,19 +19,16 @@
 //! Actual namespace-variable query results from retained reference executions.
 
 fn compare_queries(engine: &str, observation: &str) {
-    let profile = crate::environment::profile_for_dialect(engine);
-    let mut vm = crate::native_fixture::interpreter(profile);
-    crate::native_fixture::install_distribution(&mut vm);
+    let profile = tcl_vm::test_support::profile(engine);
+    let mut vm = crate::fixture::distribution(profile);
     let completion = vm
         .try_eval_source(include_str!(
-            "../../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+            "../../../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
         ))
         .unwrap();
     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
-    assert!(vm.refused_completion().is_none(), "{engine}");
-    let protocol = vm.actual_native_string_protocol().unwrap();
-    let bytes = completion.result.native_string_bytes(protocol).unwrap();
-    let actual = std::str::from_utf8(bytes.as_ref()).unwrap();
+    let bytes = crate::fixture::bytes(&vm, &completion.result);
+    let actual = std::str::from_utf8(&bytes).unwrap();
     let (actual_identity, actual_queries) = actual.split_once('\n').unwrap();
     let (oracle_identity, oracle_queries) = observation
         .strip_suffix('\n')
@@ -68,7 +65,7 @@ macro_rules! query_rows {
             compare_queries(
                 $engine,
                 include_str!(concat!(
-                    "../../../../experiments/name-handling/variable-namespace-query-bases/",
+                    "../../../../../experiments/name-handling/variable-namespace-query-bases/",
                     $provider,
                     "/result.stdout.bin"
                 )),

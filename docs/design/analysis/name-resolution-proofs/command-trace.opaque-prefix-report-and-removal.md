@@ -51,7 +51,7 @@ No original command/execution trace program capture for this provider is attache
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_trace/native_command_tests.rs](../../../../runtime/rust/src/cmd_trace/native_command_tests.rs), `cmd_trace::native_command_tests::original_command_traces_match_ten_native_byte_windows` (linked): Compares exact original source/code/result windows; named test execution is not asserted by the retained captures.
-- [rust/tcl-vm/src/cmd_trace/native_original_tests.rs](../../../../rust/tcl-vm/src/cmd_trace/native_original_tests.rs), `cmd_trace::native_original_tests::opaque_command_trace_operands_match_all_five_direct_native_engines` (linked): Compares the independently retained complete direct-output program for each C release, including callback log and removal fields.
+- [rust/tcl-vm-it/tests/it_5/cmd_trace/native_original_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_trace/native_original_tests.rs), `cmd_trace::native_original_tests::opaque_command_trace_operands_match_all_five_direct_native_engines` (linked): Compares the independently retained complete direct-output program for each C release, including callback log and removal fields.
 
 ## Evidence
 

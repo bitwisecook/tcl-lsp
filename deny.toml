@@ -125,14 +125,14 @@ deny = [
     ] },
     { name = "tcl-codegen", wrappers = [
         "tcl-cli", "tcl-debugger", "tcl-engine-tclvm", "tcl-explorer", "tcl-fuzz", "tcl-irule-test",
-        "tcl-mcp", "tcl-spectcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-it", "tcl-vm-wasm",
+        "tcl-mcp", "tcl-spectcl", "tcl-vm-cli", "tcl-vm-it", "tcl-vm-wasm",
     ] },
     { name = "tcl-compiler", wrappers = [
         "bigip-query-wasm", "bigip-report-gen-rust", "bpf-tcl-ir", "f5-xc", "tcl-cli",
         "tcl-cli-support", "tcl-codegen", "tcl-compiler-it", "tcl-debugger", "tcl-diagram", "tcl-engine-tclvm",
         "tcl-explorer", "tcl-fuzz", "tcl-irule-test", "tcl-irules", "tcl-lsp-core", "tcl-lsp-db", "tcl-lsp-db-it",
         "tcl-lsp-server", "tcl-mcp", "tcl-spec-hooks", "tcl-spec-studio", "tcl-spectcl",
-        "tcl-sslictcl", "tcl-vm", "tcl-vm-cli", "tcl-vm-it", "tcl-vm-wasm", "xtask",
+        "tcl-sslictcl", "tcl-vm-cli", "tcl-vm-it", "tcl-vm-wasm", "xtask",
     ] },
 ]
 

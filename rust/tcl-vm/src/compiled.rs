@@ -84,11 +84,6 @@ impl NativeProfileReceipt {
             key: interned_cache_key(profile),
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn key(self) -> tcl_dialect::DialectProfileKey {
-        *self.key
-    }
 }
 
 /// One shared key per profile, so receipts stay small and cheap to copy.

@@ -113,8 +113,6 @@ pub(crate) use namespace_context::{
     NamespaceExecutionContext, OriginalJimNamespaceContext, ProcedureNamespace,
 };
 mod native_alias_registration;
-#[cfg(test)]
-mod native_alias_registration_tests;
 mod native_append;
 #[cfg(test)]
 mod native_bootstrap;
@@ -152,8 +150,6 @@ mod native_name_queries;
 mod native_name_world;
 #[cfg(test)]
 mod native_namespace_address_tests;
-#[cfg(test)]
-mod native_namespace_command_query_tests;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_source_manifest_tests;
@@ -171,8 +167,6 @@ mod native_rename;
 pub(crate) mod native_scalar_ingress;
 mod native_variable_names;
 mod native_variable_observers;
-#[cfg(test)]
-mod native_variable_query_tests;
 mod object_materialization;
 pub(crate) mod oo_cleanup;
 pub(crate) mod original_authored_operands;

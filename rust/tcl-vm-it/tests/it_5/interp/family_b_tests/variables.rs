@@ -18,7 +18,9 @@
 
 //! Variable links across `upvar`, `global`, `variable` and `namespace upvar`, under each release.
 
+use super::{compiled_vm, eval_value};
 use crate::prelude::*;
+use tcl_vm::Namespaces;
 
 #[test]
 fn native_double_strings_observe_precision_only_until_first_materialisation() {
@@ -340,4 +342,32 @@ fn variable_link_profiles() -> Vec<&'static tcl_dialect::DialectProfile> {
 /// Jim's `namespace` helpers are present as they are under jimsh.
 fn variable_link_vm(profile: &'static tcl_dialect::DialectProfile) -> Vm {
     crate::fixture::distribution(profile)
+}
+
+#[test]
+fn namespace_var_enumeration_uses_the_exact_retained_token() {
+    let mut vm = compiled_vm();
+    assert_eq!(
+        eval_value(
+            &mut vm,
+            "namespace eval N {\
+                     variable old OLD;\
+                     proc p {} {\
+                         namespace delete ::N;\
+                         namespace eval ::N {variable fresh NEW};\
+                         yield paused\
+                     }\
+                 }",
+        ),
+        ""
+    );
+    let old = Namespaces::find_namespace(&vm, tcl_core_types::ROOT_NS, "::N").unwrap();
+    assert_eq!(eval_value(&mut vm, "coroutine c ::N::p"), "paused");
+    let fresh = Namespaces::find_namespace(&vm, tcl_core_types::ROOT_NS, "::N").unwrap();
+
+    assert_ne!(old, fresh);
+    assert_eq!(Namespaces::vars_in(&vm, old), vec!["old".to_owned()]);
+    assert_eq!(Namespaces::vars_in(&vm, fresh), vec!["fresh".to_owned()]);
+
+    assert_eq!(eval_value(&mut vm, "c"), "");
 }

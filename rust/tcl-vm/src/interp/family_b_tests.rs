@@ -19,7 +19,6 @@
 use super::*;
 use crate::command::NativeCommand;
 use std::cell::Cell;
-use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_runtime_api::GLOBAL_FRAME;
 
 const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
@@ -28,9 +27,9 @@ fn release_profile(name: &str) -> &'static tcl_dialect::DialectProfile {
     tcl_registry::model::ingress::resolve_environment(name).unit_profile()
 }
 
-/// The release's own engine and source compiler.
+/// The release's own engine, with no compiler.
 fn release_vm(version: tcl_dialect::TclVersion) -> Vm {
-    crate::native_fixture::interpreter(release_profile(version.dialect_profile_name()))
+    crate::native_fixture::core(release_profile(version.dialect_profile_name()))
 }
 
 /// Re-select both the actual engine and the logical profile of `name`.
@@ -38,7 +37,19 @@ fn select_release(vm: &mut Vm, name: &str) {
     let profile = release_profile(name);
     assert!(vm.set_native_engine_profile(profile), "{name}");
     vm.set_dialect_profile(profile);
-    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+}
+
+/// Invoke `words` as a host does; anything but `TCL_OK` fails the test.
+fn run(vm: &mut Vm, words: &[&str]) {
+    let (name, arguments) = words.split_first().unwrap();
+    let arguments: Vec<_> = arguments.iter().map(|word| Value::string(*word)).collect();
+    let completion = vm.try_invoke_command(name, &arguments).unwrap();
+    assert_eq!(
+        completion.code,
+        Code::Ok,
+        "{words:?}: {:?}",
+        completion.result
+    );
 }
 
 /// Every capture of an empty literal world renews its observation, so
@@ -115,12 +126,6 @@ fn default_c_error_code_stays_private_until_return_options_are_requested() {
             "{engine}"
         );
     }
-}
-
-fn eval_value(vm: &mut Vm, script: &str) -> String {
-    let completion = vm.eval_source(script).expect("script compiles");
-    assert_eq!(completion.code, Code::Ok, "{script}: {completion:?}");
-    completion.result.to_str().to_string()
 }
 
 struct TestNative;

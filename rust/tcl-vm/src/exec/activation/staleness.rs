@@ -69,27 +69,6 @@ impl Vm {
         Ok(false)
     }
 
-    /// Validate every frozen activation before a coroutine is resumed or
-    /// parked. A current handler/finally frame must not hide a stale ancestor.
-    #[cfg(test)]
-    pub(crate) fn activation_stack_stale_message(
-        &self,
-        acts: &[Frame],
-        current_namespace: &tcl_core_types::ByteNamespacePath,
-    ) -> Option<&'static str> {
-        let current_profile = self.profile_generation();
-        let current_compiler = self.compiler_generation();
-        let policy = PolicyAtStamp::of(self);
-        acts.iter()
-            .find_map(|frame| {
-                frame.stale_compilation_message(current_profile, current_compiler, &policy)
-            })
-            .or_else(|| {
-                acts.last()
-                    .and_then(|frame| frame.namespace_stale_message(current_namespace))
-            })
-    }
-
     /// The single activation-boundary freshness query. Scanner-only drivers
     /// declare their exemption in `Frame::stale_compilation_message`; every
     /// execution, unwind, resume, and suspension boundary consults this owner.

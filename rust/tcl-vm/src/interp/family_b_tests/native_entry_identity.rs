@@ -24,13 +24,8 @@ use super::*;
 fn native_entry_retains_stock_identity_after_qualified_rename() {
     use tcl_runtime_api::native_compilation::NativeCommandImplementation;
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    assert!(
-        vm.eval_source("namespace eval N {}; rename set N::moved")
-            .unwrap()
-            .code
-            .is_ok()
-    );
+    vm.activate_namespace_operand(b"::N").unwrap();
+    run(&mut vm, &["rename", "set", "N::moved"]);
     let entry = vm
         .native_compilation_entry_for_namespace("N", false)
         .unwrap();

@@ -97,10 +97,6 @@ js-clock = ["dep:js-sys"]
 test-support = []
 
 [dev-dependencies]
-tcl-codegen = { path = "../tcl-codegen" }
-# End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
-# library itself stays off the compiler (CompileService is the runtime seam).
-tcl-compiler = { path = "../tcl-compiler" }
 tcl-test-support = { path = "../tcl-test-support" }
 # Integration tests and examples build their interpreters through
 # `tcl_vm::test_support` (native-core constructors).

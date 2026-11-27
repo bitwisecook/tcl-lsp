@@ -5227,8 +5227,6 @@ dependencies = [
  "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
- "tcl-codegen",
- "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",

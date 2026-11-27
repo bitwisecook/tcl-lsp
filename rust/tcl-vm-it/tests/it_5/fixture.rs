@@ -75,6 +75,73 @@ pub fn interpreter_with_output(
     with_compiler(core_with_output(profile, output), profile)
 }
 
+/// A native host whose system encoding is UTF-8 whatever the process locale.
+/// A fixture that evaluates UTF-8 source text then writes its characters back
+/// as the same bytes, as tclsh does when it reads and writes in one encoding.
+struct Utf8Host(NativeHost);
+
+impl tcl_platform::Host for Utf8Host {
+    fn capabilities(&self) -> tcl_platform::Capabilities {
+        self.0.capabilities()
+    }
+    fn clock(&self) -> &dyn tcl_platform::Clock {
+        self.0.clock()
+    }
+    fn stdio(&self) -> &dyn tcl_platform::StdIo {
+        self.0.stdio()
+    }
+    fn env(&self) -> &dyn tcl_platform::Env {
+        self.0.env()
+    }
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        self.0.numeric_environment()
+    }
+    fn native_list_sorting_environment(
+        &self,
+    ) -> Option<&dyn tcl_platform::NativeListSortingEnvironment> {
+        self.0.native_list_sorting_environment()
+    }
+    fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+        self.0.native_integer_formatter()
+    }
+    fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        tcl_platform::SystemEncoding::Utf8
+    }
+    fn filesystem(&self) -> Option<&dyn tcl_platform::Filesystem> {
+        self.0.filesystem()
+    }
+    fn process(&self) -> Option<&dyn tcl_platform::Process> {
+        self.0.process()
+    }
+}
+
+/// [`interpreter_with_output`] over a UTF-8 system encoding, for comparing
+/// output with a tclsh capture taken under a UTF-8 locale.
+pub fn interpreter_with_utf8_output(
+    profile: &'static tcl_dialect::DialectProfile,
+    output: Box<dyn Write>,
+) -> Vm {
+    with_compiler(
+        core_with_output_and_host(profile, output, Rc::new(Utf8Host(NativeHost::new()))),
+        profile,
+    )
+}
+
+/// Output a test reads back after the script has run.
+#[derive(Clone, Default)]
+pub struct Output(pub Rc<std::cell::RefCell<Vec<u8>>>);
+
+impl Write for Output {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// [`interpreter`] with every scripted distribution library loaded, as the
 /// release's own shell starts.
 pub fn distribution(profile: &'static tcl_dialect::DialectProfile) -> Vm {

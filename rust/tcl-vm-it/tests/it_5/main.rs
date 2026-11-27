@@ -38,6 +38,7 @@ mod cmd_namespace;
 mod cmd_oo;
 mod cmd_package;
 mod cmd_switch;
+mod cmd_trace;
 mod cmd_try;
 mod command;
 mod command_mutation_deopt_e2e;

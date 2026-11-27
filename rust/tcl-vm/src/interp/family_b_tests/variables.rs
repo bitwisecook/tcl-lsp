@@ -412,32 +412,3 @@ fn confined_jim_dictionary_lappend_refuses_foreign_write_and_preserves_reads() {
     );
     assert!(vm.get_var("::missing").is_none());
 }
-
-#[test]
-fn namespace_var_enumeration_uses_the_exact_retained_token() {
-    let mut vm = Vm::new();
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    assert_eq!(
-        eval_value(
-            &mut vm,
-            "namespace eval N {\
-                     variable old OLD;\
-                     proc p {} {\
-                         namespace delete ::N;\
-                         namespace eval ::N {variable fresh NEW};\
-                         yield paused\
-                     }\
-                 }",
-        ),
-        ""
-    );
-    let old = Namespaces::find_namespace(&vm, ROOT_NS, "::N").unwrap();
-    assert_eq!(eval_value(&mut vm, "coroutine c ::N::p"), "paused");
-    let fresh = Namespaces::find_namespace(&vm, ROOT_NS, "::N").unwrap();
-
-    assert_ne!(old, fresh);
-    assert_eq!(Namespaces::vars_in(&vm, old), vec!["old".to_owned()]);
-    assert_eq!(Namespaces::vars_in(&vm, fresh), vec!["fresh".to_owned()]);
-
-    assert_eq!(eval_value(&mut vm, "c"), "");
-}

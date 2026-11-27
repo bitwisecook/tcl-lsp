@@ -413,87 +413,6 @@ fn logical_parser_capability_has_explicit_host_cache_and_child_ownership() {
 }
 
 #[test]
-fn explicit_host_activation_restores_user_policy_and_separates_cached_bodies() {
-    struct PolicyProbe;
-    impl NativeCommand for PolicyProbe {
-        fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
-            assert_eq!(
-                vm.dialect_profile().cache_key(),
-                tcl_dialect::DialectProfile::irules().cache_key(),
-            );
-            ok(Value::string(if vm.active_native_profile.is_some() {
-                "HOST"
-            } else {
-                "USER"
-            }))
-        }
-    }
-    let source = tcl_dialect::DialectProfile::irules();
-    let host = crate::environment::profile_for_dialect("tcl9.0");
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(source);
-    assert!(vm.set_command_surface_profile(host));
-    assert!(vm.expression_quote_control().is_none());
-    assert!(vm.set_native_engine_profile(host));
-    assert!(vm.set_logical_quote_provider(
-        tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
-    ));
-    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(source)));
-    vm.register_native_command("policy_probe", Rc::new(PolicyProbe));
-    let user_stamp = vm.native_cache_stamp(ROOT_NS);
-    let user_entry = without_literal_observation(
-        vm.native_compilation_entry_for_namespace("", false)
-            .unwrap(),
-    );
-    let generation = vm.profile_generation();
-    let completion = vm
-        .try_eval_native_host_source("policy_probe")
-        .expect("host activation");
-    assert_eq!(completion.code, Code::Ok);
-    assert_eq!(completion.result.string_bytes().as_ref(), b"HOST");
-    assert!(vm.active_native_profile.is_none());
-    assert_eq!(vm.profile_generation(), generation);
-    assert_eq!(vm.native_cache_stamp(ROOT_NS), user_stamp);
-    let completion = vm
-        .try_eval_source("policy_probe")
-        .expect("logical user activation");
-    assert_eq!(completion.code, Code::Ok);
-    assert_eq!(completion.result.string_bytes().as_ref(), b"USER");
-    assert_eq!(
-        without_literal_observation(
-            vm.native_compilation_entry_for_namespace("", false)
-                .unwrap()
-        ),
-        user_entry
-    );
-    let child = vm.fork_child_state();
-    assert_eq!(child.logical_providers.quote, vm.logical_providers.quote);
-    assert_eq!(
-        (
-            child.actual_native_execution_profile().cache_key(),
-            child.native_execution_profile().cache_key(),
-            child.logical_providers.quote
-        ),
-        (
-            vm.native_compiler_policy().engine.key(),
-            vm.native_compiler_policy().invocation.key(),
-            vm.native_compiler_policy().quote_provider
-        ),
-    );
-    vm.active_native_profile = Some(host);
-    let host_stamp = vm.native_cache_stamp(ROOT_NS);
-    assert_ne!(host_stamp.policy, user_stamp.policy);
-    let host_unit = vm.compile_script_cached("policy_probe").expect("host unit");
-    assert_eq!(host_unit.native_cache.unwrap().policy, host_stamp.policy);
-    let host_frame = crate::exec::Frame::new(host_unit, false);
-    vm.active_native_profile = None;
-    assert_eq!(
-        vm.activation_stack_stale_message(&[host_frame], &vm.source_namespace_path()),
-        Some("cannot continue bytecode after native invocation policy changed"),
-    );
-}
-
-#[test]
 fn explicit_host_source_keeps_parser_compiler_and_cache_profile_together() {
     let mut vm = Vm::new();
     let user = tcl_dialect::DialectProfile::irules();
@@ -544,31 +463,6 @@ fn explicit_host_source_keeps_parser_compiler_and_cache_profile_together() {
     );
     assert_eq!(vm.source_profile().cache_key(), user.cache_key());
     assert!(!vm.lexer_config().expand_syntax);
-}
-
-#[test]
-fn host_script_and_its_nested_substitution_use_the_explicit_source_activation() {
-    let mut vm = Vm::new();
-    let user = tcl_dialect::DialectProfile::irules();
-    let host = crate::environment::profile_for_dialect("tcl9.0");
-    vm.set_dialect_profile(user);
-    assert!(vm.set_command_surface_profile(host));
-    assert!(vm.set_native_engine_profile(host));
-    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(user)));
-    let completion = vm
-        .try_eval_native_host_source("set original [list {*}{A B}]; set original")
-        .expect("explicit host source admission");
-    assert_eq!(completion.code, Code::Ok);
-    assert_eq!(completion.result.string_bytes().as_ref(), b"A B");
-    assert!(vm.active_native_profile.is_none());
-    assert_eq!(vm.dialect_profile().cache_key(), user.cache_key());
-    assert!(!vm.lexer_config().expand_syntax);
-    assert!(!vm.eval_cache.is_empty());
-    assert!(
-        vm.eval_cache
-            .values()
-            .all(|cached| cached.entry.profile == host.cache_key())
-    );
 }
 
 #[test]

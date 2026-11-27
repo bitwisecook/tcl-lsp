@@ -1097,3 +1097,65 @@ compiler. It missed helpers that call `BytecodeCompileService` under a
 `native_namespace_address_tests`, and any `expr::tests` row that compiles.
 The dependable check is to delete `native_fixture::interpreter*` and drop
 the two dev-dependencies, then move or delete each test the build rejects.
+
+**Batch 17, the compiler leaves `tcl-vm` (27 November 2026).** With
+`native_fixture::interpreter*` deleted and both dev-dependencies dropped, the
+build rejected 8 sites in 7 files. To find which tests there run Tcl
+source, the parents' compiler was swapped, uncommitted, for one that refuses
+every script: 44 tests then failed and the rest passed, so only the 44 need
+a compiler. 45 tests move to `tcl-vm-it` under their old module paths (42
+of the 44, and three Jim rows that share their macro), 2 are rewritten in
+place without a compiler, and none is deleted.
+- Moved whole: `native_namespace_command_query_tests`,
+  `native_variable_query_tests` and `native_alias_registration_tests` (each
+  compares a whole script's output with tclsh 8.4–9.1 and, for the first
+  two, jimsh). `it_5/fixture.rs` gains `interpreter_with_utf8_output` and a
+  shared `Output` capture. `native_namespace_origin_tests`' six release rows
+  move; its two retired-world tests stay.
+- `native_namespace_address_tests`' five release rows now run `namespace
+  eval` and `namespace exists` on `{}` and `::` from `::` and `::__nh_outer`
+  through `namespace eval`, instead of a hand-pushed namespace frame and
+  `invoke_host_original_object_vector`; they compare code, result and
+  `::errorCode` with the same tclsh captures. Its two private tests stay.
+- `cmd_trace::native_original_tests`: the two whole-script trace comparisons
+  move. `variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls`
+  now registers, reports and removes the counted `watch A\0X` prefix through
+  `trace add|info|remove variable` (8.4: `trace variable|vinfo|vdelete`)
+  object words, as its proof's C probe does. Cut: the input object's string
+  invalidation after registration (`invalidate_native_string_for_test`). The
+  other four, which never run source, stay over a compiler-less core.
+- `interp::family_b_tests`: `release_vm` and `select_release` stop
+  installing a compiler. Moved: six `intrinsic_guards` tests through the
+  public guard API (`the_sweep_attests_only_the_builtin_it_registered` reads
+  attestation through `prepare_command_guard` instead of the private
+  `attested_identities`), five `hidden_commands` tests and
+  `variables::namespace_var_enumeration_uses_the_exact_retained_token`. The
+  hidden-procedure tests hide, invoke and list through `interp hide`,
+  `interp invokehidden`, `$child invokehidden` and `interp hidden`, and
+  select a child's release through `set_child_native_engine_profile` and
+  `set_child_dialect_profile`; the bytecode-cache generation checks are cut.
+  `host_activation`'s two tests move: `explicit_host_activation_restores_user_policy_and_separates_cached_bodies`
+  now runs the same text as host source (`{*}` expands: `A|B`) and as iRules
+  user source (a brace closes the word: `*|A B`), twice in turn, instead of
+  reading the private active profile, cache stamps, compilation entry,
+  forked child state and the stale-activation message.
+- Rewritten in place: `compile_admission::procedure_header_admission_retains_lookup_and_callable_incarnations`
+  and `native_entry_identity::native_entry_retains_stock_identity_after_qualified_rename`
+  check the compilation entry the VM hands a compiler; their setup scripts
+  became command invocations and `activate_namespace_operand`.
+- Three `#[cfg(test)]` helpers only the moved host-activation test used are
+  removed: `NativeProfileReceipt::key`, `Frame::namespace_stale_message` and
+  `Vm::activation_stack_stale_message`.
+- `deny.toml` drops `tcl-vm` from the `tcl-codegen` and `tcl-compiler`
+  wrapper lists. The heavy-test rows follow the moved tests, and three
+  stale `family_b_tests` rows gain their child module.
+- After: `cargo tree -p tcl-vm -e dev --depth 1` lists neither crate, and
+  the test cone is 17 workspace crates. After a one-line edit to
+  `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs`,
+  `cargo test -p tcl-vm --no-run` rebuilds 0 crates in 0.12 s, against 3
+  crates (`tcl-compiler`, `tcl-codegen`, `tcl-vm`) in 21.9 s before.
+- Parity: `cargo test -p tcl-vm -p tcl-vm-it --no-fail-fast` gives 2981
+  passes and 73 failures, every failure in the batch-2 set by name and none
+  new. The totals are lower than the structural move's 3152 and 82 by the
+  tests batches 1–16 deleted.
+- No new VM-vs-tclsh gap.

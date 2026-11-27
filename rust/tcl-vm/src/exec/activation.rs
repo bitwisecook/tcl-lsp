@@ -240,17 +240,6 @@ impl Frame {
         message
     }
 
-    #[cfg(test)]
-    fn namespace_stale_message(
-        &self,
-        current_namespace: &tcl_core_types::ByteNamespacePath,
-    ) -> Option<&'static str> {
-        (self.each_loop.is_none()
-            && self.compiler_generation.is_some()
-            && self.source_namespace.compiled_path() != Some(current_namespace))
-        .then_some("cannot continue bytecode after namespace changed")
-    }
-
     /// Build a bytecode frame from the generations owned by its compiled
     /// script. Keeping this extraction here prevents individual deferred
     /// consumers from accidentally substituting the VM's current generations.

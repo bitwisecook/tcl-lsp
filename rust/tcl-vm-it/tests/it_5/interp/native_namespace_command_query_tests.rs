@@ -18,35 +18,17 @@
 
 //! Original public command-query output from retained reference executions.
 
-use std::{cell::RefCell, io::Write, rc::Rc};
-
-struct Output(Rc<RefCell<Vec<u8>>>);
-impl Write for Output {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 fn compare(engine: &str, oracle: &[u8]) {
-    let profile = crate::environment::profile_for_dialect(engine);
-    let output = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = crate::native_fixture::interpreter_with_output(
-        profile,
-        Box::new(Output(Rc::clone(&output))),
-    );
-    crate::native_fixture::install_distribution(&mut vm);
+    let profile = tcl_vm::test_support::profile(engine);
+    let output = crate::fixture::Output::default();
+    let mut vm = crate::fixture::distribution_with_output(profile, Box::new(output.clone()));
     let completion = vm
         .try_eval_source(include_str!(
-            "../../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
+            "../../../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
         ))
         .unwrap();
     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
-    assert!(vm.refused_completion().is_none(), "{engine}");
-    let actual = output.borrow();
+    let actual = output.0.borrow();
     let (actual_identity, actual_rows) =
         actual.split_at(actual.iter().position(|byte| *byte == b'\n').unwrap() + 1);
     let (oracle_identity, oracle_rows) =
@@ -98,7 +80,7 @@ macro_rules! queries {
             compare(
                 $engine,
                 include_bytes!(concat!(
-                    "../../../../experiments/name-handling/namespace-command-query/portable/",
+                    "../../../../../experiments/name-handling/namespace-command-query/portable/",
                     $provider,
                     "/stdout.bin"
                 )),

@@ -188,7 +188,6 @@ fn jim_math_numeric_results_follow_the_measured_native_protocol() {
 #[test]
 fn moved_math_handler_keeps_its_registered_implementation_identity() {
     let mut vm = Vm::new();
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert_eq!(
         vm.try_invoke_command(
             "rename",
@@ -293,13 +292,8 @@ fn procedure_header_admission_retains_lookup_and_callable_incarnations() {
     use tcl_runtime_api::native_compilation::NativeProcedureHeaderPrerequisite;
     let mut vm = Vm::new();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    assert!(
-        vm.try_eval_source("proc noop args {}; namespace eval N {}")
-            .unwrap()
-            .code
-            .is_ok()
-    );
+    run(&mut vm, &["proc", "noop", "args", ""]);
+    vm.activate_namespace_operand(b"::N").unwrap();
     let entry = vm
         .native_compilation_entry_for_namespace("N", false)
         .unwrap();
@@ -326,21 +320,12 @@ fn procedure_header_admission_retains_lookup_and_callable_incarnations() {
     foreign = required.clone();
     foreign.interpreter.owner += 1;
     assert!(!vm.native_procedure_header_prerequisite_matches(&foreign));
-    assert!(
-        vm.try_eval_source("proc N::noop args {return LOCAL}")
-            .unwrap()
-            .code
-            .is_ok()
-    );
+    run(&mut vm, &["proc", "N::noop", "args", "return LOCAL"]);
     assert!(!vm.native_procedure_header_prerequisite_matches(&required));
     let mut absolute = required.clone();
     absolute.invocation_word = "::noop".into();
     assert!(vm.native_procedure_header_prerequisite_matches(&absolute));
-    assert!(
-        vm.try_eval_source("rename noop {}; proc noop args {}")
-            .unwrap()
-            .code
-            .is_ok()
-    );
+    run(&mut vm, &["rename", "noop", ""]);
+    run(&mut vm, &["proc", "noop", "args", ""]);
     assert!(!vm.native_procedure_header_prerequisite_matches(&absolute));
 }

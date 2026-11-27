@@ -16,94 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original byte operands against five direct native trace measurements.
+//! Trace operands holding raw bytes, through the trace command directly.
 
 use super::*;
-use std::{cell::RefCell, io::Write, rc::Rc};
-use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl Write for Capture {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-fn physical_vm(version: TclVersion, output: Capture) -> Vm {
-    let profile =
-        tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile();
-    let mut vm = Vm::with_native_core(
-        Box::new(output),
-        Rc::new(crate::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+fn physical_vm(version: TclVersion) -> Vm {
+    crate::native_fixture::core(
+        tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile(),
     )
-    .expect("matching independently selected physical core");
-    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm
-}
-
-fn check_original_source(source: &[u8], expected: impl Fn(TclVersion) -> &'static [u8]) {
-    for version in TclVersion::ALL {
-        let output = Capture::default();
-        let mut vm = physical_vm(version, output.clone());
-        let completion = vm
-            .try_eval_source_bytes(source)
-            .expect("original byte source admitted");
-        assert_eq!(
-            completion.code,
-            tcl_runtime_api::Code::Ok,
-            "{version:?}: {:?}",
-            completion.result
-        );
-        assert_eq!(
-            output.0.borrow().as_slice(),
-            expected(version),
-            "{version:?}"
-        );
-    }
-}
-
-#[test]
-fn opaque_command_trace_operands_match_all_five_direct_native_engines() {
-    // Native proof: naming.command-trace.opaque-prefix-report-and-removal
-    // docs/design/analysis/name-resolution-proofs/command-trace.opaque-prefix-report-and-removal.md
-    check_original_source(
-        include_bytes!("../../../tcl-syntax/tests/data/native_command_trace/opaque.tcl"),
-        |_| b"6362ff\n6362ff\n0\n1\n0\nenter leave rename delete\n",
-    );
-}
-
-#[test]
-fn counted_nul_command_trace_prefixes_preserve_native_storage_and_eval_extents() {
-    // Native proof: naming.command-trace.counted-zero-prefix-storage-removal
-    // docs/design/analysis/name-resolution-proofs/command-trace.counted-zero-prefix-storage-removal.md
-    // Native proof: naming.command-trace.counted-zero-callback-evaluation
-    // docs/design/analysis/name-resolution-proofs/command-trace.counted-zero-callback-evaluation.md
-    check_original_source(
-        include_bytes!("../../../tcl-syntax/tests/data/native_command_trace/counted_nul.tcl"),
-        |version| {
-            if version <= TclVersion::V8_5 {
-                b"6362ff\n0\n6362ff\n0\n{} {}\n"
-            } else {
-                b"6362ff\n0\n6362ff\n0\nenter leave\n"
-            }
-        },
-    );
 }
 
 #[test]
 fn opaque_missing_trace_command_reports_original_bytes_without_panicking() {
     for version in TclVersion::ALL {
-        let mut vm = physical_vm(version, Capture::default());
+        let mut vm = physical_vm(version);
         let completion = cmd_trace(
             &mut vm,
             &[
@@ -177,7 +104,7 @@ fn trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand
                     .iter()
                     .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                     .collect::<Vec<_>>();
-                let mut vm = physical_vm(version, Capture::default());
+                let mut vm = physical_vm(version);
                 let original = Value::from_native_string_bytes(kind);
                 let completion = cmd_trace(&mut vm, &[Value::string(member), original]);
                 assert_eq!(completion.code.as_int().to_string(), code);
@@ -288,7 +215,7 @@ fn unavailable_trace_prefix_refuses_before_materializing_original_name() {
     use tcl_core_types::ROOT_NS;
     use tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer;
 
-    let mut vm = physical_vm(TclVersion::V9_0, Capture::default());
+    let mut vm = physical_vm(TclVersion::V9_0);
     let prefix = vm
         .native_namespace_result_object(ROOT_NS, NativeNamespaceObjectProducer::Current)
         .unwrap();
@@ -308,54 +235,4 @@ fn unavailable_trace_prefix_refuses_before_materializing_original_name() {
     assert_eq!(completion.code, tcl_runtime_api::Code::Error);
     assert!(vm.refused_completion().is_some());
     assert!(name.resident_string_bytes().is_none());
-}
-
-#[test]
-fn variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls() {
-    // Native proof: naming.variable.copied-prefix-storage-removal-report-evaluation
-    // docs/design/analysis/name-resolution-proofs/copied-prefix-storage-removal-report-evaluation.md
-    for version in TclVersion::ALL {
-        for (removal, remains) in [
-            (b"watch A\0Y".as_slice(), false),
-            (b"watch A\0YY".as_slice(), true),
-            (b"watch A\xc0\x80X".as_slice(), true),
-        ] {
-            let mut vm = physical_vm(version, Capture::default());
-            let setup = vm
-                .try_eval_source_bytes(b"proc watch {token args} {set ::seen $token}")
-                .unwrap();
-            assert_eq!(setup.code, tcl_runtime_api::Code::Ok);
-            let prefix = Value::new_native_string_bytes(b"watch A\0X".as_slice());
-            vm.add_var_trace_bytes(
-                b"v",
-                vec!["write".into()],
-                &prefix,
-                version == TclVersion::V8_4,
-            );
-            assert!(vm.refused_completion().is_none());
-            // Registration owns copied bytes, not the input object's string updater
-            // or its later invalidation and cache lifetime.
-            prefix.invalidate_native_string_for_test();
-            let info = vm.var_trace_info_bytes(b"v");
-            assert_eq!(info.len(), 1);
-            assert_eq!(info[0].1.string_bytes().as_ref(), b"watch A");
-            let fired = vm.try_eval_source_bytes(b"set v VALUE").unwrap();
-            assert_eq!(
-                fired.code,
-                tcl_runtime_api::Code::Ok,
-                "{version:?}: {:?}",
-                fired.result
-            );
-            assert_eq!(
-                vm.get_var_bytes(b"::seen").unwrap().string_bytes().as_ref(),
-                b"A\0X"
-            );
-            vm.remove_var_trace_bytes(b"v", &["write".into()], removal);
-            assert_eq!(
-                !vm.var_trace_info_bytes(b"v").is_empty(),
-                remains,
-                "{version:?}: {removal:?}"
-            );
-        }
-    }
 }
