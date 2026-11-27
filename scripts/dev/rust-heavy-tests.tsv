@@ -978,10 +978,7 @@ tcl-vm	interp::command_cleanup::tests::original_command_retirement_follows_actua
 tcl-vm	interp::command_cleanup::tests::original_true_command_deletion_keeps_release_order_and_visible_source_imports
 tcl-vm	interp::family_b_tests::counted_syntax_failure_state_distinguishes_direct_from_script_preparation
 tcl-vm	interp::family_b_tests::every_trace_firing_intrinsic_fires_a_trace_here
-tcl-vm	interp::family_b_tests::native_scan_and_binary_fields_preserve_lazy_double_representations
 tcl-vm	interp::family_b_tests::trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement
-tcl-vm	interp::family_b_tests::variable_link_target_rebinding_and_materialisation_follow_the_policy
-tcl-vm	interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes
 tcl-vm	interp::native_alias_registration_tests::original_alias_records_c85
 tcl-vm	interp::native_alias_registration_tests::original_alias_records_c86
 tcl-vm	interp::native_alias_registration_tests::original_alias_records_c90
@@ -1004,7 +1001,6 @@ tcl-vm	interp::native_hidden_namespace_context_tests::hidden_namespace_context_k
 tcl-vm	interp::native_hidden_namespace_context_tests::hidden_namespace_context_matches_original_child_and_current_inputs
 tcl-vm	interp::native_hidden_namespace_context_tests::original_trailing_creation_keeps_the_dying_parent_token_and_cstring_extent
 tcl-vm	interp::native_hidden_namespace_context_tests::public_namespace_conflict_keeps_the_original_operand_and_error_code
-tcl-vm	interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
 tcl-vm	interp::native_jim_links::alias_publication_tests::original_upvar_error_publication_matches_all_six_native_sources
 tcl-vm	interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results
 tcl-vm	interp::native_namespace_command_query_tests::original_command_queries_c85
@@ -1298,6 +1294,9 @@ tcl-vm-it::it_5	exec::native_try_tests::original_try_vectors_keep_native_handler
 tcl-vm-it::it_5	exec::native_uplevel_tests::uplevel_matches_the_native_level_body_and_restore_rows
 tcl-vm-it::it_5	expr::tests::native_integer_arithmetic_uses_the_selected_engine_on_both_paths
 tcl-vm-it::it_5	expr::tests::native_literal_and_final_string_conversion_are_distinct
+tcl-vm-it::it_5	interp::family_b_tests::variables::native_scan_and_binary_fields_preserve_lazy_double_representations
+tcl-vm-it::it_5	interp::family_b_tests::variables::variable_link_target_rebinding_and_materialisation_follow_the_policy
+tcl-vm-it::it_5	interp::family_b_tests::variables::variable_links_follow_authored_dialect_lifetimes
 tcl-vm-it::it_5	interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources
 tcl-vm-it::it_5	interp::native_command_holder_tests::original_command_holder_source_controls_match_all_native_providers
 tcl-vm-it::it_5	interp::native_command_holder_tests::original_ensemble_holder_source_controls_match_all_native_providers
@@ -1305,6 +1304,7 @@ tcl-vm-it::it_5	interp::native_command_holder_tests::original_jim_ensemble_sourc
 tcl-vm-it::it_5	interp::native_command_holder_tests::original_jim_namespace_library_sources_match_all_native_provider_results
 tcl-vm-it::it_5	interp::native_compiled_append::tests::registered_append_instructions_match_43_native_callback_controls
 tcl-vm-it::it_5	interp::native_execution_constants::tests::original_match_source_visits_pattern_then_subject_under_authentic_compiler
+tcl-vm-it::it_5	interp::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows
 tcl-vm-it::it_5	interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources
 tcl-vm-it::it_5	native_return_merge::execution_tests::registered_return_instructions_match_44_native_controls
 tcl-vm-it::it_5	native_switch::tests::registered_switch_instructions_match_56_native_branch_controls
