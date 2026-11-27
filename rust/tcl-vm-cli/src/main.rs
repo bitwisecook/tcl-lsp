@@ -322,7 +322,13 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
 /// evaluated directly, and a completion other than `ok` reporting its
 /// `-errorinfo` to stderr.
 fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
-    let result = vm.eval_file(path, src, true);
+    let result = match vm.try_eval_file(path, src, true) {
+        Ok(result) => result,
+        Err(refusal) => {
+            vm.report_stderr_text(&refusal.to_string());
+            return 1;
+        }
+    };
     if let Some(code) = vm.take_exit() {
         return code;
     }

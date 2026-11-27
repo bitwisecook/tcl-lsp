@@ -203,6 +203,22 @@ impl Vm {
     }
 }
 
+/// Whether a compile failed only because its native compiler selection needs a
+/// preflight provider this entry cannot supply: a command the registry has no
+/// recipe for, such as a literal `{*}` expansion. The script then runs with
+/// plain dispatch, each command invoked as C invokes one its compiler declines,
+/// as the compile service does for a fresh document.
+pub(crate) fn declines_native_selection<T>(
+    compiled: &Result<T, tcl_runtime_api::CompileError>,
+) -> bool {
+    matches!(
+        compiled,
+        Err(tcl_runtime_api::CompileError::NativeCompilationAdmission(
+            tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
+        ))
+    )
+}
+
 impl Vm {
     /// Compile through the explicit plain-dispatch capability and verify the
     /// returned artifact actually carries no specialised binding assumptions.
@@ -459,6 +475,9 @@ impl Vm {
             self.source_profile(),
             &entry,
         );
+        if declines_native_selection(&compiled) {
+            return self.compile_plain_cached_module(target);
+        }
         let m = Rc::new(compiled.map_err(|error| {
             self.compile_service_error(
                 error,
@@ -589,6 +608,9 @@ impl Vm {
         } else {
             compiler.compile_script_bytes_with_entry(target, self.source_profile(), &entry)
         };
+        if !plain && declines_native_selection(&result) {
+            return self.compile_module_bytes_as(source, namespace, true, direct);
+        }
         let module = Rc::new(result.map_err(|error| {
             self.compile_service_error_bytes(
                 error,

@@ -97,9 +97,12 @@ impl CodegenCtx<'_> {
                     .map(tcl_runtime_api::CompiledNamespaceContext::Native)
             });
         }
-        let plan = if self
-            .invocation_dialect
-            .is_some_and(|dialect| dialect.family() == Some(tcl_dialect::model::Family::Jim))
+        // Plain dispatch invokes every command, nested substitutions
+        // included, without native compiler selection.
+        let plan = if self.plain_command_dispatch
+            || self
+                .invocation_dialect
+                .is_some_and(|dialect| dialect.family() == Some(tcl_dialect::model::Family::Jim))
         {
             Ok(NativeByteCommandPlan::Generic)
         } else if let Some(entry) = self.native_entry {
