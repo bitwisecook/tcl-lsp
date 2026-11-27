@@ -110,8 +110,10 @@ fn cmd_clock(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         micros: i64::try_from(host.clock().now_micros()).unwrap_or(i64::MAX),
     };
     let offset = move |ts: i64| host.clock().local_offset_secs(ts);
-    let release = vm.runtime_version();
-    match core_clock::dispatch(vm, args, &now, &offset, release) {
+    let grammar = vm
+        .kernel_release_policy()
+        .map_or_else(tcl_dialect::ClockGrammar::default, |policy| policy.clock);
+    match core_clock::dispatch(vm, args, &now, &offset, grammar) {
         Ok(v) => ok(v),
         Err(e) => vm.cmd_error(e),
     }

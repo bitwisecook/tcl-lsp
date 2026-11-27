@@ -589,7 +589,9 @@ Generated command surfaces are bounded by the surveyed release ladder.
 
 `TclVersion::release_policy()` projects the third dataset into numeric and
 backslash grammars, character units, double-string precision, expression
-comments, namespace fallback, regex anchors and optional-level selection. The
+comments, namespace fallback, regex anchors, optional-level selection and the
+command kernels' grammars (`scan`'s integer width, `clock`'s units and format
+grammar, `binary`'s field set; `tcl-dialect/src/command_grammar.rs`). The
 execution fixture is `rust/tcl-dialect/data/release-policies.tcl`; it records the
 literal discriminating scripts and their result values, rather than a table
 assigned by version comparisons. Unknown observation combinations fail

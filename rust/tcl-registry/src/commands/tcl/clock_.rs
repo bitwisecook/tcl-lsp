@@ -77,7 +77,7 @@ impl crate::InvocationDialect {
         }
         let deferred_members: &'static [&'static [u8]] = match self.tcl_version? {
             TclVersion::V8_6 => &[b"add", b"format", b"scan"],
-            TclVersion::V9_0 => &[],
+            TclVersion::V9_0 | TclVersion::V9_1 => &[],
             _ => return None,
         };
         Some(crate::invocation_words::NativeEnsembleBootstrap {
@@ -136,29 +136,25 @@ macro_rules! clock_reading_compiler {
 }
 
 // C9.0/C9.1 TclClockInit gives the add, format and scan workers
-// TclCompileBasicMin1ArgCmd; C8.6 defines them in clock.tcl.
+// TclCompileBasicMin1ArgCmd, a named invocation of the worker. C8.6's map
+// already names the same slots, but clock.tcl defines them as procedures, so
+// the 8.6 worker has no compile hook (tclsh 8.6.18 disassembles `clock
+// format 0` to `invokeReplace 3 2` on `::tcl::clock::format`).
 macro_rules! clock_basic_compiler {
     ($member:literal) => {
         crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
-                compiler: &crate::native_compilation::NativeCompilationSpec {
-                    grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
-                        TclVersion::V9_0,
-                    ),
-                    operation: crate::SemanticOperationId::Invoke,
-                    body: crate::native_compilation::NativeBodyCompilation::Inherit,
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::clock",
+                    member: $member,
+                    slot: concat!("::tcl::clock::", $member),
+                    command: "clock",
+                    prepended: &[$member],
                 },
-                lookups: &[
-                    crate::native_compilation::NativeCompilerImplementationLookup {
-                        ensemble: "::clock",
-                        member: $member,
-                        slot: concat!("::tcl::clock::", $member),
-                        command: "clock",
-                        prepended: &[$member],
-                    },
-                ],
-                implementation_from: TclVersion::V9_0,
-                monolithic_no_hook_before: false,
+                implementation_from: TclVersion::V8_6,
+                hook_from: TclVersion::V9_0,
+                arity: Arity::at_least(1),
+                later_arity: None,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -881,13 +877,17 @@ mod tests {
                     .is_none()
             );
         }
-        for member in ["add", "format", "scan", "unmeasured"] {
-            assert!(
-                registry
-                    .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)
-                    .is_none()
-            );
+        for member in ["add", "format", "scan"] {
+            let compiler = registry
+                .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)
+                .unwrap();
+            assert_eq!(compiler.compiler_hook_presence(dialect), Some(false));
         }
+        assert!(
+            registry
+                .native_compilation_for_registration("tcl::clock::unmeasured", dialect)
+                .is_none()
+        );
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             let dialect = InvocationDialect::for_version(version);
             for member in ["add", "format", "scan"] {
@@ -902,7 +902,10 @@ mod tests {
                 InvocationDialect::for_version(version)
                     .clock_bootstrap_ensemble()
                     .is_some(),
-                matches!(version, TclVersion::V8_6 | TclVersion::V9_0)
+                matches!(
+                    version,
+                    TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+                )
             );
             assert_eq!(
                 InvocationDialect::for_version(version)

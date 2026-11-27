@@ -42,6 +42,12 @@ pub struct ReleasePolicyFacts {
     pub uplevel_level_presence: crate::FrameLevelPresence,
     /// Source-defined local-name preparation and frame-table access.
     pub compiled_locals: CompiledLocalPolicy,
+    /// `scan`'s integer width.
+    pub scan: crate::ScanGrammar,
+    /// `clock`'s units and format grammar.
+    pub clock: crate::ClockGrammar,
+    /// `binary`'s field set.
+    pub binary: crate::BinaryGrammar,
 }
 
 /// The C compiler's local-name preparation and frame-table capabilities.

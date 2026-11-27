@@ -146,7 +146,9 @@ impl ScanSemantics {
     fn value(ops: &mut ConstOps<'_>, scanned: &Scanned) -> Result<ConstValue, DeclineReason> {
         match scanned {
             Scanned::Int(n) if i32::try_from(*n).is_ok() => Ok(ConstValue::int(*n)),
-            Scanned::Int(_) => Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower)),
+            Scanned::Int(_) | Scanned::Unsigned(_) | Scanned::Big { .. } => {
+                Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
+            }
             Scanned::Double(d) if *d == 0.0 && d.is_sign_negative() => {
                 Err(DeclineReason::Unsupported)
             }

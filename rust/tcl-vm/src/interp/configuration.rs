@@ -285,6 +285,16 @@ impl Vm {
         self.runtime_version
     }
 
+    /// The selected C Tcl release's command-kernel grammars (`scan`, `clock`,
+    /// `binary`); another family keeps each kernel's default grammar.
+    #[must_use]
+    pub(crate) fn kernel_release_policy(
+        &self,
+    ) -> Option<&'static tcl_dialect::release_policy::ReleasePolicyFacts> {
+        (self.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Tcl))
+            .then(|| self.runtime_version.release_policy())
+    }
+
     /// The dialect profile this VM validates its command surface against
     /// (see [`Self::set_dialect_profile`]).
     #[must_use]

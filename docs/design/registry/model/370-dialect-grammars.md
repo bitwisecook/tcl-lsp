@@ -1010,3 +1010,43 @@ unit's profile, an engine that cannot run it refuses instead.
 
 - **W3.** The release-facts generator and 79's operator, numeral, escape and character-model axes are Now 6 work, done once under 417.
 - **E11 (plan pass).** The `scan` and `clock` engine rows are re-run with `TCL_LIBRARY` both unset and set to 9.0.4: `scan` is wrong at every `tclvm` release, and the `clock` failures are library selection (item 312), not `clock`.
+
+## Engine fixes (27 November 2026)
+
+The `scan`, `clock` and `binary` rows of the axis table are now typed values
+for C Tcl, read by the shared kernels and both engines:
+
+- **Release facts.** `ScanGrammar { int_width }`, `ClockGrammar { units,
+  format }` and `BinaryGrammar { formats }` (`tcl-dialect/src/command_grammar.rs`)
+  sit on `ReleasePolicyFacts`. `cargo xtask release-facts --verify-sources`
+  measures them with seven probe rows in `data/release-policies.tcl` (`scan
+  ffffffff %x`, `scan 1ffffffff %x`, `clock add`, `clock add … d`, `%Ez`,
+  `clock scan -format`, `binary format m`); an unmodelled combination fails
+  generation. They are the first per-grammar records of the `GrammarProfile`
+  sketched above; the axis enums move into it with item 417.
+- **Kernels.** `tcl_cmd_core::scan::scan_match_in` reads integers at the
+  release's width (`Wrap32Narrow`, `Full`, `Saturate32`, after C's `strtol` /
+  `strtoul`, `TclGetLongFromObj` and `TclGetIntFromObj`) and spells a
+  negative `%u` unsigned; `clock::dispatch` takes the `ClockGrammar`, with
+  8.4's `Tcl_ClockObjCmd` surface and the two `E`/`O` modifier tables;
+  `binary::{format,scan}_values_using` take `BinaryFormats`, which also
+  consumes the `u` suffix after any letter as `GetFormatSpec` does. The
+  analyser's `ScanConversion::truncates_to_int32` reads the same axis.
+- **The inline abort.** `tclvm -c 'clock add 0 1 day'` aborted with `native
+  compiler preflight provider required` because the compiler selection for
+  the `clock` workers was `Unknown`: add, format and scan used the
+  unmodelled `HookFrom(9.0)` (now `NamedEnsembleInvocation`, C's
+  `TclCompileBasicMin1ArgCmd`, with 8.6's slot carrying no hook), a clock
+  reading that the hook declines was `Unknown` rather than an invocation,
+  and 9.1 had no ensemble bootstrap and no clock-reading window (9.1 takes
+  `clock clicks -mi`).
+- **Conformance.** `rust/tcl-vm/tests/data/tclsh_parity/kernel_grammars.tcl`
+  and its `.expect` (tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0) cover every
+  row above, at top level and compiled in a procedure.
+
+Still open: the scan `conversions` axis (`%b` before 8.6, `ll` in 8.4, every
+`%llu` refused at validation in 8.5 and 8.6); 8.5's `scan` near 2^63;
+`clock scan … -format %Y` filling the base date on 8.5 and 8.6; 8.5 and
+8.6's `clock` usage and option wording; `clock monotonic` (9.1); and
+`runtime/rust`'s `binary` field set (it keeps the 8.5 grammar).
+

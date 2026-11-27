@@ -39,7 +39,8 @@
 //! ([`tcl_syntax::scan::parse_conversion`]); this module is the matcher and the
 //! cross-specifier validator that build on it.
 
-use tcl_syntax::scan::{CharSet, ScanConversion, parse_conversion};
+use tcl_dialect::{ScanGrammar, ScanIntWidth};
+use tcl_syntax::scan::{CharSet, ScanConversion, SizeModifier, parse_conversion};
 
 /// One scanned value, typed so each runtime builds its natural object
 /// (`%d`/`%x`/…→int, `%e`/`%f`/`%g`→double, `%s`/`%[`→string, `%c`→the code
@@ -48,10 +49,65 @@ use tcl_syntax::scan::{CharSet, ScanConversion, parse_conversion};
 pub enum Scanned {
     /// An integer conversion (`%d`/`%i`/`%u`/`%o`/`%x`/`%b`/`%c`/`%n`).
     Int(i64),
+    /// A `%u` whose value is negative as a C integer, read as unsigned 64-bit.
+    Unsigned(u64),
+    /// An `ll`-sized integer beyond 64 bits: its sign and digits in `radix`.
+    Big {
+        /// Whether a leading `-` was read.
+        negative: bool,
+        /// The conversion's radix.
+        radix: u32,
+        /// The digits read, without sign or prefix.
+        digits: String,
+    },
     /// A floating-point conversion (`%e`/`%f`/`%g`).
     Double(f64),
     /// A string conversion (`%s`/`%[...]`).
     Str(String),
+}
+
+impl Scanned {
+    /// The decimal spelling of an integer value ([`Self::Int`],
+    /// [`Self::Unsigned`] or [`Self::Big`]); `None` for a double or string.
+    #[must_use]
+    pub fn integer_decimal(&self) -> Option<String> {
+        match self {
+            Self::Int(value) => Some(value.to_string()),
+            Self::Unsigned(value) => Some(value.to_string()),
+            Self::Big {
+                negative,
+                radix,
+                digits,
+            } => {
+                const BASE: u64 = 1_000_000_000;
+                let mut limbs: Vec<u64> = vec![0];
+                for digit in digits.chars() {
+                    let mut carry = u64::from(digit.to_digit(*radix)?);
+                    for limb in &mut limbs {
+                        let next = *limb * u64::from(*radix) + carry;
+                        *limb = next % BASE;
+                        carry = next / BASE;
+                    }
+                    while carry > 0 {
+                        limbs.push(carry % BASE);
+                        carry /= BASE;
+                    }
+                }
+                let mut text = String::new();
+                if *negative && limbs.iter().any(|&limb| limb != 0) {
+                    text.push('-');
+                }
+                let mut rest = limbs.iter().rev();
+                text.push_str(&rest.next()?.to_string());
+                for limb in rest {
+                    use std::fmt::Write as _;
+                    write!(text, "{limb:09}").expect("writing to a String cannot fail");
+                }
+                Some(text)
+            }
+            Self::Double(_) | Self::Str(_) => None,
+        }
+    }
 }
 
 /// The result of matching a format against an input.
@@ -68,6 +124,9 @@ pub struct ScanOutcome {
     /// Whether the input reached EOF before any conversion matched (variable
     /// mode then returns `-1`).
     pub eof_before_conv: bool,
+    /// A conversion C refuses after reading it: `%llu` of a negative number
+    /// is `unsigned bignum scans are invalid` (`TCL FORMAT BADUNSIGNED`).
+    pub error: Option<crate::CmdError>,
 }
 
 /// Validate a scan `fmt` the way C's `ValidateFormat` (`tclScan.c`) does, before
@@ -210,6 +269,7 @@ pub fn plan_c86_character_scan(
     Ok(Some(ScanOutcome {
         nconv: usize::from(value.is_some()),
         eof_before_conv: value.is_none(),
+        error: None,
         values: if conversion.suppress {
             Vec::new()
         } else {
@@ -218,15 +278,23 @@ pub fn plan_c86_character_scan(
     }))
 }
 
-/// Match `fmt` against `input` (both code-point slices), producing the scanned
-/// values. Pure: no value model, no interp.
+/// Match `fmt` against `input` (both code-point slices) under the default
+/// grammar, Tcl 8.5 and 8.6's full-width integers. Pure: no value model, no
+/// interp.
 #[must_use]
 pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
+    scan_match_in(input, fmt, ScanGrammar::default())
+}
+
+/// Match `fmt` against `input` under the release's `scan` grammar.
+#[must_use]
+pub fn scan_match_in(input: &[char], fmt: &[char], grammar: ScanGrammar) -> ScanOutcome {
     let mut ii = 0; // input cursor (chars)
     let mut fi = 0; // format cursor (chars)
     let mut values: Vec<Option<Scanned>> = Vec::new();
     let mut nconv = 0; // C's `nconversions`: every success, `%n` included
     let mut eof_before_conv = false;
+    let mut error = None;
 
     while fi < fmt.len() {
         let fc = fmt[fi];
@@ -290,7 +358,14 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
             eof_before_conv = true;
         }
 
-        if let Some(v) = scan_one(input, &mut ii, &conv) {
+        let scanned = match scan_one(input, &mut ii, &conv, grammar.int_width) {
+            Ok(scanned) => scanned,
+            Err(refusal) => {
+                error = Some(refusal);
+                break;
+            }
+        };
+        if let Some(v) = scanned {
             // A suppressed success counts too: `scan 5 %*d%d a` is 0, not -1.
             if !conv.suppress {
                 values.push(Some(v));
@@ -315,29 +390,40 @@ pub fn scan_match(input: &[char], fmt: &[char]) -> ScanOutcome {
         values,
         nconv,
         eof_before_conv,
+        error,
     }
 }
 
 /// Scan one field for the parsed `conv`, advancing `ii`. Returns the typed
 /// value, or `None` if nothing valid was read.
-fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Scanned> {
+fn scan_one(
+    input: &[char],
+    ii: &mut usize,
+    conv: &ScanConversion,
+    width_axis: ScanIntWidth,
+) -> Result<Option<Scanned>, crate::CmdError> {
     // A width of 0 means "no limit" (`%0s` reads the whole word, scan-4.21/4.25).
     let width = conv.width.filter(|&w| w != 0).unwrap_or(usize::MAX);
     match conv.verb {
         'c' => {
             // One character → its code point. (No width, no whitespace skip.)
             if *ii >= input.len() {
-                return None;
+                return Ok(None);
             }
             let cp = i64::from(input[*ii] as u32);
             *ii += 1;
-            Some(Scanned::Int(cp))
+            Ok(Some(Scanned::Int(cp)))
         }
-        'd' | 'u' => scan_int(input, ii, width, 10),
-        'i' => scan_int_auto(input, ii, width),
-        'o' => scan_int(input, ii, width, 8),
-        'x' | 'X' => scan_int(input, ii, width, 16),
-        'b' => scan_int(input, ii, width, 2),
+        'd' | 'u' | 'i' | 'o' | 'x' | 'X' | 'b' => {
+            let text = match conv.verb {
+                'i' => scan_int_auto(input, ii, width),
+                'o' => scan_int(input, ii, width, 8),
+                'x' | 'X' => scan_int(input, ii, width, 16),
+                'b' => scan_int(input, ii, width, 2),
+                _ => scan_int(input, ii, width, 10),
+            };
+            text.map(|text| text.resolve(conv, width_axis)).transpose()
+        }
         's' => {
             let start = *ii;
             let mut n = 0;
@@ -346,13 +432,16 @@ fn scan_one(input: &[char], ii: &mut usize, conv: &ScanConversion) -> Option<Sca
                 n += 1;
             }
             if *ii == start {
-                return None;
+                return Ok(None);
             }
-            Some(Scanned::Str(input[start..*ii].iter().collect()))
+            Ok(Some(Scanned::Str(input[start..*ii].iter().collect())))
         }
-        'e' | 'E' | 'f' | 'g' | 'G' => scan_float(input, ii, width),
-        '[' => scan_set(input, ii, width, conv.charset.as_ref()?),
-        _ => None, // unknown conversion
+        'e' | 'E' | 'f' | 'g' | 'G' => Ok(scan_float(input, ii, width)),
+        '[' => Ok(conv
+            .charset
+            .as_ref()
+            .and_then(|set| scan_set(input, ii, width, set))),
+        _ => Ok(None), // unknown conversion
     }
 }
 
@@ -380,14 +469,158 @@ fn numeric_underflow(input: &[char], start: usize, verb: char) -> bool {
     k >= input.len()
 }
 
+/// The sign, radix and digits of one integer conversion, before the release
+/// reads them at its width.
+struct IntText {
+    negative: bool,
+    radix: u32,
+    digits: String,
+}
+
+impl IntText {
+    /// The digits' magnitude, or `None` beyond 64 bits.
+    fn magnitude(&self) -> Option<u64> {
+        let mut value: u64 = 0;
+        for digit in self.digits.chars() {
+            value = value
+                .checked_mul(u64::from(self.radix))?
+                .checked_add(u64::from(digit.to_digit(self.radix)?))?;
+        }
+        Some(value)
+    }
+
+    /// The signed value reduced modulo 2^64, or `None` beyond 64 bits.
+    fn wrapped(&self) -> Option<i64> {
+        self.magnitude().map(|magnitude| {
+            let bits = magnitude.cast_signed();
+            if self.negative {
+                bits.wrapping_neg()
+            } else {
+                bits
+            }
+        })
+    }
+
+    /// The value within `i64`, or `None`.
+    fn exact(&self) -> Option<i64> {
+        let magnitude = self.magnitude()?;
+        if self.negative {
+            0i64.checked_sub_unsigned(magnitude)
+        } else {
+            i64::try_from(magnitude).ok()
+        }
+    }
+
+    fn saturated(&self, low: i64, high: i64) -> i64 {
+        if self.negative { low } else { high }
+    }
+
+    /// C's `strtol` into a 64-bit `long`: the value clamped to its range.
+    fn strtol(&self) -> i64 {
+        self.exact()
+            .unwrap_or_else(|| self.saturated(i64::MIN, i64::MAX))
+    }
+
+    /// C's `strtoul`: the magnitude negated modulo 2^64, or `ULONG_MAX` on
+    /// overflow whatever the sign.
+    fn strtoul(&self) -> i64 {
+        self.wrapped().unwrap_or(-1)
+    }
+
+    /// Tcl 8's `TclGetLongFromObj`: a magnitude within 64 bits unsigned wraps.
+    fn tcl8_long(&self) -> i64 {
+        self.wrapped()
+            .unwrap_or_else(|| self.saturated(i64::MIN, i64::MAX))
+    }
+
+    /// Tcl 9's `TclGetLongFromObj`: `LONG_MIN..=ULONG_MAX`, the top wrapping.
+    fn tcl9_long(&self) -> Option<i64> {
+        if self.negative {
+            self.exact()
+        } else {
+            self.wrapped()
+        }
+    }
+
+    /// Read the text as `width_axis` reads `conv`'s integer (`tclScan.c`).
+    fn resolve(
+        self,
+        conv: &ScanConversion,
+        width_axis: ScanIntWidth,
+    ) -> Result<Scanned, crate::CmdError> {
+        let unsigned = conv.verb == 'u';
+        let spell = |value: i64| {
+            if unsigned && value < 0 {
+                // C's `(unsigned long) value`.
+                Scanned::Unsigned(value.cast_unsigned())
+            } else {
+                Scanned::Int(value)
+            }
+        };
+        let size = conv.size.filter(|size| *size != SizeModifier::Short);
+        Ok(match width_axis {
+            // Tcl 8.4 reads `%d`/`%i` with `strtol` and the rest with
+            // `strtoul`, and has no bignum size: `L` and `ll` are `long`.
+            ScanIntWidth::Wrap32Narrow => {
+                let value = if matches!(conv.verb, 'd' | 'i') {
+                    self.strtol()
+                } else {
+                    self.strtoul()
+                };
+                // C's `(int) value` for a value within `0..=UINT_MAX`.
+                match u32::try_from(value) {
+                    Ok(narrow) if size.is_none() => Scanned::Int(i64::from(narrow.cast_signed())),
+                    _ => spell(value),
+                }
+            }
+            _ if size == Some(SizeModifier::Big) => {
+                if unsigned && self.negative && self.magnitude() != Some(0) {
+                    return Err(crate::CmdError::with_error_code(
+                        "unsigned bignum scans are invalid",
+                        "TCL FORMAT BADUNSIGNED",
+                    ));
+                }
+                match self.exact() {
+                    Some(value) => Scanned::Int(value),
+                    None => Scanned::Big {
+                        negative: self.negative,
+                        radix: self.radix,
+                        digits: self.digits,
+                    },
+                }
+            }
+            ScanIntWidth::Full => spell(self.tcl8_long()),
+            ScanIntWidth::Saturate32 if size == Some(SizeModifier::Long) => spell(
+                self.exact()
+                    .unwrap_or_else(|| self.saturated(i64::MIN, i64::MAX)),
+            ),
+            ScanIntWidth::Saturate32 => {
+                // `TclGetIntFromObj`: `INT_MIN..=UINT_MAX`, the top wrapping.
+                let int = self
+                    .tcl9_long()
+                    .and_then(|long| {
+                        i32::try_from(long)
+                            .ok()
+                            .or_else(|| u32::try_from(long).ok().map(u32::cast_signed))
+                    })
+                    .map_or_else(
+                        || self.saturated(i64::from(i32::MIN), i64::from(i32::MAX)),
+                        i64::from,
+                    );
+                spell(int)
+            }
+        })
+    }
+}
+
 /// `%d`/`%o`/`%x`/`%b`/`%u`: an optionally-signed integer in `radix`. Every
 /// conversion reads a leading sign (C's `scanf` does, even for `%x`/`%o`/`%u`).
-fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<Scanned> {
+fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<IntText> {
     let start = *ii;
-    let mut s = String::new();
+    let mut negative = false;
     let mut n = 0;
     if *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
-        s.push(input[*ii]);
+        negative = input[*ii] == '-';
         *ii += 1;
         n += 1;
     }
@@ -401,7 +634,6 @@ fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<
     }
     let digits_start = *ii;
     while *ii < input.len() && n < width && input[*ii].is_digit(radix) {
-        s.push(input[*ii]);
         *ii += 1;
         n += 1;
     }
@@ -409,22 +641,23 @@ fn scan_int(input: &[char], ii: &mut usize, width: usize, radix: u32) -> Option<
         *ii = start;
         return None;
     }
-    let val = i64::from_str_radix(&s, radix).ok()?;
-    Some(Scanned::Int(val))
+    Some(IntText {
+        negative,
+        radix,
+        digits: input[digits_start..*ii].iter().collect(),
+    })
 }
 
 /// `%i`: an integer with C base-0 detection — `0x`/`0X` (when a hex digit
 /// follows) is hex, a leading `0` is octal, else decimal. `0b` is *not*
 /// recognised by scan's `%i` (scan-4.41), and a `0x` with no hex digit folds
 /// back to the `0` (scan-4.45).
-fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned> {
+fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<IntText> {
     let save = *ii;
-    let mut sign = 1i64;
+    let mut negative = false;
     let mut n = 0;
     if *ii < input.len() && (input[*ii] == '+' || input[*ii] == '-') {
-        if input[*ii] == '-' {
-            sign = -1;
-        }
+        negative = input[*ii] == '-';
         *ii += 1;
         n += 1;
     }
@@ -441,9 +674,7 @@ fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned
         10u32
     };
     let ds = *ii;
-    let mut s = String::new();
     while *ii < input.len() && n < width && input[*ii].is_digit(radix) {
-        s.push(input[*ii]);
         *ii += 1;
         n += 1;
     }
@@ -451,8 +682,11 @@ fn scan_int_auto(input: &[char], ii: &mut usize, width: usize) -> Option<Scanned
         *ii = save;
         return None;
     }
-    let val = i64::from_str_radix(&s, radix).ok()? * sign;
-    Some(Scanned::Int(val))
+    Some(IntText {
+        negative,
+        radix,
+        digits: input[ds..*ii].iter().collect(),
+    })
 }
 
 /// `%e`/`%f`/`%g`: a floating-point number.
@@ -604,6 +838,125 @@ mod tests {
         assert!(o.nconv > 0 || !o.eof_before_conv);
         let o = scan_match(&chars(""), &chars("%*d%d"));
         assert!(o.nconv == 0 && o.eof_before_conv);
+    }
+
+    /// tclsh 8.4.20, 8.5.19 / 8.6.18 and 9.0.4 / 9.1.0, one column each.
+    #[test]
+    fn integer_width_follows_each_release_grammar() {
+        use tcl_dialect::{ScanGrammar, ScanIntWidth};
+        let read = |input: &str, conversion: &str, int_width| {
+            let outcome =
+                scan_match_in(&chars(input), &chars(conversion), ScanGrammar { int_width });
+            outcome.values[0]
+                .as_ref()
+                .unwrap()
+                .integer_decimal()
+                .unwrap()
+        };
+        for (input, conversion, tcl84, tcl85, tcl90) in [
+            ("ffffffff", "%x", "-1", "4294967295", "-1"),
+            ("1ffffffff", "%x", "8589934591", "8589934591", "2147483647"),
+            (
+                "-ffffffff",
+                "%x",
+                "-4294967295",
+                "-4294967295",
+                "-2147483648",
+            ),
+            (
+                "3000000000",
+                "%u",
+                "-1294967296",
+                "3000000000",
+                "18446744072414584320",
+            ),
+            (
+                "-1",
+                "%u",
+                "18446744073709551615",
+                "18446744073709551615",
+                "18446744073709551615",
+            ),
+            (
+                "-2147483649",
+                "%d",
+                "-2147483649",
+                "-2147483649",
+                "-2147483648",
+            ),
+            ("ffffffffffffffff", "%x", "-1", "-1", "-1"),
+            (
+                "-8000000000000001",
+                "%x",
+                "9223372036854775807",
+                "9223372036854775807",
+                "-2147483648",
+            ),
+            (
+                "10000000000000000",
+                "%x",
+                "-1",
+                "9223372036854775807",
+                "2147483647",
+            ),
+            ("ffffffff", "%hx", "-1", "4294967295", "-1"),
+            ("ffffffff", "%lx", "4294967295", "4294967295", "4294967295"),
+            ("ffffffffffffffff", "%lx", "-1", "-1", "9223372036854775807"),
+            (
+                "18446744073709551615",
+                "%lu",
+                "18446744073709551615",
+                "18446744073709551615",
+                "9223372036854775807",
+            ),
+        ] {
+            for (width, expected) in [
+                (ScanIntWidth::Wrap32Narrow, tcl84),
+                (ScanIntWidth::Full, tcl85),
+                (ScanIntWidth::Saturate32, tcl90),
+            ] {
+                assert_eq!(
+                    read(input, conversion, width),
+                    expected,
+                    "{input} {conversion} {width:?}"
+                );
+            }
+        }
+    }
+
+    /// tclsh 8.5.19 to 9.1.0: `%lld` keeps every digit, and `%llu` of a
+    /// negative number is refused.
+    #[test]
+    fn bignum_size_keeps_digits_and_refuses_negative_unsigned() {
+        let grammar = tcl_dialect::ScanGrammar {
+            int_width: tcl_dialect::ScanIntWidth::Saturate32,
+        };
+        let outcome = scan_match_in(&chars("99999999999999999999"), &chars("%lld"), grammar);
+        assert_eq!(
+            outcome.values[0]
+                .as_ref()
+                .unwrap()
+                .integer_decimal()
+                .unwrap(),
+            "99999999999999999999"
+        );
+        let outcome = scan_match_in(&chars("ffffffffffffffffff"), &chars("%llx"), grammar);
+        assert_eq!(
+            outcome.values[0]
+                .as_ref()
+                .unwrap()
+                .integer_decimal()
+                .unwrap(),
+            "4722366482869645213695"
+        );
+        let error = scan_match_in(&chars("-1"), &chars("%llu"), grammar)
+            .error
+            .unwrap();
+        assert_eq!(
+            error.message().unwrap(),
+            "unsigned bignum scans are invalid"
+        );
+        assert_eq!(error.error_code().unwrap(), Some("TCL FORMAT BADUNSIGNED"));
     }
 
     #[test]
