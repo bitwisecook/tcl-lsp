@@ -55,11 +55,6 @@ impl Frame {
             .map(|(_, operands)| operands.as_slice())
     }
 
-    #[cfg(test)]
-    pub(crate) fn lambda_registration(&self) -> Option<&crate::interp::CommandSidecarHandle> {
-        self.lambda_registration.as_ref()
-    }
-
     pub(super) fn close_native_script(&mut self) {
         if self.jim_script.is_some() || self.jim_script_entry.is_some() {
             self.jim_evaluation.invocation = Value::empty();

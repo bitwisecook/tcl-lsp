@@ -71,18 +71,6 @@ impl CoroState {
     }
 }
 
-impl CoroSystem {
-    #[cfg(test)]
-    pub(crate) fn parked_lambda_registrations(&self) -> Vec<CommandSidecarHandle> {
-        self.live
-            .values()
-            .flat_map(|state| &state.acts)
-            .filter_map(Frame::lambda_registration)
-            .cloned()
-            .collect()
-    }
-}
-
 /// One suspended (or in-flight) coroutine: its frozen activation stack and the
 /// per-flow context to reinstate on resume.
 struct CoroState {

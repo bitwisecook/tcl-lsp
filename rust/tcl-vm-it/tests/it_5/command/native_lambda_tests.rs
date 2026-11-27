@@ -18,15 +18,7 @@
 
 //! Original lambda conversion diagnostics, independent of successful activation.
 
-fn bytes(value: &str) -> Vec<u8> {
-    value
-        .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect()
-}
+use crate::prelude::*;
 
 fn row<'a>(rows: &'a str, label: &str) -> Vec<&'a str> {
     rows.lines()
@@ -46,31 +38,31 @@ fn lambda_conversion_errors_match_original_counted_values_and_parameter_frames()
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl8.5/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl8.6/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl9.0/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl9.1/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/tcl9.1/stdout.tsv"
             ),
         ),
         (
             "jimtcl",
             include_str!(
-                "../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/jim/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_lambda_diagnostics/v2/jim/stdout.tsv"
             ),
         ),
     ] {
@@ -82,17 +74,10 @@ fn lambda_conversion_errors_match_original_counted_values_and_parameter_frames()
             let native = row(captured, label);
             if native[1] == "0" {
                 continue;
-            } // Successful activation has its own native object/cache contract.
-            let original = bytes(fields[2]);
-            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
-            let lambda = crate::value::Value::new_native_string_bytes(original);
-            // Compare the completed original object-vector invocation: error
-            // option defaults are applied by the command completion owner.
-            let completion = vm.invoke_host_original_object_vector(
-                &crate::value::Value::new_native_string_bytes(b"apply".as_slice()),
-                &[lambda],
-            );
+            }
+            let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
+            let lambda = Value::new_native_string_bytes(crate::fixture::unhex(fields[2]));
+            let completion = crate::fixture::call(&mut vm, "apply", &[lambda]);
             assert_eq!(
                 completion.code.as_int(),
                 native[1].parse::<i64>().unwrap(),
@@ -100,22 +85,25 @@ fn lambda_conversion_errors_match_original_counted_values_and_parameter_frames()
             );
             assert_eq!(
                 completion.result.string_bytes().as_ref(),
-                bytes(native[2]).as_slice(),
+                crate::fixture::unhex(native[2]).as_slice(),
                 "{engine}/{label}"
             );
             if engine != "jimtcl" {
                 let expected = row(captured, &format!("{label}_ERRORCODE"));
                 assert_eq!(
-                    super::opt_get(&completion.options, "-errorcode")
+                    crate::fixture::option(&completion.options, "-errorcode")
                         .unwrap()
                         .string_bytes()
                         .as_ref(),
-                    bytes(expected[2]).as_slice(),
+                    crate::fixture::unhex(expected[2]).as_slice(),
                     "{engine}/{label}/errorcode"
                 );
                 if label == "DIRECT_PARAM_BODY_RAW_ZERO" {
                     let frame = b"\n    (parsing lambda expression \"{{a b c}} {x\")";
-                    let actual = vm.take_error_info().unwrap();
+                    let info =
+                        crate::fixture::call(&mut vm, "set", &[Value::string("::errorInfo")])
+                            .result;
+                    let actual = info.string_bytes();
                     assert!(
                         actual.windows(frame.len()).any(|part| part == frame),
                         "{engine}/CString parameter frame"

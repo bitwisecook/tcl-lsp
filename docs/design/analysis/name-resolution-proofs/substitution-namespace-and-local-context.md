@@ -40,7 +40,7 @@ This exact C substitution/private-header question was not tested on this provide
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/command/native_substitution_tests.rs](../../../../rust/tcl-vm/src/command/native_substitution_tests.rs), `command::native_substitution_tests::original_substitution_changes_namespace_and_borrowed_local_cache_without_proc_header` (linked): Actual native template A/B/root/P/Q contexts, retained local-name table, no proc-header ownership, repeated/current cache and duplicate string-only separation.
+- [rust/tcl-vm-it/tests/it_5/command/native_substitution_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_substitution_tests.rs), `command::native_substitution_tests::original_substitution_changes_namespace_and_borrowed_local_cache_without_proc_header` (linked): The template's A/B/root results through `namespace eval` and its P/Q results through two procedures, repeated.
 
 ## Evidence
 

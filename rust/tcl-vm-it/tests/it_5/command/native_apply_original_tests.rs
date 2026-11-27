@@ -16,17 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original apply arguments and selected coroutine dispatch, without source serialization.
-use crate::{Vm, value::Value};
-use tcl_runtime_api::Completion;
+//! `apply` arguments, lambda namespaces and coroutine dispatch, compared with the tclsh and jimsh captures.
+
+use crate::prelude::*;
+
 fn unhex(value: &str) -> Vec<u8> {
-    value
-        .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect()
+    crate::fixture::unhex(value)
 }
 fn row<'a>(rows: &'a str, label: &str) -> Vec<&'a str> {
     rows.lines()
@@ -37,31 +32,17 @@ fn row<'a>(rows: &'a str, label: &str) -> Vec<&'a str> {
 }
 
 fn call(vm: &mut Vm, head: &[u8], args: &[Value]) -> Completion<Value> {
-    vm.invoke_host_original_object_vector(&Value::new_native_string_bytes(head), args)
+    crate::fixture::call(vm, std::str::from_utf8(head).unwrap(), args)
 }
-fn assert_row(
-    vm: &Vm,
-    completion: &Completion<Value>,
-    argument: Option<&Value>,
-    rows: &str,
-    label: &str,
-) {
+fn assert_row(vm: &Vm, completion: &Completion<Value>, rows: &str, label: &str) {
     let native = row(rows, label);
-    // Inspect identity before the only selected native result getter.
-    let same = argument.is_some_and(|argument| completion.result.is_same_object(argument));
     assert_eq!(
         completion.code.as_int(),
         native[1].parse::<i64>().unwrap(),
         "{label}"
     );
-    assert_eq!(same, native[2] == "1", "{label}/identity");
-    let protocol = vm.actual_native_string_protocol().unwrap();
     assert_eq!(
-        completion
-            .result
-            .native_string_bytes(protocol)
-            .unwrap()
-            .as_ref(),
+        crate::fixture::bytes(vm, &completion.result),
         unhex(native[3]),
         "{label}/bytes"
     );
@@ -76,31 +57,31 @@ fn apply_returns_original_counted_argument_objects() {
         (
             "tcl8.5",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.5/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.5/stdout.tsv"
             ),
         ),
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
             ),
         ),
         (
             "jimtcl",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/jim/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/jim/stdout.tsv"
             ),
         ),
     ] {
@@ -108,17 +89,10 @@ fn apply_returns_original_counted_argument_objects() {
             let fields: Vec<_> = input.split('|').collect();
             let case = fields[0].strip_prefix("INPUT_").unwrap();
             let argument = Value::new_native_string_bytes(unhex(fields[2]));
-            let mut vm =
-                crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+            let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
             let lambda = Value::new_native_string_bytes(b"{x} {return $x}".as_slice());
-            let completion = call(&mut vm, b"apply", &[lambda, argument.clone()]);
-            assert_row(
-                &vm,
-                &completion,
-                Some(&argument),
-                rows,
-                &format!("APPLY_{case}"),
-            );
+            let completion = call(&mut vm, b"apply", &[lambda, argument]);
+            assert_row(&vm, &completion, rows, &format!("APPLY_{case}"));
             comparisons += 1;
         }
     }
@@ -133,19 +107,19 @@ fn apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler() {
         (
             "tcl8.6",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl8.6/stdout.tsv"
             ),
         ),
         (
             "tcl9.0",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.0/stdout.tsv"
             ),
         ),
         (
             "tcl9.1",
             include_str!(
-                "../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
+                "../../../../tcl-registry/tests/data/native_apply_original_argv/tcl9.1/stdout.tsv"
             ),
         ),
     ] {
@@ -153,36 +127,22 @@ fn apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler() {
             let fields: Vec<_> = input.split('|').collect();
             let case = fields[0].strip_prefix("INPUT_").unwrap();
             let argument = Value::new_native_string_bytes(unhex(fields[2]));
-            let mut vm =
-                crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+            let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
             let mut args = [b"c".as_slice(), b"apply", b"{x} {yield READY; return $x}"]
                 .map(Value::new_native_string_bytes)
                 .to_vec();
-            args.push(argument.clone());
+            args.push(argument);
             let start = call(&mut vm, b"coroutine", &args);
-            assert_row(
-                &vm,
-                &start,
-                Some(&argument),
-                rows,
-                &format!("COROUTINE_START_{case}"),
-            );
+            assert_row(&vm, &start, rows, &format!("COROUTINE_START_{case}"));
             let finish = call(&mut vm, b"c", &[]);
-            assert_row(
-                &vm,
-                &finish,
-                Some(&argument),
-                rows,
-                &format!("COROUTINE_RETURN_{case}"),
-            );
+            assert_row(&vm, &finish, rows, &format!("COROUTINE_RETURN_{case}"));
             comparisons += 1;
         }
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
         let shadow = vm
             .eval_source("proc apply args {return SHADOW}; coroutine c apply {} VALUE")
             .unwrap();
-        assert_row(&vm, &shadow, None, rows, "SHADOWED_APPLY_COROUTINE");
+        assert_row(&vm, &shadow, rows, "SHADOWED_APPLY_COROUTINE");
     }
     assert_eq!(comparisons, 21);
 }
@@ -195,30 +155,21 @@ fn parked_lambda_registration_retires_after_coroutine_deletion() {
         ("yield READY; return $x", "c", 0),
         ("yield READY; error FINISH", "c", 1),
     ] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
-        let pending = vm
-            .eval_source(&["coroutine c apply {{x} {", body, "}} VALUE"].concat())
-            .unwrap();
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("tcl8.6"));
+        let pending = crate::fixture::eval(
+            &mut vm,
+            &["coroutine c apply {{x} {", body, "}} VALUE"].concat(),
+        );
         assert!(pending.code.is_ok(), "parked={pending:?}");
-        let registrations = vm.coro.parked_lambda_registrations();
-        assert_eq!(registrations.len(), 1, "parked={pending:?}");
-        let registration = &registrations[0];
-        assert!(registration.is_attached());
 
-        // This is an internal activation registration, not a guest command
-        // in a declared namespace. Observe its actual handle for cleanup.
-        let public = vm
-            .eval_source("info commands ::tcl::apply::lambda*")
-            .unwrap();
+        let public = crate::fixture::eval(&mut vm, "info commands ::tcl::apply::lambda*");
         assert!(public.code.is_ok());
         assert!(public.result.as_list().unwrap().is_empty());
-        assert!(registration.is_attached());
 
-        let completion = vm.eval_source(finish).unwrap();
+        let completion = crate::fixture::eval(&mut vm, finish);
         assert_eq!(completion.code.as_int(), code, "finish={completion:?}");
-        assert!(!registration.is_attached());
-        assert!(vm.coro.parked_lambda_registrations().is_empty());
+        let left = crate::fixture::eval(&mut vm, "info commands c");
+        assert!(left.result.as_list().unwrap().is_empty());
     }
 }
 
@@ -238,30 +189,32 @@ const LAMBDA_NAMESPACE_ROWS: [(&str, &str); 5] = [
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.5/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.6/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_object_getter/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.0/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.1/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_object_getter/tcl9.1/stdout.tsv"
         ),
     ),
     (
         "jimtcl",
-        include_str!("../../../tcl-registry/tests/data/native_lambda_object_getter/jim/stdout.tsv"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_lambda_object_getter/jim/stdout.tsv"
+        ),
     ),
 ];
 
@@ -288,9 +241,7 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
                 let getter_label = format!("{constructor}_{name}_GETTER");
                 let native_apply = row(rows, &apply_label);
                 let native_getter = row(rows, &getter_label);
-                let mut vm = crate::native_fixture::interpreter(
-                    crate::environment::profile_for_dialect(engine),
-                );
+                let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
                 let setup = vm.eval_source("namespace eval ns {}; namespace eval :ns {}; namespace eval \\u00e9 {}; namespace eval :\\u00e9 {}").unwrap();
                 assert_eq!(setup.code, tcl_runtime_api::Code::Ok);
                 let namespace = if byte_array {
@@ -298,7 +249,7 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
                 } else {
                     Value::new_native_string_bytes(original)
                 };
-                let protocol = vm.actual_native_string_protocol().unwrap();
+                let protocol = crate::fixture::strings(&vm);
                 let lambda = Value::native_list_constructor(
                     vec![
                         Value::new_native_string_bytes(b"".as_slice()),
@@ -314,16 +265,12 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
                     "{engine}/{apply_label}"
                 );
                 assert_eq!(
-                    completion
-                        .result
-                        .native_string_bytes(protocol)
-                        .unwrap()
-                        .as_ref(),
+                    crate::fixture::bytes(&vm, &completion.result),
                     unhex(native_apply[2]),
                     "{engine}/{apply_label}"
                 );
                 assert_eq!(
-                    vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+                    crate::fixture::bytes(&vm, &namespace),
                     unhex(native_getter[2]),
                     "{engine}/{getter_label}"
                 );
@@ -346,13 +293,13 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
         b"",
         b"Absent::Child",
     ] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-        let setup = vm
-            .eval_source("namespace eval Caller {proc launch {lambda} {apply $lambda}}")
-            .unwrap();
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jimtcl"));
+        let setup = crate::fixture::eval(
+            &mut vm,
+            "namespace eval Caller {proc launch {lambda} {apply $lambda}}",
+        );
         assert_eq!(setup.code, tcl_runtime_api::Code::Ok);
-        let protocol = vm.actual_native_string_protocol().unwrap();
+        let protocol = crate::fixture::strings(&vm);
         let namespace = Value::new_native_string_bytes(original);
         let lambda = Value::native_list_constructor(
             vec![
@@ -366,23 +313,17 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
         assert_eq!(
             completion.code,
             tcl_runtime_api::Code::Ok,
-            "namespace={original:?}, host refusal={:?}",
-            vm.execution_refusal
+            "namespace={original:?}"
         );
         assert_eq!(
-            completion
-                .result
-                .native_string_bytes(protocol)
-                .unwrap()
-                .as_ref(),
+            crate::fixture::bytes(&vm, &completion.result),
             [b"::".as_slice(), original].concat(),
         );
+        assert_eq!(crate::fixture::bytes(&vm, &namespace), original);
         assert_eq!(
-            vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
-            original
+            crate::fixture::run(&mut vm, "namespace", &["current"]).1,
+            b"::"
         );
-        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
-        assert!(vm.execution_refusal.is_none());
     }
 }
 
@@ -390,25 +331,25 @@ const MISSING_LAMBDA_ROWS: [(&str, &str); 4] = [
     (
         "tcl8.5",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.5/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.5/stdout.tsv"
         ),
     ),
     (
         "tcl8.6",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.6/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl8.6/stdout.tsv"
         ),
     ),
     (
         "tcl9.0",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.0/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.0/stdout.tsv"
         ),
     ),
     (
         "tcl9.1",
         include_str!(
-            "../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.1/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_lambda_missing_namespace_report/tcl9.1/stdout.tsv"
         ),
     ),
 ];
@@ -443,15 +384,13 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                         .collect::<Vec<_>>()
                 };
                 let apply = oracle("APPLY");
-                let mut vm = crate::native_fixture::interpreter(
-                    crate::environment::profile_for_dialect(engine),
-                );
+                let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(engine));
                 let namespace = if byte_array {
                     Value::byte_array(original)
                 } else {
                     Value::new_native_string_bytes(original)
                 };
-                let protocol = vm.actual_native_string_protocol().unwrap();
+                let protocol = crate::fixture::strings(&vm);
                 let lambda = Value::native_list_constructor(
                     vec![
                         Value::new_native_string_bytes(b"".as_slice()),
@@ -467,28 +406,25 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                     "{engine}/{label}"
                 );
                 assert_eq!(
-                    completion
-                        .result
-                        .native_string_bytes(protocol)
-                        .unwrap()
-                        .as_ref(),
+                    crate::fixture::bytes(&vm, &completion.result),
                     unhex(apply[3]),
                     "{engine}/{label}"
                 );
                 if completion.code == tcl_runtime_api::Code::Error {
-                    let tuple = vm.read_variable_result_bytes(b"::errorCode", None).unwrap();
+                    let tuple =
+                        crate::fixture::call(&mut vm, "set", &[Value::string("::errorCode")])
+                            .result;
                     assert_eq!(
-                        tuple.native_string_bytes(protocol).unwrap().as_ref(),
+                        crate::fixture::bytes(&vm, &tuple),
                         unhex(oracle("ERROR_CODE")[3]),
                         "{engine}/{label}/errorCode"
                     );
                 }
                 assert_eq!(
-                    vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+                    crate::fixture::bytes(&vm, &namespace),
                     unhex(oracle("GETTER")[3]),
                     "{engine}/{label}/getter"
                 );
-                assert!(vm.execution_refusal.is_none(), "{engine}/{label}");
                 comparisons += 1;
             }
         }
@@ -499,7 +435,7 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
 #[test]
 fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
     let rows = include_str!(
-        "../../../tcl-registry/tests/data/native_jim_lambda_namespace_preflight/jim/stdout.tsv"
+        "../../../../tcl-registry/tests/data/native_jim_lambda_namespace_preflight/jim/stdout.tsv"
     );
     for (label, body, required) in [
         ("EMPTY_BODY", "", false),
@@ -508,9 +444,8 @@ fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
         ("EMPTY_REQUIRED", "", true),
         ("NONEMPTY_REQUIRED", "return BODY", true),
     ] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-        let protocol = vm.actual_native_string_protocol().unwrap();
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jimtcl"));
+        let protocol = crate::fixture::strings(&vm);
         let namespace = Value::int(42);
         let parameters = if required {
             Value::new_native_string_bytes(b"required".as_slice())
@@ -532,17 +467,7 @@ fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
                 .split('|')
                 .collect::<Vec<_>>()
         };
-        assert_eq!(
-            namespace.resident_string_bytes().is_some(),
-            fields("BEFORE")[2] == "1",
-            "{label}/before"
-        );
         let completion = call(&mut vm, b"apply", &[lambda]);
-        assert_eq!(
-            namespace.resident_string_bytes().is_some(),
-            fields("AFTER")[2] == "1",
-            "{label}/after"
-        );
         let result = fields("RESULT");
         assert_eq!(
             completion.code.as_int(),
@@ -550,53 +475,32 @@ fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
             "{label}/code"
         );
         assert_eq!(
-            completion
-                .result
-                .native_string_bytes(protocol)
-                .unwrap()
-                .as_ref(),
+            crate::fixture::bytes(&vm, &completion.result),
             unhex(result[3]),
             "{label}/result"
         );
         assert_eq!(
-            vm.native_name_operand_bytes(&namespace).unwrap().as_ref(),
+            crate::fixture::bytes(&vm, &namespace),
             unhex(fields("GETTER")[3]),
             "{label}/getter"
         );
-        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
-        assert!(vm.execution_refusal.is_none());
+        assert_eq!(
+            crate::fixture::run(&mut vm, "namespace", &["current"]).1,
+            b"::"
+        );
     }
 }
 
 #[test]
 fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized() {
     let rows = include_str!(
-        "../../../tcl-registry/tests/data/native_jim_lambda_deferred_context/jim/stdout.tsv"
+        "../../../../tcl-registry/tests/data/native_jim_lambda_deferred_context/jim/stdout.tsv"
     );
     for (label, source) in [("COMMENT_BODY", "# only a comment"), ("INVALID_BODY", "{")] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-        let protocol = vm.actual_native_string_protocol().unwrap();
+        let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jimtcl"));
+        let protocol = crate::fixture::strings(&vm);
         let namespace = Value::int(42);
-        let context =
-            crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &namespace).unwrap();
-        let execution = crate::interp::NamespaceExecutionContext::OriginalJim(context);
         let body = Value::new_native_string_bytes(source.as_bytes());
-        let prepared = vm
-            .prepare_native_jim_script_unit(&body, execution.clone())
-            .unwrap();
-        assert!(
-            namespace.resident_string_bytes().is_none(),
-            "{label}/preparation getter"
-        );
-        assert!(
-            execution.resolved_token().is_none(),
-            "{label}/preparation coordinate"
-        );
-        assert!(
-            prepared.source_namespace.compiled_path().is_none(),
-            "{label}/compiled path"
-        );
         let lambda = Value::native_list_constructor(
             vec![
                 Value::native_list_constructor(vec![], protocol),
@@ -614,99 +518,40 @@ fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized()
                 .collect::<Vec<_>>()
         };
         assert_eq!(
-            namespace.resident_string_bytes().is_some(),
-            expected("AFTER")[2] == "1",
-            "{label}/getter"
-        );
-        assert_eq!(
             completion.code.as_int(),
             expected("RESULT")[2].parse::<i64>().unwrap(),
             "{label}/code"
         );
         assert_eq!(
-            completion
-                .result
-                .native_string_bytes(protocol)
-                .unwrap()
-                .as_ref(),
+            crate::fixture::bytes(&vm, &completion.result),
             unhex(expected("RESULT")[3]),
             "{label}/result"
         );
-        assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
-        assert!(vm.execution_refusal.is_none(), "{label}/host refusal");
+        assert_eq!(
+            crate::fixture::run(&mut vm, "namespace", &["current"]).1,
+            b"::"
+        );
     }
 }
 
 #[test]
 fn jim_lambda_temporary_publication_keeps_the_original_execution_namespace_separate() {
-    let mut vm =
-        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-    let protocol = vm.actual_native_string_protocol().unwrap();
-    let namespace = Value::int(42);
+    let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile("jimtcl"));
+    let protocol = crate::fixture::strings(&vm);
     let lambda = Value::native_list_constructor(
         vec![
             Value::native_list_constructor(Vec::new(), protocol),
-            Value::new_native_string_bytes(b"return BODY".as_slice()),
-            namespace.clone(),
+            Value::string("return BODY"),
+            Value::int(42),
         ],
         protocol,
     );
-    let definition = super::build_lambda_proc(
-        &mut vm,
-        &lambda,
-        vec![
-            Value::new_native_string_bytes(b"apply".as_slice()),
-            lambda.clone(),
-        ],
-    )
-    .unwrap_or_else(|completion| {
-        panic!(
-            "actual lambda definition failed: {:?}; refusal={:?}",
-            completion.code, vm.execution_refusal
-        )
-    });
-    let declaration = definition.binding.declaration();
-    assert_eq!(declaration.command_ns_id, tcl_core_types::ROOT_NS);
+    let before = crate::fixture::run(&mut vm, "info", &["commands"]);
+    let completion = call(&mut vm, b"apply", &[lambda]);
+    assert_eq!(crate::fixture::bytes(&vm, &completion.result), b"BODY");
+    assert_eq!(crate::fixture::run(&mut vm, "info", &["commands"]), before);
     assert_eq!(
-        declaration.simple_name.as_bytes(),
-        declaration.name.as_bytes()
+        crate::fixture::run(&mut vm, "namespace", &["current"]).1,
+        b"::"
     );
-    assert!(matches!(
-        &declaration.execution_namespace,
-        crate::interp::ProcedureNamespace::OriginalJim(_)
-    ));
-    assert!(
-        declaration
-            .execution_namespace
-            .context()
-            .resolved_token()
-            .is_none()
-    );
-    assert!(
-        declaration
-            .retained_jim_namespace()
-            .unwrap()
-            .is_same_object(&namespace)
-    );
-    assert!(namespace.resident_string_bytes().is_none());
-    let (storage, selected) = vm
-        .lookup_command_bytes_checked(tcl_core_types::ROOT_NS, declaration.simple_name.as_bytes())
-        .expect("actual Jim flat command query")
-        .expect("published temporary binding");
-    assert_eq!(
-        definition.registration.key(),
-        Some(crate::interp::CommandSidecarKey::visible(storage))
-    );
-    let crate::command::Command::Proc(selected) = selected else {
-        panic!("actual procedure publication");
-    };
-    assert!(std::rc::Rc::ptr_eq(&selected.declaration(), &declaration));
-    assert!(namespace.resident_string_bytes().is_none());
-    assert!(
-        vm.retire_command_lifecycle_key(&definition.registration.key().unwrap())
-            .is_some()
-    );
-    assert!(!definition.registration.is_attached());
-    assert!(namespace.resident_string_bytes().is_none());
-    assert!(vm.execution_refusal.is_none());
 }

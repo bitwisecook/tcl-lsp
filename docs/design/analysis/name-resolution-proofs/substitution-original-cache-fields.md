@@ -40,7 +40,7 @@ This exact C substitution/private-header question was not tested on this provide
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/command/native_substitution_tests.rs](../../../../rust/tcl-vm/src/command/native_substitution_tests.rs), `command::native_substitution_tests::original_compiled_substitution_matches_counted_native_flags_and_completions` (linked): 480 C86/C90/C91 R-row comparisons: completion, original/result primary and resident state before reached result getter, counted byte result, template-only cache.
+- [rust/tcl-vm-it/tests/it_5/command/native_substitution_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/native_substitution_tests.rs), `command::native_substitution_tests::original_compiled_substitution_matches_counted_native_flags_and_completions` (linked): 480 C86/C90/C91 R-row comparisons: completion code and counted result bytes; the cache fields themselves are not observable from a script and are not asserted.
 - [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs), `interp::native_body_artifact::native_substitution::tests::original_compiled_substitution_matches_native_template_windows` (linked): 480 C86/C90/C91 original native object R-row comparisons with independent substcode artifact; template is not ordinary body bytecode.
 
 ## Exact original-source349 software outcomes

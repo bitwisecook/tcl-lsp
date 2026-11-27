@@ -33,14 +33,10 @@ use crate::error::TclError;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
-#[cfg(test)]
-mod native_definition_order_tests;
 mod native_encoding_source;
 #[cfg(test)]
 mod native_encoding_tests;
 mod native_procedure;
-#[cfg(test)]
-mod native_procedure_name_tests;
 pub use native_procedure::NativeProcedureCommand;
 pub(crate) use native_procedure::{NativeProcedureReference, NativeProcedureResources};
 
@@ -56,8 +52,6 @@ mod rename;
 mod variable_links;
 
 pub(crate) use apply_lambda::OriginalLambdaDefinition;
-#[cfg(test)]
-pub(crate) use apply_lambda::build_lambda_proc;
 use apply_lambda::cmd_apply;
 #[cfg(test)]
 pub(crate) use carried_options::opt_get;
@@ -1234,21 +1228,6 @@ mod tests;
 #[cfg(test)]
 #[path = "command/native_frame_context_tests.rs"]
 mod native_frame_context_tests;
-
-#[cfg(test)]
-mod native_substitution_tests;
-
-#[cfg(test)]
-#[path = "command/native_catch_formal_alias_tests.rs"]
-mod native_catch_formal_alias_tests;
-
-#[cfg(test)]
-#[path = "command/native_lambda_tests.rs"]
-mod native_lambda_tests;
-
-#[cfg(test)]
-#[path = "command/native_apply_original_tests.rs"]
-mod native_apply_original_tests;
 
 #[cfg(test)]
 mod native_completion_option_tests;

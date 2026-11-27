@@ -18,7 +18,6 @@
 
 //! Caught callback results follow the surviving cell, independently of formals.
 
-use super::*;
 use std::cell::RefCell;
 use std::io::{self, Write};
 use std::rc::Rc;
@@ -41,59 +40,44 @@ impl Write for Output {
 fn caught_callback_result_follows_replaced_formal_alias_native_controls() {
     // Native proof: naming.variable.catch-result-alias-continuity
     // docs/design/analysis/name-resolution-proofs/catch-result-alias-continuity.md
-    const SOURCE: &[u8] = include_bytes!("../../tests/data/native_catch_formal_alias/cases.tcl");
+    // The script reports through `binary scan`; jimsh's `binary` is a C
+    // extension the VM installs only through a private registration, so the
+    // Jim capture is not compared here.
+    const SOURCE: &[u8] =
+        include_bytes!("../../../../tcl-vm/tests/data/native_catch_formal_alias/cases.tcl");
     for (engine, observed) in [
         (
             "tcl8.4",
-            include_str!("../../tests/data/native_catch_formal_alias/tcl8.4/stdout"),
+            include_str!("../../../../tcl-vm/tests/data/native_catch_formal_alias/tcl8.4/stdout"),
         ),
         (
             "tcl8.5",
-            include_str!("../../tests/data/native_catch_formal_alias/tcl8.5/stdout"),
+            include_str!("../../../../tcl-vm/tests/data/native_catch_formal_alias/tcl8.5/stdout"),
         ),
         (
             "tcl8.6",
-            include_str!("../../tests/data/native_catch_formal_alias/tcl8.6/stdout"),
+            include_str!("../../../../tcl-vm/tests/data/native_catch_formal_alias/tcl8.6/stdout"),
         ),
         (
             "tcl9.0",
-            include_str!("../../tests/data/native_catch_formal_alias/tcl9.0/stdout"),
+            include_str!("../../../../tcl-vm/tests/data/native_catch_formal_alias/tcl9.0/stdout"),
         ),
         (
             "tcl9.1",
-            include_str!("../../tests/data/native_catch_formal_alias/tcl9.1/stdout"),
-        ),
-        (
-            "jim",
-            include_str!("../../tests/data/native_catch_formal_alias/jim/stdout"),
+            include_str!("../../../../tcl-vm/tests/data/native_catch_formal_alias/tcl9.1/stdout"),
         ),
     ] {
-        let profile = crate::environment::profile_for_dialect(engine);
         let output = Output(Rc::new(RefCell::new(Vec::new())));
-        let mut vm = Vm::with_native_core(
+        let mut vm = crate::fixture::interpreter_with_output(
+            tcl_vm::test_support::profile(engine),
             Box::new(output.clone()),
-            Rc::new(crate::host_native::NativeHost::new()),
-            profile,
-            tcl_registry::special_vars::NativeBootstrapInputs {
-                package_path: Vec::new(),
-                default_library: None,
-            },
-        )
-        .unwrap();
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
-        if vm
-            .native_invocation_dialect()
-            .binary_scripted_ingress()
-            .is_some()
-        {
-            // The captured Jim distribution loads pack and its actual binary
-            // wrapper; Jim_RegisterCoreCommands alone does not install it.
-            crate::cmd_binary::register(&mut vm);
-        }
+        );
         let result = vm.try_eval_source_bytes(SOURCE).unwrap();
-        assert_eq!(result.code, Code::Ok, "{engine}: {result:?}");
+        assert_eq!(
+            result.code,
+            tcl_runtime_api::Code::Ok,
+            "{engine}: {result:?}"
+        );
         let actual = String::from_utf8(output.0.borrow().clone()).unwrap();
         let measured_rows = |text: &str| {
             text.lines()

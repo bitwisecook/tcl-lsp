@@ -24,7 +24,7 @@ use tcl_test_support::encoding_names::{EncodingHost, EncodingStages};
 
 fn supplied() -> (Vm, Rc<EncodingStages>) {
     let host = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-    let mut vm = crate::native_fixture::interpreter(host);
+    let mut vm = crate::native_fixture::core(host);
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(vm.set_command_surface_profile(host));
     assert!(vm.set_native_engine_profile(host));

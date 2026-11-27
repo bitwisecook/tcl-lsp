@@ -804,3 +804,46 @@ reach a compiler drop from 381 to 358.
   `namespace which`); the VM refuses Jim's `info source`
   ("selected Jim info handler is unavailable").
 - The test-only `next_original_pair` lost its last caller and is removed.
+
+**Batch 8, `command` (27 November 2026).** 50 tests in 10 files: 38 move to
+`tcl-vm-it` under their old module paths, 12 stay on the core, none is
+deleted. Tests that reach a compiler drop from 358 to 308.
+- Stay on the core: all 7 `native_encoding_source::logical_file_tests` and 5
+  of `native_encoding_source::tests`, which open, read or refuse a supplied
+  file but never evaluate it. The 4 that evaluate the sourced script move,
+  over the same `EncodingHost` wrapped around a fresh `NativeHost`.
+- `proc`, `time`, `subst`, `apply`, `coroutine` and `source` are called
+  through `try_invoke_command`; `::errorInfo` and `::errorCode` are read with
+  `set`. A procedure whose name is not UTF-8 is called through `eval` of a
+  one-command list.
+- Cut from rows: result identity (`native_apply_original_tests`,
+  `tests::original_list_eval_retains_member_identity_without_materialising_source`),
+  object types, residency and the substitution cache
+  (`native_substitution_tests`; the completion codes and result bytes
+  stay), the parked lambda registration (now `info commands`), Jim's
+  namespace-object residency before and after `apply` and the prepared
+  script's namespace token, the temporary lambda declaration, its sidecar key
+  and lifecycle retirement (now `apply`'s result and an unchanged
+  `info commands`), formal and body residency in
+  `native_definition_order_tests` and `native_procedure_name_tests`, the
+  interpreter-result owner in `catch_epilogue_publishes_status_in_the_actual_interpreter_result_owner`
+  (now `catch`'s result), the body-compiled flag after a failed definition,
+  the interpreter owner nonce in the expression refusal (its other fields
+  stay), and the private execution profile, expression policy and eval
+  protocol in `original_absent_f5_expression_and_eval_providers_do_not_borrow_native_core_receipts`.
+- `original_definition_guards_do_not_read_later_unselected_name_or_body_objects`
+  defines from script words: the public entry refuses a list built under
+  another release's string protocol, which the private worker accepted.
+- `native_catch_formal_alias_tests` no longer compares the Jim capture: its
+  script reports through `binary scan`.
+- `legacy_name_rejection_precedes_original_formal_default_and_body_access`
+  compares the message with tclsh 8.4.20 and 8.5.19.
+- Test-only accessors left without a caller are removed:
+  `build_lambda_proc`'s re-export, `CoroSystem::parked_lambda_registrations`
+  and `Frame::lambda_registration`.
+
+**Known VM gap (found in batch 8).** Under 8.4, a procedure error raised
+through `eval` of a list keeps tclsh 8.4.20's `invoked from within "p"` frame
+above `("eval" body line 1)`; the VM omits it.
+`command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions`
+checks the frames both report for its non-UTF-8 name.
