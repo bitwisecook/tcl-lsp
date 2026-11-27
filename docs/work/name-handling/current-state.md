@@ -50,13 +50,19 @@ golden (`/tmp/source-sslictcl-tests-work.log`). The shard proof covers 227
 metadata targets. All four public compiler boundary tests pass: conditional body discovery,
 lambda scope isolation, absolute IR spans and the original E201 insertion
 fix (`/tmp/source-compiler-boundary-tests-work.log`).
-The word-expression differential currently has 3 passes / 3 failures
-(`/tmp/source-word-boundary-tests-work.log`); comparison with the pre-extraction
-compiler library is pending. Workspace all-target Clippy and the offline x509
+The word-expression differential has the same 3 passes / 3 failures before
+and after extraction, with zero new failures (`/tmp/source-word-baseline-work.log`
+on `ea2497682`, `/tmp/source-word-boundary-tests-work.log` after the move).
+The baseline ran on the actual pre-extraction checkout, then restored `work`. Workspace all-target Clippy and the offline x509
 Clippy configuration pass in the latest full-gate run
 (`/tmp/source-rust-check-final-work.log`).
-Full gate validation is in progress; the first Rust-gate
-attempt found two moved documentation lint errors, now corrected.
+The latest full Rust gate also passes all 4 offline x509 tests and runtime
+Clippy, then stops on the pre-existing truncated licence notice in
+`rust/tcl-vm-cli/tests/library_init.rs`; that notice is now repaired.
+The initial two moved documentation lint errors are corrected. Architecture
+gates, the moved SpecTcl parity tests and `prep-pr` remain to run. Development
+pushes use the explicit `work` exception; all full gates remain required
+before a PR.
 
 ## Benchmark, test boundaries and runtime repairs
 
