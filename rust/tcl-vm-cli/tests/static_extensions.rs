@@ -24,6 +24,7 @@ use std::process::{Command, Output};
 
 fn tclvm(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_tclvm"))
+        .env_remove("TCL_LIBRARY")
         .args(args)
         .output()
         .expect("run tclvm")

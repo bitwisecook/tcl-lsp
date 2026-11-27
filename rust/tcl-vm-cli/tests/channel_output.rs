@@ -22,6 +22,7 @@ use std::process::{Command, Output};
 
 fn run(script: &str, locale: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_tclvm"))
+        .env_remove("TCL_LIBRARY")
         .args(["-c", script])
         .env("LC_ALL", locale)
         .output()
@@ -30,6 +31,7 @@ fn run(script: &str, locale: &str) -> Output {
 
 fn run_version(script: &str, locale: &str, version: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_tclvm"))
+        .env_remove("TCL_LIBRARY")
         .args(["--tcl-version", version, "-c", script])
         .env("LC_ALL", locale)
         .output()

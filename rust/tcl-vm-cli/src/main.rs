@@ -242,7 +242,29 @@ fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
     );
     // Install the on-demand autoloader so library procs (word.tcl, …) resolve.
     let _ = vm.init_auto_load();
+    init_script_library(&mut vm);
     vm
+}
+
+/// `Tcl_Init` as `Tcl_Main` runs it: with a script library selected
+/// (`TCL_LIBRARY`), source its `init.tcl`, which installs `auto_path` and the
+/// `package unknown` handler that finds bundled packages through their
+/// `pkgIndex.tcl`. A failure is reported the way `Tcl_Main` reports it and the
+/// shell carries on without the library.
+fn init_script_library(vm: &mut Vm) {
+    if vm
+        .get_var("::tcl_library")
+        .is_none_or(|library| library.to_str().is_empty())
+    {
+        return;
+    }
+    let init = vm.init_library();
+    if !init.code.is_ok() {
+        vm.report_stderr_text(&format!(
+            "application-specific initialization failed: {}",
+            init.result.to_str()
+        ));
+    }
 }
 
 /// Seed `argv0` / `argv` / `argc` the way `tclsh` does before running a file.
