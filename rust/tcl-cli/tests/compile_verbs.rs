@@ -112,6 +112,69 @@ fn dis_keeps_plain_tcl_free_of_irules_opcodes() {
     );
 }
 
+/// The instruction lines of the `ByteCode <unit>` block, without pc offsets.
+fn unit_instructions(dis: &str, unit: &str) -> Vec<String> {
+    let header = format!("ByteCode {unit},");
+    dis.lines()
+        .skip_while(|l| !l.starts_with(&header))
+        .skip(1)
+        .take_while(|l| !l.starts_with("ByteCode "))
+        .filter_map(|l| l.trim().strip_prefix('(')?.split_once(") "))
+        .map(|(_, insn)| insn.to_string())
+        .collect()
+}
+
+fn dis_unit(dialect: &str, src: &str, unit: &str) -> Vec<String> {
+    let out = run_tcl(&["dis", "--dialect", dialect, "--source", src]);
+    let insns = unit_instructions(&String::from_utf8(out).expect("utf-8"), unit);
+    assert!(!insns.is_empty(), "no `{unit}` unit under {dialect}");
+    insns
+}
+
+fn assert_loads_l(insns: &[String], context: &str) {
+    let names_l = |i: &String| i.ends_with("\"l\"");
+    let slot_load = insns.iter().any(|i| i.starts_with("load") && names_l(i));
+    let stack_load = insns
+        .windows(2)
+        .any(|w| w[0].starts_with("push") && names_l(&w[0]) && w[1].starts_with("load"));
+    assert!(
+        slot_load || stack_load,
+        "{context}: `$l` inside `[list a $l]` must compile to a variable load:\n{insns:#?}"
+    );
+    assert!(
+        !insns.iter().any(|i| i.ends_with("# \"\"")),
+        "{context}: no empty literal may stand in for `$l`:\n{insns:#?}"
+    );
+}
+
+/// A variable read nested in a command substitution keeps its load under the
+/// f5-tcl grammar, and lowers exactly as the Tcl 8.4 profile lowers it.
+#[test]
+fn dis_keeps_a_variable_read_inside_a_command_substitution_under_f5() {
+    let shapes = [
+        ("set l x; set m [list a $l]\n", "::top"),
+        (
+            "proc p {l} {\n    set m [list a $l]\n    return \"v=$l\"\n}\n",
+            "::p",
+        ),
+    ];
+    for (src, unit) in shapes {
+        let reference = dis_unit("tcl8.4", src, unit);
+        assert_loads_l(&reference, &format!("tcl8.4 {unit}"));
+        for dialect in ["f5-tmsh", "f5-irules", "f5-iapps"] {
+            let f5 = dis_unit(dialect, src, unit);
+            assert_loads_l(&f5, &format!("{dialect} {unit}"));
+            assert_eq!(f5, reference, "{dialect} {unit} diverges from tcl8.4");
+        }
+    }
+    let when = dis_unit(
+        "f5-irules",
+        "when HTTP_REQUEST {\n    set l x\n    set m [list a $l]\n}\n",
+        "::when::HTTP_REQUEST",
+    );
+    assert_loads_l(&when, "f5-irules when HTTP_REQUEST");
+}
+
 #[test]
 fn compwasm_emits_valid_module_header() {
     let dir = std::env::temp_dir().join("tcl_compwasm_test");
