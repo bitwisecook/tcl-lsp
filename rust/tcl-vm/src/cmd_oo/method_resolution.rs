@@ -19,7 +19,8 @@
 //! Method resolution order: class linearisation, object precedence, visibility and the method chain of one invocation.
 
 use super::{
-    Method, OoState, Step, method_report_bytes, native_context, native_method_cache, object_message,
+    Method, OoState, Step, StepRole, method_report_bytes, native_context, native_method_cache,
+    object_message,
 };
 use crate::interp::{Vm, err};
 use crate::value::Value;
@@ -78,6 +79,7 @@ impl OoState {
             method_owner: None,
             provider: obj_key,
             is_object: true,
+            role: StepRole::Method,
         });
         out.extend(class_steps(
             tcloo_linearise(&obj.class, &supers, &mixins),
@@ -93,6 +95,75 @@ impl OoState {
         } else {
             self.classes.get(&step.provider)?.methods.get(name)
         }
+    }
+
+    /// The filter steps wrapping a call: the filter names declared along
+    /// `precedence` (object mixins, the object, then its class MRO), each first
+    /// occurrence kept, and for each name one step per provider implementing
+    /// it, in precedence order. A declared filter nobody implements adds
+    /// nothing.
+    pub(super) fn active_filters(&self, precedence: &[Step]) -> Vec<Step> {
+        let mut names: Vec<String> = Vec::new();
+        for step in precedence {
+            let declared = if step.is_object {
+                self.objects.get(&step.provider).map(|o| &o.filters)
+            } else {
+                self.classes.get(&step.provider).map(|c| &c.filters)
+            };
+            // A name never interned as a method key has no implementation.
+            for name in declared.into_iter().flatten() {
+                if let Some(key) = self.method_keys.get(name)
+                    && !names.contains(key)
+                {
+                    names.push(key.clone());
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for name in names {
+            let steps: Vec<Step> = precedence
+                .iter()
+                .filter(|s| {
+                    self.step_method(s, &name)
+                        .is_some_and(|m| !m.visibility_only)
+                })
+                .cloned()
+                .collect();
+            for mut step in native_method_cache::retain_owners(
+                self,
+                steps,
+                &name,
+                NativeTclooMethodReportRole::Named,
+            ) {
+                step.role = StepRole::Filter(name.clone());
+                out.push(step);
+            }
+        }
+        out
+    }
+
+    /// The `unknown` handlers along `precedence`, as `Unknown` steps.
+    pub(super) fn unknown_handlers(&self, precedence: &[Step]) -> Vec<Step> {
+        let steps: Vec<Step> = precedence
+            .iter()
+            .filter(|s| {
+                self.step_method(s, "unknown")
+                    .is_some_and(|m| !m.visibility_only)
+            })
+            .cloned()
+            .collect();
+        native_method_cache::retain_owners(
+            self,
+            steps,
+            "unknown",
+            NativeTclooMethodReportRole::Named,
+        )
+        .into_iter()
+        .map(|step| Step {
+            role: StepRole::Unknown,
+            ..step
+        })
+        .collect()
     }
 
     /// Whether `name` is exported for external dispatch at `step` (the
@@ -202,12 +273,14 @@ fn class_steps(chain: Result<Vec<OoId>, MroError>, fallback: OoId) -> Vec<Step> 
                 method_owner: None,
                 provider: c,
                 is_object: false,
+                role: StepRole::Method,
             })
             .collect(),
         Err(_) => vec![Step {
             method_owner: None,
             provider: fallback,
             is_object: false,
+            role: StepRole::Method,
         }],
     }
 }
@@ -234,7 +307,7 @@ pub(super) fn invocation_method_chain(
     method: &str,
     original_method: &Value,
     external: bool,
-) -> Result<native_method_cache::ReachedMethodChain, Completion<Value>> {
+) -> Result<Option<native_method_cache::ReachedMethodChain>, Completion<Value>> {
     let caller_scope = native_context::current_method(vm).and_then(|frame| {
         frame
             .chain
@@ -263,7 +336,7 @@ pub(super) fn invocation_method_chain(
     } else {
         None
     };
-    Ok(if let Some(chain) = cached {
+    Ok(Some(if let Some(chain) = cached {
         chain
     } else {
         let public = vm.oo.publicly_visible(obj_key, &precedence, method);
@@ -289,7 +362,7 @@ pub(super) fn invocation_method_chain(
         }
 
         if chain.is_empty() {
-            return Err(unknown_method(vm, obj_key, method, external));
+            return Ok(None);
         }
         // External calls require the first visibility record to be exported.
         if external
@@ -304,7 +377,7 @@ pub(super) fn invocation_method_chain(
                 .step_method(&chain[0], method)
                 .is_some_and(|method| method.private)
         {
-            return Err(unknown_method(vm, obj_key, method, external));
+            return Ok(None);
         }
         let chain = native_method_cache::retain_owners(
             &vm.oo,
@@ -329,7 +402,7 @@ pub(super) fn invocation_method_chain(
         } else {
             chain.into()
         }
-    })
+    }))
 }
 
 /// Whether an object built-in (`variable`/`varname`/`eval`) is exported — they
@@ -342,7 +415,12 @@ pub(super) fn is_exported_builtin(vm: &Vm, obj_key: OoId, method: &str) -> bool 
 }
 
 /// The `unknown method "X": must be …` error (or "no visible methods").
-fn unknown_method(vm: &Vm, obj_key: OoId, method: &str, external: bool) -> Completion<Value> {
+pub(super) fn unknown_method(
+    vm: &Vm,
+    obj_key: OoId,
+    method: &str,
+    external: bool,
+) -> Completion<Value> {
     let names = vm.oo.visible_methods(obj_key, !external);
     if names.is_empty() {
         return err(object_message(

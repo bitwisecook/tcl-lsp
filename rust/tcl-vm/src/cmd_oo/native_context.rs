@@ -368,6 +368,11 @@ const DEFINITION_WORKERS: &[(&str, crate::command::BuiltinFn, crate::command::Bu
         |v, a| definition_worker(v, a, false, "mixin"),
     ),
     (
+        "filter",
+        |v, a| definition_worker(v, a, true, "filter"),
+        |v, a| definition_worker(v, a, false, "filter"),
+    ),
+    (
         "forward",
         |v, a| definition_worker(v, a, true, "forward"),
         |v, a| definition_worker(v, a, false, "forward"),

@@ -258,6 +258,27 @@ struct Step {
     method_owner: Option<native_method_cache::MethodOwner>,
     provider: OoId,
     is_object: bool,
+    role: StepRole,
+}
+
+/// Why a step is on a call chain, which fixes the method it runs.
+#[derive(Clone, PartialEq, Eq)]
+enum StepRole {
+    /// An implementation of the invoked method.
+    Method,
+    /// A filter wrapping the call; runs the named filter method.
+    Filter(String),
+    /// A handler for a lookup miss; runs `unknown`.
+    Unknown,
+}
+
+impl Step {
+    fn filter(&self) -> Option<&str> {
+        match &self.role {
+            StepRole::Filter(name) => Some(name),
+            _ => None,
+        }
+    }
 }
 
 /// What a running method's `self`/`my`/`next` operate on: the object, the
@@ -740,12 +761,7 @@ fn oo_dispatch_entered(
     argv: &[Value],
 ) -> Completion<Value> {
     if argv.is_empty() {
-        let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(invoked)) {
-            Ok(usage) => usage,
-            Err(completion) => return completion,
-        };
-        usage.extend_from_slice(b" method ?arg ...?");
-        return crate::command::native_wrong_args_bytes(vm, &usage);
+        return method_invocation::oo_invoke_unknown(vm, key, None, &[], true, invoked);
     }
     let method = match native_method_key_for_target(vm, &argv[0], Some((false, key))) {
         Ok(key) => key,

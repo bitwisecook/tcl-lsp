@@ -23,16 +23,17 @@ use super::construction::{evaluate_class_definition, factory};
 use super::declared_variables::{declared_variable_error, frame_private_storage_name};
 use super::definition::definition_wrong_args;
 use super::destruction::oo_destroy;
-use super::method_resolution::{invocation_method_chain, is_exported_builtin};
+use super::method_resolution::{invocation_method_chain, is_exported_builtin, unknown_method};
 use super::{
-    DeclaredVariable, OoFrame, Step, method_preparation, native_method_cache, native_properties,
-    object_message, original_name_operands, variable_mapping,
+    DeclaredVariable, OoFrame, Step, StepRole, method_preparation, native_method_cache,
+    native_properties, object_message, original_name_operands, variable_mapping,
 };
 use crate::command::ProcDef;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use std::rc::Rc;
 use tcl_core_types::NameBytes;
+use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
 use tcl_runtime_api::{Completion, OoId};
 
 /// Invoke `method` on object `obj_key`. `external` is a public `$obj m` call
@@ -122,7 +123,18 @@ pub(super) fn oo_invoke_value_with_head(
     }
 
     let chain = match invocation_method_chain(vm, obj_key, method, original_method, external) {
-        Ok(chain) => chain,
+        Ok(Some(chain)) => with_filters(vm, obj_key, chain),
+        Ok(None) => {
+            let mut uargs = Vec::with_capacity(args.len() + 1);
+            uargs.push(original_method.native_lifetime_lease().into_value());
+            uargs.extend_from_slice(args);
+            let result = oo_invoke_unknown(vm, obj_key, Some(method), &uargs, external, invoked);
+            if let Err(error) = original_scope.check(vm) {
+                drop(result);
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            return result;
+        }
         Err(completion) => return completion,
     };
     let usage = vec![invoked.clone(), original_method.clone()];
@@ -156,6 +168,99 @@ pub(super) fn oo_invoke_value_with_head(
         return crate::command::completion_from_cmd_error(vm, error);
     }
     result
+}
+
+/// Prepend the object's active filters to `chain`, unless a filter is already
+/// running on it.
+fn with_filters(
+    vm: &Vm,
+    obj_key: OoId,
+    chain: native_method_cache::ReachedMethodChain,
+) -> native_method_cache::ReachedMethodChain {
+    if filter_handling(vm, obj_key) {
+        return chain;
+    }
+    let mut steps = vm.oo.active_filters(&vm.oo.object_precedence(obj_key));
+    if steps.is_empty() {
+        return chain;
+    }
+    steps.extend(chain.iter().cloned());
+    steps.into()
+}
+
+/// Route a method-lookup miss through the object's `unknown` handlers (C's
+/// `OO_UNKNOWN_METHOD` chain): every provider of `unknown` in precedence order,
+/// behind the active filters. `uargs` already carries the missed name first;
+/// `unknown` is found whatever its export state. With no method name at all
+/// (`$obj` alone, C's `FORCE_UNKNOWN`), `missed` is `None` and filters do not
+/// apply. With no user handler, `oo::object`'s built-in reports the miss.
+pub(super) fn oo_invoke_unknown(
+    vm: &mut Vm,
+    obj_key: OoId,
+    missed: Option<&str>,
+    uargs: &[Value],
+    external: bool,
+    invoked: &Value,
+) -> Completion<Value> {
+    let precedence = vm.oo.object_precedence(obj_key);
+    let mut steps = vm.oo.unknown_handlers(&precedence);
+    if steps.is_empty() {
+        if let Some(method) = missed {
+            return unknown_method(vm, obj_key, method, external);
+        }
+        let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(invoked)) {
+            Ok(usage) => usage,
+            Err(completion) => return completion,
+        };
+        usage.extend_from_slice(b" method ?arg ...?");
+        return crate::command::native_wrong_args_bytes(vm, &usage);
+    }
+    if missed.is_some() && !filter_handling(vm, obj_key) {
+        let mut filtered = vm.oo.active_filters(&precedence);
+        filtered.append(&mut steps);
+        steps = filtered;
+    }
+    let head = if external {
+        invoked.native_lifetime_lease().into_value()
+    } else {
+        Value::string("my")
+    };
+    let call_identity = original_call_words(std::iter::once(&head).chain(uargs));
+    let chain: native_method_cache::ReachedMethodChain = steps.into();
+    run_step(
+        vm,
+        obj_key,
+        &chain,
+        0,
+        "unknown".to_string(),
+        uargs,
+        external,
+        invoked.clone(),
+        vec![head],
+        call_identity,
+    )
+}
+
+/// Whether calls on `obj_key` currently bypass its filters (C's
+/// `FILTER_HANDLING`): the object's innermost running step is a filter, or
+/// belongs to a chain built while a filter ran — such a chain carries no
+/// filter steps although the object has active filters. Constructor and
+/// destructor chains never carry filters, so they do not count.
+fn filter_handling(vm: &Vm, obj_key: OoId) -> bool {
+    let Some(fr) = vm.oo.call_stack.iter().rev().find(|f| f.object == obj_key) else {
+        return false;
+    };
+    if fr.chain.get(fr.index).is_some_and(|s| s.filter().is_some()) {
+        return true;
+    }
+    if fr.chain.report_role() != NativeTclooMethodReportRole::Named || fr.method == "eval" {
+        return false;
+    }
+    !fr.chain.iter().any(|s| s.filter().is_some())
+        && !vm
+            .oo
+            .active_filters(&vm.oo.object_precedence(obj_key))
+            .is_empty()
 }
 
 /// Execute step `index` of `chain` on `obj_key`, for the invoked `method`
@@ -285,6 +390,8 @@ fn prepare_method_step(
     call_identity: Vec<Value>,
 ) -> MethodStep {
     let step = chain[index].clone();
+    let filter_name = step.filter().map(str::to_owned);
+    let method = filter_name.as_deref().unwrap_or(method);
     // Only the originally entered record can supply this implementation.
     // An ownerless descriptive context cannot acquire a mutable table record.
     let Some(owner) = &step.method_owner else {
@@ -673,6 +780,7 @@ pub(super) fn builtin_method(
                         method_owner: None,
                         provider: vm.oo.object_root.expect("native object eval provider"),
                         is_object: false,
+                        role: StepRole::Method,
                     }]),
                     index: 0,
                     method: "eval".into(),
