@@ -338,27 +338,25 @@ pub fn bind_formal_argument_bytes(
     Ok(bindings)
 }
 
-/// Render the actual byte-valued formal usage suffix.
+/// Render the actual byte-valued formal usage suffix. `variadic` is the word a
+/// trailing Tcl `args` formal renders as; Jim names its own.
 #[must_use]
 pub fn formal_parameter_usage_bytes(
     parameters: &[ByteFormalParameter],
     grammar: ParameterGrammar,
+    variadic: &[u8],
 ) -> Vec<u8> {
     let mut out = Vec::new();
     for (index, parameter) in parameters.iter().enumerate() {
         if index != 0 {
             out.push(b' ');
         }
-        if parameter.name == b"args"
-            && (grammar == ParameterGrammar::Jim || index + 1 == parameters.len())
-        {
+        if parameter.name == b"args" && grammar == ParameterGrammar::Jim {
             out.push(b'?');
-            out.extend_from_slice(if grammar == ParameterGrammar::Jim {
-                parameter.default.as_deref().unwrap_or(b"arg")
-            } else {
-                b"arg"
-            });
+            out.extend_from_slice(parameter.default.as_deref().unwrap_or(b"arg"));
             out.extend_from_slice(b" ...?");
+        } else if parameter.name == b"args" && index + 1 == parameters.len() {
+            out.extend_from_slice(variadic);
         } else {
             let name = if grammar == ParameterGrammar::Jim && parameter.default.is_none() {
                 parameter.name.strip_prefix(b"&").unwrap_or(&parameter.name)
@@ -444,19 +442,19 @@ mod tests {
             },
         ];
         assert_eq!(
-            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim, b"?arg ...?"),
             b"a b"
         );
         assert_eq!(parameters[0].name, b"a\0tail");
         parameters[0].name = b"&a\0tail".to_vec();
         assert_eq!(
-            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim, b"?arg ...?"),
             b"a b"
         );
         parameters[0].name = b"a\0tail".to_vec();
         parameters[0].default = Some(b"DEFAULT".to_vec());
         assert_eq!(
-            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim, b"?arg ...?"),
             b"?a\0tail? b"
         );
     }
@@ -492,7 +490,7 @@ mod tests {
             }]
         );
         assert_eq!(
-            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Tcl),
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Tcl, b"?arg ...?"),
             b"k\0z k"
         );
     }

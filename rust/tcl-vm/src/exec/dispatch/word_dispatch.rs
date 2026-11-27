@@ -376,7 +376,7 @@ impl Vm {
         p: crate::command::NativeProcedureCommand,
         dispatch: NativeWordDispatch<'_>,
     ) -> Result<Option<Tick>, Completion<Value>> {
-        if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
+        if let Some(result) = self.early_procedure_activation(&p, &words[0], &words[1..])? {
             self.deliver_sync(f, result)?;
             return Ok(None);
         }

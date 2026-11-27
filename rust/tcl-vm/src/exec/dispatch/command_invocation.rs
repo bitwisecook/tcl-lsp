@@ -1069,7 +1069,7 @@ impl Vm {
                 self.settle_native_invoke(res)
             }
             Command::Proc(p) => {
-                match self.early_procedure_activation(&p, argv) {
+                match self.early_procedure_activation(&p, original, argv) {
                     Ok(Some(result)) => return result,
                     Ok(None) => {}
                     Err(error) => return error,

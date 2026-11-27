@@ -153,6 +153,18 @@ impl NativeProcedureActivationProtocol {
         matches!(self, Self::Jim084)
     }
 
+    /// How a C trailing `args` formal reads in a `wrong # args` usage:
+    /// `ProcWrongNumArgs` writes `args` in 8.4, `...` in 8.5 and `?arg ...?`
+    /// from 8.6 on.
+    #[must_use]
+    pub fn variadic_usage_word(self) -> &'static [u8] {
+        match self {
+            Self::C(tcl_dialect::TclVersion::V8_4) => b"args",
+            Self::C(tcl_dialect::TclVersion::V8_5) => b"...",
+            _ => b"?arg ...?",
+        }
+    }
+
     /// Whether a valid empty body returns without installing a call frame.
     #[must_use]
     pub fn empty_body_skips_activation(self) -> bool {

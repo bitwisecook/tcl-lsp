@@ -26,13 +26,51 @@ use std::rc::Rc;
 use tcl_runtime_api::Completion;
 use tcl_syntax::value::ValueOps;
 
-/// The Tcl `wrong # args` usage message for a proc.
-fn proc_usage(vm: &mut Vm, proc: &ProcDef) -> Result<Vec<u8>, Completion<Value>> {
-    let plain = [Value::from_native_string_bytes(
-        proc.actual_command_slot().simple.as_bytes().to_vec(),
-    )];
-    let words = proc.usage_name.as_deref().unwrap_or(&plain);
-    procedure_usage_message(vm, &proc.formal_parameters(), proc.parameter_grammar, words)
+/// The Tcl `wrong # args` usage message for a proc. C's `ProcWrongNumArgs`
+/// names the procedure by the word it was invoked as (`objv[0]`), so
+/// `::a::b` reports `::a::b x`, not its namespace tail.
+fn proc_usage(vm: &mut Vm, proc: &ProcDef, invoked: &Value) -> Result<Vec<u8>, Completion<Value>> {
+    let parameters = proc.formal_parameters();
+    if let Some(words) = proc.usage_name.as_deref() {
+        return procedure_usage_message(vm, &parameters, proc.parameter_grammar, words);
+    }
+    let called = vm
+        .native_name_operand_bytes_checked(invoked)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let protocol = procedure_usage_protocol(vm)?;
+    let header = protocol.render_procedure_name(&called, true);
+    let suffix = formal_usage_suffix(vm, &parameters, proc.parameter_grammar)?;
+    Ok(protocol.render_procedure_message(&header, &suffix))
+}
+
+fn procedure_usage_protocol(
+    vm: &mut Vm,
+) -> Result<tcl_registry::native_usage::NativeUsageProtocol, Completion<Value>> {
+    vm.native_invocation_dialect()
+        .usage_protocol(Some(
+            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+        ))
+        .ok_or_else(|| {
+            vm.refuse_host_command("native procedure usage protocol is unavailable".into())
+        })
+}
+
+fn formal_usage_suffix(
+    vm: &mut Vm,
+    parameters: &[tcl_syntax::formal_params::ByteFormalParameter],
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<u8>, Completion<Value>> {
+    let activation = tcl_registry::native_procedure::procedure_activation_protocol(
+        vm.actual_native_invocation_dialect(),
+    )
+    .ok_or_else(|| {
+        vm.refuse_host_command("native procedure activation protocol is unavailable".into())
+    })?;
+    Ok(tcl_syntax::formal_params::formal_parameter_usage_bytes(
+        parameters,
+        grammar,
+        activation.variadic_usage_word(),
+    ))
 }
 
 fn procedure_usage_message(
@@ -42,15 +80,8 @@ fn procedure_usage_message(
     words: &[Value],
 ) -> Result<Vec<u8>, Completion<Value>> {
     let usage = vm.native_argument_usage_header(words)?;
-    let suffix = tcl_syntax::formal_params::formal_parameter_usage_bytes(parameters, grammar);
-    let protocol = vm
-        .native_invocation_dialect()
-        .usage_protocol(Some(
-            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
-        ))
-        .ok_or_else(|| {
-            vm.refuse_host_command("native procedure usage protocol is unavailable".into())
-        })?;
+    let suffix = formal_usage_suffix(vm, parameters, grammar)?;
+    let protocol = procedure_usage_protocol(vm)?;
     Ok(protocol.render_procedure_message(&usage, &suffix))
 }
 
@@ -59,6 +90,7 @@ impl Vm {
     fn procedure_argument_bindings(
         &mut self,
         proc: &ProcDef,
+        invoked: &Value,
         argv: &[Value],
     ) -> Result<Vec<tcl_syntax::formal_params::FormalByteArgumentBinding>, Completion<Value>> {
         tcl_syntax::formal_params::bind_formal_argument_bytes(
@@ -66,7 +98,7 @@ impl Vm {
             argv.len(),
             proc.parameter_grammar,
         )
-        .map_err(|_| match proc_usage(self, proc) {
+        .map_err(|_| match proc_usage(self, proc, invoked) {
             Ok(message) => crate::command::native_wrong_arguments_message(self, message),
             Err(error) => error,
         })
@@ -77,6 +109,7 @@ impl Vm {
     pub(in super::super) fn early_procedure_activation(
         &mut self,
         proc: &ProcDef,
+        invoked: &Value,
         argv: &[Value],
     ) -> Result<Option<Completion<Value>>, Completion<Value>> {
         self.early_procedure_activation_inputs(
@@ -84,7 +117,7 @@ impl Vm {
             proc.parameter_grammar,
             &proc.body_src,
             argv,
-            |vm| proc_usage(vm, proc),
+            |vm| proc_usage(vm, proc, invoked),
         )
     }
 
@@ -143,7 +176,7 @@ impl Vm {
         arguments: &[Value],
     ) -> Completion<Value> {
         if !definition.activation_preflight_complete {
-            match self.early_procedure_activation(&definition.binding, arguments) {
+            match self.early_procedure_activation(&definition.binding, &invoked, arguments) {
                 Ok(Some(completion)) | Err(completion) => {
                     self.retire_original_lambda_registration(&definition.registration);
                     return completion;
@@ -198,7 +231,7 @@ impl Vm {
         {
             return Err(self.raise_procedure_parse_failure(tail, invoked));
         }
-        let bindings = self.procedure_argument_bindings(proc, argv)?;
+        let bindings = self.procedure_argument_bindings(proc, invoked, argv)?;
         let skip_bindings = if proc.parameter_grammar == tcl_dialect::ParameterGrammar::Jim {
             self.native_name_operand_bytes_checked(&proc.body_src)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
