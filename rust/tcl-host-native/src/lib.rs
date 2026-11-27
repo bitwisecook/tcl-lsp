@@ -41,8 +41,8 @@ use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tcl_platform::{
-    Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process, StdIo,
-    SystemEncoding,
+    Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process,
+    ProcessExit, StdIo, StderrMode, SystemEncoding,
 };
 
 pub mod executable;
@@ -653,7 +653,7 @@ struct NativeProcess {
 }
 
 impl Process for NativeProcess {
-    fn run(&self, args: &[&str]) -> Result<ExecOutput, HostError> {
+    fn run(&self, args: &[&str], stderr: StderrMode) -> Result<ExecOutput, HostError> {
         let (cmd, rest) = args.split_first().ok_or(HostError::NotFound)?;
         let mut command = std::process::Command::new(cmd);
         command.args(rest);
@@ -668,13 +668,40 @@ impl Process for NativeProcess {
                 None => command.env_remove(key),
             };
         }
-        let output = command.output().map_err(|e| map_io(&e))?;
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(match stderr {
+                StderrMode::Capture => std::process::Stdio::piped(),
+                StderrMode::Inherit => std::process::Stdio::inherit(),
+            });
+        let child = command.spawn().map_err(|e| map_io(&e))?;
+        let pid = child.id();
+        let output = child.wait_with_output().map_err(|e| map_io(&e))?;
         Ok(ExecOutput {
-            status: output.status.code().unwrap_or(-1),
+            pid,
+            exit: process_exit(output.status),
             stdout: output.stdout,
             stderr: output.stderr,
         })
     }
+}
+
+#[cfg(unix)]
+fn process_exit(status: std::process::ExitStatus) -> ProcessExit {
+    use std::os::unix::process::ExitStatusExt;
+    match (status.code(), status.signal()) {
+        (Some(code), _) => ProcessExit::Exited(code),
+        (None, Some(signal)) => ProcessExit::Signaled(
+            nix::sys::signal::Signal::try_from(signal).map_or("unknown signal", |s| s.as_str()),
+        ),
+        (None, None) => ProcessExit::Exited(-1),
+    }
+}
+
+#[cfg(not(unix))]
+fn process_exit(status: std::process::ExitStatus) -> ProcessExit {
+    ProcessExit::Exited(status.code().unwrap_or(-1))
 }
 
 #[cfg(test)]
@@ -837,7 +864,7 @@ mod tests {
         let out = host
             .process()
             .expect("a process capability")
-            .run(&["cat", "/proc/self/environ"])
+            .run(&["cat", "/proc/self/environ"], StderrMode::Capture)
             .expect("cat runs");
         assert!(
             out.stdout
@@ -857,11 +884,14 @@ mod tests {
         let out = host
             .process()
             .expect("a process capability")
-            .run(&[
-                "sh",
-                "-c",
-                "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
-            ])
+            .run(
+                &[
+                    "sh",
+                    "-c",
+                    "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
+                ],
+                StderrMode::Capture,
+            )
             .expect("sh runs despite NULs in the overrides");
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "seen:unset:a");
     }

@@ -177,14 +177,35 @@ pub struct Metadata {
     pub ctime_secs: i64,
 }
 
+/// How a finished subprocess ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessExit {
+    /// It exited with this status.
+    Exited(i32),
+    /// A signal killed it: the signal's symbolic name (`SIGKILL`), or
+    /// `unknown signal` for a number the host cannot name.
+    Signaled(&'static str),
+}
+
+/// Where a subprocess's standard error goes ([`Process::run`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StderrMode {
+    /// Captured into [`ExecOutput::stderr`].
+    Capture,
+    /// Passed through to the host process's own standard error.
+    Inherit,
+}
+
 /// The output of a finished subprocess ([`Process::run`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecOutput {
-    /// The process exit status.
-    pub status: i32,
+    /// The subprocess's process id.
+    pub pid: u32,
+    /// How it ended.
+    pub exit: ProcessExit,
     /// Captured standard output.
     pub stdout: Vec<u8>,
-    /// Captured standard error.
+    /// Captured standard error; empty under [`StderrMode::Inherit`].
     pub stderr: Vec<u8>,
 }
 
@@ -455,8 +476,9 @@ pub trait Sockets {}
 /// Subprocess execution (`exec`, `open |pipe`). Conditional — absent on every
 /// WASM target. A host without it makes [`Host::process`] return `None`.
 pub trait Process {
-    /// Run `args[0]` with `args[1..]`, capturing output to completion.
-    fn run(&self, args: &[&str]) -> Result<ExecOutput, HostError>;
+    /// Run `args[0]` with `args[1..]`, capturing standard output (and standard
+    /// error under [`StderrMode::Capture`]) to completion.
+    fn run(&self, args: &[&str], stderr: StderrMode) -> Result<ExecOutput, HostError>;
 }
 
 /// The host environment a Tcl runtime executes in: the aggregate of the

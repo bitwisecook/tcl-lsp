@@ -44,7 +44,7 @@ C Tcl agrees across 8.4–9.1 on every grammar row (differences: `-ignorestderr`
 Production code that implements, models or special-cases these commands:
 
 - **Engines.**
-  - `tcl_cmd_core::platform::exec` (`rust/tcl-cmd-core/src/platform.rs:86-121`): documented as "only the minimal form"; every word is passed through, all trailing newlines are removed, `ExecOutput.status` and `stderr` are ignored. It is the VM's whole `exec` (`rust/tcl-vm/src/cmd_file.rs:42`, `:148`).
+  - `tcl_cmd_core::platform::exec` (`rust/tcl-cmd-core/src/platform.rs:86-121`): switches come from the registry spec (`resolve_exec_switch`); the remaining words are passed through as one argv; the exit and stderr raise as `TclCleanupChildren` does. It is the VM's whole `exec` (`rust/tcl-vm/src/cmd_file.rs:42`, `:148`).
   - `tcl_platform::Process::run` (`rust/tcl-platform/src/lib.rs:455`) and `NativeProcess` (`rust/tcl-host-native/src/lib.rs:653`): run one argv to completion. No pipes, redirections, background processes or pid list exist at the host layer.
   - VM `open`: `name.starts_with('|')` → "command pipelines are not supported" (`rust/tcl-vm/src/cmd_chan.rs:168`). No `chan`, `pid`, `fileevent`, `fcopy`, `load`, `socket` commands are registered (measured with `info commands`).
   - Runtime: `exec`, `socket`, `load`, `fileevent`, `fcopy` registered as unsupported (`runtime/rust/src/cmd_misc.rs:47-56`); `pid $chan` returns `{}` (`:64`); `chan pipe` unsupported (`runtime/rust/src/cmd_chan.rs:247`); `open "|…"` falls through to the file path. `auto_execok` is missing because the runner loads no `auto.tcl`.
@@ -83,4 +83,4 @@ Duplicates of one rule: the "this word starts a pipeline" test is written three 
 
 ## Status on the current source
 
-Confirmed on the current source: no diagnostic for redirection injection (`e08`); the VM's `exec echo a | cat` prints `a | cat` and `exec false` succeeds. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.
+Confirmed on the current source: no diagnostic for redirection injection (`e08`); the VM's `exec echo a | cat` prints `a | cat`. The VM's `exec` now resolves its switches from the registry spec per release, strips one newline, and raises `CHILDSTATUS pid status`, `CHILDKILLED pid SIGNAME msg`, or (without `-ignorestderr`) an error on stderr output, matching tclsh 8.4–9.1 (`rust/tcl-vm-cli/tests/exec_child_status.rs`); pipeline words and `&` are still passed through, and `-encoding` is not applied. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

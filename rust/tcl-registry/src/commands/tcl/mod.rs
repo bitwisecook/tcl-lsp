@@ -92,6 +92,7 @@ pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
 mod fconfigure_;
+pub use exec_::resolve_exec_switch;
 pub use fconfigure_::resolve_fconfigure_option;
 mod fcopy;
 mod file_;

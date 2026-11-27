@@ -139,15 +139,20 @@ file_members! {
     stock_file_writable => "writable",
 }
 
-/// `exec arg ?arg ...?` — run a subprocess via the shared
-/// [`tcl_cmd_core::platform::exec`] body over `host.process()`. On a host
+/// `exec ?switches? arg ?arg ...?` — run a subprocess via the shared
+/// [`tcl_cmd_core::platform::exec`] body over `host.process()`, with the
+/// switch table the registry spec makes available under the active profile.
+/// On a host
 /// without subprocess support (every WASM target, a sandbox) it yields the
 /// faithful "unsupported" Tcl error rather than running — the capability model
 /// in action. The host handle is cloned (`host_rc`) so it can be passed
 /// alongside the `&mut Vm` the shared helper takes as its `ValueOps`.
 fn cmd_exec(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let host = vm.host_rc();
-    match tcl_cmd_core::platform::exec(vm, &*host, args) {
+    let profile = vm.dialect_profile();
+    let release = vm.runtime_version();
+    let resolve = |word: &str| tcl_registry::commands::tcl::resolve_exec_switch(profile, word);
+    match tcl_cmd_core::platform::exec(vm, &*host, release, resolve, args) {
         Ok(v) => ok(v),
         Err(e) => crate::command::completion_from_cmd_error(vm, e),
     }

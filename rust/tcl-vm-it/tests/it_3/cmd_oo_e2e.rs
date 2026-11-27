@@ -1574,3 +1574,77 @@ fn moderately_recursive_method_still_runs() {
         "done"
     );
 }
+
+// Generated object names.
+
+/// `new` names its object `::oo::ObjN` whatever namespace it runs in — an
+/// object's method, a namespaced proc, `namespace eval`, or the global level —
+/// while `create` with a relative name still resolves against the current
+/// namespace (the calling object's namespace inside a method). The counter is
+/// normalised to `ObjN`. Identical under tclsh 8.6.18, 9.0.4 and 9.1.0.
+const GENERATED_NAMES: &str = r#"oo::class create Meta { superclass oo::class }
+oo::class create Stmt { method execute {} { return ok } }
+oo::class create Conn {
+    method prepare {} { return [Stmt new] }
+    method named {} { return [Stmt create rel] }
+    method namedq {} { return [Stmt create ::abs] }
+    method meta {} { return [Meta new] }
+}
+proc tag {o} { regsub -all {Obj[0-9]+} $o ObjN }
+set c [Conn new]
+set s [$c prepare]
+puts [tag $s]:[$s execute]:[info object isa object $s]
+$s destroy
+puts [catch {$s execute} e]:[tag $e]
+set r [$c named]
+puts [expr {$r eq "[info object namespace $c]::rel"}]:[tag $r]:[$r execute]
+puts [$c namedq]:[::abs execute]
+set m [$c meta]
+puts [tag $m]:[info object isa class $m]
+namespace eval ::app { proc mk {} { return [::Stmt new] }; proc mkn {} { return [::Stmt create local] } }
+set p [::app::mk]
+puts [tag $p]:[$p execute]
+puts [::app::mkn]:[::app::local execute]
+puts [tag [Stmt new]]
+puts [Stmt create top]
+namespace eval ::app { puts [tag [::Stmt new]]:[::Stmt create inns] }
+"#;
+
+const GENERATED_NAMES_WANT: &str = "::oo::ObjN:ok:1\n\
+    1:invalid command name \"::oo::ObjN\"\n\
+    1:::oo::ObjN::rel:ok\n\
+    ::abs:ok\n\
+    ::oo::ObjN:1\n\
+    ::oo::ObjN:ok\n\
+    ::app::local:ok\n\
+    ::oo::ObjN\n\
+    ::top\n\
+    ::oo::ObjN:::app::inns";
+
+#[test]
+fn new_names_objects_absolutely_from_any_namespace() {
+    let (ok, res, out) = run(GENERATED_NAMES);
+    assert!(ok, "script errored: {res}");
+    assert_eq!(out.trim(), GENERATED_NAMES_WANT);
+}
+
+#[test]
+fn generated_name_vectors_match_each_tclsh() {
+    for release in [
+        tcl_dialect::TclVersion::V8_6,
+        tcl_dialect::TclVersion::V9_0,
+        tcl_dialect::TclVersion::V9_1,
+    ] {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(release) else {
+            continue;
+        };
+        let out = tcl_test_support::run_script(&tclsh.path, GENERATED_NAMES.as_bytes())
+            .expect("run tclsh")
+            .stdout;
+        assert_eq!(
+            String::from_utf8_lossy(&out).trim(),
+            GENERATED_NAMES_WANT,
+            "[tclsh {release:?}]"
+        );
+    }
+}
