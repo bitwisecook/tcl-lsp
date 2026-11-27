@@ -37,9 +37,6 @@ pub(super) mod logical_body_entry;
 mod source_cut_body;
 mod static_read_child;
 pub(crate) use source_cut_body::OriginalSourceCutBodyRows;
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub use static_read_child::tests as static_read_child_tests;
 
 /// A positioned conditional declaration recipe, never an implementation allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]

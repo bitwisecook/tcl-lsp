@@ -168,7 +168,7 @@ impl Analyser {
     }
 
     /// Test fixtures with private post-analysis queries retain the genuine result.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     pub(crate) fn analyse_and_retain_result_for_test(
         &mut self,
         source: &str,

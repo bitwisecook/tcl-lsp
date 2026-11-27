@@ -1,13 +1,1 @@
 # crate	module behind test-support	test bodies
-tcl-compiler	analyser::commands::original_logical_jim_body_roles_tests	2
-tcl-compiler	analyser::handlers::finite_foreach_source::controls	4
-tcl-compiler	analyser::handlers::original_proc_source_layout_tests	3
-tcl-compiler	command_binding::called_static_layouts::tests	3
-tcl-compiler	command_binding::declaration_preview::static_read_child::tests	10
-tcl-compiler	command_binding::jim_stock_class::reference_prefix::tests	1
-tcl-compiler	command_binding::jim_stock_class::source_advice::controls	2
-tcl-compiler	command_binding::jim_stock_class::tests	7
-tcl-compiler	command_binding::jim_wrapper_body::scope_body::tests	3
-tcl-compiler	command_binding::jim_wrapper_body::tests	3
-tcl-compiler	command_binding::source_transition_advice::source_jim_member::tests	3
-tcl-compiler	compilation_unit::original_native_static_read_owner_tests	3

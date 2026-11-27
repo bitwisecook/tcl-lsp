@@ -186,10 +186,9 @@ from the design in these points:
 - **The `test-support` body lint** (deep review W1) reads every workspace
   crate's `src`. A body is a `#[test]` function, or a `pub fn` that an
   enabling crate's test of the same name calls, directly or through a
-  `macro_rules!` that declares `#[test]` functions (`tcl-compiler-it`'s
-  `spectcl_seeded_tests!`). It finds 12 `tcl-compiler` modules
-  (`test-support-bodies.tsv`). Item 267 counts 13: the 13th,
-  `command_binding::spectcl_test_bodies`, only re-exports the others.
+  `macro_rules!` that declares `#[test]` functions. The exported-body
+  ledger (`test-support-bodies.tsv`) is empty after the public test rewrite;
+  any new exported test body fails in either mode.
 - **Duplicated crates.** For each crate whose `test-support` feature another
   crate enables, the gate prints how many workspace crates that test build
   compiles a second time beside a `tcl-lsp-server` build, item 296's

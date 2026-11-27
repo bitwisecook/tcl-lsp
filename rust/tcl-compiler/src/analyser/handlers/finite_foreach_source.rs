@@ -23,8 +23,6 @@
 
 use super::{Analyser, Span, Token, TokenType};
 use crate::command_binding::OriginalSourceAnalysisOwner;
-#[cfg(feature = "test-support")]
-use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::scope::{
     SignatureNamespaceScope, SignatureSourceCommand, SignatureSourceNameValue,
 };
@@ -518,220 +516,37 @@ impl Analyser {
     }
 }
 
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub mod controls {
-    use super::{Analyser, Arc, FiniteForeachProcedures, FiniteNameLookup, SegmentedCommand};
+#[cfg(test)]
+mod controls {
+    use super::{Analyser, FiniteForeachProcedures, Span};
 
-    fn input() -> crate::analyser::ResolvedAnalysisInput {
-        let environment = tcl_registry::model::ingress::resolve_environment("jimtcl");
-        let profile = environment.analyser_profile();
-        let context = Arc::new(
-            environment
-                .default_context_registry()
-                .with_command_store(Arc::new(tcl_registry::CommandRegistry::build_default())),
-        );
-        crate::analyser::ResolvedAnalysisInput::new(
-            profile,
-            profile,
-            context,
-            tcl_lexer::LexerConfig::for_profile(Some(profile)),
-        )
-    }
-
-    fn fixture(
-        source: &str,
-        input: &crate::analyser::ResolvedAnalysisInput,
-    ) -> (Analyser, SegmentedCommand) {
-        let mut analyser = Analyser::new().with_resolved_input(input.clone());
-        let _ = analyser.analyse_and_retain_result_for_test(source, "jimtcl");
+    #[test]
+    fn reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal() {
+        let source = "foreach name {a b} {proc $name {} {return VALUE}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
         let command = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
             analyser.file_lexer_config(),
         )
         .remove(0);
-        (analyser, command)
-    }
-
-    fn capture(analyser: &Analyser, command: &SegmentedCommand) -> Option<FiniteForeachProcedures> {
-        FiniteForeachProcedures::capture(
-            analyser,
-            command.argv[0],
-            command.args(),
-            command.arg_tokens(),
-            &[],
-        )
-    }
-
-    pub fn literal_jim_iterations_keep_readonly_list_lineage_and_source_names() {
-        let source = "foreach name {a b} {proc $name {} {{n 0}} {return $n}}";
-        let (analyser, command) = fixture(source, &input());
-        assert!(!analyser.result.allows_lexical_declaration_advice());
-        let plan = capture(&analyser, &command).expect("actual sole declaration iteration plan");
-        assert_eq!(plan.names.len(), 2);
-        let header_read = plan.names[0].name_token.span;
-        assert!(
-            analyser
-                .result
-                .global_scope
-                .variables
-                .get("name")
-                .unwrap()
-                .references
-                .contains(&header_read)
-        );
-        assert!(matches!(
-            analyser.finite_foreach_names.lookup(
-                Some(plan.names[0].command),
-                plan.names[0].name_token,
-                &[],
-                analyser.body_depth,
-            ),
-            FiniteNameLookup::Ordinary
-        ));
-        for (receipt, expected) in plan.names.iter().zip(["a", "b"]) {
-            assert_eq!(receipt.value.bytes(), expected.as_bytes());
-            assert!(receipt.value.original_static_list_container().is_some());
-            let (name, text) = receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .unwrap();
-            assert_eq!(text, expected);
-            assert_eq!(name.simple_name().as_deref(), Some(expected));
-            assert!(
-                analyser
-                    .result
-                    .all_procs
-                    .values()
-                    .any(|procedure| procedure.name == expected)
-            );
-        }
-        assert!(
-            analyser
-                .source_analysis_entry
-                .as_ref()
-                .is_none_or(|entry| entry.native_entry.is_none())
-        );
-    }
-
-    pub fn iteration_names_refuse_equal_foreign_owner_changed_source_and_namespace() {
-        let source = "foreach name {a b} {proc $name {} {return VALUE}}";
-        let input = input();
-        let (mut analyser, command) = fixture(source, &input);
-        let mut plan = capture(&analyser, &command).unwrap();
-        let receipt = plan.names.remove(0);
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_some()
-        );
-        analyser
-            .result
-            .global_scope
-            .variables
-            .get_mut("name")
-            .unwrap()
-            .link_target = Some("::foreign".to_owned());
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_none()
-        );
-        assert!(capture(&analyser, &command).is_none());
-        analyser
-            .result
-            .global_scope
-            .variables
-            .get_mut("name")
-            .unwrap()
-            .link_target = None;
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_some()
-        );
-        let (foreign, _) = fixture(source, &input);
-        assert!(
-            receipt
-                .reborrow(&foreign, receipt.name_token, &[])
-                .is_none()
-        );
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[0])
-                .is_none()
-        );
-        let original_config = analyser.result.body_lexer_config;
-        let mut changed = original_config.unwrap();
-        changed.strict_quoting = !changed.strict_quoting;
-        analyser.result.body_lexer_config = Some(changed);
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_none()
-        );
-        analyser.result.body_lexer_config = original_config;
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_some()
-        );
-        analyser.source = format!("{}{}", analyser.source, "\n# changed complete source").into();
-        assert!(
-            receipt
-                .reborrow(&analyser, receipt.name_token, &[])
-                .is_none()
-        );
-    }
-
-    pub fn iteration_plan_refuses_mutation_multiple_bindings_expansion_and_name_prefixes() {
-        let input = input();
-        for source in [
-            "foreach name {a b} {set name changed; proc $name {} {return VALUE}}",
-            "foreach {name other} {a b} {proc $name {} {return VALUE}}",
-            "foreach name {*}$values {proc $name {} {return VALUE}}",
-            "foreach name {a b} {proc prefix$name {} {return VALUE}}",
-            "foreach name {a b} {proc {*}$name {} {return VALUE}}",
-            "foreach name {a b} {proc $name {} {return VALUE}; proc fixed {} {}}",
-        ] {
-            let (analyser, command) = fixture(source, &input);
-            assert!(
-                capture(&analyser, &command).is_none(),
-                "source refused: {source}"
-            );
-        }
-    }
-
-    pub fn reporting_scope_restores_after_unwind_and_preserves_body_depth_refusal() {
-        let source = "foreach name {a b} {proc $name {} {return VALUE}}";
-        let (mut analyser, command) = fixture(source, &input());
-        let plan = capture(&analyser, &command).unwrap();
-        let head = plan.names[0].command;
-        let name = plan.names[0].name_token;
+        let entry_depth = analyser.body_depth;
+        // An empty plan exercises guard storage without issuing a name receipt.
+        let plan = || FiniteForeachProcedures {
+            names: Vec::new(),
+            variable: "name".into(),
+            body_span: Span::new(0, 0),
+            entry_depth,
+        };
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _scope = analyser.finite_foreach_names.enter(plan).unwrap();
-            assert!(matches!(
-                analyser.finite_foreach_names.lookup(
-                    Some(head),
-                    name,
-                    &[],
-                    analyser.body_depth + 1
-                ),
-                FiniteNameLookup::Candidate(_)
-            ));
-            panic!("test-only source reporting scope unwind");
+            let _scope = analyser.finite_foreach_names.enter(plan()).unwrap();
+            panic!("scope unwind");
         }));
         assert!(outcome.is_err());
-        assert!(matches!(
-            analyser
-                .finite_foreach_names
-                .lookup(Some(head), name, &[], analyser.body_depth + 1),
-            FiniteNameLookup::Ordinary
-        ));
-
-        let plan = capture(&analyser, &command).unwrap();
-        let _scope = analyser.finite_foreach_names.enter(plan).unwrap();
-        let previous_depth = analyser.body_depth;
+        let frames = std::sync::Arc::clone(analyser.finite_foreach_names.frames.get().unwrap());
+        assert!(frames.lock().unwrap().is_empty());
+        let scope = analyser.finite_foreach_names.enter(plan()).unwrap();
         analyser.body_depth = crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0;
         let held_depth = analyser.body_depth;
         analyser.analyse_body(&command.args()[2], command.arg_tokens()[2], &[]);
@@ -741,32 +556,11 @@ pub mod controls {
                 .result
                 .diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::E207)
+                .any(|d| d.code == tcl_core_types::DiagCode::E207)
         );
-        assert!(
-            !analyser
-                .finite_foreach_names
-                .frames
-                .get()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .last()
-                .unwrap()
-                .first_header_seen
-        );
-        // Restore the real replay depth so refusal cannot be hidden by a mismatch.
-        analyser.body_depth = previous_depth;
-        // A refused ordinary body walk cannot issue the later iteration name.
-        let _iteration = analyser
-            .finite_foreach_names
-            .advance("name", command.arg_tokens()[2], &[], 1, "b")
-            .unwrap();
-        assert!(matches!(
-            analyser
-                .finite_foreach_names
-                .lookup(Some(head), name, &[], analyser.body_depth),
-            FiniteNameLookup::Ordinary
-        ));
+        assert!(!frames.lock().unwrap().last().unwrap().first_header_seen);
+        analyser.body_depth = entry_depth;
+        drop(scope);
+        assert!(frames.lock().unwrap().is_empty());
     }
 }

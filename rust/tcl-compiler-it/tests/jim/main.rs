@@ -21,21 +21,6 @@
 //! itself, so this harness installs nothing at start-up. Each module keeps
 //! the path it had in `tcl-compiler`, so a test's name is unchanged.
 
-/// Runs each named test body from `tcl-compiler`'s `test-support` bodies
-/// after installing `tcl-spectcl`'s surfaces, Jim's among them.
-macro_rules! spectcl_seeded_tests {
-    ($bodies:path: $($name:ident),* $(,)?) => {
-        use $bodies as bodies;
-        $(
-            #[test]
-            fn $name() {
-                tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
-                bodies::$name();
-            }
-        )*
-    };
-}
-
 mod analyser;
 mod command_binding;
 mod compilation_unit;

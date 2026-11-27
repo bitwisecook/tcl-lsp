@@ -1135,7 +1135,3 @@ mod selected_class_roster_tests;
 
 #[cfg(test)]
 mod original_native_declaration_diagnostic_owner_tests;
-
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub mod original_native_static_read_owner_tests;

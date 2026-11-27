@@ -268,7 +268,6 @@ fn inventory(root: &Path) -> Result<Ledger> {
         };
         let mut files = Vec::new();
         rust_files(&directory.join("src"), &mut files)?;
-        rust_files(&directory.join("tests"), &mut files)?;
         let mut parsed = Vec::new();
         let mut names = Names::default();
         for path in files {
@@ -467,5 +466,58 @@ mod tests {
         );
         assert!(growth(&Ledger::new(), &previous).is_empty());
         assert!(!growth(&previous, &Ledger::new()).is_empty());
+    }
+    #[test]
+    fn integration_receivers_cannot_borrow_production_private_names() {
+        let root = std::env::temp_dir().join(format!(
+            "tcl-test-cleanup-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let directory = root.join("rust/fixture");
+        fs::create_dir_all(directory.join("src")).unwrap();
+        fs::create_dir_all(directory.join("tests")).unwrap();
+        fs::create_dir_all(root.join("runtime/rust/src")).unwrap();
+        fs::write(
+            directory.join("Cargo.toml"),
+            "[package]\nname = \"fixture\"\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("runtime/rust/Cargo.toml"),
+            "[package]\nname = \"runtime-fixture\"\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.join("src/lib.rs"),
+            r"
+            struct State { secret: usize }
+            #[cfg(test)] mod tests {
+                #[test] fn private_state() {
+                    let state = super::State { secret: 1 };
+                    assert_eq!(state.secret, 1);
+                }
+            }
+        ",
+        )
+        .unwrap();
+        fs::write(
+            directory.join("tests/public.rs"),
+            r"
+            mod external { #[derive(Default)] pub struct State { pub secret: usize } }
+            #[test] fn contract() {
+                let state = external::State::default();
+                assert_eq!(state.secret, 0);
+            }
+        ",
+        )
+        .unwrap();
+        let rendered = render(&inventory(&root).unwrap());
+        fs::remove_dir_all(&root).unwrap();
+        assert!(rendered.ends_with("fixture\trust/fixture/src/lib.rs::tests\t1\t1\t0\t0\n"));
+        assert!(!rendered.contains("tests/public.rs"));
     }
 }

@@ -31,7 +31,7 @@ authors.workspace = true
 
 [dev-dependencies]
 tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
-# Seeds Jim's compiled-in core surface (`core_surfaces::ensure`) and loads
+# Seeds Jim's compiled-in core surface (`core_surfaces::install`) and loads
 # `.tclspec` packs; it depends on `tcl-compiler`, so these tests live here
 # rather than in `tcl-compiler`, where every edit would rebuild it.
 tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }

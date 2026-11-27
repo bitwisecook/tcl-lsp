@@ -19,9 +19,6 @@
 //! Conditional Jim wrapper bodies, separate from Native receiver execution.
 
 mod scope_body;
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub use scope_body::tests as scope_body_tests;
 
 use super::{
     Arc, CommandAllocationSite, DeferredSourceBody, ExecutedScriptSource, ModuleCommandBindings,
@@ -404,96 +401,6 @@ impl SourceCommandBindings {
                 config,
                 registry,
                 Some(Arc::clone(&wrapper)),
-            );
-        }
-    }
-}
-
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub mod tests {
-    pub fn jim_wrapper_body_keeps_a_distinct_opaque_future_world() {
-        let source = "class Point {x 0}; Point method m {arg} {missing_jim_method $arg $self}";
-        let analysis = crate::analyser::Analyser::new().analyse(source, "jim");
-        let bindings = analysis
-            .retained_command_realm()
-            .unwrap()
-            .source_bindings_ref();
-        let offset = u32::try_from(source.find("missing_jim_method").unwrap()).unwrap();
-        assert!(
-            bindings
-                .invocation_at_source("", offset)
-                .lookup_state
-                .is_none()
-        );
-        let futures = bindings.future_body_inventories();
-        assert_eq!(futures.len(), 1);
-        assert_eq!(
-            futures[0].registration().offset,
-            u32::try_from(source.find("Point method").unwrap()).unwrap()
-        );
-        assert_eq!(
-            futures[0].source().origin.source_image().bytes(),
-            source.as_bytes()
-        );
-        assert_eq!(
-            futures[0]
-                .frame()
-                .namespace_identity()
-                .unwrap()
-                .display()
-                .as_deref(),
-            Some("::")
-        );
-        let future = futures[0].invocation_at(offset).unwrap();
-        let state = &future.lookup_state.as_ref().unwrap().state;
-        assert!(state.opaque_domain);
-        assert!(state.baseline.native_entry.is_none());
-        assert_eq!(
-            future.selected_slot_diagnostic_presence(),
-            super::super::SourceCommandSlotPresence::unavailable()
-        );
-    }
-
-    pub fn jim_wrapper_namespace_follows_both_published_procedure_keys() {
-        let source = "class n::C {}; n::C method {m::k} {} {missing_jim_method}";
-        let analysis = crate::analyser::Analyser::new().analyse(source, "jim");
-        let bindings = analysis
-            .retained_command_realm()
-            .unwrap()
-            .source_bindings_ref();
-        let future = bindings.future_body_inventories().first().unwrap();
-        assert_eq!(
-            future
-                .frame()
-                .namespace_identity()
-                .unwrap()
-                .display()
-                .as_deref(),
-            Some("::n::n::C m")
-        );
-        assert_eq!(future.source().try_text().unwrap(), "missing_jim_method");
-        assert!(matches!(
-            future.frame().layout(),
-            crate::var_resolve::VariableExecutionFrame::Procedure { .. }
-        ));
-    }
-
-    pub fn jim_wrapper_does_not_borrow_computed_or_recooked_body_geometry() {
-        for source in [
-            "set body {missing_jim_method}; class C {}; C method m {} $body",
-            "class C {}; C method m {} \"missing_jim_method\\n\"",
-            "oo::class create C {method m {} {missing_jim_method}}",
-        ] {
-            let analysis = crate::analyser::Analyser::new().analyse(source, "jim");
-            assert!(
-                analysis
-                    .retained_command_realm()
-                    .unwrap()
-                    .source_bindings_ref()
-                    .future_body_inventories()
-                    .is_empty(),
-                "{source}"
             );
         }
     }

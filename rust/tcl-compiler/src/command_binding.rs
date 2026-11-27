@@ -55,21 +55,6 @@ use tcl_registry::{
 use tcl_registry::{NamespaceTransition, TransitionSubject};
 
 mod called_static_layouts;
-/// The bodies of this module's tests that need Jim's compiled-in core
-/// surface, which only `tcl-spectcl` can seed. `tcl-compiler-it` runs them
-/// after seeding it, so `tcl-compiler`'s own tests need no `tcl-spectcl`.
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub mod spectcl_test_bodies {
-    pub use super::called_static_layouts::tests as called_static_layouts;
-    pub use super::declaration_preview::static_read_child_tests as declaration_preview_static_read_child;
-    pub use super::jim_stock_class::reference_prefix_tests as jim_stock_class_reference_prefix;
-    pub use super::jim_stock_class::source_advice_controls as jim_stock_class_source_advice;
-    pub use super::jim_stock_class::tests as jim_stock_class;
-    pub use super::jim_wrapper_body::scope_body_tests as jim_wrapper_body_scope_body;
-    pub use super::jim_wrapper_body::tests as jim_wrapper_body;
-    pub use super::source_transition_advice::source_jim_member_tests as source_transition_advice_source_jim_member;
-}
 mod closed_class_configuration;
 mod declared_frame_view;
 mod default_manufacture_advice;

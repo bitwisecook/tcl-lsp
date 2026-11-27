@@ -64,8 +64,13 @@ Each row names the crate, source file and inline module, then the candidate
 function-body count and the counts of private-field reads, internal-item
 paths and private-method calls. The scanner parses Rust, including expression
 arguments of assertions, and ignores quoted Rust and Tcl. It follows declared
-`cfg(test)` files, inline test modules, integration tests and test-support
-bodies. Generated tables and recorded fixture data are excluded.
+`cfg(test)` source files, inline test modules and test-support bodies.
+Ordinary Cargo integration tests are outside the library's privacy boundary:
+matching their external receiver fields against a library-private name would
+be a false positive. They are excluded. Source embedding with `include!`,
+indirect private-state exposure through public helpers, and external test
+harnesses need manual review; exported test bodies in production source remain
+inventoried there. Generated tables and recorded fixture data are excluded.
 
 This is a syntactic review inventory, not Rust name resolution or a finding
 that a test should be deleted. Private names are collected per crate; a name
@@ -113,3 +118,35 @@ workspace Clippy leg of `make rust-check` was killed with SIGKILL on the
 `tcl-compiler` library test target, including on a single-job retry.
 Targeted xtask Clippy passed. The workspace lint recipe stopped before its
 offline X.509 and standalone runtime checks.
+
+## Item 267 test assertion review
+
+The 44 test names are retained across public integration tests and the
+compiler-only reporting-guard unit test. These implementation assertions are
+removed from the moved files; the public counterparts are described in the
+[compiler test boundary](../../../design/compiler/crate-split/00-test-dependencies.md#public-test-boundary).
+
+| Former source group | Removed assertions |
+|---|---|
+| `original_logical_jim_body_roles_tests` | Private authored-class receipt and parent-body access; public class/inheritance facts remain. |
+| `finite_foreach_source::controls` | Name-receipt fields, replay lookup variants, private config/scope mutation and plan admission. Public declarations/references are checked across source and namespace changes. Guard storage unwinding and depth refusal stay in a compiler-only unit fixture. |
+| `original_proc_source_layout_tests` | Private source-word selector calls with mutated argument vectors, swapped tokens and a replaced analyser source field. Public body spans and invocation inventories are checked across source replacement and expansion. |
+| `called_static_layouts::tests` | Private layout issuers, body-frame pointers, snapshot equality and entered/result inventory equality. Public source geometry and scope/diagnostic effects remain. |
+| `declaration_preview::static_read_child::tests` | Fabricated SSA child views, private frame/producer fields, missing/reissued layout rows and receipt-record identity. Public W210 cases exercise nested reads, scopes, aliases, replaced callees, redefinition, computed bodies and changed source. |
+| `jim_stock_class::tests` | Private publication maps, generated name records, allocation counters and alias-owner structure. Public command presence, inherited variables and method source metadata remain. |
+| `jim_stock_class::reference_prefix::tests` | Private fresh-prefix presence and analysis-owner argument flag. Public global incoming-slot queries must grant neither body command absence nor execution authority. |
+| `jim_stock_class::source_advice::controls` | Private effect/publication vectors and partial, duplicated, reordered or foreign records. Public member association and refusal after unknown/replaced dependencies remain. |
+| `jim_wrapper_body::tests` | Private lookup snapshot/opaque-domain and baseline fields. Public future inventories and authored namespace labels remain; the API explicitly withholds a native namespace identity. |
+| `jim_wrapper_body::scope_body::tests` | Calls to the private first-entry presence worker with foreign text. Public W123 spans and refusal after effects, substitutions and uncertain history remain. |
+| `source_transition_advice::source_jim_member::tests` | Corrupted recipe records, pointer ownership and withdrawn recipe state. Public class-method association, source replacement and rebinding refusals remain. |
+| `original_native_static_read_owner_tests` | Private receipt queries with cloned functions, equal keys from another unit and manually wrapped/relabelled key fields. Public diagnostics distinguish each source's static, formal, nested and global reads. An equal structural key is not a public unit-allocation identity. |
+
+Validation is recorded in the active naming snapshot. The full compiler
+integration baseline before this rewrite is 182 passed / 127 failed; later
+shared-branch codegen changes must be distinguished from this test-only rewrite
+when comparing the combined tree. Before the registry harness move, the
+rewrite gave 184 passes / 124 failures and zero new failures. The three fixed
+names are the two wrapper namespace-identity assertions (authored layouts
+withhold native identity) and the foreign-unit structural-key assertion;
+the replacement public observations pass. These are owner-authorised test
+cleanup, not production behaviour changes.

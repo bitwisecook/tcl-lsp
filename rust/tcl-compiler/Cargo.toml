@@ -56,9 +56,9 @@ num-traits = "0.2"
 
 [features]
 # Test fixtures (`#[cfg(any(test, feature = "test-support"))]`) for crates whose
-# tests drive this one's internals: `tcl-codegen`'s emitter tests, and the
-# bodies of the tests `tcl-compiler-it` runs once `tcl-spectcl` has seeded
-# Jim's core surface. Never a production dependency.
+# tests supply compiler inputs, including `tcl-codegen`'s emitter tests.
+# Test bodies live in the owning crate's unit tests or external test crates.
+# Never a production dependency.
 test-support = []
 
 [lints]

@@ -2,31 +2,60 @@
 
 ## Current goal: benchmark, survey, compiler tests and runtime gaps
 
-- BPF signed division is repaired for the userspace simulator. rbpf ignores
-  the native signed-mode offset, so its target now divides unsigned magnitudes
-  and restores the signed quotient/remainder. Kernel targets retain their
-  native signed opcodes. The public run regression reproduced `-7 / 2`
-  returning a huge positive result before the fix; it now covers mixed signs,
-  zero divisors, MIN and wrapping overflow. All 9 socket-filter tests and all
-  32 codegen tests pass (`/tmp/bpf-signed-division-tests-work.log`,
-  `/tmp/bpf-signed-division-codegen-tests-work.log`); the failure capture is
-  `/tmp/bpf-signed-division-baseline-work.log`.
+- BPF signed division's public regression passes on the combined in-tree
+  eBPF VM and native CPU-v4 SDIV/SMOD implementation. All 13 signed-arithmetic,
+  9 socket-filter and 32 codegen tests pass. They cover mixed signs, zero
+  divisors, MIN, wrapping overflow, the CLI and the offset-qualified v4 forms.
+  The earlier rbpf magnitude workaround is superseded by the shared engine
+  changes. Logs: `/tmp/bpf-combined-signed-tests-work.log`,
+  `/tmp/bpf-combined-codegen-tests-work.log`. All-target BPF Clippy passes
+  with warnings denied (`/tmp/bpf-combined-clippy-work.log`).
 - Item 499's survey is implemented. `cargo xtask test-cleanup --write` and
-  `--check` pass: 3,218 modules, 16,024 candidate function bodies, 49 crates.
-  All 3 recogniser/ratchet tests pass. This is a documented syntactic review
+  `--check` pass: 2,704 modules, 13,346 candidate function bodies, 48 crates.
+  All 4 recogniser/ratchet tests pass. This is a documented syntactic review
   queue, not a claim that every listed assertion is invalid or that all
   implementation assertions have been found. Logs:
-  `/tmp/test-cleanup-survey-tests-work.log`,
-  `/tmp/test-cleanup-survey-work.log`,
-  `/tmp/test-cleanup-survey-check-work.log`.
+  `/tmp/item-267-survey-recogniser-final-work.log`,
+  `/tmp/item-267-survey-shrink-final-work.log`,
+  `/tmp/item-267-survey-check-final-work.log`. Ordinary integration tests are now
+  excluded from library-private name matching: Rust privacy makes their public
+  external receiver fields false positives. No increased ledger allowance was
+  accepted.
 - Item 106a's scripts/CI harness and manual non-gating workflow are implemented;
   its first partial benchmark-runner baseline is recorded in the build-cost
   snapshot. Scan timeouts and invalid source-workspace samples remain explicit;
-  the corrected readiness/formatting harness requires a new CI run. The owner chose to keep scripts/CI
+  the corrected readiness/formatting retry was interrupted by runner shutdown
+  before artifact upload. The independently uploaded case matrix is running
+  in [CI](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051).
+  The owner chose to keep scripts/CI
   scope and record unavailable phase interfaces and unbuilt artefacts explicitly.
-  All 10 harness tests and Python lint checks pass. No release latency has been
+  All 15 harness tests and Python lint checks pass. No release latency has been
   measured in this agent worktree.
-- Item 267's public-API rewrite remains open. The five VM regressions were
+- Item 267's 43 public tests and one compiler-only guard unit test are
+  implemented, with the 44 names retained. The hidden body facade is removed
+  and the exported-body ledger is empty. The [assertion review](ownership/README.md#item-267-test-assertion-review)
+  records what was removed. Compiler integration baseline: 182 passed / 127
+  failed (`/tmp/item-267-public-tests-baseline-work.log`). Before the shared
+  registry change, the public rewrite gave 184 passes / 124 failures with
+  zero new failures and three corrected private-assumption failures
+  (`/tmp/item-267-public-tests-final-work.log`). Those three are the two
+  authored-namespace identities and the foreign-unit structural-key identity
+  recorded in the assertion review. The remaining 124 failures are unchanged.
+  The shared registry change moved Jim tests to `tests/jim` and replaced
+  `ensure` with explicit surface installation; the extraction follows that
+  layout. Compiler/compiler-it/xtask all-target Clippy passes with warnings
+  denied (`/tmp/item-267-clippy-final-work.log`); combined integration
+  validation gives 141 passed / 124 failed in general `it_4` and all 43 Jim
+  tests pass (`/tmp/item-267-combined-harnesses-work.log`,
+  `/tmp/item-267-jim-final-work.log`). Failure comparison confirms zero new
+  failures (`/tmp/item-267-combined-failset-work.log`). The retained private guard passes
+  (`/tmp/item-267-private-invariant-work.log`); all 44 names match
+  (`/tmp/item-267-test-names-final-work.log`). `module-layers` passes with zero
+  exported test-body modules (`/tmp/item-267-module-layers-final-work.log`). The shared branch now also includes `cbf9f4a5a`'s
+  codegen variable-load fix. The current shard manifest proof passes for all
+  219 targets (`/tmp/item-267-shards-final-work.log`), including the new
+  Jim harness and the BPF signed-arithmetic binary.
+- The five VM regressions were
   reproduced before editing (`/tmp/vm-five-gaps-baseline-work.log`). Repairs
   retain the default object superclass, report the missing method's original
   bytes, import a child trace into a fresh parent command-log frontier, log
@@ -55,8 +84,9 @@ whitespace checks pass. The full Rust/pre-PR gates have not yet been rerun for
 these changes. Previous
 item 498 gate timeouts are recorded below; they are not validation of this
 change set. Focused results above permit development pushes on `work`, not a
-PR or merge. Before a PR, run both complete gates, refresh generated drift
-reports and resolve the existing shard omissions.
+PR or merge. Before a PR, run both complete gates and refresh generated drift
+reports. The current shard manifest proof passes; historical omissions below
+are resolved on this combined tree.
 
 ## Item 498: bytecode tables
 

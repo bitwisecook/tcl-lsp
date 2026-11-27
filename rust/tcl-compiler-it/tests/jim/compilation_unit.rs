@@ -16,12 +16,4 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The bodies run here are in `tcl_compiler::compilation_unit` behind `test-support`.
-
-mod original_native_static_read_owner_tests {
-    spectcl_seeded_tests!(tcl_compiler::compilation_unit::original_native_static_read_owner_tests:
-        native_static_read_receipt_keeps_the_current_unit_allocation_owner,
-        native_static_read_receipt_refuses_wrapped_and_relabelled_cells,
-        direct_original_static_reads_keep_missing_and_other_body_diagnostics,
-    );
-}
+mod original_native_static_read_owner_tests;

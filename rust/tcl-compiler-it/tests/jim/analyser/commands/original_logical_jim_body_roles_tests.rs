@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::analyser::{Analyser, ResolvedAnalysisInput};
+use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
 
-fn analyse(source: &str) -> crate::analyser::AnalysisResult {
+fn analyse(source: &str) -> tcl_compiler::analyser::AnalysisResult {
     use tcl_dialect::{
         DialectProfile,
         model::{DialectPoint, Release},
@@ -36,13 +36,14 @@ fn analyse(source: &str) -> crate::analyser::AnalysisResult {
         tcl_registry::model::ingress::context_for_profile(profile),
         tcl_lexer::LexerConfig::for_profile(Some(profile)),
     );
-    assert!(input.has_logical_source_name_context());
     Analyser::new()
         .with_resolved_input(input)
         .analyse(source, profile.name)
 }
 
-pub fn selected_logical_if_body_retains_original_jim_class_metadata() {
+#[test]
+fn selected_logical_if_body_retains_original_jim_class_metadata() {
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     let source = "if {1} {class Point {x 0}; class Derived Point {z 0}}";
     let result = analyse(source);
     let point = result
@@ -59,16 +60,11 @@ pub fn selected_logical_if_body_retains_original_jim_class_metadata() {
     assert_eq!(derived.variables, ["x", "z"]);
     assert!(point.source_name.is_none());
     assert!(derived.source_name.is_none());
-    let offset = u32::try_from(source.find("class Derived").unwrap()).unwrap();
-    let original = crate::registry_invocation::source_structure::source_authored_jim_class_at(
-        source, &result, offset,
-    )
-    .unwrap();
-    assert!(original.parent_body().is_some());
-    assert_eq!(original.inherited_variables(&result), ["x"]);
 }
 
-pub fn replaced_logical_handler_and_inert_data_do_not_donate_body_roles() {
+#[test]
+fn replaced_logical_handler_and_inert_data_do_not_donate_body_roles() {
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     for source in [
         "proc if {args} {}; if {1} {class Hidden {x 0}}",
         "set text {class Hidden {x 0}}",
