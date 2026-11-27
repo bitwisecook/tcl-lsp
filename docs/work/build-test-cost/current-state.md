@@ -1,6 +1,6 @@
 # Build and test cost: current state
 
-Updated 5 November 2026. This file is a current snapshot of the build- and
+Updated 27 November 2026. This file is a current snapshot of the build- and
 test-time work on `work`; git records the sequence. The measurements and the
 ranked plan it works through are in the report
 <https://claude.ai/artifact/BFfNK69TYvCcQMzTRqQLKi> (private; ask the owner
@@ -9,74 +9,72 @@ for access).
 ## Now-1 analysis and engine baseline (106a)
 
 The single baseline is produced by `scripts/perf/split_baseline.py` through
-`perf.yml`'s manual, non-gating `split-baseline` job. Item 90's measurement
-record and item 483 read this section rather than defining another budget.
+`perf.yml`'s manual, non-gating `split-baseline` mode. Item 90 and item 483
+read this section rather than defining another budget. Cases share the same
+native release binaries, upload independently, and combine with per-case host
+metadata. Missing, provisional and invalid answers contribute no percentile.
 
-[First measured run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45984888240),
-27 November 2026, revision `0fc1b7863d78cd1c222aff00272235d94edde735`:
-Ubuntu 26.04, 4 cores on AMD EPYC 7763, 16 GB RAM, Cargo `release` profile,
-Tcl 8.6 editor workspaces and Tcl 9.0 VM scripts. Each editor action attempted
-20 samples; startup/cold/restart attempted one. VM rows use 5,000 iterations
-and three fresh processes, with `TCL_LIBRARY` unset. Engine times include startup.
+[Measured run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051),
+27 November 2026, revision `da72a72339d86ae38bd2a3af2f2eaf01e9533d1a`: Ubuntu 26.04, Cargo `release`,
+Tcl 8.6 editor workspaces and Tcl 9.0 VM scripts. Editor actions request 20
+samples; startup/cold/restart request one. VM rows use 5,000 iterations and
+3 fresh processes, with `TCL_LIBRARY` unset; wall times include startup.
 
-This is a **partial baseline**. The 10,000-line workspace and Tcllib scan did
-not finish within 120 seconds. Source-workspace definitions and formatting
-returned no valid samples; those answers contribute no percentile. The next
-run separates scan from request timeouts (600 seconds for workspaces, within
-the 1,800-second Tcllib budget), requires successful scan readiness before
-editor queries, and makes the source formatting fixture require an edit.
-Its results must replace this table before 106a is complete.
-The corrected run [45989805533](https://github.com/bitwisecook/tcl-lsp/actions/runs/45989805533)
-built successfully but its runner shut down during measurement (exit 143),
-before artifact upload. Cases now run in separate jobs using the same native
-release binaries; each uploads independently, and a combining job retains
-per-case host metadata and explicitly marks missing cases. A hard request
-timeout ends its sample loop instead of repeating the stalled operation.
-All 15 harness contract tests and Python lint checks pass. No new phase
-instrumentation or release-package builds are included.
+| Case | CPU | Cores | RAM, GB |
+|---|---|---:|---:|
+| small | AMD EPYC 9V74 80-Core Processor | 4 | 16 |
+| large | Intel(R) Xeon(R) 6975P-C | 4 | 15 |
+| source | AMD EPYC 7763 64-Core Processor | 4 | 16 |
+| engines | Intel(R) Xeon(R) 6975P-C | 4 | 15 |
+
+Hardware differs between cases. Later comparisons need matching case/host
+conditions; these results alone do not attribute a cross-host change to code.
 
 | Measurement | Small (6 lines) | Large (10,000 lines) | Source (9 lines across 2 files) |
 |---|---:|---:|---:|
-| Startup, ms | 19.255 | 19.135 | 18.511 |
-| Startup RSS, KiB | 37,240 | 37,416 | 36,448 |
-| Cold workspace scan, ms | 1,303.041 | unavailable (0/1) | 1,102.619 |
-| Warm definition, ms p95 | 10.756 | unavailable (not reached) | unavailable (0/20) |
-| References, ms p95 | 49.539 | unavailable (not reached) | 7.414 |
-| Formatting, ms p95 | 1.532 | unavailable (not reached) | unavailable (0/20) |
-| After-edit definition, ms p95 | 143.621 | unavailable (not reached) | unavailable (0/20) |
-| Restart and scan, ms | 1,071.284 | unavailable (0/1) | 1,072.571 |
+| Startup, ms | 15.072 | 14.162 | 18.183 |
+| Startup RSS, KiB | 35,212 | 36,160 | 35,164 |
+| Cold workspace scan, ms | 1,553.630 | unavailable (0/1) | 1,352.624 |
+| Warm definition, ms p95 | 5.136 | unavailable (not reached) | unavailable (0/20) |
+| References, ms p95 | 32.385 | unavailable (not reached) | unavailable (0/20) |
+| Formatting, ms p95 | 1.300 | unavailable (not reached) | 1.612 |
+| After-edit definition, ms p95 | 120.271 | unavailable (not reached) | unavailable (0/20) |
+| Restart and scan, ms | 867.184 | unavailable (0/1) | 1,120.194 |
 
-Accepted editor-action samples are 20/20 for every measured action above.
-Small/source references each returned two locations per sample; definitions
-returned one. Small formatting returned one edit. Source definitions,
-after-edit definitions and formatting each accepted 0/20. Large scan and
-restart each accepted 0/1; its open document never reached version-ready
-diagnostics. Tcllib accepted 0/1 across a verified 794-file corpus because its
-workspace scan did not complete; its end-to-end time is unavailable.
+Every measured editor action accepts 20/20 samples. Small definitions return
+one location, references two, and formatting one edit; source formatting
+returns one edit. Source definitions, references and after-edit definitions
+accept 0/20 invalid/missing responses. The large cold and restart scans each
+accept 0/1 after their separate 600-second limits; its editor queries and
+open-document memory measurement are not reached. After-edit latency includes
+complete versioned diagnostics before the definition response.
 
-Whole-process open-document RSS was 352,980 KiB (small) and 315,840 KiB
-(source), with one document open. Their arithmetic normalisations are
-588,300,000 and 350,933,333.333 KiB per 10,000 lines, respectively: fixed
-process costs make these tiny-workspace extrapolations unsuitable as the
-10,000-line memory budget. That budget's large-workspace measurement remains
-unavailable. No allocator delta or retained-summary-only memory is claimed.
+The Tcllib case is being retried after its runner shut down before upload.
+Its end-to-end row is unavailable until that case returns a result.
+
+Whole-process open-document RSS is 355,300 KiB (small) and 319,884 KiB
+(source), with one document open. The artifact also records their arithmetic
+normalisations: 592,166,666.667 and 355,426,666.667 KiB per 10,000 lines.
+Fixed process costs make these tiny-workspace extrapolations unsuitable as
+the 10,000-line memory budget; that budget's large-workspace row is unavailable.
+No allocator delta or retained-summary-only memory is claimed.
 
 | VM script | Median, ms | p95, ms | Accepted |
 |---|---:|---:|---:|
-| `dict_ops` | 185.389 | 187.121 | 3/3 |
-| `empty_loop` | 85.485 | 89.930 | 3/3 |
-| `expr_arith` | 126.535 | 129.023 | 3/3 |
-| `global_var` | 213.015 | 214.021 | 3/3 |
-| `list_ops` | 162.173 | 162.830 | 3/3 |
-| `namespace_var` | 214.537 | 219.519 | 3/3 |
-| `oo_method` | 261.400 | 268.764 | 3/3 |
-| `proc_body` | 96.887 | 102.490 | 3/3 |
-| `proc_call` | 155.129 | 158.714 | 3/3 |
-| `set_loop` | 94.863 | 94.930 | 3/3 |
-| `string_ops` | 151.424 | 153.337 | 3/3 |
+| `dict_ops` | 129.660 | 131.996 | 3/3 |
+| `empty_loop` | 62.516 | 62.917 | 3/3 |
+| `expr_arith` | 89.131 | 89.725 | 3/3 |
+| `global_var` | 128.517 | 129.108 | 3/3 |
+| `list_ops` | 114.441 | 115.626 | 3/3 |
+| `namespace_var` | 131.438 | 132.580 | 3/3 |
+| `oo_method` | 150.920 | 151.488 | 3/3 |
+| `proc_body` | 72.507 | 74.307 | 3/3 |
+| `proc_call` | 100.784 | 101.436 | 3/3 |
+| `set_loop` | 66.871 | 68.324 | 3/3 |
+| `string_ops` | 107.355 | 108.958 | 3/3 |
 
-The native server binary is 118,665,576 bytes. The other budget rows remain
-explicitly unavailable by the owner's scripts/CI-only scope decision:
+The native server binary is 118,683,112 bytes. The remaining budget
+rows are explicitly unavailable under the owner's scripts/CI-only scope:
 
 | Row | Why unavailable |
 |---|---|
@@ -87,9 +85,9 @@ explicitly unavailable by the owner's scripts/CI-only scope decision:
 | Standalone runtime scripts | No release runtime runner was built/supplied. |
 | Server WASM, WASI, VSIX, JetBrains ZIP, web bundle sizes | Those artefacts were not built on this runner; no size is borrowed from another revision. |
 
-No latency, size or regression threshold is enforced by this job. JSON and
-Markdown samples remain in the CI artifact `split-baseline-45984888240`; this
-section retains the measured values and exclusions needed for comparison.
+No latency, size or regression threshold is enforced. JSON and Markdown
+samples remain in the CI artifact `split-baseline-45997018051` and its case
+artifacts. All 15 harness contract tests and Python lint checks pass.
 
 ## Items, in priority order
 
