@@ -27,5 +27,3 @@ mod inlining_rename;
 mod real_job_fixtures;
 mod wasm_codegen;
 mod wasm_execute;
-
-tcl_registry::testing::install_shipped!();

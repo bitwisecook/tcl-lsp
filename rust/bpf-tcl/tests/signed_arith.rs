@@ -220,5 +220,3 @@ fn out_of_bounds_access_is_an_error() {
     let err = exec_on(&prog, &mut [0u8; 2]).unwrap_err();
     assert!(err.contains("out-of-bounds"), "{err}");
 }
-
-tcl_registry::testing::install_shipped!();

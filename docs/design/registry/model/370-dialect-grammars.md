@@ -629,18 +629,37 @@ $ tcl dis --dialect tcl8.6 --source 'expr {017 + 0o17}'
 $ tcl dis --dialect tcl9.0 --source 'expr {017 + 0o17}'
     (0) push1 0	# "32"
 $ tcl dis --dialect tcl8.4 --source 'puts a; expr {0o17}; puts b'
-ByteCode ::top, 0 instructions, 0 bytes, 0 literals, 0 variables
-  Instructions:
-$ echo $?
-0
+ByteCode ::top, 12 instructions, 21 bytes, 5 literals, 0 variables
+    (0) push1 0	# "puts"
+    (2) push1 1	# "a"
+    (4) invokeStk1 2	# puts
+    (6) pop
+    (7) push1 2	# "expr"
+    (9) push1 3	# "0o17"
+    (11) invokeStk1 2	# expr
+    (13) pop
+    (14) push1 0	# "puts"
+    (16) push1 4	# "b"
+    (18) invokeStk1 2	# puts
+    (20) done
 ```
 
-The 8.4 row is a bug: the whole unit is silently empty. tclsh 8.4.20 and
+The 8.4 row was a bug, now fixed: the whole unit was silently empty. 8.4
+never compiles a sourced file whole: `Tcl_FSEvalFile` hands it to
+`Tcl_EvalEx`, which compiles each command as it runs, so tclsh 8.4.20 and
 `tclvm --tcl-version 8.4` print `a`, then fail with `syntax error in
-expression "0o17": extra tokens at end of expression`. The required
-behaviour is a runtime error compiled at that command, as tclsh 9.0 compiles
-`expr {0o1x}`: commands 1 and 3 compiled as usual and a `syntax` instruction
-in command 2 (item 376's "Done when").
+expression "0o17": extra tokens at end of expression` while executing
+`expr {0o17}`. When 8.4 would refuse an authored document's top level
+whole, `lower_to_ir_for_bytecode_with_dialect` now lowers it as such a
+direct script (`CommandEvaluation::Direct`, the model the runtime already
+uses for 8.4's `source`, `eval` and `uplevel`): commands 1 and 3 compile as
+usual and command 2 is the invocation that fails when it runs. A script a
+command runs (`if 1 {expr {0o17}}`, a `proc` body, a `catch`) is still
+refused whole when it is compiled, `while compiling`, as in C. Where 8.5 and
+later compile a parse error to a `syntax` instruction, an 8.4 unit has no
+such instruction, since 8.4 itself never compiled one. The test is
+`rust/tcl-vm-it/tests/it_2/c84_document_compile_refusal_e2e.rs`, checked
+against tclsh 8.4, 8.6 and 9.0.
 
 **Result:**
 
@@ -924,7 +943,7 @@ unit's profile, an engine that cannot run it refuses instead.
   finds nothing; `format %b 5` fails under `tclvm --tcl-version 8.4`;
   `tclvm --tcl-version 8.4` and `9.0` give tclsh's `scan.int_width` row; and
   `tcl dis --dialect tcl8.4 --source 'puts a; expr {0o17}; puts b'` compiles
-  three commands, the second a runtime `syntax` error (item 376).
+  three commands, the second failing at run time (item 376; done).
 - **Measurements:** lexing time on the corpus within ±2% (the profile is a
   `&'static` read); the build cone of `tcl-dialect` unchanged; the number of
   `LexerConfig::default()` lines outside tests, which may only shrink.
@@ -991,3 +1010,43 @@ unit's profile, an engine that cannot run it refuses instead.
 
 - **W3.** The release-facts generator and 79's operator, numeral, escape and character-model axes are Now 6 work, done once under 417.
 - **E11 (plan pass).** The `scan` and `clock` engine rows are re-run with `TCL_LIBRARY` both unset and set to 9.0.4: `scan` is wrong at every `tclvm` release, and the `clock` failures are library selection (item 312), not `clock`.
+
+## Engine fixes (27 November 2026)
+
+The `scan`, `clock` and `binary` rows of the axis table are now typed values
+for C Tcl, read by the shared kernels and both engines:
+
+- **Release facts.** `ScanGrammar { int_width }`, `ClockGrammar { units,
+  format }` and `BinaryGrammar { formats }` (`tcl-dialect/src/command_grammar.rs`)
+  sit on `ReleasePolicyFacts`. `cargo xtask release-facts --verify-sources`
+  measures them with seven probe rows in `data/release-policies.tcl` (`scan
+  ffffffff %x`, `scan 1ffffffff %x`, `clock add`, `clock add … d`, `%Ez`,
+  `clock scan -format`, `binary format m`); an unmodelled combination fails
+  generation. They are the first per-grammar records of the `GrammarProfile`
+  sketched above; the axis enums move into it with item 417.
+- **Kernels.** `tcl_cmd_core::scan::scan_match_in` reads integers at the
+  release's width (`Wrap32Narrow`, `Full`, `Saturate32`, after C's `strtol` /
+  `strtoul`, `TclGetLongFromObj` and `TclGetIntFromObj`) and spells a
+  negative `%u` unsigned; `clock::dispatch` takes the `ClockGrammar`, with
+  8.4's `Tcl_ClockObjCmd` surface and the two `E`/`O` modifier tables;
+  `binary::{format,scan}_values_using` take `BinaryFormats`, which also
+  consumes the `u` suffix after any letter as `GetFormatSpec` does. The
+  analyser's `ScanConversion::truncates_to_int32` reads the same axis.
+- **The inline abort.** `tclvm -c 'clock add 0 1 day'` aborted with `native
+  compiler preflight provider required` because the compiler selection for
+  the `clock` workers was `Unknown`: add, format and scan used the
+  unmodelled `HookFrom(9.0)` (now `NamedEnsembleInvocation`, C's
+  `TclCompileBasicMin1ArgCmd`, with 8.6's slot carrying no hook), a clock
+  reading that the hook declines was `Unknown` rather than an invocation,
+  and 9.1 had no ensemble bootstrap and no clock-reading window (9.1 takes
+  `clock clicks -mi`).
+- **Conformance.** `rust/tcl-vm/tests/data/tclsh_parity/kernel_grammars.tcl`
+  and its `.expect` (tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0) cover every
+  row above, at top level and compiled in a procedure.
+
+Still open: the scan `conversions` axis (`%b` before 8.6, `ll` in 8.4, every
+`%llu` refused at validation in 8.5 and 8.6); 8.5's `scan` near 2^63;
+`clock scan … -format %Y` filling the base date on 8.5 and 8.6; 8.5 and
+8.6's `clock` usage and option wording; `clock monotonic` (9.1); and
+`runtime/rust`'s `binary` field set (it keeps the 8.5 grammar).
+

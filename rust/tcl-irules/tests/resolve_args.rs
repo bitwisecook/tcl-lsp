@@ -146,5 +146,3 @@ fn original_source_values_and_standalone_templates_agree_without_a_second_unwrap
         [] as [tcl_irules::IrulesObjectReference; 0]
     );
 }
-
-tcl_registry::testing::install_shipped!();

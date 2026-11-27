@@ -25,5 +25,3 @@ mod completion;
 mod doors_e2e;
 mod factory;
 mod sandbox_isolation;
-
-tcl_registry::testing::install_shipped!();

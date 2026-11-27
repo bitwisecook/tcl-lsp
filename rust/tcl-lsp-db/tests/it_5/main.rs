@@ -24,5 +24,3 @@
 mod early_cutoff;
 mod memory_alias_graph;
 mod memory_growth;
-
-tcl_registry::testing::install_shipped!();

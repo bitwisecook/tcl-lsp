@@ -839,5 +839,3 @@ issafe, invokehidden, limit, marktrusted, or recursionlimit";
         )
     );
 }
-
-tcl_registry::testing::install_shipped!();

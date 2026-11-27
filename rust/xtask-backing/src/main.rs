@@ -62,6 +62,3 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::WasmBacking { check } => command_backing::run(check),
     }
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

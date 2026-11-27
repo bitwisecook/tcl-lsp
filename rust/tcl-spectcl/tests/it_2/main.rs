@@ -26,5 +26,3 @@ mod extension_routes;
 mod i6_security_floor;
 mod jim_seed_after_publish;
 mod pack_torture;
-
-tcl_registry::testing::install_shipped!();

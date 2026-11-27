@@ -464,8 +464,8 @@ mod tests {
             render(&read_ledger(&render(&previous)).unwrap()),
             render(&previous)
         );
-        assert!(growth(&Ledger::new(), &previous).is_empty());
-        assert!(!growth(&previous, &Ledger::new()).is_empty());
+        assert_eq!(growth(&Ledger::new(), &previous), Vec::<String>::new());
+        assert_ne!(growth(&previous, &Ledger::new()), Vec::<String>::new());
     }
     #[test]
     fn integration_receivers_cannot_borrow_production_private_names() {

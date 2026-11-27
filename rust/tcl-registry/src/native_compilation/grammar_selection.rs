@@ -662,12 +662,15 @@ pub(crate) fn clock_reading_value(
     version: TclVersion,
 ) -> Option<u8> {
     use NativeClockReading as Reading;
-    // tclsh 8.6.18 and 9.0.4 disassemble `clock clicks`, `clock microseconds`,
-    // `clock milliseconds` and `clock seconds` to `clockRead 0` to `3`, and
-    // `clock clicks -mic` / `-mil` to `clockRead 1` / `2`.
-    if !matches!(version, TclVersion::V8_6 | TclVersion::V9_0) {
-        return None;
-    }
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 disassemble `clock clicks`, `clock
+    // microseconds`, `clock milliseconds` and `clock seconds` to `clockRead 0`
+    // to `3`, and `clock clicks -mic` / `-mil` to `clockRead 1` / `2`. C9.1's
+    // `IS_TOKEN_PREFIX(tokenPtr, 3, …)` also takes `-mi` as microseconds.
+    let shortest_option = match version {
+        TclVersion::V8_6 | TclVersion::V9_0 => 4,
+        TclVersion::V9_1 => 3,
+        _ => return None,
+    };
     match (reading, shapes) {
         (Reading::Clicks, []) => Some(0),
         (Reading::Microseconds, []) => Some(1),
@@ -675,7 +678,7 @@ pub(crate) fn clock_reading_value(
         (Reading::Seconds, []) => Some(3),
         (Reading::Clicks, [shape]) => {
             let bytes = crate::native_regexp_compilation::simple_word_bytes(*shape, argument)?;
-            if !(4..=13).contains(&bytes.len()) {
+            if !(shortest_option..=13).contains(&bytes.len()) {
                 return None;
             }
             if b"-microseconds".starts_with(bytes) {
@@ -697,13 +700,22 @@ pub(super) fn clock_reading_selection(
     version: TclVersion,
     operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
-    if operation == SemanticOperationId::Invoke
-        && clock_reading_value(reading, argument, shapes, version).is_some()
-    {
+    if operation != SemanticOperationId::Invoke {
+        return NativeCompilationSelection::Unknown;
+    }
+    if clock_reading_value(reading, argument, shapes, version).is_some() {
         NativeCompilationSelection::Inline {
             operation,
             guard: NativeCompilationGuard::BeforeArguments,
         }
+    } else if matches!(
+        version,
+        TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+    ) {
+        // The hook returns TCL_ERROR on any other word count or option, and
+        // the command compiles as an invocation: tclsh 9.0.4 disassembles
+        // `clock clicks -x` and `clock seconds x` to `invokeReplace 3`.
+        NativeCompilationSelection::Generic
     } else {
         NativeCompilationSelection::Unknown
     }

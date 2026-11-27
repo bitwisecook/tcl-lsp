@@ -26,5 +26,3 @@ mod hook_service;
 mod pack_formatting;
 mod package_specs;
 mod workspace_packs;
-
-tcl_registry::testing::install_shipped!();

@@ -73,5 +73,3 @@ fn help_dsl_short_circuits_without_inputs() {
     let out = run_help("--help-dsl");
     assert!(out.starts_with("F5 QUERY DSL — GRAMMAR"));
 }
-
-tcl_registry::testing::install_shipped!();

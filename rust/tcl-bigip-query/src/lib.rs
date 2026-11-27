@@ -82,6 +82,3 @@ pub use parser::parse_query;
 pub use rewrite::{RenameReport, rename_object};
 pub use runner::{QueryOptions, QueryResult, SideInput, run_query};
 pub use value::{ObjectRef, PathRef, Value};
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

@@ -144,5 +144,3 @@ fn gtm_fronts_ltm_link_is_detected() {
     assert_eq!(devs[0]["tier"], 0);
     assert_eq!(devs[1]["tier"], 1);
 }
-
-tcl_registry::testing::install_shipped!();

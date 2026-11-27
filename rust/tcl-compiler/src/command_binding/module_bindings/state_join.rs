@@ -273,6 +273,10 @@ impl ModuleCommandBindings {
             self.stock_tclsh_stdout = false;
             changed = true;
         }
+        if other.unmodelled_reentry && !self.unmodelled_reentry {
+            self.unmodelled_reentry = true;
+            changed = true;
+        }
         if other.opaque_domain && !self.opaque_domain {
             self.opaque_domain = true;
             changed = true;

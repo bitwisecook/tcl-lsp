@@ -754,5 +754,3 @@ fn report_native_depth_ledger(tag: &str, stderr: &[u8]) {
         eprintln!("{record}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

@@ -27,6 +27,7 @@
 //! with a plain `From`.
 
 use tcl_platform::HostError;
+use tcl_platform::posix::{Posix, Table};
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::{
     NativeStringAccessError, NativeValueAccessRefusal, UnicodeAccessError,
@@ -449,6 +450,33 @@ impl CmdError {
         Self::with_error_code(message, "TCL ARGUMENT FORMAT")
     }
 
+    /// `Tcl_PosixError` after a failed OS call: `<context>: <message>` with
+    /// `-errorcode {POSIX <ID> <message>}`, worded from `release`'s table.
+    #[must_use]
+    pub fn posix(
+        context: impl AsRef<[u8]>,
+        posix: &Posix,
+        release: tcl_dialect::TclVersion,
+    ) -> Self {
+        let table = posix_table(release);
+        let message = [context.as_ref(), b": ", posix.message(table).as_bytes()].concat();
+        Self::with_error_code_bytes(message, posix_error_code(posix, release))
+    }
+
+    /// [`CmdError::posix`] for a host failure; one with no errno keeps the
+    /// default `-errorcode`.
+    #[must_use]
+    pub fn host(
+        context: impl AsRef<[u8]>,
+        error: &HostError,
+        release: tcl_dialect::TclVersion,
+    ) -> Self {
+        match error.posix() {
+            Some(posix) => Self::posix(context, &posix, release),
+            None => Self::new_bytes([context.as_ref(), b": ", error.reason().as_bytes()].concat()),
+        }
+    }
+
     /// A trace-aware variable read whose selected cell disappeared.
     #[must_use]
     pub fn variable_read_missing(name: &str, reason: &str) -> Self {
@@ -582,6 +610,30 @@ impl From<HostError> for CmdError {
         // `couldn't open "<path>": <reason>` form themselves.
         Self::new(e.reason())
     }
+}
+
+/// The `tclPosixStr.c` table `release` words errnos from.
+#[must_use]
+pub fn posix_table(release: tcl_dialect::TclVersion) -> Table {
+    if release >= tcl_dialect::TclVersion::V9_0 {
+        Table::Tcl90
+    } else if release >= tcl_dialect::TclVersion::V8_6 {
+        Table::Tcl86
+    } else {
+        Table::Tcl84
+    }
+}
+
+/// The `POSIX <ID> <message>` list `Tcl_PosixError` sets as `-errorcode`.
+#[must_use]
+pub fn posix_error_code(posix: &Posix, release: tcl_dialect::TclVersion) -> Vec<u8> {
+    let table = posix_table(release);
+    let mut code = b"POSIX".to_vec();
+    for word in [posix.id(table).as_bytes(), posix.message(table).as_bytes()] {
+        code.push(b' ');
+        tcl_syntax::list::append_list_element(&mut code, word, false);
+    }
+    code
 }
 
 /// The error the `return` option word `name` raises under `release`: before

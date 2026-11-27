@@ -827,5 +827,3 @@ fn script_timing_resolver_retains_structured_payload_kinds() {
     );
     pack_hooks::clear_host();
 }
-
-tcl_registry::testing::install_shipped!();

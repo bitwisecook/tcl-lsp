@@ -42,6 +42,11 @@ pub fn install(interp: &mut Interp) {
 fn scanned_obj(v: &Scanned) -> *mut TclObj {
     match v {
         Scanned::Int(n) => new_wide_int_obj(*n),
+        Scanned::Unsigned(_) | Scanned::Big { .. } => new_string_bytes(
+            v.integer_decimal()
+                .expect("an integer scan has a decimal spelling")
+                .as_bytes(),
+        ),
         Scanned::Double(d) => new_double_obj(*d),
         Scanned::Str(s) => new_string_bytes(s.as_bytes()),
     }

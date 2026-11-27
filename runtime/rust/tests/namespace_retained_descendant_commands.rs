@@ -136,5 +136,3 @@ set r"#;
         );
     }
 }
-
-tcl_registry::testing::install_shipped!();

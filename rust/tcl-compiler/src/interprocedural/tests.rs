@@ -76,8 +76,12 @@ use crate::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 fn build(source: &str) -> InterproceduralAnalysis {
-    // The fixture's identity surface below is explicitly C Tcl 8.6.
-    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    // The fixture's identity surface is explicitly C Tcl 8.6.
+    build_in(source, "tcl8.6")
+}
+
+fn build_in(source: &str, dialect: &str) -> InterproceduralAnalysis {
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let registry = CommandRegistry::build_default().project_for_profile(profile);
     let cu = CompilationUnit::build_for_profile(source, &registry, false, profile);
     let identities = crate::realm::document_realm_bindings_for_module(&cu.ir_module, &registry)

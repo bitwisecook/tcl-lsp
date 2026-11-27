@@ -1473,5 +1473,3 @@ proc: {1 <bad index "x": must be integer?[+-]integer? or end?[+-]integer?> <TCL 
         }
     }
 }
-
-tcl_registry::testing::install_shipped!();

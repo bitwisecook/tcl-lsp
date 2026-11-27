@@ -224,5 +224,3 @@ fn procedure_variadic_usage_matches_each_tclsh() {
         assert_eq!(completion.result, message.as_bytes(), "{release:?}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

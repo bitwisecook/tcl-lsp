@@ -351,5 +351,3 @@ fn multi_file_json() {
         &[".ltm.pool[].name", &a, &b, "--json"],
     );
 }
-
-tcl_registry::testing::install_shipped!();

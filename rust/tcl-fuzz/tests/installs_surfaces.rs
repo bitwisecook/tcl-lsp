@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The binary installs its command surfaces before its first registry read.
-//! This harness installs nothing itself, so a binary that read the registry
+//! The binary runs without the variable through which cargo-run processes
+//! install the shipped list on their own, so a binary that read the registry
 //! first would panic with the registry's not-installed message.
 
 use std::process::{Command, Stdio};
@@ -27,6 +28,7 @@ fn the_binary_installs_its_surfaces_before_reading_the_registry() {
     let findings = std::env::temp_dir().join(format!("tcl-fuzz-installs-{}", std::process::id()));
     let findings = findings.to_str().expect("a UTF-8 temporary path");
     let output = Command::new(env!("CARGO_BIN_EXE_tcl-fuzz"))
+        .env_remove("TCL_REGISTRY_TEST_INSTALL")
         .args([
             "--findings",
             findings,

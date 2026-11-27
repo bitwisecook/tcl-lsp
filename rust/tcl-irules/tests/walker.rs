@@ -84,5 +84,3 @@ fn walker_matches_golden() {
         assert_eq!(got, want, "case {i}: {source:?}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

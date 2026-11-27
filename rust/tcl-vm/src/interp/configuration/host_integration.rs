@@ -358,8 +358,8 @@ impl Vm {
         self.channels.get(id)
     }
 
-    /// Close and drop a channel by id, returning `true` if it existed.
-    pub(crate) fn remove_channel(&mut self, id: &str) -> bool {
-        self.channels.remove(id).is_some()
+    /// Close and drop a channel by id, returning it if it existed.
+    pub(crate) fn remove_channel(&mut self, id: &str) -> Option<crate::cmd_chan::Channel> {
+        self.channels.remove(id)
     }
 }

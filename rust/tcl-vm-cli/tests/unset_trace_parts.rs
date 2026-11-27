@@ -83,5 +83,3 @@ fn a_compiled_qualified_element_unset_reports_its_array_part() {
     }
     let _ = std::fs::remove_dir_all(path.parent().expect("scratch directory"));
 }
-
-tcl_registry::testing::install_shipped!();

@@ -22,8 +22,8 @@ use super::{
 use tcl_dialect::TclVersion;
 
 #[test]
-fn clock_reading_selects_only_proven_forms_in_tcl_8_6_and_9_0() {
-    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+fn clock_reading_selects_only_proven_forms_in_tcl_8_6_to_9_1() {
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
         for (reading, selector) in [
             (Reading::Clicks, 0),
             (Reading::Microseconds, 1),
@@ -33,10 +33,6 @@ fn clock_reading_selects_only_proven_forms_in_tcl_8_6_and_9_0() {
             assert_eq!(
                 clock_reading_value(reading, None, &[], version),
                 Some(selector)
-            );
-            assert_eq!(
-                clock_reading_value(reading, None, &[], TclVersion::V9_1),
-                None
             );
             assert_eq!(
                 clock_reading_value(reading, None, &[], TclVersion::V8_5),
@@ -53,8 +49,13 @@ fn clock_reading_selects_only_proven_forms_in_tcl_8_6_and_9_0() {
                 Some(selector)
             );
         }
+        // tclsh 9.1.0 compiles `clock clicks -mi` to `clockRead micros`.
+        assert_eq!(
+            clock_reading_value(Reading::Clicks, Some(b"-mi"), &[Shape::Literal], version),
+            (version == TclVersion::V9_1).then_some(1)
+        );
         for (word, shape) in [
-            (b"-mi".as_slice(), Shape::Literal),
+            (b"-m".as_slice(), Shape::Literal),
             (b"-mic".as_slice(), Shape::BackslashLiteral),
             (b"-other".as_slice(), Shape::Literal),
         ] {

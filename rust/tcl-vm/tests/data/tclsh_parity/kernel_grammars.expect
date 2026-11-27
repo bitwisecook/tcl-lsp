@@ -1,0 +1,860 @@
+==== 8.4 file ====
+0 <-1> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <-1294967296> <NONE>
+0 <-1> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <-1> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-1> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+1 <bad option "milliseconds": must be clicks, format, scan, or seconds> <NONE>
+1 <bad switch "-x": must be -milliseconds> <NONE>
+1 <wrong # args: should be "clock seconds"> <NONE>
+1 <bad switch "-format": must be -base or -gmt> <NONE>
+1 <wrong # args: should be "clock scan dateString ?-base clockValue? ?-gmt boolean?"> <NONE>
+1 <bad switch "-locale": must be -format or -gmt> <NONE>
+0 <1970> <NONE>
+0 <<+0000>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<%EE>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<3>> <NONE>
+0 <<3>> <NONE>
+0 <<27>> <NONE>
+0 << 0>> <NONE>
+0 <<12>> <NONE>
+0 <<+0000>> <NONE>
+0 <<%OY>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 AM>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 <bad field specifier "t"> <NONE>
+1 <bad field specifier "n"> <NONE>
+1 <bad field specifier "q"> <NONE>
+1 <bad field specifier "Q"> <NONE>
+1 <bad field specifier "r"> <NONE>
+1 <bad field specifier "R"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+0 <+0000> <NONE>
+1 <bad switch "-format": must be -base or -gmt> <NONE>
+1 <bad switch "-x": must be -milliseconds> <NONE>
+0 <-1> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 {bad option "add": must be clicks, format, scan, or seconds}
+1 {bad option "add": must be clicks, format, scan, or seconds}
+==== 8.4 stdin ====
+0 <-1> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <-1294967296> <NONE>
+0 <-1> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <-1> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-1> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+1 <bad option "milliseconds": must be clicks, format, scan, or seconds> <NONE>
+1 <bad switch "-x": must be -milliseconds> <NONE>
+1 <wrong # args: should be "clock seconds"> <NONE>
+1 <bad switch "-format": must be -base or -gmt> <NONE>
+1 <wrong # args: should be "clock scan dateString ?-base clockValue? ?-gmt boolean?"> <NONE>
+1 <bad switch "-locale": must be -format or -gmt> <NONE>
+0 <1970> <NONE>
+0 <<+0000>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<%EE>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<3>> <NONE>
+0 <<3>> <NONE>
+0 <<27>> <NONE>
+0 << 0>> <NONE>
+0 <<12>> <NONE>
+0 <<+0000>> <NONE>
+0 <<%OY>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<09/27/72>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 AM>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 <bad field specifier "t"> <NONE>
+1 <bad field specifier "n"> <NONE>
+1 <bad field specifier "q"> <NONE>
+1 <bad field specifier "Q"> <NONE>
+1 <bad field specifier "r"> <NONE>
+1 <bad field specifier "R"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 <bad field specifier "u"> <NONE>
+1 <bad option "add": must be clicks, format, scan, or seconds> <NONE>
+0 <+0000> <NONE>
+1 <bad switch "-format": must be -base or -gmt> <NONE>
+1 <bad switch "-x": must be -milliseconds> <NONE>
+0 <-1> <NONE>
+1 <bad field specifier "m"> <NONE>
+1 {bad option "add": must be clicks, format, scan, or seconds}
+1 {bad option "add": must be clicks, format, scan, or seconds}
+==== 8.5 file ====
+0 <4294967295> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <3000000000> <NONE>
+0 <4294967295> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <4294967295> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-8> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+1 <unknown unit "d", must be  years, months, weeks, days, hours, minutes or seconds> <CLOCK badUnit d>
+1 <wrong # args: should be "clock milliseconds"> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <NONE>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <4294967295> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 8.5 stdin ====
+0 <4294967295> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <3000000000> <NONE>
+0 <4294967295> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <4294967295> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-8> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+1 <unknown unit "d", must be  years, months, weeks, days, hours, minutes or seconds> <CLOCK badUnit d>
+1 <wrong # args: should be "clock milliseconds"> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <NONE>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <4294967295> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 8.6 file ====
+0 <4294967295> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <3000000000> <NONE>
+0 <4294967295> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <4294967295> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-9223372036854775808> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+1 <unknown unit "d", must be  years, months, weeks, days, hours, minutes or seconds> <CLOCK badUnit d>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <4294967295> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 8.6 stdin ====
+0 <4294967295> <NONE>
+0 <8589934591> <NONE>
+0 <2147483647> <NONE>
+0 <2147483648> <NONE>
+0 <4294967296> <NONE>
+0 <-4294967295> <NONE>
+0 <3000000000> <NONE>
+0 <4294967295> <NONE>
+0 <4294967296> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744070709551616> <NONE>
+0 <4294967295> <NONE>
+0 <-2147483649> <NONE>
+0 <8589934591> <NONE>
+0 <9223372036854775807> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <4294967295> <NONE>
+0 <-1> <NONE>
+0 <9223372036854775807> <NONE>
+0 <-9223372036854775808> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+1 <unknown unit "d", must be  years, months, weeks, days, hours, minutes or seconds> <CLOCK badUnit d>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <4294967295> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 9.0 file ====
+0 <-1> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <18446744072414584320> <NONE>
+0 <18446744073709551615> <NONE>
+0 <2147483647> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744071562067968> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+0 <86400> <NONE>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <-1> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 9.0 stdin ====
+0 <-1> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <18446744072414584320> <NONE>
+0 <18446744073709551615> <NONE>
+0 <2147483647> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744071562067968> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+0 <86400> <NONE>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <-1> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 9.1 file ====
+0 <-1> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <18446744072414584320> <NONE>
+0 <18446744073709551615> <NONE>
+0 <2147483647> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744071562067968> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+0 <86400> <NONE>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <-1> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400
+==== 9.1 stdin ====
+0 <-1> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <-2147483648> <NONE>
+0 <18446744072414584320> <NONE>
+0 <18446744073709551615> <NONE>
+0 <2147483647> <NONE>
+0 <18446744073709551615> <NONE>
+0 <18446744071562067968> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <2147483647> <NONE>
+0 <2147483647> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-1> <NONE>
+0 <-2147483648> <NONE>
+0 <-2147483648> <NONE>
+0 <4294967295> <NONE>
+0 <18446744073709551615> <NONE>
+0 <3000000000> <NONE>
+0 <9223372036854775807> <NONE>
+0 <86400> <NONE>
+0 <86400> <NONE>
+1 <wrong # args: should be "clock milliseconds"> <TCL WRONGARGS>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+1 <wrong # args: should be "clock seconds"> <TCL WRONGARGS>
+0 <86400> <NONE>
+0 <0> <NONE>
+0 <Thu Jan 01 00:00:00 GMT 1970> <NONE>
+0 <1970> <NONE>
+0 <<%Ez>> <NONE>
+0 <<1972>> <NONE>
+0 <<72>> <NONE>
+0 <<19>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<C.E.>> <NONE>
+0 <<%Ea>> <NONE>
+0 <<72>> <NONE>
+0 <<09>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<03>> <NONE>
+0 <<03>> <NONE>
+0 <<27>> <NONE>
+0 <<00>> <NONE>
+0 <<12>> <NONE>
+0 <<%Oz>> <NONE>
+0 <<%OY>> <NONE>
+0 <<%OC>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<09/27/1972>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<Wed Sep 27 00:00:00 1972>> <NONE>
+0 <<12:00:00 am>> <NONE>
+0 <<00:00:00>> <NONE>
+0 <<%>> <NONE>
+0 <31> <NONE>
+0 <0100000000000000> <NONE>
+0 <01> <NONE>
+0 <0100000000000000> <NONE>
+0 <0100> <NONE>
+0 <01000000> <NONE>
+0 <000000000000f03f> <NONE>
+0 <3ff0000000000000> <NONE>
+0 <0000803f> <NONE>
+0 <3f800000> <NONE>
+0 <01> <NONE>
+0 <31> <NONE>
+1 <bad field specifier "u"> <NONE>
+0 <1> <NONE>
+0 <1> <NONE>
+0 <86400> <NONE>
+0 <%Ez> <NONE>
+0 <86400> <NONE>
+1 <bad option "-x": must be -milliseconds or -microseconds> <TCL LOOKUP INDEX option -x>
+0 <-1> <NONE>
+0 <0100000000000000> <NONE>
+0 86400
+0 86400

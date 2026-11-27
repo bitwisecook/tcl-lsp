@@ -142,7 +142,6 @@ impl InvocationCompletionRoute {
     /// retain the route unchanged; allocating a frame alone does not unwind.
     ///
     /// ```
-    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_registry::completion::CompletionCode;
     /// use tcl_registry::completion_route::{InvocationCompletionRoute, ReturnCompletionRoute};
     /// let route = InvocationCompletionRoute::Return(ReturnCompletionRoute {

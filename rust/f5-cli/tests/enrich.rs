@@ -217,5 +217,3 @@ fn pcapng_refuses_missing_input_file() {
     );
     assert!(!out.exists());
 }
-
-tcl_registry::testing::install_shipped!();

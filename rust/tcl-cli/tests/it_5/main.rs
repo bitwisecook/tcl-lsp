@@ -25,5 +25,3 @@ mod explorer_gui;
 mod pkg_build;
 mod pkg_verbs;
 mod spec_verbs;
-
-tcl_registry::testing::install_shipped!();

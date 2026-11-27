@@ -64,5 +64,3 @@ fn original_var_13_2_retires_the_selected_search() {
     assert_eq!(interp.eval_str(b"set ::errorCode"), Code::Ok);
     assert_eq!(interp.result_bytes(), b"TCL LOOKUP ARRAYSEARCH s-1-a");
 }
-
-tcl_registry::testing::install_shipped!();

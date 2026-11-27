@@ -386,5 +386,3 @@ fn validation_errors_preserve_tcl_9_structured_codes() {
         assert_eq!(oracle, expected);
     }
 }
-
-tcl_registry::testing::install_shipped!();

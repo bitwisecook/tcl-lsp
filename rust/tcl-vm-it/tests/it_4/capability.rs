@@ -24,16 +24,23 @@
 //! faithful "unsupported" error rather than panicking — the native-vs-WASM
 //! divergence the architecture is built around.
 
-use tcl_cmd_core::platform;
+use tcl_cmd_core::CmdError;
+use tcl_cmd_core::platform::{self, ExecSwitch};
+use tcl_dialect::TclVersion;
 use tcl_vm::host_native::NativeHost;
 use tcl_vm::{Value, Vm};
+
+fn no_switches(word: &str) -> Result<ExecSwitch, CmdError> {
+    panic!("unexpected exec switch {word}")
+}
 
 #[test]
 fn exec_runs_on_native_host() {
     let mut vm = tcl_vm::test_support::native_vm();
     let host = NativeHost::new();
     let args = [Value::string("echo"), Value::string("hello")];
-    let result = platform::exec(&mut vm, &host, &args).expect("native host should run exec");
+    let result = platform::exec(&mut vm, &host, TclVersion::V9_1, no_switches, &args)
+        .expect("native host should run exec");
     assert_eq!(&*result.to_str(), "hello");
 }
 
@@ -44,8 +51,8 @@ fn exec_unsupported_on_sandboxed_host() {
     // returns `None` for on every WASM target.
     let host = NativeHost::sandboxed();
     let args = [Value::string("echo"), Value::string("hello")];
-    let err =
-        platform::exec(&mut vm, &host, &args).expect_err("a sandboxed host has no subprocess");
+    let err = platform::exec(&mut vm, &host, TclVersion::V9_1, no_switches, &args)
+        .expect_err("a sandboxed host has no subprocess");
     assert!(
         err.message()
             .expect("Unicode capability diagnostic")

@@ -23,7 +23,7 @@
 //! matching engine in `tcl_cmd_core::scan` (a pure code-point parser). This
 //! module is the VM's thin adapter onto each.
 
-use tcl_cmd_core::scan::{Scanned, scan_match};
+use tcl_cmd_core::scan::{Scanned, scan_match_in};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -55,7 +55,13 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Err(msg) = tcl_cmd_core::scan::validate_format(&fch, vars.len()) {
         return err(msg);
     }
-    let outcome = scan_match(&inp, &fch);
+    let grammar = vm
+        .kernel_release_policy()
+        .map_or_else(tcl_dialect::ScanGrammar::default, |policy| policy.scan);
+    let outcome = scan_match_in(&inp, &fch, grammar);
+    if let Some(error) = outcome.error {
+        return vm.cmd_error(error);
+    }
     let dialect = vm.native_invocation_dialect();
     if vars.is_empty() {
         // Inline form: the conversions as a list (a failed field is an empty
@@ -95,6 +101,11 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn scanned_value(v: &Scanned, dialect: tcl_registry::InvocationDialect) -> Value {
     match v {
         Scanned::Int(n) => Value::int(*n),
+        Scanned::Unsigned(_) | Scanned::Big { .. } => Value::string(
+            v.integer_decimal()
+                .expect("an integer scan has a decimal spelling")
+                .as_str(),
+        ),
         Scanned::Double(d) => Value::native_double(*d, dialect),
         Scanned::Str(s) => Value::string(s.as_str()),
     }

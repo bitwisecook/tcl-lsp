@@ -195,6 +195,7 @@ impl Vm {
             deferred_pin: None,
             native_command_depth: 0,
             standard_channels,
+            stdin_eof: false,
             system_encoding,
             default_system_encoding: system_encoding,
             alias_backrefs: Vec::new(),

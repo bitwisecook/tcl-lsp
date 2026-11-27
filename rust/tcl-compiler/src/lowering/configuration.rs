@@ -393,6 +393,17 @@ impl<'r> Lowerer<'r> {
         self
     }
 
+    /// Evaluate an authored document's commands as the release evaluates a
+    /// file it sources directly: each is compiled only as it runs.
+    #[must_use]
+    pub(super) fn evaluated_directly(mut self) -> Self {
+        if self.source_entry_origin == SourceEntryOrigin::Authoring {
+            self.native_compilation.mode =
+                tcl_registry::native_compilation::NativeCompilationMode::Direct;
+        }
+        self
+    }
+
     /// Suppress every inline/structured lowering hook so the whole lowering
     /// pass produces plain runtime dispatches (see
     /// [`CompileTarget::BytecodeTraced`]). Implies the bytecode backend.

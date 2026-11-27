@@ -274,5 +274,3 @@ fn incremental_matches_fresh_over_corpus() {
     );
     eprintln!("E5 fuzz: {checked} incremental==fresh steps clean");
 }
-
-tcl_registry::testing::install_shipped!();

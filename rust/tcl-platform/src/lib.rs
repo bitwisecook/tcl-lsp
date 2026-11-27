@@ -44,6 +44,7 @@ pub mod file_uri;
 pub mod integer_formatter;
 pub mod native_list_sort;
 pub mod numeric_environment;
+pub mod posix;
 pub use integer_formatter::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
@@ -112,6 +113,8 @@ pub enum HostError {
     AlreadyExists,
     /// A non-blocking operation would block.
     WouldBlock,
+    /// Any other errno the host reported.
+    Posix(posix::Posix),
     /// Any other I/O error, with a rendered reason string.
     Io(String),
 }
@@ -121,14 +124,48 @@ impl HostError {
     /// `no such file or directory`.
     #[must_use]
     pub fn reason(&self) -> String {
+        self.reason_in(posix::Table::LATEST)
+    }
+
+    /// [`HostError::reason`] as the release that reads `table` words it.
+    #[must_use]
+    pub fn reason_in(&self, table: posix::Table) -> String {
         match self {
             HostError::Unsupported => "operation not supported".to_string(),
-            HostError::NotFound => "no such file or directory".to_string(),
-            HostError::Permission => "permission denied".to_string(),
-            HostError::AlreadyExists => "file already exists".to_string(),
-            HostError::WouldBlock => "operation would block".to_string(),
             HostError::Io(msg) => msg.clone(),
+            _ => self
+                .posix()
+                .map_or_else(String::new, |p| p.message(table).into_owned()),
         }
+    }
+
+    /// The host error a failed I/O call stands for, its errno kept.
+    #[must_use]
+    pub fn from_io(error: &std::io::Error) -> Self {
+        let Some(posix) = posix::Posix::from_io(error) else {
+            return HostError::Io(error.to_string());
+        };
+        match posix.name() {
+            Some("ENOENT") => HostError::NotFound,
+            Some("EACCES") => HostError::Permission,
+            Some("EEXIST") => HostError::AlreadyExists,
+            Some("EAGAIN") => HostError::WouldBlock,
+            _ => HostError::Posix(posix),
+        }
+    }
+
+    /// The errno `Tcl_PosixError` reports for this failure, when it has one.
+    #[must_use]
+    pub fn posix(&self) -> Option<posix::Posix> {
+        let id = match self {
+            HostError::NotFound => "ENOENT",
+            HostError::Permission => "EACCES",
+            HostError::AlreadyExists => "EEXIST",
+            HostError::WouldBlock => "EAGAIN",
+            HostError::Posix(posix) => return Some(posix.clone()),
+            HostError::Unsupported | HostError::Io(_) => return None,
+        };
+        posix::Posix::named(id)
     }
 }
 
@@ -177,14 +214,35 @@ pub struct Metadata {
     pub ctime_secs: i64,
 }
 
+/// How a finished subprocess ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessExit {
+    /// It exited with this status.
+    Exited(i32),
+    /// A signal killed it: the signal's symbolic name (`SIGKILL`), or
+    /// `unknown signal` for a number the host cannot name.
+    Signaled(&'static str),
+}
+
+/// Where a subprocess's standard error goes ([`Process::run`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StderrMode {
+    /// Captured into [`ExecOutput::stderr`].
+    Capture,
+    /// Passed through to the host process's own standard error.
+    Inherit,
+}
+
 /// The output of a finished subprocess ([`Process::run`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecOutput {
-    /// The process exit status.
-    pub status: i32,
+    /// The subprocess's process id.
+    pub pid: u32,
+    /// How it ended.
+    pub exit: ProcessExit,
     /// Captured standard output.
     pub stdout: Vec<u8>,
-    /// Captured standard error.
+    /// Captured standard error; empty under [`StderrMode::Inherit`].
     pub stderr: Vec<u8>,
 }
 
@@ -404,6 +462,18 @@ pub trait StdIo {
     fn flush_stdout(&self) {}
     /// Flush buffered standard error (`flush stderr`). Defaults to a no-op.
     fn flush_stderr(&self) {}
+    /// Append one line of standard input, through its newline, to `out`,
+    /// returning the bytes read (`0` at the end of input). Defaults to a host
+    /// with no input, always at its end.
+    fn read_stdin_line(&self, _out: &mut Vec<u8>) -> Result<usize, HostError> {
+        Ok(0)
+    }
+    /// Append up to `limit` bytes of standard input (all of it for `None`) to
+    /// `out`, blocking until they arrive or the input ends; returns the bytes
+    /// read. Defaults to a host with no input.
+    fn read_stdin(&self, _out: &mut Vec<u8>, _limit: Option<usize>) -> Result<usize, HostError> {
+        Ok(0)
+    }
 }
 
 /// Current native environment bytes, independently supplied by the host.
@@ -455,8 +525,9 @@ pub trait Sockets {}
 /// Subprocess execution (`exec`, `open |pipe`). Conditional — absent on every
 /// WASM target. A host without it makes [`Host::process`] return `None`.
 pub trait Process {
-    /// Run `args[0]` with `args[1..]`, capturing output to completion.
-    fn run(&self, args: &[&str]) -> Result<ExecOutput, HostError>;
+    /// Run `args[0]` with `args[1..]`, capturing standard output (and standard
+    /// error under [`StderrMode::Capture`]) to completion.
+    fn run(&self, args: &[&str], stderr: StderrMode) -> Result<ExecOutput, HostError>;
 }
 
 /// The host environment a Tcl runtime executes in: the aggregate of the

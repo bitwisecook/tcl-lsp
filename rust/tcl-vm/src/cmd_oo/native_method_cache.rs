@@ -18,7 +18,7 @@
 
 //! Original `TclOO` method records retained by table and reached call-chain owners.
 use super::{
-    BTreeMap, Code, Completion, Method, OoId, OoState, Rc, RefCell, Step, Value, Vm, err,
+    BTreeMap, Code, Completion, Method, OoId, OoState, Rc, RefCell, Step, StepRole, Value, Vm, err,
     method_report_bytes, native_method_key_for_target, ok, original_name_operands,
 };
 use std::ops::Deref;
@@ -179,6 +179,7 @@ impl CachedStep {
             method_owner: Some(self.method_owner.upgrade()?),
             provider: self.provider,
             is_object: self.is_object,
+            role: StepRole::Method,
         })
     }
 }

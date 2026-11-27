@@ -125,7 +125,7 @@ impl ScanConversion {
     /// conversions are unmeasured in TMM and are not claimed.
     #[must_use]
     pub fn truncates_to_int32(&self, profile: &tcl_dialect::DialectProfile) -> bool {
-        use tcl_dialect::{TclVersion, model::Family};
+        use tcl_dialect::{ScanIntWidth, model::Family};
         if !self.assigns() || profile.runtime_core_family() == Some(Family::Jim) {
             return false;
         }
@@ -136,12 +136,15 @@ impl ScanConversion {
         if self.size.is_some_and(SizeModifier::is_wide) {
             return false;
         }
-        match profile.runtime_version() {
-            Some(TclVersion::V8_4) => matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X' | 'u'),
-            Some(version) if version >= TclVersion::V9_0 => {
-                matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X')
+        match profile
+            .runtime_version()
+            .map(|version| version.release_policy().scan.int_width)
+        {
+            Some(ScanIntWidth::Wrap32Narrow) => {
+                matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X' | 'u')
             }
-            _ => false,
+            Some(ScanIntWidth::Saturate32) => matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X'),
+            Some(ScanIntWidth::Full) | None => false,
         }
     }
 

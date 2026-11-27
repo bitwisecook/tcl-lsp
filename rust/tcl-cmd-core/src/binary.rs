@@ -885,9 +885,13 @@ pub fn format_values<O: FormatValueOps>(
     fmt: &[u8],
     args: &[O::Value],
 ) -> Result<Vec<u8>, CmdError> {
-    format_values_using(ops, fmt, args, &mut |field| {
-        CmdError::new(format!("bad field specifier \"{}\"", field[0] as char))
-    })
+    format_values_using(
+        ops,
+        fmt,
+        args,
+        tcl_dialect::BinaryFormats::default(),
+        &mut |field| CmdError::new(format!("bad field specifier \"{}\"", field[0] as char)),
+    )
 }
 
 /// Pack through the same field worker with a selected diagnostic projection.
@@ -897,6 +901,7 @@ pub fn format_values_using<O: FormatValueOps>(
     ops: &mut O,
     fmt: &[u8],
     args: &[O::Value],
+    formats: tcl_dialect::BinaryFormats,
     bad_field: &mut dyn FnMut(&[u8]) -> CmdError,
 ) -> Result<Vec<u8>, CmdError> {
     let mut ai = 0usize;
@@ -913,6 +918,14 @@ pub fn format_values_using<O: FormatValueOps>(
             continue;
         }
         i += 1;
+        if !formats.accepts(ty) {
+            return Err(bad_field(&fmt[field_start..]));
+        }
+        // `GetFormatSpec` consumes a `u` after any letter, before the count;
+        // `binary format` has no use for it.
+        if formats.has_unsigned_suffix() && fmt.get(i) == Some(&b'u') {
+            i += 1;
+        }
         let count = parse_count(fmt, &mut i);
         match ty {
             b'a' | b'A' => {
@@ -1214,6 +1227,7 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
             out.push(value);
             Ok(())
         },
+        tcl_dialect::BinaryFormats::default(),
         &mut |field| CmdError::new(format!("bad field specifier \"{}\"", field[0] as char)),
     )?;
     Ok(out)
@@ -1227,6 +1241,7 @@ pub fn scan_values_using<E>(
     data: &[u8],
     fmt: &[u8],
     emit: &mut dyn FnMut(ScanValue) -> Result<(), E>,
+    formats: tcl_dialect::BinaryFormats,
     bad_field: &mut dyn FnMut(&[u8]) -> E,
 ) -> Result<usize, E> {
     let mut emitted = 0;
@@ -1240,14 +1255,20 @@ pub fn scan_values_using<E>(
             continue;
         }
         i += 1;
-        // A `u` after an integer type code requests unsigned interpretation.
-        let unsigned = matches!(
-            ty,
-            b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm'
-        ) && fmt.get(i) == Some(&b'u');
-        if unsigned {
+        if !formats.accepts(ty) {
+            return Err(bad_field(&fmt[field_start..]));
+        }
+        // `GetFormatSpec` consumes a `u` after any letter, before the count;
+        // after an integer type code it requests unsigned interpretation.
+        let suffixed = formats.has_unsigned_suffix() && fmt.get(i) == Some(&b'u');
+        if suffixed {
             i += 1;
         }
+        let unsigned = suffixed
+            && matches!(
+                ty,
+                b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm'
+            );
         let count = parse_count(fmt, &mut i);
         match ty {
             b'a' | b'A' => {
@@ -1510,6 +1531,47 @@ mod tests {
     // Measured on tclsh 8.4.20 and 8.5.19: these seven are `bad field
     // specifier` on 8.4 and accepted from 8.5, for both `binary format` and
     // `binary scan`. Every other field letter exists on both.
+    /// tclsh 8.4.20 refuses `m` and the `u` suffix; 8.5.19 on accept both,
+    /// and `u` follows any letter before its count.
+    #[test]
+    fn release_field_set_gates_letters_and_the_unsigned_suffix() {
+        use tcl_dialect::BinaryFormats;
+        let pack = |fmt: &[u8], formats| {
+            format_values_using(
+                &mut ByteFormatOps,
+                fmt,
+                &[b"1".to_vec()],
+                formats,
+                &mut |field| CmdError::new(format!("bad field specifier \"{}\"", field[0] as char)),
+            )
+            .map_err(|error| error.message().unwrap().to_owned())
+        };
+        assert_eq!(
+            pack(b"m", BinaryFormats::Tcl84).unwrap_err(),
+            "bad field specifier \"m\""
+        );
+        assert_eq!(pack(b"m", BinaryFormats::Tcl85).unwrap().len(), 8);
+        assert_eq!(
+            pack(b"cu", BinaryFormats::Tcl84).unwrap_err(),
+            "bad field specifier \"u\""
+        );
+        assert_eq!(pack(b"cu", BinaryFormats::Tcl85).unwrap(), [1]);
+        assert_eq!(pack(b"au3", BinaryFormats::Tcl85).unwrap(), b"1\0\0");
+        let mut fields = 0;
+        let scanned = scan_values_using(
+            &1u64.to_le_bytes(),
+            b"m",
+            &mut |_| {
+                fields += 1;
+                Ok::<(), CmdError>(())
+            },
+            BinaryFormats::Tcl84,
+            &mut |field| CmdError::new(format!("bad field specifier \"{}\"", field[0] as char)),
+        );
+        assert!(scanned.is_err());
+        assert_eq!(fields, 0);
+    }
+
     #[test]
     fn specifier_min_version_matches_measured_releases() {
         for letter in b"tnmrRqQ" {
@@ -1748,6 +1810,7 @@ mod original_field_emission_tests {
                 assigned.push(value);
                 Ok(())
             },
+            tcl_dialect::BinaryFormats::default(),
             &mut |_| CmdError::new("bad field specifier \"?\""),
         );
         assert_eq!(assigned, [ScanValue::Bytes(b"A".to_vec())]);
@@ -1773,6 +1836,7 @@ mod original_field_emission_tests {
                 emissions += 1;
                 Err("original assignment refusal")
             },
+            tcl_dialect::BinaryFormats::default(),
             &mut |_| {
                 bad_fields += 1;
                 "later grammar refusal"

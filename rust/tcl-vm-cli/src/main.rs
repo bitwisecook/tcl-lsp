@@ -392,7 +392,12 @@ fn run() -> i32 {
         Mode::Repl => {
             let stdin = std::io::stdin();
             let mut out = std::io::stdout();
-            repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out, true)
+            repl_loop(
+                &mut new_vm(&options),
+                |line| stdin.read_line(line),
+                &mut out,
+                true,
+            )
         }
         Mode::File { path, argv } => {
             let src = match std::fs::read_to_string(&path) {
@@ -414,7 +419,7 @@ fn run() -> i32 {
             let mut out = std::io::stdout();
             repl_loop(
                 &mut new_vm(&options),
-                &mut stdin.lock(),
+                |line| stdin.read_line(line),
                 &mut out,
                 interactive,
             )
@@ -430,9 +435,12 @@ fn run() -> i32 {
 /// same VM, with no command active, as `Tcl_Main` evaluates them. When
 /// `interactive`, prompts (`% ` primary, `> ` continuation) and results go to
 /// `out`; errors go to stderr. Always returns 0 (EOF is a clean exit).
-fn repl_loop<R: std::io::BufRead, W: Write>(
+///
+/// `read_line` takes stdin's lock only for the line it reads, so a command
+/// that reads `stdin` itself continues from the line after it, as in `tclsh`.
+fn repl_loop<W: Write>(
     vm: &mut Vm,
-    reader: &mut R,
+    mut read_line: impl FnMut(&mut String) -> std::io::Result<usize>,
     out: &mut W,
     interactive: bool,
 ) -> i32 {
@@ -448,7 +456,7 @@ fn repl_loop<R: std::io::BufRead, W: Write>(
     let mut line = String::new();
     loop {
         line.clear();
-        match reader.read_line(&mut line) {
+        match read_line(&mut line) {
             Ok(0) | Err(_) => break, // EOF (Ctrl-D) or read error
             Ok(_) => {}
         }
@@ -564,7 +572,12 @@ mod tests {
         let mut vm = build_vm(Box::new(capture.clone()), options);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
         let mut out = capture;
-        repl_loop(&mut vm, &mut reader, &mut out, true);
+        repl_loop(
+            &mut vm,
+            |line| std::io::BufRead::read_line(&mut reader, line),
+            &mut out,
+            true,
+        );
         let output = bytes.borrow().clone();
         String::from_utf8(output).expect("utf-8")
     }
@@ -592,7 +605,15 @@ mod tests {
         vm.set_var("original", original.clone()).unwrap();
         let mut reader = std::io::Cursor::new(b"set number\nset original\n");
         let mut out = capture;
-        assert_eq!(repl_loop(&mut vm, &mut reader, &mut out, true), 0);
+        assert_eq!(
+            repl_loop(
+                &mut vm,
+                |line| std::io::BufRead::read_line(&mut reader, line),
+                &mut out,
+                true
+            ),
+            0
+        );
         let output = bytes.borrow();
         assert!(output.windows(2).any(|window| window == b"17"));
         assert!(output.windows(12).any(|window| window == b"DISPLAY\0TAIL"));
@@ -789,6 +810,3 @@ mod tests {
         assert!(!options.static_extensions, "no flag, no load");
     }
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

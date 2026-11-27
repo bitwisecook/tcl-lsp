@@ -1375,8 +1375,10 @@ fn original_read_channel(vm: &mut Vm) -> String {
     vm.add_channel(crate::cmd_chan::Channel::Read {
         data: b"abcdef".to_vec(),
         pos: 0,
+        eof: false,
         config,
         path: Some(Rc::from(b"original-owned-channel".as_slice())),
+        child: None,
     })
 }
 

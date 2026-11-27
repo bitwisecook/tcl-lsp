@@ -21,10 +21,12 @@
 //!
 //! Channels back onto the real filesystem (the test host). Read channels
 //! preload the file contents (test inputs are small); writable channels,
-//! read-write ones included, hold an `std::fs::File`. The predefined `stdin`/`stdout`/`stderr` are not
-//! stored in the channel table — they are handled by name: `stdout` follows the
-//! VM's captured output, `stderr` the process stderr, and `stdin` is always at
-//! end-of-file (non-interactive).
+//! read-write ones included, hold an `std::fs::File`. A read-only command
+//! pipeline (`open |cmd`) runs its command to completion and reads back its
+//! output. The predefined `stdin`/`stdout`/`stderr` are not stored in the
+//! channel table — they are handled by name: `stdout` follows the VM's
+//! captured output, `stderr` the process stderr, and `stdin` reads the host's
+//! standard input, blocking until a line or the end of input arrives.
 
 use std::fs::OpenOptions;
 use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
@@ -36,6 +38,7 @@ use tcl_cmd_core::channel::{
 };
 use tcl_runtime_api::Completion;
 
+use crate::command::err_with_code;
 use crate::error::TclError;
 use crate::expr::{
     OriginalNumericCommandContext, original_numeric_command_ops, with_original_numeric_command,
@@ -48,12 +51,16 @@ use tcl_registry::native_numeric_error::{
 
 /// An open file channel.
 pub(crate) enum Channel {
-    /// A readable channel: whole-file contents with a byte cursor.
+    /// A readable channel: whole-file contents with a byte cursor; `eof`
+    /// once a read has met the end, as C reports it, not merely reached it.
     Read {
         data: Vec<u8>,
         pos: usize,
+        eof: bool,
         config: ChannelConfig,
         path: Option<std::rc::Rc<[u8]>>,
+        /// How a pipeline's command ended, reported when the channel closes.
+        child: Option<ChildExit>,
     },
     /// A writable channel over the file itself; `readable` for the read-write
     /// modes (`r+`, `w+`, `a+`, `RDWR`), whose reads and writes share the
@@ -65,6 +72,13 @@ pub(crate) enum Channel {
         config: ChannelConfig,
         path: Option<std::rc::Rc<[u8]>>,
     },
+}
+
+/// A finished pipeline command's status and diagnostics.
+pub(crate) struct ChildExit {
+    pid: u32,
+    exit: tcl_platform::ProcessExit,
+    stderr: Vec<u8>,
 }
 
 impl Channel {
@@ -82,7 +96,7 @@ impl Channel {
 
     fn seek(&mut self, offset: i64, origin: usize) -> Result<(), std::io::Error> {
         match self {
-            Self::Read { data, pos, .. } => {
+            Self::Read { data, pos, eof, .. } => {
                 let base = match origin {
                     1 => *pos as i128,
                     2 => data.len() as i128,
@@ -92,6 +106,7 @@ impl Channel {
                 let target = usize::try_from(target)
                     .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))?;
                 *pos = target;
+                *eof = false;
                 Ok(())
             }
             Self::Write { file, eof, .. } => {
@@ -129,7 +144,8 @@ pub(crate) fn register(vm: &mut Vm) {
 }
 
 /// `open fileName ?access?` — supports the common access strings
-/// (`r r+ w w+ a a+`). Pipes (`|cmd`) and serial ports are unsupported.
+/// (`r r+ w w+ a a+`) and read-only command pipelines (`|cmd`); writable
+/// pipelines and serial ports are unsupported.
 fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, context| {
         cmd_open_in_original(vm, args, context)
@@ -165,9 +181,6 @@ fn cmd_open_in_original(
             ));
         }
     };
-    if tcl_syntax::pipeline::open_pipeline_script(name.as_bytes()).is_some() {
-        return Ok(err("command pipelines are not supported"));
-    }
     let m = mode.trim();
     let version = vm.runtime_version();
     let access = match resolve_open_access_mode(version, m) {
@@ -175,6 +188,13 @@ fn cmd_open_in_original(
         Err(error) => return Ok(vm.cmd_error(error)),
     };
     let config = ChannelConfig::for_open_access(version, vm.system_encoding(), access);
+    if let Some(pipeline) = tcl_syntax::pipeline::open_pipeline_script(name.as_bytes()) {
+        if access.is_writable() {
+            return Ok(err("writable command pipelines are not supported"));
+        }
+        let pipeline = String::from_utf8_lossy(pipeline).into_owned();
+        return Ok(open_pipeline(vm, &pipeline, config));
+    }
 
     context
         .current(vm)
@@ -189,12 +209,14 @@ fn cmd_open_in_original(
                 let id = vm.add_channel(Channel::Read {
                     data,
                     pos: 0,
+                    eof: false,
                     config,
                     path: Some(std::rc::Rc::clone(&path)),
+                    child: None,
                 });
                 ok(Value::string(id))
             }
-            Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
+            Err(e) => os_error(&format!("couldn't open \"{name}\""), &e, version),
         }
     } else {
         let mut opts = OpenOptions::new();
@@ -225,16 +247,93 @@ fn cmd_open_in_original(
                 });
                 ok(Value::string(id))
             }
-            Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
+            Err(e) => os_error(&format!("couldn't open \"{name}\""), &e, version),
         }
     })
 }
 
-fn io_reason(e: &std::io::Error) -> String {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => "no such file or directory".to_string(),
-        std::io::ErrorKind::PermissionDenied => "permission denied".to_string(),
-        _ => e.to_string(),
+/// `Tcl_PosixError` for a failed channel call: `<context>: <message>` with
+/// `-errorcode {POSIX <ID> <message>}`.
+pub(crate) fn os_error(
+    context: &str,
+    error: &std::io::Error,
+    release: tcl_dialect::TclVersion,
+) -> Completion<Value> {
+    host_error(context, &tcl_platform::HostError::from_io(error), release)
+}
+
+/// [`os_error`] for a failure the host reports as a [`tcl_platform::HostError`].
+fn host_error(
+    context: &str,
+    error: &tcl_platform::HostError,
+    release: tcl_dialect::TclVersion,
+) -> Completion<Value> {
+    let error = CmdError::host(context, error, release);
+    match error.error_code_bytes() {
+        Some(code) => err_with_code(error.message_bytes(), code),
+        None => err(error.message_bytes()),
+    }
+}
+
+/// Run a read-only pipeline's command to completion and open a channel over
+/// its standard output; its exit status and standard error wait for `close`.
+fn open_pipeline(vm: &mut Vm, pipeline: &str, config: ChannelConfig) -> Completion<Value> {
+    let words = match Value::string(pipeline).as_list() {
+        Ok(words) => words
+            .iter()
+            .map(|w| w.to_str().to_string())
+            .collect::<Vec<_>>(),
+        Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+    };
+    let Some(program) = words.first() else {
+        return err("illegal use of | or |& in command");
+    };
+    let host = vm.host_rc();
+    let Some(process) = host.process() else {
+        return err(
+            "command pipelines are not available: this platform provides no subprocess support",
+        );
+    };
+    let argv: Vec<&str> = words.iter().map(String::as_str).collect();
+    let output = match process.run(&argv, tcl_platform::StderrMode::Capture) {
+        Ok(output) => output,
+        Err(e) => return err(format!("couldn't execute \"{program}\": {e}")),
+    };
+    let id = vm.add_channel(Channel::Read {
+        data: output.stdout,
+        pos: 0,
+        eof: false,
+        config,
+        path: None,
+        child: Some(ChildExit {
+            pid: output.pid,
+            exit: output.exit,
+            stderr: output.stderr,
+        }),
+    });
+    ok(Value::string(id))
+}
+
+/// `close`'s report on a pipeline's command, as `TclCleanupChildren` makes
+/// it: its standard error, else the exit's failure message, with the exit's
+/// error code either way.
+fn child_exit_completion(child: &ChildExit) -> Completion<Value> {
+    let (failure, code) = tcl_cmd_core::platform::child_failure(child.pid, child.exit);
+    let message = if child.stderr.is_empty() {
+        match failure {
+            Some(failure) => failure.into_bytes(),
+            None => return ok(Value::empty()),
+        }
+    } else {
+        let mut text = child.stderr.clone();
+        if text.last() == Some(&b'\n') {
+            text.pop();
+        }
+        text
+    };
+    match code {
+        Some(code) => crate::command::err_with_code(message, code),
+        None => err(String::from_utf8_lossy(&message).into_owned()),
     }
 }
 
@@ -249,10 +348,12 @@ fn cmd_close(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if is_std(&id) {
         return ok(Value::empty());
     }
-    if vm.remove_channel(&id) {
-        ok(Value::empty())
-    } else {
-        err(format!("can not find channel named \"{id}\""))
+    match vm.remove_channel(&id) {
+        Some(Channel::Read {
+            child: Some(child), ..
+        }) => child_exit_completion(&child),
+        Some(_) => ok(Value::empty()),
+        None => err(format!("can not find channel named \"{id}\"")),
     }
 }
 
@@ -296,6 +397,21 @@ fn read_file_line(file: &mut std::fs::File, eof: &mut bool) -> std::io::Result<O
     }
 }
 
+/// Read one line of the host's standard input (its newline consumed, not
+/// returned); `None` when the input was already at its end. A last line with
+/// no newline sets `eof stdin`, as it does for a file.
+fn read_stdin_line(vm: &mut Vm) -> Result<Option<Vec<u8>>, tcl_platform::HostError> {
+    let mut line = Vec::new();
+    vm.host().stdio().read_stdin_line(&mut line)?;
+    if line.last() == Some(&b'\n') {
+        line.pop();
+        vm.stdin_eof = false;
+        return Ok(Some(line));
+    }
+    vm.stdin_eof = true;
+    Ok((!line.is_empty()).then_some(line))
+}
+
 /// `gets channelId ?varName?` — read one line (without the trailing newline).
 /// With `varName`, store the line and return its length (`-1` at end-of-file);
 /// without, return the line.
@@ -313,30 +429,22 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if id == "stdout" || id == "stderr" {
         return not_readable(&id);
     }
-    if is_std(&id) {
-        // stdin is non-interactive: immediate EOF.
-        return match var {
-            Some(name) => {
-                if let Err(c) = vm.set_var(&name, Value::string("")) {
-                    return c;
-                }
-                ok(Value::int(-1))
-            }
-            None => ok(Value::string("")),
-        };
-    }
+    let release = vm.runtime_version();
     let line = match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos, .. }) => {
-            if *pos >= data.len() {
-                None
+        None if id == "stdin" => match read_stdin_line(vm) {
+            Ok(line) => line,
+            Err(e) => return host_error(&format!("error reading \"{id}\""), &e, release),
+        },
+        Some(Channel::Read { data, pos, eof, .. }) => {
+            let rest = &data[(*pos).min(data.len())..];
+            if let Some(newline) = rest.iter().position(|&b| b == b'\n') {
+                *pos += newline + 1;
+                Some(rest[..newline].to_vec())
             } else {
-                let start = *pos;
-                let mut end = start;
-                while end < data.len() && data[end] != b'\n' {
-                    end += 1;
-                }
-                *pos = if end < data.len() { end + 1 } else { end };
-                Some(data[start..end].to_vec())
+                *eof = true;
+                let line = (!rest.is_empty()).then(|| rest.to_vec());
+                *pos = data.len().max(*pos);
+                line
             }
         }
         Some(Channel::Write {
@@ -346,7 +454,7 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ..
         }) => match read_file_line(file, eof) {
             Ok(line) => line,
-            Err(e) => return err(format!("error reading \"{id}\": {}", io_reason(&e))),
+            Err(e) => return os_error(&format!("error reading \"{id}\""), &e, release),
         },
         Some(Channel::Write { .. }) => return not_readable(&id),
         None => return err(format!("can not find channel named \"{id}\"")),
@@ -651,10 +759,26 @@ fn cmd_read_in_original(
         .current(vm)
         .map_err(TclError::from_execution_failure)?;
     if is_std(&id) {
-        return Ok(ok(Value::string("")));
+        let limit = count.and_then(|count| usize::try_from(count).ok());
+        let mut bytes = Vec::new();
+        if let Err(e) = vm.host().stdio().read_stdin(&mut bytes, limit) {
+            return Ok(host_error(
+                &format!("error reading \"{id}\""),
+                &e,
+                vm.runtime_version(),
+            ));
+        }
+        vm.stdin_eof = limit.is_none_or(|n| bytes.len() < n);
+        if nonewline && bytes.last() == Some(&b'\n') {
+            bytes.pop();
+        }
+        return Ok(ok(Value::string(
+            String::from_utf8_lossy(&bytes).into_owned(),
+        )));
     }
+    let release = vm.runtime_version();
     Ok(match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos, .. }) => {
+        Some(Channel::Read { data, pos, eof, .. }) => {
             let start = (*pos).min(data.len());
             let end = match count {
                 Some(count) if count >= 0 => start
@@ -667,6 +791,7 @@ fn cmd_read_in_original(
                 bytes = &bytes[..bytes.len() - 1];
             }
             let string = String::from_utf8_lossy(bytes).into_owned();
+            *eof = count.is_none_or(|n| (end - start) < usize::try_from(n).unwrap_or(usize::MAX));
             *pos = pos.saturating_add(end - start);
             ok(Value::string(string))
         }
@@ -681,7 +806,7 @@ fn cmd_read_in_original(
                     }
                     ok(Value::string(String::from_utf8_lossy(bytes).into_owned()))
                 }
-                Err(e) => err(format!("error reading \"{id}\": {}", io_reason(&e))),
+                Err(e) => os_error(&format!("error reading \"{id}\""), &e, release),
             }
         }
         None => err(format!("can not find channel named \"{id}\"")),
@@ -696,11 +821,10 @@ fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let id = chan.to_str();
     if is_std(&id) {
-        return ok(Value::bool(&*id == "stdin"));
+        return ok(Value::bool(&*id == "stdin" && vm.stdin_eof));
     }
     match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos, .. }) => ok(Value::bool(*pos >= data.len())),
-        Some(Channel::Write { eof, .. }) => ok(Value::bool(*eof)),
+        Some(Channel::Read { eof, .. } | Channel::Write { eof, .. }) => ok(Value::bool(*eof)),
         None => err(format!("can not find channel named \"{id}\"")),
     }
 }
@@ -987,10 +1111,11 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
         )));
     };
     let encoded = encode_output(text, newline, config);
+    let release = vm.runtime_version();
     match id {
         "stdout" => vm
             .write_output_bytes(&encoded.bytes)
-            .map_err(|error| write_error(id, &error))?,
+            .map_err(|error| write_error(id, &error, release))?,
         "stderr" => {
             vm.host().stdio().write_stderr(&encoded.bytes);
             vm.host().stdio().flush_stderr();
@@ -998,7 +1123,7 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
         _ => match vm.channel_mut(id) {
             Some(Channel::Write { file, .. }) => file
                 .write_all(&encoded.bytes)
-                .map_err(|error| write_error(id, &error))?,
+                .map_err(|error| write_error(id, &error, release))?,
             Some(Channel::Read { .. }) => {
                 return Err(CmdError::new(format!(
                     "channel \"{id}\" wasn't opened for writing"
@@ -1017,8 +1142,12 @@ pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Res
     Ok(())
 }
 
-fn write_error(id: &str, error: &std::io::Error) -> CmdError {
-    CmdError::new(format!("error writing \"{id}\": {error}"))
+fn write_error(id: &str, error: &std::io::Error, release: tcl_dialect::TclVersion) -> CmdError {
+    CmdError::host(
+        format!("error writing \"{id}\""),
+        &tcl_platform::HostError::from_io(error),
+        release,
+    )
 }
 
 #[cfg(test)]
@@ -1037,8 +1166,10 @@ mod original_channel_position_tests {
         let mut channel = Channel::Read {
             data: b"abcdef".to_vec(),
             pos: 3,
+            eof: false,
             config,
             path: Some(std::rc::Rc::from(b"original-opened-path".as_slice())),
+            child: None,
         };
         let rejected = channel.seek(-1, 0).unwrap_err();
         assert_eq!(rejected.kind(), std::io::ErrorKind::InvalidInput);

@@ -439,5 +439,3 @@ fn registry_dialect_gating_matches_tclsh_8_6_and_9_0() {
         mismatches.join("\n")
     );
 }
-
-tcl_registry::testing::install_shipped!();

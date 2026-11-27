@@ -454,8 +454,15 @@ pub fn try_installed() -> Option<&'static SurfaceSet> {
 
 /// What [`installed`] panics with before any install.
 pub const NOT_INSTALLED: &str = "no command surface set is installed: an entry point must call \
-     tcl_registry::install (a test harness, tcl_registry::testing::install_shipped!()) \
-     before its first registry read; see docs/design/registry/registry-split/01-surface-input.md";
+     tcl_registry::install before its first registry read (under cargo, \
+     .cargo/config.toml sets the variable that installs the shipped list instead); \
+     see docs/design/registry/registry-split/01-surface-input.md";
+
+/// The variable that makes an uninstalled read install [`crate::commands::SHIPPED`].
+/// `.cargo/config.toml` sets it for every cargo-run process; a build without
+/// `debug_assertions`, which every release bundle is, has no fallback.
+#[cfg(debug_assertions)]
+pub const TEST_INSTALL: &str = "TCL_REGISTRY_TEST_INSTALL";
 
 /// The installed surface set.
 ///
@@ -464,11 +471,17 @@ pub const NOT_INSTALLED: &str = "no command surface set is installed: an entry p
 /// When nothing is installed: the entry point has not done its duty.
 #[must_use]
 pub fn installed() -> &'static SurfaceSet {
-    if let Some(set) = INSTALLED.get() {
-        return set;
+    match INSTALLED.get() {
+        Some(set) => set,
+        None => uninstalled_read(),
     }
-    // The crate's own unit tests share one harness with no entry point.
-    if cfg!(test) {
+}
+
+#[cold]
+#[inline(never)]
+fn uninstalled_read() -> &'static SurfaceSet {
+    #[cfg(debug_assertions)]
+    if std::env::var_os(TEST_INSTALL).is_some_and(|value| !value.is_empty()) {
         return install(crate::commands::SHIPPED).unwrap_or_else(|conflict| panic!("{conflict}"));
     }
     panic!("{NOT_INSTALLED}")

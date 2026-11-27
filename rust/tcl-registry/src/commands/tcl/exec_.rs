@@ -18,7 +18,11 @@
 
 //! `exec` — invoke subprocesses.
 use crate::prelude::*;
+use tcl_cmd_core::CmdError;
+use tcl_cmd_core::platform::ExecSwitch;
+use tcl_cmd_core::prefix::OptionTable;
 use tcl_dialect::model::SpecSurface;
+use tcl_dialect::{DialectProfile, TclVersion};
 
 // The trailing `?&?` background marker is spelled out in the SYNOPSIS line
 // only from the 8.6 manpage onward (8.4/8.5 show `exec ?switches? arg
@@ -30,6 +34,83 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "exec ?switches? arg ?arg ...? ?&?",
     ..FormSpec::DEFAULT
 }];
+
+/// Rows are in `Tcl_ExecObjCmd`'s table order, which its bad-switch message
+/// lists.
+const OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-ignorestderr",
+        value: OptionValue::flag(),
+        detail: "Stops exec from treating unredirected output on a subprocess's stderr as an error case. Added in Tcl 8.5; in 8.4 any unredirected stderr output always makes exec raise an error.",
+        surface: Some(SpecSurface::TCL85_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+    OptionSpec {
+        name: "-keepnewline",
+        value: OptionValue::flag(),
+        detail: "Retains a trailing newline in the pipeline's result or error message; normally a single trailing newline is deleted.",
+        surface: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+    OptionSpec {
+        name: "-encoding",
+        value: OptionValue::value("encodingName"),
+        detail: "Encoding used to decode subprocess output captured by exec, defaulting to the interpreter's system encoding ([encoding system]). Added in Tcl 9.0; earlier Tcl always uses the system encoding, and other encodings (including raw binary) require opening and reading the pipeline explicitly.",
+        surface: Some(SpecSurface::TCL90_PLUS),
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+    OptionSpec {
+        name: "--",
+        value: OptionValue::flag(),
+        detail: "Marks the end of switches; the following argument is treated as the first pipeline word even if it begins with -.",
+        surface: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+];
+
+/// Resolve one leading `exec` word to its switch under `profile`, from the
+/// switches this spec makes available there, matched exactly as C's
+/// `TCL_EXACT` lookup does. Tcl 8.4 and 8.5 call the entry a "switch", 8.6
+/// onward an "option".
+///
+/// # Errors
+/// Tcl's bad-switch result for the active release.
+pub fn resolve_exec_switch(
+    profile: &'static DialectProfile,
+    word: &str,
+) -> Result<ExecSwitch, CmdError> {
+    let query = Some(profile.surface_query());
+    let available: Vec<&str> = OPTIONS
+        .iter()
+        .filter(|option| option.supports_dialect(query, Some(SpecSurface::ALL_TCL)))
+        .map(|option| option.name)
+        .collect();
+    let release = TclVersion::from_profile(profile).unwrap_or(TclVersion::V9_1);
+    let noun = if release < TclVersion::V8_6 {
+        "switch"
+    } else {
+        "option"
+    };
+    let index = OptionTable::exact_only(noun, &available).index_of_in(word.as_bytes(), release)?;
+    Ok(match available[index] {
+        "-ignorestderr" => ExecSwitch::IgnoreStderr,
+        "-keepnewline" => ExecSwitch::KeepNewline,
+        "-encoding" => ExecSwitch::Encoding,
+        _ => ExecSwitch::EndOfSwitches,
+    })
+}
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -64,7 +145,7 @@ pub fn spec() -> CommandSpec {
                 ..SideEffect::DEFAULT
             },
             // A failing subprocess populates the errorCode global with a
-            // structured CHILDSTATUS/CHILDKILLED/CHILDSUSPENDED value and
+            // structured CHILDSTATUS/CHILDKILLED/CHILDSUSP value and
             // errorInfo with the pipeline's collected output —
             // interpreter state beyond the raised error itself.
             SideEffect {
@@ -76,50 +157,7 @@ pub fn spec() -> CommandSpec {
         // ``--`` is the option terminator that drives W304's
         // ``resolve_option_terminator`` lookup; the registry also
         // surfaces the two boolean switches for completion.
-        options: const {
-            &[
-                OptionSpec {
-                    name: "-encoding",
-                    value: OptionValue::value("encodingName"),
-                    detail: "Encoding used to decode subprocess output captured by exec, defaulting to the interpreter's system encoding ([encoding system]). Added in Tcl 9.0; earlier Tcl always uses the system encoding, and other encodings (including raw binary) require opening and reading the pipeline explicitly.",
-                    surface: Some(SpecSurface::TCL90_PLUS),
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
-                    effect: None,
-                },
-                OptionSpec {
-                    name: "-ignorestderr",
-                    value: OptionValue::flag(),
-                    detail: "Stops exec from treating unredirected output on a subprocess's stderr as an error case. Added in Tcl 8.5; in 8.4 any unredirected stderr output always makes exec raise an error.",
-                    surface: Some(SpecSurface::TCL85_PLUS),
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
-                    effect: None,
-                },
-                OptionSpec {
-                    name: "-keepnewline",
-                    value: OptionValue::flag(),
-                    detail: "Retains a trailing newline in the pipeline's result or error message; normally a single trailing newline is deleted.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
-                    effect: None,
-                },
-                OptionSpec {
-                    name: "--",
-                    value: OptionValue::flag(),
-                    detail: "Marks the end of switches; the following argument is treated as the first pipeline word even if it begins with -.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
-                    effect: None,
-                },
-            ]
-        },
+        options: OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Invoke one or more subprocesses as a shell-style pipeline.",
             synopsis: &["exec ?switches? arg ?arg ...? ?&?"],

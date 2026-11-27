@@ -32,5 +32,3 @@ mod codegen;
 mod compiler_analysis_residual;
 mod compiler_residual;
 mod lsp_parse_cuts_release;
-
-tcl_registry::testing::install_shipped!();

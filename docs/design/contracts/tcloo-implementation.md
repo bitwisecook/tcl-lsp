@@ -379,7 +379,20 @@ The VM manages the object/class registry at runtime:
   record that mentions the name, the object's own before any class's, as in
   *Export state vs. implementation* above; a body-less record (an `export` or
   `unexport` override, or `oo::abstract`'s private factories) decides it even
-  though the body comes from a later class.
+  though the body comes from a later class. A later `method` definition of
+  the name replaces that provider's override, as C replaces the record.
+  Each chain `Step` carries a `StepRole`: an implementation of the invoked
+  method, a `Filter` naming the filter method it runs, or an `Unknown`
+  handler. A lookup miss (or an external call of an unexported method)
+  builds C's `OO_UNKNOWN_METHOD` chain in `cmd_oo/method_invocation.rs` —
+  the active filters, then every `unknown` provider in precedence order, with
+  the missed name prepended to the arguments; `next` past the last handler is
+  `oo::object`'s built-in, which raises `unknown method "X": must be …`. A
+  bare `$obj` reaches the handlers with no name and no filters
+  (`FORCE_UNKNOWN`). A filter step, or a chain built while one runs,
+  suppresses filters for further calls on the same object
+  (`FILTER_HANDLING`). Filter and unknown chains are built per call and never
+  enter the method-chain cache.
 - **Variable binding** — `my variable`, `my varname`, private variable
   mangling using creation IDs (TIP 500).
 - **Introspection** — `info object` / `info class` subcommands

@@ -58,7 +58,7 @@ pub(super) fn factory(
             .any(|s| Some(s.provider) == vm.oo.class_root);
         if is_meta {
             let (name, body) = if anon {
-                (fresh_obj_name(vm).into_bytes(), args.first())
+                (fresh_obj_command(vm).into_bytes(), args.first())
             } else {
                 let Some((n, rest)) = args.split_first() else {
                     let mut usage = match vm
@@ -88,7 +88,7 @@ pub(super) fn factory(
             let identity =
                 original_call_words([class_invoked, original_factory].into_iter().chain(args));
             (
-                n.as_bytes().to_vec(),
+                format!("::{n}").into_bytes(),
                 n,
                 args,
                 vec![class_invoked.clone(), original_factory.clone()],
@@ -147,6 +147,13 @@ pub(super) fn fresh_obj_name(vm: &mut Vm) -> String {
     let n = vm.oo.counter;
     vm.oo.counter += 1;
     format!("oo::Obj{n}")
+}
+
+/// A fresh `::oo::ObjN` command name, rooted so that `new` run inside another
+/// namespace (an object's method, a namespaced proc) does not resolve it
+/// relative to that namespace: C's `TclOO` names it absolutely.
+fn fresh_obj_command(vm: &mut Vm) -> String {
+    format!("::{}", fresh_obj_name(vm))
 }
 
 /// Create object `obj_key` as an instance of `class_key`, run its constructor

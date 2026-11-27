@@ -135,5 +135,3 @@ fn grep_json() {
 fn grep_no_match() {
     assert_grep_matches(&["no_such_object_xyz"], "grep-nomatch.text.golden");
 }
-
-tcl_registry::testing::install_shipped!();

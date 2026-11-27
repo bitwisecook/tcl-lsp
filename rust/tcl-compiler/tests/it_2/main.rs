@@ -37,5 +37,3 @@ mod regex_source_oracle;
 mod static_name_consumers;
 mod var_escape_cfg;
 mod w210_empty_loop_source;
-
-tcl_registry::testing::install_shipped!();

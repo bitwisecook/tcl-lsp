@@ -31,5 +31,3 @@ mod spectcl_pack;
 mod tcltest_specs;
 mod tk_option_tables;
 mod value_transfers;
-
-tcl_registry::testing::install_shipped!();

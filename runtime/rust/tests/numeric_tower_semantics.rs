@@ -662,5 +662,3 @@ fn a_boolean_word_keeps_its_spelling_outside_a_boolean_context() {
     expr_is("!of", "1");
     expr_is("tru && 1", "1");
 }
-
-tcl_registry::testing::install_shipped!();

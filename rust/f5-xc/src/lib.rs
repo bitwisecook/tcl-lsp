@@ -66,6 +66,3 @@ pub use terraform::render_terraform;
 pub use translator::{
     translate_irule, translate_irule_for_document, translate_irule_with_registry,
 };
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

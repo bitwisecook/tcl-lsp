@@ -25,5 +25,3 @@ mod bigip_object_query;
 mod dialect_profile;
 mod sslictcl_pack;
 mod tcl91_dialect;
-
-tcl_registry::testing::install_shipped!();

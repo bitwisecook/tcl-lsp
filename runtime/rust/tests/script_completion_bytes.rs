@@ -512,5 +512,3 @@ fn sourced_completion_settles_return_before_snapshot_and_publication() {
     assert_eq!(interp.eval_str(b"set ::errorCode"), Code::Ok);
     assert_eq!(interp.result_bytes(), b"SOURCE CODE");
 }
-
-tcl_registry::testing::install_shipped!();

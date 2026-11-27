@@ -52,6 +52,3 @@ pub use live::{LiveSession, SessionError};
 pub use session::{RuleIdentity, RuleSource};
 pub use sim::{SimOutcome, SimRequest, simulate_irule, simulate_rules};
 pub use topology::{Topology, TopologyError};
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

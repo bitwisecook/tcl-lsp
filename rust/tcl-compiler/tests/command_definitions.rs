@@ -582,5 +582,3 @@ fn diagnostic_verdict(code: DiagCode) -> Option<&'static str> {
         _ => None,
     }
 }
-
-tcl_registry::testing::install_shipped!();

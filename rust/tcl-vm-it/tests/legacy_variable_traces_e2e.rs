@@ -227,5 +227,3 @@ fn the_registry_owns_the_release_boundary() {
         }
     }
 }
-
-tcl_registry::testing::install_shipped!();

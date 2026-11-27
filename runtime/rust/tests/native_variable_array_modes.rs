@@ -218,5 +218,3 @@ fn array_name_mode_validation_boundaries_match_original_oracles() {
         }
     }
 }
-
-tcl_registry::testing::install_shipped!();

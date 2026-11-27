@@ -36,13 +36,13 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{BufRead as _, Read as _, Write};
 use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tcl_platform::{
-    Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process, StdIo,
-    SystemEncoding,
+    Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process,
+    ProcessExit, StdIo, StderrMode, SystemEncoding,
 };
 
 pub mod executable;
@@ -188,18 +188,6 @@ fn locale_system_encoding(locale: Option<&str>) -> SystemEncoding {
     SystemEncoding::Utf8
 }
 
-/// Map a `std::io::Error` onto the host-neutral [`HostError`].
-fn map_io(e: &std::io::Error) -> HostError {
-    use std::io::ErrorKind;
-    match e.kind() {
-        ErrorKind::NotFound => HostError::NotFound,
-        ErrorKind::PermissionDenied => HostError::Permission,
-        ErrorKind::AlreadyExists => HostError::AlreadyExists,
-        ErrorKind::WouldBlock => HostError::WouldBlock,
-        _ => HostError::Io(e.to_string()),
-    }
-}
-
 struct NativeClock;
 
 impl Clock for NativeClock {
@@ -247,6 +235,25 @@ impl StdIo for NativeStdIo {
 
     fn flush_stderr(&self) {
         let _ = std::io::stderr().flush();
+    }
+
+    // Through the process-wide `Stdin` buffer, so a shell reading its script
+    // from stdin and the script's own reads share one stream, as `Tcl_Main`
+    // and the script share Tcl's stdin channel.
+    fn read_stdin_line(&self, out: &mut Vec<u8>) -> Result<usize, HostError> {
+        std::io::stdin()
+            .lock()
+            .read_until(b'\n', out)
+            .map_err(|e| HostError::from_io(&e))
+    }
+
+    fn read_stdin(&self, out: &mut Vec<u8>, limit: Option<usize>) -> Result<usize, HostError> {
+        let mut stdin = std::io::stdin().lock();
+        match limit {
+            Some(n) => stdin.take(n as u64).read_to_end(out),
+            None => stdin.read_to_end(out),
+        }
+        .map_err(|e| HostError::from_io(&e))
     }
 }
 
@@ -302,11 +309,11 @@ impl Env for NativeEnv {
     fn cwd(&self) -> Result<String, HostError> {
         std::env::current_dir()
             .map(|p| p.to_string_lossy().into_owned())
-            .map_err(|e| map_io(&e))
+            .map_err(|e| HostError::from_io(&e))
     }
 
     fn chdir(&self, path: &str) -> Result<(), HostError> {
-        std::env::set_current_dir(path).map_err(|e| map_io(&e))
+        std::env::set_current_dir(path).map_err(|e| HostError::from_io(&e))
     }
 
     fn current_exe(&self) -> Option<String> {
@@ -353,7 +360,8 @@ struct NativeSourceFile(std::fs::File);
 impl tcl_platform::SourceFile for NativeSourceFile {
     fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
         let mut bytes = Vec::new();
-        std::io::Read::read_to_end(&mut self.0, &mut bytes).map_err(|error| map_io(&error))?;
+        std::io::Read::read_to_end(&mut self.0, &mut bytes)
+            .map_err(|error| HostError::from_io(&error))?;
         Ok(bytes)
     }
 }
@@ -367,9 +375,9 @@ impl NativeFs {
         recursive: bool,
         force: bool,
     ) -> Result<(), HostError> {
-        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
+        let meta = std::fs::symlink_metadata(src).map_err(|e| HostError::from_io(&e))?;
         if meta.file_type().is_symlink() {
-            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
+            let link = std::fs::read_link(src).map_err(|e| HostError::from_io(&e))?;
             if force {
                 let _ = std::fs::remove_file(dst);
             }
@@ -378,9 +386,9 @@ impl NativeFs {
             if !recursive {
                 return Err(HostError::Io("is a directory".to_string()));
             }
-            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
-            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
-                let entry = entry.map_err(|e| map_io(&e))?;
+            std::fs::create_dir_all(dst).map_err(|e| HostError::from_io(&e))?;
+            for entry in std::fs::read_dir(src).map_err(|e| HostError::from_io(&e))? {
+                let entry = entry.map_err(|e| HostError::from_io(&e))?;
                 let child = dst.join(entry.file_name());
                 Self::copy_path(&entry.path(), &child, true, force)?;
             }
@@ -389,7 +397,9 @@ impl NativeFs {
             if !force && dst.exists() {
                 return Err(HostError::AlreadyExists);
             }
-            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
+            std::fs::copy(src, dst)
+                .map(|_| ())
+                .map_err(|e| HostError::from_io(&e))
         }
     }
 }
@@ -411,24 +421,24 @@ impl Filesystem for NativeFs {
     }
 
     fn metadata(&self, path: &str) -> Result<Metadata, HostError> {
-        let m = std::fs::metadata(path).map_err(|e| map_io(&e))?;
+        let m = std::fs::metadata(path).map_err(|e| HostError::from_io(&e))?;
         Ok(meta_from(&m))
     }
 
     fn symlink_metadata(&self, path: &str) -> Result<Metadata, HostError> {
-        let m = std::fs::symlink_metadata(path).map_err(|e| map_io(&e))?;
+        let m = std::fs::symlink_metadata(path).map_err(|e| HostError::from_io(&e))?;
         Ok(meta_from(&m))
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError> {
-        std::fs::read(path).map_err(|e| map_io(&e))
+        std::fs::read(path).map_err(|e| HostError::from_io(&e))
     }
 
     fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
         #[cfg(unix)]
         {
             use std::os::unix::ffi::OsStrExt as _;
-            std::fs::read(std::ffi::OsStr::from_bytes(path)).map_err(|e| map_io(&e))
+            std::fs::read(std::ffi::OsStr::from_bytes(path)).map_err(|e| HostError::from_io(&e))
         }
         #[cfg(not(unix))]
         {
@@ -450,32 +460,32 @@ impl Filesystem for NativeFs {
         let file =
             std::fs::File::open(std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?);
         file.map(|file| Box::new(NativeSourceFile(file)) as Box<dyn tcl_platform::SourceFile>)
-            .map_err(|error| map_io(&error))
+            .map_err(|error| HostError::from_io(&error))
     }
 
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError> {
-        std::fs::write(path, data).map_err(|e| map_io(&e))
+        std::fs::write(path, data).map_err(|e| HostError::from_io(&e))
     }
 
     fn read_dir(&self, path: &str) -> Result<Vec<String>, HostError> {
         let mut names = Vec::new();
-        for entry in std::fs::read_dir(path).map_err(|e| map_io(&e))? {
-            let entry = entry.map_err(|e| map_io(&e))?;
+        for entry in std::fs::read_dir(path).map_err(|e| HostError::from_io(&e))? {
+            let entry = entry.map_err(|e| HostError::from_io(&e))?;
             names.push(entry.file_name().to_string_lossy().into_owned());
         }
         Ok(names)
     }
 
     fn create_dir_all(&self, path: &str) -> Result<(), HostError> {
-        std::fs::create_dir_all(path).map_err(|e| map_io(&e))
+        std::fs::create_dir_all(path).map_err(|e| HostError::from_io(&e))
     }
 
     fn create_dir(&self, path: &str) -> Result<(), HostError> {
-        std::fs::create_dir(path).map_err(|e| map_io(&e))
+        std::fs::create_dir(path).map_err(|e| HostError::from_io(&e))
     }
 
     fn remove(&self, path: &str, recursive: bool) -> Result<(), HostError> {
-        let meta = std::fs::symlink_metadata(path).map_err(|e| map_io(&e))?;
+        let meta = std::fs::symlink_metadata(path).map_err(|e| HostError::from_io(&e))?;
         if meta.is_dir() {
             if recursive {
                 std::fs::remove_dir_all(path)
@@ -485,7 +495,7 @@ impl Filesystem for NativeFs {
         } else {
             std::fs::remove_file(path)
         }
-        .map_err(|e| map_io(&e))
+        .map_err(|e| HostError::from_io(&e))
     }
 
     fn rename(&self, source: &str, target: &str, force: bool) -> Result<(), HostError> {
@@ -493,7 +503,7 @@ impl Filesystem for NativeFs {
             let _ = std::fs::remove_file(target);
             let _ = std::fs::remove_dir_all(target);
         }
-        std::fs::rename(source, target).map_err(|e| map_io(&e))
+        std::fs::rename(source, target).map_err(|e| HostError::from_io(&e))
     }
 
     fn copy(
@@ -514,7 +524,7 @@ impl Filesystem for NativeFs {
     fn readlink(&self, path: &str) -> Result<String, HostError> {
         std::fs::read_link(path)
             .map(|p| p.to_string_lossy().into_owned())
-            .map_err(|e| map_io(&e))
+            .map_err(|e| HostError::from_io(&e))
     }
 
     fn link(&self, link: &str, target: &str, hard: bool) -> Result<(), HostError> {
@@ -535,7 +545,7 @@ impl Filesystem for NativeFs {
             .read(true)
             .write(false)
             .open(path)
-            .map_err(|e| map_io(&e))?;
+            .map_err(|e| HostError::from_io(&e))?;
         let mut times = std::fs::FileTimes::new();
         if let Some(secs) = atime_secs {
             times = times.set_accessed(epoch_time(secs));
@@ -543,7 +553,7 @@ impl Filesystem for NativeFs {
         if let Some(secs) = mtime_secs {
             times = times.set_modified(epoch_time(secs));
         }
-        file.set_times(times).map_err(|e| map_io(&e))
+        file.set_times(times).map_err(|e| HostError::from_io(&e))
     }
 }
 
@@ -561,11 +571,11 @@ fn create_link(
     hard: bool,
 ) -> Result<(), HostError> {
     if hard {
-        std::fs::hard_link(target, link).map_err(|e| map_io(&e))
+        std::fs::hard_link(target, link).map_err(|e| HostError::from_io(&e))
     } else {
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(target, link).map_err(|e| map_io(&e))
+            std::os::unix::fs::symlink(target, link).map_err(|e| HostError::from_io(&e))
         }
         #[cfg(windows)]
         {
@@ -573,9 +583,9 @@ fn create_link(
                 .map(|m| m.is_dir())
                 .unwrap_or(false);
             if is_dir {
-                std::os::windows::fs::symlink_dir(target, link).map_err(|e| map_io(&e))
+                std::os::windows::fs::symlink_dir(target, link).map_err(|e| HostError::from_io(&e))
             } else {
-                std::os::windows::fs::symlink_file(target, link).map_err(|e| map_io(&e))
+                std::os::windows::fs::symlink_file(target, link).map_err(|e| HostError::from_io(&e))
             }
         }
         #[cfg(not(any(unix, windows)))]
@@ -653,7 +663,7 @@ struct NativeProcess {
 }
 
 impl Process for NativeProcess {
-    fn run(&self, args: &[&str]) -> Result<ExecOutput, HostError> {
+    fn run(&self, args: &[&str], stderr: StderrMode) -> Result<ExecOutput, HostError> {
         let (cmd, rest) = args.split_first().ok_or(HostError::NotFound)?;
         let mut command = std::process::Command::new(cmd);
         command.args(rest);
@@ -668,13 +678,42 @@ impl Process for NativeProcess {
                 None => command.env_remove(key),
             };
         }
-        let output = command.output().map_err(|e| map_io(&e))?;
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(match stderr {
+                StderrMode::Capture => std::process::Stdio::piped(),
+                StderrMode::Inherit => std::process::Stdio::inherit(),
+            });
+        let child = command.spawn().map_err(|e| HostError::from_io(&e))?;
+        let pid = child.id();
+        let output = child
+            .wait_with_output()
+            .map_err(|e| HostError::from_io(&e))?;
         Ok(ExecOutput {
-            status: output.status.code().unwrap_or(-1),
+            pid,
+            exit: process_exit(output.status),
             stdout: output.stdout,
             stderr: output.stderr,
         })
     }
+}
+
+#[cfg(unix)]
+fn process_exit(status: std::process::ExitStatus) -> ProcessExit {
+    use std::os::unix::process::ExitStatusExt;
+    match (status.code(), status.signal()) {
+        (Some(code), _) => ProcessExit::Exited(code),
+        (None, Some(signal)) => ProcessExit::Signaled(
+            nix::sys::signal::Signal::try_from(signal).map_or("unknown signal", |s| s.as_str()),
+        ),
+        (None, None) => ProcessExit::Exited(-1),
+    }
+}
+
+#[cfg(not(unix))]
+fn process_exit(status: std::process::ExitStatus) -> ProcessExit {
+    ProcessExit::Exited(status.code().unwrap_or(-1))
 }
 
 #[cfg(test)]
@@ -837,7 +876,7 @@ mod tests {
         let out = host
             .process()
             .expect("a process capability")
-            .run(&["cat", "/proc/self/environ"])
+            .run(&["cat", "/proc/self/environ"], StderrMode::Capture)
             .expect("cat runs");
         assert!(
             out.stdout
@@ -857,11 +896,14 @@ mod tests {
         let out = host
             .process()
             .expect("a process capability")
-            .run(&[
-                "sh",
-                "-c",
-                "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
-            ])
+            .run(
+                &[
+                    "sh",
+                    "-c",
+                    "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
+                ],
+                StderrMode::Capture,
+            )
             .expect("sh runs despite NULs in the overrides");
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "seen:unset:a");
     }

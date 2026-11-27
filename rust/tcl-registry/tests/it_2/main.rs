@@ -25,5 +25,3 @@ mod name_lookup_issue_witnesses;
 mod provider_relation;
 mod snapshot;
 mod tabulation_plan;
-
-tcl_registry::testing::install_shipped!();

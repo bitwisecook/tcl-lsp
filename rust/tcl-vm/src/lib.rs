@@ -163,6 +163,3 @@ pub use tcl_runtime_api::{Commands, Frames, Introspect, Namespaces, Traces, VarS
 
 mod native_return_merge;
 mod native_switch;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

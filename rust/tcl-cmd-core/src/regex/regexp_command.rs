@@ -22,7 +22,7 @@ use super::jim::regexp_jim_original;
 use super::original_pattern::{NativeRegexObjects, regexp_native_selected};
 use super::{
     AnalysisMatch, Common, NO_MATCH, RegMatch, RegexEngine, RegexError, RegexFailure, RegexFlags,
-    RegexpPrecision, RegexpResult, Run, decode_utf8, discard_regexp_result, notbol_at,
+    RegexpPrecision, RegexpResult, Run, decode_utf8, discard_regexp_result, regexp_notbol_at,
     resolve_start_checked, wrong_args,
 };
 use crate::error::CmdError;
@@ -512,7 +512,7 @@ where
     let mut inline_items: Vec<O::IndexKeyOwner> = Vec::new();
 
     loop {
-        let notbol = notbol_at(&cps, offset);
+        let notbol = regexp_notbol_at(&cps, offset, version);
         let answer = run.exec::<E>(&re, &cps, offset, notbol);
         if let RegexpPrecision::Declined(decline) = answer {
             return Err(RegexpRunError::Regex(RegexFailure::Declined(decline)));

@@ -1641,6 +1641,3 @@ fn time_seed() -> u64 {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

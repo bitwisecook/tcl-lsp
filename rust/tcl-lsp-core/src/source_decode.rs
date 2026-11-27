@@ -225,7 +225,6 @@ const NUL_COUNT_FLOOR: usize = 8;
 /// decoded lossily *after* being described.
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_lsp_core::source_decode::{Utf8Fault, decode_source};
 ///
 /// // Valid UTF-8 round-trips with an empty report.
@@ -495,7 +494,6 @@ fn range_at(text: &str, offset: usize, ch_len: usize) -> LspRange {
 /// everything else.
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_lsp_core::source_decode::{decode_source, encoding_integrity_diagnostics};
 ///
 /// let (text, report) = decode_source(b"puts \xed\xa0\x80\n");

@@ -101,5 +101,3 @@ fn missing_file_errors() {
         "stderr mismatch on input error"
     );
 }
-
-tcl_registry::testing::install_shipped!();

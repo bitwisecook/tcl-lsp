@@ -339,6 +339,3 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Spec { action } => commands::spec::run(action),
     }
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

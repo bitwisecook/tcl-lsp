@@ -195,5 +195,3 @@ fn upstream_channel_output_cases_use_real_tcltest() {
     );
     std::fs::remove_dir_all(fixture).expect("remove channel oracle fixture");
 }
-
-tcl_registry::testing::install_shipped!();

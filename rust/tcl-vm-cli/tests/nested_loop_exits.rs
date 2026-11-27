@@ -80,5 +80,3 @@ fn an_inner_loop_exit_leaves_only_the_inner_loop() {
     }
     let _ = std::fs::remove_dir_all(path.parent().expect("scratch directory"));
 }
-
-tcl_registry::testing::install_shipped!();

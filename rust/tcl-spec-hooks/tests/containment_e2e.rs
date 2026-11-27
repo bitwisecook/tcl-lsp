@@ -635,5 +635,3 @@ fn a_refused_release_factory_cannot_run_on_the_default_engine() {
     assert_eq!(host.error_log().len(), 1);
     assert!(!host.is_quarantined(slot));
 }
-
-tcl_registry::testing::install_shipped!();

@@ -116,5 +116,3 @@ fn x509_projection_and_equality_dispatch_without_probes() {
     assert_eq!(values.len(), 1);
     assert!(matches!(values.first(), Some(Value::Bool(true))));
 }
-
-tcl_registry::testing::install_shipped!();

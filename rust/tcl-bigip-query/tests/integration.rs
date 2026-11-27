@@ -65,5 +65,3 @@ mod renderers;
 mod time;
 #[path = "integration/value2.rs"]
 mod value2;
-
-tcl_registry::testing::install_shipped!();

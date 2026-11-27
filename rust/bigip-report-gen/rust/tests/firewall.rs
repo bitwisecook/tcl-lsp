@@ -173,5 +173,3 @@ fn nat_objects_are_projected() {
     assert_eq!(pol.len(), 1);
     assert_eq!(pol[0]["name"], "nat-pol");
 }
-
-tcl_registry::testing::install_shipped!();

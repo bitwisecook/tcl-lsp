@@ -20,8 +20,8 @@
 
 use super::configurable_properties::{slot_ref_class, slot_ref_obj};
 use super::{
-    Method, display_oo_bytes, err_code, method_list_value, native_context, object_message,
-    original_name_operands, resolve_class_value, resolve_object_value,
+    Method, Step, StepRole, display_oo_bytes, err_code, method_list_value, native_context,
+    object_message, original_name_operands, resolve_class_value, resolve_object_value,
 };
 use crate::command::Param;
 use crate::interp::{Vm, err, ok};
@@ -248,6 +248,8 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "vars" => info_object_variable_names(vm, obj, extra),
             "methods" => info_object_methods(vm, obj, extra),
             "properties" => info_object_properties(vm, obj, extra),
+            "filters" => ok(filter_names(&vm.oo.objects[&obj].filters)),
+            "call" => info_call(vm, &vm.oo.object_precedence(obj), extra, false),
             _ => err(format!("unsupported info object subcommand \"{sub}\"")),
         }
     })
@@ -543,6 +545,8 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 ))
             }
             "properties" => info_class_properties(vm, cls, extra),
+            "filters" => ok(filter_names(&vm.oo.classes[&cls].filters)),
+            "call" => info_call(vm, &vm.oo.class_linear_of(cls), extra, true),
             "definitionnamespace" => info_class_definition_namespace(vm, cls, extra),
             _ => err(format!("unsupported info class subcommand \"{sub}\"")),
         }
@@ -782,4 +786,110 @@ fn params_value(params: &[Param]) -> Value {
             })
             .collect(),
     )
+}
+
+fn filter_names(names: &[tcl_core_types::NameBytes]) -> Value {
+    Value::list(
+        names
+            .iter()
+            .map(|n| Value::from_native_string_bytes(n.as_bytes().to_vec()))
+            .collect(),
+    )
+}
+
+/// Render a call chain as `info … call` / `self call` report it: one
+/// `{callType name declarer methodType}` element per step, then — for an
+/// `unknown` chain, or a direct call of `unknown` — `oo::object`'s built-in
+/// handler that terminates it.
+pub(super) fn render_call_chain(
+    vm: &Vm,
+    chain: &[Step],
+    method: &str,
+    unknown_chain: bool,
+) -> Vec<Value> {
+    let bytes =
+        |name: &str| Value::from_native_string_bytes(vm.oo.method_name_bytes(name).to_vec());
+    let mut out: Vec<Value> = chain
+        .iter()
+        .map(|step| {
+            let (call_type, name) = match &step.role {
+                StepRole::Filter(f) => ("filter", f.as_str()),
+                StepRole::Unknown => ("unknown", "unknown"),
+                StepRole::Method => ("method", method),
+            };
+            let record = step
+                .method_owner
+                .as_ref()
+                .map(|owner| owner.borrow().clone())
+                .or_else(|| vm.oo.step_method(step, name));
+            let method_type = match record {
+                Some(m) if m.forward.is_some() => Value::string("forward"),
+                Some(m) if m.intrinsic.is_some() => {
+                    let mut text = b"core method: \"".to_vec();
+                    text.extend_from_slice(vm.oo.method_name_bytes(name));
+                    text.push(b'"');
+                    Value::from_native_string_bytes(text)
+                }
+                _ => Value::string("method"),
+            };
+            let declarer = if step.is_object {
+                Value::string("object")
+            } else {
+                Value::from_native_string_bytes(display_oo_bytes(vm, step.provider))
+            };
+            Value::list(vec![
+                Value::string(call_type),
+                bytes(name),
+                declarer,
+                method_type,
+            ])
+        })
+        .collect();
+    if (unknown_chain || method == "unknown")
+        && let Some(root) = vm.oo.object_root
+    {
+        out.push(Value::list(vec![
+            Value::string(if unknown_chain { "unknown" } else { "method" }),
+            Value::string("unknown"),
+            Value::from_native_string_bytes(display_oo_bytes(vm, root)),
+            Value::string("core method: \"unknown\""),
+        ]));
+    }
+    out
+}
+
+/// `info object call obj method` / `info class call cls method`: the chain a
+/// call would run — filters, then the implementations, or the `unknown`
+/// handlers when there are none.
+fn info_call(vm: &mut Vm, precedence: &[Step], extra: &[Value], class: bool) -> Completion<Value> {
+    let [method] = extra else {
+        let usage = if class {
+            "info class call className methodName"
+        } else {
+            "info object call objName methodName"
+        };
+        return crate::command::native_wrong_args(vm, usage);
+    };
+    let method = match super::native_method_key(vm, method) {
+        Ok(method) => method,
+        Err(completion) => return completion,
+    };
+    let mut chain = vm.oo.active_filters(precedence);
+    let steps: Vec<Step> = precedence
+        .iter()
+        .filter(|s| {
+            vm.oo
+                .step_method(s, &method)
+                .is_some_and(|m| !m.visibility_only)
+        })
+        .cloned()
+        .collect();
+    let unknown = steps.is_empty();
+    if unknown {
+        chain.extend(vm.oo.unknown_handlers(precedence));
+    } else {
+        chain.extend(steps);
+    }
+    let name = if unknown { "unknown" } else { method.as_str() };
+    ok(Value::list(render_call_chain(vm, &chain, name, unknown)))
 }

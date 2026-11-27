@@ -22,3 +22,10 @@ proc ::release_fact_frame {} {
     puts "upvar-parity\t[string match {bad level*} $result]"
 }
 ::release_fact_frame
+puts "scan-int-narrow\t[scan ffffffff %x]"
+puts "scan-int-wide\t[scan 1ffffffff %x]"
+puts "clock-add\t[expr {![catch {clock add 0 1 day -gmt 1}]}]"
+puts "clock-add-unit-prefix\t[expr {![catch {clock add 0 1 d -gmt 1}]}]"
+puts "clock-format-ez\t[clock format 0 -format %Ez -gmt 1]"
+puts "clock-scan-format\t[expr {![catch {clock scan 1970 -format %Y -gmt 1}]}]"
+puts "binary-format-m\t[expr {![catch {binary format m 1}]}]"

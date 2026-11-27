@@ -23,5 +23,3 @@
 
 mod spectcl_ports;
 mod versions;
-
-tcl_registry::testing::install_shipped!();

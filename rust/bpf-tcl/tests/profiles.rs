@@ -150,5 +150,3 @@ fn bad_field_width_rejected() {
     let err = compile_module(src).unwrap_err();
     assert_eq!(err.code, BpfDiag::BadProfile);
 }
-
-tcl_registry::testing::install_shipped!();

@@ -340,5 +340,3 @@ fn archive_inventory_reporting_labels_cannot_replace_original_path_owners() {
     entries[0].path = "etc/other".to_owned();
     assert!(entries[0].require_faithful_path().is_err());
 }
-
-tcl_registry::testing::install_shipped!();

@@ -820,5 +820,3 @@ fn native_integer_division_keeps_the_quotient_and_tcl_remainder() {
         "3\n1\n-4\n2\n-4\n-2\n3\n-1\n4\n0\n0\n0\n9223372036854775808\n0\n"
     );
 }
-
-tcl_registry::testing::install_shipped!();

@@ -102,5 +102,3 @@ fn select_nothing_queues_no_edit_exits_0() {
         ],
     );
 }
-
-tcl_registry::testing::install_shipped!();

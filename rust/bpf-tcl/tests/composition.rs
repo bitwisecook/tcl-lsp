@@ -146,5 +146,3 @@ when XDP priority 10 {
         }
     );
 }
-
-tcl_registry::testing::install_shipped!();

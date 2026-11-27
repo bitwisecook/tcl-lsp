@@ -165,5 +165,3 @@ fn example_programs_compile_and_run() {
     assert_eq!(run_src(accept, &mut pkt), 100);
     assert_eq!(run_src(drop, &mut pkt), 0);
 }
-
-tcl_registry::testing::install_shipped!();

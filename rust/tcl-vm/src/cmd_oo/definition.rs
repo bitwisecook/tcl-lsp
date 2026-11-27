@@ -230,6 +230,7 @@ pub(super) fn def_body_cmd(vm: &mut Vm, verb: &str, args: &[Value]) -> Completio
         "export" => def_export(vm, is_class, target, args, true),
         "unexport" => def_export(vm, is_class, target, args, false),
         "mixin" => def_mixin(vm, is_class, target, args),
+        "filter" => def_filter(vm, is_class, target, args),
         "forward" => def_forward(vm, is_class, target, args),
         "variable" => declare_variable(vm, args, vm.oo.private_depth > 0),
         _ => err(format!("unknown definition command \"{verb}\"")),
@@ -317,16 +318,20 @@ pub(super) fn def_method(
             return crate::command::completion_from_cmd_error(vm, error);
         }
         method.private = visibility == NativeTclooMethodVisibility::Private;
+        // A fresh definition carries its own visibility, superseding an earlier
+        // `export`/`unexport` of the name here (C replaces the method record).
         let retired = if is_class {
-            vm.oo
-                .classes
-                .get_mut(&target)
-                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+            vm.oo.classes.get_mut(&target).and_then(|entry| {
+                entry.exported.remove(&name);
+                entry.unexported.remove(&name);
+                entry.methods.insert_for_retirement(name, method)
+            })
         } else {
-            vm.oo
-                .objects
-                .get_mut(&target)
-                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+            vm.oo.objects.get_mut(&target).and_then(|entry| {
+                entry.exported.remove(&name);
+                entry.unexported.remove(&name);
+                entry.methods.insert_for_retirement(name, method)
+            })
         };
         drop(retired);
         if let Err(error) = original_names.check_target(vm) {
@@ -630,6 +635,44 @@ fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Compl
         }
         ok(Value::empty())
     })
+}
+
+/// The `filter` slot: methods wrapping every call. Bare names append (C's
+/// default); `-set`, `-append`, `-remove` and `-clear` select the operation.
+/// Duplicates are stored as given; dispatch collapses them.
+fn def_filter(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
+    let (op, names) = match args.split_first() {
+        Some((first, rest)) if first.to_str().starts_with('-') => {
+            (first.to_str().to_string(), rest)
+        }
+        _ => ("-append".to_owned(), args),
+    };
+    let mut selected = Vec::with_capacity(names.len());
+    for name in names {
+        let key = match native_method_key_for_target(vm, name, Some((is_class, target))) {
+            Ok(key) => key,
+            Err(completion) => return completion,
+        };
+        selected.push(tcl_core_types::NameBytes::from(
+            vm.oo.method_name_bytes(&key),
+        ));
+    }
+    let list = if is_class {
+        vm.oo.classes.get_mut(&target).map(|c| &mut c.filters)
+    } else {
+        vm.oo.objects.get_mut(&target).map(|o| &mut o.filters)
+    };
+    let Some(list) = list else {
+        return ok(Value::empty());
+    };
+    match op.as_str() {
+        "-set" => *list = selected,
+        "-append" => list.extend(selected),
+        "-remove" => list.retain(|n| !selected.contains(n)),
+        "-clear" => list.clear(),
+        other => return err(format!("unsupported slot operation \"{other}\"")),
+    }
+    ok(Value::empty())
 }
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {

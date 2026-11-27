@@ -20,6 +20,3 @@
 //! and `tcl-codegen` before the VM runs it. Keeping them out of `tcl-vm`'s
 //! own dev-dependencies means a compiler or code-generator edit does not
 //! rebuild `tcl-vm`'s tests.
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

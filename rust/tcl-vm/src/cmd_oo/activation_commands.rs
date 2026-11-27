@@ -18,9 +18,12 @@
 
 //! The commands of a running method activation: `my`, `self`, `next` and `nextto`.
 
+use super::introspection::render_call_chain;
 use super::method_invocation::{oo_invoke_value, original_call_words, run_step};
+use super::method_resolution::unknown_method;
 use super::{
-    OoFrame, display, display_oo_bytes, native_context, native_method_key, resolve_class_value,
+    OoFrame, StepRole, display, display_oo_bytes, native_context, native_method_key,
+    resolve_class_value,
 };
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -110,14 +113,36 @@ fn self_outside_method(vm: &mut Vm) -> Completion<Value> {
 }
 
 fn self_call_chain(vm: &Vm, fr: &OoFrame) -> Completion<Value> {
-    let steps: Vec<Value> = fr
+    let unknown = fr.chain.iter().any(|s| s.role == StepRole::Unknown);
+    ok(Value::list(vec![
+        Value::list(render_call_chain(vm, &fr.chain, &fr.method, unknown)),
+        Value::int(i64::try_from(fr.index).unwrap_or(0)),
+    ]))
+}
+
+/// `self target` / `self filter`: the call a running filter wraps, or the
+/// filter itself; an error outside a filter.
+fn self_filter_context(vm: &Vm, fr: &OoFrame, sub: &str) -> Completion<Value> {
+    let step = &fr.chain[fr.index];
+    let Some(filter) = step.filter() else {
+        return err("not inside a filtering context");
+    };
+    if sub == "filter" {
+        let kind = if step.is_object { "object" } else { "class" };
+        return ok(Value::list(vec![
+            Value::from_native_string_bytes(display_oo_bytes(vm, step.provider)),
+            Value::string(kind),
+            Value::from_native_string_bytes(vm.oo.method_name_bytes(filter).to_vec()),
+        ]));
+    }
+    let declarer = fr
         .chain
         .iter()
-        .map(|s| Value::from_native_string_bytes(display_oo_bytes(vm, s.provider)))
-        .collect();
+        .find(|s| s.filter().is_none())
+        .map_or_else(Vec::new, |s| display_oo_bytes(vm, s.provider));
     ok(Value::list(vec![
-        Value::list(steps),
-        Value::int(i64::try_from(fr.index).unwrap_or(0)),
+        Value::from_native_string_bytes(declarer),
+        Value::from_native_string_bytes(vm.oo.method_name_bytes(&fr.method).to_vec()),
     ]))
 }
 
@@ -183,8 +208,11 @@ fn cmd_self_entered(
                 );
             }
             if role == NativeTclooMethodReportRole::Named {
+                let step = &fr.chain[fr.index];
                 ok(Value::from_native_string_bytes(
-                    vm.oo.method_name_bytes(&fr.method).to_vec(),
+                    vm.oo
+                        .method_name_bytes(step.filter().unwrap_or(&fr.method))
+                        .to_vec(),
                 ))
             } else if let Some(original) = vm
                 .oo
@@ -204,13 +232,7 @@ fn cmd_self_entered(
             }
         }
         Some("call") => self_call_chain(vm, fr),
-        Some("target") => {
-            let step = &fr.chain[fr.index];
-            ok(Value::list(vec![
-                Value::from_native_string_bytes(display_oo_bytes(vm, step.provider)),
-                Value::from_native_string_bytes(vm.oo.method_name_bytes(&fr.method).to_vec()),
-            ]))
-        }
+        Some(sub @ ("target" | "filter")) => self_filter_context(vm, fr, sub),
         Some(other) => err(format!("unsupported self subcommand \"{other}\"")),
     }
 }
@@ -238,6 +260,17 @@ pub(crate) fn cmd_next_original(vm: &mut Vm, head: &Value, args: &[Value]) -> Co
     let invoked = fr.invoked.clone();
     let usage = fr.usage_prefix.clone();
     if index + 1 >= chain.len() {
+        // `unknown`'s chain ends in `oo::object`'s built-in, which reports the
+        // miss for the name it was handed.
+        if method == "unknown" && chain.report_role() == NativeTclooMethodReportRole::Named {
+            return match args.first() {
+                Some(missed) => match native_method_key(vm, missed) {
+                    Ok(missed) => unknown_method(vm, obj, &missed, external),
+                    Err(completion) => completion,
+                },
+                None => crate::command::native_wrong_args(vm, "next method ?arg ...?"),
+            };
+        }
         // Past the end there is no further implementation of this kind.
         let kind = if chain.report_role() == NativeTclooMethodReportRole::Constructor {
             "constructor"

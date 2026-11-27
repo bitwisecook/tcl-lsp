@@ -113,7 +113,6 @@ pub fn param_word_text_is_literal(word: &str, config: tcl_lexer::LexerConfig) ->
 /// passes [`WordValueRules::TCL`].
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_compiler::signature_scan::params::parse_param_list;
 /// use tcl_syntax::word_rules::WordValueRules;
 /// let params = parse_param_list("a {b 1} c", WordValueRules::TCL);

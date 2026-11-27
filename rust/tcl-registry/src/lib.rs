@@ -292,7 +292,6 @@ pub mod state_transition;
 pub mod substitution;
 pub mod symbol_def;
 pub mod taint;
-pub mod testing;
 pub mod tk_geometry;
 pub mod traits;
 pub mod types;
@@ -444,9 +443,11 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root.
+#[cfg(debug_assertions)]
+pub use registry::surfaces::TEST_INSTALL;
 pub use registry::surfaces::{
-    HookTable, InstallConflict, Placement, SpecCell, SpecSource, Surface, SurfaceSet, SurfaceView,
-    install, installed, try_installed,
+    HookTable, InstallConflict, NOT_INSTALLED, Placement, SpecCell, SpecSource, Surface,
+    SurfaceSet, SurfaceView, install, installed, try_installed,
 };
 
 /// Install the shipped surface list, [`commands::SHIPPED`].
@@ -588,7 +589,6 @@ pub use world_effect::{
 /// Crate version string.
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// assert!(!tcl_registry::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
