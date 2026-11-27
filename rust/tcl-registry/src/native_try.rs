@@ -133,7 +133,8 @@ fn layout(
     words: InvocationWords<'_>,
     dialect: InvocationDialect,
 ) -> Option<crate::TryControlInvocation> {
-    let plan = crate::commands::tcl::NATIVE_TRY_GRAMMAR
+    let plan = crate::installed()
+        .try_clauses()?
         .walk_arguments(
             words.arguments().with_dialect(dialect),
             &[],

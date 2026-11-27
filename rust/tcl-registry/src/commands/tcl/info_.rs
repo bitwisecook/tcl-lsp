@@ -19,6 +19,7 @@
 //! `info` — information about the state of the Tcl interpreter.
 
 use crate::hooks::InlineCodegenHookId;
+use crate::native_tcloo_info::InfoOoEnsembleKind;
 use crate::prelude::*;
 use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
@@ -648,15 +649,6 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     ),
 ];
 
-/// Which `TclOO` second-level `info` ensemble is being dispatched.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InfoOoEnsembleKind {
-    /// `info object subcommand ...`
-    Object,
-    /// `info class subcommand ...`
-    Class,
-}
-
 /// One option accepted by Tcl 9.0's `info object properties` and
 /// `info class properties` operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -710,12 +702,10 @@ pub fn resolve_info_oo_properties_option(word: &[u8]) -> Result<InfoOoProperties
     Ok(info_properties_option_at(table.index_of(word)?))
 }
 
-impl InfoOoEnsembleKind {
-    const fn parent_name(self) -> &'static str {
-        match self {
-            Self::Object => "object",
-            Self::Class => "class",
-        }
+const fn parent_name(kind: InfoOoEnsembleKind) -> &'static str {
+    match kind {
+        InfoOoEnsembleKind::Object => "object",
+        InfoOoEnsembleKind::Class => "class",
     }
 }
 
@@ -767,7 +757,7 @@ pub fn info_oo_subcommands(kind: InfoOoEnsembleKind, version: TclVersion) -> Inf
     let parent = info
         .subcommands
         .iter()
-        .find(|subcommand| subcommand.name == kind.parent_name())
+        .find(|subcommand| subcommand.name == parent_name(kind))
         .expect("the info spec declares both TclOO ensembles");
     InfoOoSubcommands {
         names: parent

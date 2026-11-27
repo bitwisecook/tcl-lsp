@@ -550,7 +550,7 @@ impl NativeCompilationSpec {
             if values.len() != operand_spellings.len() {
                 return None;
             }
-            failure.message = crate::commands::tcl::native_if_compile_shape_message(
+            failure.message = (crate::installed().conditional_clauses()?.compile_message)(
                 &values,
                 written_head,
                 operand_spellings,

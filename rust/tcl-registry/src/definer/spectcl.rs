@@ -394,47 +394,48 @@ pub(super) const fn spectcl_grammar(members: &'static [MemberSpec]) -> Definitio
 }
 
 /// The body of `speclib NAME VERSION { … }` — the pack itself.
-pub const SPECTCL_PACK_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_PACK_MEMBERS);
+pub static SPECTCL_PACK_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_PACK_MEMBERS);
 
 /// The body of `command NAME { … }` and of `subcommand NAME { … }`.
-pub const SPECTCL_COMMAND_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_COMMAND_MEMBERS);
+pub static SPECTCL_COMMAND_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_COMMAND_MEMBERS);
 
 /// The body of `hover { … }`.
-pub const SPECTCL_HOVER_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_HOVER_MEMBERS);
+pub static SPECTCL_HOVER_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_HOVER_MEMBERS);
 
 /// The body of `values NAME { … }`.
-pub const SPECTCL_VALUES_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_VALUES_MEMBERS);
+pub static SPECTCL_VALUES_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_VALUES_MEMBERS);
 
 /// The body of `clause_grammar { … }`.
-pub const SPECTCL_CLAUSE_GRAMMAR_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_CLAUSE_GRAMMAR_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_CLAUSE_GRAMMAR_MEMBERS);
 
 /// The body of `case_list { … }`.
-pub const SPECTCL_CASE_LIST_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_CASE_LIST_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_CASE_LIST_MEMBERS);
 
 /// The body of `event_requires { … }`.
-pub const SPECTCL_EVENT_REQUIRES_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_EVENT_REQUIRES_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_EVENT_REQUIRES_MEMBERS);
 
 /// The body of `world_effects { … }`.
-pub const SPECTCL_WORLD_EFFECTS_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_WORLD_EFFECTS_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_WORLD_EFFECTS_MEMBERS);
 
 /// The body of `state_transitions { … }`.
-pub const SPECTCL_STATE_TRANSITIONS_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_STATE_TRANSITIONS_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_STATE_TRANSITIONS_MEMBERS);
 
 /// The body of `definition_body { … }`.
-pub const SPECTCL_DEFINITION_BODY_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_DEFINITION_BODY_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_DEFINITION_BODY_MEMBERS);
 
 /// The body of `body_scope { … }`.
-pub const SPECTCL_BODY_SCOPE_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_BODY_SCOPE_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_BODY_SCOPE_MEMBERS);
 
 /// The body of `object_class NAME { … }`.
-pub const SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_OBJECT_CLASS_MEMBERS);
 
 /// The one declaration legal at the **root** of a `.tclspec` pack.
@@ -450,7 +451,7 @@ pub(super) const SPECTCL_SPECLIB_ROLES: &[(u8, ArgRole)] =
     &[(0, ArgRole::Name), (2, ArgRole::Body)];
 
 /// The body of a `.tclspec` **document** — see [`SPECTCL_DOCUMENT_MEMBERS`].
-pub const SPECTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
+pub static SPECTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_DOCUMENT_MEMBERS);
 
 /// Every `SpecTcl` grammar, so a sweep can assert the family's invariants

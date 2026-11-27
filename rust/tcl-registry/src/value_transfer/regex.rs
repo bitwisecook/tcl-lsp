@@ -334,23 +334,30 @@ impl CommandSemantics for RegexpSemantics {
 /// as the result and the text written to the variable, which the command
 /// writes whether or not anything matched. The callback form (`-command`,
 /// from 9.0) runs a script on each match and has no route of its own:
-/// `NoRoute(Callback)`. Any `PrecisionDecline` declines the whole answer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegsubSemantics;
-
-/// `regsub`.
-pub static REGSUB: RegsubSemantics = RegsubSemantics;
+/// `NoRoute(Callback)`; the command's surface says which calls are that form.
+/// Any `PrecisionDecline` declines the whole answer.
+#[derive(Debug, Clone, Copy)]
+pub struct RegsubSemantics {
+    names_a_callback: fn(&[String]) -> bool,
+}
 
 impl RegsubSemantics {
     /// The axes the route reads.
     pub const NEEDS: Needs = NEEDS;
 
-    fn evaluate_regsub(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+    /// The route for a command whose callback form `names_a_callback`
+    /// recognises from the call's words after the command name.
+    #[must_use]
+    pub const fn new(names_a_callback: fn(&[String]) -> bool) -> Self {
+        Self { names_a_callback }
+    }
+
+    fn evaluate_regsub(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let (mut ops, texts, targets) = match open(input, budget) {
             Ok(opened) => opened,
             Err(answer) => return answer,
         };
-        if crate::commands::tcl::regsub_names_a_callback(&texts) {
+        if (self.names_a_callback)(&texts) {
             return EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Callback));
         }
         // The output is bounded before it is built: the subject once, and
@@ -428,7 +435,7 @@ impl CommandSemantics for RegsubSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-        Self::evaluate_regsub(input, budget)
+        self.evaluate_regsub(input, budget)
     }
 }
 

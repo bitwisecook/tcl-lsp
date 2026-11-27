@@ -154,7 +154,8 @@ pub fn selected_try_control_invocation(
 ) -> Option<TryControlInvocation> {
     let dialect = arguments.dialect()?;
     let values = arguments.slice_from(offset).literal_values()?;
-    let plan = crate::commands::tcl::NATIVE_TRY_GRAMMAR
+    let plan = crate::installed()
+        .try_clauses()?
         .walk_arguments(arguments.slice_from(offset), &[], dialect.authoring_query())?
         .ok()?;
     let mut selected = parse_try_control_invocation_with_lists(

@@ -19,7 +19,7 @@
 //! Source-navigation operands from the actual authored Registry schema.
 
 mod static_display;
-pub use static_display::{StaticTclSourceDisplay, static_tcl_source_display};
+pub use static_display::{StaticDisplayRecipe, StaticTclSourceDisplay, static_tcl_source_display};
 
 /// Conditional source-query algebra from a selected authored descriptor.
 /// No current package, provided value, load success or Native handler follows.

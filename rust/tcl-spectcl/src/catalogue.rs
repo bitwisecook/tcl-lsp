@@ -31,7 +31,7 @@
 //! update alongside, so a new `ArgRole` / hook / side-effect target cannot
 //! silently go missing from the studio's picker.
 
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 use tcl_dialect::model::{EnvironmentRegistry, SpecSurface};
 use tcl_registry::hooks::{
@@ -430,262 +430,213 @@ pub const ANALYSER_HOOKS: &[Variant] = &catalogue_rows::<
     { AnalyserHookId::SOURCE_PRESENTATION.len() },
 >(AnalyserHookId::SOURCE_PRESENTATION);
 
-/// [`tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE`] — `arg_role_resolver
-/// -native ID`, `SCOPE::FIELD` spelled. Every `*_NATIVE` catalogue below
-/// holds the DSL's own id, not a Rust variant name, since that is what a
-/// `-native` statement is actually matched against
+/// The `-native ID` picker of one hook family: every id the installed
+/// surfaces' hook tables register in `family`, in install order, labelled
+/// from `labels`. Built at run time from the installed set, since the tables
+/// belong to the surfaces, not to the core. Every catalogue below holds the
+/// DSL's own `SCOPE::FIELD` id, not a Rust variant name, since that is what a
+/// `-native` statement is matched against
 /// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
 /// per-family catalogues*).
-pub const ARG_ROLE_RESOLVER_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+fn native_catalogue<T>(
+    cell: &'static OnceLock<Vec<Variant>>,
+    family: tcl_registry::HookFamilyRows<T>,
+    labels: &[Variant],
+) -> &'static [Variant] {
+    cell.get_or_init(|| {
+        tcl_registry::installed()
+            .native_hook_ids(family)
+            .into_iter()
+            .map(|id| v(id, catalogue_label(id, labels)))
+            .collect()
+    })
+}
 
-/// [`tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE`].
-pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `arg_role_resolver -native ID`.
+#[must_use]
+pub fn arg_role_resolver_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.arg_role_resolver, &[])
+}
 
-/// [`tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE`].
-pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `command_prefix_resolver -native ID`.
+#[must_use]
+pub fn command_prefix_resolver_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.command_prefix_resolver, &[])
+}
 
-/// [`tcl_registry::pack_hooks::CONST_FOLD_NATIVE`] — the shipped folders.
-pub const CONST_FOLD_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::CONST_FOLD_NATIVE;
-    let labels: &[Variant] = &[
-        v("string::range::const_fold", "string range"),
-        v("string::replace::const_fold", "string replace"),
-        v("regsub::const_fold", "regsub"),
-        v("scan::const_fold", "scan"),
-        v("list::const_fold", "list"),
-        v("lindex::const_fold", "lindex"),
-        v("concat::const_fold", "concat"),
-        v("llength::const_fold", "llength"),
-        v("lreverse::const_fold", "lreverse"),
-        v("join::const_fold", "join"),
-        v("split::const_fold", "split"),
-        v("lrepeat::const_fold", "lrepeat"),
-        v("lrange::const_fold", "lrange"),
-        v("dict::get::const_fold", "dict get"),
-        v("dict::exists::const_fold", "dict exists"),
-        v("dict::size::const_fold", "dict size"),
-        v("dict::keys::const_fold", "dict keys"),
-        v("dict::values::const_fold", "dict values"),
-        v("dict::create::const_fold", "dict create"),
-        v("dict::merge::const_fold", "dict merge"),
-        v("::tcl::dict::get::const_fold", "::tcl::dict::get"),
-        v("::tcl::dict::exists::const_fold", "::tcl::dict::exists"),
-        v("::tcl::dict::size::const_fold", "::tcl::dict::size"),
-        v("::tcl::dict::keys::const_fold", "::tcl::dict::keys"),
-        v("::tcl::dict::values::const_fold", "::tcl::dict::values"),
-        v("::tcl::dict::create::const_fold", "::tcl::dict::create"),
-        v("::tcl::dict::merge::const_fold", "::tcl::dict::merge"),
-        v("string::cat::const_fold", "string cat"),
-        v("string::compare::const_fold", "string compare"),
-        v("string::equal::const_fold", "string equal"),
-        v("string::first::const_fold", "string first"),
-        v("string::index::const_fold", "string index"),
-        v("string::last::const_fold", "string last"),
-        v("string::length::const_fold", "string length"),
-        v("string::map::const_fold", "string map"),
-        v("string::match::const_fold", "string match"),
-        v("string::repeat::const_fold", "string repeat"),
-        v("string::reverse::const_fold", "string reverse"),
-        v("string::tolower::const_fold", "string tolower"),
-        v("string::totitle::const_fold", "string totitle"),
-        v("string::toupper::const_fold", "string toupper"),
-        v("string::trim::const_fold", "string trim"),
-        v("string::trimleft::const_fold", "string trimleft"),
-        v("string::trimright::const_fold", "string trimright"),
-        v("namespace::qualifiers::const_fold", "namespace qualifiers"),
-        v("namespace::tail::const_fold", "namespace tail"),
-        v("subst::const_fold", "subst"),
-    ];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONST_FOLD_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `script_timing_resolver -native ID`.
+#[must_use]
+pub fn script_timing_resolver_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.script_timing_resolver, &[])
+}
 
-/// [`tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE`].
-pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE;
-    let labels: &[Variant] = &[
-        v("string::is::const_fold_versioned", "string is"),
-        v("string::range::const_fold_versioned", "string range"),
-        v("format::const_fold_versioned", "format"),
-        v("regsub::const_fold_versioned", "regsub"),
-    ];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `const_fold -native ID`.
+#[must_use]
+pub fn const_fold_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(
+        &CELL,
+        |table| table.const_fold,
+        &[
+            v("string::range::const_fold", "string range"),
+            v("string::replace::const_fold", "string replace"),
+            v("regsub::const_fold", "regsub"),
+            v("scan::const_fold", "scan"),
+            v("list::const_fold", "list"),
+            v("lindex::const_fold", "lindex"),
+            v("concat::const_fold", "concat"),
+            v("llength::const_fold", "llength"),
+            v("lreverse::const_fold", "lreverse"),
+            v("join::const_fold", "join"),
+            v("split::const_fold", "split"),
+            v("lrepeat::const_fold", "lrepeat"),
+            v("lrange::const_fold", "lrange"),
+            v("dict::get::const_fold", "dict get"),
+            v("dict::exists::const_fold", "dict exists"),
+            v("dict::size::const_fold", "dict size"),
+            v("dict::keys::const_fold", "dict keys"),
+            v("dict::values::const_fold", "dict values"),
+            v("dict::create::const_fold", "dict create"),
+            v("dict::merge::const_fold", "dict merge"),
+            v("::tcl::dict::get::const_fold", "::tcl::dict::get"),
+            v("::tcl::dict::exists::const_fold", "::tcl::dict::exists"),
+            v("::tcl::dict::size::const_fold", "::tcl::dict::size"),
+            v("::tcl::dict::keys::const_fold", "::tcl::dict::keys"),
+            v("::tcl::dict::values::const_fold", "::tcl::dict::values"),
+            v("::tcl::dict::create::const_fold", "::tcl::dict::create"),
+            v("::tcl::dict::merge::const_fold", "::tcl::dict::merge"),
+            v("string::cat::const_fold", "string cat"),
+            v("string::compare::const_fold", "string compare"),
+            v("string::equal::const_fold", "string equal"),
+            v("string::first::const_fold", "string first"),
+            v("string::index::const_fold", "string index"),
+            v("string::last::const_fold", "string last"),
+            v("string::length::const_fold", "string length"),
+            v("string::map::const_fold", "string map"),
+            v("string::match::const_fold", "string match"),
+            v("string::repeat::const_fold", "string repeat"),
+            v("string::reverse::const_fold", "string reverse"),
+            v("string::tolower::const_fold", "string tolower"),
+            v("string::totitle::const_fold", "string totitle"),
+            v("string::toupper::const_fold", "string toupper"),
+            v("string::trim::const_fold", "string trim"),
+            v("string::trimleft::const_fold", "string trimleft"),
+            v("string::trimright::const_fold", "string trimright"),
+            v("namespace::qualifiers::const_fold", "namespace qualifiers"),
+            v("namespace::tail::const_fold", "namespace tail"),
+            v("subst::const_fold", "subst"),
+            v("lsort::const_fold", "lsort"),
+        ],
+    )
+}
 
-/// [`tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE`].
-pub const TAINT_SINK_GATE_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `const_fold_versioned -native ID`.
+#[must_use]
+pub fn const_fold_versioned_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(
+        &CELL,
+        |table| table.const_fold_versioned,
+        &[
+            v("string::is::const_fold_versioned", "string is"),
+            v("string::range::const_fold_versioned", "string range"),
+            v("format::const_fold_versioned", "format"),
+            v("regsub::const_fold_versioned", "regsub"),
+            v("dict::merge::const_fold_versioned", "dict merge"),
+            v("split::const_fold_versioned", "split"),
+            v("string::compare::const_fold_versioned", "string compare"),
+            v("string::equal::const_fold_versioned", "string equal"),
+            v("string::match::const_fold_versioned", "string match"),
+            v("string::repeat::const_fold_versioned", "string repeat"),
+            v("string::trim::const_fold_versioned", "string trim"),
+            v("string::trimleft::const_fold_versioned", "string trimleft"),
+            v(
+                "string::trimright::const_fold_versioned",
+                "string trimright",
+            ),
+        ],
+    )
+}
 
-/// [`tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE`].
-pub const CONTEXT_GATE_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `taint_sink_gate -native ID`.
+#[must_use]
+pub fn taint_sink_gate_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.taint_sink_gate, &[])
+}
 
-/// [`tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE`].
-pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `context_gate -native ID`.
+#[must_use]
+pub fn context_gate_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.context_gate, &[])
+}
 
-/// [`tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE`].
-pub const CLAUSE_SHAPE_CHECK_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `literal_argument_validator -native ID`.
+#[must_use]
+pub fn literal_argument_validator_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.literal_argument_validator, &[])
+}
 
-/// [`tcl_registry::pack_hooks::OPTION_ARITY_NATIVE`].
-pub const OPTION_ARITY_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::OPTION_ARITY_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::OPTION_ARITY_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `clause_shape_check -native ID`.
+#[must_use]
+pub fn clause_shape_check_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.clause_shape_check, &[])
+}
 
-/// [`tcl_registry::pack_hooks::CONSTRAINTS_NATIVE`].
-pub const CONSTRAINTS_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::CONSTRAINTS_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::CONSTRAINTS_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `option_arity -native ID`.
+#[must_use]
+pub fn option_arity_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.option_arity, &[])
+}
 
-/// [`tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE`] —
-/// `state_transitions { resolver -native ID }`.
-pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE;
-    let labels: &[Variant] = &[v("proc::state_transitions.resolver", "proc")];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `constraints -native ID`.
+#[must_use]
+pub fn constraints_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.constraints, &[])
+}
 
-/// [`tcl_registry::pack_hooks::SEMANTICS_NATIVE`] — `semantics -native ID`.
-pub const SEMANTICS_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::SEMANTICS_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::SEMANTICS_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `state_transition_resolver -native ID`.
+#[must_use]
+pub fn state_transition_resolver_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(
+        &CELL,
+        |table| table.state_transition_resolver,
+        &[v("proc::state_transitions.resolver", "proc")],
+    )
+}
 
-/// [`tcl_registry::pack_hooks::EVALUATE_NATIVE`] — `evaluate -native ID`.
-pub const EVALUATE_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::EVALUATE_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::EVALUATE_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `semantics -native ID`.
+#[must_use]
+pub fn semantics_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.semantics, &[])
+}
 
-/// [`tcl_registry::pack_hooks::FACTS_NATIVE`] — `facts -native ID`.
-pub const FACTS_NATIVE: &[Variant] = &{
-    let table = tcl_registry::pack_hooks::FACTS_NATIVE;
-    let labels: &[Variant] = &[];
-    let mut rows = [v("", ""); tcl_registry::pack_hooks::FACTS_NATIVE.len()];
-    let mut at = 0;
-    while at < table.len() {
-        rows[at] = v(table[at].0, catalogue_label(table[at].0, labels));
-        at += 1;
-    }
-    rows
-};
+/// `evaluate -native ID`.
+#[must_use]
+pub fn evaluate_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.evaluate, &[])
+}
+
+/// `facts -native ID`.
+#[must_use]
+pub fn facts_native() -> &'static [Variant] {
+    static CELL: OnceLock<Vec<Variant>> = OnceLock::new();
+    native_catalogue(&CELL, |table| table.facts, &[])
+}
 
 /// [`tcl_registry::value_transfer::NativeEvalId::ALL`] — `evaluate -direct
-/// ID`, the Rust variant spelling (unlike the `*_NATIVE` tables above, this
+/// ID`, the Rust variant spelling (unlike the `*_native` pickers above, this
 /// catalogue's own id predates `-native` and was already Rust-spelled).
 pub const NATIVE_EVAL_IDS: &[Variant] = &catalogue_rows::<
     { NativeEvalId::SOURCE_PRESENTATION.len() },
@@ -1441,20 +1392,20 @@ mod tests {
             CODEGEN_HOOKS,
             INLINE_CODEGEN_HOOKS,
             ANALYSER_HOOKS,
-            ARG_ROLE_RESOLVER_NATIVE,
-            COMMAND_PREFIX_RESOLVER_NATIVE,
-            SCRIPT_TIMING_RESOLVER_NATIVE,
-            CONST_FOLD_NATIVE,
-            CONST_FOLD_VERSIONED_NATIVE,
-            TAINT_SINK_GATE_NATIVE,
-            CONTEXT_GATE_NATIVE,
-            LITERAL_ARGUMENT_VALIDATOR_NATIVE,
-            CLAUSE_SHAPE_CHECK_NATIVE,
-            OPTION_ARITY_NATIVE,
-            CONSTRAINTS_NATIVE,
-            SEMANTICS_NATIVE,
-            EVALUATE_NATIVE,
-            FACTS_NATIVE,
+            arg_role_resolver_native(),
+            command_prefix_resolver_native(),
+            script_timing_resolver_native(),
+            const_fold_native(),
+            const_fold_versioned_native(),
+            taint_sink_gate_native(),
+            context_gate_native(),
+            literal_argument_validator_native(),
+            clause_shape_check_native(),
+            option_arity_native(),
+            constraints_native(),
+            semantics_native(),
+            evaluate_native(),
+            facts_native(),
             NATIVE_EVAL_IDS,
             LANGUAGE_PROFILES,
             HOST_KINDS,
@@ -1591,32 +1542,11 @@ mod owner_vocabulary_controls {
     use super::*;
 
     #[test]
-    fn actual_registration_tables_are_the_picker_membership_source() {
-        assert_eq!(
-            CONST_FOLD_NATIVE
-                .iter()
-                .map(|row| row.key)
-                .collect::<Vec<_>>(),
-            tcl_registry::pack_hooks::CONST_FOLD_NATIVE
-                .iter()
-                .map(|row| row.0)
-                .collect::<Vec<_>>()
-        );
-        assert_eq!(
-            CONST_FOLD_VERSIONED_NATIVE
-                .iter()
-                .map(|row| row.key)
-                .collect::<Vec<_>>(),
-            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE
-                .iter()
-                .map(|row| row.0)
-                .collect::<Vec<_>>()
-        );
+    fn an_unlabelled_native_id_is_its_own_label() {
         assert_eq!(
             catalogue_label("new-unlabelled-native", &[v("foreign", "foreign prose")]),
             "new-unlabelled-native"
         );
-        assert_eq!(ARG_ROLE_RESOLVER_NATIVE, []);
     }
 
     #[test]

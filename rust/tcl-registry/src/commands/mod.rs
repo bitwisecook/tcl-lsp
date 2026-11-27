@@ -77,7 +77,7 @@ static TCL: Surface = Surface {
     specs: SpecSource::Built(tcl::tcl_command_specs),
     placement: Placement::Base,
     views: &[],
-    hooks: &HookTable::EMPTY,
+    hooks: &tcl::HOOKS,
     document_grammar: None,
     in_universe: true,
     on_install: None,

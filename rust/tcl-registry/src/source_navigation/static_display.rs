@@ -18,13 +18,31 @@
 
 //! Ordered static source display under real authored Registry grammars.
 
-use crate::commands::tcl::{
-    STATIC_DISPLAY_CLASS_REFERENCES, STATIC_DISPLAY_CLASSES, STATIC_DISPLAY_CONSTRUCTORS,
-    STATIC_DISPLAY_NAMED_CALLABLES, STATIC_DISPLAY_REGEX_COMMANDS, STATIC_DISPLAY_REGEX_OPTIONS,
-    STATIC_DISPLAY_REGEX_TERMINATOR,
-};
 use crate::definer::{MemberEffect, MemberKind, MemberRefKind, TCLOO_GRAMMAR};
 use crate::{ArgRole, CommandRegistry, PatternType};
+
+/// The ordering policy of the cross-editor static source display, which a
+/// surface registers in its hook table. Rows stay conditional on the actual
+/// authored descriptors; the recipe selects no runtime command or definition
+/// member. New option rows append after the historical prefix so existing
+/// alternatives keep their precedence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StaticDisplayRecipe {
+    /// Names followed by one symbolic name and a parameter list.
+    pub named_callables: &'static [&'static str],
+    /// Nameless lifecycle keywords followed by a parameter list.
+    pub constructors: &'static [&'static str],
+    /// Class source heads and optional fixed subcommand words.
+    pub classes: &'static [(&'static str, Option<&'static str>)],
+    /// Definition-member words whose operands name classes.
+    pub class_references: &'static [&'static str],
+    /// Commands with a declared regular-expression pattern language.
+    pub regex_commands: &'static [&'static str],
+    /// The option-run terminator, left out of the option union.
+    pub regex_terminator: &'static str,
+    /// The leading regular-expression options, in display order.
+    pub regex_options: &'static [&'static str],
+}
 
 /// Ordered cross-editor display candidates. These are static source shapes,
 /// without document availability, selected handlers, members, frames or cells.
@@ -53,14 +71,15 @@ fn flat_callable(keyword: &str, name: Option<u8>, params: u8) -> bool {
     })
 }
 
-/// Reborrow the existing Tcl static display recipe only while every row still
+/// Reborrow the installed surfaces' static display recipe only while every row still
 /// has its actual descriptor role. A missing/changed prerequisite refuses the
 /// complete recipe, rather than silently publishing a shorter grammar. The
 /// authored union includes package-gated class spelling as a display policy;
 /// it supplies no package population or current-document availability.
 #[must_use]
 pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTclSourceDisplay> {
-    let named_callables = STATIC_DISPLAY_NAMED_CALLABLES.to_vec();
+    let recipe = crate::installed().static_display()?;
+    let named_callables = recipe.named_callables.to_vec();
     for &name in &named_callables {
         let procedure = registry.specs(name).iter().any(|spec| {
             spec.arg_roles.contains(&(0, ArgRole::Name))
@@ -71,14 +90,14 @@ pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTcl
             return None;
         }
     }
-    let constructors = STATIC_DISPLAY_CONSTRUCTORS.to_vec();
+    let constructors = recipe.constructors.to_vec();
     if constructors
         .iter()
         .any(|name| !flat_callable(name, None, 0))
     {
         return None;
     }
-    let classes = STATIC_DISPLAY_CLASSES.to_vec();
+    let classes = recipe.classes.to_vec();
     for &(command, subcommand) in &classes {
         if !registry.specs(command).iter().any(|spec| {
             spec.definition_body.is_some()
@@ -96,7 +115,7 @@ pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTcl
             return None;
         }
     }
-    let class_references = STATIC_DISPLAY_CLASS_REFERENCES.to_vec();
+    let class_references = recipe.class_references.to_vec();
     if class_references.iter().any(|name| {
         TCLOO_GRAMMAR.member(name).is_none_or(|member| {
             member.kind != MemberKind::Flat || member.all_args_ref != Some(MemberRefKind::Class)
@@ -104,7 +123,7 @@ pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTcl
     }) {
         return None;
     }
-    let regex_commands = STATIC_DISPLAY_REGEX_COMMANDS.to_vec();
+    let regex_commands = recipe.regex_commands.to_vec();
     let mut available_options = Vec::new();
     for &command in &regex_commands {
         let mut found = false;
@@ -114,7 +133,7 @@ pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTcl
             }
             found = true;
             for option in spec.options {
-                if option.name == STATIC_DISPLAY_REGEX_TERMINATOR {
+                if option.name == recipe.regex_terminator {
                     continue;
                 }
                 if !available_options.contains(&option.name) {
@@ -126,13 +145,14 @@ pub fn static_tcl_source_display(registry: &CommandRegistry) -> Option<StaticTcl
             return None;
         }
     }
-    if STATIC_DISPLAY_REGEX_OPTIONS
+    if recipe
+        .regex_options
         .iter()
         .any(|name| !available_options.contains(name))
     {
         return None;
     }
-    let mut regex_options = STATIC_DISPLAY_REGEX_OPTIONS.to_vec();
+    let mut regex_options = recipe.regex_options.to_vec();
     for option in available_options {
         if !regex_options.contains(&option) {
             regex_options.push(option);

@@ -1277,6 +1277,14 @@ declare_traits! {
     /// named class. Consumers abstain on such a receiver rather than reading
     /// the command spelling.
     TclooRuntimeHandleResult => TCLOO_RUNTIME_HANDLE_RESULT, Objects, "returns a run-time TclOO object or class handle";
+
+    /// A command of the Thread package (`thread::*`, `tsv::*`, `tpool::*`):
+    /// it creates, addresses or shares state between interpreter threads.
+    /// Like [`Self::COROUTINE_PRIMITIVE`], a semantic family rather than a
+    /// backend policy: BPF-Tcl asks it, through
+    /// [`crate::SurfaceSet::traits_in_any_surface`], to explain why the
+    /// operation has no representation, without loading the Thread surface.
+    ThreadPrimitive => THREAD_PRIMITIVE, ControlFlow, "participates in Tcl thread execution";
 }
 
 /// Declare the required end-to-end example for every behavioural trait.
@@ -1383,6 +1391,7 @@ declare_trait_examples! {
     EstablishesVariableTrace => flow!("proc changed {name index op} { puts $op }\ntrace add variable watched write changed\nset watched value"; (1, "trace"); (0, "proc changed", "defines the callback"), (1, "trace add variable watched write changed", "establishes the variable trace"), (2, "set watched value", "fires the callback with a write operation"));
     TransfersControl => flow!("proc target {} { return reached }\nproc caller {} { tailcall target; return unreachable }\nputs [caller]"; (1, "tailcall"); (0, "target", "is the destination"), (1, "tailcall target", "transfers control away from caller"), (1, "return unreachable", "cannot run"), (2, "caller", "returns reached"));
     CoroutinePrimitive => flow!("proc worker {} { yield ready; return done }\ncoroutine task worker\nputs [task]"; (1, "coroutine"); (0, "yield ready", "defines the suspension point"), (1, "coroutine task worker", "creates and starts coroutine execution"), (2, "task", "resumes it to completion"));
+    ThreadPrimitive => flow!("package require Thread\nset worker [thread::create]\nthread::send $worker {set x 1}"; (1, "thread::create"); (0, "package require Thread", "loads the Thread package"), (1, "thread::create", "creates an interpreter thread"), (2, "thread::send $worker", "runs a script in that thread"));
     FireAndForgetTeardown => flow!("set child [interp create]\ninterp delete $child\nputs deleted"; (1, "interp"); (0, "[interp create]", "creates live runtime state"), (1, "interp delete $child", "starts teardown with no value dependency"), (2, "puts deleted", "continues after teardown"));
     OperatorCommand => flow!("set left 20\nset total [+ $left 22]\nputs $total"; (1, "+"); (0, "left 20", "supplies an operand"), (1, "+ $left 22", "runs the operator in command form"), (2, "$total", "observes 42"));
     TclooNextChain => flow!("oo::class create Base { method run {} {return base} }\noo::class create Child { superclass Base; method run {} { return [next] } }\nputs [[Child new] run]"; (1, "next"); (0, "method run", "defines the superclass implementation"), (1, "next", "dispatches to the next method in the chain"), (2, "run", "returns base"));

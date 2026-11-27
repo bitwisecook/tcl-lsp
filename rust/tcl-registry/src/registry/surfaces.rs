@@ -30,9 +30,22 @@ use rustc_hash::FxHashMap;
 use tcl_dialect::model::{Family, SpecProvider, SurfaceLayer};
 
 use super::lookup::AllDialectCommandNames;
+use crate::clause_grammar::ClauseGrammarSpec;
+use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
 use crate::definer::DefinitionBodyGrammar;
-use crate::spec::CommandSpec;
+use crate::hooks::{ConstFoldFn, VersionedConstFoldFn};
+use crate::hover::OptionValueHook;
+use crate::literal_validation::LiteralArgumentValidator;
+use crate::pack_hooks::TaintSinkGateFn;
+use crate::source_navigation::StaticDisplayRecipe;
+use crate::spec::{
+    ArgRoleResolver, CommandPrefixResolver, CommandSpec, ConstraintsHook, ContextGate,
+    ScriptTimingResolver,
+};
+use crate::state_transition::StateTransitionResolver;
 use crate::taint::TaintColour;
+use crate::traits::Traits;
+use crate::value_transfer::{DeclaredStructure, EvalRoute};
 
 /// One authored group of command specs and how a registry places it.
 ///
@@ -107,15 +120,103 @@ pub struct SurfaceView {
     pub cell: SpecCell,
 }
 
-/// A surface's hook registrations. Empty until behaviour moves to its surface.
+/// A surface's native implementations, by the id a pack names them with.
+///
+/// One slice per `-native ID` family, keyed by the full `SCOPE::FIELD` id
+/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+/// per-family catalogues*), and the few native-compiler and display facts
+/// generic core modules ask the surface for. A shipped Rust spec holds its
+/// function pointers directly and never goes through the table; the `SpecTcl`
+/// loader resolves `-native ID` through [`SurfaceSet::native_hook`].
 #[derive(Debug)]
 pub struct HookTable {
-    _reserved: (),
+    /// `arg_role_resolver -native ID`.
+    pub arg_role_resolver: &'static [(&'static str, ArgRoleResolver)],
+    /// `command_prefix_resolver -native ID`.
+    pub command_prefix_resolver: &'static [(&'static str, CommandPrefixResolver)],
+    /// `script_timing_resolver -native ID`.
+    pub script_timing_resolver: &'static [(&'static str, ScriptTimingResolver)],
+    /// `const_fold -native ID`.
+    pub const_fold: &'static [(&'static str, ConstFoldFn)],
+    /// `const_fold_versioned -native ID`.
+    pub const_fold_versioned: &'static [(&'static str, VersionedConstFoldFn)],
+    /// `taint_sink_gate -native ID`.
+    pub taint_sink_gate: &'static [(&'static str, TaintSinkGateFn)],
+    /// `context_gate -native ID`.
+    pub context_gate: &'static [(&'static str, ContextGate)],
+    /// `literal_argument_validator -native ID`.
+    pub literal_argument_validator: &'static [(&'static str, LiteralArgumentValidator)],
+    /// `clause_shape_check -native ID`.
+    pub clause_shape_check: &'static [(&'static str, ClauseShapeChecker)],
+    /// Option-arity `-native ID`.
+    pub option_arity: &'static [(&'static str, OptionValueHook)],
+    /// `constraints -native ID`.
+    pub constraints: &'static [(&'static str, ConstraintsHook)],
+    /// `state_transitions { resolver -native ID }`.
+    pub state_transition_resolver: &'static [(&'static str, StateTransitionResolver)],
+    /// `semantics -native ID`: a shipped structural plan.
+    pub semantics: &'static [(&'static str, DeclaredStructure)],
+    /// `evaluate -native ID`: a shipped evaluator whose route the entry names.
+    pub evaluate: &'static [(&'static str, EvalRoute)],
+    /// `facts -native ID`: checked, not stored, so only the ids are kept.
+    pub facts: &'static [(&'static str, ())],
+    /// The clause grammar the native `try` compiler
+    /// ([`NativeCompilationGrammar::Try`]) walks.
+    ///
+    /// [`NativeCompilationGrammar::Try`]: crate::native_compilation::NativeCompilationGrammar::Try
+    pub try_clauses: Option<&'static ClauseGrammarSpec>,
+    /// The clause checks of the native `if` compiler
+    /// ([`NativeCompilationGrammar::Conditional`]) and its BPF projection.
+    ///
+    /// [`NativeCompilationGrammar::Conditional`]: crate::native_compilation::NativeCompilationGrammar::Conditional
+    pub conditional: Option<&'static ConditionalClauseHooks>,
+    /// The rows of the cross-editor static source display.
+    pub static_display: Option<&'static StaticDisplayRecipe>,
 }
 
 impl HookTable {
     /// The table with no registrations.
-    pub const EMPTY: Self = Self { _reserved: () };
+    pub const EMPTY: Self = Self {
+        arg_role_resolver: &[],
+        command_prefix_resolver: &[],
+        script_timing_resolver: &[],
+        const_fold: &[],
+        const_fold_versioned: &[],
+        taint_sink_gate: &[],
+        context_gate: &[],
+        literal_argument_validator: &[],
+        clause_shape_check: &[],
+        option_arity: &[],
+        constraints: &[],
+        state_transition_resolver: &[],
+        semantics: &[],
+        evaluate: &[],
+        facts: &[],
+        try_clauses: None,
+        conditional: None,
+        static_display: None,
+    };
+}
+
+/// One `-native ID` family of a [`HookTable`]: `|table| table.const_fold`.
+pub type HookFamilyRows<T> = fn(&HookTable) -> &'static [(&'static str, T)];
+
+/// Each body of a conditional chain with the condition that selects it.
+pub type ConditionBodies = Vec<(Option<usize>, usize)>;
+
+/// `TclCompileIfCmd`'s clause checks over literal arguments (the words after
+/// `if`), and the condition/body pairs BPF-Tcl's conditional reads.
+#[derive(Debug, Clone, Copy)]
+pub struct ConditionalClauseHooks {
+    /// The first clause defect, or `None` for a well-formed chain.
+    pub shape_error: fn(&[&str]) -> Option<ClauseShapeError>,
+    /// The C 8.4 compiler's message for that defect, from the decoded
+    /// arguments, the written command head and each argument's source
+    /// spelling.
+    pub compile_message: fn(&[&str], &str, &[&str]) -> Option<String>,
+    /// Each body with the condition that selects it (`None` for the final
+    /// body), or `None` for a malformed chain.
+    pub condition_bodies: fn(&[&str]) -> Option<ConditionBodies>,
 }
 
 /// The once-built specs of a surface or view.
@@ -201,6 +302,7 @@ pub struct SurfaceSet {
     packs_by_name: OnceLock<FxHashMap<&'static str, Vec<&'static str>>>,
     taint_sources: OnceLock<FxHashMap<&'static str, TaintColour>>,
     safe_interp_hidden: OnceLock<Vec<&'static str>>,
+    traits_by_name: OnceLock<FxHashMap<&'static str, Traits>>,
 }
 
 impl std::fmt::Debug for SurfaceSet {
@@ -220,6 +322,7 @@ impl SurfaceSet {
             packs_by_name: OnceLock::new(),
             taint_sources: OnceLock::new(),
             safe_interp_hidden: OnceLock::new(),
+            traits_by_name: OnceLock::new(),
         }
     }
 
@@ -287,6 +390,77 @@ impl SurfaceSet {
         self.surfaces
             .iter()
             .find_map(|&surface| Some((surface, surface.specs_for_layer(layer)?)))
+    }
+
+    /// The native implementation `id` names in `family`, from the first
+    /// installed surface whose hook table registers it.
+    #[must_use]
+    pub fn native_hook<T: Copy>(&self, id: &str, family: HookFamilyRows<T>) -> Option<T> {
+        self.surfaces.iter().find_map(|surface| {
+            family(surface.hooks)
+                .iter()
+                .find(|(key, _)| *key == id)
+                .map(|(_, value)| *value)
+        })
+    }
+
+    /// Every id registered in `family`, in install order.
+    #[must_use]
+    pub fn native_hook_ids<T>(&self, family: HookFamilyRows<T>) -> Vec<&'static str> {
+        self.surfaces
+            .iter()
+            .flat_map(|surface| family(surface.hooks).iter().map(|(id, _)| *id))
+            .collect()
+    }
+
+    /// The clause grammar the native `try` compiler walks, from the first
+    /// installed surface that registers one.
+    #[must_use]
+    pub fn try_clauses(&self) -> Option<&'static ClauseGrammarSpec> {
+        self.surfaces
+            .iter()
+            .find_map(|surface| surface.hooks.try_clauses)
+    }
+
+    /// The native `if` compiler's clause checks, from the first installed
+    /// surface that registers them.
+    #[must_use]
+    pub fn conditional_clauses(&self) -> Option<&'static ConditionalClauseHooks> {
+        self.surfaces
+            .iter()
+            .find_map(|surface| surface.hooks.conditional)
+    }
+
+    /// The static source display rows, from the first installed surface that
+    /// registers them.
+    #[must_use]
+    pub fn static_display(&self) -> Option<&'static StaticDisplayRecipe> {
+        self.surfaces
+            .iter()
+            .find_map(|surface| surface.hooks.static_display)
+    }
+
+    /// The union of the traits every installed surface's specs declare for
+    /// `name` (rooted or not), whatever a registry loaded or the W002
+    /// universe counts.
+    #[must_use]
+    pub fn traits_in_any_surface(&self, name: &str) -> Traits {
+        let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
+        self.traits_by_name
+            .get_or_init(|| {
+                let mut index: FxHashMap<&'static str, Traits> = FxHashMap::default();
+                for surface in self.surfaces {
+                    for spec in surface.specs() {
+                        let name =
+                            tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
+                        *index.entry(name).or_default() |= spec.traits;
+                    }
+                }
+                index
+            })
+            .get(name)
+            .copied()
+            .unwrap_or_default()
     }
 
     pub(super) fn universe(&self) -> &AllDialectCommandNames {
@@ -458,7 +632,8 @@ pub const NOT_INSTALLED: &str = "no command surface set is installed: an entry p
      .cargo/config.toml sets the variable that installs the shipped list instead); \
      see docs/design/registry/registry-split/01-surface-input.md";
 
-/// The variable that makes an uninstalled read install [`crate::commands::SHIPPED`].
+/// The variable that makes an uninstalled read install the shipped list
+/// ([`crate::install_shipped`]).
 /// `.cargo/config.toml` sets it for every cargo-run process; a build without
 /// `debug_assertions`, which every release bundle is, has no fallback.
 #[cfg(debug_assertions)]
@@ -482,7 +657,7 @@ pub fn installed() -> &'static SurfaceSet {
 fn uninstalled_read() -> &'static SurfaceSet {
     #[cfg(debug_assertions)]
     if std::env::var_os(TEST_INSTALL).is_some_and(|value| !value.is_empty()) {
-        return install(crate::commands::SHIPPED).unwrap_or_else(|conflict| panic!("{conflict}"));
+        return crate::install_shipped().unwrap_or_else(|conflict| panic!("{conflict}"));
     }
     panic!("{NOT_INSTALLED}")
 }

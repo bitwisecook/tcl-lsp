@@ -24,4 +24,5 @@
 mod bigip_object_query;
 mod dialect_profile;
 mod sslictcl_pack;
+mod surface_hooks;
 mod tcl91_dialect;

@@ -39,17 +39,14 @@
 //! nothing reads it yet.
 //!
 //! A `-native ID` is `SCOPE::FIELD`. A short id is a load notice naming the
-//! full spelling; a full id looked up in the field's own table
-//! (`tcl_registry::pack_hooks`'s `SEMANTICS_NATIVE` / `EVALUATE_NATIVE` /
-//! `FACTS_NATIVE`) installs what the table holds, and one the table does not
-//! hold is a load notice too. `-direct` and `-expression` are different,
+//! full spelling; a full id looked up in the field's own family of the
+//! installed surfaces' hook tables (`semantics`, `evaluate`, `facts`) installs
+//! what a table holds, and one no table holds is a load notice too. `-direct` and `-expression` are different,
 //! already-closed catalogues of their own — `NativeEvalId::ALL` and
 //! `LanguageProfileId::ALL` (`tcl.expr`, `bpf.expr`) — not `SCOPE::FIELD` ids.
 
 use tcl_registry::hover::OptionSpec;
-use tcl_registry::pack_hooks::{
-    EVALUATE_NATIVE, FACTS_NATIVE, HookInput, HookInputs, SEMANTICS_NATIVE,
-};
+use tcl_registry::pack_hooks::{HookInput, HookInputs};
 use tcl_registry::types::TclType;
 use tcl_registry::value_transfer::{
     BindingIdentity, CompletionSupport, ContextDependency, DeclaredEffect, DeclaredEvaluation,
@@ -352,15 +349,15 @@ pub(super) fn rebind(
 }
 
 /// `FIELD -native ID`: the id rule. A short id — one that does not spell
-/// `SCOPE::FIELD` — is a notice naming the full spelling; a full id `table`
-/// does not hold is a notice too, and either way nothing installs beyond
-/// what `table` itself names.
+/// `SCOPE::FIELD` — is a notice naming the full spelling; a full id no
+/// installed hook table holds in `family` is a notice too, and either way
+/// nothing installs beyond what a table itself names.
 fn native_id<T: Copy>(
     stmt: &Stmt,
     field: &str,
     flag: &str,
     scope: &Scope<'_>,
-    table: &[(&'static str, T)],
+    family: tcl_registry::HookFamilyRows<T>,
     log: &mut Log,
 ) -> Option<T> {
     let id = stmt.word_text(2);
@@ -379,10 +376,7 @@ fn native_id<T: Copy>(
         );
         return None;
     }
-    let found = table
-        .iter()
-        .find(|(key, _)| *key == full)
-        .map(|(_, value)| *value);
+    let found = tcl_registry::installed().native_hook(&full, family);
     if found.is_none() {
         log.say(
             stmt.line,
@@ -398,8 +392,15 @@ fn native_id<T: Copy>(
 fn read_semantics(stmt: &Stmt, scope: &Scope<'_>, log: &mut Log) -> Option<Structure> {
     match (stmt.words.len(), stmt.word_text(1)) {
         (2, "none") if !stmt.words[1].braced => Some(Structure::Abstain),
-        (3, "-native") => native_id(stmt, "semantics", "-native", scope, SEMANTICS_NATIVE, log)
-            .map(Structure::Block),
+        (3, "-native") => native_id(
+            stmt,
+            "semantics",
+            "-native",
+            scope,
+            |table| table.semantics,
+            log,
+        )
+        .map(Structure::Block),
         (2, _) if stmt.words[1].braced => {
             let structure = structure_block(&stmt.words[1], log)?;
             Some(Structure::Block(structure))
@@ -639,8 +640,15 @@ fn read_evaluate(stmt: &Stmt, scope: &Scope<'_>, log: &mut Log) -> Option<Evalua
         (2, "none") => Some(Evaluation::Route(EvalRoute::None {
             reason: NoRouteReason::Declared,
         })),
-        (3, "-native") => native_id(stmt, "evaluate", "-native", scope, EVALUATE_NATIVE, log)
-            .map(Evaluation::Route),
+        (3, "-native") => native_id(
+            stmt,
+            "evaluate",
+            "-native",
+            scope,
+            |table| table.evaluate,
+            log,
+        )
+        .map(Evaluation::Route),
         (3, "-direct") => {
             let name = stmt.word_text(2);
             let id = enum_by_name(NativeEvalId::ALL, name, "direct evaluator", stmt.line, log)?;
@@ -1016,7 +1024,7 @@ fn read_facts(stmt: &Stmt, scope: &Scope<'_>, log: &mut Log) {
     match (stmt.words.len(), stmt.word_text(1)) {
         (2, "none") if !stmt.words[1].braced => {}
         (3, "-native") => {
-            let _ = native_id(stmt, "facts", "-native", scope, FACTS_NATIVE, log);
+            let _ = native_id(stmt, "facts", "-native", scope, |table| table.facts, log);
         }
         (2, _) if stmt.words[1].braced => {
             for row in block(&stmt.words[1]) {
@@ -1049,7 +1057,7 @@ mod tests {
     };
 
     use super::super::{HookOwner, HookSource, Pack, evaluate_pack};
-    use super::{EVALUATE_FIELD, HookFamily, Log, Scope, Stmt, Word, native_id};
+    use super::{EVALUATE_FIELD, HookFamily};
 
     const TENANT: &str = r#"
 speclib probe 2.2 {
@@ -1547,38 +1555,6 @@ speclib probe 2.2 {
             demo.subcommands[0].semantics,
             SemanticsDeclaration::Inherited
         ));
-    }
-
-    /// A `-native ID` that a table *does* hold installs the table's value —
-    /// `native_id` itself, proven directly against a synthetic table, since
-    /// nothing shipped is reachable this way yet (every real table above is
-    /// empty).
-    #[test]
-    fn a_native_id_a_table_holds_installs_its_value() {
-        fn word(text: &str) -> Word {
-            Word {
-                local_source: None,
-                original_source: None,
-                text: text.to_owned(),
-                braced: false,
-                line: 1,
-            }
-        }
-        let mut log = Log::default();
-        let scope = Scope {
-            path: "demo",
-            binds_bodies: true,
-        };
-        let stmt = Stmt {
-            words: vec![word("semantics"), word("-native"), word("demo::semantics")],
-            line: 1,
-        };
-        let table: &[(&'static str, u8)] = &[("demo::semantics", 42)];
-        assert_eq!(
-            native_id(&stmt, "semantics", "-native", &scope, table, &mut log),
-            Some(42)
-        );
-        assert!(log.notices.is_empty(), "{:?}", log.notices);
     }
 
     /// What cannot be used is reported and dropped, never half-installed:

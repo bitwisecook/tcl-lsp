@@ -739,7 +739,7 @@ pub(in super::super) fn apply_command_stmt(
                             &log.command.clone(),
                             "const_fold",
                             id,
-                            tcl_registry::pack_hooks::CONST_FOLD_NATIVE,
+                            |table| table.const_fold,
                             stmt.line,
                             log,
                         )
@@ -754,7 +754,7 @@ pub(in super::super) fn apply_command_stmt(
                             &log.command.clone(),
                             "const_fold_versioned",
                             id,
-                            tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE,
+                            |table| table.const_fold_versioned,
                             stmt.line,
                             log,
                         )

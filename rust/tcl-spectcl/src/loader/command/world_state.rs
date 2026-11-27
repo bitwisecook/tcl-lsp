@@ -262,7 +262,7 @@ fn transition_resolver_row(
                 scope,
                 HookFamily::StateTransitionResolver.field(),
                 id,
-                tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE,
+                |table| table.state_transition_resolver,
                 stmt.line,
                 log,
             ),

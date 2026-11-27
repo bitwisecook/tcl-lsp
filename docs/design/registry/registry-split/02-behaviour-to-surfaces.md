@@ -305,3 +305,156 @@ and `tcllib` semantics.
 - The overview groups `native_try.rs` and `registry/control_arms.rs` with the
   registrations. Both read a fact the `try` spec already carries, so neither
   needs a registration.
+
+## As built (27 November 2026)
+
+**Recount.** On the base of this step,
+`rg 'crate::commands::' rust/tcl-registry/src --glob '!**/commands/**'` found
+52 references in 14 files: the 51 of the table above less `IRULES_SPECS`
+(gone with step 1) plus the test-install fallback's `crate::commands::SHIPPED`
+in `registry/surfaces.rs`, which step 1 added. The 35 folds,
+`TclOoPropertyKind` (3), `subst_::OPTIONS` (2), `NATIVE_TRY_GRAMMAR` (2), the
+two `if` checks, `InfoOoEnsembleKind`, `fold_scan`,
+`regsub_names_a_callback`, `fold_is_jim`, `bpf_conditional_operands` and
+`STATIC_DISPLAY_*` were all still there. After this step the grep finds
+nothing, and `rg 'commands::' rust/bpf-tcl-ir` finds nothing. (As in step 1,
+the plan's `--glob '!commands/**'` matches nothing under that root, so the
+check runs with `--glob '!**/commands/**'`.)
+
+**What moved where.**
+
+| Reference | Now |
+|---|---|
+| `pack_hooks/native_catalogues.rs` (35 `fold_*`, 26 `literal_folds`, `proc`'s resolver) | `commands/tcl/hooks.rs`, the Tcl surface's `HOOKS`. The file is gone; `pack_hooks` keeps the types, the slots and `TaintSinkGateFn`. |
+| the 15 `*_NATIVE` tables | slices of `HookTable` (`registry/surfaces.rs`), one per `-native ID` family; `SurfaceSet::native_hook(id, family)` and `native_hook_ids(family)` look across the installed set |
+| SpecTcl loader (`native_fold`, `semantics::native_id`) | `tcl_registry::installed().native_hook(id, \|table\| table.FAMILY)` |
+| `tcl_spectcl::catalogue::*_NATIVE` | `catalogue::*_native()`, built once at run time from the installed set; the label lists stay in the catalogue |
+| `NATIVE_TRY_GRAMMAR` (`native_try.rs`, `registry/control_arms.rs`) | `HookTable::try_clauses`, read with `installed().try_clauses()` |
+| `native_if_shape_error`, `native_if_compile_shape_message`, `bpf_conditional_operands` | `HookTable::conditional` (`ConditionalClauseHooks`: `shape_error`, `compile_message`, `condition_bodies`), the `if_.rs` functions registered |
+| `STATIC_DISPLAY_*` | one `StaticDisplayRecipe` (`source_navigation`), registered as `HookTable::static_display` |
+| `subst_::OPTIONS` | `substitution::SUBST_OPTIONS` with `SUBST_NEGATED_FAMILY` / `SUBST_POSITIVE_FAMILY`; the `subst` spec imports them |
+| `TclOoPropertyKind`, `TclOoPropertyOption`, their two tables and `resolve_tcloo_property_*` | `definer::property_accessors`, re-exported from `definer` |
+| `InfoOoEnsembleKind` | `native_tcloo_info`; `info_oo_subcommands` stays in `info_.rs` |
+| `fold_scan`'s body | `tcl_cmd_core::scan::scan_literal`; `fold_scan` and `variable_output.rs` call it |
+| `fold_is_jim`, `legacy_double_class` | `tcl_cmd_core::string_is::jim_literal_class` and `legacy_double_class`; `spec/subcommand.rs` calls the kernel |
+| `regsub_names_a_callback` | `RegsubSemantics::new(names_a_callback)`: the static `REGSUB` lives in `regsub_.rs` and hands the route its callback test |
+| `is_thread_command` (`bpf-tcl-ir/src/lower.rs`) | `Traits::THREAD_PRIMITIVE` on every Thread spec, asked through `SurfaceSet::traits_in_any_surface`; `is_thread_command` is deleted |
+| the fallback's `crate::commands::SHIPPED` | `crate::install_shipped()` |
+
+`commands::tcl` re-exports the moved TclOO and `info` types from their new
+homes, so the VM, `tcl-compiler` and `tcl-lsp-core` compile unchanged; step 3
+rewrites those consumers.
+
+**Where this departs from the design.**
+
+1. *`try` and `if` are registrations, not reads from the spec.* The design
+   assumed the callers hold the spec. They do not: `native_try::select`,
+   `conditional_grammar` and `failure_for_selection_with_source` are reached
+   from `NativeCompilationSpec`'s public methods (`select`,
+   `select_for_facts`, `compiled_bodies`, `body_context_for_invocation_operand`
+   and the others), which take only the `NativeCompilationSpec` and are
+   called from about 225 sites in the compiler, the VM and the tests;
+   `selected_try_control_invocation` is public and called from
+   `script_body_flow`. Threading the `CommandSpec` through would change that
+   whole API, and putting the grammar in `NativeCompilationGrammar::Try`'s
+   payload would need `Hash` on the clause-grammar types and rewrite every
+   pattern and test that names the variant. So the native `try` and `if`
+   compilers' facts are registered once, by the Tcl surface, keyed by the
+   compiler they serve. `it_5/surface_hooks.rs` holds the registration to
+   the specs: every installed spec whose native grammar is `Try` has exactly
+   the registered clause grammar, and the registered `if` shape check agrees
+   with the `if` spec's `clause_shape_check`. `ClauseShapeError` is not
+   widened.
+2. *`bpf_conditional_operands`* is the `condition_bodies` registration
+   rather than a walk of the spec's grammar (open question 2 stays open; the
+   registered function is that walk, of `if`'s grammar).
+3. *`subst_::OPTIONS` moved to the core.* `compiler_template_kinds` and
+   `NativeSubstitutionOptions::kinds` (called by the VM) do not hold the
+   `subst` spec either. The table is the native substitution protocol's
+   switch table, which `NativeSubstitutionOptions` already spelled in the
+   core, so it is core vocabulary (the design's fourth branch).
+4. *`RegsubSemantics` stays in `value_transfer::regex`* with the route
+   machinery it shares with `regexp`; only the surface's callback test moved,
+   as a constructor argument. Moving the type would have widened a dozen
+   `value_transfer` internals.
+5. *`fold_is_jim`* went to `tcl-cmd-core` as a kernel, not to a Jim hook
+   table: the Jim surface (work list 6) is not built in this step, so the
+   `Family::Jim` test in `spec/subcommand.rs` stays.
+6. *`traits_in_any_surface`* is a new `SurfaceSet` index (the union of every
+   installed spec's traits by unrooted name), because the Thread surface is
+   not in the W002 universe (`in_universe: false`), so
+   `providers_in_any_dialect` cannot answer for it. It is built once, where
+   `is_thread_command` rebuilt the Thread spec vector on every call.
+7. *`HookTable::native_hook`* takes the family as a field selector
+   (`|table| table.const_fold`), not a type parameter: two families share a
+   function-pointer type, so a type cannot pick the slice.
+
+8. *Definition-body grammars are `static`s.* `tcl-lsp-core` matches a
+   selected grammar against an expected one by address (`std::ptr::eq` in
+   `source_structure/command_bodies.rs`, `definition_grammar.rs` and
+   `declaration_outline.rs`), but `TCLOO_GRAMMAR` and the other
+   `DefinitionBodyGrammar` items were `const`s, and each `&CONST` is a
+   promoted copy whose address the compiler need not share. Moving code in
+   this step changed how those copies were merged, and
+   `references::tests::self_dispatch_scan::idx63_two_block_class_my_dispatch_already_fixed_by_idx52`
+   started failing; a probe that only added an unrelated function did not.
+   Every `DefinitionBodyGrammar` item in `definer/` is now a `static`, so
+   each has one address.
+
+**Not done in this step.** Work list 6 (the `commands/jim/` surface, the ten
+`jim_spec()` rows, `info_jim`, `jim_arithmetic`, `jim_loop`, the native Jim
+protocol types) and work list 9 (item 81's kernel moves for the remaining
+fold bodies) are left open; neither is needed for the done-when grep. The
+BPF lowering-time measurement was not taken.
+
+**Verification.**
+
+- *Contract tests on the public API* (`tcl-registry/tests/it_5/surface_hooks.rs`):
+  the `try` registration matches every `try` spec and selects a literal
+  `try` call's clauses; the `if` registrations agree with the `if` spec's
+  clause check, give the C 8.4 compile message and BPF's condition/body
+  pairs through `CommandRegistry::bpf_conditional_operands`; a `-native` id
+  resolves to the shipped folder and runs, unknown ids and wrong families
+  resolve to nothing, and no id is registered twice; the static display
+  reads the registered recipe; Thread commands, rooted or not, are
+  `THREAD_PRIMITIVE` in the installed set and others are not.
+- *The loader through the table*: `tcl-spectcl`'s
+  `a_native_fold_id_installs_the_shipped_folder` (unchanged) loads
+  `const_fold -native` and `const_fold_versioned -native` ids through
+  `native_hook`; `native_hook_catalogues_are_the_installed_registrations`
+  replaces `native_hook_tables_cover_their_catalogues` and also requires a
+  picker label for every registered id, which gave ten ids that had none
+  (`lsort::const_fold` and nine `const_fold_versioned` rows) their labels. The semantics
+  loader's `a_native_id_a_table_holds_installs_its_value`, which called the
+  private `native_id` with a synthetic table, is deleted: no shipped
+  `semantics` id exists, and the shared lookup is covered above.
+- *Failsets* (`scripts/dev/failset.py`, lib harnesses, against a baseline at
+  `767b4dc6`): `tcl-registry`, `tcl-spectcl`, `tcl-compiler` (skipping the
+  known stack-overflow scaling test) and `tcl-lsp-core`
+  (`RUST_MIN_STACK=67108864`) fail exactly the baseline's tests: no new
+  failures, none fixed. The integration harnesses this step touches pass
+  (`tcl-registry` `it_5::surface_hooks`, `family_surface`,
+  `install_contract`; `bpf-tcl`'s `diagnostics`, which rejects `thread::*`
+  and `tsv::*` heads, rooted or not; `bpf-tcl-ir`; `tcl-cmd-core`); the two
+  `it_5::dialect_profile` failures and the `tcl-spec-studio` `it_3` / `it_4`
+  failures are the same on the base commit.
+- `cargo clippy --workspace --all-targets -D warnings`, `cargo fmt --check`,
+  `cargo xtask plan-rows` and `make xtask-gates` pass, except
+  `owner-resolution`, which fails on the base commit too
+  (`tcl-vm/src/cmd_oo/construction.rs`). The `memo-type` ledger counts the
+  new `traits_by_name` cell. `THREAD_PRIMITIVE` is the last trait, so no
+  existing trait's bit moves (a mid-list insertion changed the `if` pack
+  golden's spec digest, which prints the trait bits).
+
+**Build cost** of an edit to one spec (`commands/tcl/lsort_.rs`) followed by
+`cargo test -p tcl-compiler --no-run`, warm target, `CARGO_INCREMENTAL=0`:
+
+| | crates rebuilt | seconds |
+|---|---|---|
+| before | 3 (`tcl-registry`, `tcl-vm`, `tcl-compiler`) | 448 |
+| after | 3 (the same) | 437 |
+
+Workspace-wide, an edit under `commands/tcl` still rebuilds `tcl-registry`
+and every workspace crate that depends on it, 39 crates in all, before and
+after. This step moves no code between crates, so neither number moves;
+step 3, which takes `commands/` out of the core, is what changes them.

@@ -400,7 +400,7 @@ impl CommandRegistry {
         arguments: &[&str],
     ) -> Option<Vec<(Option<usize>, usize)>> {
         (self.bpf_op(name)?.kind == crate::bpf_op::BpfOpKind::Conditional)
-            .then(|| crate::commands::tcl::bpf_conditional_operands(arguments))?
+            .then(|| (crate::installed().conditional_clauses()?.condition_bodies)(arguments))?
     }
 
     /// Find the registered spelling for a typed BPF-Tcl operation.

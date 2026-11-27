@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Fold the value-returning form of `regsub` for literal arguments under
-/// `version`: the declared route ([`crate::value_transfer::regex::REGSUB`])
+/// `version`: the declared route ([`REGSUB`])
 /// over literal words, as `string range`'s folder is — or, with no version,
 /// the answer every release gives, declining where they differ.
 ///
@@ -37,13 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// write-side effect. The `-command` form has no route, so a callback never
 /// runs during analysis.
 pub(crate) fn fold_regsub_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
-    crate::value_transfer::evaluate_literal(
-        &crate::value_transfer::regex::REGSUB,
-        "regsub",
-        None,
-        args,
-        version,
-    )
+    crate::value_transfer::evaluate_literal(&REGSUB, "regsub", None, args, version)
 }
 
 /// [`fold_regsub_versioned`] for a caller with no release fact: the same
@@ -52,11 +46,15 @@ pub(crate) fn fold_regsub(args: &[&str]) -> Option<String> {
     fold_regsub_versioned(args, None)
 }
 
+/// `regsub`'s direct value route.
+static REGSUB: crate::value_transfer::regex::RegsubSemantics =
+    crate::value_transfer::regex::RegsubSemantics::new(names_a_callback::<String>);
+
 /// Whether `args`' option run names `-command`: the callback form, whose
 /// substitution runs a script (`regsub -command {a} abc {string toupper}` is
 /// `Abc` from 9.0). The option table is the same one the role and prefix
 /// resolvers read, so the value route and the resolvers agree on the form.
-pub(crate) fn names_a_callback<S: AsRef<str>>(args: &[S]) -> bool {
+fn names_a_callback<S: AsRef<str>>(args: &[S]) -> bool {
     let i = first_positional_index(OPTIONS, args, 0);
     args[..i.min(args.len())]
         .iter()
@@ -321,7 +319,7 @@ pub fn spec() -> CommandSpec {
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         const_fold: Some(fold_regsub),
         const_fold_versioned: Some(fold_regsub_versioned),
-        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGSUB),
+        semantics: SemanticsDeclaration::Declared(&REGSUB),
         // tclsh 8.4-9.1: bad patterns, arity and options raise errors, a write
         // trace returning any other code surfaces as an error, and a 9.x
         // `-command` callback's code never escapes, so the command completes

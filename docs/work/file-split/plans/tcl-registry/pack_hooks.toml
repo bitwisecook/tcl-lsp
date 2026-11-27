@@ -6,11 +6,6 @@
 file = "rust/tcl-registry/src/pack_hooks.rs"
 
 [[module]]
-name = "native_catalogues"
-doc = "The per-family tables of shipped implementations a pack names with `-native ID`."
-items = ["const:ARG_ROLE_RESOLVER_NATIVE..const:FACTS_NATIVE"]
-
-[[module]]
 name = "hook_inputs"
 doc = "The inputs a hook body declares it reads, and whether a declaration is shape-only or content-cacheable."
 items = ["enum:HookInput..impl:HookInputs", "fn:kind_word"]

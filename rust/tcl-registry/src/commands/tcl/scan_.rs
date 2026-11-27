@@ -46,61 +46,13 @@ fn scan_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
-/// Fold successful inline `scan` matches on the portable ASCII subset.
-/// The shared scan kernel reads the input. This compatibility hook admits
-/// only conversion kinds and result representations that all releases share.
+/// Fold successful inline `scan` matches: the `tcl-cmd-core` kernel over
+/// the input and format words.
 pub(crate) fn fold_scan(args: &[&str]) -> Option<String> {
-    use tcl_cmd_core::scan::{Scanned, scan_match};
-
     let [input, format] = args else {
         return None;
     };
-    if !input.is_ascii() || !format.is_ascii() {
-        return None;
-    }
-    let format = format.chars().collect::<Vec<_>>();
-    let has_hex_prefix = input.contains("0x") || input.contains("0X");
-    let mut fields = 0;
-    let mut at = 0;
-    while at < format.len() {
-        if format[at] != '%' {
-            at += 1;
-            continue;
-        }
-        at += 1;
-        let conversion = tcl_syntax::scan::parse_conversion(&format, &mut at).ok()?;
-        if conversion.suppress
-            || conversion.xpg_index.is_some()
-            || conversion.width.is_some()
-            || conversion.size.is_some()
-            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
-        {
-            return None;
-        }
-        // The sign of a prefixed hex input differs in Tcl 8.4.
-        if matches!(conversion.verb, 'x' | 'X') && has_hex_prefix {
-            return None;
-        }
-        fields += usize::from(conversion.verb != '%');
-    }
-    if fields == 0 {
-        return None;
-    }
-    let chars = input.chars().collect::<Vec<_>>();
-    let outcome = scan_match(&chars, &format);
-    if outcome.nconv != fields {
-        return None;
-    }
-    let elements = outcome
-        .values
-        .into_iter()
-        .map(|value| match value? {
-            Scanned::Int(value) => Some(i32::try_from(value).ok()?.to_string()),
-            Scanned::Str(value) if tcl_syntax::list::list_element(&value) == value => Some(value),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    String::from_utf8(tcl_syntax::list_result::portable_list_result(&elements)?).ok()
+    tcl_cmd_core::scan::scan_literal(input, format)
 }
 
 pub fn spec() -> CommandSpec {

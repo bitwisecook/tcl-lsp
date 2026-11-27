@@ -43,9 +43,8 @@ and before promising that two implementations agree.
 > are the cores'. The memo is `pack_hooks::ShapeKey` plus `CallContent`,
 > compared on every hit, never a digest alone; the budget is one `Budget`
 > type at three call sites — `Budget::request()`, `.iteration()`,
-> `.evaluation_within()`; the per-family native tables are fourteen
-> separate `pub const *_NATIVE` tables in `pack_hooks.rs`, two populated;
-> and per-evaluation state is confined by `Engine::confine_stores`. The
+> `.evaluation_within()`; the per-family native tables are slices of each
+> surface's `HookTable`, the Tcl surface's in `commands/tcl/hooks.rs`; and per-evaluation state is confined by `Engine::confine_stores`. The
 > Rust blocks below are sketches in the contract's names — `EvalMemoKey`,
 > `TargetState`, `TargetDigest`, `CancelToken`, and `CancelPoint` among
 > them — and the text beside each names the tree's type.
@@ -2078,36 +2077,36 @@ The rule, stated once:
   `semantics`, `evaluate` and `facts` statements and for the two
   `const_fold` families; the other body families' tables are empty and
   their `-native` statements are not looked up.
-- **Every family has a table — fourteen separate
-  `pub const *_NATIVE: &[(&str, FnPtr)]` constants in
-  `rust/tcl-registry/src/pack_hooks.rs`.** One per family, keyed by the
-  full id: the eleven pre-existing `HookFamily` variants —
-  `ArgRoleResolver`, `CommandPrefixResolver`, `ScriptTimingResolver`,
-  `ConstFold`, `ConstFoldVersioned`, `TaintSinkGate`, `ContextGate`,
+- **Every family has a slice in each surface's hook table.** A
+  surface's `HookTable` (`rust/tcl-registry/src/registry/surfaces.rs`)
+  holds one `&[(&str, FnPtr)]` slice per family, keyed by the full id: the
+  eleven pre-existing `HookFamily` variants — `ArgRoleResolver`,
+  `CommandPrefixResolver`, `ScriptTimingResolver`, `ConstFold`,
+  `ConstFoldVersioned`, `TaintSinkGate`, `ContextGate`,
   `LiteralArgumentValidator`, `ClauseShapeCheck`, `OptionArity`,
-  `Constraints` — plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, and
-  `FACTS_NATIVE` for the three route fields. `CONST_FOLD_NATIVE` (47 rows)
-  and `CONST_FOLD_VERSIONED_NATIVE` (4 rows) are real and hold every
-  folder a shipped spec carries, under the scope each hangs off (the
-  `::tcl::dict::` commands included), so a rendered shipped spec reloads
-  with the folder it came from; the other twelve are empty tables —
-  nothing else ships a named native implementation. The empty ones
-  are ARG_ROLE_RESOLVER, COMMAND_PREFIX_RESOLVER, SCRIPT_TIMING_RESOLVER,
-  TAINT_SINK_GATE, CONTEXT_GATE, LITERAL_ARGUMENT_VALIDATOR,
-  CLAUSE_SHAPE_CHECK, OPTION_ARITY, CONSTRAINTS, SEMANTICS, EVALUATE and
-  FACTS.
+  `Constraints` — plus `state_transition_resolver` and the `semantics`,
+  `evaluate` and `facts` route fields. The loader resolves an id through
+  `tcl_registry::installed().native_hook(id, family)`, so an id resolves
+  to whichever installed surface registers it. The Tcl surface's table,
+  `rust/tcl-registry/src/commands/tcl/hooks.rs`, registers 47 `const_fold`
+  rows and 4 `const_fold_versioned` rows, every folder a shipped spec
+  carries, under the scope each hangs off (the `::tcl::dict::` commands
+  included), so a rendered shipped spec reloads with the folder it came
+  from, and `proc`'s state-transition resolver; no other family has a
+  shipped registration.
   `HOOK_FAMILIES` holds twelve families in total: the eleven above, and
-  `HookFamily::Evaluate` last, whose native table is `EVALUATE_NATIVE`.
-- **`native_hook_tables_cover_their_catalogues` has a row per family**,
-  so a table that omits a shipped implementation fails the test rather
-  than dropping an id at load. An id in the table but absent from the
-  catalogue fails the same assertion from the other side.
+  `HookFamily::Evaluate` last, whose ids live in the `evaluate` slice.
+- **`native_hook_catalogues_are_the_installed_registrations` checks every
+  family**: each studio picker (`tcl_spectcl::catalogue::*_native()`, built
+  at run time from the installed set) lists exactly the registered ids,
+  each resolves through the loader's lookup, and each carries a picker
+  label, so a registration without a label fails the test.
 - **`-direct` and `-native` are two different resolutions, not one.**
   `evaluate -direct ID` resolves against `NativeEvalId::ALL`
   (`enum_by_name`, Rust-spelled), the closed direct-route catalogue, and
   binds only the ids `PACK_DIRECT_EVALUATORS` lists; `evaluate -native ID`
-  resolves against `EVALUATE_NATIVE`, the `SCOPE::FIELD`-spelled table
-  above; `evaluate -expression ID` resolves against
+  resolves against the hook tables' `evaluate` slices, `SCOPE::FIELD`-spelled
+  as above; `evaluate -expression ID` resolves against
   `LanguageProfileId::ALL`. All three fail closed on an id their own
   catalogue does not hold, and the catalogue each flag checks is its own,
   so a route flag can never resolve through a sibling flag's vocabulary.

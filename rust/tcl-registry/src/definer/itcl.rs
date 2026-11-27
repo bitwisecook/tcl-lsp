@@ -112,7 +112,7 @@ pub(super) const ITCL_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
 /// The definition-body grammar for [incr Tcl] `itcl::class` / bare `class`.
 /// Member bodies run in the object's context with the instance/common
 /// variables and `this` in scope.
-pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Itcl,
     profile: super::ITCL_PROFILE,
     members: ITCL_MEMBERS,

@@ -167,48 +167,48 @@ pub(super) const fn sslictcl_grammar(members: &'static [MemberSpec]) -> Definiti
 }
 
 /// The body of `certificate NAME { … }`.
-pub const SSLICTCL_CERTIFICATE_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_CERTIFICATE_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_CERTIFICATE_MEMBERS);
 
 /// The body of `endpoint NAME { … }`.
-pub const SSLICTCL_ENDPOINT_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_ENDPOINT_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_ENDPOINT_MEMBERS);
 
 /// The body of `hsts { … }`.
-pub const SSLICTCL_HSTS_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_HSTS_MEMBERS);
+pub static SSLICTCL_HSTS_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_HSTS_MEMBERS);
 
 /// The body of `testssl-import NAME { … }`.
-pub const SSLICTCL_TESTSSL_IMPORT_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_TESTSSL_IMPORT_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_TESTSSL_IMPORT_MEMBERS);
 
 /// The body of `trust-program NAME { … }`.
-pub const SSLICTCL_TRUST_PROGRAM_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_TRUST_PROGRAM_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_TRUST_PROGRAM_MEMBERS);
 
 /// The body of `anchor SHA256 { … }`.
-pub const SSLICTCL_ANCHOR_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_ANCHOR_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_ANCHOR_MEMBERS);
 
 /// The body of `protocol VERSION { … }`.
-pub const SSLICTCL_PROTOCOL_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_PROTOCOL_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_PROTOCOL_MEMBERS);
 
 /// The body of `cipher NAME { … }`.
-pub const SSLICTCL_CIPHER_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_CIPHER_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_CIPHER_MEMBERS);
 
 /// The body of `chain NAME { … }`.
-pub const SSLICTCL_CHAIN_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHAIN_MEMBERS);
+pub static SSLICTCL_CHAIN_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHAIN_MEMBERS);
 
 /// The body of `policy NAME { … }`.
-pub const SSLICTCL_POLICY_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_POLICY_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_POLICY_MEMBERS);
 
 /// The body of `check ID { … }`.
-pub const SSLICTCL_CHECK_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHECK_MEMBERS);
+pub static SSLICTCL_CHECK_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHECK_MEMBERS);
 
 /// The body of `grade { … }`.
-pub const SSLICTCL_GRADE_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_GRADE_MEMBERS);
+pub static SSLICTCL_GRADE_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_GRADE_MEMBERS);
 
 /// The nine declarations legal at the **root** of a `.sslictcl` document.
 ///
@@ -233,7 +233,7 @@ pub(super) const SSLICTCL_DOCUMENT_MEMBERS: &[MemberSpec] = &[
 ];
 
 /// The body of a `.sslictcl` **document** — see [`SSLICTCL_DOCUMENT_MEMBERS`].
-pub const SSLICTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
+pub static SSLICTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
     sslictcl_grammar(SSLICTCL_DOCUMENT_MEMBERS);
 
 /// Every `SslicTcl` grammar, so a sweep can assert the family's invariants

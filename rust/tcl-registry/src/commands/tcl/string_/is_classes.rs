@@ -19,8 +19,6 @@
 //! `string is`: the class table, the membership tests behind its fold and the type each class proves.
 
 use super::{ArgValue, TclType, TclVersion};
-use tcl_syntax::number;
-use tcl_syntax::number::{Number, NumberSyntax};
 use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterProtocol};
 
 /// Literal `string is` without a variable-writing option. An unidentified
@@ -38,51 +36,9 @@ pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<Stri
     Some(u8::from(answer).to_string())
 }
 
-/// The ordinary Jim class command has its own table, an exact `-strict`
-/// option, byte-oriented character classes and fresh-object getters.
-pub(crate) fn fold_is_jim(args: &[&str]) -> Option<bool> {
-    use tcl_dialect::model::{DialectPoint, Release};
-
-    let (class, strict, value) = match args {
-        [class, value] => (*class, false, *value),
-        [class, "-strict", value] => (*class, true, *value),
-        _ => return None,
-    };
-    if !value.is_ascii() || value.contains('\0') {
-        return None;
-    }
-    let protocol =
-        NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))?;
-    match class {
-        "boolean" | "integer" => {
-            if value.is_empty() {
-                return Some(!strict);
-            }
-            let kind = if class == "boolean" {
-                NativeScalarGetterKind::Boolean
-            } else {
-                NativeScalarGetterKind::Wide
-            };
-            Some(
-                protocol
-                    .fresh_conversion(kind, value.as_bytes())?
-                    .outcome()
-                    .is_ok(),
-            )
-        }
-        "double" => {
-            if value.is_empty() {
-                return Some(!strict);
-            }
-            legacy_double_class(value, protocol, NumberSyntax::Jim)
-        }
-        // On this ASCII subset Jim's ctype classes and the C class core agree.
-        "alpha" | "alnum" | "ascii" | "digit" | "lower" | "upper" | "space" | "xdigit"
-        | "control" | "print" | "graph" | "punct" => {
-            Some(tcl_cmd_core::string_is::class_check(class, value, strict, NumberSyntax::Jim).0)
-        }
-        _ => None,
-    }
+/// The ordinary Jim class command's answer: the `tcl-cmd-core` kernel.
+fn fold_is_jim(args: &[&str]) -> Option<bool> {
+    tcl_cmd_core::string_is::jim_literal_class(args)
 }
 
 fn fold_is_c(args: &[&str], version: TclVersion) -> Option<bool> {
@@ -103,11 +59,13 @@ fn fold_is_c(args: &[&str], version: TclVersion) -> Option<bool> {
         }
         "ascii" => Some(value.is_ascii() && (!value.is_empty() || !strict)),
         _ if !value.is_ascii() || value.contains('\0') => None,
-        "double" if version == TclVersion::V8_4 && !value.is_empty() => legacy_double_class(
-            value,
-            tcl_syntax::scalar_getter::NativeScalarGetterProtocol::for_tcl_version(version),
-            version.number_syntax(),
-        ),
+        "double" if version == TclVersion::V8_4 && !value.is_empty() => {
+            tcl_cmd_core::string_is::legacy_double_class(
+                value,
+                NativeScalarGetterProtocol::for_tcl_version(version),
+                version.number_syntax(),
+            )
+        }
         "wideinteger" if !value.is_empty() => Some(
             NativeScalarGetterProtocol::for_tcl_version(version)
                 .fresh_conversion(NativeScalarGetterKind::Wide, value.as_bytes())?
@@ -116,38 +74,6 @@ fn fold_is_c(args: &[&str], version: TclVersion) -> Option<bool> {
         ),
         _ => Some(class_check_in_release(class, value, strict, version).0),
     }
-}
-
-fn legacy_double_class(
-    value: &str,
-    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
-    numbers: NumberSyntax,
-) -> Option<bool> {
-    use tcl_syntax::number::{ParseFlags, parse_whole_with};
-    use tcl_syntax::scalar_getter::NativeScalarGetterFailure;
-
-    // These receivers separately inspect the native integer width before or
-    // alongside strtod. A bignum or an unproved range boundary stays source.
-    if matches!(
-        parse_whole_with(
-            value,
-            ParseFlags {
-                integer_only: true,
-                ..ParseFlags::for_syntax(numbers)
-            }
-        ),
-        Some(Number::Big { .. })
-    ) {
-        return None;
-    }
-    if number::is_out_of_range_double(value, numbers) {
-        return Some(false);
-    }
-    let conversion = protocol.fresh_conversion(NativeScalarGetterKind::Double, value.as_bytes())?;
-    Some(matches!(
-        conversion.outcome(),
-        Ok(_) | Err(NativeScalarGetterFailure::FloatingPointNaN)
-    ))
 }
 
 /// The type every value a `string is` test accepts holds once it has: what

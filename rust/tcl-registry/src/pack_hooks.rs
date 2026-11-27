@@ -780,7 +780,6 @@ with_slot_indices! { slot_tables }
 mod dispatch;
 mod hook_inputs;
 mod host_installation;
-mod native_catalogues;
 mod tabulation;
 mod thunks;
 
@@ -799,13 +798,10 @@ pub use host_installation::{
     install_host, install_plan_host, note_quarantine, private_thread_evaluators_are_closed,
     record_commands_spent, set_installer, set_pending_host, slot_available, take_commands_spent,
 };
-pub use native_catalogues::{
-    ARG_ROLE_RESOLVER_NATIVE, CLAUSE_SHAPE_CHECK_NATIVE, COMMAND_PREFIX_RESOLVER_NATIVE,
-    CONST_FOLD_NATIVE, CONST_FOLD_VERSIONED_NATIVE, CONSTRAINTS_NATIVE, CONTEXT_GATE_NATIVE,
-    EVALUATE_NATIVE, FACTS_NATIVE, LITERAL_ARGUMENT_VALIDATOR_NATIVE, OPTION_ARITY_NATIVE,
-    SCRIPT_TIMING_RESOLVER_NATIVE, SEMANTICS_NATIVE, STATE_TRANSITION_RESOLVER_NATIVE,
-    TAINT_SINK_GATE_NATIVE, TaintSinkGateFn,
-};
+/// [`crate::spec::CommandSpec::taint_sink_gate`]'s function-pointer shape,
+/// named so a hook table's `taint_sink_gate` rows stay under clippy's
+/// `type_complexity` threshold.
+pub type TaintSinkGateFn = fn(&[&str]) -> bool;
 pub use tabulation::{
     TabulationPlan, activate_tabulation_plan, begin_tabulation_plan, quarantine_tabulations,
     tabulate,

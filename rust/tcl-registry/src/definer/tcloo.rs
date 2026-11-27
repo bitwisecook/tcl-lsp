@@ -289,7 +289,7 @@ pub(super) const TCLOO_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
 
 /// The definition-body grammar for every `TclOO` metaclass and the bare
 /// `oo::define` / `oo::objdefine` script form.
-pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::TclOo,
     profile: super::TCLOO_PROFILE,
     members: TCLOO_MEMBERS,
@@ -335,7 +335,7 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 /// The metaclass's own factory methods are separate: each abstract class it
 /// manufactures begins with private `create`, `new` and `createWithNamespace`.
 /// Original class-object export operations can refine these defaults.
-pub const TCLOO_ABSTRACT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static TCLOO_ABSTRACT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     manufacturers: &[
         ManufacturerMethod {
             visibility: MemberVisibility::Unexported,
@@ -359,7 +359,7 @@ pub const TCLOO_ABSTRACT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar 
 /// differs is the instance surface the manufactured class ends up with.
 /// Attaching this to the shared grammar would have told every consumer that
 /// an `oo::class` instance answers `configure`, which it does not.
-pub const TCLOO_CONFIGURABLE_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static TCLOO_CONFIGURABLE_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // `configurable.n` (9.0.4 and 9.1b0, byte-identical but for the version
     // banner): "making a `configure` method available within the instances".
     // No `cget` — see `property_accessor_methods`' own note.

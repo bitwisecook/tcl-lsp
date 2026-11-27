@@ -137,96 +137,110 @@ fn compiler_hook_catalogues_cover_their_tables() {
 }
 
 /// Every `HookFamily` variant and the `semantics` / `evaluate` / `facts`
-/// fields each own a `SCOPE::FIELD`-keyed native table in
-/// `tcl_registry::pack_hooks`
-/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
-/// per-family catalogues*); this is the same obligation as
-/// [`compiler_hook_catalogues_cover_their_tables`], read from the table's
-/// own id rather than a Rust variant name.
+/// fields own a `SCOPE::FIELD`-keyed family in the installed surfaces' hook
+/// tables (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and
+/// the per-family catalogues*). Each studio picker lists exactly the ids the
+/// installed tables register, in install order; each id resolves through the
+/// lookup the loader uses; and each carries a picker label, so a table that
+/// gains a shipped entry without a label fails here.
 #[test]
-fn native_hook_tables_cover_their_catalogues() {
-    fn ids<T>(table: &[(&str, T)]) -> Vec<String> {
-        table.iter().map(|(id, _)| (*id).to_owned()).collect()
+fn native_hook_catalogues_are_the_installed_registrations() {
+    fn check<T: Copy>(
+        what: &str,
+        family: tcl_registry::HookFamilyRows<T>,
+        catalogue: &[catalogue::Variant],
+    ) {
+        let installed = tcl_registry::installed();
+        let keys: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
+        assert_eq!(
+            keys,
+            installed.native_hook_ids(family),
+            "the {what} picker is out of step with the hook tables"
+        );
+        for variant in catalogue {
+            assert!(
+                installed.native_hook(variant.key, family).is_some(),
+                "{what}: {} does not resolve",
+                variant.key
+            );
+            assert_ne!(
+                variant.doc, variant.key,
+                "{what}: {} has no picker label",
+                variant.key
+            );
+        }
     }
-    for (what, mine, catalogue) in [
-        (
-            "arg-role-resolver native",
-            ids(tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE),
-            catalogue::ARG_ROLE_RESOLVER_NATIVE,
-        ),
-        (
-            "command-prefix-resolver native",
-            ids(tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE),
-            catalogue::COMMAND_PREFIX_RESOLVER_NATIVE,
-        ),
-        (
-            "script-timing-resolver native",
-            ids(tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE),
-            catalogue::SCRIPT_TIMING_RESOLVER_NATIVE,
-        ),
-        (
-            "const-fold native",
-            ids(tcl_registry::pack_hooks::CONST_FOLD_NATIVE),
-            catalogue::CONST_FOLD_NATIVE,
-        ),
-        (
-            "const-fold-versioned native",
-            ids(tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE),
-            catalogue::CONST_FOLD_VERSIONED_NATIVE,
-        ),
-        (
-            "taint-sink-gate native",
-            ids(tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE),
-            catalogue::TAINT_SINK_GATE_NATIVE,
-        ),
-        (
-            "context-gate native",
-            ids(tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE),
-            catalogue::CONTEXT_GATE_NATIVE,
-        ),
-        (
-            "literal-argument-validator native",
-            ids(tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE),
-            catalogue::LITERAL_ARGUMENT_VALIDATOR_NATIVE,
-        ),
-        (
-            "clause-shape-check native",
-            ids(tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE),
-            catalogue::CLAUSE_SHAPE_CHECK_NATIVE,
-        ),
-        (
-            "option-arity native",
-            ids(tcl_registry::pack_hooks::OPTION_ARITY_NATIVE),
-            catalogue::OPTION_ARITY_NATIVE,
-        ),
-        (
-            "constraints native",
-            ids(tcl_registry::pack_hooks::CONSTRAINTS_NATIVE),
-            catalogue::CONSTRAINTS_NATIVE,
-        ),
-        (
-            "state-transition-resolver native",
-            ids(tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE),
-            catalogue::STATE_TRANSITION_RESOLVER_NATIVE,
-        ),
-        (
-            "semantics native",
-            ids(tcl_registry::pack_hooks::SEMANTICS_NATIVE),
-            catalogue::SEMANTICS_NATIVE,
-        ),
-        (
-            "evaluate native",
-            ids(tcl_registry::pack_hooks::EVALUATE_NATIVE),
-            catalogue::EVALUATE_NATIVE,
-        ),
-        (
-            "facts native",
-            ids(tcl_registry::pack_hooks::FACTS_NATIVE),
-            catalogue::FACTS_NATIVE,
-        ),
-    ] {
-        assert_table_covers(what, &mine, catalogue);
-    }
+    check(
+        "arg_role_resolver",
+        |table| table.arg_role_resolver,
+        catalogue::arg_role_resolver_native(),
+    );
+    check(
+        "command_prefix_resolver",
+        |table| table.command_prefix_resolver,
+        catalogue::command_prefix_resolver_native(),
+    );
+    check(
+        "script_timing_resolver",
+        |table| table.script_timing_resolver,
+        catalogue::script_timing_resolver_native(),
+    );
+    check(
+        "const_fold",
+        |table| table.const_fold,
+        catalogue::const_fold_native(),
+    );
+    check(
+        "const_fold_versioned",
+        |table| table.const_fold_versioned,
+        catalogue::const_fold_versioned_native(),
+    );
+    check(
+        "taint_sink_gate",
+        |table| table.taint_sink_gate,
+        catalogue::taint_sink_gate_native(),
+    );
+    check(
+        "context_gate",
+        |table| table.context_gate,
+        catalogue::context_gate_native(),
+    );
+    check(
+        "literal_argument_validator",
+        |table| table.literal_argument_validator,
+        catalogue::literal_argument_validator_native(),
+    );
+    check(
+        "clause_shape_check",
+        |table| table.clause_shape_check,
+        catalogue::clause_shape_check_native(),
+    );
+    check(
+        "option_arity",
+        |table| table.option_arity,
+        catalogue::option_arity_native(),
+    );
+    check(
+        "constraints",
+        |table| table.constraints,
+        catalogue::constraints_native(),
+    );
+    check(
+        "state_transition_resolver",
+        |table| table.state_transition_resolver,
+        catalogue::state_transition_resolver_native(),
+    );
+    check(
+        "semantics",
+        |table| table.semantics,
+        catalogue::semantics_native(),
+    );
+    check(
+        "evaluate",
+        |table| table.evaluate,
+        catalogue::evaluate_native(),
+    );
+    check("facts", |table| table.facts, catalogue::facts_native());
 }
 
 /// Same obligation for the vocabularies a row flag resolves.

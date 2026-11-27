@@ -20,7 +20,121 @@
 
 use super::{DefinitionBodyGrammar, MemberKind};
 use crate::arg_role::ArgRole;
+use crate::hover::{ArgValue, OptionSpec, OptionValue};
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
+
+const TCL_OO_PROPERTY_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-get",
+        value: OptionValue::script(),
+        detail: "Use body as the property's getter.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-kind",
+        value: OptionValue::value("kind"),
+        detail: "Select readable, readwrite, or writable access.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-set",
+        value: OptionValue::script(),
+        detail: "Use body as the property's setter.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+const TCL_OO_PROPERTY_KINDS: &[ArgValue] = &[
+    ArgValue {
+        value: "readable",
+        detail: "The property can be read but not written.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "readwrite",
+        detail: "The property can be read and written.",
+        ..ArgValue::DEFAULT
+    },
+    ArgValue {
+        value: "writable",
+        detail: "The property can be written but not read.",
+        ..ArgValue::DEFAULT
+    },
+];
+
+/// One option accepted by the Tcl 9.0 `property` definition command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TclOoPropertyOption {
+    /// Custom getter body.
+    Get,
+    /// Property access kind.
+    Kind,
+    /// Custom setter body.
+    Set,
+}
+
+impl TclOoPropertyOption {
+    /// Canonical option spelling from the registry table.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        TCL_OO_PROPERTY_OPTIONS[self as usize].name
+    }
+}
+
+/// One Tcl 9.0 configurable-property access kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TclOoPropertyKind {
+    /// Read-only.
+    Readable,
+    /// Read/write.
+    ReadWrite,
+    /// Write-only.
+    Writable,
+}
+
+impl TclOoPropertyKind {
+    /// Canonical access kind from the independently selected Registry table.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        TCL_OO_PROPERTY_KINDS[self as usize].value
+    }
+}
+
+/// Resolve a configurable-property option from its registry metadata.
+///
+/// # Errors
+/// Tcl's byte-exact bad/ambiguous option message.
+pub fn resolve_tcloo_property_option(word: &[u8]) -> Result<TclOoPropertyOption, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
+    let names: Vec<&str> = TCL_OO_PROPERTY_OPTIONS
+        .iter()
+        .map(|option| option.name)
+        .collect();
+    match tcl_cmd_core::prefix::OptionTable::abbreviating("option", &names).index_of(word)? {
+        0 => Ok(TclOoPropertyOption::Get),
+        1 => Ok(TclOoPropertyOption::Kind),
+        2 => Ok(TclOoPropertyOption::Set),
+        _ => unreachable!("the registry declares exactly three TclOO property options"),
+    }
+}
+
+/// Resolve a configurable-property kind from its registry metadata.
+///
+/// # Errors
+/// Tcl's byte-exact bad/ambiguous kind message.
+pub fn resolve_tcloo_property_kind(word: &[u8]) -> Result<TclOoPropertyKind, Vec<u8>> {
+    let word = tcl_core_types::c_string_extent(word);
+    let names: Vec<&str> = TCL_OO_PROPERTY_KINDS
+        .iter()
+        .map(|kind| kind.value)
+        .collect();
+    match tcl_cmd_core::prefix::OptionTable::abbreviating("kind", &names).index_of(word)? {
+        0 => Ok(TclOoPropertyKind::Readable),
+        1 => Ok(TclOoPropertyKind::ReadWrite),
+        2 => Ok(TclOoPropertyKind::Writable),
+        _ => unreachable!("the registry declares exactly three TclOO property kinds"),
+    }
+}
 
 /// Source-advisory layout of the configurable property accessor. Selection
 /// of an actually entered method, receiver and property table is independent.
@@ -136,7 +250,7 @@ pub struct SourcePropertyDeclaration {
     pub(super) name: usize,
     getter: Option<usize>,
     setter: Option<usize>,
-    pub(super) kind: crate::commands::tcl::TclOoPropertyKind,
+    pub(super) kind: TclOoPropertyKind,
 }
 
 impl SourcePropertyDeclaration {
@@ -157,7 +271,7 @@ impl SourcePropertyDeclaration {
     }
     /// Independently selected kind for this property only.
     #[must_use]
-    pub const fn kind(self) -> crate::commands::tcl::TclOoPropertyKind {
+    pub const fn kind(self) -> TclOoPropertyKind {
         self.kind
     }
 
@@ -201,10 +315,6 @@ impl DefinitionBodyGrammar {
         dialect: Option<SurfaceQuery<'_>>,
         source_layout: bool,
     ) -> Option<Vec<SourcePropertyDeclaration>> {
-        use crate::commands::tcl::{
-            TclOoPropertyKind, TclOoPropertyOption, resolve_tcloo_property_kind,
-            resolve_tcloo_property_option,
-        };
         let dialect = if source_layout { None } else { Some(dialect?) };
         let member = self.member("property")?;
         if !self.profile.has_native_definition_workers()

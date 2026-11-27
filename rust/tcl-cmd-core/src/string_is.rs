@@ -30,6 +30,7 @@ use crate::error::CmdError;
 use crate::prefix::OptionTable;
 use tcl_dialect::TclVersion;
 use tcl_syntax::number::{self, Number, NumberSyntax, ParseFlags};
+use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterProtocol};
 
 /// Canonical class names, in the order Tcl lists them in error messages.
 pub const CLASSES: &[&str] = &[
@@ -472,6 +473,92 @@ fn scan_dict(chars: &[char]) -> (bool, i64) {
         // a fail index of -1 for this shape error.
         (false, -1)
     }
+}
+
+/// Jim 0.84's `string is` over literal words (the class, an optional exact
+/// `-strict`, the value) on the ASCII subset: Jim has its own class table,
+/// an exact `-strict` option, byte-oriented character classes and
+/// fresh-object getters. `None` where this subset does not decide the answer.
+#[must_use]
+pub fn jim_literal_class(args: &[&str]) -> Option<bool> {
+    use tcl_dialect::model::{DialectPoint, Release};
+
+    let (class, strict, value) = match args {
+        [class, value] => (*class, false, *value),
+        [class, "-strict", value] => (*class, true, *value),
+        _ => return None,
+    };
+    if !value.is_ascii() || value.contains('\0') {
+        return None;
+    }
+    let protocol =
+        NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))?;
+    match class {
+        "boolean" | "integer" => {
+            if value.is_empty() {
+                return Some(!strict);
+            }
+            let kind = if class == "boolean" {
+                NativeScalarGetterKind::Boolean
+            } else {
+                NativeScalarGetterKind::Wide
+            };
+            Some(
+                protocol
+                    .fresh_conversion(kind, value.as_bytes())?
+                    .outcome()
+                    .is_ok(),
+            )
+        }
+        "double" => {
+            if value.is_empty() {
+                return Some(!strict);
+            }
+            legacy_double_class(value, protocol, NumberSyntax::Jim)
+        }
+        // On this ASCII subset Jim's ctype classes and the C class core agree.
+        "alpha" | "alnum" | "ascii" | "digit" | "lower" | "upper" | "space" | "xdigit"
+        | "control" | "print" | "graph" | "punct" => {
+            Some(class_check(class, value, strict, NumberSyntax::Jim).0)
+        }
+        _ => None,
+    }
+}
+
+/// The 8.4-and-Jim `double` class over an ASCII value: these receivers inspect
+/// the native integer width before or alongside `strtod`, so a bignum or an
+/// unproved range boundary is left undecided (`None`).
+#[must_use]
+pub fn legacy_double_class(
+    value: &str,
+    protocol: NativeScalarGetterProtocol,
+    numbers: NumberSyntax,
+) -> Option<bool> {
+    use tcl_syntax::number::parse_whole_with;
+    use tcl_syntax::scalar_getter::NativeScalarGetterFailure;
+
+    // These receivers separately inspect the native integer width before or
+    // alongside strtod. A bignum or an unproved range boundary stays source.
+    if matches!(
+        parse_whole_with(
+            value,
+            ParseFlags {
+                integer_only: true,
+                ..ParseFlags::for_syntax(numbers)
+            }
+        ),
+        Some(Number::Big { .. })
+    ) {
+        return None;
+    }
+    if number::is_out_of_range_double(value, numbers) {
+        return Some(false);
+    }
+    let conversion = protocol.fresh_conversion(NativeScalarGetterKind::Double, value.as_bytes())?;
+    Some(matches!(
+        conversion.outcome(),
+        Ok(_) | Err(NativeScalarGetterFailure::FloatingPointNaN)
+    ))
 }
 
 #[cfg(test)]

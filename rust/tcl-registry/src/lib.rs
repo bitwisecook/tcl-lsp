@@ -446,8 +446,8 @@ pub mod prelude {
 #[cfg(debug_assertions)]
 pub use registry::surfaces::TEST_INSTALL;
 pub use registry::surfaces::{
-    HookTable, InstallConflict, NOT_INSTALLED, Placement, SpecCell, SpecSource, Surface,
-    SurfaceSet, SurfaceView, install, installed, try_installed,
+    ConditionalClauseHooks, HookFamilyRows, HookTable, InstallConflict, NOT_INSTALLED, Placement,
+    SpecCell, SpecSource, Surface, SurfaceSet, SurfaceView, install, installed, try_installed,
 };
 
 /// Install the shipped surface list, [`commands::SHIPPED`].

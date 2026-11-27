@@ -737,7 +737,7 @@ impl SubCommand {
                 return None;
             }
             self.const_fold_versioned?;
-            return crate::commands::tcl::fold_is_jim(args)
+            return tcl_cmd_core::string_is::jim_literal_class(args)
                 .map(|value| u8::from(value).to_string());
         }
         if let Some(NativeCompilationGrammar::Dictionary {

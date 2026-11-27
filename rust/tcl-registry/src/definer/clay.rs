@@ -75,7 +75,7 @@ const MEMBERS: &[MemberSpec] = &[
 /// Original class/member syntax. A lowercase `method` reaches `oo::define`
 /// unchanged and names a `TclOO` method; package loading, class creation,
 /// configuration, generated methods and actual receiver entry remain unknown.
-pub const CLAY_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static CLAY_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Clay,
     profile: super::CLAY_PROFILE,
     members: MEMBERS,

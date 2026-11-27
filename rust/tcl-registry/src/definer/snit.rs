@@ -197,7 +197,7 @@ pub(super) fn snit_bare_word_construction_hint(word: &str) -> bool {
 /// pair a widget injects on top (they are not implicit in a plain
 /// `snit::type`), so which definers inject them is registry data, not a
 /// consumer's name-suffix check.
-pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     profile: super::SNIT_PROFILE,
     members: SNIT_MEMBERS,
@@ -235,7 +235,7 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 /// member set as [`SNIT_GRAMMAR`], plus the widget-only implicit instance
 /// variables `win` (the widget's window path) and `hull` (the hull
 /// component).
-pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+pub static SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Snit,
     profile: super::SNIT_PROFILE,
     members: SNIT_MEMBERS,

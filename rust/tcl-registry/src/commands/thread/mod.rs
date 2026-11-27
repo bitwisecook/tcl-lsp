@@ -792,14 +792,11 @@ pub fn thread_command_specs() -> Vec<CommandSpec> {
     ]
     .into_iter()
     .chain(PLAIN_COMMANDS.iter().map(plain_spec))
+    .map(|mut spec| {
+        spec.traits |= crate::Traits::THREAD_PRIMITIVE;
+        spec
+    })
     .collect()
-}
-
-/// Whether `name` (rooted or not) is a command of the Thread package pack.
-#[must_use]
-pub fn is_thread_command(name: &str) -> bool {
-    let name = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
-    thread_command_specs().iter().any(|spec| spec.name == name)
 }
 
 #[cfg(test)]

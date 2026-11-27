@@ -1285,6 +1285,7 @@ Compiler internals: hand-written analyser families for commands whose behaviour 
 | `Source` | source |
 | `RegexPatternCapture` | regexp capture binding |
 | `Load` | load |
+| `ModulePathAdd` | Tcl module path addition |
 
 ### Appended arity
 
@@ -1774,6 +1775,7 @@ Registry-owned source operand grammars for configuration objects. DataGroupCompa
 | Value | Meaning |
 |---|---|
 | `DataGroupComparison` | data-group operand after a comparison item and operator |
+| `DataGroupSearchComparison` | data-group operand before a comparison operator and item |
 | `DataGroupLookup` | data-group operand after a literal or dynamic lookup key |
 
 ### Source deprecation advice
@@ -1943,6 +1945,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `BODY_RUNS_IN_OWN_FRAME` | the script it stores is a definition body that runs in a frame of its own, not a callback |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
 | `TCLOO_RUNTIME_HANDLE_RESULT` | returns a run-time TclOO object or class handle |
+| `THREAD_PRIMITIVE` | participates in Tcl thread execution |
 
 ### Transform conditions
 

@@ -230,7 +230,7 @@ rust/tcl-registry/src/registry/snapshot.rs	analysis-memo	RegistrySnapshotData:On
 rust/tcl-registry/src/registry/surfaces.rs	analysis-memo	INSTALLED:OnceLock	-	1
 rust/tcl-registry/src/registry/surfaces.rs	analysis-memo	INSTALL_HOOKS:OnceLock	-	1
 rust/tcl-registry/src/registry/surfaces.rs	analysis-memo	SpecCell:OnceLock	-	1
-rust/tcl-registry/src/registry/surfaces.rs	analysis-memo	SurfaceSet:OnceLock	-	5
+rust/tcl-registry/src/registry/surfaces.rs	analysis-memo	SurfaceSet:OnceLock	-	6
 rust/tcl-registry/src/security_floor.rs	analysis-memo	apply:Box	-	2
 rust/tcl-registry/src/security_floor.rs	analysis-memo	apply_subcommand_floor:Box	-	1
 rust/tcl-registry/src/security_floor.rs	analysis-memo	union_leaked:Box	-	1

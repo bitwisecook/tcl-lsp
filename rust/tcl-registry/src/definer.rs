@@ -268,7 +268,8 @@ pub use native_declarations::{
 };
 pub use property_accessors::{
     SourcePropertyAccessorAdvice, SourcePropertyAccessorLayout, SourcePropertyAccessorMode,
-    SourcePropertyCompletionRole, SourcePropertyDeclaration,
+    SourcePropertyCompletionRole, SourcePropertyDeclaration, TclOoPropertyKind,
+    TclOoPropertyOption, resolve_tcloo_property_kind, resolve_tcloo_property_option,
 };
 pub use slots::{SlotOp, SlotSpec};
 pub use snit::{SNIT_GRAMMAR, SNIT_WIDGET_GRAMMAR};

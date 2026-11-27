@@ -746,7 +746,10 @@ fn conditional_grammar(
     let Some(arguments) = words.arguments().literal_values() else {
         return Err(Selection::Unknown);
     };
-    if crate::commands::tcl::native_if_shape_error(&arguments).is_some() {
+    let Some(conditional) = crate::installed().conditional_clauses() else {
+        return Err(Selection::Unknown);
+    };
+    if (conditional.shape_error)(&arguments).is_some() {
         return Err(if version == TclVersion::V8_4 {
             Selection::CompileError
         } else {

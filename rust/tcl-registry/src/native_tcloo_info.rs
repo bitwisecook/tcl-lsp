@@ -27,10 +27,18 @@ pub use methods::{
 };
 
 use crate::InvocationDialect;
-use crate::commands::tcl::InfoOoEnsembleKind;
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{TclVersion, model::Family};
 use tcl_syntax::native_string::NativeStringProtocol;
+
+/// Which `TclOO` second-level `info` ensemble is being dispatched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfoOoEnsembleKind {
+    /// `info object subcommand ...`
+    Object,
+    /// `info class subcommand ...`
+    Class,
+}
 
 /// C8.6/C9 declared-variable introspection before target lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -23,33 +23,40 @@
 // Suppress the snake_case warnings for these.
 #![allow(non_snake_case)]
 
-/// Explicit ordering policy of the cross-editor static source display. Rows
-/// remain conditional on the actual authored descriptors; this recipe selects
-/// no runtime command or definition member. New option rows append after this
-/// historical prefix so existing alternatives retain their precedence.
-pub(crate) const STATIC_DISPLAY_NAMED_CALLABLES: &[&str] = &["proc", "method"];
-pub(crate) const STATIC_DISPLAY_CONSTRUCTORS: &[&str] = &["constructor"];
-pub(crate) const STATIC_DISPLAY_CLASSES: &[(&str, Option<&str>)] = &[
-    ("oo::class", Some("create")),
-    ("oo::define", None),
-    ("oo::objdefine", None),
-    ("itcl::class", None),
-];
-pub(crate) const STATIC_DISPLAY_CLASS_REFERENCES: &[&str] = &["superclass", "mixin"];
-pub(crate) const STATIC_DISPLAY_REGEX_COMMANDS: &[&str] = &["regexp", "regsub"];
-pub(crate) const STATIC_DISPLAY_REGEX_TERMINATOR: &str = "--";
-pub(crate) const STATIC_DISPLAY_REGEX_OPTIONS: &[&str] = &[
-    "-nocase",
-    "-expanded",
-    "-line",
-    "-linestop",
-    "-lineanchor",
-    "-indices",
-    "-all",
-    "-inline",
-    "-about",
-    "-start",
-];
+/// Explicit ordering policy of the cross-editor static source display,
+/// registered in [`HOOKS`]. Rows remain conditional on the actual authored
+/// descriptors; this recipe selects no runtime command or definition member.
+/// New option rows append after this historical prefix so existing
+/// alternatives retain their precedence.
+const STATIC_DISPLAY: crate::source_navigation::StaticDisplayRecipe =
+    crate::source_navigation::StaticDisplayRecipe {
+        named_callables: &["proc", "method"],
+        constructors: &["constructor"],
+        classes: &[
+            ("oo::class", Some("create")),
+            ("oo::define", None),
+            ("oo::objdefine", None),
+            ("itcl::class", None),
+        ],
+        class_references: &["superclass", "mixin"],
+        regex_commands: &["regexp", "regsub"],
+        regex_terminator: "--",
+        regex_options: &[
+            "-nocase",
+            "-expanded",
+            "-line",
+            "-linestop",
+            "-lineanchor",
+            "-indices",
+            "-all",
+            "-inline",
+            "-about",
+            "-start",
+        ],
+    };
+
+mod hooks;
+pub(crate) use hooks::HOOKS;
 
 mod after_;
 mod alias_;
@@ -111,8 +118,9 @@ mod if_;
 mod incr_;
 mod info_;
 mod info_jim;
+pub use crate::native_tcloo_info::InfoOoEnsembleKind;
 pub use info_::{
-    InfoOoEnsembleKind, InfoOoPropertiesOption, InfoOoSubcommands, info_oo_subcommands,
+    InfoOoPropertiesOption, InfoOoSubcommands, info_oo_subcommands,
     resolve_info_oo_properties_option, resolve_info_oo_properties_option_original,
 };
 pub use info_jim::{
@@ -156,7 +164,7 @@ mod oo_classvariable;
 mod oo_configurable;
 mod oo_copy;
 mod oo_define;
-pub use oo_define::{
+pub use crate::definer::{
     TclOoPropertyKind, TclOoPropertyOption, resolve_tcloo_property_kind,
     resolve_tcloo_property_option,
 };
@@ -182,12 +190,10 @@ mod readfile;
 mod regexp_;
 mod registry_;
 mod regsub_;
-pub(crate) use regsub_::{
-    fold_regsub, fold_regsub_versioned, names_a_callback as regsub_names_a_callback,
-};
+pub(crate) use regsub_::{fold_regsub, fold_regsub_versioned};
 mod rename_;
 mod return_;
-pub(crate) mod scan_;
+mod scan_;
 pub(crate) use scan_::fold_scan;
 mod seek_;
 mod set_;
@@ -197,14 +203,13 @@ mod split_;
 mod string_;
 pub(crate) use string_::{
     fold_cat, fold_compare, fold_compare_versioned, fold_equal, fold_equal_versioned, fold_first,
-    fold_index, fold_is, fold_is_jim, fold_last, fold_length, fold_match, fold_match_versioned,
-    fold_range, fold_range_unanimous, fold_repeat, fold_repeat_versioned, fold_replace,
-    fold_reverse, fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim,
-    fold_trim_versioned, fold_trimleft, fold_trimleft_versioned, fold_trimright,
-    fold_trimright_versioned,
+    fold_index, fold_is, fold_last, fold_length, fold_match, fold_match_versioned, fold_range,
+    fold_range_unanimous, fold_repeat, fold_repeat_versioned, fold_replace, fold_reverse,
+    fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trim_versioned,
+    fold_trimleft, fold_trimleft_versioned, fold_trimright, fold_trimright_versioned,
 };
 pub use string_::{string_is_member_type, string_is_member_type_for_dialect};
-pub(crate) mod subst_;
+mod subst_;
 pub(crate) use subst_::fold_subst;
 mod switch_;
 mod tailcall_;
@@ -226,7 +231,6 @@ mod timer;
 mod timerate;
 mod trace;
 mod try_;
-pub(crate) use try_::GRAMMAR as NATIVE_TRY_GRAMMAR;
 mod unicode_;
 mod unknown;
 mod unload;
@@ -473,10 +477,6 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         zlib::spec(),
     ]
 }
-
-pub(crate) use if_::bpf_conditional_operands;
-pub(crate) use if_::check_if_shape as native_if_shape_error;
-pub(crate) use if_::native_compile_shape_message as native_if_compile_shape_message;
 
 #[cfg(test)]
 mod tests {

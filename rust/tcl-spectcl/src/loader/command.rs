@@ -341,19 +341,20 @@ pub fn hook_path(owner: &str, member: &str) -> String {
     format!("{owner}{HOOK_PATH_SEPARATOR}{member}")
 }
 
-/// A `const_fold -native ID` or `const_fold_versioned -native ID` resolved
-/// against the shipped folders' table (`tcl_registry::pack_hooks`'s
-/// `CONST_FOLD_NATIVE` / `CONST_FOLD_VERSIONED_NATIVE`), keyed by
-/// `SCOPE::FIELD` (`string::range::const_fold`): the named folder, or `None`
-/// with a load notice for an id that is not this scope's full id or that
-/// names nothing this build ships, and the abstaining placeholder stays. The
-/// other hook families' tables hold nothing a build ships yet, so their
-/// `-native` statements install nothing and are not looked up.
+/// A `const_fold -native ID`, `const_fold_versioned -native ID` or
+/// `state_transitions { resolver -native ID }` resolved against `family` in
+/// the installed surfaces' hook tables ([`tcl_registry::SurfaceSet::native_hook`]),
+/// keyed by `SCOPE::FIELD` (`string::range::const_fold`): the named
+/// implementation, or `None` with a load notice for an id that is not this
+/// scope's full id or that names nothing the installed surfaces ship, and the
+/// abstaining placeholder stays. The other hook families' tables hold nothing
+/// a build ships yet, so their `-native` statements install nothing and are
+/// not looked up.
 pub(super) fn native_fold<T: Copy>(
     scope: &str,
     field: &str,
     id: &str,
-    table: &[(&'static str, T)],
+    family: tcl_registry::HookFamilyRows<T>,
     line: u32,
     log: &mut Log,
 ) -> Option<T> {
@@ -368,10 +369,7 @@ pub(super) fn native_fold<T: Copy>(
         );
         return None;
     }
-    let found = table
-        .iter()
-        .find(|(key, _)| *key == full)
-        .map(|(_, value)| *value);
+    let found = tcl_registry::installed().native_hook(&full, family);
     if found.is_none() {
         log.say(
             line,

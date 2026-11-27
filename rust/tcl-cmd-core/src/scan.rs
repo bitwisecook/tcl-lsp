@@ -755,6 +755,60 @@ fn scan_set(input: &[char], ii: &mut usize, width: usize, set: &CharSet) -> Opti
     Some(Scanned::Str(input[start..*ii].iter().collect()))
 }
 
+/// The result list of a literal `scan` of `input` by `format` on the portable
+/// ASCII subset, or `None` outside it.
+/// It admits only the conversion kinds and result representations that every
+/// release shares.
+#[must_use]
+pub fn scan_literal(input: &str, format: &str) -> Option<String> {
+    if !input.is_ascii() || !format.is_ascii() {
+        return None;
+    }
+    let format = format.chars().collect::<Vec<_>>();
+    let has_hex_prefix = input.contains("0x") || input.contains("0X");
+    let mut fields = 0;
+    let mut at = 0;
+    while at < format.len() {
+        if format[at] != '%' {
+            at += 1;
+            continue;
+        }
+        at += 1;
+        let conversion = parse_conversion(&format, &mut at).ok()?;
+        if conversion.suppress
+            || conversion.xpg_index.is_some()
+            || conversion.width.is_some()
+            || conversion.size.is_some()
+            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
+        {
+            return None;
+        }
+        // The sign of a prefixed hex input differs in Tcl 8.4.
+        if matches!(conversion.verb, 'x' | 'X') && has_hex_prefix {
+            return None;
+        }
+        fields += usize::from(conversion.verb != '%');
+    }
+    if fields == 0 {
+        return None;
+    }
+    let chars = input.chars().collect::<Vec<_>>();
+    let outcome = scan_match(&chars, &format);
+    if outcome.nconv != fields {
+        return None;
+    }
+    let elements = outcome
+        .values
+        .into_iter()
+        .map(|value| match value? {
+            Scanned::Int(value) => Some(i32::try_from(value).ok()?.to_string()),
+            Scanned::Str(value) if tcl_syntax::list::list_element(&value) == value => Some(value),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    String::from_utf8(tcl_syntax::list_result::portable_list_result(&elements)?).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

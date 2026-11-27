@@ -36,86 +36,9 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
-// `-nobackslashes`/`-nocommands`/`-novariables` are the only recognised
-// switches in Tcl 8.4, 8.5, 8.6, and 9.0 — byte-for-byte identical
-// SYNOPSIS/DESCRIPTION wording in all four fetched manpages, each simply
-// disabling its named substitution (all three run by default). Tcl 9.1
-// keeps these three unchanged and adds three positive counterparts
-// (`-backslashes`/`-commands`/`-variables`) as a second SYNOPSIS line: with
-// any of these present, every substitution defaults *off* and only the
-// named one(s) turn on. The 9.1 manpage states the two families are
-// interchangeable in matched pairs (`subst -nobackslashes -nocommands
-// $string` and `subst -variables $string` are called equivalent) and that
-// "it is not allowed to combine positive and negated options" in one call.
-// Direct counted-object probes on the pinned C8.4-C9.1 and Jim providers
-// independently reconfirm both families and the mixed-family rejection.
-// Native proof: naming.substitution.original-options-and-flag-families
-// docs/design/analysis/name-resolution-proofs/substitution-original-options-and-flag-families.md
-pub(crate) const OPTIONS: &[OptionSpec] = &[
-    OptionSpec {
-        name: "-nobackslashes",
-        value: OptionValue::flag(),
-        detail: "Disable backslash substitution; backslash sequences such as \\n are left as literal text. Command and variable substitution are unaffected.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(negated(SubstitutionKind::Backslashes)),
-    },
-    OptionSpec {
-        name: "-nocommands",
-        value: OptionValue::flag(),
-        detail: "Disable top-level command substitution; [ and ] are treated as ordinary characters. A [command] nested inside a variable reference (e.g. an array index) still runs, since that is part of resolving the variable, not a top-level substitution.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(negated(SubstitutionKind::Commands)),
-    },
-    OptionSpec {
-        name: "-novariables",
-        value: OptionValue::flag(),
-        detail: "Disable top-level variable substitution; $ is treated as an ordinary character. A $variable reference nested inside a command still runs, since that is part of evaluating the command, not a top-level substitution.",
-        surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(negated(SubstitutionKind::Variables)),
-    },
-    // Tcl 9.1 adds positive forms that enable *only* the named
-    // substitution, defaulting every other kind off. Positive and negated
-    // options may not be combined in one call.
-    OptionSpec {
-        name: "-backslashes",
-        value: OptionValue::flag(),
-        detail: "Enable only backslash substitution; commands and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        surface: Some(SpecSurface::TCL91),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(positive(SubstitutionKind::Backslashes)),
-    },
-    OptionSpec {
-        name: "-commands",
-        value: OptionValue::flag(),
-        detail: "Enable only command substitution; backslashes and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        surface: Some(SpecSurface::TCL91),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(positive(SubstitutionKind::Commands)),
-    },
-    OptionSpec {
-        name: "-variables",
-        value: OptionValue::flag(),
-        detail: "Enable only variable substitution; backslashes and commands are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        surface: Some(SpecSurface::TCL91),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: Some(positive(SubstitutionKind::Variables)),
-    },
-];
+use crate::substitution::{
+    SUBST_NEGATED_FAMILY as NEGATED, SUBST_OPTIONS as OPTIONS, SUBST_POSITIVE_FAMILY as POSITIVE,
+};
 
 // Tcl 8.4, 8.5, 8.6, and 9.0 document exactly one SYNOPSIS line (the
 // negative-switch form). Tcl 9.1 adds a second SYNOPSIS line for the new
@@ -173,25 +96,6 @@ const FAMILIES: &[OptionEffectFamily] = &[
         surface: Some(SpecSurface::TCL91),
     },
 ];
-
-const NEGATED: &str = "negated";
-const POSITIVE: &str = "positive";
-
-/// A negated-family switch: it turns its own kind off.
-const fn negated(kind: SubstitutionKind) -> OptionEffect {
-    OptionEffect {
-        kind: OptionEffectKind::Disables(EffectAxis::Substitution(kind)),
-        family: NEGATED,
-    }
-}
-
-/// A positive-family switch: it turns its own kind on.
-const fn positive(kind: SubstitutionKind) -> OptionEffect {
-    OptionEffect {
-        kind: OptionEffectKind::Selects(EffectAxis::Substitution(kind)),
-        family: POSITIVE,
-    }
-}
 
 /// The final `string` operand is never an option candidate (see the spec).
 const RESERVED_TRAILING_WORDS: usize = 1;

@@ -88,7 +88,7 @@ impl InvocationFacts {
                 if input.len() > 8192 || format.len() > 1024 {
                     return None;
                 }
-                let folded = crate::commands::tcl::scan_::fold_scan(&[input, format])?;
+                let folded = tcl_cmd_core::scan::scan_literal(input, format)?;
                 let values = dialect.word_values.split_list(&folded).ok()?;
                 (values.len() == outputs.len()).then(|| {
                     outputs

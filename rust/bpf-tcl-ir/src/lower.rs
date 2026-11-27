@@ -827,7 +827,9 @@ impl Lowerer<'_> {
         let Some(op) = command_spec.and_then(|spec| spec.bpf_op) else {
             if literal_head
                 && (self.is_coroutine_primitive(cmd, args)
-                    || tcl_registry::commands::thread::is_thread_command(cmd))
+                    || tcl_registry::installed()
+                        .traits_in_any_surface(cmd)
+                        .contains(Traits::THREAD_PRIMITIVE))
             {
                 return Err(concurrency_error(cmd, span));
             }
