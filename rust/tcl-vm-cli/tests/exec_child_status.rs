@@ -188,5 +188,3 @@ fn ignorestderr_passes_child_stderr_through() {
     }
     let _ = std::fs::remove_dir_all(path.parent().expect("scratch directory"));
 }
-
-tcl_registry::testing::install_shipped!();
