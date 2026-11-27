@@ -18,8 +18,7 @@
 
 //! Variable destinations and component masks preserve original word semantics.
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use tcl_dialect::TclVersion;
 

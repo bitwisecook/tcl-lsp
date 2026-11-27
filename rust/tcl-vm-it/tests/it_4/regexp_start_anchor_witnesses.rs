@@ -21,8 +21,7 @@
 //! only `^` honours `REG_NOTBOL`. tcllib 2.0's `string::token` lexer is built
 //! on `\A` at successive offsets, so `string::token::shell` failed without it.
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use tcl_dialect::TclVersion;
 
