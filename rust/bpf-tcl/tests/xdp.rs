@@ -16,9 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! XDP program type: `when XDP { … pass/drop/tx }` runs under rbpf and returns
-//! XDP verdicts. (rbpf runs an XDP-shaped program identically to a socket
-//! filter — the `data`/`data_end` context plus an `r0` verdict.)
+//! XDP program type: `when XDP { … pass/drop/tx }` runs under the userspace
+//! interpreter and returns XDP verdicts. (The interpreter runs an XDP-shaped
+//! program identically to a socket filter — the `data`/`data_end` context
+//! plus an `r0` verdict.)
 
 use bpf_tcl::run::run_socket_filter;
 use bpf_tcl_codegen::ebpf::emit_program;

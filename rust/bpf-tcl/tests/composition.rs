@@ -21,7 +21,7 @@
 //! Two `when XDP` handlers compose deterministically: an early "deny" handler
 //! terminates on a blocked port, while an "audit" handler continues with `next`
 //! and lets a later handler decide. Each handler is compiled independently and
-//! run under the `rbpf` harness; the per-handler outcomes feed the pure
+//! run under the userspace harness; the per-handler outcomes feed the pure
 //! composition model ([`bpf_tcl_ir::compose`]) — the verified-program-chain
 //! deployment semantics, run in userspace without a kernel.
 

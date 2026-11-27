@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! End-to-end: a `.bpftcl` source → typed IR → eBPF bytes → executed under the
-//! userspace `rbpf` VM over a synthetic packet → asserted verdict.
+//! userspace eBPF interpreter over a synthetic packet → asserted verdict.
 
 use bpf_tcl::run::run_socket_filter;
 use bpf_tcl_codegen::ebpf::emit_program;
