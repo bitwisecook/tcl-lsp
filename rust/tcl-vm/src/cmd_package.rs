@@ -35,6 +35,79 @@ use crate::value::Value;
 pub(crate) fn register(vm: &mut Vm) {
     provide_core_packages(vm);
     vm.register("package", cmd_package);
+    vm.register("::tcl::InitAutoPath", cmd_init_auto_path);
+}
+
+/// `::tcl::InitAutoPath` (`tclInterp.c`), which Tcl 9.1's `init.tcl` calls in
+/// place of building `auto_path` in Tcl: `$env(TCLLIBPATH)` (tilde-expanded)
+/// when `auto_path` does not yet exist, then `tcl_library` and its parent,
+/// then `tcl_pkgPath`, each added only where absent. A safe interpreter gets
+/// an empty `auto_path` if it has none. C also adds `<exe>/../lib`; the VM's
+/// `info nameofexecutable` is empty, which C answers by adding nothing.
+fn cmd_init_auto_path(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if !args.is_empty() {
+        return err("wrong # args: should be \"tcl::InitAutoPath \"");
+    }
+    let existing = vm.get_var("::auto_path");
+    if vm.is_safe() {
+        if existing.is_none()
+            && let Err(error) = vm.set_var("::auto_path", Value::empty())
+        {
+            return error;
+        }
+        return ok(Value::empty());
+    }
+    let release = vm.runtime_version();
+    let host = vm.host_rc();
+    let elements = |value: &Value| value.as_list().map(|list| list.to_vec());
+    let mut paths: Vec<Value> = match existing.as_ref().map(elements) {
+        Some(Ok(list)) => list,
+        Some(Err(error)) => return err(error.message),
+        None => Vec::new(),
+    };
+    let mut add = |path: Value| {
+        if !paths.iter().any(|known| known.to_str() == path.to_str()) {
+            paths.push(path);
+        }
+    };
+    if existing.is_none()
+        && let Some(libpath) = vm.get_array_elem("::env", "TCLLIBPATH")
+    {
+        match elements(&libpath) {
+            Ok(list) => {
+                for path in list {
+                    let name = path.to_str();
+                    if let Ok(expanded) =
+                        tcl_cmd_core::path::tilde_expand(name.as_bytes(), release, host.env())
+                    {
+                        add(Value::string(String::from_utf8_lossy(&expanded)));
+                    }
+                }
+            }
+            Err(error) => return err(error.message),
+        }
+    }
+    if let Some(library) = vm.get_var("::tcl_library") {
+        let name = library.to_str();
+        add(library.clone());
+        if let Ok(part) =
+            tcl_cmd_core::path::part_name(name.as_bytes(), release, host.env(), host.filesystem())
+        {
+            let parent = tcl_cmd_core::path::dirname(
+                &part,
+                tcl_cmd_core::path::PathReading::of_release(release),
+            );
+            add(Value::string(String::from_utf8_lossy(&parent)));
+        }
+    }
+    if let Some(Ok(list)) = vm.get_var("::tcl_pkgPath").map(|v| elements(&v)) {
+        list.into_iter().for_each(&mut add);
+    }
+    let auto_path = Value::list(paths);
+    match vm.set_var("::auto_path", auto_path.clone()) {
+        Ok(()) => ok(auto_path),
+        Err(error) => error,
+    }
 }
 
 /// Pre-provide the core's own package entries for the release this VM is

@@ -41,7 +41,10 @@ fn run(version: &str, script: &str, stdin: bool) -> (String, String, i32) {
     std::fs::create_dir_all(&dir).expect("create the script directory");
     std::fs::write(dir.join("script.tcl"), script).expect("write the script");
     let mut command = Command::new(env!("CARGO_BIN_EXE_tclvm"));
-    command.args(["--tcl-version", version]).current_dir(&dir);
+    command
+        .env_remove("TCL_LIBRARY")
+        .args(["--tcl-version", version])
+        .current_dir(&dir);
     if !stdin {
         command.arg("script.tcl");
     }

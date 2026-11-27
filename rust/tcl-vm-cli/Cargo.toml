@@ -52,6 +52,9 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-cshim = { path = "../tcl-cshim", optional = true }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm", optional = true }
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [features]
 # Links the shim's test extension (`Pkga`, `rust/tcl-cshim/tests/c/pkga.c`) and
 # enables `--static-extensions`, the way a `tclsh` test build links `Tcltest`.

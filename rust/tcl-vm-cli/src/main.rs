@@ -242,6 +242,20 @@ fn configure_vm(mut vm: Vm, version: Option<TclVersion>) -> Vm {
     );
     // Install the on-demand autoloader so library procs (word.tcl, …) resolve.
     let _ = vm.init_auto_load();
+    // `Tcl_Init`: a selected library's own `init.tcl` sets `auto_path` and the
+    // `package unknown` handler that reads each `pkgIndex.tcl`.
+    if vm
+        .get_var("::tcl_library")
+        .is_some_and(|l| !l.to_str().is_empty())
+    {
+        let init = vm.init_library();
+        if !init.code.is_ok() {
+            vm.report_stderr_text(&format!(
+                "application-specific initialization failed: {}",
+                init.result.to_str()
+            ));
+        }
+    }
     vm
 }
 

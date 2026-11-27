@@ -4854,6 +4854,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-test-support",
  "tcl-vm",
 ]
 
