@@ -6,6 +6,11 @@ set ::probe_cases [list \
     {g_set_chain} {grammar} {set zq {a}{b}} \
     {g_cmd_glued} {grammar} {if{1}{set ::m 44}} \
     {g_expansion} {grammar} {list {*}{a b}} \
+    {g_expansion_var} {grammar} {set zl {a b c}; list {*}$zl} \
+    {g_expansion_var_len} {grammar} {set zl {a b c}; llength [list {*}$zl]} \
+    {g_expansion_nested} {grammar} {set za {a b}; set zb c; set zm [list {*}$za {*}$zb]; list [llength $zm] $zm} \
+    {g_expansion_braced_value} {grammar} {set zl {x {y z}}; set zm [list {*}$zl]; list [llength $zm] $zm} \
+    {g_expansion_cmd_word} {grammar} {set zm [list {*}[list a b]]; list [llength $zm] $zm} \
     {g_quote_chain} {grammar} {list "a"b} \
     {g_dollarbrace} {grammar} {set zz XX; list ${zz}b} \
     {n_if_nextline} {newline} {if {1}

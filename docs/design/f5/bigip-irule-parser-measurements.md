@@ -1240,6 +1240,23 @@ Results: [`results/21.1-server-collect-matrix.json`](../../../scripts/dev/bigip-
   the earlier traffic lab.
 - Load-time verdicts are mcpd's. The event matrix is a statement about the
   checker, not about what TMM would do if a refused rule were somehow installed.
+- **Does `{*}` before a substitution separate like `{*}{a b}` in all three
+  contexts, including inside a command substitution?** §4a measured only the
+  braced form (`list {*}{a b}` → `* {a b}`) across `TmmIRule`,
+  `TmshCliScript` and `IAppImplementation`; §1's `list {*}$l` is the iRule
+  alone. The compiler lowers `set m [list {*}$a {*}$b]` under `f5-tmsh`,
+  `f5-irules` and `f5-iapps` as one opaque literal word, not as the R2 words
+  `list * $a * $b`, so the measured answer decides that lowering. Cases
+  `g_expansion_var`, `g_expansion_var_len`, `g_expansion_nested`,
+  `g_expansion_braced_value` and `g_expansion_cmd_word` in
+  [`suites/10-context-parity.cases`](../../../scripts/dev/bigip-probes/suites/10-context-parity.cases)
+  ask it in every context. If R2 holds, the transcripts read `* {a b c}`,
+  `2`, `4 {* {a b} * c}`, `2 {* {x {y z}}}` and `2 {* {a b}}`. Host controls,
+  run locally from the generated `ctx_host.tcl`: tclsh 8.4.20 rejects all five
+  with `extra characters after close-brace`; tclsh 8.5.19 expands them to
+  `a b c`, `3`, `3 {a b c}`, `2 {x {y z}}` and `2 {a b}`. A `proc` body is
+  not in this suite: the iRule checker scans braced literals for `proc`
+  (§4c), which would reject the whole wrapper.
 
 ## 14. How the rule loader decides
 
