@@ -100,6 +100,7 @@ pub(crate) use original_missing_command::OriginalMissingCommandContext;
 mod point_extents;
 mod pre_handler_failure;
 mod root_layout_extents;
+#[cfg(any(test, debug_assertions))]
 mod root_owner_work;
 mod source_arguments;
 mod source_name_lookup;

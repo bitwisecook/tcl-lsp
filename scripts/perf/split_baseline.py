@@ -63,6 +63,8 @@ WORKSPACE_METRICS = (
     "restart_ms",
 )
 DEFERRED = {
+    "binding.cold_10513_lines_ms": "Binding-only timing is not exposed; workspace cold timings include parsing and other analysis.",
+    "binding.from_disk_ms": "The on-disk binding tier belongs to item 103 and is not exposed.",
     "summaries.per_10000_lines_ms": "Summary-only timing is not exposed; item 483 owns the summary framework.",
     "packs.warm_50_ms": "The 50-user-pack warm-load interface and fixture belong to item 416.",
     "engine.runtime": "No standalone runtime release runner supplied.",

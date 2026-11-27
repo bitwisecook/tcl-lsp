@@ -11,7 +11,10 @@ for access).
 The non-gating harness is `scripts/perf/split_baseline.py`, invoked by
 `perf.yml` in manual `split-baseline` mode. It measures release binaries on the
 benchmark runner; no agent-worktree latency is a baseline. Runner results are
-pending. This section is the single baseline read by item 90's measurement
+pending. [The first full-SHA run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45983317368)
+failed before measuring: the release build denied five dead-code warnings from
+the debug-only `root_owner_work` module. Its module gate now matches every
+consumer (`test` or `debug_assertions`); a fresh runner execution is required. This section is the single baseline read by item 90's measurement
 record and item 483; neither restates a separate budget.
 
 Owner decision, 27 November 2026: the harness stays scripts/CI-only. Rows for

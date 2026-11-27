@@ -335,3 +335,7 @@ is part of this harness.
 
 Local harness checks (no release build or performance claim):
 `python3 -m pytest scripts/perf/test_split_baseline.py`.
+
+Binding-only cold timing at 10,513 lines and on-disk binding reload remain
+unavailable until item 103 exposes those tiers. Workspace cold/restart timings
+include parsing and other analysis and are labelled separately.
