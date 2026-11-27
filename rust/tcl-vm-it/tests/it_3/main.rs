@@ -43,5 +43,3 @@ mod tclsh_parity_e2e;
 mod tricky_resolution_e2e;
 mod uplevel_coro_e2e;
 mod word_value_resolution_e2e;
-
-tcl_registry::testing::install_shipped!();

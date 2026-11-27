@@ -393,5 +393,3 @@ fn a_tk_pin_gates_subcommands_at_its_86_point() {
     }
     assert_eq!(interp.eval_str(b"string cat a b"), Code::Ok);
 }
-
-tcl_registry::testing::install_shipped!();

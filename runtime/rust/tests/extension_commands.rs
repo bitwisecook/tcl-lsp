@@ -436,5 +436,3 @@ fn a_registration_with_nothing_to_bind_is_declined() {
         (Code::Ok, "invalid command name \"nothing\"".to_owned())
     );
 }
-
-tcl_registry::testing::install_shipped!();

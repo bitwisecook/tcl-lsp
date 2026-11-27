@@ -20,6 +20,3 @@
 //! `tcl-engine-tclvm`, both of which depend on `tcl-compiler`. Keeping them
 //! out of `tcl-compiler`'s own dev-dependencies means an edit to
 //! `tcl-compiler` rebuilds only `tcl-compiler` before its unit tests link.
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

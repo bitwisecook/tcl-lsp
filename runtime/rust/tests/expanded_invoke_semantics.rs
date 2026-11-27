@@ -65,5 +65,3 @@ fn standalone_and_tcl_9_0_4_share_command_head_expansion_semantics() {
         .expect("Tcl 9.0.4 oracle succeeds");
     assert_eq!(result, oracle);
 }
-
-tcl_registry::testing::install_shipped!();

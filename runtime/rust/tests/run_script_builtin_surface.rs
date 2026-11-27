@@ -124,5 +124,3 @@ fn the_example_bootstraps_through_the_full_builtin_constructor() {
         example.display()
     );
 }
-
-tcl_registry::testing::install_shipped!();

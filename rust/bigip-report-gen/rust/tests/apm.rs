@@ -152,5 +152,3 @@ fn no_apm_tab_without_apm_objects() {
         "no APM tab for LTM-only config"
     );
 }
-
-tcl_registry::testing::install_shipped!();

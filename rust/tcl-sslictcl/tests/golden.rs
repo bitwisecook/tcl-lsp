@@ -189,5 +189,3 @@ fn x509_projection_matches_what_openssl_reports() {
     assert_eq!(certificate.dns_names, ["example.test", "www.example.test"]);
     assert_eq!(certificate.ip_addresses, ["192.0.2.10"]);
 }
-
-tcl_registry::testing::install_shipped!();

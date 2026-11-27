@@ -43,6 +43,3 @@ pub use attach::{
 };
 pub use data::{diagram_data, diagram_data_for_analysis, diagram_data_for_dialect};
 pub use graph::irule_flowchart_graph;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

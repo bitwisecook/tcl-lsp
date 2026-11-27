@@ -267,5 +267,3 @@ fn bad_key_errors() {
     assert_eq!(r.code, 2);
     assert!(r.stderr.contains("f5mku"), "stderr: {}", r.stderr);
 }
-
-tcl_registry::testing::install_shipped!();

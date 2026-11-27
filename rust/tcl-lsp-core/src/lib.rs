@@ -333,7 +333,6 @@ pub fn registry_for_dialect_profile(
 /// Crate version string.
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// assert!(!tcl_lsp_core::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -397,6 +396,3 @@ mod dialect_ingress_tests {
 
 /// Exact retained source interpretation adapters for conditional readonly advice.
 pub mod original_source_views;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

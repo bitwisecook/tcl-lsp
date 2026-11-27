@@ -137,6 +137,3 @@ fn cli_packs(dialect: &str) -> std::sync::Arc<tcl_spectcl::PackSet> {
 
 /// Result alias for fallible CLI-support operations.
 pub type Result<T> = std::result::Result<T, CliError>;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

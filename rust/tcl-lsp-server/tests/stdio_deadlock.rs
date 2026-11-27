@@ -497,5 +497,3 @@ async fn bounded_handlers_only_slow_the_stdin_reader_down() {
         "handlers that finish must not be able to strand the reader"
     );
 }
-
-tcl_registry::testing::install_shipped!();

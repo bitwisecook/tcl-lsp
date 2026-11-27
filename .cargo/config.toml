@@ -38,3 +38,10 @@ xtask = "run --package xtask --"
 # `cargo xtask-backing command-backing` runs the one gate that asks the engines
 # what they register; it is a package of its own so `xtask` links no engine.
 xtask-backing = "run --package xtask-backing --"
+
+# Every cargo-run process (tests, doctests, `cargo run`) installs the shipped
+# command surfaces on its first uninstalled registry read. A build without
+# `debug_assertions`, which every release bundle is, has no such fallback
+# (docs/design/registry/registry-split/01-surface-input.md).
+[env]
+TCL_REGISTRY_TEST_INSTALL = "1"

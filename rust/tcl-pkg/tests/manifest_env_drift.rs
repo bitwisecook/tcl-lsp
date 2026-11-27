@@ -51,5 +51,3 @@ fn file_scope_env_keys_on_the_manifest_basename() {
     assert!(tcl_registry::scoped::file_scope_env("/proj/other.tcl").is_none());
     assert!(tcl_registry::scoped::file_scope_env("/proj/pkgIndex.tcl").is_none());
 }
-
-tcl_registry::testing::install_shipped!();

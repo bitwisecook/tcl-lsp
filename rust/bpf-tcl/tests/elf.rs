@@ -175,5 +175,3 @@ fn matches_clang_reference_machine_and_type() {
     let _ = std::fs::remove_file(&cpath);
     let _ = std::fs::remove_file(&opath);
 }
-
-tcl_registry::testing::install_shipped!();

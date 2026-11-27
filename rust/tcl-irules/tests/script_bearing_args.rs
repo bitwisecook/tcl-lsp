@@ -249,5 +249,3 @@ when HTTP_REQUEST {
     );
     assert!(names.iter().any(|n| n == "/Common/web_pool"));
 }
-
-tcl_registry::testing::install_shipped!();

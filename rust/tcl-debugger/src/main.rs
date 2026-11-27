@@ -198,6 +198,3 @@ mod tests {
         assert_eq!(command_and_operand(" \t"), None);
     }
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

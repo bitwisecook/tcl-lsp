@@ -263,5 +263,3 @@ when NAME_RESOLVED {
         "both callers own an edge to the resolved handler",
     );
 }
-
-tcl_registry::testing::install_shipped!();

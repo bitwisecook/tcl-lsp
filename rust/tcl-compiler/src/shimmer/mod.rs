@@ -125,7 +125,6 @@ pub struct SharingWarning {
 /// Human-readable lowercase name for a Tcl intrep type.
 ///
 /// ```
-/// # tcl_registry::install_shipped().unwrap();
 /// use tcl_compiler::shimmer::type_name;
 /// use tcl_registry::TclType;
 /// assert_eq!(type_name(TclType::Int), "int");

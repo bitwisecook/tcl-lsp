@@ -349,5 +349,3 @@ z
         ),
     );
 }
-
-tcl_registry::testing::install_shipped!();

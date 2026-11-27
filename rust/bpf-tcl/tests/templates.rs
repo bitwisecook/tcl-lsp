@@ -124,5 +124,3 @@ fn duplicate_template_rejected() {
     let err = compile_module(src).unwrap_err();
     assert_eq!(err.code, BpfDiag::BadTemplate);
 }
-
-tcl_registry::testing::install_shipped!();

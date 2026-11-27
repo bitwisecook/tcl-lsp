@@ -275,5 +275,3 @@ fn background_strict_stderr_conversion_reports_tcl_fallback_marker() {
     assert_eq!(output.stdout, [] as [u8; 0]);
     assert_eq!(output.stderr, b"A\r\n\t(encoding error in stderr)\r\n");
 }
-
-tcl_registry::testing::install_shipped!();

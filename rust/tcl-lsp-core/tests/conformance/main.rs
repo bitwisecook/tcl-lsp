@@ -135,5 +135,3 @@ fn main() -> ExitCode {
     }
     conclusion.exit_code()
 }
-
-tcl_registry::testing::install_shipped!();

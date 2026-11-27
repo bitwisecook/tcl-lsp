@@ -1034,5 +1034,3 @@ fn jim_command_traces_are_explicitly_unsupported() {
     assert_eq!(common::oracle_output(&oracle.path, source), expected);
     assert_eq!(common::vm_output(source, "jim"), expected);
 }
-
-tcl_registry::testing::install_shipped!();

@@ -36,5 +36,3 @@ mod regexp_start_anchor_witnesses;
 mod selected_frame_coroutines;
 mod string_is_failindex_receipt;
 mod tcltest_load;
-
-tcl_registry::testing::install_shipped!();

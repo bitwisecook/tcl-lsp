@@ -43,5 +43,3 @@ mod string_map_worker_receipt;
 mod switch_integer_e2e;
 mod wasm_coro_e2e;
 mod word_parts_owner_e2e;
-
-tcl_registry::testing::install_shipped!();

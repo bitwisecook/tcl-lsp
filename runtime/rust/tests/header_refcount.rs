@@ -159,5 +159,3 @@ fn tcl_free_obj_takes_the_string_rep_with_the_header_and_ignores_null() {
     }
     assert_nothing_left();
 }
-
-tcl_registry::testing::install_shipped!();

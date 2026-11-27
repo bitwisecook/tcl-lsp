@@ -24,5 +24,3 @@
 mod bigip_display_kinds;
 mod detect_dialect;
 mod registry_commands;
-
-tcl_registry::testing::install_shipped!();

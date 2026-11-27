@@ -444,5 +444,3 @@ fn openness_does_not_change_the_declared_member_set() {
         );
     }
 }
-
-tcl_registry::testing::install_shipped!();

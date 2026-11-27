@@ -100,5 +100,3 @@ fn native_while_still_rejected() {
     .unwrap_err();
     assert_eq!(err.code, BpfDiag::UnboundedLoop);
 }
-
-tcl_registry::testing::install_shipped!();

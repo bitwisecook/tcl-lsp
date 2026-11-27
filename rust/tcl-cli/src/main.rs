@@ -35,6 +35,3 @@ fn main() -> std::process::ExitCode {
     }
     tcl_cli::run(args)
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

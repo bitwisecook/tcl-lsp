@@ -1421,6 +1421,14 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		cargo test --workspace --all-features; \
 	fi
 
+# Release bundles build with the `release` profile, which has no
+# `debug_assertions`, so the registry's test-install fallback is compiled out.
+# This runs the install contract under that profile with the fallback's
+# variable set, and fails if the fallback is still there.
+.PHONY: check-release-install-guard
+check-release-install-guard: ## Fail if a release-profile build still has the registry's test-install fallback
+	cd $(ROOT) && cargo test -p tcl-registry --release --test install_contract
+
 # Build the native Rust LSP server binary (target/release/tcl-lsp-server) —
 # the only server there is, and the one every harness drives (test-ext points
 # the extension at it via TCL_LSP_SERVER_BIN).  Release by default for usable

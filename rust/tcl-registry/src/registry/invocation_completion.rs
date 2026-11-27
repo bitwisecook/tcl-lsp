@@ -547,7 +547,6 @@ impl CommandRegistry {
     /// explicit unknown routes rather than promising normal continuation.
     ///
     /// ```
-    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_registry::{CommandRegistry, InvocationArguments};
     /// let registry = CommandRegistry::build_default();
     /// let route = registry.invocation_completion_route("return", InvocationArguments::literals(&[]), None);

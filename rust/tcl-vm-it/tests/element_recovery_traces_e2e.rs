@@ -176,5 +176,3 @@ fn the_dialect_owns_the_release_boundary() {
         assert!(version.traces_recover_linked_array_element(), "{version:?}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

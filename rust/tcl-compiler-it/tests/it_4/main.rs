@@ -26,5 +26,3 @@ mod analyser;
 mod cfg;
 mod optimiser;
 mod value_transfer_witnesses;
-
-tcl_registry::testing::install_shipped!();

@@ -104,5 +104,3 @@ fn rejects_concurrency_primitives() {
         );
     }
 }
-
-tcl_registry::testing::install_shipped!();

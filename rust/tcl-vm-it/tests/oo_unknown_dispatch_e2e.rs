@@ -178,5 +178,3 @@ fn unknown_and_filter_dispatch_match_real_tclsh() {
         }
     }
 }
-
-tcl_registry::testing::install_shipped!();

@@ -131,5 +131,3 @@ fn file_decls_match_analyse_over_corpus() {
     );
     eprintln!("file_decls gate: {checked} files, file_decls == analyse decl sets");
 }
-
-tcl_registry::testing::install_shipped!();

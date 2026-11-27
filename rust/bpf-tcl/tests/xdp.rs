@@ -83,5 +83,3 @@ fn pass_rejected_in_socket_filter() {
     let err = compile_module("when SOCKET_FILTER { pass }\n").unwrap_err();
     assert_eq!(err.code, BpfDiag::OutOfSubset);
 }
-
-tcl_registry::testing::install_shipped!();

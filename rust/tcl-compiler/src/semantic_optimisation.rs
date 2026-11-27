@@ -195,7 +195,6 @@ impl SemanticOptimisationConfig {
     /// optimised build that was never optimised.
     ///
     /// ```
-    /// # tcl_registry::install_shipped().unwrap();
     /// use tcl_compiler::semantic_optimisation::{
     ///     SemanticOptimisationConfig as Config, SemanticOptimisationPassId as Pass,
     /// };

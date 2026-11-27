@@ -166,6 +166,3 @@ async fn serve() -> i32 {
 /// `tcl-lsp-server-wasm`.
 #[cfg(target_family = "wasm")]
 fn main() {}
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

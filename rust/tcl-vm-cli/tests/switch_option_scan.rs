@@ -85,5 +85,3 @@ fn an_unknown_switch_subject_is_scanned_as_each_release_scans_it() {
     }
     let _ = std::fs::remove_dir_all(path.parent().expect("scratch directory"));
 }
-
-tcl_registry::testing::install_shipped!();

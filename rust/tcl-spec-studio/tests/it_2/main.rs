@@ -24,5 +24,3 @@
 mod name_lookup_issue_witnesses;
 mod reference_doc;
 mod render_sweep;
-
-tcl_registry::testing::install_shipped!();

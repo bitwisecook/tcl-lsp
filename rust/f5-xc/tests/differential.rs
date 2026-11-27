@@ -113,5 +113,3 @@ fn rust_translator_matches_golden_fixture() {
         failures.join("\n\n")
     );
 }
-
-tcl_registry::testing::install_shipped!();

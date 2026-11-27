@@ -173,5 +173,3 @@ fn merge_collision_refused() {
         ],
     );
 }
-
-tcl_registry::testing::install_shipped!();

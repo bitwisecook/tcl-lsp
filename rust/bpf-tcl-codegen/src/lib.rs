@@ -25,6 +25,3 @@
 #![forbid(unsafe_code)]
 
 pub mod ebpf;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

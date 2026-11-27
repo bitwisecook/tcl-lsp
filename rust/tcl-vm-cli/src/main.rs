@@ -781,6 +781,3 @@ mod tests {
         assert!(!options.static_extensions, "no flag, no load");
     }
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

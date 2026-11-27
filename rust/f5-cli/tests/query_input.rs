@@ -412,5 +412,3 @@ fn help_inputs() {
     }
     assert!(out.contains("Use --input KIND NAME=PATH to bind a file via any registered format.\n"));
 }
-
-tcl_registry::testing::install_shipped!();

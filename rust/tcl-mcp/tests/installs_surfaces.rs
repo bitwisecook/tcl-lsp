@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The binary installs its command surfaces before its first registry read.
-//! This harness installs nothing itself, so a binary that read the registry
+//! The binary runs without the variable through which cargo-run processes
+//! install the shipped list on their own, so a binary that read the registry
 //! first would panic with the registry's not-installed message.
 
 use std::io::{BufRead, BufReader, Write};
@@ -28,6 +29,7 @@ use std::time::Duration;
 #[test]
 fn the_server_installs_its_surfaces_before_analysing_a_source() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_tcl-mcp"))
+        .env_remove("TCL_REGISTRY_TEST_INSTALL")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

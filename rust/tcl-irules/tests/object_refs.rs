@@ -102,5 +102,3 @@ fn extract_irules_refs_nested_in_body_and_command_substitution() {
         "{names:?}"
     );
 }
-
-tcl_registry::testing::install_shipped!();

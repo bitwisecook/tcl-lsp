@@ -708,5 +708,3 @@ fn fresh_namespace_object_lifetimes_match_original_c_releases() {
         assert_eq!(host.stdout.borrow().as_slice(), expected, "{environment}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

@@ -51,5 +51,3 @@ mod link_extract;
 mod resolve_kind;
 #[path = "integration/stats.rs"]
 mod stats;
-
-tcl_registry::testing::install_shipped!();

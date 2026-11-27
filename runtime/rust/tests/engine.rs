@@ -127,5 +127,3 @@ fn a_frame_addressed_store_outside_the_activation_is_refused() {
         );
     }
 }
-
-tcl_registry::testing::install_shipped!();

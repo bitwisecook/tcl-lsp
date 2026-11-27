@@ -493,5 +493,3 @@ fn provided_packages_are_recorded_shim_side() {
         [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
     );
 }
-
-tcl_registry::testing::install_shipped!();

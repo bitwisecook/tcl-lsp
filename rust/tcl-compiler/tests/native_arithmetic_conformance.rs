@@ -171,5 +171,3 @@ fn membership_precedence_drives_condition_and_grouping_diagnostics() {
         assert_eq!(grouping.fixes[0].new_text, "($a == $a) in $l");
     }
 }
-
-tcl_registry::testing::install_shipped!();

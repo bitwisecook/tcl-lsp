@@ -578,6 +578,3 @@ fn ticks(wall_clock: Duration) -> u64 {
 fn crashed(error: &wasmtime::Error) -> EngineError {
     EngineError::Crashed(format!("{error:#}"))
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

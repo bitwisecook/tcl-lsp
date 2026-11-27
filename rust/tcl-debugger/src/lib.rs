@@ -38,6 +38,3 @@ pub mod types;
 pub use backend::{DebugBackend, DebugError, VmBackend};
 pub use controller::DebugController;
 pub use types::{DebugAction, StackFrame, StepMode, StopEvent, StopReason, Variable, VariableKind};
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

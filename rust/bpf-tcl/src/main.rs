@@ -45,6 +45,3 @@ fn main() -> ExitCode {
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

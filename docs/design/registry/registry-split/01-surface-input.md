@@ -415,7 +415,7 @@ and `xtask-backing` read the installed set and `Surface::source_dir`. Every
 binary and example installs first in `main`; the WASM hosts install in their
 `start` function or constructor, the Python module in its init, and
 `runtime/rust` and `tcl-vm-wasm` at interpreter creation unless the host has
-installed. About 200 test harnesses carry `tcl_registry::testing::install_shipped!()`,
+installed. About 200 test harnesses carried `tcl_registry::testing::install_shipped!()` (replaced in part 3, below),
 and the doctests of `tcl-registry`, `tcl-compiler` and `tcl-lsp-core` a hidden
 `install_shipped()` line. A read before any install panics with
 `surfaces::NOT_INSTALLED`.
@@ -433,6 +433,8 @@ and the doctests of `tcl-registry`, `tcl-compiler` and `tcl-lsp-core` a hidden
    life-before-main hook the `forbid` does not see; the owner should confirm
    it or choose another mechanism before step 3 relies on it. A harness with
    a conflicting second install aborts at start-up with the conflict.
+   Superseded: the owner rejected the hook, and the test-install fallback
+   below replaced it.
 2. *The cell lives in the `Surface`.* Each `Surface` and `SurfaceView` is a
    `static` with a `SpecCell`, so `from_surfaces` builds no copy and reads no
    global, and a subset registry shares the leaked specs.
@@ -546,27 +548,49 @@ installs nothing. The WASM and Python hosts are CI-verified. Every
 `installs_surfaces`, `install_contract`, `family_surface` and `jim` harness is
 in `scripts/dev/rust-test-binary-shards.tsv`.
 
-**The start-up hook (part 3) is not replaced yet.** The owner rejected the
-constructor-section hook and chose a `testing` cargo feature, enabled from
-`[dev-dependencies]`, whose uninstalled read installs `SHIPPED`. Measured
-before building it, with `module-layers`' duplicate measure over the 39
-workspace crates whose harnesses carry the hook line: every workspace crate
-in `tcl-lsp-server`'s cone that reaches `tcl-registry` (17 of 17) would be
-built twice, once with the feature for tests and once without for the
-binary; 15 of 15 for `xtask` (so `make xtask-gates` after a test run rebuilds
-the compiler stack) and 16 of 16 for `tcl`. Resolver 2 also unifies a
-dev-dependency feature into the binaries a package's own tests run, so under
-`cargo test` every `installs_surfaces` binary would carry the fallback and the
-tests could not see a missing install. The hook stays until the owner
-chooses between the feature with that cost and an environment-variable gate
-(below).
+**The test-install fallback (part 3).** The owner rejected the
+constructor-section hook. A dev-only `testing` cargo feature was measured
+first and rejected too: with `module-layers`' duplicate measure over the 39
+workspace crates whose harnesses carried the hook line, every crate in
+`tcl-lsp-server`'s cone that reaches `tcl-registry` (17 of 17) would be built
+twice, once with the feature for tests and once without for the binary; 15
+of 15 for `xtask` (so `make xtask-gates` after a test run would rebuild the
+compiler stack) and 16 of 16 for `tcl`. Resolver 2 also turns a
+dev-dependency feature on in the binaries a package's own tests run, so the
+`installs_surfaces` tests could not have seen a missing install.
 
-**The proposed alternative.** No cargo feature: an uninstalled `installed()`
-installs `SHIPPED` when an environment variable is set, and panics with
-`NOT_INSTALLED` otherwise. The repository's `.cargo/config.toml` `[env]`
-table sets it, so `cargo test`, nextest and doctests get the fallback with no
-harness line and no second build; a binary run outside cargo never sees it.
-The `installs_surfaces` tests and `install_contract` start their child
-processes with the variable removed, so they still see a missing install. The
-cost is that `cargo run` of a binary also falls back, so a missing install in
-an entry point shows only in that entry point's own test.
+What landed instead has no cargo feature. When nothing is installed,
+`installed()` installs `SHIPPED` if `TCL_REGISTRY_TEST_INSTALL` is set and
+not empty, and panics with `NOT_INSTALLED` otherwise. The repository's
+`.cargo/config.toml` sets the variable in `[env]`, so every cargo-run
+process gets it: `cargo test`, nextest and doctests need no harness line and
+build nothing twice. The hook, the `testing` module, the 223 harness lines
+and the hidden doctest installs are gone, and so is the crate's own
+`cfg(test)` install. A test that needs another list installs it itself (the
+ordering rule above), and the fallback's `SHIPPED` install then conflicts
+with nothing.
+
+- *The checks still see a missing install.* Every `installs_surfaces` test
+  starts its binary with the variable removed (checked: with `xtask-backing`'s
+  install taken out its test fails with `NOT_INSTALLED`, as does `tcl`'s).
+  `tcl-registry/tests/install_contract.rs` runs each case in a child process
+  of its own harness, with the variable removed and with it set.
+- *`cargo run` falls back too.* A binary run through cargo (`cargo run`,
+  `cargo xtask`) installs `SHIPPED` on an uninstalled read, so in everyday
+  development a missing install in an entry point shows only in that entry
+  point's `installs_surfaces` test, and an entry point that installs another
+  list (`tcl_spectcl::core_surfaces::SURFACES`) gets `SHIPPED` instead if it
+  reads before installing. A test binary run directly, outside cargo, has no
+  fallback and panics with `NOT_INSTALLED`.
+- *Release bundles have no fallback.* The owner required that a release
+  bundle cannot contain it, so a stray variable cannot turn it on. Every
+  bundle builds with the `release` profile: the native binaries
+  (`cargo build --release` in `build-server-matrix` and the Makefile's
+  cross targets), the WASM and WASI hosts (`build-wasm.sh`/`build-wasi.sh`,
+  `wasm-pack --release`), and the Python module (`maturin build --release`);
+  the `ci` profile, which inherits `release`, builds only the extension
+  suite's server. None turns `debug-assertions` on, so the fallback and the
+  variable's name are under `cfg(debug_assertions)` and are not compiled
+  into a bundle. `make check-release-install-guard` runs the install contract
+  under `--release` with the variable set and fails if a release build still
+  installs; `build-server-matrix` runs it on its `linux-x64` server leg.

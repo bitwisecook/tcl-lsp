@@ -67,6 +67,3 @@ pub fn stamp_lockfile(lockfile: &mut lockfile::LockFile) {
 /// on the package manager to get them. One implementation, two consumers,
 /// and `tcl_pkg::cache_dir()` still resolves for callers that expect it here.
 pub use tcl_userdirs::{cache_dir, config_dir, state_dir, system_config_dir, venv_pool_dir};
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

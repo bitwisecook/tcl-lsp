@@ -177,5 +177,3 @@ fn statements_of(optimised: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
-
-tcl_registry::testing::install_shipped!();

@@ -928,6 +928,3 @@ mod original_projection_tests;
 
 #[cfg(test)]
 mod metadata_reader_unknown_profile_controls;
-
-#[cfg(test)]
-tcl_registry::testing::install_shipped!();

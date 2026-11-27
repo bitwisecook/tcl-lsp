@@ -48,5 +48,3 @@ fn a_braced_expr_operand_is_literal_and_a_quoted_one_substitutes() {
         assert_eq!(eval(script), (Code::Ok, expected.to_owned()), "{script}");
     }
 }
-
-tcl_registry::testing::install_shipped!();

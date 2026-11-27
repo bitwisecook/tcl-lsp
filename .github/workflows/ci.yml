@@ -3312,6 +3312,12 @@ jobs:
         shell: bash
         run: make server-cross-test
 
+      # Release bytes must not carry the registry's test-install fallback.
+      - name: Check the release profile has no install fallback
+        if: matrix.program.id == 'server' && matrix.platform.id == 'linux-x64'
+        shell: bash
+        run: make check-release-install-guard
+
       - name: Upload server binaries
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
