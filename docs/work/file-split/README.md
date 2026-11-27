@@ -80,7 +80,7 @@ Crate boundaries, measured on 16 November 2026 with `module_graph.py` (none acte
 
 | Candidate | Finding |
 | --- | --- |
-| `tcl-registry/src/bigip` (126,000 lines) | The only clean leaf: it names nothing else in its crate and one item of `tcl-dialect`. As a crate of its own it compiles in 4 seconds, so moving it saves a `tcl-registry` rebuild nothing that pays for a new member in ten lockfiles and eight CI path lists. Left in place. |
+| `tcl-registry/src/bigip` (126,000 lines) | The only clean leaf: it names nothing else in its crate and one item of `tcl-dialect`. As a crate of its own it compiles in 4 seconds, so moving it was first judged not to pay for a new member in ten lockfiles and eight CI path lists. Later moved: item 118a extracted it into `tcl-bigip-schema` (27 November 2026). |
 | `tcl-compiler` (560,000 production lines, 121 top-level modules) | 102 modules holding 551,000 lines name one another in a cycle. No part can leave by moving files; the cycle has to be cut by design first (for example the IR and its builders below the analyses). The native tier the planners named (`executable_ir`, `dispatch_proof`, `world_state_ssa`, `native_lowering`, `native_byte_compilation`) is inside that cycle; only `common_aot_plan` with `native_integer_proof` (4,600 lines) sits above it. |
 | `tcl-registry` outside `bigip` | 115 modules, 290,000 lines, one cycle. |
 | `tcl-lsp-core` | 52 modules, 103,000 lines, one cycle; `minify` and `completion` sit above it. |

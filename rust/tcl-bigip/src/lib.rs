@@ -20,7 +20,7 @@
 //!
 //! The parser turns BIG-IP `.conf` / `.scf` text into a [`model`] of
 //! typed objects via `parse_bigip_conf` -> `BigipConfig`. The
-//! object/property *schema* is reused from `tcl_registry::bigip`.
+//! object/property *schema* comes from `tcl-bigip-schema` (as [`schema`]).
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]

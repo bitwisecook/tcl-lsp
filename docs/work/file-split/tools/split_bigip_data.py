@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 LIMIT = 2000
-DATA = "rust/tcl-registry/src/bigip/data"
+DATA = "rust/tcl-bigip-schema/src/bigip/data"
 TABLE_OPEN = "pub static SPECS: &[BigipObjectSpec] = &[\n"
 SPEC_OPEN = "    BigipObjectSpec {\n"
 SPEC_CLOSE = "    },\n"
