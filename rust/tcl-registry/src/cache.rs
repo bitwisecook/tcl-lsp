@@ -36,10 +36,10 @@
 //! one cache rather than each rebuilding its own.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
-use tcl_dialect::model::{Family, SpecProvider};
+use tcl_dialect::model::Family;
 use tcl_dialect::{DialectProfile, DialectProfileKey};
 
 use crate::registry::CommandRegistry;
@@ -310,87 +310,15 @@ fn prune_overlays(map: &mut RegistryTable, current: u64) {
 /// so reaching this at all means a long editing session on a pack.
 const OVERLAY_LIMIT: usize = 64;
 
-/// The command specs a crate above the registry has compiled in for a core
-/// family's own surface, and how many times that set has changed.
-struct CoreSurfaceSpecs {
-    generation: u64,
-    specs: Vec<&'static CommandSpec>,
-}
-
-static CORE_SURFACE: RwLock<CoreSurfaceSpecs> = RwLock::new(CoreSurfaceSpecs {
-    generation: 0,
-    specs: Vec::new(),
-});
-
-/// Register the command specs of a core family's own compiled-in surface —
-/// the commands a family adds to what it inherits from its ancestor, written
-/// as a pack a crate above the registry loads.
-///
-/// A spec belongs to every family it has a [`SpecProvider::Core`] row for. The
-/// registry assembled for a document whose environment has that core family
-/// carries those specs; no other registry does, so a catalogue profile's
-/// surface, the plain Tcl store and every other family are untouched.
-///
-/// Registering the same specs again changes nothing. Registering a different
-/// set replaces the previous one and advances
-/// [`core_surface_generation`], which the assembled-generation caches key on.
-/// Returns the generation after the call.
-pub fn register_core_surface_specs(specs: Vec<&'static CommandSpec>) -> u64 {
-    let specs: Vec<_> = specs
-        .into_iter()
-        .map(crate::native_procedure::attach_builtin_core_definition)
-        .collect();
-    let mut guard = CORE_SURFACE.write().unwrap_or_else(PoisonError::into_inner);
-    let unchanged = guard.specs.len() == specs.len()
-        && guard
-            .specs
-            .iter()
-            .zip(&specs)
-            .all(|(held, offered)| std::ptr::eq(*held, *offered));
-    if !unchanged {
-        guard.specs = specs;
-        guard.generation += 1;
-    }
-    guard.generation
-}
-
-/// How many times the registered core-surface specs have changed; `0` before
-/// anything registers.
-#[must_use]
-pub fn core_surface_generation() -> u64 {
-    CORE_SURFACE
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .generation
-}
-
-/// The registered generation and every registered spec, read under one lock.
-pub(crate) fn core_surface_specs() -> (u64, Vec<&'static CommandSpec>) {
-    let guard = CORE_SURFACE.read().unwrap_or_else(PoisonError::into_inner);
-    (guard.generation, guard.specs.clone())
-}
-
-/// The registered generation and the specs that have a core row for `family`,
-/// read under one lock so the pair describes one registered set.
-pub(crate) fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
-    let guard = CORE_SURFACE.read().unwrap_or_else(PoisonError::into_inner);
-    let specs = guard
-        .specs
-        .iter()
-        .copied()
-        .filter(|spec| {
-            spec.surface.is_some_and(|rows| {
-                rows.iter()
-                    .any(|row| row.provider == SpecProvider::Core(family))
-            })
-        })
-        .collect();
-    (guard.generation, specs)
+/// The installed specs that have a core row for `family`
+/// ([`crate::Placement::Family`]).
+fn core_surface_for(family: Family) -> Vec<&'static CommandSpec> {
+    crate::registry::surfaces::installed().family_specs(family)
 }
 
 /// The identity of one core-surface store: the `(profile, overlay)` store it
-/// extends, the family whose specs it carries, and the registered generation.
-type CoreSurfaceKey = (DialectProfileKey, u64, Family, u64);
+/// extends and the family whose specs it carries.
+type CoreSurfaceKey = (DialectProfileKey, u64, Family);
 
 static CORE_SURFACE_REGISTRIES: OnceLock<Mutex<FxHashMap<CoreSurfaceKey, Arc<CommandRegistry>>>> =
     OnceLock::new();
@@ -404,10 +332,8 @@ static CORE_SURFACE_REGISTRIES: OnceLock<Mutex<FxHashMap<CoreSurfaceKey, Arc<Com
 /// family also owns ranks after the compiled-in row on a registration-order
 /// tie.
 ///
-/// Cached on the store's identity and the registered generation, so every
-/// document of one family shares one store, and a set registered after a
-/// store was first read is picked up by the next read instead of being missed
-/// for the life of the process.
+/// Cached on the store's identity, so every document of one family shares
+/// one store.
 #[must_use]
 pub(crate) fn registry_with_core_surface(
     base: Arc<CommandRegistry>,
@@ -415,7 +341,16 @@ pub(crate) fn registry_with_core_surface(
     overlay: u64,
     family: Family,
 ) -> Arc<CommandRegistry> {
-    let (generation, specs) = core_surface_for(family);
+    registry_with_family_specs(base, profile, overlay, family, &core_surface_for(family))
+}
+
+fn registry_with_family_specs(
+    base: Arc<CommandRegistry>,
+    profile: &'static DialectProfile,
+    overlay: u64,
+    family: Family,
+    specs: &[&'static CommandSpec],
+) -> Arc<CommandRegistry> {
     if specs.is_empty() {
         return base;
     }
@@ -427,17 +362,15 @@ pub(crate) fn registry_with_core_surface(
         registry_handle_for_profile(profile)
     };
     let map = CORE_SURFACE_REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
-    let key: CoreSurfaceKey = (profile.cache_key(), overlay, family, generation);
+    let key: CoreSurfaceKey = (profile.cache_key(), overlay, family);
     let mut guard = map.lock().expect("core surface registry cache mutex");
     if let Some(held) = guard.get(&key) {
         return Arc::clone(held);
     }
     if guard.len() >= OVERLAY_LIMIT {
-        guard.retain(|&(_, held_overlay, _, held_generation), _| {
-            held_generation == generation && (held_overlay == 0 || held_overlay == overlay)
-        });
+        guard.retain(|&(_, held_overlay, _), _| held_overlay == 0 || held_overlay == overlay);
     }
-    let derived = Arc::new(unoverlaid.with_core_surface(&specs, &base));
+    let derived = Arc::new(unoverlaid.with_core_surface(specs, &base));
     guard.insert(key, Arc::clone(&derived));
     derived
 }
@@ -452,7 +385,7 @@ pub(crate) fn private_registry_with_core_surface(
     overlay: u64,
     family: Family,
 ) -> Arc<CommandRegistry> {
-    let (_, specs) = core_surface_for(family);
+    let specs = core_surface_for(family);
     if specs.is_empty() {
         return base;
     }
@@ -510,8 +443,7 @@ mod tests {
     const JIM_ONLY: &[tcl_dialect::model::SpecSurface] =
         &[tcl_dialect::model::SpecSurface::core(Family::Jim)];
 
-    /// One spec, registered by every test that needs it, so concurrent
-    /// tests register the same set rather than replacing each other's.
+    /// One spec, shared by every call, so each call offers the same row.
     fn probe_specs() -> Vec<&'static CommandSpec> {
         static PROBE: OnceLock<&'static CommandSpec> = OnceLock::new();
         let spec = *PROBE.get_or_init(|| {
@@ -522,89 +454,6 @@ mod tests {
             }))
         });
         vec![spec]
-    }
-
-    /// Registering the same specs again leaves the generation where it was,
-    /// so a republished pack set does not rebuild every jim generation.
-    #[test]
-    fn registering_the_same_core_surface_twice_changes_nothing() {
-        let first = register_core_surface_specs(probe_specs());
-        assert!(first >= 1);
-        assert_eq!(register_core_surface_specs(probe_specs()), first);
-        assert_eq!(core_surface_generation(), first);
-    }
-
-    /// A family's registered surface reaches the store of that family's
-    /// documents and no other: the catalogue stores are the very handles
-    /// the profile cache owns, and the plain Tcl store gains nothing.
-    #[test]
-    fn a_family_carries_its_own_surface_and_no_other_family_does() {
-        register_core_surface_specs(probe_specs());
-        let jim = crate::model::ingress::resolve_environment("jim").default_context_registry();
-        assert!(
-            jim.commands().get(PROBE_NAME).is_some(),
-            "the jim store holds its own family's spec"
-        );
-        assert!(jim.resolve_command(PROBE_NAME).is_some());
-
-        for environment in ["tcl8.6", "tcl9.0", "tcl", "tk", "f5-irules", "expect"] {
-            let generation =
-                crate::model::ingress::resolve_environment(environment).default_context_registry();
-            assert!(
-                generation.commands().get(PROBE_NAME).is_none(),
-                "{environment}: another family's own spec is not in its store"
-            );
-            assert!(generation.resolve_command(PROBE_NAME).is_none());
-        }
-
-        let tcl86 = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
-        assert!(
-            Arc::ptr_eq(tcl86.commands(), &registry_handle_for_profile(profile)),
-            "a catalogue environment still shares the profile cache's store"
-        );
-    }
-
-    /// A registered spec is a command in some dialect, so a name only a
-    /// family's own surface offers is known, and its providers name that
-    /// family, in every registry's any-dialect universe.
-    #[test]
-    fn the_any_dialect_universe_includes_the_registered_core_surface() {
-        register_core_surface_specs(probe_specs());
-        let registry = CommandRegistry::build_default();
-        assert!(registry.known_in_any_dialect(PROBE_NAME));
-        assert!(registry.known_in_any_dialect("set"), "compiled names stay");
-        let offered = registry
-            .providers_in_any_dialect(PROBE_NAME)
-            .expect("the registered name has providers");
-        assert_eq!(
-            offered.providers,
-            [tcl_dialect::model::SpecProvider::Core(Family::Jim)]
-        );
-        assert!(!offered.unrestricted);
-        assert!(!registry.known_in_any_dialect("core-surface-unregistered"));
-    }
-
-    /// A native family's exact store preserves its registered additions while
-    /// keeping its measured command roster distinct from the C Tcl catalogue.
-    #[test]
-    fn the_core_surface_store_extends_the_plain_store_without_replacing_it() {
-        register_core_surface_specs(probe_specs());
-        let plain = crate::model::ingress::resolve_environment("tcl").default_context_registry();
-        let jim = crate::model::ingress::resolve_environment("jim").default_context_registry();
-        assert!(!Arc::ptr_eq(plain.commands(), jim.commands()));
-        assert!(plain.commands().get(PROBE_NAME).is_none());
-        assert!(jim.commands().get(PROBE_NAME).is_some());
-        assert!(jim.commands().get("set").is_some());
-        assert!(
-            jim.commands().get("readFile").is_some(),
-            "shared catalogue metadata remains available for assistance"
-        );
-        assert!(
-            jim.resolve_command("readFile").is_none(),
-            "catalogue presence does not install an unavailable native/provider command"
-        );
-        assert!(plain.commands().get("readFile").is_some());
     }
 
     /// A pack's row for a name the family's own surface also carries wins
@@ -619,7 +468,6 @@ mod tests {
         use tcl_dialect::model::SurfaceQuery;
         const OVERLAY: u64 = 0x00A8_0001;
         let compiled_in = probe_specs()[0];
-        register_core_surface_specs(probe_specs());
         let pack_row: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
             name: PROBE_NAME,
             surface: Some(JIM_ONLY),
@@ -631,7 +479,8 @@ mod tests {
         });
         let jim = SurfaceQuery::core(Family::Jim, "0.84");
 
-        let with_pack = registry_with_core_surface(overlaid, profile, OVERLAY, Family::Jim);
+        let with_pack =
+            registry_with_family_specs(overlaid, profile, OVERLAY, Family::Jim, &probe_specs());
         let winner = with_pack.get_for_surface(PROBE_NAME, Some(jim));
         assert!(winner.is_some_and(|spec| std::ptr::eq(spec, pack_row)));
         assert!(
@@ -641,11 +490,12 @@ mod tests {
             "a dialect-blind lookup answers with the pack row too"
         );
 
-        let plain = registry_with_core_surface(
+        let plain = registry_with_family_specs(
             registry_handle_for_profile(profile),
             profile,
             0,
             Family::Jim,
+            &probe_specs(),
         );
         let winner = plain.get_for_surface(PROBE_NAME, Some(jim));
         assert!(

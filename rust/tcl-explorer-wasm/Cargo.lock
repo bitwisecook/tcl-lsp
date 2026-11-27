@@ -1185,7 +1185,7 @@ dependencies = [
  "console_error_panic_hook",
  "serde_json",
  "tcl-explorer",
- "tcl-registry",
+ "tcl-spectcl",
  "wasm-bindgen",
 ]
 

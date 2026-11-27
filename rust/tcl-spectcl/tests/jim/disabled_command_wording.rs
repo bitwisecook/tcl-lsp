@@ -20,8 +20,8 @@
 //! true only where some dialect the document is related to has the command.
 //! A name only an unrelated environment offers is unknown, and W123 says so.
 //!
-//! The Jim roster these cases read is registered by
-//! `tcl_spectcl::core_surfaces::ensure`, so they run here rather than beside
+//! The Jim roster these cases read is registered by installing
+//! `tcl_spectcl::core_surfaces::SURFACES`, so they run here rather than beside
 //! the analyser.
 
 use tcl_compiler::analyser::Analyser;
@@ -29,7 +29,6 @@ use tcl_core_types::DiagCode;
 
 /// The diagnostics a document draws on the head `word`: its code and message.
 fn on_head(dialect: &str, word: &str, body: &str) -> Vec<(DiagCode, String)> {
-    tcl_spectcl::core_surfaces::ensure();
     let source = format!("# tcl-dialect: {dialect}\n{body}\n");
     let result = Analyser::new().analyse(
         &source,
@@ -60,6 +59,7 @@ fn on_head(dialect: &str, word: &str, body: &str) -> Vec<(DiagCode, String)> {
 #[test]
 fn a_command_a_related_dialect_has_is_disabled_under_tcl_8_4_to_9_0_and_jim() {
     const DISABLED: &str = "disabled in the active dialect profile";
+    crate::install();
     for (dialect, head, body, wording) in [
         ("tcl8.4", "lmap", "lmap x {1 2} {puts $x}", &[DISABLED][..]),
         ("jim", "coroutine", "coroutine gen {puts 1}", &[DISABLED]),
@@ -97,6 +97,7 @@ fn a_command_a_related_dialect_has_is_disabled_under_tcl_8_4_to_9_0_and_jim() {
 /// one.
 #[test]
 fn a_jim_document_using_an_expect_command_finds_it_unknown() {
+    crate::install();
     let found = on_head("jim", "system", "system ls");
     let codes: Vec<DiagCode> = found.iter().map(|(code, _)| *code).collect();
     assert_eq!(codes, [DiagCode::W123], "{found:?}");

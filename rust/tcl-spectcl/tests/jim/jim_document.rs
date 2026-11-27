@@ -31,7 +31,6 @@ use tcl_registry::model::resolve_environment;
 type Finding = (DiagCode, String);
 
 fn run(source: &str, per_item: bool) -> AnalysisResult {
-    tcl_spectcl::core_surfaces::ensure();
     let dialect = tcl_registry::dialects::detect_dialect(source, None, "tcl");
     let mut analyser = Analyser::new();
     if per_item {
@@ -86,6 +85,7 @@ fn both_tiers(source: &str) -> [Vec<Finding>; 2] {
 /// A static is declared in the body scope and is not an argument.
 #[test]
 fn a_static_is_a_local_of_the_body_and_no_argument() {
+    crate::install();
     let source = jim("proc counter {} {{n 0}} { return [incr n] }\nputs [counter]\n");
     for findings in both_tiers(&source) {
         assert_eq!(findings, vec![], "{source}");
@@ -97,6 +97,7 @@ fn a_static_is_a_local_of_the_body_and_no_argument() {
 /// variable, so it is used there.
 #[test]
 fn every_static_spelling_declares_its_name() {
+    crate::install();
     let source = jim("set seed 5\nset shared 1\n\
          proc mix {a} {seed {n 0} &shared} { return [expr {$a + $seed + $n + $shared}] }\n\
          puts [mix 1]\n");
@@ -110,6 +111,7 @@ fn every_static_spelling_declares_its_name() {
 /// reads nothing there.
 #[test]
 fn only_a_bare_or_ampersand_static_reads_the_enclosing_variable() {
+    crate::install();
     let reads_of = |statics: &str| -> usize {
         let source = jim(&format!(
             "set seed 5\nproc p {{a}} {{{statics}}} {{ return $a }}\nputs $seed\n"
@@ -136,6 +138,7 @@ fn only_a_bare_or_ampersand_static_reads_the_enclosing_variable() {
 /// raises while creating the procedure.
 #[test]
 fn the_edges_of_a_static_list() {
+    crate::install();
     let empty = jim("proc f {} {} { return 1 }\nputs [f]\n");
     let one_word = jim("set n 1\nproc f {} {n} { return $n }\nputs $n\nputs [f]\n");
     let three_fields = jim("proc f {} {{a b c}} { return 1 }\nputs [f]\n");
@@ -158,6 +161,7 @@ fn the_edges_of_a_static_list() {
 /// is reported.
 #[test]
 fn the_body_of_a_proc_with_statics_is_walked() {
+    crate::install();
     let source = jim("proc counter {} {{n 0}} { not_a_command_anywhere $n }\ncounter\n");
     for findings in both_tiers(&source) {
         assert_eq!(
@@ -171,6 +175,7 @@ fn the_body_of_a_proc_with_statics_is_walked() {
 /// A static never adds to the arity: the call supplies the parameters alone.
 #[test]
 fn a_static_adds_nothing_to_the_arity() {
+    crate::install();
     let source = jim("proc pair {a b} {{n 0}} { return $a$b$n }\npair 1 2\npair 1\npair 1 2 3\n");
     for findings in both_tiers(&source) {
         let codes: Vec<(DiagCode, &str)> = findings
@@ -188,6 +193,7 @@ fn a_static_adds_nothing_to_the_arity() {
 /// Three words is the plain form under Jim as under Tcl.
 #[test]
 fn a_three_word_proc_is_the_plain_form() {
+    crate::install();
     let source = jim("proc plain {a b} { return $a$b }\nputs [plain 1 2]\n");
     for findings in both_tiers(&source) {
         assert_eq!(findings, vec![], "{source}");
@@ -198,6 +204,7 @@ fn a_three_word_proc_is_the_plain_form() {
 /// and the error names the three-word usage.
 #[test]
 fn a_tcl_document_still_rejects_the_four_word_proc() {
+    crate::install();
     let source = tcl86("proc counter {} {{n 0}} { incr n }\n");
     for findings in both_tiers(&source) {
         assert!(
@@ -212,7 +219,7 @@ fn a_tcl_document_still_rejects_the_four_word_proc() {
 /// analyser does.
 #[test]
 fn the_signature_scan_reads_the_four_word_definition() {
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let generation = resolve_environment("jim").default_context_registry();
     let source = "proc pair {a b} {{n 0}} { return $a$b$n }\nproc plain {x} { return $x }\n";
     let scan = extract_signatures(source, generation.commands());
@@ -232,7 +239,7 @@ fn the_signature_scan_reads_the_four_word_definition() {
 /// list and the body.
 #[test]
 fn the_signature_scan_reads_the_three_word_definition_under_tcl() {
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let generation = resolve_environment("tcl8.6").default_context_registry();
     let source = "proc pair {a b} { return $a$b }\n";
     let scan = extract_signatures(source, generation.commands());
@@ -247,6 +254,7 @@ fn the_signature_scan_reads_the_three_word_definition_under_tcl() {
 /// never walked as a script.
 #[test]
 fn a_class_records_the_variables_its_dictionary_names() {
+    crate::install();
     let source = jim("class Point {x 0 y 0}\nputs [Point new]\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -262,6 +270,7 @@ fn a_class_records_the_variables_its_dictionary_names() {
 /// variable dictionary of a derived class is its bases' merged with its own.
 #[test]
 fn a_derived_class_inherits_its_bases_variables() {
+    crate::install();
     let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n");
     let result = run(&source, false);
     let derived = &result.all_classes["::Point3"];
@@ -274,6 +283,7 @@ fn a_derived_class_inherits_its_bases_variables() {
 /// no ancestry.
 #[test]
 fn only_a_computed_base_list_leaves_the_inheritance_unknown() {
+    crate::install();
     let source = jim("class Dyn $bases {x 0}\nclass Vars $vars\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -290,6 +300,7 @@ fn only_a_computed_base_list_leaves_the_inheritance_unknown() {
 /// keys are still read, so a method body's reads of them add nothing.
 #[test]
 fn an_odd_variable_dictionary_is_an_argument_shape_error() {
+    crate::install();
     let source = jim("class P {x 0 y}\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -306,6 +317,7 @@ fn an_odd_variable_dictionary_is_an_argument_shape_error() {
 /// dictionary.
 #[test]
 fn a_class_without_its_variable_dictionary_is_an_arity_error() {
+    crate::install();
     let source = jim("class Lonely\n");
     assert_eq!(
         analyse_with(&source, false),
@@ -317,6 +329,7 @@ fn a_class_without_its_variable_dictionary_is_an_arity_error() {
 /// class variables, the inherited ones and `self` bound.
 #[test]
 fn a_method_body_sees_the_instance_variables_and_self() {
+    crate::install();
     let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n\
          Point method norm {} { return [expr {abs($x) + abs($y)}] }\n\
          Point3 method who {} { not_a_command_anywhere $self $x $z }\n");
@@ -347,6 +360,7 @@ fn a_method_body_sees_the_instance_variables_and_self() {
 /// class command's `method` — sees neither the class variables nor `self`.
 #[test]
 fn a_raw_two_word_proc_is_a_method_without_the_class_variables() {
+    crate::install();
     let source = jim("class Point {x 0}\nproc {Point move} {dx} { return $dx }\n");
     let result = run(&source, false);
     assert_eq!(findings_of(&result, &source), vec![], "{source}");
@@ -359,6 +373,7 @@ fn a_raw_two_word_proc_is_a_method_without_the_class_variables() {
 /// class command dispatches through the commands named `CLASS *`.
 #[test]
 fn a_two_word_proc_written_before_its_class_is_a_method() {
+    crate::install();
     let source = jim("proc {Point move} {dx} { return $dx }\nclass Point {x 0}\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -375,6 +390,7 @@ fn a_two_word_proc_written_before_its_class_is_a_method() {
 /// constructs is typed and `$copy clone` is a dispatch on the class.
 #[test]
 fn a_method_body_can_construct_its_own_class() {
+    crate::install();
     let source = jim("class Point {x 0}\n\
          Point method clone {} { set copy [Point new]\n return [$copy clone] }\n");
     for per_item in [false, true] {
@@ -393,6 +409,7 @@ fn a_method_body_can_construct_its_own_class() {
 /// class has not declared abstain: any `{CLASS word}` command is a method.
 #[test]
 fn an_object_is_typed_by_its_class_and_its_member_set_is_open() {
+    crate::install();
     let source = jim("class Point {x 0}\nproc {Point move} {dx} { return $dx }\n\
          set p [Point new {x 5}]\nputs [$p move 1]\nputs [$p get x]\nputs [$p undeclared]\n");
     for per_item in [false, true] {
@@ -407,6 +424,7 @@ fn an_object_is_typed_by_its_class_and_its_member_set_is_open() {
 /// and the arity is the procedure's.
 #[test]
 fn a_two_element_proc_name_defines_a_two_word_command_in_every_dialect() {
+    crate::install();
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
         let source = format!(
             "# tcl-dialect: {dialect}\nproc {{a b}} {{x}} {{ return $x }}\n{{a b}} 1\n{{a c}} 1\n{{a b}}\n"
@@ -425,7 +443,7 @@ fn a_two_element_proc_name_defines_a_two_word_command_in_every_dialect() {
 /// a cross-file `NAME new` types its receiver.
 #[test]
 fn the_signature_scan_records_a_jim_class_with_or_without_bases() {
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let generation = resolve_environment("jim").default_context_registry();
     let source = "class Point {x 0}\nclass Point3 Point {z 0}\n";
     let scan = extract_signatures(source, generation.commands());
@@ -454,6 +472,7 @@ puts [$s model]
 /// The whole program is accepted by a `jim` document, on both analyser tiers.
 #[test]
 fn a_jim_program_draws_no_findings() {
+    crate::install();
     let source = jim(JIM_PROGRAM);
     for findings in both_tiers(&source) {
         assert_eq!(findings, vec![], "{source}");
@@ -465,6 +484,7 @@ fn a_jim_program_draws_no_findings() {
 /// `sleep` are Jim's commands, disabled in a Tcl document.
 #[test]
 fn the_same_program_under_tcl_is_rejected() {
+    crate::install();
     let source = tcl86(JIM_PROGRAM);
     for findings in both_tiers(&source) {
         let on =
@@ -489,6 +509,7 @@ fn the_same_program_under_tcl_is_rejected() {
 /// and accepted under `jim`, where its body is walked as the loop body it is.
 #[test]
 fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
+    crate::install();
     let program = "loop i 0 3 { puts $i }\nloop k 2 { puts $k }\n";
     let jim_findings = analyse_with(&jim(program), false);
     assert_eq!(jim_findings, vec![], "{jim_findings:?}");
@@ -515,6 +536,7 @@ fn loop_is_flagged_under_tcl_and_accepted_under_jim() {
 /// or at the top level.
 #[test]
 fn a_jim_unknown_proc_keeps_missing_commands_unreported() {
+    crate::install();
     let source = jim("proc unknown {args} { return UNK }\n\
          loop i 0 3 { not_a_command_anywhere $i }\n\
          puts [not_a_command_anywhere 1]\n");
@@ -528,6 +550,7 @@ fn a_jim_unknown_proc_keeps_missing_commands_unreported() {
 /// would have defined is unknown.
 #[test]
 fn a_tcl_document_has_no_jim_class() {
+    crate::install();
     let source = tcl86("class Point {x 0 y 0}\nset p [Point new]\n");
     let result = run(&source, false);
     assert!(
@@ -563,6 +586,7 @@ fn authored_class_at(
 
 #[test]
 fn authored_jim_dictionary_and_odd_shape_use_the_original_list_fields() {
+    crate::install();
     for per_item in [false, true] {
         let source = jim("class Point {x 0 y 0}\n");
         let result = run(&source, per_item);
@@ -603,6 +627,7 @@ fn authored_jim_dictionary_and_odd_shape_use_the_original_list_fields() {
 
 #[test]
 fn authored_jim_bases_join_the_source_provider_at_the_original_parent() {
+    crate::install();
     let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -629,6 +654,7 @@ fn authored_jim_bases_join_the_source_provider_at_the_original_parent() {
 
 #[test]
 fn authored_jim_computed_lists_keep_unknown_distinct_from_absent() {
+    crate::install();
     let source = jim("class Dyn $bases {x 0}\nclass Vars $vars\n");
     for per_item in [false, true] {
         let result = run(&source, per_item);
@@ -653,6 +679,7 @@ fn authored_jim_computed_lists_keep_unknown_distinct_from_absent() {
 
 #[test]
 fn authored_jim_foreign_source_input_and_replacement_cannot_supply_a_provider() {
+    crate::install();
     let source = jim("class Point {x 0}\nclass Derived Point {z 0}\n");
     let result = run(&source, false);
     let original = authored_class_at(&source, &result, "class Derived");
@@ -691,6 +718,7 @@ fn authored_jim_foreign_source_input_and_replacement_cannot_supply_a_provider() 
 
 #[test]
 fn authored_jim_wrong_and_expanded_layouts_or_replaced_definer_decline() {
+    crate::install();
     for body in [
         "class P",
         "class P a b c",
@@ -716,6 +744,7 @@ fn authored_jim_wrong_and_expanded_layouts_or_replaced_definer_decline() {
 
 #[test]
 fn authored_jim_renamed_provider_keeps_its_source_and_computed_replacement_retires_it() {
+    crate::install();
     let moved = jim("class Point {x 0}\nrename Point Moved\nclass Derived Moved {z 0}\n");
     let moved_result = run(&moved, false);
     let derived = authored_class_at(&moved, &moved_result, "class Derived");
@@ -748,7 +777,7 @@ fn older_jim_retains_positive_logical_source_purpose_without_native_promotion() 
         DialectProfile,
         model::{DialectPoint, Release},
     };
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let profile = DialectProfile::projected_from_point(
         "jim-class-explicit-logical079",
         &[],
@@ -804,7 +833,7 @@ fn nested_jim_headers_retain_the_authentic_conditional_source_parent() {
         DialectProfile,
         model::{DialectPoint, Release},
     };
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let profile = DialectProfile::projected_from_point(
         "jim-class-nested-logical079",
         &[],

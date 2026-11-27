@@ -23,7 +23,6 @@ use crate::arity::Arity;
 use crate::spec::CommandSpec;
 use crate::traits::Traits;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::sync::{PoisonError, RwLock};
 use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceQuery, surface_provided_by};
 
 /// Command names registered by *every* dialect. Backs
@@ -33,8 +32,8 @@ use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceQuery, surface_provid
 /// such as `my` are deliberately absent from it.
 /// Built from the same spec functions [`CommandRegistry::build_default`]
 /// and [`CommandRegistry::load_surface`] draw from, so it stays in lock-step
-/// with the registry's command universe, plus the core-surface specs a crate
-/// above the registry has registered ([`crate::register_core_surface_specs`]).
+/// with the registry's command universe, including the family surfaces
+/// ([`crate::Placement::Family`]).
 #[derive(Clone, Default)]
 pub(super) struct AllDialectCommandNames {
     known: FxHashSet<&'static str>,
@@ -94,36 +93,9 @@ impl AllDialectCommandNames {
     }
 }
 
-/// The command universe: the compiled-in names plus the registered
-/// core-surface specs' (a family's own commands, such as Jim's `loop`), built
-/// once per registered generation.
+/// The command universe of the installed surfaces.
 pub(super) fn all_dialect_command_names() -> &'static AllDialectCommandNames {
-    static WITH_CORE_SURFACE: RwLock<Option<(u64, &'static AllDialectCommandNames)>> =
-        RwLock::new(None);
-    let compiled = super::surfaces::installed().universe();
-    let registered = crate::cache::core_surface_generation();
-    if registered == 0 {
-        return compiled;
-    }
-    let held = WITH_CORE_SURFACE
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .filter(|&(built, _)| built == registered)
-        .map(|(_, names)| names);
-    if let Some(names) = held {
-        return names;
-    }
-    let (generation, specs) = crate::cache::core_surface_specs();
-    let mut merged = compiled.clone();
-    for spec in specs {
-        merged.add(spec);
-    }
-    // One allocation per registered generation, held for the process.
-    let merged: &'static AllDialectCommandNames = Box::leak(Box::new(merged));
-    *WITH_CORE_SURFACE
-        .write()
-        .unwrap_or_else(PoisonError::into_inner) = Some((generation, merged));
-    merged
+    super::surfaces::installed().universe()
 }
 
 /// Whether `spec` may serve as the bare-name fallback for a rooted spelling.

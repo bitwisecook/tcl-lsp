@@ -27,7 +27,7 @@
 use std::sync::OnceLock;
 
 use rustc_hash::FxHashMap;
-use tcl_dialect::model::SurfaceLayer;
+use tcl_dialect::model::{Family, SpecProvider, SurfaceLayer};
 
 use super::lookup::AllDialectCommandNames;
 use crate::definer::DefinitionBodyGrammar;
@@ -62,6 +62,11 @@ pub struct Surface {
     ///
     /// [`CommandRegistry::known_in_any_dialect`]: super::CommandRegistry::known_in_any_dialect
     pub in_universe: bool,
+    /// Registrations outside the registry the surface needs, such as a
+    /// family's inherited-surface roster in the dialect model. Run once by
+    /// the first [`install`] of a list that holds the surface, before that
+    /// install returns.
+    pub on_install: Option<fn()>,
     /// The built specs.
     pub cell: SpecCell,
 }
@@ -85,6 +90,10 @@ pub enum Placement {
     /// A registry whose profile's base layers name a layer with this
     /// layer's provider.
     Layer(SurfaceLayer),
+    /// A core family's own commands: never in a default build, and in a
+    /// registry assembled for a document whose environment has a core family,
+    /// the specs with a core row for that family.
+    Family,
 }
 
 /// A layer over a subset of its surface's specs.
@@ -251,6 +260,24 @@ impl SurfaceSet {
             .specs()
     }
 
+    /// The specs of the [`Placement::Family`] surfaces that have a core row
+    /// for `family`, in install order.
+    #[must_use]
+    pub fn family_specs(&self, family: Family) -> Vec<&'static CommandSpec> {
+        self.surfaces
+            .iter()
+            .filter(|surface| surface.placement == Placement::Family)
+            .flat_map(|surface| surface.specs())
+            .copied()
+            .filter(|spec| {
+                spec.surface.is_some_and(|rows| {
+                    rows.iter()
+                        .any(|row| row.provider == SpecProvider::Core(family))
+                })
+            })
+            .collect()
+    }
+
     /// The installed surface that claims `layer`, and the specs it brings.
     #[must_use]
     pub fn layer(
@@ -382,6 +409,7 @@ impl std::fmt::Display for InstallConflict {
 impl std::error::Error for InstallConflict {}
 
 static INSTALLED: OnceLock<SurfaceSet> = OnceLock::new();
+static INSTALL_HOOKS: OnceLock<()> = OnceLock::new();
 
 fn ids(surfaces: &[&'static Surface]) -> Vec<&'static str> {
     surfaces.iter().map(|surface| surface.id).collect()
@@ -404,6 +432,11 @@ pub fn install(
             .zip(surfaces)
             .all(|(held, offered)| std::ptr::eq(*held, *offered));
     if same {
+        INSTALL_HOOKS.get_or_init(|| {
+            for hook in set.surfaces.iter().filter_map(|surface| surface.on_install) {
+                hook();
+            }
+        });
         Ok(set)
     } else {
         Err(InstallConflict {

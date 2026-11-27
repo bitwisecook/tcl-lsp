@@ -111,7 +111,7 @@ impl LspWorker {
     #[must_use]
     pub fn new(post: js_sys::Function) -> Self {
         console_error_panic_hook::set_once();
-        tcl_registry::install_shipped().expect("the shipped surface set installs");
+        tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
 
         let store = Arc::new(MemoryStore::new());
         let backend_store: Arc<dyn vfs::SourceStore> = store.clone();

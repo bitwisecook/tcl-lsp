@@ -1839,7 +1839,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-lsp-server",
- "tcl-registry",
+ "tcl-spectcl",
  "tower",
  "tower-lsp-server",
  "wasm-bindgen",

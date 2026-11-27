@@ -67,10 +67,10 @@ fn restore() {
 
 #[test]
 fn a_roster_reload_reaches_the_promoted_static_view() {
+    crate::install();
     let _rosters = ROSTERS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    tcl_spectcl::core_surfaces::ensure();
     restore();
     assert!(
         static_context_for("jim")
@@ -102,10 +102,10 @@ fn a_roster_reload_reaches_the_promoted_static_view() {
 /// one intact.
 #[test]
 fn a_roster_reload_leaves_the_environments_it_cannot_reach_alone() {
+    crate::install();
     let _rosters = ROSTERS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    tcl_spectcl::core_surfaces::ensure();
     restore();
     // Two with no ancestry, one fork, and one with no core of its own.
     let unreachable = ["tcl9.0", "expect", "f5-irules", "tk"];

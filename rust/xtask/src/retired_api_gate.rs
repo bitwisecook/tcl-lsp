@@ -451,7 +451,7 @@ const OWNED: &[OwnedPattern] = &[
         owners: &[
             "rust/tcl-registry/src/",
             "rust/tcl-codegen/src/codegen/",
-            "rust/tcl-spectcl/tests/it_2/jim_own_surface.rs",
+            "rust/tcl-spectcl/tests/jim/jim_own_surface.rs",
         ],
     },
     OwnedPattern {

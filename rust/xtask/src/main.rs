@@ -674,7 +674,7 @@ enum Command {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     dispatch(Cli::parse().command)
 }
 

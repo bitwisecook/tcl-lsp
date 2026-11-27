@@ -30,7 +30,11 @@ const PATH: &str = "docs/references/command-spec/evaluation-context-gaps.txt";
 
 pub fn run(check: bool) -> Result<ExitCode> {
     let mut gaps = BTreeSet::new();
-    for pack in tcl_registry::installed().surfaces() {
+    for pack in tcl_registry::installed()
+        .surfaces()
+        .iter()
+        .filter(|pack| pack.is_built())
+    {
         for spec in pack.specs() {
             collect_spec(&mut gaps, pack.id, spec);
         }

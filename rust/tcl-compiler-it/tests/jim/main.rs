@@ -1,0 +1,41 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! `tcl-compiler`'s tests that analyse Jim documents, which need Jim's
+//! compiled-in surface. Each test installs `tcl-spectcl`'s surface list
+//! itself, so this harness installs nothing at start-up. Each module keeps
+//! the path it had in `tcl-compiler`, so a test's name is unchanged.
+
+/// Runs each named test body from `tcl-compiler`'s `test-support` bodies
+/// after installing `tcl-spectcl`'s surfaces, Jim's among them.
+macro_rules! spectcl_seeded_tests {
+    ($bodies:path: $($name:ident),* $(,)?) => {
+        use $bodies as bodies;
+        $(
+            #[test]
+            fn $name() {
+                tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
+                bodies::$name();
+            }
+        )*
+    };
+}
+
+mod analyser;
+mod command_binding;
+mod compilation_unit;

@@ -80,6 +80,7 @@ static TCL: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -94,6 +95,7 @@ static STDLIB: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -108,6 +110,7 @@ static TCLLIB: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -122,6 +125,7 @@ static ARGPARSE: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -136,6 +140,7 @@ static TICKLECHARTS: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -150,6 +155,7 @@ static ITCL: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -166,6 +172,7 @@ static THREAD: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: false,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -180,6 +187,7 @@ static TK: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -194,6 +202,7 @@ static EXPECT: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -208,6 +217,7 @@ static BPF: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -222,6 +232,7 @@ static IRULES: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -236,6 +247,7 @@ static IAPPS: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: None,
     in_universe: true,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -252,6 +264,7 @@ static SPECTCL: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: Some(&crate::definer::SPECTCL_DOCUMENT_GRAMMAR),
     in_universe: false,
+    on_install: None,
     cell: SpecCell::new(),
 };
 
@@ -266,6 +279,7 @@ static SSLICTCL: Surface = Surface {
     hooks: &HookTable::EMPTY,
     document_grammar: Some(&crate::definer::SSLICTCL_DOCUMENT_GRAMMAR),
     in_universe: false,
+    on_install: None,
     cell: SpecCell::new(),
 };
 

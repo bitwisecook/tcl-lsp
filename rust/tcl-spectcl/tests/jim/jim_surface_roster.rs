@@ -86,7 +86,6 @@ const IN_JIM: &[&str] = &[
 ];
 
 fn jim_offers(name: &str) -> bool {
-    tcl_spectcl::core_surfaces::ensure();
     resolve_environment("jim")
         .default_context_registry()
         .resolve_command(name)
@@ -94,7 +93,6 @@ fn jim_offers(name: &str) -> bool {
 }
 
 fn tcl_offers(name: &str) -> bool {
-    tcl_spectcl::core_surfaces::ensure();
     resolve_environment("tcl8.6")
         .default_context_registry()
         .resolve_command(name)
@@ -104,6 +102,7 @@ fn tcl_offers(name: &str) -> bool {
 /// The defect Q6 exists to fix.
 #[test]
 fn a_jim_document_is_not_offered_what_jim_does_not_have() {
+    crate::install();
     for name in NOT_IN_JIM {
         assert!(
             !jim_offers(name),
@@ -117,6 +116,7 @@ fn a_jim_document_is_not_offered_what_jim_does_not_have() {
 /// halves are asserted together.
 #[test]
 fn a_jim_document_keeps_the_surface_jim_does_have() {
+    crate::install();
     for name in IN_JIM {
         assert!(
             jim_offers(name),
@@ -130,6 +130,7 @@ fn a_jim_document_keeps_the_surface_jim_does_have() {
 /// reimplementing descendant, never to a family's own provider.
 #[test]
 fn the_roster_does_not_narrow_the_ancestor_it_enumerates() {
+    crate::install();
     for name in NOT_IN_JIM {
         assert!(
             tcl_offers(name),
@@ -144,6 +145,7 @@ fn the_roster_does_not_narrow_the_ancestor_it_enumerates() {
 /// no export arm — the `object_class` incident's shape.
 #[test]
 fn a_roster_row_survives_export_and_reload() {
+    crate::install();
     let source = "speclib probe 2.0 {\n \
                   include from tcl into jim {set proc}\n \
                   include from tcl into jim -available {0.77-} {interp}\n}";
@@ -162,7 +164,7 @@ fn rooted_source_metadata_uses_the_selected_jim_roster_descriptor() {
         DialectProfile,
         model::{DialectPoint, InvocationRealm, Release},
     };
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let logical = DialectProfile::projected_from_point(
         "jim-rooted-roster-logical079",
         &[],
@@ -211,7 +213,7 @@ fn an_exact_rooted_descriptor_keeps_its_own_inherited_roster_key() {
         surface: Some(tcl_dialect::model::SpecSurface::ALL_TCL),
         ..tcl_registry::CommandSpec::DEFAULT
     };
-    tcl_spectcl::core_surfaces::ensure();
+    crate::install();
     let generation = resolve_environment("jim").default_context_registry();
     let context = generation.context();
     let mut registry = tcl_registry::CommandRegistry::build_default();

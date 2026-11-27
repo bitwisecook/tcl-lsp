@@ -191,13 +191,11 @@ fn equivalence_costs() {
 }
 
 fn main() {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
     tcl_spectcl::demand::enable();
     println!("{:<44} {:>13} {:>12}", "phase", "wall", "rss growth");
-    timed(
-        "core_surfaces::ensure (Jim seed)",
-        tcl_spectcl::core_surfaces::ensure,
-    );
+    timed("core_surfaces::install (Jim seed)", || {
+        tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
+    });
     timed("bundled::load_embedded (no demand: manifests)", || {
         black_box(tcl_spectcl::bundled::load_embedded());
     });

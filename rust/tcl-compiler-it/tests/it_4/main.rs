@@ -22,25 +22,8 @@
 #[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
 mod body_identity;
 
-/// Runs each named test body from `tcl-compiler`'s `test-support` bodies
-/// after `tcl-spectcl` has seeded Jim's compiled-in core surface.
-macro_rules! spectcl_seeded_tests {
-    ($bodies:path: $($name:ident),* $(,)?) => {
-        use $bodies as bodies;
-        $(
-            #[test]
-            fn $name() {
-                tcl_spectcl::core_surfaces::ensure();
-                bodies::$name();
-            }
-        )*
-    };
-}
-
 mod analyser;
 mod cfg;
-mod command_binding;
-mod compilation_unit;
 mod optimiser;
 mod value_transfer_witnesses;
 

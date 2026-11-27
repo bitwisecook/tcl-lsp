@@ -75,7 +75,7 @@ const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     let code = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(WORKER_STACK_SIZE)

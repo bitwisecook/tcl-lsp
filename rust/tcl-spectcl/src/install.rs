@@ -78,9 +78,6 @@ pub fn registry_with_packs(
     profile: &'static DialectProfile,
     packs: &PackSet,
 ) -> Arc<CommandRegistry> {
-    // The compiled-in core surfaces belong to every registry this hands out,
-    // whether or not a pack set has been published.
-    crate::core_surfaces::ensure();
     if packs.key == 0 {
         return std::sync::Arc::clone(
             tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
@@ -300,7 +297,6 @@ pub(crate) fn owned_hook_registry(
     profile: &'static DialectProfile,
     packs: &PackSet,
 ) -> OwnedHookRegistry {
-    crate::core_surfaces::ensure();
     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
     let plan = hooks::plan_for(packs);
     let mut installed = Vec::new();

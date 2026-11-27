@@ -16,15 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The compiled-in core surfaces are in the registry from the first
-//! constructor a consumer calls, before any pack set has been loaded or
-//! published.
+//! The compiled-in core surfaces are in the registry once the entry point has
+//! installed this crate's surface list, before any pack set has been loaded
+//! or published.
 //!
-//! Nothing here calls `core_surfaces::ensure` or `bundled::set_active`: each
-//! test goes through one constructor a consumer already uses to obtain a
-//! registry or a pack set, and then asks a `jim` context the question a
-//! document analysis asks — does this head resolve? — of the assembled
-//! generation.
+//! Nothing here calls `bundled::set_active`: each test installs, goes
+//! through one constructor a consumer already uses to obtain a registry or a
+//! pack set, and then asks a `jim` context the question a document analysis
+//! asks — does this head resolve? — of the assembled generation.
 
 use tcl_registry::model::resolve_environment;
 
@@ -66,9 +65,17 @@ fn assert_jim_starts_with_its_surface() {
     );
 }
 
+/// The install alone, with no constructor after it.
+#[test]
+fn the_install_seeds_the_jim_surface() {
+    crate::install();
+    assert_jim_starts_with_its_surface();
+}
+
 /// The registry a consumer asks for by dialect name.
 #[test]
-fn asking_for_a_registry_by_dialect_seeds_the_jim_surface() {
+fn asking_for_a_registry_by_dialect_keeps_the_jim_surface() {
+    crate::install();
     let _ = tcl_spectcl::bundled::registry_for_dialect("tcl8.6");
     assert_jim_starts_with_its_surface();
 }
@@ -76,14 +83,16 @@ fn asking_for_a_registry_by_dialect_seeds_the_jim_surface() {
 /// The shipped loadables, which a consumer reads for their key without
 /// building a registry.
 #[test]
-fn loading_the_bundled_packs_seeds_the_jim_surface() {
+fn loading_the_bundled_packs_keeps_the_jim_surface() {
+    crate::install();
     let _ = tcl_spectcl::bundled::packs();
     assert_jim_starts_with_its_surface();
 }
 
 /// The installer every pack-carrying registry goes through, given no packs.
 #[test]
-fn installing_no_packs_seeds_the_jim_surface() {
+fn installing_no_packs_keeps_the_jim_surface() {
+    crate::install();
     let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile");
     let _ = tcl_spectcl::install::registry_with_packs(profile, &tcl_spectcl::PackSet::default());
     assert_jim_starts_with_its_surface();

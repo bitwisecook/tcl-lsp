@@ -475,10 +475,10 @@ pub fn default_execution_point_for_profile(profile: &DialectProfile) -> Option<D
         .flatten()
 }
 
-/// The promotion key: the environment's canonical id and the three
+/// The promotion key: the environment's canonical id and the two
 /// generation axes an un-overlaid assembly answers under — the environment
-/// registry's, the surface rosters', and the core-surface specs'.
-type PromotionKey = (String, u64, u64, u64);
+/// registry's and the surface rosters'.
+type PromotionKey = (String, u64, u64);
 
 /// The surface-roster generation `environment`'s answers move with — `0`
 /// for an environment no roster can reach.
@@ -500,7 +500,6 @@ fn promotion_key(environment: &DocumentEnvironment) -> PromotionKey {
         environment.id().to_owned(),
         environment.identity.generation,
         roster_axis_of(environment),
-        crate::cache::core_surface_generation(),
     )
 }
 
@@ -1047,7 +1046,6 @@ mod explicit_profile_snapshot_tests {
             DialectPoint::canonical(Release::JIM_0_84),
             DialectPoint::new(Release::JIM_0_84, BuildProfileId::Unknown),
         ] {
-            let registered_generation = crate::cache::core_surface_generation();
             let profile = DialectProfile::projected_from_point("jim", &[], "Jim", point);
             let arc = context_for_profile(&profile);
             let static_view = static_context_for_profile(&profile);
@@ -1062,12 +1060,7 @@ mod explicit_profile_snapshot_tests {
                 arc.commands().profile().unwrap().cache_key(),
                 profile.cache_key()
             );
-            // Another test may publish a new registered core surface between
-            // these two promotions. Distinct generations correctly have distinct
-            // handles; pointer sharing is required only within the same key.
-            if registered_generation == crate::cache::core_surface_generation() {
-                assert!(std::ptr::eq(arc.as_ref(), static_view));
-            }
+            assert!(std::ptr::eq(arc.as_ref(), static_view));
         }
         let mut profile = resolve_environment("jim").unit_profile().clone();
         profile.grammar.numbers = tcl_dialect::NumberSyntax::Tcl90;

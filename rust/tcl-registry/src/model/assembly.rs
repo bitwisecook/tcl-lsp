@@ -238,7 +238,7 @@ impl ContextRegistry {
         let commands = if let Some(core) = environment.core
             && Some(core.family) != self.context.environment.core.map(|core| core.family)
         {
-            let (_, specs) = crate::cache::core_surface_for(core.family);
+            let specs = crate::registry::surfaces::installed().family_specs(core.family);
             Arc::new(commands.with_core_surface(&specs, &commands))
         } else {
             commands
@@ -367,18 +367,15 @@ impl std::fmt::Debug for ContextRegistry {
 
 /// The generation cache key: the environment's resolved identity
 /// (id, registry generation, overlay hash), the keyed-versions hash, the
-/// pack-overlay content key, the **surface-roster** generation and the
-/// **core-surface** generation.
+/// pack-overlay content key and the **surface-roster** generation.
 ///
-/// The last two move without any environment changing: a pack that declares
-/// only an `include from` roster changes what a generation admits, and a
-/// family's compiled-in own-surface specs change what its store holds, so
-/// the environment registry's own generation would not move and a cached
-/// generation would answer from the surface just replaced.
+/// The last moves without any environment changing: a pack that declares
+/// only an `include from` roster changes what a generation admits, so the
+/// environment registry's own generation would not move and a cached
+/// generation would answer from the roster just replaced.
 type GenerationKey = (
     EnvironmentIdentity,
     Option<tcl_dialect::model::DialectPoint>,
-    u64,
     u64,
     u64,
     u64,
@@ -664,7 +661,6 @@ pub(crate) fn registry_for_environment_with_surfaces(
         keyed.content_hash(),
         overlay,
         roster_axis(environment, &inherited_surfaces),
-        crate::cache::core_surface_generation(),
     );
     if let Some(generation) = cache
         .lock()
@@ -708,7 +704,7 @@ fn prune_overlaid_generations(
 ) {
     const GENERATION_LIMIT: usize = 64;
     if map.len() >= GENERATION_LIMIT {
-        map.retain(|&(_, _, _, overlay, _, _), _| overlay == 0 || overlay == current);
+        map.retain(|&(_, _, _, overlay, _), _| overlay == 0 || overlay == current);
     }
 }
 

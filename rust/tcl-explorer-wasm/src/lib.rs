@@ -34,7 +34,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
 }
 
 /// The explorer's `meta` block (dialect list, view-tab table, severity

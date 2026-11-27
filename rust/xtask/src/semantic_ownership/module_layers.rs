@@ -41,6 +41,8 @@ const TEST_BODIES: &str = "test-support-bodies.tsv";
 const COMPILER: &str = "rust/tcl-compiler/src";
 const UNASSIGNED: &str = "unassigned";
 const FEATURE: &str = "test-support";
+/// Other dev-only features whose test builds duplicate a cone.
+const DEV_FEATURES: &[(&str, &str)] = &[("tcl-registry", "testing")];
 const TOOLING: &[&str] = &["xtask", "xtask-backing"];
 const DUPLICATE_ROOT: &str = "tcl-lsp-server";
 
@@ -771,10 +773,10 @@ impl<'a> Graph<'a> {
         edges
     }
 
-    /// Crates enabling `owner`'s `test-support` feature, each with the
-    /// workspace crates its test build compiles a second time beside a build
-    /// of [`DUPLICATE_ROOT`] (item 296's measure).
-    fn feature_variants(&self, owner: &str) -> Vec<(&'a str, usize)> {
+    /// Crates enabling `owner`'s `feature`, each with the workspace crates
+    /// its test build compiles a second time beside a build of
+    /// [`DUPLICATE_ROOT`] (item 296's measure).
+    fn feature_variants(&self, owner: &str, feature: &str) -> Vec<(&'a str, usize)> {
         let root_cone = self.cones.get(DUPLICATE_ROOT);
         let mut variants = Vec::new();
         for (name, package) in &self.packages {
@@ -782,7 +784,7 @@ impl<'a> Graph<'a> {
                 || !package
                     .dependencies
                     .iter()
-                    .any(|dep| dep.name == owner && dep.features.iter().any(|f| f == FEATURE))
+                    .any(|dep| dep.name == owner && dep.features.iter().any(|f| f == feature))
             {
                 continue;
             }
@@ -1044,11 +1046,20 @@ fn test_support_bodies(
         }
         let src = format!("{}/src", relative.to_string_lossy().replace('\\', "/"));
         let modules = gated_modules(root, krate, &src)?;
-        let variants = graph.feature_variants(krate);
+        let variants = graph.feature_variants(krate, FEATURE);
         for (enabler, duplicated) in &variants {
             notes.push(format!(
                 "{krate}/{FEATURE} from {enabler}: {duplicated} workspace crates built twice beside {DUPLICATE_ROOT}"
             ));
+        }
+        for (owner, feature) in DEV_FEATURES {
+            if owner == krate {
+                for (enabler, duplicated) in graph.feature_variants(krate, feature) {
+                    notes.push(format!(
+                        "{krate}/{feature} from {enabler}: {duplicated} workspace crates built twice beside {DUPLICATE_ROOT}"
+                    ));
+                }
+            }
         }
         if modules.is_empty() {
             continue;

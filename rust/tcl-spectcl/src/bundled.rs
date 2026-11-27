@@ -419,7 +419,6 @@ pub fn packs() -> &'static PackSet {
     {
         return packs;
     }
-    crate::core_surfaces::ensure();
     let packs: &'static PackSet =
         Box::leak(Box::new(resolve_packs(crate::discovery::bundled_dir())));
     *held = Some((generation, packs));

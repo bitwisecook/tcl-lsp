@@ -25,7 +25,7 @@
 #![forbid(unsafe_code)]
 
 fn main() -> std::process::ExitCode {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
     if args
         .get(1)

@@ -1434,6 +1434,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-spec-studio",
+ "tcl-spectcl",
  "wasm-bindgen",
  "zip",
 ]

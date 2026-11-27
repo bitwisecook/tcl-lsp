@@ -16,12 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Seeding the compiled-in core surfaces after a pack set has been published
-//! leaves what the publication registered in place.
+//! A published pack set's roster for Jim's pair replaces the compiled-in one.
 //!
-//! Its own test binary, and deliberately: the roster store is process-wide,
-//! so a test that publishes into it cannot share a process with one that
-//! seeds first. Cargo gives each integration file its own process.
+//! The roster store is process-wide, so this does not share a process with
+//! the `jim` harness, whose tests read the compiled-in roster.
 
 use std::path::PathBuf;
 
@@ -42,10 +40,9 @@ fn jim_admits(head: &str) -> bool {
         .admits(head, None)
 }
 
-/// The publication's roster replaces Jim's compiled-in one for the same
-/// pair, and a seed after it must not put the compiled-in one back.
+/// The publication's roster replaces Jim's compiled-in one for the same pair.
 #[test]
-fn seeding_after_a_publication_keeps_the_published_rosters() {
+fn a_publication_replaces_the_compiled_in_roster_for_its_pair() {
     let pack = PackFile {
         tier: Tier::Bundled,
         path: PathBuf::from("restated.tclspec"),
@@ -59,14 +56,4 @@ fn seeding_after_a_publication_keeps_the_published_rosters() {
     let _ = tcl_spectcl::publish_pack_set(&set);
     assert!(jim_admits(NOT_IN_JIM), "the published roster admits it");
     assert!(!jim_admits(ONLY_IN_THE_COMPILED_IN_ROSTER));
-
-    tcl_spectcl::core_surfaces::ensure();
-    assert!(
-        jim_admits(NOT_IN_JIM),
-        "seeding leaves the published roster in place"
-    );
-    assert!(
-        !jim_admits(ONLY_IN_THE_COMPILED_IN_ROSTER),
-        "seeding does not put the compiled-in roster back"
-    );
 }

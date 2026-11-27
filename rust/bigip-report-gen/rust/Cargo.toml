@@ -109,5 +109,9 @@ js-sys = "0.3"
 name = "bigip-report-gen"
 required-features = ["cli"]
 
+[[test]]
+name = "installs_surfaces"
+required-features = ["cli"]
+
 [lints]
 workspace = true

@@ -122,7 +122,6 @@ const OMITTED: &[&str] = &[
 ];
 
 fn declared() -> Vec<&'static CommandSpec> {
-    tcl_spectcl::core_surfaces::ensure();
     tcl_spectcl::core_surfaces::builtin_commands()
 }
 
@@ -134,7 +133,6 @@ fn own_family(spec: &CommandSpec) -> bool {
 }
 
 fn jim() -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
-    tcl_spectcl::core_surfaces::ensure();
     resolve_environment("jim").default_context_registry()
 }
 
@@ -145,6 +143,7 @@ fn at(release: &str) -> SurfaceQuery<'_> {
 /// The pack declares the measured names and only those.
 #[test]
 fn the_pack_declares_the_measured_names_and_no_others() {
+    crate::install();
     let declared: BTreeSet<&str> = declared().iter().map(|spec| spec.name).collect();
     let measured: BTreeSet<&str> = MEASURED.iter().map(|(name, _, _)| *name).collect();
     assert_eq!(declared, measured);
@@ -157,6 +156,7 @@ fn the_pack_declares_the_measured_names_and_no_others() {
 /// package gate is invented and no window is widened.
 #[test]
 fn every_command_carries_exactly_its_measured_window() {
+    crate::install();
     let specs = declared();
     for (name, first, last) in MEASURED {
         let spec = specs
@@ -192,6 +192,7 @@ const NATIVE_JIM_ROWS: &[&str] = &["alias", "exists"];
 /// row, or for [`NATIVE_JIM_ROWS`] the native Jim row; never Tcl's.
 #[test]
 fn a_jim_document_resolves_every_declared_command() {
+    crate::install();
     let generation = jim();
     for spec in declared() {
         let resolved = generation
@@ -219,6 +220,7 @@ fn a_jim_document_resolves_every_declared_command() {
 /// environment has a command of the same name, it is that environment's own.
 #[test]
 fn no_other_environment_sees_jims_own_rows() {
+    crate::install();
     let jim = jim();
     for environment in [
         "tcl",
@@ -254,6 +256,7 @@ fn no_other_environment_sees_jims_own_rows() {
 /// shape: a `jim` document gets Jim's, a Tcl document keeps Tcl's.
 #[test]
 fn shared_names_resolve_to_each_documents_own_family() {
+    crate::install();
     let jim = jim();
     for name in ["tcl::prefix", "parray", "timerate"] {
         let jims = jim
@@ -282,6 +285,7 @@ fn shared_names_resolve_to_each_documents_own_family() {
 /// position that runs a script is declared at each.
 #[test]
 fn a_loop_body_is_declared_at_each_arity() {
+    crate::install();
     let generation = jim();
     let store = generation.commands();
     let body = |args: &[&str]| store.arg_indices_for_role("loop", args, ArgRole::Body);
@@ -296,6 +300,7 @@ fn a_loop_body_is_declared_at_each_arity() {
 /// a 0.81 addition and the others span the whole ladder.
 #[test]
 fn the_bare_limit_loop_form_starts_at_0_81() {
+    crate::install();
     let specs = declared();
     let spec = specs
         .iter()
@@ -326,6 +331,7 @@ fn the_bare_limit_loop_form_starts_at_0_81() {
 /// word is a script to walk.
 #[test]
 fn class_carries_the_jim_class_grammar_and_no_body_word() {
+    crate::install();
     let specs = declared();
     let class = specs
         .iter()
@@ -358,6 +364,7 @@ fn class_carries_the_jim_class_grammar_and_no_body_word() {
 /// the roster lists.
 #[test]
 fn both_resolution_paths_apply_the_roster() {
+    crate::install();
     let generation = jim();
     let store = generation.commands();
     for absent in ["coroutine", "yield", "trace", "chan", "case"] {
@@ -386,6 +393,7 @@ fn both_resolution_paths_apply_the_roster() {
 /// them from a family whose math operators are not command heads.
 #[test]
 fn arithmetic_command_forms_are_visible_to_jim() {
+    crate::install();
     let generation = jim();
     for name in ["+", "-", "*", "/"] {
         assert!(generation.resolve_command(name).is_some(), "{name}");
@@ -428,6 +436,7 @@ fn a_pack_set() -> tcl_spectcl::PackSet {
 /// set's key reads that same store.
 #[test]
 fn a_pack_carrying_jim_store_keeps_jims_own_surface() {
+    crate::install();
     let profile = tcl_spectcl::environment::profile_for_dialect("jim");
     let packs = a_pack_set();
     assert!(!packs.is_empty(), "the probe pack loads");

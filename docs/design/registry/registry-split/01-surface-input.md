@@ -490,18 +490,83 @@ The step moves no code between crates, so the cost is unchanged by design
 (the 6% difference is within run-to-run noise on this shared machine); steps
 263 and 264 are what move it.
 
-**Not done in this step.**
+**Not done in this step.** Jim's side door and the remaining entry-point
+tests were done next (below).
 
-- *Jim's side door (work list 5).* `register_core_surface_specs`,
-  `core_surface_generation` and `tcl_spectcl::core_surfaces::ensure` remain.
-  Making Jim a `Registered` surface means the install lists differ by entry
-  point (the ones that link `tcl-spectcl` add it), so `testing` needs a
-  list-taking `install!` and the Jim tests in `tcl-spectcl` and
-  `tcl-compiler-it` move to it. That is the next part of 262.
-- *Entry-point tests* for `tcl-lsp-server` (its e2e suite spawns the binary
-  and fails without the install, but has no dedicated test), `tcl-mcp`,
-  `tcl-fuzz`, `sslictcl-data`, `bigip-report-gen`, `xtask` and
-  `xtask-backing` (exercised by `make xtask-gates`), and the WASM and Python
-  hosts, which this container cannot build (no `wasm32-unknown-unknown`
-  target).
 - Open question 1 stands: `thread` and `sslictcl` keep `in_universe: false`.
+
+## As built, part 3 onward (27 November 2026)
+
+**Jim's side door is gone (work list 5).** `Placement::Family` is a fourth
+placement: never in a default build, and in a registry assembled for a
+document whose environment has a core family, the specs with a core row for
+that family (`SurfaceSet::family_specs`). `tcl_spectcl::core_surfaces::JIM` is
+a `Registered` surface with that placement, counted in the W002 universe and
+absent from provenance, as before. `tcl_spectcl::core_surfaces::SURFACES` is
+`SHIPPED` plus `JIM`, and `core_surfaces::install()` installs it.
+`register_core_surface_specs`, `core_surface_generation`,
+`register_builtin_commands` and `core_surfaces::ensure` are deleted, and with
+them the core-surface generation in the promotion, generation and
+core-surface-store cache keys: the installed set does not change in a
+process. A `Surface` gains `on_install`, run once by the first install of a
+list that holds it; Jim's seeds its rosters into the dialect model, which is
+the roster half of the old `ensure`. Pack publication still folds the rosters
+in with each set's own.
+
+Every entry point that links `tcl-spectcl` installs `SURFACES`: `tcl`,
+`tcl-lsp-server` (its `initialize` handler no longer seeds anything),
+`tcl-mcp`, `xtask`, the two `tcl-spectcl` examples, and the WASM and WASI
+hosts of the server, the explorer and Spec Studio (which gain a direct
+`tcl-spectcl` dependency; CI-verified, this container has no
+`wasm32-unknown-unknown` target). The rest install `SHIPPED` as before. A
+process that links `tcl-spectcl` but installs `SHIPPED` has no Jim commands
+and no Jim rosters; that is the entry point's choice, not a reader's.
+
+**The Jim tests install their own list.** `tcl-spectcl/tests/jim/` and
+`tcl-compiler-it/tests/jim/` are harnesses with no start-up install: each test
+installs `SURFACES` first. The `tcl-spectcl` Jim modules moved there from
+`it_2` and `it_4`; the `tcl-compiler-it` `spectcl_seeded_tests!` bodies moved
+from `it_4`. `tcl-registry/tests/family_surface.rs` installs `SHIPPED` plus a
+probe family surface and replaces the registry's own core-surface unit tests
+(the pack-row ranking test stays a unit test over the store builder).
+
+**Ordering rule.** A process installs one list. A test that needs a list
+other than its harness's lives in a harness whose every test installs that
+list before its first registry read; a second, different install is an
+`InstallConflict`.
+
+**Entry-point tests (work list 6).** `tests/installs_surfaces.rs` now also
+exists for `tcl-lsp-server` (initialize, open a document, wait for its
+diagnostics), `tcl-mcp` (call `analyze`), `tcl-fuzz` (`bpf-diff`, one
+iteration), `sslictcl-data` (`testssl-to-dsl` on the shared sample),
+`bigip-report-gen` (a configuration with an iRule, `--json`; built with
+`cli`), `xtask` (`evaluation-contexts --check`) and `xtask-backing`
+(`command-backing --check`). Each runs the binary from a harness that
+installs nothing. The WASM and Python hosts are CI-verified. Every
+`installs_surfaces`, `install_contract`, `family_surface` and `jim` harness is
+in `scripts/dev/rust-test-binary-shards.tsv`.
+
+**The start-up hook (part 3) is not replaced yet.** The owner rejected the
+constructor-section hook and chose a `testing` cargo feature, enabled from
+`[dev-dependencies]`, whose uninstalled read installs `SHIPPED`. Measured
+before building it, with `module-layers`' duplicate measure over the 39
+workspace crates whose harnesses carry the hook line: every workspace crate
+in `tcl-lsp-server`'s cone that reaches `tcl-registry` (17 of 17) would be
+built twice, once with the feature for tests and once without for the
+binary; 15 of 15 for `xtask` (so `make xtask-gates` after a test run rebuilds
+the compiler stack) and 16 of 16 for `tcl`. Resolver 2 also unifies a
+dev-dependency feature into the binaries a package's own tests run, so under
+`cargo test` every `installs_surfaces` binary would carry the fallback and the
+tests could not see a missing install. The hook stays until the owner
+chooses between the feature with that cost and an environment-variable gate
+(below).
+
+**The proposed alternative.** No cargo feature: an uninstalled `installed()`
+installs `SHIPPED` when an environment variable is set, and panics with
+`NOT_INSTALLED` otherwise. The repository's `.cargo/config.toml` `[env]`
+table sets it, so `cargo test`, nextest and doctests get the fallback with no
+harness line and no second build; a binary run outside cargo never sees it.
+The `installs_surfaces` tests and `install_contract` start their child
+processes with the variable removed, so they still see a missing install. The
+cost is that `cargo run` of a binary also falls back, so a missing install in
+an entry point shows only in that entry point's own test.

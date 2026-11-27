@@ -161,7 +161,7 @@ fn tool_list_result(tools: Vec<Tool>, supports_cache_hints: bool) -> ListToolsRe
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(WORKER_STACK_SIZE)

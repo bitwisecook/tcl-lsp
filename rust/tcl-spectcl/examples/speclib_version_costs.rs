@@ -112,7 +112,7 @@ fn delta(was: Duration, now: Duration) -> String {
 }
 
 fn main() {
-    tcl_registry::install_shipped().expect("the shipped surface set installs");
+    tcl_spectcl::core_surfaces::install().expect("the tcl-spectcl surface list installs");
     let runs: usize = std::env::args()
         .skip_while(|arg| arg != "--runs")
         .nth(1)

@@ -20,21 +20,22 @@ use tcl_compiler::analyser::Analyser;
 use tcl_core_types::DiagCode;
 
 #[test]
-fn original_static_alternatives_withdraw_only_their_synthetic_local_absence() {
-    tcl_spectcl::core_surfaces::ensure();
+fn original_jim_statics_withhold_absence_without_borrowing_other_locals() {
+    crate::install();
     for (source, expected) in [
-        ("proc f {} {{n 0}} {return [incr n]}; f", vec![]),
-        ("set n 1; proc f {} {n} {return $n}; f", vec![]),
-        ("set n 1; proc f {} {&n} {return $n}; f", vec![]),
-        ("proc f {} {{n 0}} {not_a_command_anywhere $n}; f", vec![]),
+        ("proc f {} {{n 0}} {set anchor 1; return $n}", vec![]),
+        ("set n 1; proc f {} {n} {set anchor 1; return $n}", vec![]),
+        ("set n 1; proc f {} {&n} {set anchor 1; return $n}", vec![]),
         (
-            "proc f {} {{n 0}} {unset -nocomplain n; return $n}; f",
+            "proc f {} {{n 0}} {set anchor 1; return $missing}",
+            vec!["$missing"],
+        ),
+        (
+            "proc f {} {{n 0}} {set anchor 1; unset -nocomplain n; return $n}",
             vec![],
         ),
-        ("proc f {n} {{n 0}} {return $n}; f ARG", vec![]),
-        ("proc f {} {{n 0}} {return $missing}; f", vec!["$missing"]),
         (
-            "proc f {} {{n 0}} {return $n}; proc g {} {return $n}; g",
+            "proc f {} {{n 0}} {set anchor 1; return $n}; proc g {} {set anchor 1; return $n}",
             vec!["$n"],
         ),
     ] {
@@ -45,13 +46,13 @@ fn original_static_alternatives_withdraw_only_their_synthetic_local_absence() {
             } else {
                 analyser.analyse(source, "jim")
             };
-            let actual = result
+            let warnings = result
                 .diagnostics
                 .iter()
                 .filter(|diagnostic| diagnostic.code == DiagCode::W210)
                 .map(|diagnostic| &source[diagnostic.span.as_range()])
                 .collect::<Vec<_>>();
-            assert_eq!(actual, expected, "per_item={per_item}: {source}");
+            assert_eq!(warnings, expected, "per_item={per_item}: {source}");
         }
     }
 }

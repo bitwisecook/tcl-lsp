@@ -47,22 +47,18 @@
 //! ## Where the commands go
 //!
 //! A roster narrows an ancestor's surface and registers with the dialect
-//! model ([`builtin_rosters`]). Commands register with the registry
-//! ([`builtin_commands`]) as a family's own compiled-in surface, not as a
-//! pack overlay: an overlay is built per pack set and reaches only the
-//! catalogue profiles, while a `jim` document is served by a store of its
-//! own family that must carry these commands whatever pack set is loaded.
+//! model ([`builtin_rosters`]). Commands reach the registry as [`JIM`], a
+//! [`Placement::Family`] surface, not as a pack overlay: an overlay is built
+//! per pack set and reaches only the catalogue profiles, while a `jim`
+//! document is served by a store of its own family that must carry these
+//! commands whatever pack set is loaded.
 //!
 //! ## Ordering
 //!
-//! [`ensure`] seeds the dialect model and the registry once per process and
-//! costs a lock and a flag after that. Every path that hands a consumer a
-//! registry or a pack set goes through it — [`crate::install::registry_with_packs`],
-//! [`crate::bundled::packs`], [`crate::registration::publish_pack_set`] — and
-//! the language server calls it in its `initialize` handler, before any
-//! client message can open a document. A document analysed before the first
-//! pack set is loaded therefore sees the surface a document analysed after
-//! it does.
+//! An entry point that links this crate installs [`SURFACES`] ([`install`])
+//! before its first registry read. The install seeds the rosters through
+//! [`JIM`]'s install hook, so a document analysed before the first pack set
+//! is loaded sees the surface a document analysed after it does.
 //!
 //! [`crate::registration::publish_pack_set`] folds these rosters in with
 //! whatever the loaded set declares, so the model-side sync (which replaces
@@ -72,7 +68,11 @@
 use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 use tcl_dialect::model::{InheritedSurface, InheritedSurfaceRegistration, Provenance};
+use tcl_registry::commands::SHIPPED;
 use tcl_registry::spec::CommandSpec;
+use tcl_registry::{
+    HookTable, InstallConflict, Placement, SpecCell, SpecSource, Surface, SurfaceSet,
+};
 
 use crate::loader::{Pack, PackSurfaceRoster};
 
@@ -156,16 +156,47 @@ pub fn builtin_commands() -> Vec<&'static CommandSpec> {
         .collect()
 }
 
-/// Register the compiled-in commands with the registry as their families' own
-/// surface. Registering the set again changes nothing.
-///
-/// Returns the registry's core-surface generation after the call.
-#[must_use]
-pub fn register_builtin_commands() -> u64 {
-    tcl_registry::register_core_surface_specs(builtin_commands())
+/// Jim's own commands, as the registry's [`Placement::Family`] surface.
+pub static JIM: Surface = Surface {
+    id: "jim",
+    label: "Jim core",
+    blurb: "The commands Jim adds to what it inherits from Tcl.",
+    source_dir: "rust/tcl-spectcl/core-surfaces",
+    specs: SpecSource::Registered(builtin_commands),
+    placement: Placement::Family,
+    views: &[],
+    hooks: &HookTable::EMPTY,
+    document_grammar: None,
+    in_universe: true,
+    on_install: Some(seed_builtin_rosters),
+    cell: SpecCell::new(),
+};
+
+const fn with_jim<const N: usize>(shipped: &'static [&'static Surface]) -> [&'static Surface; N] {
+    let mut surfaces = [&JIM; N];
+    let mut index = 0;
+    while index < shipped.len() {
+        surfaces[index] = shipped[index];
+        index += 1;
+    }
+    surfaces
 }
 
-/// Whether the compiled-in rosters and commands have been registered.
+/// The surfaces an entry point that links this crate installs: the shipped
+/// list and [`JIM`].
+pub static SURFACES: [&Surface; SHIPPED.len() + 1] = with_jim(SHIPPED);
+
+/// Install [`SURFACES`], which also seeds Jim's rosters into the dialect
+/// model.
+///
+/// # Errors
+///
+/// [`InstallConflict`] when a different list is already installed.
+pub fn install() -> Result<&'static SurfaceSet, InstallConflict> {
+    tcl_registry::install(&SURFACES)
+}
+
+/// Whether the compiled-in rosters have been registered.
 ///
 /// Held across each registration as well as read, so a seed and a
 /// publication never interleave: whichever runs second sees the flag and the
@@ -176,33 +207,26 @@ fn seeded() -> MutexGuard<'static, bool> {
     SEEDED.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Register the compiled-in rosters followed by `pack_rosters`, and the
-/// compiled-in commands, and record that both are in.
+/// Register the compiled-in rosters followed by `pack_rosters`, and record
+/// that they are in.
 fn seed(seeded: &mut bool, pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
     let mut rosters = builtin_rosters();
     rosters.extend(pack_rosters);
     let outcome = tcl_dialect::model::register_inherited_surfaces(rosters);
-    let _ = register_builtin_commands();
     *seeded = true;
     outcome
 }
 
 /// Register the compiled-in rosters together with the ones a pack set
-/// declares, replacing the model's whole roster store, and the compiled-in
-/// commands with the registry.
+/// declares, replacing the model's whole roster store.
 pub(crate) fn register_with(pack_rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
     seed(&mut seeded(), pack_rosters)
 }
 
-/// Register the compiled-in rosters and commands, if nothing has registered
-/// them yet.
-///
-/// The compiled-in surface is part of the state a process starts from, so
-/// every constructor that hands out a registry calls this rather than leaving
-/// it to whichever consumer happens to publish a pack set. A call after a
-/// publication changes nothing: the publication registered the same rosters
+/// [`JIM`]'s install hook: register the compiled-in rosters unless a
+/// publication already has. A publication registers the same rosters
 /// alongside the set's own.
-pub fn ensure() {
+fn seed_builtin_rosters() {
     let mut seeded = seeded();
     if !*seeded {
         let _ = seed(&mut seeded, Vec::new());
@@ -302,15 +326,15 @@ mod tests {
         );
     }
 
-    /// The commands register once: the same set again is the same
-    /// generation, so republishing a pack set does not invalidate every jim
-    /// registry generation.
+    /// The compiled-in commands are prepared once: every read hands out the
+    /// same rows, which the installed surface shares.
     #[test]
-    fn registering_the_compiled_in_commands_is_idempotent() {
-        let first = register_builtin_commands();
-        assert_eq!(register_builtin_commands(), first);
-        ensure();
-        assert_eq!(register_builtin_commands(), first);
+    fn the_compiled_in_commands_are_one_set_of_rows() {
+        let first = builtin_commands();
+        let again = builtin_commands();
+        assert!(!first.is_empty());
+        assert_eq!(first.len(), again.len());
+        assert!(first.iter().zip(&again).all(|(a, b)| std::ptr::eq(*a, *b)));
     }
 
     /// The two names that arrived mid-ladder keep their windows through

@@ -65,6 +65,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-spectcl = { path = "../tcl-spectcl" }
 # For the Pack DSL editor's client-side highlight/hover (`dsl_highlight.rs`):
 # the real Tcl lexer, so the `.tclspec` overlay editor tokenises with the same
 # lexer the rest of the toolchain does rather than a hand-rolled scanner.

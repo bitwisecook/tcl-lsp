@@ -21,19 +21,10 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
-mod disabled_command_wording;
 mod export;
 mod extension_routes;
 mod i6_security_floor;
-mod jim_authored_call;
-mod jim_core_metadata_identity;
-mod jim_document;
-mod jim_generation_zero;
-mod jim_own_surface;
 mod jim_seed_after_publish;
-mod jim_static_read_alternatives;
-mod jim_static_source_uncertainty;
 mod pack_torture;
-mod roster_reload_static_view;
 
 tcl_registry::testing::install_shipped!();

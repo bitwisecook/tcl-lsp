@@ -218,7 +218,6 @@ fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()
 /// includes both its own commands and native variants of inherited commands,
 /// such as `catch`'s completion-switch-dependent body position.
 fn collect_core_surface_commands(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()> {
-    tcl_spectcl::core_surfaces::ensure();
     let profile = crate::environment::profile_for_dialect("jim");
     let registry = crate::environment::store_for_profile(profile);
     let mut names: Vec<_> = registry.command_names().collect();

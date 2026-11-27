@@ -463,8 +463,7 @@ pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::{BodyInterpreter, BodyKind};
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{
-    core_surface_generation, default_registry, overlay_epoch, register_core_surface_specs,
-    registry_for_profile_with_overlay, safe_interp_hidden_commands,
+    default_registry, overlay_epoch, registry_for_profile_with_overlay, safe_interp_hidden_commands,
 };
 pub use channel_configuration::{AuthoredSourceChannelConfiguration, ChannelConfigurationSpec};
 pub use clause_grammar::{

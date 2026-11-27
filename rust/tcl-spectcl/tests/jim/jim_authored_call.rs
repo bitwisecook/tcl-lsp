@@ -22,7 +22,6 @@ use tcl_compiler::registry_invocation::source_structure::{
     source_authored_jim_call_at, source_class_declaration_at,
 };
 fn run(source: &str, per_item: bool) -> AnalysisResult {
-    tcl_spectcl::core_surfaces::ensure();
     let dialect = tcl_registry::dialects::detect_dialect(source, None, "tcl");
     let mut analyser = Analyser::new();
     if per_item {
@@ -33,6 +32,7 @@ fn run(source: &str, per_item: bool) -> AnalysisResult {
 }
 #[test]
 fn an_authored_call_retains_its_original_class_without_native_identity() {
+    crate::install();
     let source = "# tcl-dialect: jim\nclass Point {x 0 y 0}\nPoint new\n";
     for per_item in [false, true] {
         let result = run(source, per_item);
@@ -70,6 +70,7 @@ fn an_authored_call_retains_its_original_class_without_native_identity() {
 }
 #[test]
 fn callbacks_deferred_calls_missing_cells_and_foreign_dialects_refuse() {
+    crate::install();
     for source in [
         "# tcl-dialect: jim\nclass Point {x 0}\nPoint [unknown_callback]\n",
         "# tcl-dialect: jim\nclass Point {x 0}\nproc f {} { Point new }\n",
@@ -88,6 +89,7 @@ fn callbacks_deferred_calls_missing_cells_and_foreign_dialects_refuse() {
 }
 #[test]
 fn earlier_unknown_effects_remain_explicit_conditional_debt() {
+    crate::install();
     let source = "# tcl-dialect: jim\nclass Point {x 0}\nunknown_callback\nPoint new\n";
     for per_item in [false, true] {
         let result = run(source, per_item);
