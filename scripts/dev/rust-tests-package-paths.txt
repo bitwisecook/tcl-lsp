@@ -12,6 +12,7 @@ rust/f5-xc
 rust/tcl-bigip
 rust/tcl-bigip-io
 rust/tcl-bigip-query
+rust/tcl-bigip-schema
 rust/tcl-bytecode
 rust/tcl-bytecode-tables
 rust/tcl-cli
@@ -50,6 +51,7 @@ rust/tcl-regex
 rust/tcl-registry
 rust/tcl-runtime-api
 rust/tcl-sandbox
+rust/tcl-source
 rust/tcl-spec-hooks
 rust/tcl-spec-studio
 rust/tcl-spectcl
@@ -60,7 +62,7 @@ rust/tcl-userdirs
 rust/tcl-value-syntax
 rust/tcl-version
 rust/tcl-vm
-rust/tcl-vm-it
 rust/tcl-vm-cli
+rust/tcl-vm-it
 rust/xtask
 rust/xtask-backing

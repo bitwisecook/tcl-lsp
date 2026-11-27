@@ -6,6 +6,7 @@ runtime/rust
 rust/f5-xc
 rust/tcl-bigip
 rust/tcl-bigip-query
+rust/tcl-bigip-schema
 rust/tcl-bytecode
 rust/tcl-bytecode-tables
 rust/tcl-cmd-core
@@ -31,6 +32,7 @@ rust/tcl-platform
 rust/tcl-regex
 rust/tcl-registry
 rust/tcl-runtime-api
+rust/tcl-source
 rust/tcl-spec-hooks
 rust/tcl-spectcl
 rust/tcl-sslictcl

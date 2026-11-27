@@ -59,8 +59,10 @@ Clippy configuration pass in the latest full-gate run
 The latest full Rust gate also passes all 4 offline x509 tests and runtime
 Clippy, then stops on the pre-existing truncated licence notice in
 `rust/tcl-vm-cli/tests/library_init.rs`; that notice is now repaired.
-The initial two moved documentation lint errors are corrected. Architecture
-gates, the moved SpecTcl parity tests and `prep-pr` remain to run. Development
+The initial two moved documentation lint errors are corrected. The architecture gate then exposed missing new-crate entries in the CI path
+closures. Python, root Rust-test, LSP-e2e and SpecTcl classifiers now include
+the new owners, and all four classifier contracts pass. Architecture
+gates, the moved SpecTcl parity tests and `prep-pr` remain in progress. Development
 pushes use the explicit `work` exception; all full gates remain required
 before a PR.
 
