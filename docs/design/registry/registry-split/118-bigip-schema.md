@@ -169,6 +169,45 @@ rows stay `&'static`, built once in a `LazyLock`, so no consumer changes.
   | `f5-query` start-up and first base-object lookup | within noise of today for 118a; recorded for 118b |
   | `bigip-query-wasm` and `tcl-lsp-server` binary size | recorded for open question 2 |
 
+## As built: 118a's rebuild cost (27 November 2026)
+
+118a landed in `ea249768` as designed: the three trees moved unchanged,
+`tcl-registry` has no edge to `tcl-bigip-schema`, including dev-dependencies,
+and the crate's only direct dependants are `tcl-bigip`, `tcl-bigip-query`
+and `xtask`.
+
+**What a schema edit rebuilds.** Before the move, the schema was part of
+`tcl-registry`, so an edit to it rebuilt the registry's whole reverse cone.
+After it, an edit rebuilds the schema crate's cone. The package lists come
+from each revision's `Cargo.lock`, with every dependency kind, so they are
+what `cargo test --workspace` rebuilds:
+
+| | local packages rebuilt | of 62 or 64 local packages |
+|---|---|---|
+| before (`ea249768^`, an edit in `tcl-registry`) | 40 | 62 |
+| after (an edit in `tcl-bigip-schema`) | 20 | 64 |
+
+The 20 are `tcl-bigip-schema`, `tcl-bigip`, `tcl-bigip-io`,
+`tcl-bigip-query`, `bigip-report-gen-rust`, `f5-cli`, `f5-xc`, `tcl-cli`,
+`tcl-cli-support`, `tcl-compiler-it`, `tcl-explorer`, `tcl-irule-test`,
+`tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-db-it`, `tcl-lsp-server`, `tcl-mcp`,
+`tcl-spec-studio`, `tcl-spectcl` and `xtask`. The 20 that drop out include
+`tcl-registry`, `tcl-compiler`, `tcl-codegen`, `tcl-vm`, `tcl-runtime` and
+`tcl-vm-it`.
+
+**Wall time.** `cargo check --workspace --all-targets`, warm dev target,
+`CARGO_INCREMENTAL=0`, after appending one comment line, on the shared
+agent machine:
+
+| Edit | packages checked | seconds |
+|---|---|---|
+| `tcl-bigip-schema/src/bigip/mod.rs` (after) | 20 | 61 |
+| `tcl-registry/src/lib.rs` (today's registry, without the schema) | 39 | 123 |
+
+Before the move, a schema edit cost at least the second row, plus
+recompiling the 171k schema lines inside `tcl-registry`. A cold
+`--timings` build of the schema crate (open question 1) was not measured.
+
 ## Risks
 
 - **A hidden registry reader.** Something in the registry reaching the schema
