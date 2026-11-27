@@ -182,3 +182,65 @@ def test_a_failed_scan_cannot_supply_editor_latency_samples(
     ):
         assert rows.rows[f"workspace.small.{metric}"]["status"] == "unavailable"
         assert "p95_ms" not in rows.rows[f"workspace.small.{metric}"]
+
+
+def test_hard_timeout_stops_repeating_a_stalled_operation() -> None:
+    attempts = []
+
+    def stalled():
+        attempts.append(True)
+        raise TimeoutError("no complete response")
+
+    rows = tool.Measurements()
+    rows.observe("point", stalled, bool, 20)
+    row = rows.rows["point"]
+    assert len(attempts) == row["attempts"] == 1
+    assert row["requested"] == 20
+    assert row["accepted"] == 0
+    assert "p95_ms" not in row
+
+
+def write_case(root, case, revision="fixture", **changes):
+    part = {
+        "schema": tool.SCHEMA,
+        "case": case,
+        "revision": revision,
+        "profile": "release",
+        "dialect": "tcl8.6",
+        "host": {"case": case},
+        "configuration": {"samples": 20},
+        "notes": [],
+        "rows": tool.Measurements().rows,
+    }
+    part.update(changes)
+    target = root / case
+    target.mkdir()
+    (target / "baseline.json").write_text(json.dumps(part))
+
+
+def test_merge_preserves_case_ownership_and_marks_missing_cases(tmp_path):
+    write_case(
+        tmp_path,
+        "small",
+        rows={"workspace.small.cold_ms": {"status": "measured", "p95_ms": 7}},
+    )
+    write_case(tmp_path, "large")
+    result = tool.merge_results(tmp_path, "fixture")
+    assert result["rows"]["workspace.small.cold_ms"]["p95_ms"] == 7
+    assert result["missing_cases"] == ["engines", "source", "tcllib"]
+    assert result["hosts"] == {"small": {"case": "small"}, "large": {"case": "large"}}
+    assert result["rows"]["workspace.source.cold_ms"]["status"] == "unavailable"
+    assert result["rows"]["size.server.native.bytes"]["status"] == "unavailable"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [{"revision": "other"}, {"configuration": {"samples": 1}}, {"profile": "debug"}],
+)
+def test_merge_rejects_incomparable_runs(tmp_path, changes):
+    write_case(tmp_path, "small")
+    write_case(tmp_path, "large", **changes)
+    with pytest.raises(
+        ValueError, match="different revisions or benchmark configurations"
+    ):
+        tool.merge_results(tmp_path, "fixture")

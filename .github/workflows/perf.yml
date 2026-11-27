@@ -170,11 +170,11 @@ jobs:
           { echo "## Interpreter instructions per iteration"; echo; cat "$RUNNER_TEMP/table.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
-  split-baseline:
+  split-baseline-build:
     # Item 106a records measurements only; budget enforcement belongs to 106.
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'split-baseline'
     runs-on: ubuntu-26.04
-    timeout-minutes: 120
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,24 +186,78 @@ jobs:
           cache-key: perf-split-baseline
       - name: Build release benchmark binaries
         run: cargo build --locked --release -p tcl-lsp-server -p tcl-vm-cli
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: split-binaries-${{ github.run_id }}
+          path: |
+            target/release/tcl-lsp-server
+            target/release/tclvm
+          retention-days: 1
+
+  split-baseline:
+    needs: split-baseline-build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [small, large, source, tcllib, engines]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: split-binaries-${{ github.run_id }}
+          path: build/bin
       - name: Fetch and verify Tcllib 2.0
+        if: matrix.case == 'tcllib'
         run: bash scripts/dev/ensure-test-deps.sh --tcllib-only
-      - name: Record the Now-1 baseline
+      - name: Record the Now-1 case
         run: |
+          chmod +x build/bin/tcl-lsp-server build/bin/tclvm
           python3 scripts/perf/split_baseline.py \
-            --server target/release/tcl-lsp-server \
-            --vm target/release/tclvm \
+            --server build/bin/tcl-lsp-server \
+            --vm build/bin/tclvm \
             --tcllib tmp/tcllib-2.0 \
+            --case "${{ matrix.case }}" \
             --revision "$(git rev-parse HEAD)" \
             --out build/split-baseline
           cat build/split-baseline/baseline.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Preserve baseline measurements
+      - name: Preserve case measurements
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: split-baseline-${{ github.run_id }}
+          name: split-baseline-${{ github.run_id }}-${{ matrix.case }}
           path: build/split-baseline
           if-no-files-found: warn
+          retention-days: 90
+
+  split-baseline-combine:
+    if: always() && needs.split-baseline-build.result == 'success'
+    needs: [split-baseline-build, split-baseline]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: split-baseline-${{ github.run_id }}-*
+          path: build/cases
+      - name: Combine completed case measurements
+        run: |
+          python3 scripts/perf/split_baseline.py \
+            --merge build/cases --revision "$(git rev-parse HEAD)" \
+            --out build/split-baseline
+          cat build/split-baseline/baseline.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: split-baseline-${{ github.run_id }}
+          path: build/split-baseline
           retention-days: 90
 
   benchmark:

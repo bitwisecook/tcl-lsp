@@ -26,6 +26,14 @@ run separates scan from request timeouts (600 seconds for workspaces, within
 the 1,800-second Tcllib budget), requires successful scan readiness before
 editor queries, and makes the source formatting fixture require an edit.
 Its results must replace this table before 106a is complete.
+The corrected run [45989805533](https://github.com/bitwisecook/tcl-lsp/actions/runs/45989805533)
+built successfully but its runner shut down during measurement (exit 143),
+before artifact upload. Cases now run in separate jobs using the same native
+release binaries; each uploads independently, and a combining job retains
+per-case host metadata and explicitly marks missing cases. A hard request
+timeout ends its sample loop instead of repeating the stalled operation.
+All 15 harness contract tests and Python lint checks pass. No new phase
+instrumentation or release-package builds are included.
 
 | Measurement | Small (6 lines) | Large (10,000 lines) | Source (9 lines across 2 files) |
 |---|---:|---:|---:|

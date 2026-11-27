@@ -42,7 +42,8 @@ from bench import REPO_ROOT, host_info, initialize
 from dialect_pair_bench import DialectClient, rss_kib, semantic_tokens
 from interp_instructions import BENCHMARKS, engine_command, render
 
-SCHEMA = 1
+SCHEMA = 2
+CASES = ("small", "large", "source", "tcllib", "engines")
 ARTEFACTS = (
     "server.native",
     "server.wasm",
@@ -111,6 +112,10 @@ class Measurements:
                 for metric in WORKSPACE_METRICS
             },
             "tcllib.end_to_end_ms": unavailable("Measurement not reached"),
+            **{
+                f"engine.tclvm.{source.stem}_ms": unavailable("Measurement not reached")
+                for source in BENCHMARKS.glob("*.tcl")
+            },
         }
 
     def observe(
@@ -123,7 +128,9 @@ class Measurements:
         samples: list[float] = []
         counts: list[int] = []
         failures: list[str] = []
+        attempts = 0
         for _ in range(repeats):
+            attempts += 1
             start = time.perf_counter()
             try:
                 value = operation()
@@ -140,6 +147,8 @@ class Measurements:
                 subprocess.SubprocessError,
             ) as error:
                 failures.append(f"{type(error).__name__}: {error}")
+                if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
+                    break
         row = (
             distribution(samples)
             if samples
@@ -147,7 +156,8 @@ class Measurements:
         )
         row.update(
             {
-                "attempts": repeats,
+                "attempts": attempts,
+                "requested": repeats,
                 "accepted": len(samples),
                 "result_counts": counts,
                 "excluded": failures,
@@ -508,9 +518,75 @@ def markdown(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def owns_row(case: str, key: str) -> bool:
+    if case in ("small", "large", "source"):
+        return key.startswith(f"workspace.{case}.")
+    if case == "tcllib":
+        return key.startswith("tcllib.")
+    return not key.startswith(("workspace.", "tcllib."))
+
+
+def write_result(out: Path, result: dict[str, Any]) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "baseline.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    )
+    (out / "baseline.md").write_text(markdown(result))
+
+
+def merge_results(root: Path, revision: str) -> dict[str, Any]:
+    parts = [
+        json.loads(path.read_text()) for path in sorted(root.rglob("baseline.json"))
+    ]
+    if not parts:
+        raise ValueError("No case measurements available to combine")
+    result = {
+        key: parts[0][key]
+        for key in ("schema", "profile", "dialect", "configuration", "notes")
+    }
+    result.update({"revision": revision, "case": "all", "hosts": {}, "rows": {}})
+    seen: set[str] = set()
+    for part in parts:
+        case = part.get("case")
+        if case not in CASES or case in seen:
+            raise ValueError(f"Unknown or duplicate benchmark case: {case}")
+        if part["revision"] != revision or any(
+            part[key] != result[key]
+            for key in ("schema", "profile", "dialect", "configuration")
+        ):
+            raise ValueError(
+                "Cannot combine different revisions or benchmark configurations"
+            )
+        seen.add(case)
+        result["hosts"][case] = part["host"]
+        result["rows"].update(
+            {key: row for key, row in part["rows"].items() if owns_row(case, key)}
+        )
+    missing = sorted(set(CASES) - seen)
+    defaults = Measurements()
+    for key in ARTEFACTS:
+        defaults.rows[f"size.{key}.bytes"] = unavailable(
+            "Benchmark case did not upload a result"
+        )
+    for source in BENCHMARKS.glob("*.tcl"):
+        defaults.rows[f"engine.tclvm.{source.stem}_ms"] = unavailable(
+            "Benchmark case did not upload a result"
+        )
+    for case in missing:
+        for key in defaults.rows:
+            if owns_row(case, key):
+                result["rows"][key] = unavailable(
+                    f"Case {case} did not upload a result"
+                )
+    result["missing_cases"] = missing
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--server", type=Path, required=True)
+    parser.add_argument("--server", type=Path)
+    parser.add_argument("--case", choices=("all", *CASES), default="all")
+    parser.add_argument("--merge", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--dialect", default="tcl8.6")
@@ -532,6 +608,11 @@ def main(argv: list[str] | None = None) -> int:
         or args.iterations < 1
     ):
         parser.error("sample counts, iterations and timeouts must be positive")
+    if args.merge:
+        write_result(args.out, merge_results(args.merge, args.revision))
+        return 0
+    if args.server is None:
+        parser.error("--server is required when measuring")
     args.server = args.server.resolve(strict=True)
     args.vm = args.vm.resolve(strict=True) if args.vm else None
     args.runtime = args.runtime.resolve(strict=True) if args.runtime else None
@@ -542,6 +623,7 @@ def main(argv: list[str] | None = None) -> int:
     def save() -> None:
         result = {
             "schema": SCHEMA,
+            "case": args.case,
             "revision": args.revision,
             "profile": "release",
             "dialect": args.dialect,
@@ -558,12 +640,13 @@ def main(argv: list[str] | None = None) -> int:
                 "After-edit latency includes readiness of versioned diagnostics before the definition response.",
                 "Engine wall time includes process startup; Tcl release is 9.0 and TCL_LIBRARY is unset.",
             ],
-            "rows": rows.rows,
+            "rows": {
+                key: row
+                for key, row in rows.rows.items()
+                if args.case == "all" or owns_row(args.case, key)
+            },
         }
-        (args.out / "baseline.json").write_text(
-            json.dumps(result, indent=2, sort_keys=True) + "\n"
-        )
-        (args.out / "baseline.md").write_text(markdown(result))
+        write_result(args.out, result)
 
     save()
     try:
@@ -572,12 +655,16 @@ def main(argv: list[str] | None = None) -> int:
             for workspace, root in stage_workspaces(
                 temporary / "editor-actions"
             ).items():
+                if args.case not in ("all", workspace):
+                    continue
                 print(f"Measuring {workspace}", flush=True)
                 run_workspace(args, rows, workspace, root)
                 save()
-            run_tcllib(args, rows)
-            save()
-            engine_rows(args, rows, temporary)
+            if args.case in ("all", "tcllib"):
+                run_tcllib(args, rows)
+                save()
+            if args.case in ("all", "engines"):
+                engine_rows(args, rows, temporary)
     finally:
         save()
     return 0
