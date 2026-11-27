@@ -98,6 +98,18 @@ impl TclVersion {
         self.release_policy().regex_z_anchor
     }
 
+    /// Whether an ARE quantifier with a minimum of zero over a capturing atom
+    /// is an iteration node, as Tcl 8.6 compiles it. Tcl 8.4 and 8.5
+    /// (`parseqatom`) rewrite `x{0,n}` as `x{1,n}|` and then `x{1,n}` as
+    /// `x{0,n-1}x`, capturing only the final `x`, so a greedy prefix leaves
+    /// that final iteration as short as it can be: `regexp -inline
+    /// {(a+|b+)*c} aabbc` is `aabbc b` on tclsh 8.4.20 and 8.5.19 and `aabbc
+    /// bb` on 8.6.18 through 9.1.0.
+    #[must_use]
+    pub const fn regex_star_is_iteration(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether `regexp` lets `^` match at a `-start` or `-all` restart offset
     /// that follows a newline. Tcl 8.4's `Tcl_RegexpObjCmd` sets `REG_NOTBOL`
     /// for the whole call once the offset is positive, so `regexp -start 3

@@ -978,6 +978,7 @@ mod tests {
                         }
                     }
                     Class::Unknown
+                    | Class::CompiledCache
                     | Class::LegacyExtension
                     | Class::PropertyName
                     | Class::MethodName

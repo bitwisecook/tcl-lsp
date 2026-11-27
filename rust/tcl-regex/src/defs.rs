@@ -77,6 +77,10 @@ pub const REG_PROGRESS: i32 = 0o020000;
 /// reject it as an invalid escape, so the one engine here gates it on a bit C
 /// never assigns.
 pub const REG_ZANCHOR: i32 = 0o040000;
+/// Project-local: compile a minimum-zero quantifier over a capturing atom as
+/// Tcl 8.4/8.5 do, `x{0,n}` as `x{1,n}|` with `x{1,n}` split into a prefix and
+/// a capturing final `x`, instead of 8.6's iteration node.
+pub const REG_SPLITSTAR: i32 = 0o100000;
 
 // execution flags (eflags) — regex.h
 

@@ -33,6 +33,7 @@ mod language_e2e;
 mod name_lookup_issue_witnesses;
 mod native_mathfunc_bootstrap;
 mod package_diagnostics_e2e;
+mod regexp_capture_iteration;
 mod regexp_start_anchor_witnesses;
 mod selected_frame_coroutines;
 mod string_is_failindex_receipt;

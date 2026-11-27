@@ -34,7 +34,7 @@
 //! and is ordered to honour the same longest/shortest preferences.
 
 use crate::ast::{Anchor, CharSet, Node, Pref, case_variants};
-use crate::defs::{Chr, DUPINF, REG_ICASE, REG_NLANCH, REG_NOTBOL, REG_NOTEOL};
+use crate::defs::{Chr, DUPINF, REG_ICASE, REG_NLANCH, REG_NOTBOL, REG_NOTEOL, REG_SPLITSTAR};
 use std::cell::{Cell, RefCell};
 // A `BTreeMap` (not `HashMap`) keeps the engine free of any RNG/entropy
 // dependency, so it embeds cleanly in freestanding / wasm / C-linked builds.
@@ -737,6 +737,16 @@ impl<'a> Matcher<'a> {
         depth: u32,
         caps: &mut [Option<Span>],
     ) {
+        if min == 0
+            && max > 0
+            && self.cflags & REG_SPLITSTAR != 0
+            && (lo < hi || self.reach(sub, lo).contains(&lo))
+        {
+            // 8.4/8.5 compile `x{0,n}` as `x{1,n}|`, and the alternation
+            // takes `x{1,n}` whenever it spans the match.
+            self.dissect_repeat(sub, lo, hi, 1, max, pref, depth, caps);
+            return;
+        }
         if lo == hi && min == 0 {
             // Zero iterations: inner captures do not participate.
             return;
@@ -785,6 +795,14 @@ impl<'a> Matcher<'a> {
         } else {
             None
         };
+        // C picks the iteration dissector by the operand's own preference
+        // (`t->left->flags & SHORTER`), not the quantifier's: `(a+|b+)*?c` on
+        // "aabbc" walks greedy iterations and captures "bb".
+        let pref = match crate::ast::leading_pref(sub) {
+            Some(Pref::Shorter) => Pref::Shorter,
+            _ => Pref::Longer,
+        };
+        let base = lo;
         let (mut lo, mut max) = (lo, max);
         loop {
             if self.stop.is_some() || lo == hi {
@@ -800,7 +818,7 @@ impl<'a> Matcher<'a> {
                 m > lo
                     && m <= hi
                     && match &finishes {
-                        Some(finishes) => finishes[m - lo],
+                        Some(finishes) => finishes[m - base],
                         None => self.reach_repeat(sub, m, 0, nmax).contains(&hi),
                     }
             });
@@ -1194,18 +1212,32 @@ impl Bt<'_> {
         }
         if min >= 1 {
             let pmax = if max >= DUPINF { max } else { max - 1 };
-            self.m_repeat(sub, min - 1, pmax, pref, pos, hi, depth + 1, &mut |mid| {
-                self.m(sub, mid, hi, depth + 1, k)
-            })
+            let last = &mut |mid| self.m(sub, mid, hi, depth + 1, k);
+            // The prefix copy is a plain repeat, never split again.
+            if min == 1 {
+                self.m_star(sub, pmax, pref, 0, pos, hi, depth + 1, last)
+            } else {
+                self.m_repeat(sub, min - 1, pmax, pref, pos, hi, depth + 1, last)
+            }
+        } else if max > 0 && self.cflags & REG_SPLITSTAR != 0 {
+            // 8.4/8.5: `x{0,n}` is `x{1,n}|`, the split form or nothing,
+            // greedy trying the split form first and lazy nothing first.
+            let greedy = pref == Pref::Longer;
+            (greedy && self.m_repeat(sub, 1, max, pref, pos, hi, depth + 1, k))
+                || k(pos)
+                || (!greedy && self.m_repeat(sub, 1, max, pref, pos, hi, depth + 1, k))
         } else {
             self.m_star(sub, max, pref, 0, pos, hi, depth + 1, k)
         }
     }
 
-    /// Match a pure `sub{0,max}` star. Only **non-empty** iterations are taken
-    /// (an empty one would not progress and is never recorded); `k(pos)` is the
-    /// zero-or-more-iterations stop. Greedy tries another iteration first, lazy
-    /// stops first.
+    /// Match a pure `sub{0,max}` star as C dissects it: the concatenation it
+    /// sits in picks the star's whole extent first, longest first unless the
+    /// quantifier is lazy, and only then is that extent cut into non-empty
+    /// iterations, each as long (or, for a lazy operand, as short) as still
+    /// lets the rest fill the extent (`citerdissect` / `creviterdissect`).
+    /// The first complete cut of an extent is final, so `(a+|b+)*\1` on
+    /// "aabbbb" settles on "aa" then "bb", not "aa", "bb", "b".
     fn m_star(
         &self,
         sub: &Node,
@@ -1220,21 +1252,74 @@ impl Bt<'_> {
         if self.depth_exceeded(depth) {
             return false;
         }
-        let can_more = max >= DUPINF || count < max;
-        let more = |k: &mut dyn FnMut(usize) -> bool| {
-            can_more
-                && self.m(sub, pos, hi, depth + 1, &mut |p| {
-                    p > pos && self.m_star(sub, max, pref, count + 1, p, hi, depth + 1, k)
-                })
+        let chunk_pref = match crate::ast::leading_pref(sub) {
+            Some(Pref::Shorter) => Pref::Shorter,
+            _ => Pref::Longer,
         };
-        // The arms differ only in short-circuit order, which is load-bearing
-        // (greedy takes more iterations first, lazy stops first; both have
-        // capture side effects).
-        #[allow(clippy::match_same_arms)]
+        // The extent's first complete cut is its dissection; when the rest
+        // then fails, C moves on to the next extent rather than re-cutting.
+        let mut try_extent = |end: usize| {
+            if self.stop.get().is_some() {
+                return true;
+            }
+            let saved = self.caps.borrow().clone();
+            if self.m_chunks(
+                sub,
+                max,
+                chunk_pref,
+                count,
+                pos,
+                end,
+                depth + 1,
+                &mut || true,
+            ) && k(end)
+            {
+                return true;
+            }
+            *self.caps.borrow_mut() = saved;
+            false
+        };
         match pref {
-            Pref::Longer => more(k) || k(pos),
-            Pref::Shorter => k(pos) || more(k),
+            Pref::Longer => (pos..=hi).rev().any(&mut try_extent),
+            Pref::Shorter => (pos..=hi).any(&mut try_extent),
         }
+    }
+
+    /// Cut `[pos, end)` into at most `max - count` non-empty iterations of
+    /// `sub`, trying each iteration's end in `pref` order, then run `k`.
+    fn m_chunks(
+        &self,
+        sub: &Node,
+        max: i32,
+        pref: Pref,
+        count: i32,
+        pos: usize,
+        end: usize,
+        depth: u32,
+        k: &mut dyn FnMut() -> bool,
+    ) -> bool {
+        if pos == end {
+            return k();
+        }
+        if (max < DUPINF && count >= max) || self.depth_exceeded(depth) {
+            return false;
+        }
+        let mut ends = Vec::new();
+        self.m(sub, pos, end, depth + 1, &mut |p| {
+            if p > pos {
+                ends.push(p);
+            }
+            false
+        });
+        let mut ends = dedup_sorted(ends);
+        if pref == Pref::Longer {
+            ends.reverse();
+        }
+        ends.into_iter().any(|next| {
+            self.m(sub, pos, end, depth + 1, &mut |p| {
+                p == next && self.m_chunks(sub, max, pref, count + 1, next, end, depth + 1, k)
+            })
+        })
     }
 
     // Threads the full backref-repeat state (subno/min/max/pref/count/pos/hi)

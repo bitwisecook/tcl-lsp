@@ -213,6 +213,9 @@ pub struct RegexFlags {
     pub lineanchor: bool,
     /// `\z` is an end-of-string anchor ([`TclVersion::regex_z_anchor`]).
     pub z_anchor: bool,
+    /// A minimum-zero quantifier splits into a prefix and a capturing final
+    /// iteration, as 8.4/8.5 compile it ([`TclVersion::regex_star_is_iteration`]).
+    pub split_star: bool,
     /// Native LSEARCH suppresses subexpression storage on its first compilation.
     pub nosub: bool,
 }
@@ -245,6 +248,7 @@ impl RegexFlags {
             | ((self.lineanchor as u32) << 3)
             | ((self.z_anchor as u32) << 4)
             | ((self.nosub as u32) << 5)
+            | ((self.split_star as u32) << 6)
     }
 
     /// No switches, with the escapes `version` accepts.
@@ -256,6 +260,7 @@ impl RegexFlags {
             linestop: false,
             lineanchor: false,
             z_anchor: version.regex_z_anchor(),
+            split_star: !version.regex_star_is_iteration(),
             nosub: false,
         }
     }
@@ -469,6 +474,7 @@ impl RegexFlags {
             | ((self.lineanchor as u8) << 3)
             | ((self.z_anchor as u8) << 4)
             | ((self.nosub as u8) << 5)
+            | ((self.split_star as u8) << 6)
     }
 }
 

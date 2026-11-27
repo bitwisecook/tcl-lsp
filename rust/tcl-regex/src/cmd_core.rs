@@ -49,6 +49,9 @@ pub fn are_flags(flags: RegexFlags) -> i32 {
     if flags.z_anchor {
         cflags |= defs::REG_ZANCHOR;
     }
+    if flags.split_star {
+        cflags |= defs::REG_SPLITSTAR;
+    }
     cflags
 }
 
@@ -226,7 +229,7 @@ impl RegexEngine for AreEngine {
     /// Bumped with any change to what a pattern compiles to or matches.
     const IDENTITY: EngineIdentity = EngineIdentity {
         name: "tcl-regex ARE",
-        revision: 4,
+        revision: 5,
     };
 
     fn retained_bytes(re: &CompiledRegex) -> usize {

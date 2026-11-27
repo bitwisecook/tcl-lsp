@@ -51,14 +51,18 @@ thread_local! {
     static RELEASE_CFLAGS: Cell<c_int> = const { Cell::new(0) };
 }
 
-/// Install the compile flags `version`'s C engine applies implicitly — today
-/// only `\z` ([`TclVersion::regex_z_anchor`]).
+/// Install the compile flags `version`'s C engine applies implicitly: `\z`
+/// ([`TclVersion::regex_z_anchor`]) and the 8.4/8.5 quantifier split
+/// ([`TclVersion::regex_star_is_iteration`]).
 pub(crate) fn set_runtime_release(version: TclVersion) {
-    let bits = if version.regex_z_anchor() {
+    let mut bits = if version.regex_z_anchor() {
         tcl_regex::defs::REG_ZANCHOR
     } else {
         0
     };
+    if !version.regex_star_is_iteration() {
+        bits |= tcl_regex::defs::REG_SPLITSTAR;
+    }
     RELEASE_CFLAGS.with(|c| c.set(bits));
 }
 

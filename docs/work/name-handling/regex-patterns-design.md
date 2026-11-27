@@ -88,4 +88,13 @@ longer declines the restart forms and folds `r14`'s `regsub -all {\A.} abc X`
 to `XXX`. Tcl 8.4's `regexp` (not `regsub`) keeps `REG_NOTBOL` for the whole
 call once the offset is positive, so `^` never matches at a restart there,
 even after a newline; `TclVersion::regexp_restart_after_newline_is_bol`
-holds that fact. W210 on `switch -matchvar` in procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
+holds that fact.
+
+Captures inside a quantifier follow the release too. 8.4/8.5's `parseqatom`
+rewrites `x{0,n}` as `x{1,n}|` and `x{1,n}` as a capture-free prefix and a
+capturing final `x`, so `pref-3`, `(a+|b+)*c` on "aabbc", captures `b`; 8.6
+on build an iteration node and capture `bb`. `REG_SPLITSTAR`, set from
+`TclVersion::regex_star_is_iteration`, selects the 8.4/8.5 form. On 8.6+ the
+iteration is cut by its operand's own preference (`t->left->flags & SHORTER`),
+not the quantifier's, and with backreferences the star's extent is dissected
+before the rest of the pattern is tried. W210 on `switch -matchvar` in procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
