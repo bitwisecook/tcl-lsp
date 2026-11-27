@@ -977,6 +977,7 @@ tcl-vm-cli::script_errors	a_command_that_does_not_parse_reports_where_in_the_fil
 tcl-vm-cli::script_errors	a_folded_expression_error_starts_as_each_release_starts_it
 tcl-vm-cli::script_errors	a_nested_error_logs_each_level_the_release_evaluates
 tcl-vm-cli::script_errors	an_uncaught_error_reports_its_trace_and_where_in_the_file
+tcl-vm-cli::script_library	*
 tcl-vm-cli::switch_option_scan	an_unknown_switch_subject_is_scanned_as_each_release_scans_it
 tcl-vm-cli::top_level_e2e	coroutine_created_at_top_level_settles_as_top_level
 tcl-vm-cli::top_level_e2e	file_break_is_an_error

@@ -426,6 +426,16 @@ impl Vm {
         Ok(unit)
     }
 
+    /// The dispatch `module` was compiled with: plain when the compile fell
+    /// back to it ([`super::declines_native_selection`]).
+    fn dispatch_compiled(module: &ModuleAsm, requested: ProcedureDispatch) -> ProcedureDispatch {
+        if module.plain_command_dispatch {
+            ProcedureDispatch::Plain
+        } else {
+            requested
+        }
+    }
+
     fn compile_procedure_module(
         &mut self,
         compiler: &dyn CompileService<Module = ModuleAsm>,
@@ -456,9 +466,7 @@ impl Vm {
                 dispatch,
             ),
         };
-        if dispatch == ProcedureDispatch::Optimised
-            && super::script_compilation::declines_native_selection(&reached)
-        {
+        if dispatch == ProcedureDispatch::Optimised && super::declines_native_selection(&reached) {
             drop(reached);
             return self.compile_procedure_module(
                 compiler,
@@ -566,9 +574,7 @@ impl Vm {
             dispatch,
             original_name_scope,
         )?;
-        if module.plain_command_dispatch {
-            dispatch = ProcedureDispatch::Plain;
-        }
+        dispatch = Self::dispatch_compiled(&module, dispatch);
         if dispatch == ProcedureDispatch::Optimised
             && !self.function_command_bindings_match_with_manifest(
                 &module.top_level,

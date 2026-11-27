@@ -30,7 +30,7 @@ mod native_prerequisites;
 mod procedures;
 mod script_compilation;
 
-pub(super) use script_compilation::declines_native_selection;
+pub(in crate::interp) use script_compilation::declines_native_selection;
 
 /// Trust state for bytecode that may bypass ordinary command lookup.
 ///
