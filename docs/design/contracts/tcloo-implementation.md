@@ -261,7 +261,16 @@ The VM manages the object/class registry at runtime:
 - **Object lifecycle** — creation, destruction, per-object instance
   namespaces (`oo::Obj<N>`).
 - **Method dispatch** — walks the shared MRO, applies filter chains, handles
-  `next`/`nextto`.
+  `next`/`nextto`. Each chain `Step` carries a `StepRole`: an implementation
+  of the invoked method, a `Filter` naming the filter method it runs, or an
+  `Unknown` handler. A lookup miss (or an external call of an unexported
+  method) builds C's `OO_UNKNOWN_METHOD` chain — the active filters, then
+  every `unknown` provider in precedence order, with the missed name prepended
+  to the arguments; `next` past the last handler is `oo::object`'s built-in,
+  which raises `unknown method "X": must be …`. A bare `$obj` reaches the
+  handlers with no name and no filters (`FORCE_UNKNOWN`). A filter step, or a
+  chain built while one runs, suppresses filters for further calls on the
+  same object (`FILTER_HANDLING`).
 - **Variable binding** — `my variable`, `my varname`, private variable
   mangling using creation IDs (TIP 500).
 - **Introspection** — `info object` / `info class` subcommands

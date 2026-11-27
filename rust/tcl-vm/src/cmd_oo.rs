@@ -97,6 +97,8 @@ struct Class {
     /// plain `info class variables`, reported by its `-private` form.
     private_variables: Vec<String>,
     mixins: Vec<OoId>,
+    /// Filter method names wrapping every call on the class's instances.
+    filters: Vec<String>,
     /// `export`/`unexport` overrides applied to instance methods.
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
@@ -130,6 +132,8 @@ struct Object {
     /// here the declaring provider is the object itself.
     private_variables: Vec<String>,
     mixins: Vec<OoId>,
+    /// Per-object filter method names (`oo::objdefine … filter`).
+    filters: Vec<String>,
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
     /// TIP 558 per-object property slots
@@ -146,6 +150,27 @@ struct Object {
 struct Step {
     provider: OoId,
     is_object: bool,
+    role: StepRole,
+}
+
+/// Why a step is on a call chain, which fixes the method it runs.
+#[derive(Clone, PartialEq, Eq)]
+enum StepRole {
+    /// An implementation of the invoked method.
+    Method,
+    /// A filter wrapping the call; runs the named filter method.
+    Filter(String),
+    /// A handler for a lookup miss; runs `unknown`.
+    Unknown,
+}
+
+impl Step {
+    fn filter(&self) -> Option<&str> {
+        match &self.role {
+            StepRole::Filter(name) => Some(name),
+            _ => None,
+        }
+    }
 }
 
 /// What a running method's `self`/`my`/`next` operate on: the object, the
@@ -286,6 +311,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("unexport", |v, a| def_body_cmd(v, "unexport", a));
     vm.register("mixin", |v, a| def_body_cmd(v, "mixin", a));
     vm.register("forward", |v, a| def_body_cmd(v, "forward", a));
+    vm.register("filter", |v, a| def_body_cmd(v, "filter", a));
     // The method-context commands. tclsh exposes these only inside a method
     // body; the VM registers them globally but each reports the tclsh
     // `invalid command name "…"` when invoked with no active method (the call
@@ -327,43 +353,55 @@ pub(crate) fn register(vm: &mut Vm) {
 /// `a b c`, while `variable -set c` leaves `c`. Names stay in declaration
 /// order and duplicates collapse (`variable a; variable a` leaves `a`).
 fn apply_variable_slot(list: &mut Vec<String>, args: &[Value]) -> Result<(), String> {
-    let (op, names): (String, &[Value]) = match args.split_first() {
-        Some((first, rest)) if first.to_str().starts_with('-') => {
-            (first.to_str().to_string(), rest)
-        }
-        _ => ("-append".to_owned(), args),
-    };
-    let mut new_names: Vec<String> = Vec::new();
-    for a in names {
-        let name = a.to_str().to_string();
-        if name.contains("::") {
-            return Err(format!(
-                "invalid declared variable name \"{name}\": must not contain namespace separators"
-            ));
-        }
-        new_names.push(name);
+    let names = slot_names(args);
+    if let Some(name) = names.iter().find(|n| n.to_str().contains("::")) {
+        return Err(format!(
+            "invalid declared variable name \"{}\": must not contain namespace separators",
+            name.to_str()
+        ));
     }
+    apply_name_slot(list, args, true)
+}
+
+/// The name words of a slot call, past its optional leading `-op`.
+fn slot_names(args: &[Value]) -> &[Value] {
+    match args.split_first() {
+        Some((first, rest)) if first.to_str().starts_with('-') => rest,
+        _ => args,
+    }
+}
+
+/// Apply a list-slot operation (`-set`, `-append` — the default — `-remove`,
+/// `-clear`) to `list` in declaration order. `variable` collapses duplicates;
+/// `filter` keeps them (C stores the list as given).
+fn apply_name_slot(list: &mut Vec<String>, args: &[Value], dedup: bool) -> Result<(), String> {
+    let op = match args.first() {
+        Some(first) if first.to_str().starts_with('-') => first.to_str().to_string(),
+        _ => "-append".to_owned(),
+    };
+    let new_names = slot_names(args).iter().map(|a| a.to_str().to_string());
     match op.as_str() {
         "-set" => {
             list.clear();
-            for n in new_names {
-                if !list.contains(&n) {
-                    list.push(n);
-                }
-            }
+            append_names(list, new_names, dedup);
         }
-        "-append" => {
-            for n in new_names {
-                if !list.contains(&n) {
-                    list.push(n);
-                }
-            }
+        "-append" => append_names(list, new_names, dedup),
+        "-remove" => {
+            let gone: Vec<String> = new_names.collect();
+            list.retain(|n| !gone.contains(n));
         }
-        "-remove" => list.retain(|n| !new_names.contains(n)),
         "-clear" => list.clear(),
         other => return Err(format!("unsupported slot operation \"{other}\"")),
     }
     Ok(())
+}
+
+fn append_names(list: &mut Vec<String>, names: impl Iterator<Item = String>, dedup: bool) {
+    for n in names {
+        if !dedup || !list.contains(&n) {
+            list.push(n);
+        }
+    }
 }
 
 /// A TIP 558 property slot (`::oo::configuresupport::{obj,}{readable,writable}properties`).
@@ -906,6 +944,7 @@ fn bootstrap(vm: &mut Vm) {
                 variables: Vec::new(),
                 private_variables: Vec::new(),
                 mixins: Vec::new(),
+                filters: Vec::new(),
                 exported: BTreeSet::new(),
                 unexported: BTreeSet::new(),
                 readable_properties: BTreeSet::new(),
@@ -950,6 +989,7 @@ fn bootstrap(vm: &mut Vm) {
             variables: Vec::new(),
             private_variables: Vec::new(),
             mixins: Vec::new(),
+            filters: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
             readable_properties: BTreeSet::new(),
@@ -977,9 +1017,8 @@ pub(crate) fn oo_dispatch(
     argv: &[Value],
 ) -> Completion<Value> {
     if argv.is_empty() {
-        return err(format!(
-            "wrong # args: should be \"{invoked} method ?arg ...?\""
-        ));
+        let precedence = vm.oo.object_precedence(key);
+        return oo_invoke_unknown(vm, key, &precedence, None, argv, true, invoked);
     }
     let method = argv[0].to_str().to_string();
     let rest = &argv[1..];
@@ -1119,6 +1158,7 @@ fn oo_new(
             variables: Vec::new(),
             private_variables: Vec::new(),
             mixins: Vec::new(),
+            filters: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
             readable_properties: BTreeSet::new(),
@@ -1219,12 +1259,47 @@ impl OoState {
         out.push(Step {
             provider: obj_key,
             is_object: true,
+            role: StepRole::Method,
         });
         out.extend(class_steps(
             tcloo_linearise(&obj.class, &supers, &mixins),
             obj.class,
         ));
         keep_last(&out)
+    }
+
+    /// The filter steps wrapping a call on `obj_key`: the filter names declared
+    /// along its precedence (object mixins, the object, then its class MRO),
+    /// each first occurrence kept, and for each name one step per provider that
+    /// implements it, in precedence order. A declared filter nobody implements
+    /// contributes nothing.
+    fn active_filters(&self, precedence: &[Step]) -> Vec<Step> {
+        let mut names: Vec<&String> = Vec::new();
+        for step in precedence {
+            let declared = if step.is_object {
+                self.objects.get(&step.provider).map(|o| &o.filters)
+            } else {
+                self.classes.get(&step.provider).map(|c| &c.filters)
+            };
+            for name in declared.into_iter().flatten() {
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+        names
+            .into_iter()
+            .flat_map(|name| {
+                precedence
+                    .iter()
+                    .filter(|s| self.step_method(s, name).is_some())
+                    .map(|s| Step {
+                        provider: s.provider,
+                        is_object: s.is_object,
+                        role: StepRole::Filter(name.clone()),
+                    })
+            })
+            .collect()
     }
 
     /// The `Method` a step provides for `name`, if any.
@@ -1309,11 +1384,13 @@ fn class_steps(chain: Result<Vec<OoId>, MroError>, fallback: OoId) -> Vec<Step> 
             .map(|c| Step {
                 provider: c,
                 is_object: false,
+                role: StepRole::Method,
             })
             .collect(),
         Err(_) => vec![Step {
             provider: fallback,
             is_object: false,
+            role: StepRole::Method,
         }],
     }
 }
@@ -1358,9 +1435,10 @@ fn oo_invoke(
     }
 
     let precedence = vm.oo.object_precedence(obj_key);
-    let chain: Vec<Step> = precedence
-        .into_iter()
+    let mut chain: Vec<Step> = precedence
+        .iter()
         .filter(|s| vm.oo.step_method(s, method).is_some())
+        .cloned()
         .collect();
 
     if chain.is_empty() {
@@ -1372,11 +1450,32 @@ fn oo_invoke(
         if method == "configure" && vm.oo.object_is_configurable(obj_key) {
             return configure_method(vm, obj_key, args);
         }
-        return unknown_method(vm, obj_key, method, external);
+        return oo_invoke_unknown(
+            vm,
+            obj_key,
+            &precedence,
+            Some(method),
+            args,
+            external,
+            invoked,
+        );
     }
     // External calls require the most-derived definer to be exported.
     if external && !vm.oo.step_exported(&chain[0], method) {
-        return unknown_method(vm, obj_key, method, external);
+        return oo_invoke_unknown(
+            vm,
+            obj_key,
+            &precedence,
+            Some(method),
+            args,
+            external,
+            invoked,
+        );
+    }
+    if !filter_handling(vm, obj_key) {
+        let mut filtered = vm.oo.active_filters(&precedence);
+        filtered.append(&mut chain);
+        chain = filtered;
     }
     let usage = format!("{invoked} {method}");
     let mut call_identity = vec![
@@ -1396,6 +1495,99 @@ fn oo_invoke(
         usage,
         call_identity,
     )
+}
+
+/// Route a method-lookup miss through the object's `unknown` handlers (C's
+/// `OO_UNKNOWN_METHOD` chain): every provider of `unknown` in precedence order,
+/// behind the active filters, invoked with the missed name prepended to the
+/// arguments. `unknown` is looked up regardless of export state. With no
+/// method name at all (`$obj` alone, C's `FORCE_UNKNOWN`) nothing is prepended
+/// and filters do not apply. With no user handler the `oo::object` built-in
+/// reports the miss.
+fn oo_invoke_unknown(
+    vm: &mut Vm,
+    obj_key: OoId,
+    precedence: &[Step],
+    method: Option<&str>,
+    args: &[Value],
+    external: bool,
+    invoked: &str,
+) -> Completion<Value> {
+    let mut chain: Vec<Step> = precedence
+        .iter()
+        .filter(|s| vm.oo.step_method(s, "unknown").is_some())
+        .map(|s| Step {
+            role: StepRole::Unknown,
+            ..s.clone()
+        })
+        .collect();
+    let Some(method) = method else {
+        if chain.is_empty() {
+            return err(format!(
+                "wrong # args: should be \"{invoked} method ?arg ...?\""
+            ));
+        }
+        return run_unknown_chain(vm, obj_key, &chain, args, external, invoked);
+    };
+    if chain.is_empty() {
+        return unknown_method(vm, obj_key, method, external);
+    }
+    if !filter_handling(vm, obj_key) {
+        let mut filtered = vm.oo.active_filters(precedence);
+        filtered.append(&mut chain);
+        chain = filtered;
+    }
+    let mut uargs = Vec::with_capacity(args.len() + 1);
+    uargs.push(Value::string(method));
+    uargs.extend_from_slice(args);
+    run_unknown_chain(vm, obj_key, &chain, &uargs, external, invoked)
+}
+
+fn run_unknown_chain(
+    vm: &mut Vm,
+    obj_key: OoId,
+    chain: &[Step],
+    uargs: &[Value],
+    external: bool,
+    invoked: &str,
+) -> Completion<Value> {
+    let head = if external { invoked } else { "my" };
+    let mut call_identity = vec![Value::string(head)];
+    call_identity.extend_from_slice(uargs);
+    run_step(
+        vm,
+        obj_key,
+        chain,
+        0,
+        "unknown".to_string(),
+        uargs,
+        external,
+        invoked.to_string(),
+        head.to_string(),
+        call_identity,
+    )
+}
+
+/// Whether calls on `obj_key` currently bypass its filters (C's
+/// `FILTER_HANDLING`): the object's innermost running step is a filter, or
+/// belongs to a chain that was itself built while a filter ran — such a chain
+/// carries no filter steps even though the object has active filters.
+/// Constructor and destructor chains never carry filters, so they do not count.
+fn filter_handling(vm: &Vm, obj_key: OoId) -> bool {
+    let Some(fr) = vm.oo.call_stack.iter().rev().find(|f| f.object == obj_key) else {
+        return false;
+    };
+    if fr.chain.get(fr.index).is_some_and(|s| s.filter().is_some()) {
+        return true;
+    }
+    if fr.method.is_empty() || fr.method == "<destructor>" || fr.chain.is_empty() {
+        return false;
+    }
+    !fr.chain.iter().any(|s| s.filter().is_some())
+        && !vm
+            .oo
+            .active_filters(&vm.oo.object_precedence(obj_key))
+            .is_empty()
 }
 
 /// Whether an object built-in (`variable`/`varname`/`eval`) is exported — they
@@ -1490,11 +1682,12 @@ fn run_step_inner(
             .get(&step.provider)
             .and_then(|c| c.destructor.clone())
     } else {
-        vm.oo.step_method(&step, &method)
+        vm.oo.step_method(&step, step.filter().unwrap_or(&method))
     };
     let Some(m) = m else {
         return err("no such method");
     };
+    let impl_name = step.filter().map_or_else(|| method.clone(), str::to_string);
 
     // A forward: evaluate `prefix args…` with the OBJECT's namespace current,
     // so the target resolves object-ns → global exactly as C TclOO does —
@@ -1584,9 +1777,9 @@ fn run_step_inner(
     };
     let ns_id = vm.definition_namespace_token(&obj_ns);
     let proc = ProcDef {
-        name: format!("{obj_ns}::{method}"),
+        name: format!("{obj_ns}::{impl_name}"),
         command_ns_id: ns_id,
-        simple_name: method.clone(),
+        simple_name: impl_name.clone(),
         namespace: obj_ns.clone(),
         ns_id,
         params: m.params.clone(),
@@ -1624,10 +1817,10 @@ fn run_step_inner(
             }
         } else if step.is_object {
             if let Some(object) = vm.oo.objects.get_mut(&step.provider) {
-                object.methods.insert(method.clone(), refreshed);
+                object.methods.insert(impl_name, refreshed);
             }
         } else if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
-            class.methods.insert(method.clone(), refreshed);
+            class.methods.insert(impl_name, refreshed);
         }
     }
     let frame = OoFrame {
@@ -1759,27 +1952,148 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::string(display_oo(vm, step.provider)))
         }
-        Some("method") => ok(Value::string(fr.method.clone())),
-        Some("call") => {
-            let steps: Vec<Value> = fr
+        Some("method") => {
+            let step = &fr.chain[fr.index];
+            ok(Value::string(step.filter().unwrap_or(&fr.method)))
+        }
+        Some("call") => ok(Value::list(vec![
+            Value::list(render_call_chain(
+                vm,
+                &fr.chain,
+                &fr.method,
+                fr.chain.iter().any(|s| s.role == StepRole::Unknown),
+            )),
+            Value::int(i64::try_from(fr.index).unwrap_or(0)),
+        ])),
+        Some(sub @ ("target" | "filter")) => {
+            let step = &fr.chain[fr.index];
+            let Some(filter) = step.filter() else {
+                return err("not inside a filtering context");
+            };
+            if sub == "filter" {
+                let kind = if step.is_object { "object" } else { "class" };
+                return ok(Value::list(vec![
+                    Value::string(display_oo(vm, step.provider)),
+                    Value::string(kind),
+                    Value::string(filter),
+                ]));
+            }
+            let declarer = fr
                 .chain
                 .iter()
-                .map(|s| Value::string(display_oo(vm, s.provider)))
-                .collect();
+                .find(|s| s.filter().is_none())
+                .map_or_else(String::new, |s| display_oo(vm, s.provider));
             ok(Value::list(vec![
-                Value::list(steps),
-                Value::int(i64::try_from(fr.index).unwrap_or(0)),
-            ]))
-        }
-        Some("target") => {
-            let step = &fr.chain[fr.index];
-            ok(Value::list(vec![
-                Value::string(display_oo(vm, step.provider)),
+                Value::string(declarer),
                 Value::string(fr.method.clone()),
             ]))
         }
         Some(other) => err(format!("unsupported self subcommand \"{other}\"")),
     }
+}
+
+/// Render a call chain as `info … call` / `self call` report it: one
+/// `{callType name declarer methodType}` element per step, then the
+/// `oo::object` core implementation that terminates the chain of `destroy`,
+/// `unknown`, `eval`, `variable` and `varname`.
+fn render_call_chain(vm: &Vm, chain: &[Step], method: &str, unknown_chain: bool) -> Vec<Value> {
+    let mut out: Vec<Value> = chain
+        .iter()
+        .map(|step| {
+            let (call_type, name) = match &step.role {
+                StepRole::Filter(f) => ("filter", f.as_str()),
+                StepRole::Unknown => ("unknown", "unknown"),
+                StepRole::Method => ("method", method),
+            };
+            let method_type = match vm.oo.step_method(step, name) {
+                Some(m) if m.forward.is_some() => "forward",
+                _ => "method",
+            };
+            let declarer = if step.is_object {
+                "object".to_string()
+            } else {
+                display_oo(vm, step.provider)
+            };
+            Value::list(vec![
+                Value::string(call_type),
+                Value::string(name),
+                Value::string(declarer),
+                Value::string(method_type),
+            ])
+        })
+        .collect();
+    let core = if unknown_chain { "unknown" } else { method };
+    let call_type = match core {
+        _ if unknown_chain => "unknown",
+        "destroy" | "unknown" => "method",
+        "eval" | "variable" | "varname" => "private",
+        _ => return out,
+    };
+    if let Some(root) = vm.oo.object_root {
+        out.push(Value::list(vec![
+            Value::string(call_type),
+            Value::string(core),
+            Value::string(display_oo(vm, root)),
+            Value::string(format!("core method: \"{core}\"")),
+        ]));
+    }
+    out
+}
+
+/// The chain a call of `method` would run on an object (`precedence` from
+/// [`OoState::object_precedence`]) or on a class's instances (its
+/// linearisation): filters, then the implementations, or the `unknown`
+/// handlers when there are none (the flag).
+fn planned_call_chain(vm: &Vm, precedence: &[Step], method: &str) -> (Vec<Step>, bool) {
+    let mut chain = vm.oo.active_filters(precedence);
+    let steps: Vec<Step> = precedence
+        .iter()
+        .filter(|s| vm.oo.step_method(s, method).is_some())
+        .cloned()
+        .collect();
+    let builtin = matches!(
+        method,
+        "destroy" | "unknown" | "eval" | "variable" | "varname"
+    );
+    if !steps.is_empty() || builtin {
+        chain.extend(steps);
+        return (chain, false);
+    }
+    chain.extend(
+        precedence
+            .iter()
+            .filter(|s| vm.oo.step_method(s, "unknown").is_some())
+            .map(|s| Step {
+                role: StepRole::Unknown,
+                ..s.clone()
+            }),
+    );
+    (chain, true)
+}
+
+fn names_list(names: &[String]) -> Value {
+    Value::list(names.iter().map(|n| Value::string(n.as_str())).collect())
+}
+
+/// `info object call obj method` / `info class call cls method`.
+fn info_call(
+    vm: &Vm,
+    precedence: &[Step],
+    method: Option<&Value>,
+    class: bool,
+) -> Completion<Value> {
+    let Some(method) = method else {
+        let usage = if class {
+            "info class call className methodName"
+        } else {
+            "info object call objName methodName"
+        };
+        return err(format!("wrong # args: should be \"{usage}\""));
+    };
+    let method = method.to_str();
+    let (chain, unknown) = planned_call_chain(vm, precedence, &method);
+    let name = if unknown { "unknown" } else { &method };
+    ok(Value::list(render_call_chain(vm, &chain, name, unknown)))
 }
 
 /// `next ?arg…?` — run the next implementation on the method chain. Also the
@@ -1798,6 +2112,14 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let invoked = fr.invoked.clone();
     let usage = fr.usage_prefix.clone();
     if index + 1 >= chain.len() {
+        // `unknown`'s chain ends in `oo::object`'s built-in, which reports the
+        // miss for the name it was handed.
+        if method == "unknown" {
+            return match args.first() {
+                Some(missed) => unknown_method(vm, obj, &missed.to_str(), external),
+                None => err("wrong # args: should be \"next method ?arg ...?\""),
+            };
+        }
         // Past the end there is no further implementation of this kind.
         let kind = if method.is_empty() {
             "constructor"
@@ -2198,6 +2520,7 @@ fn def_body_cmd(vm: &mut Vm, verb: &str, args: &[Value]) -> Completion<Value> {
         "unexport" => def_export(vm, is_class, target, args, false),
         "mixin" => def_mixin(vm, is_class, target, args),
         "forward" => def_forward(vm, is_class, target, args),
+        "filter" => def_filter(vm, is_class, target, args),
         _ => err(format!("unknown definition command \"{verb}\"")),
     }
 }
@@ -2242,11 +2565,18 @@ fn def_method(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Comp
         Ok(m) => m,
         Err(e) => return e,
     };
+    // A fresh definition carries its own visibility, superseding any earlier
+    // `export`/`unexport` of the name on this provider (as C replaces the
+    // method record and its flags).
     if is_class {
         if let Some(c) = vm.oo.classes.get_mut(&target) {
+            c.exported.remove(&name);
+            c.unexported.remove(&name);
             c.methods.insert(name, method);
         }
     } else if let Some(o) = vm.oo.objects.get_mut(&target) {
+        o.exported.remove(&name);
+        o.unexported.remove(&name);
         o.methods.insert(name, method);
     }
     ok(Value::empty())
@@ -2368,6 +2698,22 @@ fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Compl
         o.mixins = mixins;
     }
     ok(Value::empty())
+}
+
+/// The `filter` slot: names of methods wrapping every call (default `-append`).
+fn def_filter(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
+    let list = if is_class {
+        vm.oo.classes.get_mut(&target).map(|c| &mut c.filters)
+    } else {
+        vm.oo.objects.get_mut(&target).map(|o| &mut o.filters)
+    };
+    let Some(list) = list else {
+        return ok(Value::empty());
+    };
+    match apply_name_slot(list, args, false) {
+        Ok(()) => ok(Value::empty()),
+        Err(e) => err(e),
+    }
 }
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
@@ -2566,6 +2912,8 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
         "properties" => info_object_properties(vm, obj, extra),
+        "filters" => ok(names_list(&vm.oo.objects[&obj].filters)),
+        "call" => info_call(vm, &vm.oo.object_precedence(obj), extra.first(), false),
         _ => err(format!("unsupported info object subcommand \"{sub}\"")),
     }
 }
@@ -2758,6 +3106,8 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ))
         }
         "properties" => info_class_properties(vm, cls, extra),
+        "filters" => ok(names_list(&vm.oo.classes[&cls].filters)),
+        "call" => info_call(vm, &vm.oo.class_linear_of(cls), extra.first(), true),
         _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
 }
@@ -2906,6 +3256,7 @@ pub(crate) fn make_class(
             variables: Vec::new(),
             private_variables: Vec::new(),
             mixins: Vec::new(),
+            filters: Vec::new(),
             exported: BTreeSet::new(),
             unexported: BTreeSet::new(),
             readable_properties: BTreeSet::new(),
