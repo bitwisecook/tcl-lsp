@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod definition_exit;
+
 mod tests {
     use crate::prelude::*;
 

@@ -581,16 +581,19 @@ fn seed_const<S: std::hash::BuildHasher>(
     key: ValueKey,
     values: &HashMap<ValueKey, LatticeValue, S>,
 ) -> Option<Interval> {
-    use tcl_registry::value_transfer::{FactView, partial::integer_bounds};
+    use tcl_registry::value_transfer::{FactView, NumericValue, partial::integer_bounds};
     let exact = crate::value_transfer::const_to_exact;
     let fact = match values.get(&key)? {
-        LatticeValue::Const(value @ (ConstValue::Int(_) | ConstValue::Bool(_))) => {
-            FactView::Exact(exact(value), None)
-        }
+        LatticeValue::Const(
+            value @ ConstValue::Number(NumericValue::Int(_) | NumericValue::Bool(_)),
+        ) => FactView::Exact(exact(value), None),
         LatticeValue::ConstSet(members)
-            if members
-                .iter()
-                .all(|value| matches!(value, ConstValue::Int(_) | ConstValue::Bool(_))) =>
+            if members.iter().all(|value| {
+                matches!(
+                    value,
+                    ConstValue::Number(NumericValue::Int(_) | NumericValue::Bool(_))
+                )
+            }) =>
         {
             FactView::Finite(members.iter().map(exact).collect(), None)
         }

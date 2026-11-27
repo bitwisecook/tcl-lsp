@@ -58,7 +58,7 @@ fn analysis_retains_values_and_only_reached_coercion_obligations() {
     let policy = FoldPolicy::default().with_invocation_dialect(
         tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
-    let env = Env::from([("x".into(), EnvValue::Int(3))]);
+    let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
     let calls = |function: &str, _| {
         Some(NativeMathFunctionTarget {
             function: function.to_owned(),
@@ -145,7 +145,7 @@ fn retained_value_constants_do_not_prove_required_native_coercions() {
     let policy = FoldPolicy::default().with_invocation_dialect(
         tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
-    let env = Env::from([("x".into(), EnvValue::Int(3))]);
+    let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
     for source in ["$x", "$x+0", "!!$x", "$x==3", "abs($x)"] {
         let expression = crate::expr_parser::parse_expr(source, None);
         assert_eq!(
@@ -177,7 +177,7 @@ fn already_native_object_proof_licenses_only_matching_numeric_reads() {
     let policy = FoldPolicy::default().with_invocation_dialect(
         tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
     );
-    let env = Env::from([("x".into(), EnvValue::Int(-3))]);
+    let env = Env::from([("x".into(), EnvValue::Number(TclValue::Int(-3)))]);
     let mut operands = NativeOperandProofs::from([(
         "x".into(),
         RetainedNativeOperandProof {

@@ -254,7 +254,7 @@ fn the_partial_scan_witness() {
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "a"),
-            LatticeValue::Const(ConstValue::Int(12)),
+            LatticeValue::Const(ConstValue::int(12)),
             "{dialect}: the converted field takes the scanned value, typed as %d built it"
         );
         assert_eq!(
@@ -280,7 +280,7 @@ fn the_percent_n_count_witness() {
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(kept, dialect, "::p", "n"),
-            LatticeValue::Const(ConstValue::Int(0)),
+            LatticeValue::Const(ConstValue::int(0)),
             "{dialect}: `%n` writes the characters consumed"
         );
         let (rewritten, rewrites) = optimised(kept, dialect);

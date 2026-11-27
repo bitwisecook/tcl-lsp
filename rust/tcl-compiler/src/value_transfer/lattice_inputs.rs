@@ -57,9 +57,9 @@ pub(crate) fn const_to_exact(c: &ConstValue) -> ExactValue {
 /// Materialise a lattice constant when the consumer owns its text.
 pub(crate) fn const_into_exact(c: ConstValue) -> ExactValue {
     match c {
-        ConstValue::Int(i) => ExactValue::int(i),
-        ConstValue::Float(f) => ExactValue::shortest_double(f),
-        ConstValue::Bool(b) => ExactValue::boolean(b),
+        ConstValue::Number(NumericValue::Int(i)) => ExactValue::int(i),
+        ConstValue::Number(NumericValue::Float(f)) => ExactValue::shortest_double(f),
+        ConstValue::Number(NumericValue::Bool(b)) => ExactValue::boolean(b),
         ConstValue::String(s) => s.into_exact().into_byte_value(),
     }
 }
@@ -73,7 +73,7 @@ pub(crate) fn const_text(c: &ConstValue) -> Option<String> {
 /// Only proved floating precision permits materialising a float's bytes.
 #[must_use]
 pub fn format_constant_with_policy(c: &ConstValue, policy: FoldPolicy) -> Option<String> {
-    if let ConstValue::Float(value) = c {
+    if let ConstValue::Number(NumericValue::Float(value)) = c {
         return format_tcl_value_with_policy(&TclValue::Float(*value), policy);
     }
     const_text(c)
@@ -83,9 +83,7 @@ pub fn format_constant_with_policy(c: &ConstValue, policy: FoldPolicy) -> Option
 /// retain their classification only when their spelling survives projection.
 pub(crate) fn exact_to_const(value: &ExactValue) -> Option<ConstValue> {
     Some(match value.canonical_numeric() {
-        Some(NumericValue::Int(i)) => ConstValue::Int(i),
-        Some(NumericValue::Float(f)) => ConstValue::Float(f),
-        Some(NumericValue::Bool(b)) => ConstValue::Bool(b),
+        Some(numeric) => ConstValue::Number(numeric),
         None => ConstValue::String(value.as_str().ok()?.into()),
     })
 }

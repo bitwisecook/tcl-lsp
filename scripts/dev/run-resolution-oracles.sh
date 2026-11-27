@@ -26,7 +26,7 @@ cargo test -p tcl-test-support
 cargo test -p tcl-syntax --test command_resolution_conformance --test variable_resolution_conformance --test namespace_op_conformance --test jim_name_resolution_conformance --test execution_resolution_conformance --test body_execution_conformance
 cargo test -p tcl-compiler --test resolution_rewrite_oracles --test native_arithmetic_conformance
 cargo test -p tcl-codegen --test codegen_integration
-cargo test -p tcl-vm --test native_compilation_conformance --test cross_interp_alias_e2e --test legacy_variable_traces_e2e --test command_traces_e2e --test step_trace_inline_e2e --test variable_name_resolution_e2e --test variable_trace_semantics_e2e --test element_recovery_traces_e2e
+cargo test -p tcl-vm-it --test native_compilation_conformance --test cross_interp_alias_e2e --test legacy_variable_traces_e2e --test command_traces_e2e --test step_trace_inline_e2e --test variable_name_resolution_e2e --test variable_trace_semantics_e2e --test element_recovery_traces_e2e
 cargo test -p tcl-registry --test dialect_oracle --test package_protocol_oracle
 cargo test -p tcl-dialect --test package_version_oracle
 cargo test --manifest-path runtime/rust/Cargo.toml --test array_trace_oracle
@@ -77,26 +77,33 @@ run_naming_owner tcl-compiler 'var_resolve::' -p tcl-compiler --lib
 run_naming_owner tcl-compiler 'variable_bindings::' -p tcl-compiler --lib
 run_naming_owner tcl-compiler 'allocated_instance::' -p tcl-compiler --lib
 run_naming_owner tcl-vm 'command::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'command::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_command_names::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_namespace_names::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'interp::native_namespace_names::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_variable_names::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::execution_name_policy::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_variable_observers::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_mathop::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'exec::native_list_operations_tests::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'cmd_dict::native_rmw_fixture_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_mathop::' -p tcl-vm-it --test it_5
+run_naming_owner tcl-vm-it 'exec::native_list_operations_tests::' -p tcl-vm-it --test it_5
+run_naming_owner tcl-vm-it 'cmd_dict::native_rmw_fixture_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_jim_lookup::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_jim_links::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'interp::native_rename::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'interp::native_rename::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_upvar_info_exists_tests::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_compiled_locals::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'exec::native_uplevel_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'exec::native_uplevel_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_namespace::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'cmd_package::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_namespace::' -p tcl-vm-it --test it_5
+run_naming_owner tcl-vm-it 'cmd_package::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'cmd_trace::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_oo::' -p tcl-vm --lib
-run_naming_owner tcl-vm 'cmd_info::native_commands_tests::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_oo::' -p tcl-vm-it --test it_5
+run_naming_owner tcl-vm-it 'cmd_info::native_commands_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'value::native_' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'value_source_tests::original_source_length_and_concat_channels_match_all_native_providers' -p tcl-vm-it --test it_5
 run_naming_owner tcl-runtime 'cmd_proc::' --manifest-path runtime/rust/Cargo.toml --lib
 run_naming_owner tcl-runtime 'interp::native_command_names::' --manifest-path runtime/rust/Cargo.toml --lib
 run_naming_owner tcl-runtime 'interp::native_namespace_names::' --manifest-path runtime/rust/Cargo.toml --lib

@@ -55,6 +55,8 @@
 //! dynamic, nor suppresses a genuine read-before-set), so each is asserted at the
 //! *actual* verdict with an explanatory comment rather than `#[ignore]`d.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use crate::body_identity;
 use body_identity::fixture_id;
 
@@ -104,7 +106,7 @@ fn lats_for<'a>(fu: &'a FunctionUnit, name: &str) -> Vec<&'a LatticeValue> {
 #[track_caller]
 fn assert_const_int(fu: &FunctionUnit, name: &str, version: u32, want: i64) {
     match lat(fu, name, version) {
-        Some(LatticeValue::Const(ConstValue::Int(i))) => assert_eq!(
+        Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(i)))) => assert_eq!(
             *i, want,
             "({name:?}, {version}) expected Const(Int({want})), got Int({i})"
         ),
@@ -773,7 +775,7 @@ fn assert_constset_strs(v: &LatticeValue, want: &[&str]) {
         .iter()
         .map(|c| match c {
             ConstValue::String(s) => s.as_str().to_owned(),
-            other => panic!("expected string members, got {other:?}"),
+            other @ ConstValue::Number(_) => panic!("expected string members, got {other:?}"),
         })
         .collect();
     got.sort();

@@ -305,7 +305,7 @@ fn retained_substitution_formal_seeds_share_defaults_and_jim_rest_names() {
             .unwrap();
     let seed = seed_params_from_args(
         &parameters,
-        &[ConstValue::Int(1), ConstValue::Int(2), ConstValue::Int(3)],
+        &[ConstValue::int(1), ConstValue::int(2), ConstValue::int(3)],
         Jim,
         policy,
     )
@@ -316,7 +316,7 @@ fn retained_substitution_formal_seeds_share_defaults_and_jim_rest_names() {
     );
     assert_eq!(
         seed.get(&("tail".into(), 0)),
-        Some(&LatticeValue::Const(ConstValue::Int(3)))
+        Some(&LatticeValue::Const(ConstValue::int(3)))
     );
     let parameters =
         tcl_syntax::formal_params::parse_formal_parameters_in("&reference", Jim).unwrap();

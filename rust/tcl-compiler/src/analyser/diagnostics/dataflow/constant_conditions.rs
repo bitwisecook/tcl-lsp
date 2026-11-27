@@ -18,6 +18,8 @@
 
 //! I230 and I231 constant branches and switch arms, and the loops whose termination the solver decides.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -172,7 +174,7 @@ fn loop_start_integer(
         .copied()
         .unwrap_or(0);
     match fu.sccp.value_at(node.start, (symbol, version))? {
-        LatticeValue::Const(ConstValue::Int(start)) => Some(*start),
+        LatticeValue::Const(ConstValue::Number(NumericValue::Int(start))) => Some(*start),
         _ => None,
     }
 }

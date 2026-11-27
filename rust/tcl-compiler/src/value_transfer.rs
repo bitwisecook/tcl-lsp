@@ -1203,8 +1203,8 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
     let g = ssa.intern_var("::g");
     let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (g, 1)]);
     let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
-        ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
-        ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
+        ((x, 1), LatticeValue::Const(ConstValue::int(1))),
+        ((g, 1), LatticeValue::Const(ConstValue::int(5))),
     ]);
     driver.evaluate_expression_at(&expression, None, &uses, &values, &ssa)
 }

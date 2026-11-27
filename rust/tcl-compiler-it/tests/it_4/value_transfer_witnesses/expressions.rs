@@ -49,7 +49,7 @@ fn a_bpf_expression_never_takes_the_tcl_answer() {
     );
     assert_eq!(
         value_at(&unit, "::p", "t", 1),
-        Some(LatticeValue::Const(ConstValue::Int(-4)))
+        Some(LatticeValue::Const(ConstValue::int(-4)))
     );
     prints_under_every_release("puts [expr {-7 / 2}]\n", "-4\n");
 }
@@ -73,7 +73,7 @@ fn abs_rebinding_declines() {
                  proc p {} {set r [expr {abs(-2)}]; return $r}\n\
                  }\nputs [ns::p]\n";
     let plain = "proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
-    let two = Some(LatticeValue::Const(ConstValue::Int(2)));
+    let two = Some(LatticeValue::Const(ConstValue::int(2)));
     for (dialect, want) in [
         ("tcl8.4", two.clone()),
         ("tcl8.6", Some(LatticeValue::Overdefined)),
@@ -140,7 +140,7 @@ fn a_rebound_nested_head_declines_the_expression() {
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             value_at(&unit_of(pure, dialect), "::p", "r", 1),
-            Some(LatticeValue::Const(ConstValue::Int(4))),
+            Some(LatticeValue::Const(ConstValue::int(4))),
             "{dialect}"
         );
     }
@@ -411,12 +411,12 @@ fn the_square_of_one_finite_input_stays_correlated() {
             panic!("{dialect}: {value:?} is not a finite set");
         };
         members.sort_by_key(|c| match c {
-            ConstValue::Int(i) => *i,
+            ConstValue::Number(NumericValue::Int(i)) => *i,
             other => panic!("{dialect}: {other:?}"),
         });
         assert_eq!(
             members,
-            vec![ConstValue::Int(1), ConstValue::Int(4)],
+            vec![ConstValue::int(1), ConstValue::int(4)],
             "{dialect}"
         );
     }

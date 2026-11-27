@@ -22,6 +22,8 @@ python3 scripts/dev/extract-tcl-evidence.py evidence/tcl/<file>.md -o script.tcl
 
 [Procedure body reflection through stdout](optimizer-c14-stdout-reflection.md) records equal numeric output and distinct reflected bodies for a power-to-shift rewrite on C Tcl 8.6, 9.0 and 9.1.
 
+[Procedure body reflection at publication](constant-procedure-body-reflection.md) records distinct c13 and c14 bodies before the first procedure call on C Tcl 8.4–9.1.
+
 [Procedure call elimination and command counts](constant-call-command-count.md) records equal output and distinct command counts when a caller sources the original and rewritten forms on C Tcl 8.6, 9.0 and 9.1.
 
 [Constant write callback order](constant-write-observer-order.md) records which operations reach variable callbacks before rejecting a write on C Tcl 9.0 and 9.1.

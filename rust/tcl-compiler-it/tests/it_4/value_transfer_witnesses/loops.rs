@@ -145,7 +145,7 @@ fn a_loop_absorbs_break_and_continue() {
             let unit = unit_of(&source, dialect);
             assert_eq!(
                 value_at(&unit, "::p", "c", 1),
-                Some(LatticeValue::Const(ConstValue::Int(code))),
+                Some(LatticeValue::Const(ConstValue::int(code))),
                 "{dialect}: {body}"
             );
             assert_eq!(
@@ -166,7 +166,7 @@ fn a_loop_absorbs_break_and_continue() {
         let unit = unit_of(raises, dialect);
         assert_eq!(
             value_at(&unit, "::p", "c", 1),
-            Some(LatticeValue::Const(ConstValue::Int(1))),
+            Some(LatticeValue::Const(ConstValue::int(1))),
             "{dialect}"
         );
         assert_eq!(
@@ -707,8 +707,8 @@ fn the_correlated_pairs_decide_by_enumeration() {
         assert_eq!(
             published,
             [
-                ("x".to_owned(), LatticeValue::Const(ConstValue::Int(20))),
-                ("y".to_owned(), LatticeValue::Const(ConstValue::Int(25))),
+                ("x".to_owned(), LatticeValue::Const(ConstValue::int(20))),
+                ("y".to_owned(), LatticeValue::Const(ConstValue::int(25))),
             ],
             "{dialect}"
         );
@@ -819,12 +819,12 @@ fn a_computed_double_is_spelled_as_tcl_spells_it() {
     for dialect in DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "n"),
-            LatticeValue::Const(ConstValue::Int(3)),
+            LatticeValue::Const(ConstValue::int(3)),
             "{dialect}"
         );
         assert_eq!(
             last_value(source, dialect, "::q", "m"),
-            LatticeValue::Const(ConstValue::Int(6)),
+            LatticeValue::Const(ConstValue::int(6)),
             "{dialect}"
         );
     }

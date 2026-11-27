@@ -33,6 +33,7 @@ use tcl_compiler::shimmer::type_name;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::{ByteCol, LineIndex, SourcePosition, Span};
+use tcl_registry::value_transfer::NumericValue;
 use tcl_syntax::expr::ast::render_expr;
 
 /// Escape and truncate text for display.
@@ -375,10 +376,10 @@ fn const_value_repr(c: &ConstValue) -> String {
         ConstValue::String(s) => py_repr_str(s.as_str()),
         // No release is selected here, so the fold has no proved spelling for
         // a double; the view shows the one a constant return shows.
-        ConstValue::Float(value) => {
+        ConstValue::Number(NumericValue::Float(value)) => {
             format_constant(c).unwrap_or_else(|| ConstantReturn::float(*value).text())
         }
-        _ => format_constant(c).unwrap_or_default(),
+        ConstValue::Number(_) => format_constant(c).unwrap_or_default(),
     }
 }
 
@@ -516,12 +517,12 @@ mod tests {
     #[test]
     fn a_lattice_constant_is_spelled_as_the_fold_spells_it() {
         for (constant, shape) in [
-            (ConstValue::Int(7), "const(7)"),
-            (ConstValue::Float(1.0), "const(1.0)"),
-            (ConstValue::Float(1e301), "const(1e+301)"),
-            (ConstValue::Float(f64::INFINITY), "const(Inf)"),
-            (ConstValue::Bool(true), "const(1)"),
-            (ConstValue::Bool(false), "const(0)"),
+            (ConstValue::int(7), "const(7)"),
+            (ConstValue::float(1.0), "const(1.0)"),
+            (ConstValue::float(1e301), "const(1e+301)"),
+            (ConstValue::float(f64::INFINITY), "const(Inf)"),
+            (ConstValue::boolean(true), "const(1)"),
+            (ConstValue::boolean(false), "const(0)"),
             (ConstValue::String("a b".into()), "const('a b')"),
         ] {
             assert_eq!(format_lattice(&LatticeValue::Const(constant)), shape);

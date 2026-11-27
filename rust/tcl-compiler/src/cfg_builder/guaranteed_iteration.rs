@@ -20,7 +20,8 @@
 
 use super::CfgBuilder;
 use super::flow_facts::structural_write_roots;
-use crate::ir::Statement;
+use crate::ir::{Script, Statement};
+use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 
 // Guaranteed-iteration loops
 //
@@ -137,14 +138,26 @@ impl CfgBuilder<'_> {
     /// Conservative: a condition referencing an unbound variable (or
     /// a command-substitution condition) evaluates to `None` → not guaranteed.
     pub(crate) fn for_runs_at_least_once(&self, stmt: &Statement) -> bool {
-        use crate::tcl_expr_eval::TclValue;
         let Statement::For {
             init, condition, ..
         } = stmt
         else {
             return false;
         };
-        let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
+        // Rotation removes the first evaluation from the analysis graph.
+        // A contents-only result can still require native coercions there.
+        eval_tcl_expr_with_policy(
+            condition,
+            &self.for_initialisation_bindings(init),
+            FoldPolicy::from_registry(self.registry),
+        )
+        .is_some_and(|value| {
+            !matches!(value, TclValue::Float(number) if number.is_nan()) && value.is_truthy()
+        })
+    }
+
+    pub(super) fn for_initialisation_bindings(&self, init: &Script) -> Env {
+        let mut env = Env::new();
         for s in &init.statements {
             if let Statement::AssignConst { value, .. } = s {
                 let projection = crate::ir_helpers::structural_variable_write_projection(s);
@@ -155,7 +168,7 @@ impl CfgBuilder<'_> {
                         if let Some((root, _)) = tcl_syntax::naming::split_element_ref(&name) {
                             env.remove(root);
                         } else {
-                            env.insert(name, coerce_scalar(value));
+                            env.insert(name, EnvValue::text(value.as_str()));
                         }
                     }
                 }
@@ -171,29 +184,6 @@ impl CfgBuilder<'_> {
                 }
             }
         }
-        match crate::tcl_expr_eval::eval_tcl_expr_with_policy(
-            condition,
-            &env,
-            crate::tcl_expr_eval::FoldPolicy::from_registry(self.registry),
-        ) {
-            Some(TclValue::Int(i)) => i != 0,
-            Some(TclValue::Float(f)) => f != 0.0,
-            // A bignum is canonical (beyond i64), hence never zero.
-            Some(TclValue::Big(_)) => true,
-            None => false,
-        }
+        env
     }
-}
-
-/// Coerce a literal assignment value to int/float when possible (else str),
-/// for the `for`-init constant environment.
-fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
-    use crate::tcl_expr_eval::EnvValue;
-    if let Ok(i) = text.parse::<i64>() {
-        return EnvValue::Int(i);
-    }
-    if let Ok(f) = text.parse::<f64>() {
-        return EnvValue::Float(f);
-    }
-    EnvValue::text(text)
 }

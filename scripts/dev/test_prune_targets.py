@@ -27,13 +27,29 @@ SPEC.loader.exec_module(prune)
 DAY = 86400
 
 
-def make_unit(target: Path, package: str, digest: str, *, age_days: float = 0.0, rustc: int = 1,
-              features: str = "[]", kind: str = "lib-x.json", payload: bool = True) -> Path:
+def make_unit(
+    target: Path,
+    package: str,
+    digest: str,
+    *,
+    age_days: float = 0.0,
+    rustc: int = 1,
+    features: str = "[]",
+    kind: str = "lib-x.json",
+    payload: bool = True,
+) -> Path:
     unit = target / "debug" / "build" / package / digest
     (unit / "fingerprint").mkdir(parents=True)
     (unit / "out").mkdir()
-    fingerprint = {"rustc": rustc, "features": features, "target": 7, "profile": 9,
-                   "path": 3, "config": 0, "compile_kind": 0}
+    fingerprint = {
+        "rustc": rustc,
+        "features": features,
+        "target": 7,
+        "profile": 9,
+        "path": 3,
+        "config": 0,
+        "compile_kind": 0,
+    }
     files = [unit / "fingerprint" / kind]
     files[0].write_text(json.dumps(fingerprint), encoding="utf-8")
     if payload:
@@ -60,13 +76,17 @@ class PruneTargetsTests(unittest.TestCase):
         return out.getvalue()
 
     def test_keeps_the_newest_units_per_key_and_deletes_superseded_ones(self) -> None:
-        units = [make_unit(self.target, "a", f"{n:016x}", age_days=n * 0.1) for n in range(5)]
+        units = [
+            make_unit(self.target, "a", f"{n:016x}", age_days=n * 0.1) for n in range(5)
+        ]
         self.run_prune("--keep", "3")
         self.assertEqual([u.exists() for u in units], [True, True, True, False, False])
 
     def test_feature_variants_are_separate_keys(self) -> None:
         plain = make_unit(self.target, "a", "1" * 16, age_days=0.5)
-        featured = make_unit(self.target, "a", "2" * 16, features='["test-support"]', age_days=0.4)
+        featured = make_unit(
+            self.target, "a", "2" * 16, features='["test-support"]', age_days=0.4
+        )
         newer = make_unit(self.target, "a", "3" * 16, age_days=0.1)
         self.run_prune("--keep", "1")
         self.assertFalse(plain.exists())

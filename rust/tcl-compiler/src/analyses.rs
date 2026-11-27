@@ -24,7 +24,9 @@
 //! (`sccp`, `type_infer`, `taint`, …); this module provides only the data
 //! types that downstream consumers (diagnostics, codegen, optimiser) read.
 
-use tcl_registry::value_transfer::ExactValue;
+use std::fmt;
+
+use tcl_registry::value_transfer::{ExactValue, NumericValue};
 
 /// Maximum number of values in a [`LatticeValue::ConstSet`] before widening to
 /// [`LatticeValue::Overdefined`].
@@ -62,24 +64,50 @@ pub enum LatticeValue {
 
 /// A constant value in the SCCP lattice. Doubles compare by their bits,
 /// since signed zero and NaN payloads are distinct lattice members.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ConstValue {
-    /// Integer constant.
-    Int(i64),
-    /// Floating-point constant.
-    Float(f64),
-    /// Boolean constant.
-    Bool(bool),
+    /// Numeric or boolean value whose text is materialised by the consumer.
+    Number(NumericValue),
     /// String constant.
     String(LatticeText),
+}
+
+impl ConstValue {
+    /// An integer constant.
+    #[must_use]
+    pub const fn int(value: i64) -> Self {
+        Self::Number(NumericValue::Int(value))
+    }
+
+    /// A floating-point constant.
+    #[must_use]
+    pub const fn float(value: f64) -> Self {
+        Self::Number(NumericValue::Float(value))
+    }
+
+    /// A boolean constant.
+    #[must_use]
+    pub const fn boolean(value: bool) -> Self {
+        Self::Number(NumericValue::Bool(value))
+    }
+}
+
+impl fmt::Debug for ConstValue {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Number(value) => fmt::Debug::fmt(value, formatter),
+            Self::String(value) => formatter.debug_tuple("String").field(value).finish(),
+        }
+    }
 }
 
 impl PartialEq for ConstValue {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Int(left), Self::Int(right)) => left == right,
-            (Self::Float(left), Self::Float(right)) => left.to_bits() == right.to_bits(),
-            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Number(NumericValue::Float(left)), Self::Number(NumericValue::Float(right))) => {
+                left.to_bits() == right.to_bits()
+            }
+            (Self::Number(left), Self::Number(right)) => left == right,
             (Self::String(left), Self::String(right)) => left == right,
             _ => false,
         }
@@ -117,9 +145,9 @@ impl From<&str> for LatticeText {
     }
 }
 
-impl std::fmt::Debug for LatticeText {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self.as_str(), formatter)
+impl fmt::Debug for LatticeText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_str(), formatter)
     }
 }
 
@@ -233,18 +261,18 @@ mod tests {
         assert_eq!(LatticeValue::unknown().kind(), LatticeKind::Unknown);
         assert_eq!(LatticeValue::overdefined().kind(), LatticeKind::Overdefined);
         assert_eq!(
-            LatticeValue::constant(ConstValue::Int(42)).kind(),
+            LatticeValue::constant(ConstValue::int(42)).kind(),
             LatticeKind::Const
         );
         assert_eq!(
-            LatticeValue::constset(vec![ConstValue::Int(1), ConstValue::Int(2)]).kind(),
+            LatticeValue::constset(vec![ConstValue::int(1), ConstValue::int(2)]).kind(),
             LatticeKind::ConstSet
         );
     }
 
     #[test]
     fn constset_auto_widens() {
-        let big: Vec<ConstValue> = (0..50).map(ConstValue::Int).collect();
+        let big: Vec<ConstValue> = (0..50).map(ConstValue::int).collect();
         assert_eq!(LatticeValue::constset(big).kind(), LatticeKind::Overdefined);
     }
 

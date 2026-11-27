@@ -21,7 +21,7 @@
 use super::NumericCtx;
 use crate::expr_ast::{BinOp, ExprNode, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
-use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
+use crate::tcl_expr_eval::{EnvValue, FoldPolicy, TclValue, leading_zero_is_octal};
 
 /// Whether `proposed` is `original` for every operand value: the same result,
 /// or the same error. Two licences, each from tclsh 8.6.18 and 9.0.4 run over
@@ -334,7 +334,7 @@ fn equivalent_for_integer_operands(
             .map(|(name, &index)| {
                 (
                     (*name).to_owned(),
-                    crate::tcl_expr_eval::EnvValue::Int(GRID[index]),
+                    EnvValue::Number(TclValue::Int(GRID[index])),
                 )
             })
             .collect();

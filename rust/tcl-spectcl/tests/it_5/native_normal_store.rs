@@ -23,6 +23,7 @@ use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::pack_hooks;
 use tcl_registry::value_transfer::EvalRoute;
+use tcl_registry::value_transfer::NumericValue;
 use tcl_spec_hooks::tclvm_host;
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 
@@ -131,7 +132,9 @@ fn native_parent_store_uses_the_actual_pack_implementation_normal_outcome() {
         assert!(procedure.body.native_compilation_admission.is_none());
         let symbol = function.ssa.var_symbol("known").unwrap();
         let value = match function.sccp.values.get(&(symbol, 1)) {
-            Some(LatticeValue::Const(ConstValue::Int(value))) => Some(value.to_string()),
+            Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(value)))) => {
+                Some(value.to_string())
+            }
             Some(LatticeValue::Const(ConstValue::String(value))) => Some(value.as_str().to_owned()),
             _ => None,
         };

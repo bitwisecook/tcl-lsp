@@ -337,7 +337,7 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
                     StringCharacterModel::count_authored(policy.characters, &s)?
                 };
                 let len = i64::try_from(count).unwrap_or(i64::MAX);
-                return Some(LatticeValue::Const(ConstValue::Int(len)));
+                return Some(LatticeValue::Const(ConstValue::int(len)));
             }
         }
         return None;

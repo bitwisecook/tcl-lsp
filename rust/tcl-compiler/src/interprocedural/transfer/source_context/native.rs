@@ -699,6 +699,8 @@ fn literal_word(word: &WordExpr) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use tcl_registry::value_transfer::NumericValue;
+
     use super::*;
     use crate::analyses::{ConstValue, LatticeValue};
     use crate::compilation_unit::CompilationUnit;
@@ -719,7 +721,9 @@ mod tests {
         let symbol = function.ssa.var_symbol("known").unwrap();
         assert!(matches!(
             function.sccp.values.get(&(symbol, 1)),
-            Some(LatticeValue::Const(ConstValue::Int(5)))
+            Some(LatticeValue::Const(ConstValue::Number(NumericValue::Int(
+                5
+            ))))
         ));
         let context = NativeSummaryContext::for_module(
             &unit.ir_module,

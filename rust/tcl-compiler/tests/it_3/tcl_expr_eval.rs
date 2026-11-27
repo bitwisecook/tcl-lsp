@@ -727,12 +727,12 @@ fn variable_resolution_and_coercion() {
     // A bound int folds; a numeric *string* binding coerces; a non-numeric
     // string binding declines; an unbound variable declines.
     let mut env = Env::new();
-    env.insert("a".into(), EnvValue::Int(5));
+    env.insert("a".into(), EnvValue::Number(TclValue::Int(5)));
     assert_eq!(eval_str_env("$a + 1", &env), Some(int(6))); // a=5 → 6
 
     let mut env2 = Env::new();
-    env2.insert("a".into(), EnvValue::Int(3));
-    env2.insert("b".into(), EnvValue::Int(4));
+    env2.insert("a".into(), EnvValue::Number(TclValue::Int(3)));
+    env2.insert("b".into(), EnvValue::Number(TclValue::Int(4)));
     assert_eq!(eval_str_env("$a + $b", &env2), Some(int(7))); // 3+4
 
     // String binding "5" is numeric → coerces to 6 in `+`.
@@ -1152,7 +1152,7 @@ fn irules_combined_with_variables() {
     );
 
     let mut env3 = Env::new();
-    env3.insert("x".into(), EnvValue::Int(15));
+    env3.insert("x".into(), EnvValue::Number(TclValue::Int(15)));
     env3.insert("uri".into(), EnvValue::text("/admin/panel"));
     assert_eq!(
         eval_irules_env(r#"($x > 10) and ($uri contains "/admin")"#, &env3),

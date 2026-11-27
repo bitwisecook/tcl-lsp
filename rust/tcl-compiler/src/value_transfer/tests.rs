@@ -228,7 +228,7 @@ fn an_exhausted_request_declines_the_rest() {
         let expected = if i < 10 { 4 } else { 5 };
         assert_eq!(
             value(&unit, i),
-            Some(LatticeValue::Const(ConstValue::Int(expected))),
+            Some(LatticeValue::Const(ConstValue::int(expected))),
             "a{i} folds under the default request"
         );
     }
@@ -328,8 +328,8 @@ fn a_proven_subject_resolves_the_targets_roles() {
     };
     let text = |value: &str| Some(LatticeValue::Const(ConstValue::String(value.into())));
     assert_eq!(last("g"), text("aa"));
-    assert_eq!(last("a"), Some(LatticeValue::Const(ConstValue::Int(1))));
-    assert_eq!(last("b"), Some(LatticeValue::Const(ConstValue::Int(2))));
+    assert_eq!(last("a"), Some(LatticeValue::Const(ConstValue::int(1))));
+    assert_eq!(last("b"), Some(LatticeValue::Const(ConstValue::int(2))));
     assert_eq!(last("m"), text("before"), "the no-match preserves `m`");
 }
 
@@ -1130,9 +1130,9 @@ fn run_over_frame(script: &str, policy: NestedPolicy) -> ScriptRun {
     );
     let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1), (s, 1), (g, 1)]);
     let values: HashMap<ValueKey, LatticeValue> = HashMap::from([
-        ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
+        ((x, 1), LatticeValue::Const(ConstValue::int(1))),
         ((s, 1), LatticeValue::Const(ConstValue::String("a".into()))),
-        ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
+        ((g, 1), LatticeValue::Const(ConstValue::int(5))),
     ]);
     driver
         .run_script(script, (&uses, &values, &ssa), (Vec::new(), policy), None)
@@ -1248,7 +1248,7 @@ fn the_definitions_decline_a_write_none_of_them_can_carry() {
     );
     let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1)]);
     let values: HashMap<ValueKey, LatticeValue> =
-        HashMap::from([((x, 1), LatticeValue::Const(ConstValue::Int(1)))]);
+        HashMap::from([((x, 1), LatticeValue::Const(ConstValue::int(1)))]);
     let inputs = driver.expression_inputs((&uses, &values, &ssa));
     let defs = vec![
         ("x".to_owned(), (x, 2)),
@@ -1279,7 +1279,7 @@ fn the_definitions_decline_a_write_none_of_them_can_carry() {
     let answers = driver
         .embedded_defs(&[write("a(1)", "9")], &defs, &inputs)
         .expect("a write a definition carries");
-    assert_eq!(answers[0].value, LatticeValue::Const(ConstValue::Int(1)));
+    assert_eq!(answers[0].value, LatticeValue::Const(ConstValue::int(1)));
     assert!(answers[0].preserved && answers[0].stated);
     assert_eq!(
         answers[1].value,
@@ -1508,7 +1508,7 @@ fn an_error_completion_ends_the_evaluation_with_the_writes_so_far() {
     let x = ssa.intern_var("x");
     let uses: HashMap<Symbol, Version> = HashMap::from([(x, 1)]);
     let values: HashMap<ValueKey, LatticeValue> =
-        HashMap::from([((x, 1), LatticeValue::Const(ConstValue::Int(1)))]);
+        HashMap::from([((x, 1), LatticeValue::Const(ConstValue::int(1)))]);
     let inputs = LatticeInputs {
         original: None,
         written_arguments: Vec::new(),
@@ -1615,10 +1615,10 @@ fn an_integer_division_by_zero_is_an_error_completion() {
 #[test]
 fn lattice_constants_round_trip_through_exact_values() {
     for c in [
-        ConstValue::Int(42),
-        ConstValue::Int(-7),
-        ConstValue::Float(1.5),
-        ConstValue::Bool(true),
+        ConstValue::int(42),
+        ConstValue::int(-7),
+        ConstValue::float(1.5),
+        ConstValue::boolean(true),
         ConstValue::String(" a ".into()),
         ConstValue::String("a\0b".into()),
         ConstValue::String("a\\b".into()),

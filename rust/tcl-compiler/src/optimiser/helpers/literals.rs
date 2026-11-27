@@ -306,23 +306,23 @@ mod tests {
     #[test]
     fn format_constant_rendering() {
         assert_eq!(
-            format_constant(&ConstValue::Bool(true)).as_deref(),
+            format_constant(&ConstValue::boolean(true)).as_deref(),
             Some("1"),
         );
-        assert_eq!(format_constant(&ConstValue::Int(42)).as_deref(), Some("42"),);
+        assert_eq!(format_constant(&ConstValue::int(42)).as_deref(), Some("42"),);
         assert_eq!(
             format_constant(&ConstValue::String("hello".into())).as_deref(),
             Some("hello"),
         );
         // Float renders via format_tcl_value.
         let rendered = format_constant_with_policy(
-            &ConstValue::Float(1.0),
+            &ConstValue::float(1.0),
             FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
         )
         .unwrap();
         assert_eq!(rendered, "1.0");
         let rendered = format_constant_with_policy(
-            &ConstValue::Float(3.5),
+            &ConstValue::float(3.5),
             FoldPolicy::for_profile(Some(false), tcl_dialect::DialectProfile::find("tcl9.0")),
         )
         .unwrap();

@@ -430,12 +430,7 @@ pub(super) fn env_from_uses_numeric<'a, S1: std::hash::BuildHasher, S2: std::has
         let Some(key) = source_read_key(name, uses, ssa) else {
             continue;
         };
-        if let Some(LatticeValue::Const(c)) = values.get(&key)
-            && matches!(
-                c,
-                ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
-            )
-        {
+        if let Some(LatticeValue::Const(c @ ConstValue::Number(_))) = values.get(&key) {
             env.insert(name.to_owned(), const_to_env_value(c));
         }
     }
@@ -444,8 +439,8 @@ pub(super) fn env_from_uses_numeric<'a, S1: std::hash::BuildHasher, S2: std::has
 
 pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
-        TclValue::Int(i) => ConstValue::Int(i),
-        TclValue::Float(f) => ConstValue::Float(f),
+        TclValue::Int(i) => ConstValue::int(i),
+        TclValue::Float(f) => ConstValue::float(f),
         // A beyond-wide integer's lattice form is its canonical decimal
         // string — the value's one true rep, which downstream folds re-parse
         // exactly (`set big [expr {2**64}]; expr {$big + 1}` chains).

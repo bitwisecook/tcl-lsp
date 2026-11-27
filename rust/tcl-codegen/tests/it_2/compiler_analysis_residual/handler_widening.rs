@@ -26,7 +26,7 @@ fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
     let registry = reg();
     let cu = CompilationUnit::build_for(source, &registry, false);
     let fu = cu.fixture_function("::p").expect("procedure");
-    let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::Int(5)))]);
+    let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::int(5)))]);
     tcl_compiler::sccp::sccp(
         &fu.cfg,
         &fu.ssa,
@@ -92,7 +92,7 @@ fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
                 *var == symbol
                     && *value
                         == tcl_compiler::analyses::LatticeValue::Const(
-                            tcl_compiler::analyses::ConstValue::Int(expected),
+                            tcl_compiler::analyses::ConstValue::int(expected),
                         )
             }),
             "{name} must retain its constant: {:?}",
@@ -125,7 +125,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
             assert_eq!(
                 fu.sccp.values.get(&(symbol, prior)),
                 Some(&tcl_compiler::analyses::LatticeValue::Const(
-                    tcl_compiler::analyses::ConstValue::Int(5)
+                    tcl_compiler::analyses::ConstValue::int(5)
                 ))
             );
             assert_eq!(
@@ -159,7 +159,7 @@ fn registry_handler_widens_array_element_read_by_terminator() {
             *var == symbol
                 && *value
                     == tcl_compiler::analyses::LatticeValue::Const(
-                        tcl_compiler::analyses::ConstValue::Int(5),
+                        tcl_compiler::analyses::ConstValue::int(5),
                     )
         }),
         "the safe control must retain element precision"
@@ -224,7 +224,7 @@ fn registry_value_clobber_preserves_branch_before_and_widens_branch_after() {
         assert_eq!(
             cu.top_level.sccp.values.get(&(x, prior)),
             Some(&tcl_compiler::analyses::LatticeValue::Const(
-                tcl_compiler::analyses::ConstValue::Int(5)
+                tcl_compiler::analyses::ConstValue::int(5)
             ))
         );
         assert_eq!(

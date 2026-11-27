@@ -43,7 +43,7 @@ fn evaluate_def_set_read_in_value_position_folds() {
             "proc p {} {set x hello; set r [set x 10]; return $r}",
             "r"
         ),
-        LatticeValue::Const(ConstValue::Int(10))
+        LatticeValue::Const(ConstValue::int(10))
     );
     assert_eq!(
         settled(
@@ -133,7 +133,7 @@ fn evaluate_def_assign_value_integer_literal() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(42))
+        LatticeValue::Const(ConstValue::int(42))
     );
 }
 
@@ -144,7 +144,7 @@ fn evaluate_def_assign_value_resolves_var_ref() {
     let x = ssa.intern_var("x");
     stmt.uses.insert(x, 1);
     let mut values = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(7)));
     assert_eq!(
         evaluate_fixture_def(
             &stmt,
@@ -153,7 +153,7 @@ fn evaluate_def_assign_value_resolves_var_ref() {
             FoldPolicy::default(),
             tcl_lexer::LexerConfig::default()
         ),
-        LatticeValue::Const(ConstValue::Int(7))
+        LatticeValue::Const(ConstValue::int(7))
     );
 }
 
@@ -174,7 +174,7 @@ fn evaluate_def_assign_value_folds_llength_literal() {
     let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c d}]", 1);
     assert_eq!(
         evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(4))
+        LatticeValue::Const(ConstValue::int(4))
     );
 }
 
@@ -184,7 +184,7 @@ fn evaluate_def_assign_value_folds_string_length() {
     let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
     assert_eq!(
         evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(5))
+        LatticeValue::Const(ConstValue::int(5))
     );
 }
 
@@ -208,7 +208,7 @@ fn string_length_fold_counts_in_the_selected_dialects_character_model() {
             tcl_lexer::LexerConfig::default(),
         )
     };
-    assert_eq!(fold("tcl9.0"), LatticeValue::Const(ConstValue::Int(1)));
+    assert_eq!(fold("tcl9.0"), LatticeValue::Const(ConstValue::int(1)));
     assert_eq!(fold("tcl8.6"), LatticeValue::Overdefined);
     assert_eq!(
         evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
@@ -227,7 +227,7 @@ fn string_length_fold_counts_in_the_selected_dialects_character_model() {
             &ssa,
             FoldPolicy::for_profile(Some(false), None)
         ),
-        LatticeValue::Const(ConstValue::Int(5))
+        LatticeValue::Const(ConstValue::int(5))
     );
 }
 
@@ -237,7 +237,7 @@ fn evaluate_def_assign_value_folds_expr_cmd_subst() {
     let stmt = assign_value_stmt(&mut ssa, "x", "[expr {1 + 2}]", 1);
     assert_eq!(
         evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(3))
+        LatticeValue::Const(ConstValue::int(3))
     );
 }
 
@@ -307,15 +307,15 @@ fn evaluate_def_assign_value_llength_via_lattice_var() {
     );
     assert_eq!(
         evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-        LatticeValue::Const(ConstValue::Int(3))
+        LatticeValue::Const(ConstValue::int(3))
     );
 }
 
 #[test]
 fn parse_literal_value_prefers_int() {
-    assert_eq!(parse_literal_value("42"), ConstValue::Int(42));
-    assert_eq!(parse_literal_value("-5"), ConstValue::Int(-5));
-    assert_eq!(parse_literal_value("0"), ConstValue::Int(0));
+    assert_eq!(parse_literal_value("42"), ConstValue::int(42));
+    assert_eq!(parse_literal_value("-5"), ConstValue::int(-5));
+    assert_eq!(parse_literal_value("0"), ConstValue::int(0));
     assert_eq!(
         parse_literal_value("hello"),
         ConstValue::String("hello".into())

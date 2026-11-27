@@ -257,7 +257,7 @@ fn a_handler_store_is_a_semantic_fact_and_never_a_rewrite() {
         function
             .semantic_values()
             .and_then(|facts| facts.contents((symbol, 1))),
-        Some(&LatticeValue::Const(ConstValue::Int(1)))
+        Some(&LatticeValue::Const(ConstValue::int(1)))
     );
     assert_eq!(opt_rewrites(handler, "f5-irules"), Vec::new());
     assert_ne!(

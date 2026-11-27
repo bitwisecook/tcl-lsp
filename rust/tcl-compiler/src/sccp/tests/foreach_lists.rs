@@ -149,8 +149,8 @@ fn evaluate_def_foreach_literal_list_folds_constset() {
     match result {
         LatticeValue::ConstSet(ref vs) => {
             assert_eq!(vs.len(), 3);
-            assert!(vs.contains(&ConstValue::Int(1)));
-            assert!(vs.contains(&ConstValue::Int(3)));
+            assert!(vs.contains(&ConstValue::int(1)));
+            assert!(vs.contains(&ConstValue::int(3)));
         }
         other => panic!("expected ConstSet, got {other:?}"),
     }

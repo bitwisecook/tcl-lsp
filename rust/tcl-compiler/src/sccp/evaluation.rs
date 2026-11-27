@@ -519,7 +519,7 @@ pub(super) fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::Build
 }
 
 /// The value ingress for a literal: the text kept exactly, classified as
-/// [`ConstValue::Int`] only when the canonical integer spelling round-trips
+/// an integer only when the canonical integer spelling round-trips
 /// (`str(int(s)) == s`). A leading-zero literal such as `"08"` or `"010"`
 /// parses as 8 / 10 but does not round-trip, so it stays a string —
 /// preserving the identity SCCP needs to compare it correctly under each

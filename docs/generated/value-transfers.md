@@ -1163,7 +1163,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:317` | site | tokenless legacy expression policy. |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:322` | site | tokenless legacy fold, as above. |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:349` | site | tokenless legacy expression policy. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs:489` | site | the tokenless legacy caller has |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs:491` | site | the tokenless legacy caller has |
 
 ## The ratchet
 

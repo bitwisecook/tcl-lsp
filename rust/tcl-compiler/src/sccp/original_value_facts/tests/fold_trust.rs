@@ -164,11 +164,11 @@ fn both_stances_decline_a_builtin_a_proc_shadows() {
     let untouched = mutations_for("set y 1\n");
     assert_eq!(
         evaluate_under_lattice_stance(&stmt, &ssa, &reg, &untouched),
-        LatticeValue::Const(ConstValue::Int(3)),
+        LatticeValue::Const(ConstValue::int(3)),
     );
     assert_eq!(
         evaluate_under_unit(&stmt, &ssa, &reg, &untouched),
-        LatticeValue::Const(ConstValue::Int(3)),
+        LatticeValue::Const(ConstValue::int(3)),
     );
 }
 
@@ -194,7 +194,7 @@ fn only_the_rewrite_stance_declines_on_the_unbounded_top() {
     );
     assert_eq!(
         evaluate_under_lattice_stance(&stmt, &ssa, &reg, &opaque),
-        LatticeValue::Const(ConstValue::Int(3)),
+        LatticeValue::Const(ConstValue::int(3)),
     );
     assert_eq!(
         evaluate_under_unit(&stmt, &ssa, &reg, &opaque),
@@ -261,7 +261,7 @@ fn an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not() {
     assert!(opaque.has_dynamic_mutation());
     assert_eq!(
         evaluate_under_lattice_stance(&stmt, &ssa, &reg, &opaque),
-        LatticeValue::Const(ConstValue::Int(3)),
+        LatticeValue::Const(ConstValue::int(3)),
     );
 }
 

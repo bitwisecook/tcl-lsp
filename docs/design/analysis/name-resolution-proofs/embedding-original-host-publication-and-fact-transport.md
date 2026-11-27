@@ -1251,7 +1251,7 @@ This implementation question has no external provider execution receipt. Fixed R
 - [rust/tcl-vm-it/tests/it_5/cmd_oo/native_context/definition_exit](../../../../rust/tcl-vm-it/tests/it_5/cmd_oo/native_context/definition_exit)
 - [rust/tcl-vm/src/interp/oo_cleanup/active_frame](../../../../rust/tcl-vm/src/interp/oo_cleanup/active_frame)
 - [runtime/rust/src/frame/trace_shell](../../../../runtime/rust/src/frame/trace_shell)
-- [rust/tcl-vm/src/cmd_package/original](../../../../rust/tcl-vm/src/cmd_package/original)
+- [rust/tcl-vm-it/tests/it_5/cmd_package/original](../../../../rust/tcl-vm-it/tests/it_5/cmd_package/original)
 - [rust/tcl-runtime-api/src](../../../../rust/tcl-runtime-api/src)
 - [rust/tcl-runtime-api/src/native_literal](../../../../rust/tcl-runtime-api/src/native_literal)
 - [rust/xtask/src](../../../../rust/xtask/src)

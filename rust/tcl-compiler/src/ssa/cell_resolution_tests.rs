@@ -1168,7 +1168,7 @@ fn reaching_binding_resolves_contents_at_a_goto_without_inventing_a_read() {
     assert_eq!(
         function.sccp.values.get(&(reaching.symbol, version)),
         Some(&crate::analyses::LatticeValue::Const(
-            crate::analyses::ConstValue::Int(0)
+            crate::analyses::ConstValue::int(0)
         )),
     );
     assert!(view.reaching_binding("missing", registry).is_none());

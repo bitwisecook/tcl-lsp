@@ -39,7 +39,7 @@ fn phi_join_widens_version_zero_livein_to_overdefined() {
     // `seed_live_in_roots` pins the version-0 root Overdefined.
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
     values.insert((x, 0), LatticeValue::Overdefined);
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(5)));
     assert!(sccp_process_phis(
         &mut values,
         &block,
@@ -117,7 +117,7 @@ fn phi_join_defaults_missing_version_zero_feed_to_overdefined() {
         incoming: HashMap::from([(BlockId(1), 0), (BlockId(2), 1)]),
     });
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(5)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(5)));
     assert!(sccp_process_phis(
         &mut values,
         &block,
@@ -149,7 +149,7 @@ fn sccp_marks_entry_executable_and_propagates_const() {
     assert!(r.executable_blocks.contains(&entry));
     assert_eq!(
         r.values.get(&(x, 1)),
-        Some(&LatticeValue::Const(ConstValue::Int(42)))
+        Some(&LatticeValue::Const(ConstValue::int(42)))
     );
 }
 
@@ -421,7 +421,7 @@ fn branch_deferrable_optimism() {
 
     // A constant operand folds via `evaluate_branch`, so the `None`
     // arm is never reached → not deferrable here.
-    values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+    values.insert((x, 1), LatticeValue::Const(ConstValue::int(1)));
     assert!(!branch_deferrable(
         &sb,
         &cond,

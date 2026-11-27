@@ -24,6 +24,8 @@
 //! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
 //! catch pathological inputs.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, const_to_env_value};
@@ -383,8 +385,8 @@ impl StaticSimulation<'_> {
 
 fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
     match value {
-        StaticValue::Int(value) => Some(*value),
-        StaticValue::Bool(value) => Some(i64::from(*value)),
+        StaticValue::Number(NumericValue::Int(value)) => Some(*value),
+        StaticValue::Number(NumericValue::Bool(value)) => Some(i64::from(*value)),
         StaticValue::String(value) => {
             let parse = |syntax| {
                 tcl_syntax::number::parse_whole_with(
@@ -410,7 +412,7 @@ fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
                 },
             }
         }
-        StaticValue::Float(_) => None,
+        StaticValue::Number(NumericValue::Float(_)) => None,
     }
 }
 
@@ -437,8 +439,8 @@ fn static_expression_contents(
             environment.get(name).cloned()
         }
         None => match evaluation.value {
-            TclValue::Int(value) => Some(StaticValue::Int(value)),
-            TclValue::Float(value) if value.is_finite() => Some(StaticValue::Float(value)),
+            TclValue::Int(value) => Some(StaticValue::int(value)),
+            TclValue::Float(value) if value.is_finite() => Some(StaticValue::float(value)),
             _ => None,
         },
     }
@@ -598,7 +600,7 @@ fn exec_increment(
             evaluation_order: order,
             statement: stmt.clone(),
         });
-    env.insert(name.to_owned(), StaticValue::Int(sum));
+    env.insert(name.to_owned(), StaticValue::int(sum));
     true
 }
 

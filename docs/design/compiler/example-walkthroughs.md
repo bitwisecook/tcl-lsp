@@ -468,10 +468,8 @@ pub enum LatticeValue {
 }
 
 pub enum ConstValue {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    String(String),
+    Number(NumericValue),
+    String(LatticeText),
 }
 
 ```

@@ -27,7 +27,7 @@ struct Control {
 macro_rules! source {
     ($file:literal) => {
         include_bytes!(concat!(
-            "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+            "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
             $file
         ))
     };
@@ -36,27 +36,27 @@ macro_rules! rows {
     ($version:literal) => {
         [
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+                "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
                 $version,
                 "/deferred-original/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+                "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
                 $version,
                 "/recreated-object-private-dispatcher/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+                "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
                 $version,
                 "/synchronous-create/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+                "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
                 $version,
                 "/synchronous-replace/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_namespace_holder_routing202/",
+                "../../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
                 $version,
                 "/deferred-alias-relative-rooted/stdout"
             )),
@@ -149,7 +149,7 @@ fn original_command_holder_source_controls_match_all_native_providers() {
 macro_rules! ensemble_source {
     ($file:literal) => {
         include_bytes!(concat!(
-            "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
+            "../../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
             $file
         ))
     };
@@ -158,22 +158,22 @@ macro_rules! ensemble_rows {
     ($version:literal) => {
         [
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
+                "../../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
                 $version,
                 "/default-live/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
+                "../../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
                 $version,
                 "/relative-qualified-live/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
+                "../../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
                 $version,
                 "/default-retained-parent/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_ensemble_holder_routing205/",
+                "../../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
                 $version,
                 "/relative-retained-parent/stdout"
             )),
@@ -228,7 +228,7 @@ fn original_ensemble_holder_source_controls_match_all_native_providers() {
 macro_rules! jim_library_source {
     ($file:literal) => {
         include_bytes!(concat!(
-            "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
+            "../../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
             $file
         ))
     };
@@ -237,22 +237,22 @@ macro_rules! jim_library_rows {
     ($version:literal) => {
         [
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
+                "../../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
                 $version,
                 "/original-library-formals-and-bodies/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
+                "../../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
                 $version,
                 "/global-helper-replacement/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
+                "../../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
                 $version,
                 "/namespace-local-helper-replacement/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_namespace_distribution236/",
+                "../../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
                 $version,
                 "/original-unsupported-and-arity/stdout"
             )),
@@ -292,7 +292,7 @@ fn original_jim_namespace_library_sources_match_all_native_provider_results() {
 macro_rules! rooted_factory_source {
     ($file:literal) => {
         include_bytes!(concat!(
-            "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+            "../../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
             $file
         ))
     };
@@ -301,22 +301,22 @@ macro_rules! rooted_factory_rows {
     ($version:literal) => {
         [
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+                "../../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
                 $version,
                 "/default-namespace-command/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+                "../../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
                 $version,
                 "/namespace-prefix-override/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+                "../../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
                 $version,
                 "/literal-command-prefix-override/stdout"
             )),
             include_str!(concat!(
-                "/home/user/tcl-lsp/rust/tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+                "../../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
                 $version,
                 "/exact-create-and-option-selection/stdout"
             )),

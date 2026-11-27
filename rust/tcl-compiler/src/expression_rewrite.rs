@@ -345,7 +345,7 @@ fn numeric_result_operation(tree: &ExprNode) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tcl_expr_eval::EnvValue;
+    use crate::tcl_expr_eval::{EnvValue, TclValue};
 
     #[test]
     fn a_pooled_result_cannot_be_replaced_by_numeric_normalisation() {
@@ -452,7 +452,7 @@ mod tests {
         let policy = FoldPolicy::default().with_invocation_dialect(
             tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6),
         );
-        let environment = Env::from([("x".into(), EnvValue::Int(3))]);
+        let environment = Env::from([("x".into(), EnvValue::Number(TclValue::Int(3)))]);
         for (original, proposed) in [("$x+0", "3"), ("$x*0", "0"), ("$x**2", "$x*$x")] {
             let original = crate::expr_parser::parse_expr(original, None);
             assert_eq!(
@@ -521,7 +521,6 @@ mod tests {
     // representation"; `$a * 1.0` is a double; `$a == 1` is an int.
     #[test]
     fn an_integer_arithmetic_result_may_become_its_literal() {
-        use crate::tcl_expr_eval::TclValue;
         for version in ["tcl8.6", "tcl9.0"] {
             for (expression, value) in [
                 ("$a + 2", TclValue::Int(3)),
@@ -547,7 +546,6 @@ mod tests {
 
     #[test]
     fn a_double_comparison_or_normalised_result_keeps_its_operation() {
-        use crate::tcl_expr_eval::TclValue;
         for version in ["tcl8.6", "tcl9.0"] {
             // 8.6: with `tcl_precision 3` set before its string is generated,
             // `expr {$a / 3.0}` reads back as 0.333 and the literal as

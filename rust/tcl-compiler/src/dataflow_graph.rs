@@ -29,6 +29,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use tcl_registry::value_transfer::NumericValue;
+
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::def_use::{DefKind, DefUseFacts, UseKind};
 use crate::memory_ssa::{MemoryLocation, MemorySsaFunction};
@@ -298,9 +300,9 @@ fn format_type<S: std::hash::BuildHasher>(
 
 fn format_const(c: &ConstValue) -> String {
     match c {
-        ConstValue::Int(i) => i.to_string(),
-        ConstValue::Float(f) => f.to_string(),
-        ConstValue::Bool(b) => b.to_string(),
+        ConstValue::Number(NumericValue::Int(i)) => i.to_string(),
+        ConstValue::Number(NumericValue::Float(f)) => f.to_string(),
+        ConstValue::Number(NumericValue::Bool(b)) => b.to_string(),
         ConstValue::String(s) => format!("{s:?}"),
     }
 }

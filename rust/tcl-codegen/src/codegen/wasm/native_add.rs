@@ -32,6 +32,7 @@ pub(crate) mod retained_publication;
 use std::collections::BTreeMap;
 
 use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::value_transfer::NumericValue;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
@@ -637,9 +638,12 @@ fn covered_shape(
 
 fn lattice_i64(value: &LatticeValue) -> Option<i64> {
     match value {
-        LatticeValue::Const(ConstValue::Int(value)) => Some(*value),
+        LatticeValue::Const(ConstValue::Number(NumericValue::Int(value))) => Some(*value),
         LatticeValue::Unknown
-        | LatticeValue::Const(ConstValue::Float(_) | ConstValue::Bool(_) | ConstValue::String(_))
+        | LatticeValue::Const(
+            ConstValue::Number(NumericValue::Float(_) | NumericValue::Bool(_))
+            | ConstValue::String(_),
+        )
         | LatticeValue::ConstSet(_)
         | LatticeValue::Overdefined => None,
     }

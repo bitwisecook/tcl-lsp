@@ -43,7 +43,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-KEY_FIELDS = ("rustc", "features", "target", "profile", "path", "config", "compile_kind")
+KEY_FIELDS = (
+    "rustc",
+    "features",
+    "target",
+    "profile",
+    "path",
+    "config",
+    "compile_kind",
+)
 DAY_S = 86400
 
 
@@ -73,7 +81,11 @@ def tree_stats(path: Path) -> tuple[float, int]:
 def read_unit(path: Path) -> Unit:
     newest, size = tree_stats(path)
     fingerprint = path / "fingerprint"
-    names = sorted(p.name for p in fingerprint.glob("*.json")) if fingerprint.is_dir() else []
+    names = (
+        sorted(p.name for p in fingerprint.glob("*.json"))
+        if fingerprint.is_dir()
+        else []
+    )
     fields: tuple = ()
     rustc = None
     for name in names:
@@ -100,7 +112,9 @@ def units(profile_dir: Path) -> list[Unit]:
     ]
 
 
-def stale_units(found: list[Unit], keep: int, max_age_s: float, now: float) -> list[tuple[Unit, str]]:
+def stale_units(
+    found: list[Unit], keep: int, max_age_s: float, now: float
+) -> list[tuple[Unit, str]]:
     stale: dict[Path, tuple[Unit, str]] = {}
     with_rustc = [unit for unit in found if unit.rustc is not None]
     if with_rustc:
@@ -126,7 +140,9 @@ def stale_units(found: list[Unit], keep: int, max_age_s: float, now: float) -> l
     return sorted(stale.values(), key=lambda item: str(item[0].path))
 
 
-def stale_incremental(profile_dir: Path, max_age_s: float, now: float) -> list[tuple[Path, int, str]]:
+def stale_incremental(
+    profile_dir: Path, max_age_s: float, now: float
+) -> list[tuple[Path, int, str]]:
     incremental = profile_dir / "incremental"
     if not incremental.is_dir():
         return []
@@ -166,17 +182,23 @@ def prune_target(target: Path, keep: int, max_age_days: float, dry_run: bool) ->
     now = time.time()
     max_age_s = max_age_days * DAY_S
     freed = 0
-    for profile_dir in sorted(p for p in target.iterdir() if p.is_dir() and (p / "build").is_dir()):
+    for profile_dir in sorted(
+        p for p in target.iterdir() if p.is_dir() and (p / "build").is_dir()
+    ):
         with cargo_lock(profile_dir) as held:
             if not held:
                 print(f"skip {profile_dir}: cargo holds its lock", file=sys.stderr)
                 continue
             for unit, reason in stale_units(units(profile_dir), keep, max_age_s, now):
-                print(f"{'would delete' if dry_run else 'delete'} {unit.path} ({unit.size >> 20} MB, {reason})")
+                print(
+                    f"{'would delete' if dry_run else 'delete'} {unit.path} ({unit.size >> 20} MB, {reason})"
+                )
                 remove(unit.path, dry_run)
                 freed += unit.size
             for path, size, reason in stale_incremental(profile_dir, max_age_s, now):
-                print(f"{'would delete' if dry_run else 'delete'} {path} ({size >> 20} MB, {reason})")
+                print(
+                    f"{'would delete' if dry_run else 'delete'} {path} ({size >> 20} MB, {reason})"
+                )
                 remove(path, dry_run)
                 freed += size
     return freed
@@ -184,7 +206,10 @@ def prune_target(target: Path, keep: int, max_age_days: float, dry_run: bool) ->
 
 def default_target() -> Path:
     root = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True
+        ["git", "rev-parse", "--show-toplevel"],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     return Path(os.environ.get("CARGO_TARGET_DIR") or Path(root) / "target")
 
@@ -194,7 +219,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", type=Path)
     parser.add_argument("--keep", type=int, default=3)
     parser.add_argument("--max-age-days", type=float, default=3.0)
-    parser.add_argument("--removed", type=Path, help="a removed worktree whose target/ goes whole")
+    parser.add_argument(
+        "--removed", type=Path, help="a removed worktree whose target/ goes whole"
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     if args.keep < 1:
@@ -205,7 +232,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"{args.removed} is still a worktree")
         if target.is_dir():
             freed = tree_stats(target)[1]
-            print(f"{'would delete' if args.dry_run else 'delete'} {target} ({freed >> 20} MB)")
+            print(
+                f"{'would delete' if args.dry_run else 'delete'} {target} ({freed >> 20} MB)"
+            )
             remove(target, args.dry_run)
         return 0
     target = args.target or default_target()
@@ -213,7 +242,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no target directory at {target}")
         return 0
     freed = prune_target(target, args.keep, args.max_age_days, args.dry_run)
-    print(f"{'would free' if args.dry_run else 'freed'} {freed >> 20} MB under {target}")
+    print(
+        f"{'would free' if args.dry_run else 'freed'} {freed >> 20} MB under {target}"
+    )
     return 0
 
 

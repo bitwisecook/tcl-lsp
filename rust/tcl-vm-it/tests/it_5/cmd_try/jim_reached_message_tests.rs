@@ -81,7 +81,11 @@ fn original_jim_unselected_script_and_later_trap_keep_reached_integer_getters_la
         };
         let completion = crate::fixture::call(&mut vm, "try", &args);
         let row = observed(mode);
-        assert_eq!(completion.code.as_int(), row[2].parse::<i64>().unwrap(), "{mode}");
+        assert_eq!(
+            completion.code.as_int(),
+            row[2].parse::<i64>().unwrap(),
+            "{mode}"
+        );
         assert_eq!(
             vm.native_string_bytes(&completion.result).unwrap().as_ref(),
             crate::fixture::unhex(row[4]),

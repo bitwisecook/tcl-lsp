@@ -18,6 +18,8 @@
 
 //! Facts of one built function: callee global writes, the existence tier, parameter uses and return types.
 
+use tcl_registry::value_transfer::NumericValue;
+
 use super::*;
 
 /// A reached callee write withdraws the old value at later reads without
@@ -37,7 +39,7 @@ fn assert_callee_global_write_is_positioned(name: &str) {
         .collect::<Vec<_>>();
     assert!(
         before.iter().any(
-            |(_, value)| matches!(value, LatticeValue::Const(ConstValue::Int(4)))
+            |(_, value)| matches!(value, LatticeValue::Const(ConstValue::Number(NumericValue::Int(4))))
                 || matches!(value, LatticeValue::Const(ConstValue::String(value)) if value.as_str() == "4")
         ),
         "prior value must remain represented: {before:?}"
@@ -52,7 +54,7 @@ fn assert_callee_global_write_is_positioned(name: &str) {
     assert!(!after.is_empty(), "post-call read must remain represented");
     assert!(
         after.iter().all(
-            |(_, value)| !matches!(value, LatticeValue::Const(ConstValue::Int(4)))
+            |(_, value)| !matches!(value, LatticeValue::Const(ConstValue::Number(NumericValue::Int(4))))
                 && !matches!(value, LatticeValue::Const(ConstValue::String(value)) if value.as_str() == "4")
         ),
         "post-call read must not reuse the stale value: {after:?}"

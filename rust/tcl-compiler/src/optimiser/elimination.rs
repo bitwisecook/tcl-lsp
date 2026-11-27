@@ -62,7 +62,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::TokenType;
 
 use tcl_registry::CommandRegistry;
-use tcl_registry::value_transfer::{BindingKind, Existence};
+use tcl_registry::value_transfer::{BindingKind, Existence, NumericValue};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -655,11 +655,13 @@ impl<'a> RaiseProof<'a> {
             return true;
         }
         match self.fu.sccp.values.get(&(sym, ver)) {
-            Some(LatticeValue::Const(value)) => return matches!(value, ConstValue::Int(_)),
+            Some(LatticeValue::Const(value)) => {
+                return matches!(value, ConstValue::Number(NumericValue::Int(_)));
+            }
             Some(LatticeValue::ConstSet(values)) => {
                 return values
                     .iter()
-                    .all(|value| matches!(value, ConstValue::Int(_)));
+                    .all(|value| matches!(value, ConstValue::Number(NumericValue::Int(_))));
             }
             _ => {}
         }

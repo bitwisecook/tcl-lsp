@@ -18,10 +18,8 @@
 
 //! Fixed software owner controls; no external package callback chronology claim.
 
-#[cfg(debug_assertions)]
 use crate::prelude::*;
 use std::cell::Cell;
-#[cfg(debug_assertions)]
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,

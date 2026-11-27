@@ -183,7 +183,9 @@ class GuardTests(GitRepo):
             "export CARGO_ALIAS_XTASK=run\\ --profile\\ test\\ --package\\ xtask\\ --\n"
             "export CARGO_TARGET_DIR='/a b/target'\n"
         )
-        self.assertEqual(env["CARGO_ALIAS_XTASK"], "run --profile test --package xtask --")
+        self.assertEqual(
+            env["CARGO_ALIAS_XTASK"], "run --profile test --package xtask --"
+        )
         self.assertEqual(env["CARGO_TARGET_DIR"], "/a b/target")
 
     def test_shared_target_refuses(self):
