@@ -31,7 +31,9 @@ fn text(script: &str) -> String {
 fn original_class_definition_failure_tears_down_only_its_allocated_original_record() {
     // tclsh 8.6.18 and 9.0.4: `1 DEFINITION {}`.
     assert_eq!(
-        text("oo::class create Kept; list [catch {oo::class create K {error DEFINITION}} r] $r [info commands K] [info object isa class Kept]"),
+        text(
+            "oo::class create Kept; list [catch {oo::class create K {error DEFINITION}} r] $r [info commands K] [info object isa class Kept]"
+        ),
         "1 DEFINITION {} 1"
     );
 }
@@ -40,7 +42,9 @@ fn original_class_definition_failure_tears_down_only_its_allocated_original_reco
 fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_object() {
     // tclsh 8.6.18 and 9.0.4: `1 CONSTRUCTOR {} 1`.
     assert_eq!(
-        text("oo::class create F {constructor {} {error CONSTRUCTOR}}; list [catch {F create f} r] $r [info commands f] [info object isa class F]"),
+        text(
+            "oo::class create F {constructor {} {error CONSTRUCTOR}}; list [catch {F create f} r] $r [info commands f] [info object isa class F]"
+        ),
         "1 CONSTRUCTOR {} 1"
     );
 }
