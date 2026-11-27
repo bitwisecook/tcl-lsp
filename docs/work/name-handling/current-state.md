@@ -21,16 +21,18 @@
   excluded from library-private name matching: Rust privacy makes their public
   external receiver fields false positives. No increased ledger allowance was
   accepted.
-- Item 106a's scripts/CI harness and manual non-gating workflow are implemented;
-  its first partial benchmark-runner baseline is recorded in the build-cost
-  snapshot. Scan timeouts and invalid source-workspace samples remain explicit;
-  the corrected readiness/formatting retry was interrupted by runner shutdown
-  before artifact upload. The independently uploaded case matrix is running
-  in [CI](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051).
-  The owner chose to keep scripts/CI
-  scope and record unavailable phase interfaces and unbuilt artefacts explicitly.
-  All 15 harness tests and Python lint checks pass. No release latency has been
-  measured in this agent worktree.
+- Item 106a's scripts/CI harness is implemented, with the current measured
+  baseline in the [single build-cost record](../build-test-cost/current-state.md#now-1-analysis-and-engine-baseline-106a).
+  Small, large, source and VM cases have independently preserved artifacts in
+  [CI](https://github.com/bitwisecook/tcl-lsp/actions/runs/45997018051).
+  Large cold/restart scans time out after 600 seconds; source navigation gives
+  no valid samples. Their rows are explicitly unavailable, while source
+  formatting now accepts 20/20 samples. Tcllib's runners have twice shut down
+  before upload (exit 143); its isolated retry is the outstanding baseline
+  obligation. The owner chose scripts/CI scope with unavailable phase
+  interfaces and unbuilt artefacts recorded explicitly. All 15 harness tests
+  and Python lint checks pass. No release latency was measured in this agent
+  worktree.
 - Item 267's 43 public tests and one compiler-only guard unit test are
   implemented, with the 44 names retained. The hidden body facade is removed
   and the exported-body ledger is empty. The [assertion review](ownership/README.md#item-267-test-assertion-review)
@@ -78,15 +80,25 @@
   is `while {1} {incr x}`, while the VM's command-by-command polling reports
   `incr x`. That independent polling difference remains explicit.
 
-Focused Clippy for `bpf-tcl-codegen`, `bpf-tcl` and `xtask` passes with warnings
-denied (`/tmp/goal-survey-bpf-clippy-work.log`). Workspace formatting and
-whitespace checks pass. The full Rust/pre-PR gates have not yet been rerun for
-these changes. Previous
-item 498 gate timeouts are recorded below; they are not validation of this
-change set. Focused results above permit development pushes on `work`, not a
-PR or merge. Before a PR, run both complete gates and refresh generated drift
-reports. The current shard manifest proof passes; historical omissions below
-are resolved on this combined tree.
+The complete `make rust-check` passes on the combined tree
+(`/tmp/goal-rust-check-final-work.log`): workspace and standalone-runtime
+all-target Clippy, four offline-X.509 tests, all 50 drift gates, all 353 core
+command backing declarations, source data and header/ownership checks.
+Workspace formatting and whitespace checks pass. `make prep-pr` is next;
+its full result is still outstanding under the `work` development-push
+exception. No PR or merge is authorised.
+
+The runtime's formal-usage adapter now reads the registry activation protocol's
+variadic word. The focused public Tclsh-vector test passes for all five
+releases (`/tmp/runtime-procedure-usage-oracle-work.log`). The broader runtime
+parity test still fails with `ScalarNumericInputUnavailable`
+(`/tmp/runtime-tclsh-parity-final-work.log`), independently of usage rendering.
+The return-expression emitter uses its complete lexer-checked word without
+Rust whitespace trimming. `return_expr_errors.tcl` gives byte-identical
+public VM CLI stdout/stderr and exit 0 on all five releases
+(`/tmp/return-expr-cli-compare-work.log`). This comparison guards the source
+boundary; it does not claim that every pre-existing expression error frame
+agrees with C Tcl.
 
 ## Item 498: bytecode tables
 
@@ -119,16 +131,11 @@ Validation logs: `/tmp/item-498-bytecode-baseline-work.log`,
 `/tmp/item-498-host-lockfiles-work.log`. Production graphs are
 `/tmp/item-498-bytecode-tree-work.log` and `/tmp/item-498-runtime-tree-work.log`.
 
-Workspace Clippy passed with warnings denied for every target. The complete
-`make prep-pr` attempt timed out after 600 seconds, including time waiting for
-Cargo's build lock and the cold generator build; no generated sources changed.
-Its log is `/tmp/prep-pr-item-498-work.log`. The complete `make rust-check`
-attempt timed out after 900 seconds during the offline x509 test build, after
-both workspace and x509-only Clippy passed; standalone runtime lint and drift
-gates were not reached. Its log is `/tmp/rust-check-item-498-work.log`.
-The `work` development-push exception applies. Before a PR, rerun both full
-gates with sufficient build time and resolve the existing shard omissions.
-No implementation obligations remain for item 498.
+The current combined tree passes the complete `make rust-check`; its log and
+remaining pre-PR obligations are recorded above. The initial extraction's
+`prep-pr` and `rust-check` timeouts are in `/tmp/prep-pr-item-498-work.log`
+and `/tmp/rust-check-item-498-work.log`; they are superseded for Rust checks
+by the complete current run. No implementation obligations remain for 498.
 
 ## Development push validation
 

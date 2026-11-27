@@ -729,9 +729,6 @@ impl Interp {
     }
 }
 
-/// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc
-/// call — required params bare, defaulted params `?p?`, the `args` catch-all
-/// `?arg ...?` (mirrors C's `Tcl_WrongNumArgs` for procs).
 impl Interp {
     /// The `wrong # args` message for a proc/method, applying any active
     /// ensemble-rewrite so the call is reported as the user wrote it (C's
@@ -754,6 +751,13 @@ impl Interp {
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "procedure usage",
             ))?;
+        let activation = tcl_registry::native_procedure::procedure_activation_protocol(
+            self.native_invocation_dialect(),
+        )
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "procedure activation",
+        ))?;
+        let variadic = activation.variadic_usage_word();
         let original = native_argument_usage::OriginalArgumentUsage::capture(self, &[], 0, false)?;
         if let Some((words, drop_parameters)) = original.procedure_prefix(supplied, params.len())? {
             let words: Vec<_> = words.iter().map(|word| word.as_ref()).collect();
@@ -763,6 +767,7 @@ impl Interp {
                 &words,
                 &params[drop_parameters..],
                 self.native_invocation_dialect().parameter_grammar(),
+                variadic,
             ));
         }
         original.check()?;
@@ -772,18 +777,19 @@ impl Interp {
             params,
             quote_name,
             self.native_invocation_dialect().parameter_grammar(),
+            variadic,
         ))
     }
 }
 
 /// Build a `wrong # args` message from explicit leading `words` followed by the
-/// formal `shown` parameters (`all` is the full parameter list, for the `args`
-/// catch-all test). Shared by the plain and ensemble-rewritten forms.
+/// formal `shown` parameters for an ensemble-rewritten call.
 fn proc_usage_words<O: obj::ObjectPointer>(
     protocol: tcl_registry::native_usage::NativeUsageProtocol,
     words: &[&[u8]],
     shown: &[Param<O>],
     grammar: Option<tcl_dialect::ParameterGrammar>,
+    variadic: &[u8],
 ) -> Vec<u8> {
     let mut header = Vec::new();
     for (index, word) in words.iter().enumerate() {
@@ -792,18 +798,19 @@ fn proc_usage_words<O: obj::ObjectPointer>(
         }
         header.extend_from_slice(word);
     }
-    protocol.render_procedure_message(&header, &formal_usage(shown, grammar))
+    protocol.render_procedure_message(&header, &formal_usage(shown, grammar, variadic))
 }
 
 fn formal_usage<O: obj::ObjectPointer>(
     params: &[Param<O>],
     grammar: Option<tcl_dialect::ParameterGrammar>,
+    variadic: &[u8],
 ) -> Vec<u8> {
     let Some(grammar) = grammar else {
         return Vec::new();
     };
     let parameters = native_compilation::formal_parameters(params, grammar);
-    tcl_syntax::formal_params::formal_parameter_usage_bytes(&parameters, grammar)
+    tcl_syntax::formal_params::formal_parameter_usage_bytes(&parameters, grammar, variadic)
 }
 
 fn proc_usage<O: obj::ObjectPointer>(
@@ -812,7 +819,8 @@ fn proc_usage<O: obj::ObjectPointer>(
     params: &[Param<O>],
     quote_name: bool,
     grammar: Option<tcl_dialect::ParameterGrammar>,
+    variadic: &[u8],
 ) -> Vec<u8> {
     let header = protocol.render_procedure_name(called, quote_name);
-    protocol.render_procedure_message(&header, &formal_usage(params, grammar))
+    protocol.render_procedure_message(&header, &formal_usage(params, grammar, variadic))
 }

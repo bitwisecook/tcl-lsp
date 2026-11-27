@@ -256,10 +256,7 @@ impl CodegenCtx<'_> {
             self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
         }
         let config = self.lexer_config();
-        if let Some(spelling) = value
-            .map(str::trim)
-            .filter(|v| is_pure_cmd_subst_with_config(v, config))
-        {
+        if let Some(spelling) = value.filter(|v| is_pure_cmd_subst_with_config(v, config)) {
             let tokens = self.nested_command_tokens(value_word);
             self.stamp_substitution_error_info(start, spelling, tokens.as_ref());
         }

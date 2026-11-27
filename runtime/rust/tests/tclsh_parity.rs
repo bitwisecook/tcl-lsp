@@ -205,4 +205,24 @@ fn the_runtime_reads_each_script_as_each_tclsh_does() {
     }
 }
 
+#[test]
+fn procedure_variadic_usage_matches_each_tclsh() {
+    for release in RELEASES {
+        let observed = expected("proc_wrong_args", release, Entry::File);
+        let message = observed
+            .lines()
+            .find(|line| line.contains("\"top "))
+            .and_then(|line| line.strip_prefix("1 <"))
+            .and_then(|line| line.strip_suffix('>'))
+            .expect("top's measured wrong-argument result");
+        let mut interp = Interp::new();
+        interp.set_runtime_version(release);
+        let completion = interp
+            .eval_compiled_completion(b"proc top {x {y 1} args} {}; top")
+            .expect("procedure wrong-argument completion");
+        assert_eq!(completion.code, CompletionCode::Error, "{release:?}");
+        assert_eq!(completion.result, message.as_bytes(), "{release:?}");
+    }
+}
+
 tcl_registry::testing::install_shipped!();
