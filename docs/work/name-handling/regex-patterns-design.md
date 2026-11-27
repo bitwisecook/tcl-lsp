@@ -60,7 +60,7 @@ Analysis (`analyser-mcp.out`):
 - **Glob (L1).** Keep two matchers because tclsh has two (`Tcl_StringCaseMatch` over characters, the C-unit matcher for names), name them after their C owners, and make both take the value's units rather than requiring UTF-8, so no caller needs a "not UTF-8, so no match" fallback. The tooling matchers stay private and are documented as not Tcl.
 - **Registry descriptors.** `-matchvar`, `-indexvar`, `regexp` match variables, `regsub`'s variable and count, and `-failindex` are variable-write effects on the annotated command (decision 4), read by lowering instead of lowering bailing; the write happens before the selected body. Pattern arguments carry a value grammar (ARE under the command's flags, glob by matcher), so diagnostics, hover, tokens and the folder read one parse.
 - **Answers.** A literal pattern that fails to compile is a proven error (a new diagnostic over the shared parse); a dynamic pattern is unknown and abstains. W303 becomes a rule over the parse (nested unbounded quantifiers over overlapping alternatives, back references inside repetition) with its claim restated for Tcl's hybrid engine, or is retired if no exponential case can be shown on tclsh.
-- **Folding.** O129 over `regexp`/`regsub` stays on the shared engine; until the restart fix lands it declines `-all` and `-start` when the pattern holds a zero-width assertion other than `^`/`$`.
+- **Folding.** O129 over `regexp`/`regsub` stays on the shared engine; with the restart fix landed it folds `-all` and `-start` over every zero-width assertion, declining only a `-start` value the releases read differently.
 - **Conformance.** These fixtures become vector rows with columns for every tclsh release, Jim, both engines, the folder, and each LSP consumer of the pattern parse.
 
 ## Plan
@@ -82,5 +82,7 @@ Item 154's engine correction has landed: `AreEngine` matches the subject
 from the offset under the caller's `REG_NOTBOL`, and `r14` matches tclsh
 8.4–9.1 in the VM and the runtime. It was found through tcllib 2.0's
 `string::token::shell`, whose lexer matches `\A(…)` at successive offsets.
-The folder still declines those forms, and W210 on `switch -matchvar` in
-procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
+Past the end, `-indices` reports the caller's offset as C does
+(`regexp -start 10 -indices -inline {\A} abc` is `{10 9}`). The folder no
+longer declines the restart forms and folds `r14`'s `regsub -all {\A.} abc X`
+to `XXX`. W210 on `switch -matchvar` in procedures (`r11`) remains open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

@@ -491,12 +491,13 @@ fn native_capture_value<O: NativeRegexObjects<E>, E: RegexEngine>(
         Ok(ops.new_list(vec![start, end]))
     } else {
         let range = match span {
-            Some(span) if span.so != NO_MATCH && span.eo > 0 => recipe.range(
-                &ops.native_object_snapshot(subject)?,
-                units,
-                span.so,
-                span.eo,
-            )?,
+            Some(span) if span.so != NO_MATCH && span.eo > 0 && span.eo <= units.len() => recipe
+                .range(
+                    &ops.native_object_snapshot(subject)?,
+                    units,
+                    span.so,
+                    span.eo,
+                )?,
             _ => tcl_syntax::native_regex::NativeRegexpRange::Empty,
         };
         ops.regex_range_value(range)
@@ -582,10 +583,12 @@ pub(super) fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, E
         let Some(matches) = matches else {
             break;
         };
+        // Past the end C still matches the empty remainder, positioned at the
+        // caller's offset rather than the string length.
         let whole = native_whole_match(
             &matches,
             0,
-            units.len(),
+            units.len().max(offset),
             "native regexp whole-match geometry",
         )
         .map_err(regex_execution_error)?;

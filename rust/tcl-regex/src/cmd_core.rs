@@ -169,14 +169,17 @@ impl RegexEngine for AreEngine {
     ) -> RegexpPrecision<RegMatch> {
         // `Tcl_RegExpExecObj` hands regexec the subject from `offset` on, so
         // `\A` and the word-boundary context start there and only `^` sees the
-        // caller's `REG_NOTBOL`.
+        // caller's `REG_NOTBOL`. Past the end it matches the empty remainder, and
+        // spans stay relative to the caller's `offset`, as `-indices` reports.
         let CompiledRegex::C(re) = re else {
             return RegexpPrecision::Declined(PrecisionDecline::FormUnsupported {
                 option: "C regexp execution on a Jim artifact",
             });
         };
-        let offset = offset.min(cps.len());
-        let subject: Vec<u32> = cps[offset..].iter().map(|&c| c as u32).collect();
+        let subject: Vec<u32> = cps[offset.min(cps.len())..]
+            .iter()
+            .map(|&c| c as u32)
+            .collect();
         let eflags = if notbol { defs::REG_NOTBOL } else { 0 };
         let already = limits.spent.map_or(0, std::cell::Cell::get);
         let engine_limits = ExecLimits {
@@ -223,7 +226,7 @@ impl RegexEngine for AreEngine {
     /// Bumped with any change to what a pattern compiles to or matches.
     const IDENTITY: EngineIdentity = EngineIdentity {
         name: "tcl-regex ARE",
-        revision: 3,
+        revision: 4,
     };
 
     fn retained_bytes(re: &CompiledRegex) -> usize {

@@ -30,7 +30,7 @@ type RegexWitness = (
 
 /// The regexp owner's witnesses, each measured identical on tclsh 8.4.20,
 /// 8.5.19, 8.6.18, 9.0.4 and 9.1b0 except where noted; every release
-/// answers the first five.
+/// answers the first five and the restart rows after them.
 const REGEX_WITNESSES: &[RegexWitness] = &[
     (
         "regexp",
@@ -47,6 +47,24 @@ const REGEX_WITNESSES: &[RegexWitness] = &[
     ("regexp", &["-all", "a*", "xaax"], &[], &[]),
     ("regsub", &["-all", "", "abc", "-"], &[], &[]),
     ("regexp", &["-about", "a"], &[], &[]),
+    // Restart rows: `-all` and `-start` match the rest of the subject with no
+    // left context, so `\A`, `\m` and `\y` fire at the restart point.
+    ("regsub", &["-all", r"\A.", "abc", "X"], &[], &[]),
+    ("regsub", &["-all", r"\m.", "ab cd", "X"], &[], &[]),
+    ("regsub", &["-all", r"\y", "ab cd", "|"], &[], &[]),
+    ("regexp", &["-all", "-inline", r"\m.", "ab cd"], &[], &[]),
+    (
+        "regexp",
+        &["-start", "1", "-inline", r"\A.", "abc"],
+        &[],
+        &[],
+    ),
+    (
+        "regexp",
+        &["-start", "10", "-indices", "-inline", r"\A", "abc"],
+        &[],
+        &[],
+    ),
     ("regexp", &["-about", "(?:a)"], &[], &[]),
     ("regexp", &["-about", "a(b)c"], &[], &[]),
     (
@@ -111,11 +129,12 @@ const REGEX_WITNESSES: &[RegexWitness] = &[
 /// matched. When the route answers it must match; when `tclsh` raises the
 /// route must decline; a decline where `tclsh` answers is allowed (`-start
 /// 010` is 8 up to 8.6 and 10 from 9.0, the `-command` callback form), but
-/// the first five witnesses answer under every release.
+/// the first five witnesses and the restart rows answer under every release.
 #[test]
 fn regexp_witnesses_match_every_release_on_path() {
-    // The first five witnesses, which every release answers.
-    const REQUIRED: [usize; 5] = [0, 1, 2, 3, 4];
+    // The first five witnesses and the six restart rows, which every
+    // release answers.
+    const REQUIRED: [usize; 11] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let reg = CommandRegistry::build_default();
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {

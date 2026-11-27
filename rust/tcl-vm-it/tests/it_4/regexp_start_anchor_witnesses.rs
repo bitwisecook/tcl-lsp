@@ -27,24 +27,55 @@ use tcl_dialect::TclVersion;
 
 const MINIMAL: &str = r"puts [list [regexp -start 1 {\Ab} abc] [regexp -start 1 {^b} abc]]";
 
-#[test]
-fn backslash_a_matches_at_the_start_offset_and_caret_does_not() {
-    for oracle in tcl_test_support::required_tclshs(&TclVersion::ALL)
-        .expect("matching original C interpreters")
+/// Past the end C matches the empty remainder and positions it at the
+/// caller's offset; a capture there is the empty string.
+const PAST_THE_END: &str = r"puts [regexp -start 10 -indices -inline {\A} abc]
+puts [list [regexp -start 10 {\A()} abc m g] $m $g]
+puts [regsub -start 10 -all {\A} abc X]";
+
+/// `-start end` is the string length itself, one past the last character.
+const START_END: &str = r"puts [regexp -start end -indices -inline {\A} abc]
+puts [regexp -start end-1 -inline {\A.} abc]
+puts [regsub -start end a aaa b]";
+
+fn matches_original(source: &str, expected: &str, versions: &[TclVersion]) {
+    for oracle in
+        tcl_test_support::required_tclshs(versions).expect("matching original C interpreters")
     {
         assert_eq!(
-            common::oracle_output(&oracle.path, MINIMAL),
-            "1 0",
+            common::oracle_output(&oracle.path, source),
+            expected,
             "{}: original",
             oracle.patchlevel
         );
         assert_eq!(
-            common::vm_output(MINIMAL, oracle.version.dialect_profile_name()),
-            "1 0",
+            common::vm_output(source, oracle.version.dialect_profile_name()),
+            expected,
             "{}: compiled",
             oracle.patchlevel
         );
     }
+}
+
+#[test]
+fn backslash_a_matches_at_the_start_offset_and_caret_does_not() {
+    matches_original(MINIMAL, "1 0", &TclVersion::ALL);
+}
+
+#[test]
+fn a_start_past_the_end_reports_the_callers_offset() {
+    matches_original(PAST_THE_END, "{10 9}\n1 {} {}\nabc", &TclVersion::ALL);
+}
+
+#[test]
+fn start_end_is_the_string_length() {
+    let versions = [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ];
+    matches_original(START_END, "{3 2}\nc\naaa", &versions);
 }
 
 /// tcllib 2.0's module tree: `TCLLIB_2_0_DIR` or the checkout's `tmp/tcllib-2.0`.
@@ -92,20 +123,5 @@ foreach text {{{{cp 'a b' c}} {{echo "x}} {{a'b'}}}} {{
         TclVersion::V9_0,
         TclVersion::V9_1,
     ];
-    for oracle in
-        tcl_test_support::required_tclshs(&versions).expect("matching original C interpreters")
-    {
-        assert_eq!(
-            common::oracle_output(&oracle.path, &source),
-            SHELL_TOKENS,
-            "{}: original",
-            oracle.patchlevel
-        );
-        assert_eq!(
-            common::vm_output(&source, oracle.version.dialect_profile_name()),
-            SHELL_TOKENS,
-            "{}: compiled",
-            oracle.patchlevel
-        );
-    }
+    matches_original(&source, SHELL_TOKENS, &versions);
 }
