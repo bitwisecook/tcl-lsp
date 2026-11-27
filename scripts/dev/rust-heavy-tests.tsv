@@ -970,12 +970,6 @@ tcl-vm	cmd_list::native_original_stride_controls::original_stride_guest_and_head
 tcl-vm	cmd_trace::native_original_tests::counted_nul_command_trace_prefixes_preserve_native_storage_and_eval_extents
 tcl-vm	cmd_trace::native_original_tests::opaque_command_trace_operands_match_all_five_direct_native_engines
 tcl-vm	cmd_trace::native_original_tests::variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls
-tcl-vm	interp::authored_math::tests::authored_fixed_functions_match_original_c84_results_and_operand_order
-tcl-vm	interp::authored_tmm_static::tests::authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states
-tcl-vm	interp::authored_tmm_static::tests::rule_owners_share_static_cells_but_events_and_globals_keep_worker_ownership
-tcl-vm	interp::command_cleanup::tests::original_command_cleanup_keeps_first_cause_and_retires_only_original_child_table
-tcl-vm	interp::command_cleanup::tests::original_command_retirement_follows_actual_rename_without_repeating_delete_trace
-tcl-vm	interp::command_cleanup::tests::original_true_command_deletion_keeps_release_order_and_visible_source_imports
 tcl-vm	interp::family_b_tests::counted_syntax_failure_state_distinguishes_direct_from_script_preparation
 tcl-vm	interp::family_b_tests::every_trace_firing_intrinsic_fires_a_trace_here
 tcl-vm	interp::family_b_tests::trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement
@@ -1294,6 +1288,11 @@ tcl-vm-it::it_5	exec::native_try_tests::original_try_vectors_keep_native_handler
 tcl-vm-it::it_5	exec::native_uplevel_tests::uplevel_matches_the_native_level_body_and_restore_rows
 tcl-vm-it::it_5	expr::tests::native_integer_arithmetic_uses_the_selected_engine_on_both_paths
 tcl-vm-it::it_5	expr::tests::native_literal_and_final_string_conversion_are_distinct
+tcl-vm-it::it_5	interp::authored_math::tests::authored_fixed_functions_match_original_c84_results_and_operand_order
+tcl-vm-it::it_5	interp::authored_tmm_static::tests::authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states
+tcl-vm-it::it_5	interp::authored_tmm_static::tests::rule_owners_share_static_cells_but_events_and_globals_keep_worker_ownership
+tcl-vm-it::it_5	interp::command_cleanup::tests::original_command_retirement_follows_actual_rename_without_repeating_delete_trace
+tcl-vm-it::it_5	interp::command_cleanup::tests::original_true_command_deletion_keeps_release_order_and_visible_source_imports
 tcl-vm-it::it_5	interp::family_b_tests::variables::native_scan_and_binary_fields_preserve_lazy_double_representations
 tcl-vm-it::it_5	interp::family_b_tests::variables::variable_link_target_rebinding_and_materialisation_follow_the_policy
 tcl-vm-it::it_5	interp::family_b_tests::variables::variable_links_follow_authored_dialect_lifetimes
