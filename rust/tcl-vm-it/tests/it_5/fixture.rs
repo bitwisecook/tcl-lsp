@@ -182,3 +182,28 @@ pub fn eval(vm: &mut Vm, script: &str) -> tcl_runtime_api::Completion<tcl_vm::Va
     vm.try_eval_source(script)
         .unwrap_or_else(|refusal| panic!("{script}: {refusal:?}"))
 }
+
+/// The string protocol `vm`'s release selects.
+pub fn strings(vm: &Vm) -> tcl_syntax::native_string::NativeStringProtocol {
+    tcl_registry::InvocationDialect::of_static_profile(vm.dialect_profile())
+        .native_string_protocol()
+        .expect("a native string protocol")
+}
+
+/// `value`'s string bytes under `vm`'s release.
+pub fn bytes(vm: &Vm, value: &tcl_vm::Value) -> Vec<u8> {
+    value
+        .native_string_bytes(strings(vm))
+        .expect("native string bytes")
+        .to_vec()
+}
+
+/// [`call`] with string words, returning the completion code and result bytes.
+pub fn run(vm: &mut Vm, name: &str, words: &[&str]) -> (tcl_runtime_api::Code, Vec<u8>) {
+    let words: Vec<_> = words
+        .iter()
+        .map(|word| tcl_vm::Value::string(*word))
+        .collect();
+    let completion = call(vm, name, &words);
+    (completion.code, bytes(vm, &completion.result))
+}

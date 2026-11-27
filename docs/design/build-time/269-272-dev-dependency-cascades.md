@@ -775,3 +775,32 @@ needed nothing. Tests that reach a compiler drop from 445 to 381.
   (the private clause parser and handler binder), and
   `retained_activation::tests::retained_host_source_requires_the_original_explicit_activation`
   (a private active-profile field and the receipt's private source policy).
+
+**Batch 7, `cmd_namespace` (27 November 2026).** 23 tests in 6 files: 22 move
+to `tcl-vm-it` under their old module paths and 1 is deleted. Tests that
+reach a compiler drop from 381 to 358.
+- Namespace frames pushed by hand are now `namespace eval`; the frame a
+  `namespace eval` body sees is read by a host command through
+  `Introspect::level_argv`, and compared by bytes. Byte-named commands are
+  called through `eval` of a one-word list built from object words.
+- Jim's helpers are read with `info body`; `namespace upvar` is invoked from
+  a procedure (`probe`) and compared with the jimsh rows' codes and bytes.
+  The Jim import and alias tests run on the distribution and compare with
+  jimsh 0.84 captures. `auto_import` is a scripted procedure that records its
+  pattern and makes the nested calls.
+- Cut from rows: helper install order and repeat-install command tokens
+  (`native_jim_helpers`), the Jim import-traversal flag and body object types,
+  object headers and argument identity, whether a later operand was ever
+  converted to a string (`original_c_import_tests`), the private imported-tail
+  list (now `namespace origin`), the preload's invocation vector, reference
+  counts and cache, alias-prefix object identity and the query against an
+  invalid namespace id (`original_jim_import_tests`), and the context
+  pin-and-restore half of `original_vm_jim_import_keeps_first_host_and_restored_context_terminal`,
+  whose refusal half is now a host-command refusal inside `namespace eval`.
+- Deleted, with no script-visible behaviour the VM supports:
+  `cmd_namespace::native_jim_helpers::tests::installed_namespace_helpers_retain_actual_static_sources_and_one_filename`
+  (object type, reference count and a shared filename object). The source
+  location is visible in jimsh through `info source` (`nshelper.tcl 32` for
+  `namespace which`); the VM refuses Jim's `info source`
+  ("selected Jim info handler is unavailable").
+- The test-only `next_original_pair` lost its last caller and is removed.

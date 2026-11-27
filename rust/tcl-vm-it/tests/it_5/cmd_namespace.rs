@@ -16,5 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod native_jim_helpers;
+mod native_jim_subcommands;
+mod native_map_prefix_tests;
 mod native_store_tests;
 mod native_upvar_fixture_tests;
+mod original_c_import_tests;
+mod original_jim_import_tests;
+mod tests;

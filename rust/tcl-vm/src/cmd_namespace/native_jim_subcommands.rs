@@ -340,69 +340,6 @@ mod tests {
         include_str!("../../tests/data/native_jim_namespace_subcommand/table-20261015.tsv");
 
     #[test]
-    fn rejected_selector_uses_the_actual_mutable_sort_result_and_preserves_sort_error_text() {
-        const ORIGINAL: &str = include_str!(
-            "../../../../runtime/rust/tests/data/native_jim_namespace_subcommand/table-20261015.tsv"
-        );
-        for (label, head, body) in [
-            (
-                "MISSING_REPLACED_SORT",
-                "renamed",
-                "return {which canonical}",
-            ),
-            (
-                "MISSING_FAILED_SORT",
-                "namespace",
-                "return -code error SORTFAIL",
-            ),
-        ] {
-            let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect("jimtcl"),
-            );
-            assert_eq!(
-                vm.eval_source(&format!("proc lsort {{args}} {{{body}}}"))
-                    .unwrap()
-                    .code,
-                Code::Ok
-            );
-            vm.set_invoked_name(head);
-            let selector = Value::new_native_string_bytes(b"unavailable".as_slice());
-            for suffix in ["COLD", "REUSE"] {
-                let scope = OriginalNameConsumerScope::enter(&mut vm).unwrap();
-                let completion = select(&mut vm, &selector, 0, &scope).unwrap_err();
-                let phase = format!("{label}_{suffix}");
-                let expected = ORIGINAL
-                    .lines()
-                    .find_map(|line| {
-                        line.strip_prefix(&format!("RESULT|{phase}|{}|", completion.code.as_int()))
-                    })
-                    .unwrap();
-                let expected: Vec<_> = expected
-                    .as_bytes()
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                    .collect();
-                assert_eq!(
-                    completion.result.resident_string_bytes().unwrap().as_ref(),
-                    expected,
-                    "{phase}"
-                );
-                assert!(
-                    ORIGINAL.lines().any(|line| line
-                        == format!(
-                            "RESULT_HEADER|{phase}|1|{}",
-                            completion.result.native_object_type_name()
-                        )),
-                    "{phase}"
-                );
-                scope.finish(&mut vm).unwrap();
-            }
-        }
-    }
-
-    #[test]
     fn original_cache_is_installed_before_arity_and_consumed_without_a_string_getter() {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jimtcl"));
         vm.set_invoked_name("namespace");

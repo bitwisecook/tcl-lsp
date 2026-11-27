@@ -82,16 +82,6 @@ impl NativeDictionarySearch {
         Ok(pair)
     }
 
-    /// Borrow the next original pair at the native search frontier. The
-    /// lifetime leases add no Tcl references; backing epoch checks remain the
-    /// same as the owning result projection.
-    #[cfg(test)]
-    pub(crate) fn next_original_pair(
-        &mut self,
-    ) -> Result<Option<(Value, Value)>, tcl_syntax::value::ValueError> {
-        self.next_original_pair_using(&mut None)
-    }
-
     /// Carry the original caller across pair selection and exhausted-backing release.
     pub(crate) fn next_original_pair_checked(
         &mut self,

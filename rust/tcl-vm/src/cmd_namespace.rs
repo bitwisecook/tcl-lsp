@@ -942,12 +942,6 @@ mod original_export_tests;
 mod original_ensemble_tests;
 
 #[cfg(test)]
-mod native_map_prefix_tests;
-
-#[cfg(test)]
-mod original_jim_import_tests;
-
-#[cfg(test)]
 mod original_jim_namespace_text_result_tests;
 
 #[cfg(test)]
@@ -958,9 +952,6 @@ mod original_c_parent_current_holder_tests;
 
 #[cfg(test)]
 mod original_jim_canonical_current_holder_tests;
-
-#[cfg(test)]
-mod original_c_import_tests;
 
 #[cfg(test)]
 mod original_c_namespace_error_log_tests;
