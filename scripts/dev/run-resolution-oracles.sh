@@ -85,6 +85,7 @@ run_naming_owner tcl-vm 'interp::native_variable_names::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::execution_name_policy::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'interp::native_variable_observers::' -p tcl-vm --lib
 run_naming_owner tcl-vm 'cmd_mathop::' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'cmd_mathop::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm-it 'exec::native_list_operations_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm-it 'cmd_dict::native_rmw_fixture_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'interp::native_jim_lookup::' -p tcl-vm --lib
@@ -102,6 +103,7 @@ run_naming_owner tcl-vm 'cmd_oo::' -p tcl-vm --lib
 run_naming_owner tcl-vm-it 'cmd_oo::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm-it 'cmd_info::native_commands_tests::' -p tcl-vm-it --test it_5
 run_naming_owner tcl-vm 'value::native_' -p tcl-vm --lib
+run_naming_owner tcl-vm-it 'value_source_tests::original_source_length_and_concat_channels_match_all_native_providers' -p tcl-vm-it --test it_5
 run_naming_owner tcl-runtime 'cmd_proc::' --manifest-path runtime/rust/Cargo.toml --lib
 run_naming_owner tcl-runtime 'interp::native_command_names::' --manifest-path runtime/rust/Cargo.toml --lib
 run_naming_owner tcl-runtime 'interp::native_namespace_names::' --manifest-path runtime/rust/Cargo.toml --lib
