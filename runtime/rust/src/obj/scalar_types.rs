@@ -19,7 +19,9 @@
 //! The integer, double and word-boolean object types: constructors, string updaters, double precision, and the scalar caches a getter reads and adopts.
 
 use super::internal_representation::{change_type, change_type_using, obj_type_ptr};
-use super::lookup_caches::{NATIVE_ARRAY_SEARCH_TYPE, NATIVE_COMMAND_NAME_TYPE};
+use super::lookup_caches::{
+    NATIVE_ARRAY_SEARCH_TYPE, NATIVE_COMMAND_NAME_TYPE, NATIVE_FRAME_LEVEL_TYPE,
+};
 use super::native_jim_lookup::{
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
@@ -398,6 +400,14 @@ pub(crate) fn stock_list_input_class(
     #[cfg(have_tommath)]
     if core::ptr::eq(kind, &crate::bignum::TCL_BIGNUM_TYPE) {
         return Class::Numeric;
+    }
+    if core::ptr::eq(kind, &crate::expr::TCL_EXPR_TYPE)
+        || core::ptr::eq(kind, &crate::native_regexp::REGEXP_TYPE)
+        || core::ptr::eq(kind, &NATIVE_FRAME_LEVEL_TYPE)
+        || core::ptr::eq(kind, &super::native_lambda_expression::TYPE)
+        || crate::interp::native_body_artifact::is_bytecode(value)
+    {
+        return Class::CompiledCache;
     }
     if LEGACY_EXTENSION_TYPES.with(|types| types.borrow().contains(&(kind as usize))) {
         Class::LegacyExtension

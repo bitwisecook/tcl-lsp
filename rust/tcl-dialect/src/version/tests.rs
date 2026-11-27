@@ -195,6 +195,19 @@ fn regex_compile_error_prefix_is_reworded_in_9_0() {
 }
 
 #[test]
+fn regex_release_behaviour_splits_after_8_4_and_8_5() {
+    for v in TclVersion::ALL {
+        let legacy = matches!(v, TclVersion::V8_4 | TclVersion::V8_5);
+        assert_eq!(v.regex_star_is_iteration(), !legacy, "{v:?}");
+        assert_eq!(
+            v.regexp_restart_after_newline_is_bol(),
+            v != TclVersion::V8_4,
+            "{v:?}"
+        );
+    }
+}
+
+#[test]
 fn package_validation_reuses_the_version_parser() {
     assert!(validate_version("2.3a1"));
     assert!(!validate_version("2.a1"));

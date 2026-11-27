@@ -67,6 +67,10 @@ pub enum NativeStockListInputClass {
     Numeric,
     /// Native word-Boolean cache, distinct from numeric expression booleans.
     Boolean,
+    /// Native C `bytecode`, `exprcode`, `regexp`, `lambdaExpr`, return-code or
+    /// `levelReference` cache: sealed core types with no Length method, so
+    /// `Tcl_ListObjLength` converts their string as it does a plain one.
+    CompiledCache,
 }
 
 /// Current cache after an independently reached normal stock Length conversion.

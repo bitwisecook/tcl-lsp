@@ -168,6 +168,10 @@ fn unknown_stock_cache_and_empty_preservation_do_not_mint_list() {
             protocol.normal_cache_disposition(Class::String, Some(b"")),
             Some(Cache::Unknown)
         );
+        assert_eq!(
+            protocol.normal_cache_disposition(Class::CompiledCache, Some(b"expr {1}")),
+            Some(Cache::List)
+        );
         if dialect.tcl_version.unwrap() >= TclVersion::V9_0 {
             assert_eq!(
                 protocol.normal_cache_disposition(Class::Unknown, Some(b"2")),
@@ -269,6 +273,12 @@ fn object_length_dispatch_requires_actual_storage_and_distinct_logical_origin() 
             })
         );
         assert_eq!(protocol.action(Class::Unknown, false), None);
+        // `llength` of a script `eval` compiled, an `expr` operand or a regexp
+        // pattern converts its string, as tclsh 8.4.20-9.1.0 does.
+        assert_eq!(
+            protocol.action(Class::CompiledCache, false),
+            Some(Action::ConvertToList)
+        );
     }
     let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
     assert_eq!(logical.native_object_length_protocol(), None);

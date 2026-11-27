@@ -161,7 +161,19 @@ impl Vm {
         info.extend_from_slice(("\" body line ").as_bytes());
         info.extend_from_slice(line.to_string().as_bytes());
         info.push(b')');
-        self.native_errors.error_logged = self.native_errors.error_logged.past_frame();
+        // A body the release compiles ends as `TclCompEvalObj` does, clearing
+        // even 8.4's through-frames `ERR_ALREADY_LOGGED`, so the loop logs its
+        // own call; `eval`'s direct body keeps it.
+        self.native_errors.error_logged =
+            if tcl_registry::release_compilation::evaluates_script_directly(
+                self.runtime_version(),
+                label,
+                1,
+            ) {
+                self.native_errors.error_logged.past_frame()
+            } else {
+                ErrorLogged::No
+            };
         self.update_native_error_info();
     }
 
@@ -208,6 +220,20 @@ impl Vm {
     }
 
     pub(crate) fn seed_error_info_frame(&mut self, msg: impl AsRef<[u8]>, frame: impl AsRef<[u8]>) {
+        self.append_error_info_frame(msg.as_ref(), frame.as_ref());
+        self.native_errors.error_logged = ErrorLogged::No;
+    }
+
+    /// A sourced file's `(file "PATH" line N)` frame. `Tcl_FSEvalFile` adds it
+    /// with `Tcl_AddErrorInfo`, which leaves `ERR_ALREADY_LOGGED` as it is, so
+    /// an error 8.4 keeps logged through frames stays logged past `source`:
+    /// tclsh 8.4.20 names no `source` call and reports the enclosing body's
+    /// line as the file's.
+    pub(crate) fn seed_file_error_frame(&mut self, msg: impl AsRef<[u8]>, frame: impl AsRef<[u8]>) {
+        self.append_error_info_frame(msg.as_ref(), frame.as_ref());
+    }
+
+    fn append_error_info_frame(&mut self, msg: &[u8], frame: &[u8]) {
         if self.uses_jim_error_stack() {
             return;
         }
@@ -220,14 +246,13 @@ impl Vm {
             self.native_errors.error_info = None;
         }
         if self.native_errors.error_info.is_none() {
-            self.seed_native_error_result_object(msg.as_ref());
+            self.seed_native_error_result_object(msg);
         }
         let info = self
             .native_errors
             .error_info
-            .get_or_insert_with(|| msg.as_ref().to_vec());
-        info.extend_from_slice(frame.as_ref());
-        self.native_errors.error_logged = ErrorLogged::No;
+            .get_or_insert_with(|| msg.to_vec());
+        info.extend_from_slice(frame);
         self.update_native_error_info();
     }
 

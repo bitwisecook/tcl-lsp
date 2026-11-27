@@ -267,13 +267,29 @@ fn run() -> i32 {
             completion
         }
     };
-    let completion = match completion {
+    let mut completion = match completion {
         Ok(completion) => completion,
         Err(error) => {
             eprintln!("run_script: execution refused: {error}");
             return 2;
         }
     };
+    // As `Tcl_Main` reports a script file's error: the global `errorInfo`,
+    // else the message, then exit 1.
+    if path.is_some() && completion.code == CompletionCode::Error {
+        match interp.eval_completion(b"::set ::errorInfo") {
+            Ok(info) if info.code == CompletionCode::Ok => completion.result = info.result,
+            _ => {}
+        }
+        return write_result_line(&mut std::io::stderr().lock(), b"", &completion.result)
+            .map_or_else(
+                |error| {
+                    eprintln!("run_script: cannot write completion: {error}");
+                    2
+                },
+                |()| 1,
+            );
+    }
     // Print the script's final result (if any), like an interactive evaluation
     // — unless `--quiet` asked for `tclsh script.tcl`'s actual non-interactive
     // contract instead (stdout carries only `puts` output).

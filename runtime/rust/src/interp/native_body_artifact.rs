@@ -320,6 +320,11 @@ static BYTECODE_TYPE: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+/// Whether `value` holds the core `bytecode` representation.
+pub(crate) fn is_bytecode(value: *mut TclObj) -> bool {
+    core::ptr::eq(obj::obj_type_ptr(value), &BYTECODE_TYPE)
+}
+
 fn cache(value: *mut TclObj) -> Option<Rc<NativeBodyArtifact>> {
     if !core::ptr::eq(obj::obj_type_ptr(value), &BYTECODE_TYPE) {
         return None;

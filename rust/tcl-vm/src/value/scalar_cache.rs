@@ -399,15 +399,15 @@ impl Value {
             IntRep::NativeParsedVariableName(_) => Class::ParsedVariableName,
             IntRep::NativeLocalVariableName(_) => Class::LocalVariableName,
             IntRep::JimSource(_) => Class::JimSource,
+            IntRep::Expression(_)
+            | IntRep::NativeBytecode(_)
+            | IntRep::CompletionCode(_)
+            | IntRep::FrameLevel { .. }
+            | IntRep::NativeRegexp(_) => Class::CompiledCache,
             IntRep::JimScript(_)
             | IntRep::JimDictionarySubstitution { .. }
             | IntRep::JimInterpolated(_)
             | IntRep::JimScriptLine { .. }
-            | IntRep::Expression(_)
-            | IntRep::NativeBytecode(_)
-            | IntRep::CompletionCode(_)
-            | IntRep::FrameLevel { .. }
-            | IntRep::NativeRegexp(_)
             | IntRep::JimRegexp(_)
             | IntRep::JimIndex(_) => Class::Unknown,
             IntRep::NativePropertyName(_) => Class::PropertyName,

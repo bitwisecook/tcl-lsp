@@ -46,11 +46,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
 
 const CORPUS: &str = include_str!("../../tcl-vm/tests/data/regexp_cmd_cases.tsv");
 
@@ -67,15 +63,13 @@ impl Write for Capture {
 }
 
 fn run(src: &str) -> (bool, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let c = vm.run_module(&asm);
-    (c.code.is_ok(), c.result.to_str().to_string())
+    match vm.try_eval_source(src) {
+        Ok(c) => (c.code.is_ok(), c.result.to_str().to_string()),
+        Err(refusal) => (false, format!("host refusal: {refusal:?}")),
+    }
 }
 
 fn cps_to_string(field: &str) -> String {

@@ -494,3 +494,72 @@ fn a_folded_expression_error_starts_as_each_release_starts_it() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// What `tclsh` at `binary` reports for the script at `path`, as [`run`] does.
+fn run_tclsh(binary: &Path, path: &Path) -> (String, String, bool) {
+    let output = Command::new(binary)
+        .env_remove("TCL_LIBRARY")
+        .arg(path)
+        .env("LC_ALL", "C.UTF-8")
+        .output()
+        .expect("run tclsh");
+    let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+    let path = path.to_str().expect("a UTF-8 path");
+    (
+        text(&output.stdout),
+        text(&output.stderr).replace(path, "PATH"),
+        output.status.code() == Some(1),
+    )
+}
+
+/// Where a body or a sourced file sits among the frames, against every
+/// release's tclsh. 8.4's top-level `if`, `while` and `expr` run their
+/// expression through `Tcl_ExprObj`, which leaves an error logged past
+/// `source` and `eval` until a compiled body (a loop's, or a procedure's)
+/// returns; every release reports a top-level `if` or `while` body's error
+/// with the command's own frame.
+#[test]
+fn logged_errors_cross_source_and_body_frames_as_tclsh_does() {
+    let dir = scratch("frames");
+    let inner = write(&dir, "inner.tcl", "if {[string repeat]} {}\n");
+    let plain = write(&dir, "plain.tcl", "set x 1\nstring repeat\n");
+    let scripts = [
+        format!(
+            "foreach m {{a}} {{\n    set y 2\n    source {}\n}}\n",
+            inner.display()
+        ),
+        format!(
+            "foreach m {{a}} {{\n    set y 2\n    source {}\n}}\n",
+            plain.display()
+        ),
+        "proc p {} {error inner}\nset e {[p] + 1}\nforeach x {1} {\n    set y 2\n    \
+         set w [list a [expr $e]]\n}\n"
+            .to_owned(),
+        "proc p {} {error inner}\nset e {[p] + 1}\nset i 0\nwhile {$i < 1} {\n    incr i\n    \
+         set w [list a [expr $e]]\n}\n"
+            .to_owned(),
+        "proc p {} {error inner}\nset e {[p] + 1}\neval {\n    set y 2\n    \
+         set w [list a [expr $e]]\n}\n"
+            .to_owned(),
+        "set x 1\nset y 2\nif {1} {\n  string repeat\n}\n".to_owned(),
+        "set x 1\nwhile 1 {string repeat}\n".to_owned(),
+        "set x 1\nset y [expr {[string repeat]}]\n".to_owned(),
+    ];
+    let versions = tcl_dialect::TclVersion::ALL;
+    for oracle in
+        tcl_test_support::required_tclshs(&versions).expect("matching original C interpreters")
+    {
+        let release = oracle.version.version_string();
+        for (index, script) in scripts.iter().enumerate() {
+            let path = write(&dir, &format!("script{index}.tcl"), script);
+            let (_, stderr, failed) = run_tclsh(&oracle.path, &path);
+            assert!(failed, "{release}: tclsh accepts {script}");
+            assert_eq!(
+                run(&path, release),
+                (String::new(), stderr, true),
+                "{release}: {script}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
