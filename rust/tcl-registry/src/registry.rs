@@ -278,69 +278,18 @@ fn next_registry_generation() -> u64 {
     NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-/// The shipped specs of one command group, built once and leaked.
-///
-/// Every group below is a `fn() -> Vec<CommandSpec>` over `const` data, so it
-/// returns byte-identical specs however often it is called — and it was called
-/// often: once per `build_default`, which the cache's own docs note runs per
-/// CFG build on some paths, and once more per dialect layer per registry
-/// generation. Building each group once and handing out `&'static` slices
-/// makes a registry an index over shared data instead of an owner of a private
-/// copy of it.
-fn shared_specs(
-    cell: &'static OnceLock<&'static [CommandSpec]>,
-    build: fn() -> Vec<CommandSpec>,
-) -> &'static [CommandSpec] {
-    cell.get_or_init(|| &*Vec::leak(build()))
-}
-
-/// Declare a `fn() -> &'static [CommandSpec]` wrapping one group's builder in
-/// its own `OnceLock`.
-macro_rules! shared_group {
-    ($name:ident, $build:expr) => {
-        fn $name() -> &'static [CommandSpec] {
-            static CELL: OnceLock<&'static [CommandSpec]> = OnceLock::new();
-            shared_specs(&CELL, $build)
-        }
-    };
-}
-
-shared_group!(tcl_specs, crate::commands::tcl::tcl_command_specs);
-
 /// Shipped metadata for a selected fixed expression-function registration.
 /// This is independent of the command-wrapper surface filtered by a Registry
 /// projection and supplies no callable command or function-table receipt.
 pub(super) fn fixed_math_function_metadata(bare: &str) -> Option<&'static CommandSpec> {
     let qualified = crate::mathfunc::qualified_name(bare);
-    tcl_specs().iter().find(|spec| spec.name == qualified)
+    surfaces::installed()
+        .surface("tcl")?
+        .specs()
+        .iter()
+        .copied()
+        .find(|spec| spec.name == qualified)
 }
-
-shared_group!(stdlib_specs, crate::commands::stdlib::stdlib_command_specs);
-shared_group!(tcllib_specs, crate::commands::tcllib::tcllib_command_specs);
-shared_group!(
-    argparse_specs,
-    crate::commands::argparse::argparse_command_specs
-);
-shared_group!(
-    ticklecharts_specs,
-    crate::commands::ticklecharts::ticklecharts_command_specs
-);
-shared_group!(itcl_specs, crate::commands::itcl::itcl_command_specs);
-shared_group!(thread_specs, crate::commands::thread::thread_command_specs);
-shared_group!(tk_specs, crate::commands::tk::tk_command_specs);
-shared_group!(bpf_specs, crate::commands::bpf::bpf_command_specs);
-shared_group!(irules_specs, crate::commands::irules::irules_command_specs);
-shared_group!(iapps_specs, crate::commands::iapps::iapps_command_specs);
-shared_group!(tmsh_specs, crate::commands::iapps::tmsh_command_specs);
-shared_group!(expect_specs, crate::commands::expect::expect_command_specs);
-shared_group!(
-    spectcl_specs,
-    crate::commands::spectcl::spectcl_command_specs
-);
-shared_group!(
-    sslictcl_specs,
-    crate::commands::sslictcl::sslictcl_command_specs
-);
 
 mod argument_roles;
 mod construction;
@@ -355,6 +304,7 @@ mod native_registration;
 mod object_model;
 mod script_timing;
 mod snapshot;
+pub mod surfaces;
 mod trait_queries;
 mod variable_projection;
 
@@ -392,75 +342,6 @@ pub use native_registration::NativeCompilerHooks;
 pub use object_model::MethodDispatchKind;
 pub use snapshot::{RegistrySemanticKey, RegistrySnapshot};
 
-/// Which authoring pack declares each shipped command, built once from the
-/// same leaked `shared_group!` slices the registry inserts.
-///
-/// Keyed **by spec identity**, not by name. Seventeen names are declared in
-/// two or three packs — `close` in `tcl`, `expect` and `irules`; `send` in
-/// `tk`, `expect` and `irules` — and each dialect registers exactly one of
-/// them. Asking by name could only answer with a fixed winner and would file
-/// the iRules `close` under `tcl` in the iRules dialect; asking with the very
-/// `&'static CommandSpec` the registry handed back cannot be wrong.
-fn spec_pack_by_identity() -> &'static FxHashMap<usize, &'static str> {
-    static INDEX: OnceLock<FxHashMap<usize, &'static str>> = OnceLock::new();
-    INDEX.get_or_init(|| {
-        let mut index = FxHashMap::default();
-        for (pack, specs) in authored_groups() {
-            for spec in specs {
-                index.insert(std::ptr::from_ref(spec) as usize, pack);
-            }
-        }
-        index
-    })
-}
-
-/// Which packs declare each name, in [`SPEC_PACKS`](crate::commands::SPEC_PACKS)
-/// order. Backs the "also declared in" answer, where the question really is
-/// about the name rather than about one resolved spec.
-fn spec_packs_by_name() -> &'static FxHashMap<&'static str, Vec<&'static str>> {
-    static INDEX: OnceLock<FxHashMap<&'static str, Vec<&'static str>>> = OnceLock::new();
-    INDEX.get_or_init(|| {
-        let mut index: FxHashMap<&'static str, Vec<&'static str>> = FxHashMap::default();
-        for (pack, specs) in authored_groups() {
-            for spec in specs {
-                // The same bare-normalisation `all_dialect_command_names`
-                // applies, for the same reason: a caller strips a literal
-                // `::` head before asking.
-                let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
-                let packs = index.entry(name).or_default();
-                if !packs.contains(&pack) {
-                    packs.push(pack);
-                }
-            }
-        }
-        index
-    })
-}
-
-/// Every authored group paired with the pack directory it lives in.
-///
-/// `tmsh_specs` is a filtered view of the same `commands/iapps/` sources, so
-/// it reports `iapps` — the directory a spec author would open.
-fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 15] {
-    [
-        ("tcl", tcl_specs()),
-        ("stdlib", stdlib_specs()),
-        ("tcllib", tcllib_specs()),
-        ("argparse", argparse_specs()),
-        ("ticklecharts", ticklecharts_specs()),
-        ("itcl", itcl_specs()),
-        ("thread", thread_specs()),
-        ("tk", tk_specs()),
-        ("expect", expect_specs()),
-        ("bpf", bpf_specs()),
-        ("irules", irules_specs()),
-        ("iapps", iapps_specs()),
-        ("iapps", tmsh_specs()),
-        ("spectcl", spectcl_specs()),
-        ("sslictcl", sslictcl_specs()),
-    ]
-}
-
 /// The `commands/<pack>/` module that declares `spec`.
 ///
 /// `None` for a spec that reached the registry from a `.tclspec` pack — the
@@ -469,7 +350,8 @@ fn authored_groups() -> [(&'static str, &'static [CommandSpec]); 15] {
 /// reports; this deliberately does not guess one.
 #[must_use]
 pub fn spec_pack_of(spec: &CommandSpec) -> Option<&'static str> {
-    spec_pack_by_identity()
+    surfaces::installed()
+        .pack_by_identity()
         .get(&(std::ptr::from_ref(spec) as usize))
         .copied()
 }
@@ -481,7 +363,8 @@ pub fn spec_pack_of(spec: &CommandSpec) -> Option<&'static str> {
 /// browser can say so instead of silently filing it under one of them.
 #[must_use]
 pub fn spec_packs_of(name: &str) -> &'static [&'static str] {
-    spec_packs_by_name()
+    surfaces::installed()
+        .packs_by_name()
         .get(tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name))
         .map_or(&[][..], |packs| packs.as_slice())
 }

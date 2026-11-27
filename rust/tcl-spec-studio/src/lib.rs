@@ -184,7 +184,7 @@ pub fn load_command(name: &str, dialect: &str) -> Option<Value> {
 ///
 /// Only packs that reach this dialect are listed, so the Tcl 8.4 picker does
 /// not offer an empty **F5 iRules** heading. Ordering is
-/// [`SPEC_PACKS`](tcl_registry::commands::SPEC_PACKS)': core language, then
+/// the installed surfaces': core language, then
 /// the libraries that layer on it, then the vendor and authoring surfaces.
 #[must_use]
 pub fn pack_catalogue(dialect: &str) -> Value {
@@ -198,7 +198,8 @@ pub fn pack_catalogue(dialect: &str) -> Value {
             *counts.entry(pack).or_default() += 1;
         }
     }
-    let packs: Vec<Value> = tcl_registry::commands::SPEC_PACKS
+    let packs: Vec<Value> = tcl_registry::installed()
+        .surfaces()
         .iter()
         .filter_map(|pack| {
             let commands = counts.get(pack.id).copied()?;
@@ -207,7 +208,7 @@ pub fn pack_catalogue(dialect: &str) -> Value {
                 "label": pack.label,
                 "blurb": pack.blurb,
                 "commands": commands,
-                "path": format!("rust/tcl-registry/src/commands/{}", pack.id),
+                "path": pack.source_dir,
             }))
         })
         .collect();
@@ -284,16 +285,22 @@ pub fn pack_export_from(store: &store::PackStore, pack: &str, dialect: &str) -> 
         // `tcl` is a handful of commands added to hundreds — and a whole-file
         // `mod.rs` offered for it is a drop-in that deletes the rest of the
         // pack. Rendered as an addition, it cannot be applied that way.
-        let shipped = tcl_registry::commands::SpecPack::by_id(pack).is_some();
-        let form = if shipped {
+        let shipped = tcl_registry::installed()
+            .surface(pack)
+            .filter(|surface| surface.is_built());
+        let form = if shipped.is_some() {
             render_rs::ModuleForm::Addition
         } else {
             render_rs::ModuleForm::Whole
         };
-        let dir = format!("rust/tcl-registry/src/commands/{pack}/mod.rs");
+        let dir = shipped.map_or_else(
+            || format!("rust/tcl-registry/src/commands/{pack}"),
+            |surface| surface.source_dir.to_owned(),
+        );
+        let dir = format!("{dir}/mod.rs");
         files.push(json!({
-            "kind": if shipped { "rs-mod-add" } else { "rs-mod" },
-            "path": if shipped { format!("{dir}.additions") } else { dir },
+            "kind": if shipped.is_some() { "rs-mod-add" } else { "rs-mod" },
+            "path": if shipped.is_some() { format!("{dir}.additions") } else { dir },
             "source": render_rs::render_pack_module(&commands, pack, form),
         }));
     }

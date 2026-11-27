@@ -66,71 +66,22 @@ impl EventInfo {
     }
 }
 
-/// Number of commands declaring a taint source — computed at compile
-/// time so [`TAINT_SOURCE_INDEX`] can be a fixed-size `const` array.
-const fn count_taint_sources(specs: &[CommandSpec]) -> usize {
-    let mut n = 0;
-    let mut i = 0;
-    while i < specs.len() {
-        if specs[i].taint_source.is_some() {
-            n += 1;
-        }
-        i += 1;
-    }
-    n
-}
-
-/// Build the taint-source index at compile time by scanning the const
-/// [`crate::commands::irules::IRULES_SPECS`] array for every spec's
-/// [`crate::CommandSpec::taint_source`].
-const fn build_taint_source_index()
--> [(&'static str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] {
-    let specs = crate::commands::irules::IRULES_SPECS;
-    let mut out = [("", crate::taint::TaintColour::empty()); TAINT_SOURCE_COUNT];
-    let mut i = 0;
-    let mut k = 0;
-    while i < specs.len() {
-        if let Some(colour) = specs[i].taint_source {
-            out[k] = (specs[i].name, colour);
-            k += 1;
-        }
-        i += 1;
-    }
-    out
-}
-
-const TAINT_SOURCE_COUNT: usize = count_taint_sources(crate::commands::irules::IRULES_SPECS);
-
-/// The taint-source index: command name → getter-form source colour, a
-/// **compile-time** table derived from every iRules spec's
-/// [`crate::CommandSpec::taint_source`] — the data's single home is each
-/// `CommandSpec`, so this never drifts from the spec definitions.
-///
-/// Independent of which dialects a registry has loaded: a `tcl8.6`
-/// document still
-/// sees `HTTP::path` as a source. (The core Tcl sources `gets` / `read` /
-/// `exec` / … are classified by [`crate::Traits::TAINT_SOURCE`] instead,
-/// so they carry no index entry.)
-const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] =
-    build_taint_source_index();
-
 impl CommandRegistry {
     /// The taint-source colour declared by `command`'s spec, or `None`
     /// when it is not a source.
     ///
-    /// Reads the compile-time [`TAINT_SOURCE_INDEX`] — a table *derived*
-    /// from every command spec's [`crate::CommandSpec::taint_source`],
-    /// built at compile time. It is deliberately **dialect-agnostic and
+    /// Reads the installed set's index, *derived* once from every
+    /// installed spec's [`crate::CommandSpec::taint_source`]. It is deliberately **dialect-agnostic and
     /// independent of which dialects are loaded into this registry**:
     /// an iRules
     /// getter such as `HTTP::path` is a known source even when analysing a
     /// `tcl8.6` document whose registry never loaded the iRules commands.
     #[must_use]
     pub fn taint_source(&self, command: &str) -> Option<crate::taint::TaintColour> {
-        TAINT_SOURCE_INDEX
-            .iter()
-            .find(|(name, _)| *name == command)
-            .map(|(_, colour)| *colour)
+        super::surfaces::installed()
+            .taint_sources()
+            .get(command)
+            .copied()
     }
 
     /// Return the sorted names of every f5-irules command valid in `event`.

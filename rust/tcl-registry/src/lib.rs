@@ -292,6 +292,7 @@ pub mod state_transition;
 pub mod substitution;
 pub mod symbol_def;
 pub mod taint;
+pub mod testing;
 pub mod tk_geometry;
 pub mod traits;
 pub mod types;
@@ -443,6 +444,19 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root.
+pub use registry::surfaces::{
+    HookTable, InstallConflict, Placement, SpecCell, SpecSource, Surface, SurfaceSet, SurfaceView,
+    install, installed, try_installed,
+};
+
+/// Install the shipped surface list, [`commands::SHIPPED`].
+///
+/// # Errors
+///
+/// [`InstallConflict`] when a different list is already installed.
+pub fn install_shipped() -> Result<&'static SurfaceSet, InstallConflict> {
+    install(commands::SHIPPED)
+}
 pub use arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};

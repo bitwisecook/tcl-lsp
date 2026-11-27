@@ -611,8 +611,8 @@ fn a_namespace_separator_is_a_double_underscore_as_the_registry_spells_it() {
 #[test]
 fn every_shipped_namespaced_command_keeps_its_separator() {
     let mut checked = 0_usize;
-    for pack in tcl_registry::commands::SPEC_PACKS {
-        for spec in (pack.specs)() {
+    for pack in tcl_registry::installed().surfaces() {
+        for spec in pack.specs() {
             if !tcl_syntax::naming::unroot_rooted_key(spec.name)
                 .unwrap_or(spec.name)
                 .contains("::")
@@ -644,9 +644,11 @@ fn every_shipped_namespaced_command_keeps_its_separator() {
 /// `pack_export` reports.)
 #[test]
 fn no_two_shipped_irules_commands_propose_the_same_file() {
-    let pack = tcl_registry::commands::SpecPack::by_id("irules").expect("the irules pack");
+    let pack = tcl_registry::installed()
+        .surface("irules")
+        .expect("the irules pack");
     let mut seen: BTreeMap<String, String> = BTreeMap::new();
-    for spec in (pack.specs)() {
+    for spec in pack.specs() {
         // One command may ship under both its bare and its fully-qualified
         // spelling, and the registry files those in one module.
         let command = tcl_syntax::naming::unroot_rooted_key(spec.name)

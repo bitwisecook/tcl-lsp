@@ -35,7 +35,6 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use tcl_dialect::model::{Family, SurfaceQuery};
-use tcl_registry::commands;
 use tcl_registry::knowledge::{Knowledge, KnowledgeLevel, complete_window_words};
 use tcl_registry::purity::PurityDomains;
 use tcl_registry::spec::CommandSpec;
@@ -59,23 +58,27 @@ struct Row {
     taint: KnowledgeLevel,
 }
 
-fn groups() -> Vec<(&'static str, Vec<CommandSpec>)> {
-    vec![
-        ("tcl", commands::tcl::tcl_command_specs()),
-        ("stdlib", commands::stdlib::stdlib_command_specs()),
-        ("tcllib", commands::tcllib::tcllib_command_specs()),
-        ("tk", commands::tk::tk_command_specs()),
-        ("expect", commands::expect::expect_command_specs()),
-        ("irules", commands::irules::irules_command_specs()),
-        ("iapps", commands::iapps::iapps_command_specs()),
-    ]
+/// The surfaces the matrix covers.
+const GROUPS: &[&str] = &["tcl", "stdlib", "tcllib", "tk", "expect", "irules", "iapps"];
+
+fn groups() -> Vec<(&'static str, &'static [&'static CommandSpec])> {
+    let installed = tcl_registry::installed();
+    GROUPS
+        .iter()
+        .map(|&id| {
+            let surface = installed
+                .surface(id)
+                .unwrap_or_else(|| panic!("the {id} surface is installed"));
+            (surface.id, surface.specs())
+        })
+        .collect()
 }
 
 fn rows() -> Vec<Row> {
     let mut rows = Vec::new();
     for (group, specs) in groups() {
         let mut seen = BTreeSet::new();
-        for spec in &specs {
+        for spec in specs {
             if !seen.insert(spec.name) {
                 continue;
             }

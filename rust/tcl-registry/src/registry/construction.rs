@@ -18,11 +18,8 @@
 
 //! Building a registry: the default build, loading a surface, projecting for a profile, and inserting specs, reference texts and ambient packages.
 
-use super::{
-    CommandRegistry, argparse_specs, bpf_specs, expect_specs, iapps_specs, irules_specs,
-    itcl_specs, next_registry_generation, spectcl_specs, sslictcl_specs, stdlib_specs, tcl_specs,
-    tcllib_specs, thread_specs, ticklecharts_specs, tk_specs, tmsh_specs,
-};
+use super::surfaces::{Placement, Surface};
+use super::{CommandRegistry, next_registry_generation};
 use crate::arity::Arity;
 use crate::definer::DefinitionBodyGrammar;
 use crate::spec::CommandSpec;
@@ -32,9 +29,20 @@ use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer, SurfaceQuery};
 use tcl_dialect::version_satisfies;
 
 impl CommandRegistry {
-    /// Build the default registry with core Tcl + stdlib + tcllib commands.
+    /// The base surfaces of the installed set.
+    ///
+    /// # Panics
+    ///
+    /// When no entry point has installed a surface set.
     #[must_use]
     pub fn build_default() -> Self {
+        Self::from_surfaces(&super::surfaces::installed().base())
+    }
+
+    /// A registry holding every one of `surfaces`' specs, in order, whatever
+    /// their placement. Reads no installed set.
+    #[must_use]
+    pub fn from_surfaces(surfaces: &[&'static Surface]) -> Self {
         let mut registry = Self {
             by_name: FxHashMap::default(),
             overlay_specs: Vec::new(),
@@ -52,78 +60,37 @@ impl CommandRegistry {
             reference_texts: FxHashMap::default(),
             generation: next_registry_generation(),
         };
-        for spec in tcl_specs() {
-            registry.insert_shipped_static(spec);
+        for surface in surfaces {
+            for spec in surface.specs() {
+                registry.insert_shipped_static(spec);
+            }
+            if let Placement::BaseLayer(layer) | Placement::Layer(layer) = surface.placement {
+                registry.loaded_layers.push(layer);
+            }
+            if surface.document_grammar.is_some() {
+                registry.document_grammar = surface.document_grammar;
+            }
         }
-        for spec in stdlib_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        for spec in tcllib_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        for spec in argparse_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        for spec in ticklecharts_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        for spec in itcl_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        for spec in thread_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
-        // are part of the always-known command universe: a `.tcl` script may
-        // `package require Tk` at runtime, and the diagnostics treat them as
-        // recognised under every Tcl dialect, so Tk is folded into the base
-        // registry.  Mark the layer loaded so a later `load_surface(Tk)` is
-        // a no-op rather than a double-insert.
-        for spec in tk_specs() {
-            registry.insert_shipped_static(spec);
-        }
-        registry.loaded_layers.push(SurfaceLayer::Package("Tk"));
         registry
     }
 
     /// Load a surface's commands into the registry (idempotent).
+    ///
+    /// The installed surface that claims `layer` brings its specs and its
+    /// document grammar. A layer no installed surface claims — a core
+    /// release, which only records which language the registry is — brings
+    /// none.
     pub fn load_surface(&mut self, layer: SurfaceLayer) {
         if self.loaded_layers.contains(&layer) {
             return;
         }
-        let specs: &'static [CommandSpec] = match layer {
-            SurfaceLayer::Package("bpf") => bpf_specs(),
-            SurfaceLayer::Core(Family::F5Irules, _) => irules_specs(),
-            SurfaceLayer::Package("iapps") => iapps_specs(),
-            // The tmsh shell's own pack: the `tmsh::` surface shared with
-            // iApps, without the iApp-only commands.
-            SurfaceLayer::Package("tmsh") => tmsh_specs(),
-            SurfaceLayer::Package("Tk") => tk_specs(),
-            SurfaceLayer::Package("expect") => expect_specs(),
-            // SpecTcl: the `.tclspec` DSL's own statement words. A pack file
-            // is an ordinary Tcl script, so the base Tcl surface stays loaded
-            // underneath (hook bodies are real Tcl); this layer adds the
-            // declaration vocabulary on top of it.
-            SurfaceLayer::Package("spectcl") => {
-                self.document_grammar = Some(&crate::definer::SPECTCL_DOCUMENT_GRAMMAR);
-                spectcl_specs()
+        if let Some((surface, specs)) = super::surfaces::installed().layer(layer) {
+            if let Some(grammar) = surface.document_grammar {
+                self.document_grammar = Some(grammar);
             }
-            // SslicTcl: the `.sslictcl` DSL's own declaration words. A
-            // document is an ordinary Tcl script that is read and never
-            // evaluated, so the base Tcl surface stays loaded underneath —
-            // the grammar is what says a word is not an SslicTcl declaration.
-            SurfaceLayer::Package("sslictcl") => {
-                self.document_grammar = Some(&crate::definer::SSLICTCL_DOCUMENT_GRAMMAR);
-                sslictcl_specs()
+            for spec in specs {
+                self.insert_shipped_static(spec);
             }
-            // A core release brings no pack of its own — it records which
-            // language the registry is. The EDA shells are such a release
-            // plus `required_package`-gated command libraries, which ship as
-            // bundled `.tclspec` loadables (`docs/design/registry/spec-packs.md`).
-            _ => &[],
-        };
-        for spec in specs {
-            self.insert_shipped_static(spec);
         }
         self.loaded_layers.push(layer);
         self.invalidate_effective_semantics();

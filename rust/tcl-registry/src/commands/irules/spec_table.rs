@@ -226,10 +226,8 @@ pub(super) const fn http_context(mut spec: CommandSpec) -> CommandSpec {
 /// All iRules command specifications as a compile-time constant.
 ///
 /// Every `spec()` is a `const fn`, so this array is built at compile
-/// time — letting the registry derive the taint-source index
-/// ([`crate::registry::taint_source_index`]) as a `const` table rather
-/// than at runtime. `irules_command_specs` simply clones it into the
-/// owned `Vec` the registry loader expects.
+/// time. `irules_command_specs` clones it into the owned `Vec` the
+/// registry's surface builds.
 pub const IRULES_SPECS: &[CommandSpec] = &[
     aaa__acct_result::spec(),
     aaa__acct_send::spec(),

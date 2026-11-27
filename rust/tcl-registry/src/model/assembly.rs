@@ -68,10 +68,9 @@ use crate::spec::CommandSpec;
 /// `load_surface` can reach, loaded once behind the same shared `&'static`
 /// spec slices the old per-profile registries use.
 ///
-/// The `TMSH` layer is deliberately not loaded: `tmsh_command_specs` is a
-/// re-collection of specs `iapps_command_specs` already registers (the
-/// `IAPPS|TMSH`-tagged shared surface), so loading both would double-enter
-/// content-identical specs.
+/// The `TMSH` layer is deliberately not loaded: it is a view of the specs
+/// the `iapps` surface already registers, so loading both would double-enter
+/// them.
 #[cfg(test)]
 pub(crate) fn universe() -> &'static CommandRegistry {
     static CELL: OnceLock<CommandRegistry> = OnceLock::new();

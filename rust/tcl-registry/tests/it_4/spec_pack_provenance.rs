@@ -22,7 +22,6 @@
 //! is a command the studio's pack browser would drop on the floor.
 
 use tcl_dialect::DialectProfile;
-use tcl_registry::commands::SPEC_PACKS;
 use tcl_registry::registry::{spec_pack_of, spec_packs_of};
 
 /// A pack id is the directory name, so it has to be a legal one — and the
@@ -30,12 +29,8 @@ use tcl_registry::registry::{spec_pack_of, spec_packs_of};
 #[test]
 fn pack_ids_are_unique_directory_names() {
     let mut seen = Vec::new();
-    for pack in SPEC_PACKS {
-        assert!(
-            !seen.contains(&pack.id),
-            "{} is listed twice in SPEC_PACKS",
-            pack.id
-        );
+    for pack in tcl_registry::installed().surfaces() {
+        assert!(!seen.contains(&pack.id), "{} is installed twice", pack.id);
         assert!(
             pack.id
                 .chars()
@@ -57,12 +52,12 @@ fn pack_ids_are_unique_directory_names() {
 /// points somewhere a contributor can put the file.
 #[test]
 fn every_pack_names_a_real_module_directory() {
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/src/commands");
-    for pack in SPEC_PACKS {
-        let dir = std::path::Path::new(root).join(pack.id);
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+    for pack in tcl_registry::installed().surfaces() {
+        let dir = std::path::Path::new(root).join(pack.source_dir);
         assert!(
             dir.is_dir(),
-            "SPEC_PACKS names {}, but {} is not a directory",
+            "surface {} names {}, which is not a directory",
             pack.id,
             dir.display()
         );
@@ -73,7 +68,11 @@ fn every_pack_names_a_real_module_directory() {
 /// resolves to a pack, and that pack is one of the declared rows.
 #[test]
 fn every_shipped_command_in_every_dialect_has_a_pack() {
-    let ids: Vec<&str> = SPEC_PACKS.iter().map(|pack| pack.id).collect();
+    let ids: Vec<&str> = tcl_registry::installed()
+        .surfaces()
+        .iter()
+        .map(|pack| pack.id)
+        .collect();
     for profile in DialectProfile::all() {
         let registry = tcl_registry::model::static_context_for(profile.name).commands();
         for name in registry.command_names() {
@@ -88,7 +87,7 @@ fn every_shipped_command_in_every_dialect_has_a_pack() {
             });
             assert!(
                 ids.contains(&pack),
-                "{name} claims pack {pack}, which is not in SPEC_PACKS"
+                "{name} claims pack {pack}, which is not installed"
             );
         }
     }

@@ -23,7 +23,7 @@ use crate::arity::Arity;
 use crate::spec::CommandSpec;
 use crate::traits::Traits;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::sync::{OnceLock, PoisonError, RwLock};
+use std::sync::{PoisonError, RwLock};
 use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceQuery, surface_provided_by};
 
 /// Command names registered by *every* dialect. Backs
@@ -35,7 +35,7 @@ use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceQuery, surface_provid
 /// and [`CommandRegistry::load_surface`] draw from, so it stays in lock-step
 /// with the registry's command universe, plus the core-surface specs a crate
 /// above the registry has registered ([`crate::register_core_surface_specs`]).
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(super) struct AllDialectCommandNames {
     known: FxHashSet<&'static str>,
     rootable: FxHashSet<&'static str>,
@@ -94,55 +94,13 @@ impl AllDialectCommandNames {
     }
 }
 
-/// The names every compiled-in spec set offers.
-fn compiled_command_names() -> &'static AllDialectCommandNames {
-    static NAMES: OnceLock<AllDialectCommandNames> = OnceLock::new();
-    NAMES.get_or_init(|| {
-        let mut names = AllDialectCommandNames {
-            known: FxHashSet::default(),
-            rootable: FxHashSet::default(),
-            providers: FxHashMap::default(),
-        };
-        let mut add = |specs: Vec<CommandSpec>| {
-            for spec in &specs {
-                names.add(spec);
-            }
-        };
-        add(crate::commands::bpf::bpf_command_specs());
-        add(crate::commands::tcl::tcl_command_specs());
-        add(crate::commands::stdlib::stdlib_command_specs());
-        add(crate::commands::tcllib::tcllib_command_specs());
-        add(crate::commands::argparse::argparse_command_specs());
-        add(crate::commands::ticklecharts::ticklecharts_command_specs());
-        add(crate::commands::itcl::itcl_command_specs());
-        add(crate::commands::tk::tk_command_specs());
-        add(crate::commands::irules::irules_command_specs());
-        add(crate::commands::iapps::iapps_command_specs());
-        add(crate::commands::expect::expect_command_specs());
-        // The EDA vendor libraries are deliberately NOT added: they ship as
-        // bundled `.tclspec` loadables (`docs/design/registry/spec-packs.md`), so this
-        // crate does not know their names at compile time and W002 reports an
-        // EDA command outside an EDA profile as an ordinary unknown command
-        // rather than as "exists, but not here". The pack is what knows.
-        // SpecTcl is deliberately NOT added. This set answers "is this name a
-        // command in *some* dialect", and W002 turns a `true` into "exists,
-        // but not here". SpecTcl's statement words are ordinary English nouns
-        // (`arity`, `traits`, `value`, `detail`) that mean nothing outside a
-        // pack body, so claiming them here would rewrite an honest
-        // unknown-command report on a user's `proc arity` call into a
-        // misleading dialect-availability one — the exact opposite of the
-        // context-sensitivity the SpecTcl grammars exist to provide.
-        names
-    })
-}
-
 /// The command universe: the compiled-in names plus the registered
 /// core-surface specs' (a family's own commands, such as Jim's `loop`), built
 /// once per registered generation.
 pub(super) fn all_dialect_command_names() -> &'static AllDialectCommandNames {
     static WITH_CORE_SURFACE: RwLock<Option<(u64, &'static AllDialectCommandNames)>> =
         RwLock::new(None);
-    let compiled = compiled_command_names();
+    let compiled = super::surfaces::installed().universe();
     let registered = crate::cache::core_surface_generation();
     if registered == 0 {
         return compiled;

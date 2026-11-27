@@ -128,43 +128,10 @@ pub fn iapps_command_specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// The `tmsh::` surface alone — the same interned specs
-/// `iapps_command_specs` registers (tagged `IAPPS|TMSH`: real in both an
-/// iApp's host script and a tmsh script), collected separately so
-/// `load_surface(f5-tmsh)` can register the tmsh shell's command pack
-/// without the iApp-only surface.
+/// Whether `spec` is on the `tmsh::` surface: the specs `iapps_command_specs`
+/// shares with a tmsh script, which the tmsh shell's layer loads without the
+/// iApp-only surface.
 #[must_use]
-pub fn tmsh_command_specs() -> Vec<CommandSpec> {
-    vec![
-        tmsh__add_help::spec(),
-        tmsh__add_tabc::spec(),
-        tmsh__begin_transaction::spec(),
-        tmsh__builtin_help::spec(),
-        tmsh__builtin_tabc::spec(),
-        tmsh__cancel_transaction::spec(),
-        tmsh__cd::spec(),
-        tmsh__clear_screen::spec(),
-        tmsh__commit_transaction::spec(),
-        tmsh__create::spec(),
-        tmsh__delete::spec(),
-        tmsh__display::spec(),
-        tmsh__display_threshold::spec(),
-        tmsh__get_config::spec(),
-        tmsh__get_field_names::spec(),
-        tmsh__get_field_value::spec(),
-        tmsh__get_name::spec(),
-        tmsh__get_status::spec(),
-        tmsh__get_type::spec(),
-        tmsh__include::spec(),
-        tmsh__list::spec(),
-        tmsh__log::spec(),
-        tmsh__log_dest::spec(),
-        tmsh__log_level::spec(),
-        tmsh__modify::spec(),
-        tmsh__pwd::spec(),
-        tmsh__reset_stats::spec(),
-        tmsh__show::spec(),
-        tmsh__stateless::spec(),
-        tmsh__version::spec(),
-    ]
+pub fn is_tmsh_spec(spec: &CommandSpec) -> bool {
+    spec.name.starts_with("tmsh::")
 }

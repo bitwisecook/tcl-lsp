@@ -499,24 +499,7 @@ pub(crate) fn private_registry_with_core_surface(
 /// of unsafety.
 #[must_use]
 pub fn safe_interp_hidden_commands() -> &'static [&'static str] {
-    static HIDDEN: OnceLock<Vec<&'static str>> = OnceLock::new();
-    HIDDEN.get_or_init(|| {
-        // The default build carries every plain-Tcl release's commands; the
-        // trait itself is release-invariant, so no profile is needed.
-        let registry = crate::CommandRegistry::build_default();
-        let mut names: Vec<&'static str> = registry
-            .commands_with_trait(crate::Traits::SAFE_INTERP_HIDDEN)
-            .into_iter()
-            // The registry's own names are `'static` string literals from the
-            // compiled specs; `commands_with_trait` merely reborrows them
-            // through `&self`, so look each one back up to recover the
-            // lifetime rather than leaking a copy.
-            .filter_map(|name| registry.get(name).map(|spec| spec.name))
-            .collect();
-        names.sort_unstable();
-        names.dedup();
-        names
-    })
+    crate::registry::surfaces::installed().safe_interp_hidden()
 }
 
 #[cfg(test)]

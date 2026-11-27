@@ -30,9 +30,9 @@ const PATH: &str = "docs/references/command-spec/evaluation-context-gaps.txt";
 
 pub fn run(check: bool) -> Result<ExitCode> {
     let mut gaps = BTreeSet::new();
-    for pack in tcl_registry::commands::SPEC_PACKS {
-        for spec in (pack.specs)() {
-            collect_spec(&mut gaps, pack.id, &spec);
+    for pack in tcl_registry::installed().surfaces() {
+        for spec in pack.specs() {
+            collect_spec(&mut gaps, pack.id, spec);
         }
     }
     let packs = tcl_spectcl::bundled::load_from_required(&crate::util::repo_root().join("specs"))
