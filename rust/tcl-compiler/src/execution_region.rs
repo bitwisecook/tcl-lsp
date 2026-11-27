@@ -326,7 +326,8 @@ impl EvaluatedBodyRegion {
     ///
     /// ```
     /// use tcl_compiler::execution_region::{EvaluatedBodyRegion, ExecutionRegionDependency};
-    /// use tcl_compiler::ir::{Script, SourceSite};
+    /// use tcl_compiler::ir::Script;
+    /// use tcl_source::words::SourceSite;
     /// use tcl_lexer::Span;
     /// let region = EvaluatedBodyRegion::transparent(
     ///     SourceSite::source(Span::new(0, 12)), Script::new(),
