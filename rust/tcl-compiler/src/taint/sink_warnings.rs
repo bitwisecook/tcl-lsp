@@ -528,7 +528,7 @@ fn names_written_as_arguments(ssa: &SsaFunction) -> HashSet<String> {
         .flat_map(|block| &block.statements)
         .filter_map(|statement| statement.statement.tokens())
         .flat_map(|tokens| tokens.argv_texts.iter().skip(1))
-        .map(|word| word.trim_start_matches("::").to_owned())
+        .map(|word| tcl_syntax::naming::without_leading_colons(word).to_owned())
         .collect()
 }
 
@@ -545,7 +545,7 @@ fn retain_unrebound_advice(
         .and_then(|tokens| tokens.source_binding.as_ref())
         .filter(|binding| binding.unknown)
         .and_then(|binding| binding.withdrawn_world_head.as_deref())
-        .map(|head| head.trim_start_matches("::"))
+        .map(tcl_syntax::naming::without_leading_colons)
         .filter(|head| rebound.contains(*head))
     else {
         return;

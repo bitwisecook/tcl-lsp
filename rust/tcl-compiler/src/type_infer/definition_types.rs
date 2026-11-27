@@ -371,15 +371,9 @@ pub(super) fn elements_of_def_typing<S: std::hash::BuildHasher>(
         for (group, &nvars) in groups.iter().enumerate() {
             let group_defs = defs.get(def_cursor..def_cursor + nvars).unwrap_or(&[]);
             def_cursor += nvars;
-            let container_shape = args.get(group).and_then(|w| container_word_shape(ctx, w));
-            // A substituted container of no known type (`[list $a $b]` over
-            // untyped words) gives its elements no known intrep either.
-            let unknown_substitution = container_shape.is_none()
-                && args.get(group).is_some_and(|word| {
-                    let word = word.trim();
-                    word.starts_with('[')
-                        && value_word_type(ctx, word, None).kind() == TypeKind::Overdefined
-                });
+            let (container_shape, unknown_substitution) = args
+                .get(group)
+                .map_or((None, false), |w| container_word_shape(ctx, w));
             for (j, def) in group_defs.iter().enumerate() {
                 per_def.insert(
                     ctx.variable_key(def).unwrap_or_else(|| def.clone().into()),
@@ -423,21 +417,32 @@ pub(super) fn elements_of_def_typing<S: std::hash::BuildHasher>(
     DefTyping::PerDef(per_def)
 }
 
-/// The container shape a `foreach` group's list word denotes, when tracked.
+/// The container shape a `foreach` group's list word denotes, when tracked,
+/// and whether the word is a command substitution of no known type.
 fn container_word_shape<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     word: &str,
-) -> Option<TypeShape> {
+) -> (Option<TypeShape>, bool) {
     let word = word.trim();
     if ctx.is_variable_word(word) {
-        return ctx
+        let shape = ctx
             .written_variable_type(word, None)
             .and_then(|t| t.single_shape().cloned());
+        return (shape, false);
     }
-    if word.starts_with('[') && word.ends_with(']') {
-        return value_word_type(ctx, word, None).single_shape().cloned();
+    if !word.starts_with('[') {
+        return (None, false);
     }
-    None
+    let typed = value_word_type(ctx, word, None);
+    let shape = if word.ends_with(']') {
+        typed.single_shape().cloned()
+    } else {
+        None
+    };
+    // A substituted container of no known type (`[list $a $b]` over
+    // untyped words) gives its elements no known intrep either.
+    let unknown_substitution = shape.is_none() && typed.kind() == TypeKind::Overdefined;
+    (shape, unknown_substitution)
 }
 
 /// The lattice for one `foreach` element variable — var `j` of an

@@ -476,10 +476,7 @@ fn withdrawn_world_sink_candidate<H: std::hash::BuildHasher>(
         .source_binding
         .as_ref()
         .filter(|binding| binding.unknown)?;
-    let bare = binding
-        .withdrawn_world_head
-        .as_deref()?
-        .trim_start_matches("::");
+    let bare = tcl_syntax::naming::without_leading_colons(binding.withdrawn_world_head.as_deref()?);
     if context.shadowed_builtins.contains(bare) || context.registry.get(bare).is_none() {
         return None;
     }
@@ -520,7 +517,7 @@ fn names_withdrawn_world_head(tokens: &CommandTokens, command: &str) -> bool {
             && binding
                 .withdrawn_world_head
                 .as_deref()
-                .is_some_and(|head| head.trim_start_matches("::") == command)
+                .is_some_and(|head| tcl_syntax::naming::without_leading_colons(head) == command)
     })
 }
 

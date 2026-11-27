@@ -592,7 +592,11 @@ fn proved_point_transform(
         })
         .collect();
     let refs: Vec<&str> = written.iter().map(String::as_str).collect();
-    transform_colour(ctx.registry, cmd.trim_start_matches("::"), &refs)
+    transform_colour(
+        ctx.registry,
+        tcl_syntax::naming::without_leading_colons(cmd),
+        &refs,
+    )
 }
 
 /// A handler command's arguments as its transform condition reads them: the

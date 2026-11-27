@@ -160,7 +160,7 @@ pub(in super::super) fn selected_sink_schema<'a>(
         && binding
             .withdrawn_world_head
             .as_deref()
-            .is_some_and(|head| head.trim_start_matches("::") == call.command)
+            .is_some_and(|head| tcl_syntax::naming::without_leading_colons(head) == call.command)
     {
         let spec = call.registry.get(call.command)?;
         return Some((spec, spec.name.to_owned(), call.args.to_vec()));

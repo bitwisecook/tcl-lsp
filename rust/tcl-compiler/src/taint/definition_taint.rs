@@ -520,7 +520,7 @@ pub(super) fn withdrawn_world_writes<S: std::hash::BuildHasher>(
                 .as_ref()
                 .filter(|binding| binding.unknown)
                 .and_then(|binding| binding.withdrawn_world_head.as_deref())
-                .map(|head| head.trim_start_matches("::"))
+                .map(tcl_syntax::naming::without_leading_colons)
             else {
                 continue;
             };

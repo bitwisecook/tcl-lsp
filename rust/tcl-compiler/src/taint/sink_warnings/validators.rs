@@ -132,7 +132,7 @@ impl<'a> ValidatorGuards<'a> {
     ) -> Option<TaintColour> {
         let (command, args) =
             crate::value_shapes::parse_command_substitution_with_config(text, self.config)?;
-        if shadowed.contains(command.trim_start_matches("::")) {
+        if shadowed.contains(tcl_syntax::naming::without_leading_colons(&command)) {
             return None;
         }
         let validator = self.registry.get(&command)?.taint_validator?;
