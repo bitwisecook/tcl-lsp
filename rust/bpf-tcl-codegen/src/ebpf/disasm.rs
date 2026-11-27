@@ -60,12 +60,14 @@ fn one(i: Insn) -> String {
                 0x00 => format!("r{d} += {rhs}"),
                 0x10 => format!("r{d} -= {rhs}"),
                 0x20 => format!("r{d} *= {rhs}"),
+                0x30 if i.off == 1 => format!("r{d} s/= {rhs}"),
                 0x30 => format!("r{d} /= {rhs}"),
                 0x40 => format!("r{d} |= {rhs}"),
                 0x50 => format!("r{d} &= {rhs}"),
                 0x60 => format!("r{d} <<= {rhs}"),
                 0x70 => format!("r{d} >>= {rhs}"),
                 0x80 => format!("r{d} = -r{d}"),
+                0x90 if i.off == 1 => format!("r{d} s%= {rhs}"),
                 0x90 => format!("r{d} %= {rhs}"),
                 0xa0 => format!("r{d} ^= {rhs}"),
                 _ => raw(i),
@@ -97,6 +99,11 @@ fn one(i: Insn) -> String {
                 };
                 let cc = match op {
                     0x10 => "==",
+                    0x20 => ">",
+                    0x30 => ">=",
+                    0x40 => "&",
+                    0xa0 => "<",
+                    0xb0 => "<=",
                     0x50 => "!=",
                     0x60 => "s>",
                     0x70 => "s>=",
@@ -116,4 +123,51 @@ fn raw(i: Insn) -> String {
         "op=0x{:02x} dst=r{} src=r{} off={} imm={}",
         i.op, i.dst, i.src, i.off, i.imm
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::disasm;
+    use crate::ebpf::insn::Insn;
+
+    fn ins(op: u8, off: i16) -> Insn {
+        Insn {
+            op,
+            dst: 1,
+            src: 2,
+            off,
+            imm: 0,
+        }
+    }
+
+    #[test]
+    fn signed_division_and_unsigned_jumps_are_named() {
+        let text = disasm(&[
+            ins(0x3f, 0),
+            ins(0x3f, 1),
+            ins(0x9f, 1),
+            ins(0x2d, 2),
+            ins(0x3d, 2),
+            ins(0x4d, 2),
+            ins(0xad, 2),
+            ins(0xbd, 2),
+        ]);
+        let lines: Vec<&str> = text
+            .lines()
+            .map(|l| l.split_once(": ").unwrap().1)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "r1 /= r2",
+                "r1 s/= r2",
+                "r1 s%= r2",
+                "if r1 > r2 goto +2",
+                "if r1 >= r2 goto +2",
+                "if r1 & r2 goto +2",
+                "if r1 < r2 goto +2",
+                "if r1 <= r2 goto +2",
+            ]
+        );
+    }
 }
