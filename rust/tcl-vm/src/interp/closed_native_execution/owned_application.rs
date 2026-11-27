@@ -512,26 +512,4 @@ mod tests {
         assert!(!labelled(&["cmd_end_0"], Op::JUMP4));
         assert!(!labelled(&["cmd_end_0"], Op::JUMP_TRUE4));
     }
-
-    #[test]
-    fn a_filled_plain_module_cache_is_outside_the_owned_scope() {
-        let mut vm = crate::test_support::native_vm();
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::default(),
-        ));
-        assert!(vm.owned_application_cache_scope_is_empty());
-        vm.compile_plain_cached_module(tcl_runtime_api::ScriptCompileTarget {
-            source: "set y 1",
-            namespace: "",
-            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
-        })
-        .expect("plain module");
-        assert!(!vm.owned_application_cache_scope_is_empty());
-        let entry = vm.native_compilation_entry_for_namespace_token(crate::interp::ROOT_NS, false);
-        assert_eq!(
-            vm.prepare_owned_application_source("set y 1", &[], &[], &entry)
-                .err(),
-            Some(ClosedSourceRefusal::Currency)
-        );
-    }
 }

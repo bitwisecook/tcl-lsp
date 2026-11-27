@@ -1715,9 +1715,6 @@ mod native_error_log_tests;
 mod native_result_tests;
 
 #[cfg(test)]
-mod definition_compiler_registration_tests;
-
-#[cfg(test)]
 #[path = "interp/native_command_resolver_tests.rs"]
 mod native_command_resolver_tests;
 

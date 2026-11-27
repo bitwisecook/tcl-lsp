@@ -925,3 +925,56 @@ reach a compiler drop from 233 to 221.
   and result bytes stay.
 - Two helpers left without a caller in `family_b_tests::variables` are
   removed.
+
+**Batch 12, `interp` A–N (27 November 2026).** 60 tests in 13 files: 36 move
+to `tcl-vm-it` under their old module paths and 24 are deleted. Tests that
+reach a compiler drop from 221 to 161.
+- The iRules simulations (`authored_math`, `authored_package`,
+  `logical_eval_source`, `logical_uplevel_source`) keep their public
+  provider setters; their tests now call `eval`, `uplevel #0` and
+  `::tmm::_logical_package` as commands, read the host's table with
+  `package provide` through `try_eval_native_host_source`, and create
+  children with `interp create`. The math functions' entry is read with
+  `fixture::root_compilation_entry`.
+- `authored_tmm_static`'s workers are `interp create` children enrolled by
+  `::tmm::_static_enroll`, with `::tmm::_static_domain children` in place of
+  the private topology field; storage writes from a procedure frame and the
+  direct native observer run as host commands registered in the child.
+- `command_cleanup::tests` deletes through `Vm::remove_command`, registers
+  through `register_native_command` and adds delete traces with
+  `trace add command`; each release's trace, import and retire order stays.
+- `execution_name_policy`'s three source-dispatch tests move almost
+  unchanged: `with_observed_event_frame` and its context type are public.
+- `definition_compiler_registration_tests` reads `namespace which method`
+  and `info procs` from the definition frame instead of the implementation
+  identity and compiler-hook presence.
+- `native_cache_tests` keeps two scripts: compiled `info class superclasses`
+  after its handler is replaced and the ensemble's `-prefixes` flipped,
+  compared with tclsh 8.6.18, 9.0.4 and 9.1.0, and compiled `array set`.
+- `authored_package`'s two loader tests, which failed before, now pass; one
+  test of the five stays on the core.
+- Cut from rows: the authored seed and compiler-policy values, operation
+  context flags, the package-table window, object identity of results,
+  interpreter ids, the static topology and policy fields, command
+  generations, tokens and the deletion-active set, compiler provenance,
+  literal pools, caches and layouts, and nested compiler registrations.
+- Renamed: `interp::authored_tmm_static::tests::direct_native_recipient_observers_invalidate_original_static_receipts`
+  is now `…::direct_native_recipient_observers_see_source_writes_until_removed`;
+  it keeps the observer's call counts and drops the receipts and epochs.
+- Deleted, with no script-visible behaviour:
+  - `interp::authored_tmm_static::tests`: `checked_noncurrent_store_retains_recipient_failure_and_prior_mutations` (the private checked writer), `compilation_context_retains_actual_recipient_observers_and_event_phase` (the private static compilation context and observer epochs)
+  - `interp::closed_native_execution::owned_application::tests::a_filled_plain_module_cache_is_outside_the_owned_scope` (the owned-application cache scope and its currency refusal)
+  - `interp::command_cleanup::tests`: `original_command_cleanup_keeps_first_cause_and_retires_only_original_child_table` (a retire callback that switches interpreter or host inside a private cleanup scope), `original_delete_namespace_effect_follows_same_generation_cross_namespace_rename` (namespace command-reference epochs), `original_delete_trace_epilogue_preserves_child_stack_and_original_trace_gate` (a seeded child trace stack), `original_command_deletion_cache_epoch_stages_follow_actual_outer_trace_and_recursive_unlink` and `original_repeated_recursive_unlinked_command_advances_only_selected_epoch_stages` (command-name epochs and the private unlink)
+  - `interp::execution_name_policy::original_event_transition_tests::original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_selection` (a child's eval caches and replaced observed inputs)
+  - `interp::jim_table_keys::tests`: `command_inventory_list_owns_the_actual_keys_and_all_without_pattern_is_lazy`, `exact_inventory_pattern_does_not_read_an_unselected_original_key` (inventory-key identity, reference counts and residency) and `inventory_receipt_rejects_a_replacement_that_keeps_the_same_table_key` (the inventory receipt); Jim `info procs` stays covered by `tcl-vm-it::it_5::interp::jim_table_key_tests`
+  - `interp::logical_eval_source::tests`: `logical_eval_does_not_borrow_other_purposes_or_native_dispatch` (the source entry per purpose), `logical_eval_policy_withdrawal_prevents_fresh_word_execution` (a prepared unit run after a profile change), `logical_eval_fresh_word_plan_rejects_private_allocations_and_keeps_words_distinct` and `logical_eval_refuses_a_required_compiled_local_layout` (hand-built assembly plans)
+  - `interp::logical_uplevel_source::tests::authored_uplevel_receipt_cannot_enter_after_its_invocation_policy_changes` (a prepared unit run after a profile change)
+  - `interp::namespace_context::tests`: `original_jim_context_preserves_stringless_namespace_through_selection_and_flow_transport`, `original_jim_context_cleanup_preserves_first_host_and_retires_only_owned_activation`, `original_jim_expression_refusal_keeps_unmaterialized_namespace_context` (hand-pushed Jim lambda contexts, resolution stacks, parked flows and refusal fields; no script runs)
+  - `interp::native_cache_tests`: `operation_sites_keep_raw_imported_compilers_and_replay_failed_prerequisites` and `ensemble_operation_checks_configuration_and_independent_worker_binding` (hand-built operation sites), `imported_compiler_failure_retains_raw_registration_before_any_body_store` (a prerequisite with a forged token), `first_array_callback_revalidates_replay_before_final_array_publication` (the literal-pool replay environment)
+- Parity: no new failure in the lib and `it_5` suites.
+
+**Known VM gap (found in batch 12).** `info class superclasses ::C` for a
+class made by `oo::class create C` gives an empty list; tclsh 8.6.18, 9.0.4
+and 9.1.0 give `::oo::object`.
+`interp::native_cache_tests::nested_info_compilation_retains_original_maps_and_late_worker_binding`
+compares the calls after the handler is replaced.

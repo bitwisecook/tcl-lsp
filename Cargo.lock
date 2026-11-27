@@ -5265,6 +5265,7 @@ dependencies = [
 name = "tcl-vm-it"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-codegen",

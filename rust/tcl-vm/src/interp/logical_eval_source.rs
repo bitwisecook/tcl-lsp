@@ -139,6 +139,3 @@ impl crate::Vm {
         Ok(Some(unit))
     }
 }
-
-#[cfg(test)]
-mod tests;

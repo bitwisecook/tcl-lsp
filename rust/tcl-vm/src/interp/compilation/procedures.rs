@@ -223,19 +223,6 @@ impl Vm {
         reached
     }
 
-    #[cfg(test)]
-    pub(crate) fn prepare_procedure_body_value(
-        &mut self,
-        admission: Option<(&str, &str)>,
-        parameters: &[crate::command::Param],
-        namespace: NsId,
-        original: &Value,
-    ) -> Result<CompiledUnit, TclError> {
-        self.prepare_procedure_body_value_with_owner(
-            admission, parameters, namespace, original, None,
-        )
-    }
-
     pub(in super::super) fn original_name_cmd_error(
         &mut self,
         error: tcl_cmd_core::CmdError,

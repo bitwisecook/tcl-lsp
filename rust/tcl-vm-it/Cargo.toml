@@ -48,6 +48,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-test-support = { path = "../tcl-test-support" }
+serde_json.workspace = true
 
 [lints]
 workspace = true

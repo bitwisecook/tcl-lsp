@@ -455,6 +455,3 @@ impl Vm {
         let _ = original.check(self);
     }
 }
-
-#[cfg(test)]
-mod tests;

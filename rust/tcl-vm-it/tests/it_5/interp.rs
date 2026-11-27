@@ -16,10 +16,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod authored_math;
+mod authored_package;
+mod authored_tmm_static;
+mod command_cleanup;
 mod commands;
+mod definition_compiler_registration_tests;
+mod execution_name_policy;
 mod family_b_tests;
 mod jim_local;
 mod jim_table_key_tests;
+mod logical_eval_source;
+mod logical_uplevel_source;
+mod native_cache_tests;
 mod native_command_holder_tests;
 mod native_compiled_append;
 mod native_definition_registration_tests;
