@@ -445,15 +445,15 @@ HandleValue { place: VariablePlaceRef(/* ::s */ v2), ty: "Stmt", state: Released
 
 **Result:**
 ```text
-$ tclsh9.1 h4.tcl                (tclsh8.6 prints the same)
+$ tclsh9.1 h4.tcl
 rows for: SELECT 1
 1:invalid command name "::oo::Obj25"
 $ ./target/debug/tclvm h4.tcl
 rows for: SELECT 1
-1:invalid command name "::oo::Obj14::oo::Obj16"
+1:invalid command name "::oo::Obj16"
 ```
 
-The analyser reports `$s execute` after `$c close` as a use after release. The VM's message shows a separate bug: an object created by `new` inside a method gets the calling object's namespace prefixed to its name.
+The analyser reports `$s execute` after `$c close` as a use after release. Only the `::oo::Obj` counter differs between interpreters: tclsh8.6 prints `::oo::Obj14`.
 
 ### 5. iRules HSL (design sketch)
 
