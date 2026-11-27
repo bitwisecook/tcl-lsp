@@ -36,6 +36,19 @@ impl TclVersion {
         self.release_policy().namespace_var_global_fallback
     }
 
+    /// Whether an ensemble's `-subcommands` member with no `-map` entry
+    /// targets the fully qualified `<namespace>::<member>`.
+    ///
+    /// Tcl 8.5's `BuildEnsembleConfig` (`tclNamesp.c` 8.5.19:6649-6654)
+    /// prefixes the namespace's full name; 8.6 moved ensembles to
+    /// `tclEnsemble.c` and maps the member onto its bare name, resolved in the
+    /// ensemble's namespace (`tclEnsemble.c` 8.6.18:2637). 8.4 has no
+    /// ensembles.
+    #[must_use]
+    pub const fn ensemble_subcommand_targets_qualified(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether variable traces recover an array element the access spelling
     /// does not name.
     ///

@@ -215,7 +215,12 @@ impl Vm {
                 default_target: !mapped,
             },
         );
-        if target_was_missing && completion.code == Code::Error {
+        if target_was_missing
+            && completion.code == Code::Error
+            && !self
+                .runtime_version()
+                .ensemble_subcommand_targets_qualified()
+        {
             // The default target's fully-qualified spelling is an
             // ensemble implementation detail. C rewrites only the
             // result seen by the caller; the `unknown` command owns

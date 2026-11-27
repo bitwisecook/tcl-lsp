@@ -123,6 +123,7 @@ mod exec;
 mod expr;
 mod frame;
 mod interp;
+mod library_init;
 mod literal_pool;
 #[cfg(test)]
 mod native_fixture;
