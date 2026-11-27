@@ -329,7 +329,7 @@ tcl-compiler::it_4	analyser::tcloo_classes::oo_90_only_members_are_clean_under_9
 tcl-compiler::it_4	analyser::tcloo_classes::oo_90_only_members_are_flagged_under_86
 tcl-compiler::it_4	caller_frame_effects::idx57_out_param_write_is_seen_through_every_call_spelling
 tcl-compiler::it_4	dataflow::def_use_if_inside_while
-tcl-compiler::it_4	differential_group::owner_matches_segmenter_over_corpora
+tcl-source::it_4	differential_group::owner_matches_segmenter_over_corpora
 tcl-compiler::it_4	lsp_external_binding_reports::binding_diagnostics_have_positive_controls
 tcl-compiler::it_4	lsp_external_binding_reports::issue_2286_tcltest_setup_body_and_cleanup
 tcl-compiler::it_4	lsp_external_binding_reports::issue_2289_child_interpreter_created_in_new

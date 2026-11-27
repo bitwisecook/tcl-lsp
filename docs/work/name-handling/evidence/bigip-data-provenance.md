@@ -74,7 +74,7 @@ The shipped stanzas and effective defaults on 21.1.0.1 confirm its
 The older 17.1–21.0 band contains `no-tlsv1.3` and `no-dtlsv1.2`.
 This run checked two fields and supports no wider base-object inventory.
 [Shipped and effective results](../../../../evidence/bigip/tmsh-21.1-name-handling.md#shipped-and-effective-defaults) ·
-[Current field overrides](../../../../rust/tcl-registry/src/profile_defaults/mod.rs)
+[Current field overrides](../../../../rust/tcl-bigip-schema/src/profile_defaults/mod.rs)
 
 Capture complete normalized snapshots per exact release/build and platform or
 module set where that affects the base. Use one typed schema, one build

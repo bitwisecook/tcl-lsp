@@ -4,8 +4,7 @@
 # longest matching row wins. Ranks follow the design's crate table.
 # mode: reporting
 # module	crate	rank
-optimiser::MAX_OPTIMISER_WALK_DEPTH	tcl-source	1
-site_claims	tcl-source	1
+site_claims	tcl-binding	6
 command_binding::BindingKind	tcl-names	2
 command_binding::command_identity	tcl-names	2
 command_binding::executed_script_source	tcl-names	2

@@ -183,7 +183,6 @@ rust/tcl-compiler/src/optimiser/propagation/return_folds.rs	scripts	try_fold_ret
 rust/tcl-compiler/src/optimiser/tail_call.rs	scripts	parse_return_subst:trim	-	2
 rust/tcl-compiler/src/optimiser/tail_call.rs	scripts	split_command_words:trim	-	1
 rust/tcl-compiler/src/optimiser/unused_procs.rs	scripts	comment_out:trim	-	1
-rust/tcl-source/src/cst/descend.rs	scripts	descend_command:trim	-	1
 rust/tcl-compiler/src/path_concat.rs	scripts	build_file_join_fix_with_config:trim	-	1
 rust/tcl-compiler/src/path_concat.rs	scripts	find_path_concat_warnings:trim	-	1
 rust/tcl-compiler/src/place_bridge.rs	elements	element_writes_observed_with_contexts:contains	-	1

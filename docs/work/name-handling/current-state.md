@@ -62,7 +62,19 @@ Clippy, then stops on the pre-existing truncated licence notice in
 The initial two moved documentation lint errors are corrected. The architecture gate then exposed missing new-crate entries in the CI path
 closures. Python, root Rust-test, LSP-e2e and SpecTcl classifiers now include
 the new owners, and all four classifier contracts pass. Architecture
-gates, the moved SpecTcl parity tests and `prep-pr` remain in progress. Development
+gates and `prep-pr` remain in progress. The relocated SslicTcl/registry
+parity tests all pass (8/8), as do the three shipped-pack golden/upgrade
+tests (`/tmp/source-spectcl-parity-tests-work.log`,
+`/tmp/source-spectcl-source-tests-work.log`). Pack source execution is
+8 passed / 2 failed on unentered-declaration folding; its pre-extraction
+comparison is pending.
+
+The seven initially failing architecture/generated-inventory checks now pass
+(`/tmp/source-architecture-final-work.log`), with moved smoke ownership and
+heavy-tier identities updated. The manual `test-cleanup --write` survey
+reports candidate growth across existing and relocated modules
+(`/tmp/source-test-cleanup-work.log`); no allowances were raised. Item 499
+retains that review obligation. Development
 pushes use the explicit `work` exception; all full gates remain required
 before a PR.
 

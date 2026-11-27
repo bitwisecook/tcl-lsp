@@ -15,6 +15,11 @@ Its workspace dependencies are `tcl-lexer`, `tcl-syntax`, `tcl-dialect` and
 There are no compiler compatibility re-exports. The dependency policy rejects
 upward edges, including dev-dependencies, except independent test support.
 
+Binding claims remain in the compiler and belong to the binding layer in
+the module ledger; any move into registry core still follows item 261's
+owner decision. The optimiser's independent structured-IR walk cap stays
+with the optimiser. Neither is source geometry.
+
 Ghost recovery and its diagnostic tests live in the analyser. The unused
 registry-dispatched `descend_command` API is removed; public analyser tests
 cover conditional body discovery and lambda-local scope isolation.
