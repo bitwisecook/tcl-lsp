@@ -370,7 +370,11 @@ impl Vm {
             let prefix = if let Some(prefix) = mapped {
                 prefix
             } else {
-                let target = if def.subcommands.is_some() {
+                let target = if def.subcommands.is_some()
+                    && !self
+                        .runtime_version()
+                        .ensemble_subcommand_targets_qualified()
+                {
                     name.as_bytes().to_vec()
                 } else {
                     tcl_syntax::naming::root_unrooted_key_bytes(&self.command_slot_display_bytes(

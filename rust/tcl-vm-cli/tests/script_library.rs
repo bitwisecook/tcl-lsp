@@ -146,14 +146,49 @@ fn without_a_library_the_failing_require_is_caught_and_reported() {
 #[test]
 fn an_unusable_library_is_reported_as_tcl_main_reports_it() {
     let scratch = Scratch::new("broken");
-    scratch.write("lib/init.tcl", "error {init boom}\n");
+    let init = scratch.write("lib/init.tcl", "error {init boom}\n");
+    let library = scratch.0.join("lib");
     let script = scratch.write("script.tcl", "puts ran\n");
+    let init = init.to_str().expect("a UTF-8 path");
 
+    // Through 9.0 `tclInit` goes on looking past an `init.tcl` that fails,
+    // then reports the places it found no `init.tcl` and each failure.
+    let run = |release: &str| {
+        let output = Command::new(env!("CARGO_BIN_EXE_tclvm"))
+            .env("TCL_LIBRARY", &library)
+            .args(["--tcl-version", release])
+            .arg(&script)
+            .output()
+            .expect("run tclvm");
+        outcome(&output)
+    };
+    let (stdout, stderr, code) = run("9.0");
+    assert_eq!((stdout.as_str(), code), ("ran\n", Some(0)));
+    assert!(
+        stderr.starts_with(
+            "application-specific initialization failed: Cannot find a usable init.tcl in the \
+             following directories: \n    "
+        ),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains(&format!("\n\n{init}: init boom\ninit boom\n")),
+        "{stderr}"
+    );
+    assert!(
+        stderr.ends_with("\n\n\nThis probably means that Tcl wasn't installed properly.\n\n"),
+        "{stderr}"
+    );
+
+    // 9.1 looks only at a set `TCL_LIBRARY` and reports the one failure.
     assert_eq!(
-        outcome(&tclvm(Some(&scratch.0.join("lib")), &script, &[])),
+        run("9.1"),
         (
             "ran\n".into(),
-            "application-specific initialization failed: init boom\n".into(),
+            format!(
+                "application-specific initialization failed: Error sourcing Tcl \
+                 initialization script from {init}:\ninit boom\n"
+            ),
             Some(0)
         )
     );
@@ -222,5 +257,59 @@ fn an_expanded_word_in_a_compiled_body_runs_as_tclsh_runs_it() {
             ),
             "{release}"
         );
+    }
+}
+
+/// Each release looks for its library as its own `tclInit` does. Given the
+/// development environment's Tcl 9.0 `TCL_LIBRARY`, an 8.x release fails to
+/// source that library's `init.tcl`, goes on to its own beside it, and starts
+/// with the error variables that failure left: what the build-tree `tclsh` of
+/// each pinned 8.x tree prints for the same `TCL_LIBRARY`.
+#[test]
+fn each_release_searches_for_its_library_as_its_tclsh_does() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let locate = |version| {
+        tcl_test_support::locate_source_tree(&repo_root, version, None)
+            .expect("Tcl source tree discovery")
+    };
+    let Some(foreign) = locate(TclVersion::V9_0) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    let scratch = Scratch::new("search");
+    let script = scratch.write(
+        "search.tcl",
+        "foreach v {::errorInfo ::errorCode} {\n\
+         \tputs [expr {[info exists $v] ? \"<[set $v]>\" : \"-\"}]\n\
+         }\n\
+         puts [info library]\n\
+         puts [package unknown]\n",
+    );
+    for (version, release) in [
+        (TclVersion::V8_4, "8.4"),
+        (TclVersion::V8_5, "8.5"),
+        (TclVersion::V8_6, "8.6"),
+    ] {
+        let Some(tree) = locate(version) else {
+            eprintln!("skipping {release}: no source tree");
+            continue;
+        };
+        let tclsh = tree.root.join("unix").join("tclsh");
+        if !tclsh.is_file() {
+            eprintln!("skipping {release}: no build-tree tclsh");
+            continue;
+        }
+        let oracle = Command::new(&tclsh)
+            .env("TCL_LIBRARY", foreign.library_dir())
+            .arg(&script)
+            .output()
+            .expect("run the build-tree tclsh");
+        let subject = Command::new(env!("CARGO_BIN_EXE_tclvm"))
+            .env("TCL_LIBRARY", foreign.library_dir())
+            .args(["--tcl-version", release])
+            .arg(&script)
+            .output()
+            .expect("run tclvm");
+        assert_eq!(outcome(&subject), outcome(&oracle), "{release}");
     }
 }
