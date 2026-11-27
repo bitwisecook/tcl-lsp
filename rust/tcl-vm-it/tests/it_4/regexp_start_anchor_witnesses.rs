@@ -78,6 +78,47 @@ fn start_end_is_the_string_length() {
     matches_original(START_END, "{3 2}\nc\naaa", &versions);
 }
 
+/// tcllib 2.0's `string::token::text` / `chomp` over the `string::token::shell`
+/// lexer, inlined so the witness runs where no tcllib tree is fetched (CI).
+const TOKEN_LEXER: &str = r#"proc chomp {map sv text rv} {
+    upvar 1 $sv start $rv result
+    if {$start >= [string length $text]} {return 2}
+    foreach {pattern label} $map {
+        if {![regexp -start $start -indices -- \\A($pattern) $text -> range]} continue
+        lappend result [list $label {*}$range]
+        set start [expr {[lindex $range 1] + 1}]
+        return 1
+    }
+    return 0
+}
+proc lex {text} {
+    set map [list {\s+} WSPACE {'[^']*'} S:QUOTED \
+        "\"(\[^\"\]|(\\\\\")|(\\\\\\\\))*\"" D:QUOTED \
+        "((\[^ \\s'\"\])|(\\\\\")|(\\\\\\\\))+" PLAIN {.*} ERROR]
+    set start 0
+    set result {}
+    while {[set status [chomp $map start $text result]] == 1} {}
+    if {$status == 0} {return [list BAD $start]}
+    return $result
+}
+foreach text {{cp 'a b' c} {echo "x} {a'b'}} {puts [lex $text]}"#;
+
+const LEXER_TOKENS: &str = "\
+{PLAIN 0 1} {WSPACE 2 2} {S:QUOTED 3 7} {WSPACE 8 8} {PLAIN 9 9}
+{PLAIN 0 3} {WSPACE 4 4} {ERROR 5 6}
+{PLAIN 0 0} {S:QUOTED 1 3}";
+
+#[test]
+fn tcllib_string_token_lexer_inlined() {
+    let versions = [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ];
+    matches_original(TOKEN_LEXER, LEXER_TOKENS, &versions);
+}
+
 /// tcllib 2.0's module tree: `TCLLIB_2_0_DIR` or the checkout's `tmp/tcllib-2.0`.
 fn tcllib_modules() -> Option<std::path::PathBuf> {
     let root = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
