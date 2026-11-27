@@ -213,12 +213,11 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_return(&mut self, value: Option<&str>, expr: Option<&ExprNode>, braced: bool) {
-        if let Some(e) = expr {
+        // An expression that does not parse compiles as the command it is
+        // (see `emit_proc_return`).
+        if let Some(e) = expr.filter(|expr| !matches!(expr, ExprNode::Raw { .. })) {
             // Proc with `return [expr {...}]` lowered to an expression
-            let guaranteed_numeric = self.emit_expr(e);
-            if !guaranteed_numeric {
-                self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
-            }
+            self.emit_return_expr(e, value, None);
         } else if braced {
             // See `emit_proc_return`: a braced value is literal text.
             self.push_lit_verbatim(value.unwrap_or(""));
@@ -240,6 +239,29 @@ impl CodegenCtx<'_> {
             // of ending the script.
             self.push_lit("");
             self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
+        }
+    }
+
+    /// Emit `return [expr {…}]` lowered to its expression. An error the
+    /// expression raises names the `expr` command inside the brackets, as C
+    /// logs the innermost command whose range covers the failing pc.
+    fn emit_return_expr(
+        &mut self,
+        expr: &ExprNode,
+        value: Option<&str>,
+        value_word: Option<&tcl_compiler::ir::WordExpr>,
+    ) {
+        let start = self.instructions.len();
+        if !self.emit_expr(expr) {
+            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+        }
+        let config = self.lexer_config();
+        if let Some(spelling) = value
+            .map(str::trim)
+            .filter(|v| is_pure_cmd_subst_with_config(v, config))
+        {
+            let tokens = self.nested_command_tokens(value_word);
+            self.stamp_substitution_error_info(start, spelling, tokens.as_ref());
         }
     }
 
@@ -283,6 +305,13 @@ impl CodegenCtx<'_> {
         // braces already stripped, so without `braced` it is indistinguishable
         // from `return [id 9]` — which is exactly how tclvm came to call `id`
         // where tclsh 8.4.20 through 9.1b0 all return the literal (#2228).
+        //
+        // An expression that does not parse is not lowered: the `expr` inside
+        // the brackets compiles as any other command would, raising its syntax
+        // error when it runs, as C's `syntax` instruction does.
+        let expr = expr
+            .as_ref()
+            .filter(|expr| !matches!(expr, ExprNode::Raw { .. }));
         let is_cmd_subst =
             !*braced && expr.is_none() && is_pure_cmd_subst_with_config(val, self.lexer_config());
         let is_final = next_block.is_none();
@@ -322,11 +351,8 @@ impl CodegenCtx<'_> {
         };
         self.cmd_index += 1;
 
-        if let Some(e) = expr.as_ref() {
-            let guaranteed_numeric = self.emit_expr(e);
-            if !guaranteed_numeric {
-                self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
-            }
+        if let Some(e) = expr {
+            self.emit_return_expr(e, value.as_deref(), value_word.as_ref());
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
             let tokens = self.nested_command_tokens(value_word.as_ref());
