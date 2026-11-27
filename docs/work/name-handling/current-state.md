@@ -20,9 +20,11 @@
   `/tmp/test-cleanup-survey-work.log`,
   `/tmp/test-cleanup-survey-check-work.log`.
 - Item 106a's scripts/CI harness and manual non-gating workflow are implemented;
-  its benchmark-runner baseline is pending. The owner chose to keep scripts/CI
+  its first partial benchmark-runner baseline is recorded in the build-cost
+  snapshot. Scan timeouts and invalid source-workspace samples remain explicit;
+  the corrected readiness/formatting harness requires a new CI run. The owner chose to keep scripts/CI
   scope and record unavailable phase interfaces and unbuilt artefacts explicitly.
-  All 9 harness tests and Python lint checks pass. No release latency has been
+  All 10 harness tests and Python lint checks pass. No release latency has been
   measured in this agent worktree.
 - Item 267's public-API rewrite remains open. The five VM regressions were
   reproduced before editing (`/tmp/vm-five-gaps-baseline-work.log`). Repairs

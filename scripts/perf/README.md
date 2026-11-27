@@ -339,3 +339,9 @@ Local harness checks (no release build or performance claim):
 Binding-only cold timing at 10,513 lines and on-disk binding reload remain
 unavailable until item 103 exposes those tiers. Workspace cold/restart timings
 include parsing and other analysis and are labelled separately.
+
+Workspace scans have a separate `--scan-timeout` (600 seconds by default);
+request and document readiness timeouts remain 120 seconds. Tcllib scans
+share its 1,800-second end-to-end budget. An incomplete scan prevents editor
+latency samples. The source fixture contains an unindented script body so
+formatting produces a real edit instead of an already-formatted null result.

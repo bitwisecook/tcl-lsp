@@ -8,22 +8,80 @@ for access).
 
 ## Now-1 analysis and engine baseline (106a)
 
-The non-gating harness is `scripts/perf/split_baseline.py`, invoked by
-`perf.yml` in manual `split-baseline` mode. It measures release binaries on the
-benchmark runner; no agent-worktree latency is a baseline. Runner results are
-pending. [The first full-SHA run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45983317368)
-failed before measuring: the release build denied five dead-code warnings from
-the debug-only `root_owner_work` module. Its module gate now matches every
-consumer (`test` or `debug_assertions`). [The retry at `0fc1b7863`](https://github.com/bitwisecook/tcl-lsp/actions/runs/45984888240)
-is building the release binaries; its measurements remain pending. This section is the single baseline read by item 90's measurement
-record and item 483; neither restates a separate budget.
+The single baseline is produced by `scripts/perf/split_baseline.py` through
+`perf.yml`'s manual, non-gating `split-baseline` job. Item 90's measurement
+record and item 483 read this section rather than defining another budget.
 
-Owner decision, 27 November 2026: the harness stays scripts/CI-only. Rows for
-summary-only timing, 50-user-pack warm loading and unbuilt release artefacts
-remain explicitly unavailable until their owning interfaces/builds exist.
-Missing, provisional and invalid answers contribute no percentile samples.
-The recorded summary must include the measured revision, runner link, sample
-counts and every unavailable or partial row.
+[First measured run](https://github.com/bitwisecook/tcl-lsp/actions/runs/45984888240),
+27 November 2026, revision `0fc1b7863d78cd1c222aff00272235d94edde735`:
+Ubuntu 26.04, 4 cores on AMD EPYC 7763, 16 GB RAM, Cargo `release` profile,
+Tcl 8.6 editor workspaces and Tcl 9.0 VM scripts. Each editor action attempted
+20 samples; startup/cold/restart attempted one. VM rows use 5,000 iterations
+and three fresh processes, with `TCL_LIBRARY` unset. Engine times include startup.
+
+This is a **partial baseline**. The 10,000-line workspace and Tcllib scan did
+not finish within 120 seconds. Source-workspace definitions and formatting
+returned no valid samples; those answers contribute no percentile. The next
+run separates scan from request timeouts (600 seconds for workspaces, within
+the 1,800-second Tcllib budget), requires successful scan readiness before
+editor queries, and makes the source formatting fixture require an edit.
+Its results must replace this table before 106a is complete.
+
+| Measurement | Small (6 lines) | Large (10,000 lines) | Source (9 lines across 2 files) |
+|---|---:|---:|---:|
+| Startup, ms | 19.255 | 19.135 | 18.511 |
+| Startup RSS, KiB | 37,240 | 37,416 | 36,448 |
+| Cold workspace scan, ms | 1,303.041 | unavailable (0/1) | 1,102.619 |
+| Warm definition, ms p95 | 10.756 | unavailable (not reached) | unavailable (0/20) |
+| References, ms p95 | 49.539 | unavailable (not reached) | 7.414 |
+| Formatting, ms p95 | 1.532 | unavailable (not reached) | unavailable (0/20) |
+| After-edit definition, ms p95 | 143.621 | unavailable (not reached) | unavailable (0/20) |
+| Restart and scan, ms | 1,071.284 | unavailable (0/1) | 1,072.571 |
+
+Accepted editor-action samples are 20/20 for every measured action above.
+Small/source references each returned two locations per sample; definitions
+returned one. Small formatting returned one edit. Source definitions,
+after-edit definitions and formatting each accepted 0/20. Large scan and
+restart each accepted 0/1; its open document never reached version-ready
+diagnostics. Tcllib accepted 0/1 across a verified 794-file corpus because its
+workspace scan did not complete; its end-to-end time is unavailable.
+
+Whole-process open-document RSS was 352,980 KiB (small) and 315,840 KiB
+(source), with one document open. Their arithmetic normalisations are
+588,300,000 and 350,933,333.333 KiB per 10,000 lines, respectively: fixed
+process costs make these tiny-workspace extrapolations unsuitable as the
+10,000-line memory budget. That budget's large-workspace measurement remains
+unavailable. No allocator delta or retained-summary-only memory is claimed.
+
+| VM script | Median, ms | p95, ms | Accepted |
+|---|---:|---:|---:|
+| `dict_ops` | 185.389 | 187.121 | 3/3 |
+| `empty_loop` | 85.485 | 89.930 | 3/3 |
+| `expr_arith` | 126.535 | 129.023 | 3/3 |
+| `global_var` | 213.015 | 214.021 | 3/3 |
+| `list_ops` | 162.173 | 162.830 | 3/3 |
+| `namespace_var` | 214.537 | 219.519 | 3/3 |
+| `oo_method` | 261.400 | 268.764 | 3/3 |
+| `proc_body` | 96.887 | 102.490 | 3/3 |
+| `proc_call` | 155.129 | 158.714 | 3/3 |
+| `set_loop` | 94.863 | 94.930 | 3/3 |
+| `string_ops` | 151.424 | 153.337 | 3/3 |
+
+The native server binary is 118,665,576 bytes. The other budget rows remain
+explicitly unavailable by the owner's scripts/CI-only scope decision:
+
+| Row | Why unavailable |
+|---|---|
+| Binding-only cold, 10,513 lines | No binding-only timer; workspace scan includes parsing and other analysis. |
+| On-disk binding reload | Item 103 has no exposed tier yet. |
+| Summaries per 10,000 lines, excluding parse/binding | Item 483 has no exposed summary-only timer. |
+| 50 user packs, warm | Item 416 owns the interface and fixture. |
+| Standalone runtime scripts | No release runtime runner was built/supplied. |
+| Server WASM, WASI, VSIX, JetBrains ZIP, web bundle sizes | Those artefacts were not built on this runner; no size is borrowed from another revision. |
+
+No latency, size or regression threshold is enforced by this job. JSON and
+Markdown samples remain in the CI artifact `split-baseline-45984888240`; this
+section retains the measured values and exclusions needed for comparison.
 
 ## Items, in priority order
 

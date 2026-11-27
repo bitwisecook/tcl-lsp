@@ -182,7 +182,7 @@ def workspace_sources() -> dict[str, dict[str, str]]:
         "small": {"main.tcl": small},
         "large": {"main.tcl": "\n".join(large) + "\n"},
         "source": {
-            "main.tcl": "source [file join [file dirname [info script]] lib.tcl]\nset input 7\nset output [target $input]\nputs $output\n# source navigation\n# stable workload\n",
+            "main.tcl": "source [file join [file dirname [info script]] lib.tcl]\nset input 7\nif {1} {\nset output [target $input]\n}\nputs $output\n",
             "lib.tcl": "proc target {value} {\nreturn $value\n}\n",
         },
     }
@@ -200,9 +200,17 @@ def stage_workspaces(root: Path) -> dict[str, Path]:
 
 
 class Session:
-    def __init__(self, server: Path, root: Path, dialect: str, timeout: float) -> None:
+    def __init__(
+        self,
+        server: Path,
+        root: Path,
+        dialect: str,
+        timeout: float,
+        scan_timeout: float | None = None,
+    ) -> None:
         self.client = DialectClient(str(root), [str(server)], dialect)
         self.timeout = timeout
+        self.scan_timeout = scan_timeout if scan_timeout is not None else timeout
 
     def start(self) -> Any:
         self.client.start()
@@ -210,7 +218,7 @@ class Session:
         return self.client.process is not None
 
     def scan(self) -> str:
-        return self.client.wait_for_workspace_scan(timeout=self.timeout)
+        return self.client.wait_for_workspace_scan(timeout=self.scan_timeout)
 
     def open(self, path: Path, version: int = 1, text: str | None = None) -> str:
         uri = path.resolve().as_uri()
@@ -267,10 +275,12 @@ def location_for(text: str) -> dict[str, int]:
 def run_workspace(
     args: argparse.Namespace, rows: Measurements, name: str, root: Path
 ) -> None:
-    session = Session(args.server, root, args.dialect, args.timeout)
+    session = Session(args.server, root, args.dialect, args.timeout, args.scan_timeout)
     prefix = f"workspace.{name}"
     try:
         rows.observe(f"{prefix}.start_ms", session.start, bool)
+        if rows.rows[f"{prefix}.start_ms"]["status"] != "measured":
+            raise RuntimeError("Server initialisation did not complete")
         memory = session.memory()
         rows.rows[f"{prefix}.start_rss_kib"] = (
             {"status": "measured", "value": memory}
@@ -278,6 +288,8 @@ def run_workspace(
             else unavailable("RSS unavailable on this host")
         )
         rows.observe(f"{prefix}.cold_ms", session.scan, bool)
+        if rows.rows[f"{prefix}.cold_ms"]["status"] != "measured":
+            raise RuntimeError("Workspace scan did not complete")
         path = root / "main.tcl"
         text = path.read_text()
         uri = session.open(path)
@@ -349,7 +361,7 @@ def run_workspace(
         )
     finally:
         session.close()
-    restart = Session(args.server, root, args.dialect, args.timeout)
+    restart = Session(args.server, root, args.dialect, args.timeout, args.scan_timeout)
     try:
 
         def ready_restart() -> bool:
@@ -389,7 +401,8 @@ def run_tcllib(args: argparse.Namespace, rows: Measurements) -> None:
     files = sorted(root.rglob("*.tcl"))
     if not files:
         raise ValueError("Tcllib corpus is empty")
-    session = Session(args.server, root, args.dialect, args.timeout)
+    session = Session(args.server, root, args.dialect, args.timeout, args.scan_timeout)
+    session.scan_timeout = args.tcllib_timeout
     deadline = time.monotonic() + args.tcllib_timeout
 
     def analyse_all() -> list[str]:
@@ -503,6 +516,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dialect", default="tcl8.6")
     parser.add_argument("--samples", type=int, default=20)
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--scan-timeout", type=float, default=600)
     parser.add_argument("--tcllib-timeout", type=float, default=1800)
     parser.add_argument("--tcllib", type=Path)
     parser.add_argument("--vm", type=Path)
@@ -513,6 +527,7 @@ def main(argv: list[str] | None = None) -> int:
     if (
         args.samples < 1
         or args.timeout <= 0
+        or args.scan_timeout <= 0
         or args.tcllib_timeout <= 0
         or args.iterations < 1
     ):
@@ -534,6 +549,9 @@ def main(argv: list[str] | None = None) -> int:
             "configuration": {
                 "samples": args.samples,
                 "engine_iterations": args.iterations,
+                "request_timeout_s": args.timeout,
+                "workspace_scan_timeout_s": args.scan_timeout,
+                "tcllib_timeout_s": args.tcllib_timeout,
             },
             "notes": [
                 "No budget gate; unavailable and excluded samples are explicit.",

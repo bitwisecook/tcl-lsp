@@ -137,3 +137,48 @@ def test_unreached_workspace_rows_are_explicitly_unavailable() -> None:
             row = rows[f"workspace.{name}.{metric}"]
             assert row["status"] == "unavailable"
             assert "p95_ms" not in row
+
+
+def test_a_failed_scan_cannot_supply_editor_latency_samples(
+    tmp_path, monkeypatch
+) -> None:
+    from types import SimpleNamespace
+
+    class Session:
+        def __init__(self, *args):
+            pass
+
+        def start(self):
+            return True
+
+        def scan(self):
+            raise TimeoutError("scan incomplete")
+
+        def memory(self):
+            return 1
+
+        def open(self, *args):
+            pytest.fail("a document must not be queried before scan readiness")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(tool, "Session", Session)
+    args = SimpleNamespace(
+        server=tmp_path / "server",
+        dialect="tcl8.6",
+        timeout=1,
+        scan_timeout=2,
+        samples=2,
+    )
+    rows = tool.Measurements()
+    tool.run_workspace(args, rows, "small", tmp_path)
+    assert rows.rows["workspace.small.cold_ms"]["status"] == "unavailable"
+    for metric in (
+        "point_warm_ms",
+        "collection_ms",
+        "transform_ms",
+        "point_after_edit_ms",
+    ):
+        assert rows.rows[f"workspace.small.{metric}"]["status"] == "unavailable"
+        assert "p95_ms" not in rows.rows[f"workspace.small.{metric}"]
