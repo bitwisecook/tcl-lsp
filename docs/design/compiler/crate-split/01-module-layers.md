@@ -200,3 +200,105 @@ from the design in these points:
 - **Ranks** follow the crate table as revised (O2): `tcl-diagnostics` 11.
   `tcl-irules`, which takes `irules_checks` and `irules_event_checks`
   (item 285), is ranked 12. No module goes to `tcl-db`.
+
+### Review decisions (item 273)
+
+The seed has 154 rows: 118 top-level modules and 36 split rows. Each module
+was checked against the [crate table](../crate-split-design.md#crates-bottom-up)
+and steps 2–13. A module whose parts go to different crates is split by
+submodule where the parts are files, and by item where they share a file.
+An item row decides only where references to the item count; the item's own
+code counts under its file's row.
+
+| Crate (rank) | Modules | Split rows | Back-edges out (refs, pairs) |
+|---|---:|---:|---|
+| `tcl-source` (1) | 6 | 3 | 4, 2 |
+| `tcl-names` (2) | 1 | 9 | 25, 11 |
+| `tcl-values` (3) | 0 | 7 | none |
+| `tcl-model` (4) | 11 | 4 | 229, 17 |
+| `tcl-ir` (5) | 3 | 0 | 68, 13 |
+| `tcl-binding` (6) | 25 | 1 | 286, 40 |
+| `tcl-lowering` (7) | 18 | 0 | 22, 9 |
+| `tcl-analysis` (8) | 17 | 2 | 67, 15 |
+| `tcl-unit` (9) | 18 | 7 | 30, 8 |
+| `tcl-native-plan` (10) | 7 | 0 | none |
+| `tcl-optimiser` (10) | 3 | 0 | 2, 1 |
+| `tcl-diagnostics` (11) | 8 | 2 | 66, 2 |
+| `tcl-irules` (12) | 1 | 1 | none |
+
+The split rows:
+
+- **`analyser::types` and `analyser::input`** go to `tcl-model`.
+  `AnalysisResult` stays in `tcl-diagnostics` (the item row
+  `analyser::types::AnalysisResult`), so binding's 119 references to it
+  (`command_binding` 76, `registry_invocation` 39) are step 7's body-report
+  work, and `analyser::types` naming it (5) shows that it must leave
+  `types.rs`. `analyser::types` → `signature_scan` (102),
+  `command_binding` (51) and `registry_invocation` (37) are step 5's
+  receipts work (`ProcDef` and `ClassDef` generic over binding's receipts).
+  `analyser::irules_event_checks` goes to `tcl-irules` (item 285).
+- **`command_binding`'s key types** go to `tcl-names`: the submodules
+  `namespace_context` (`SourceNamespaceKey`, `SourceCommandKey`),
+  `command_identity` (`CommandAllocationSite`), `source_origin` and
+  `executed_script_source`, and the item `command_binding::BindingKind`,
+  which `command_binding.rs` defines. `SourceInvocationBinding` stays with
+  binding, so `ir` → `command_binding` (33) is the `Facts` work of step 6.
+  Beside them: `var_resolve::cell_key` and the item
+  `var_resolve::VariableExecutionFrame`, `signature_scan::scope`
+  (`SignatureNamespaceScope`) and the item
+  `signature_scan::original_name::SignatureSourceNameKey`.
+  `signature_scan::scope::SignatureSourceCommand` goes to `tcl-model`.
+- **The value lattice** in `analyses.rs`: the items `LatticeValue`,
+  `ConstValue` and `LatticeKind` go to `tcl-values`; the rest of `analyses`
+  (the result records) goes to `tcl-model`. With the lattice in its own rows,
+  step 4's "no binding module names `analyses`" is read as no back-edge into
+  either. `tcl_expr_eval` is ranked with `tcl-analysis`: its kernel moves to
+  `tcl-values` under a new owner (D-G), so binding → `tcl_expr_eval` (38
+  from `command_binding`, 17 from `native_numeric`, 7 from
+  `math_function_binding`) is step 4's work list. The step's other moves
+  down are item rows too: `codegen_helpers::split_list_values`,
+  `native_lowering::cells::{variable_reference_place, CellPlace}` and
+  `shimmer::hints::is_pure_intrep`.
+- **Other splits the steps name:** `ir::word_expr`, `ir::provenance` and
+  `optimiser::MAX_OPTIMISER_WALK_DEPTH` to `tcl-source`; `ssa::uses` to
+  binding; `ssa::source_view`, `value_transfer::queries`,
+  `lattice_rebase::rebase_function_unit`, the unit-level
+  `type_infer::infer_function_return_type*`, `optimiser::elimination` and
+  `optimiser::method_barrier` to `tcl-unit`; the two
+  `gvn::resolved_invocation_is_*gvn_candidate` predicates to
+  `tcl-analysis`; `taint::is_irules_dialect` to `tcl-model`;
+  `source_graph::current_analysis` to `tcl-diagnostics`.
+- **Totals.** 799 references in 118 pairs. Back-edges per crate pair, the
+  work list for steps 2–12: `tcl-model` → `tcl-binding` 203,
+  `tcl-binding` → `tcl-diagnostics` 162, `tcl-binding` → `tcl-analysis` 67,
+  `tcl-diagnostics` → `tcl-irules` 66, `tcl-ir` → `tcl-binding` 65,
+  `tcl-analysis` → `tcl-unit` 56, `tcl-binding` → `tcl-unit` 31,
+  `tcl-binding` → `tcl-lowering` 25, `tcl-unit` → `tcl-diagnostics` 24,
+  `tcl-names` → `tcl-binding` 23, and 18 smaller pairs
+  (`module-back-edges.tsv`).
+
+Placements the design leaves open, decided by each module's edges (what it
+names, who names it):
+
+- `site_claims` (no edges; step 2's open question 2): `tcl-source`, until
+  item 261 decides on the registry core.
+- `execution_region` and `native_compilation_admission` (annotations that
+  step 6 puts into `Facts`): `tcl-binding`.
+- `types` (`TypeLattice`, step 5): `tcl-model`. `object_types`:
+  `tcl-unit`, as step 13 says unless step 5 finds otherwise.
+- Not in the design: `var_scoping` (token helpers for `global` and
+  `upvar`, names nothing) to `tcl-binding`; `loops` (names `ssa`, `cfg`) to
+  `tcl-lowering`; `expression_rewrite` and `scan_predicate` to
+  `tcl-analysis`; `inline_uplevel`, `path_concat`, `uri_split`,
+  `value_provenance`, `rendered_properties` and `durable_inventory` (each
+  names or is named only by `compilation_unit` and `taint`) to `tcl-unit`;
+  `increment_rewrite` and `read_schedule` (used only by `optimiser`) to
+  `tcl-optimiser`; `dead_stores`, `regex_source`, `script_arg`,
+  `source_command_observation` and `table_value_provenance` (used only by
+  `analyser`) to `tcl-diagnostics`.
+
+Open: `body_analysis_capsule` → `optimiser` (4) waits for step 12's
+`optimiser_report(&capsule)`; `segmenter` → `analyser` (4) for step 2's
+`segment_with_recovery` move; `tcl-binding` → `tcl-diagnostics` (162) is
+item 250's done-when. An item row's own code cannot be placed apart from its
+file; `BindingKind` and the `analyses` lattice name nothing above them today.
