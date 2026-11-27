@@ -316,9 +316,21 @@ compile: Facet { rows: [(ANY, CompileRecipe::Target(TargetRecipe { target: EBPF,
 ```
 
 Tcl compiles it to a plain invoke. On eBPF the recipe is the only choice.
-The backend's documented bounds proof is a design sketch here, because
-`bpf-tcl` is not built: `r2 = r6; r2 += 38; if r2 <= r7 goto +2; r0 = 0;
-exit; r2 = *(u16 *)(r6 + 36)`.
+
+**eBPF** (`bpf-tcl compile block-ssh.bpftcl --target kernel-socket --emit asm`,
+the `load16` instructions of 50):
+
+```text
+  22: r2 = r6
+  23: r2 += 38
+  24: if r2 <= r7 goto +2
+  25: r0 = 0
+  26: exit
+  27: r2 = *(u16 *)(r6 +36)
+```
+
+`r6` and `r7` are `data` and `data_end` from `__sk_buff` (instructions 0 and
+1). The bounds proof the verifier needs comes before the load.
 
 **Result:**
 
@@ -328,6 +340,7 @@ port 22: drop
 port 80: 40
 short:   drop
 rbpf, asserted in tests/socket_filter.rs:95-116: 0, 40, 0
+$ bpf-tcl run block-ssh.bpftcl --packet <port 22 at 36>   drop (r0=0)
 ```
 
 ## Work list
