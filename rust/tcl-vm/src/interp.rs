@@ -343,6 +343,8 @@ pub struct Vm {
     /// Mutable standard-channel handles shared by every interpreter in this
     /// VM, just like the process-wide handles in C Tcl.
     pub(crate) standard_channels: RefCell<tcl_cmd_core::channel::StandardChannelConfigs>,
+    /// Whether the last read of `stdin` met the end of its input (`eof stdin`).
+    pub(crate) stdin_eof: bool,
     /// Mutable `encoding system` state shared by the interpreter tree. The
     /// host supplies its initial value; changing it affects only channels
     /// opened afterwards.

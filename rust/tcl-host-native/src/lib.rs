@@ -36,7 +36,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{BufRead as _, Read as _, Write};
 use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -235,6 +235,25 @@ impl StdIo for NativeStdIo {
 
     fn flush_stderr(&self) {
         let _ = std::io::stderr().flush();
+    }
+
+    // Through the process-wide `Stdin` buffer, so a shell reading its script
+    // from stdin and the script's own reads share one stream, as `Tcl_Main`
+    // and the script share Tcl's stdin channel.
+    fn read_stdin_line(&self, out: &mut Vec<u8>) -> Result<usize, HostError> {
+        std::io::stdin()
+            .lock()
+            .read_until(b'\n', out)
+            .map_err(|e| HostError::from_io(&e))
+    }
+
+    fn read_stdin(&self, out: &mut Vec<u8>, limit: Option<usize>) -> Result<usize, HostError> {
+        let mut stdin = std::io::stdin().lock();
+        match limit {
+            Some(n) => stdin.take(n as u64).read_to_end(out),
+            None => stdin.read_to_end(out),
+        }
+        .map_err(|e| HostError::from_io(&e))
     }
 }
 

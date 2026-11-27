@@ -194,8 +194,10 @@ pub fn exec<O: ValueOps>(
 }
 
 /// The message and `-errorcode` `TclProcessWait` reports for a child's exit,
-/// or `(None, None)` for a clean exit.
-fn child_failure(pid: u32, exit: ProcessExit) -> (Option<String>, Option<String>) {
+/// or `(None, None)` for a clean exit. `exec` and the `close` of an
+/// `open |cmd` pipeline both report through it, as `TclCleanupChildren` does.
+#[must_use]
+pub fn child_failure(pid: u32, exit: ProcessExit) -> (Option<String>, Option<String>) {
     let pid = pid.to_string();
     match exit {
         ProcessExit::Exited(0) => (None, None),
