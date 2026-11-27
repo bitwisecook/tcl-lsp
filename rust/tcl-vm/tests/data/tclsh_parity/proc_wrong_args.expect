@@ -1,0 +1,140 @@
+==== 8.4 file ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 8.4 stdin ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 8.5 file ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 8.5 stdin ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 8.6 file ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 8.6 stdin ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 9.0 file ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 9.0 stdin ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 9.1 file ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">
+==== 9.1 stdin ====
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a::b x">
+1 <wrong # args: should be "::a:::b x">
+1 <wrong # args: should be "b x">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "::::p x ?y?">
+1 <wrong # args: should be "::p x ?y?">
+1 <wrong # args: should be "{s p} x">
+1 <wrong # args: should be "::list::Lreverse sequence">

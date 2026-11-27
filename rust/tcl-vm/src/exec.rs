@@ -1374,14 +1374,14 @@ fn irule(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
     }
 }
 
-/// The Tcl `wrong # args` usage message for a proc.
-fn proc_usage(proc: &ProcDef) -> String {
-    // `proc.name` is the VM's unrooted key: construction-inverse tail —
-    // an `rsplit` would misread a lone-colon name.
-    let simple = proc.usage_name.as_deref().map_or_else(
-        || crate::interp::key_holder_and_tail_unrooted(&proc.name).1,
-        str::to_owned,
-    );
+/// The Tcl `wrong # args` usage message for a proc. Like C's
+/// `ProcWrongNumArgs`, the leading word is the command word as invoked
+/// (`objv[0]`), so `::a::b` reports `"::a::b x"` and `b` reports `"b x"`.
+fn proc_usage(proc: &ProcDef, invoked: &Value) -> String {
+    let simple = proc
+        .usage_name
+        .clone()
+        .unwrap_or_else(|| invoked.to_str().to_string());
     // Each desired-arg word is list-quoted (C's `Tcl_WrongNumArgs`), so a param
     // name containing spaces shows as `{a b c}` and an empty name as `{}`
     // (proc-3.6/3.7). A trailing `args` becomes the raw `?arg ...?` suffix — not
@@ -2915,12 +2915,12 @@ impl Vm {
                 self.set_local(&p.name, d.clone());
             } else {
                 self.pop_call_frame();
-                return Err(err(proc_usage(proc)));
+                return Err(err(proc_usage(proc, invoked)));
             }
         }
         if i < argv.len() {
             self.pop_call_frame();
-            return Err(err(proc_usage(proc)));
+            return Err(err(proc_usage(proc, invoked)));
         }
         // The body resolves names in the proc's defining namespace — the exact
         // token it was bound in, not whatever currently answers to that name.
